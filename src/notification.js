@@ -14,7 +14,7 @@
 import $ from "jquery";
 
 import { MiscUtils } from './miscUtils.js';
-import { Text } from './text.js';
+import { Text } from './text.ts';
 
 var TIMEOUT_SECS = 30;
 
@@ -99,11 +99,11 @@ var handleClick = function(e) {
 Notification.prototype.createMessage = function(message) {
 
   if (Object.hasOwn(message, 'data') && message.data !== undefined && Object.hasOwn(message.data, 'x') && Object.hasOwn(message.data, 'y')) {
-    this._displayLink(Text.messageText[message.subject], message.data.x, message.data.y);
+    this._displayLink(Text.messages[message.subject].text, message.data.x, message.data.y);
     return;
   }
 
-  this._displayText(Text.messageText[message.subject]);
+  this._displayText(Text.messages[message.subject].text);
 };
 
 

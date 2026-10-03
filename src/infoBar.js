@@ -15,7 +15,7 @@ import $ from "jquery";
 
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { Text } from './text.js';
+import { Text } from './text.ts';
 
 // TODO L20N
 

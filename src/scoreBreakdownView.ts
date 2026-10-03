@@ -12,7 +12,7 @@
  */
 
 import type { ScoreEntry } from "./protocol";
-import { Text } from "./text.js";
+import { Text } from "./text";
 
 // One row of the evaluation window's "Why the score changed" list
 export interface ScoreRow {

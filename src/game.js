@@ -46,7 +46,7 @@ import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
 import { attachToTestHook } from './testHook.ts';
-import { Text } from './text.js';
+import { Text } from './text.ts';
 import { TouchWarnWindow } from './touchWarnWindow.ts';
 import { UiRandom } from './uiRandom.ts';
 import { budgetCommand, settingsCommands, toolOutcome } from './windowCommands.ts';
@@ -485,10 +485,11 @@ var touchListener = function() {
 Game.prototype.processFrontEndMessage = function(message) {
   var subject = message.subject;
   var d = new Date();
+  var tone = Object.hasOwn(Text.messages, subject) ? Text.messages[subject].tone : null;
 
   // Good news is a milestone: the city reaching a new class. It shows even over a recent disaster, unlike neutral news,
   // as the notification is the only place the player learns of it
-  if (Text.goodMessages[subject] !== undefined) {
+  if (tone === 'good') {
     this._notificationBar.goodNews(message);
     return;
   }
@@ -501,14 +502,14 @@ Game.prototype.processFrontEndMessage = function(message) {
     this.monsterTV.track(message.data.x, message.data.y, message.data.sprite);
   }
 
-  if (Text.badMessages[subject] !== undefined) {
+  if (tone === 'bad') {
     this._notificationBar.badNews(message);
     if (Messages.DISASTER_MESSAGES.indexOf(message.subject) !== -1)
       this.lastBadMessageTime = d;
     return;
   }
 
-  if (Text.neutralMessages[subject] !== undefined) {
+  if (tone === 'neutral') {
     if (this.lastBadMessageTime === null || d - this.lastBadMessageTime > disasterTimeout) {
       this.lastBadMessageTime = null;
       this._notificationBar.news(message);

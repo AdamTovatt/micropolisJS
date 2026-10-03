@@ -13,7 +13,7 @@
 
 import { CanvasOverlay, legendView, OverlayContext, OverlayView, rampColour } from "../src/overlayRenderer";
 import { OVERLAY_LAYERS, OverlayAnswer, OverlayLayer } from "../src/protocol";
-import { Text } from "../src/text.js";
+import { Text } from "../src/text";
 
 function answer(layer: OverlayLayer, low: number, high: number, overrides: Partial<OverlayAnswer> = {}): OverlayAnswer {
     return {type: "overlay", layer, blockSize: 2, width: 2, height: 2, low, high, values: [0, 0, 0, 0], ...overrides};
