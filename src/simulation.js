@@ -63,7 +63,7 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGa
   this._cityYearLast = -1;
   this._cityMonthLast = -1;
 
-  // Last time we relayed a message from PowerManager to the front-end
+  // The city time we last sent a power message to the front end
   this._lastPowerMessage = null;
 
   // And now, the main cast of characters
@@ -265,14 +265,8 @@ Simulation.prototype.init = function() {
   for (var i = 0, l = evaluationEvents.length; i < l; i++)
     this.evaluation.addEventListener(evaluationEvents[i], MiscUtils.reflectEvent.bind(this, evaluationEvents[i]));
 
-  this._powerManager.addEventListener(Messages.NOT_ENOUGH_POWER, function() {
-    var d = new Date();
-
-    if (this._lastPowerMessage === null || d - this._lastPowerMessage > 1000 * 60 * 2) {
-      this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NOT_ENOUGH_POWER});
-      this._lastPowerMessage = d;
-    }
-  }.bind(this));
+  this._powerManager.addEventListener(Messages.NOT_ENOUGH_POWER,
+                                      this._sendPowerMessage.bind(this, Messages.NOT_ENOUGH_POWER));
 
   this.budget.addEventListener(Messages.FUNDS_CHANGED, MiscUtils.reflectEvent.bind(this, Messages.FUNDS_CHANGED));
   this.budget.addEventListener(Messages.BUDGET_NEEDED, MiscUtils.reflectEvent.bind(this, Messages.BUDGET_NEEDED));
@@ -415,6 +409,19 @@ Simulation.prototype._simulate = function(simData) {
 };
 
 
+// The power messages, NOT_ENOUGH_POWER and BLACKOUTS_REPORTED, share one throttle: after either is sent, neither is
+// sent again until this much city time has passed, three city years
+var POWER_MESSAGE_INTERVAL = 3 * 48;
+
+Simulation.prototype._sendPowerMessage = function(subject) {
+  if (this._lastPowerMessage !== null && this._cityTime - this._lastPowerMessage <= POWER_MESSAGE_INTERVAL)
+    return;
+
+  this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: subject});
+  this._lastPowerMessage = this._cityTime;
+};
+
+
 Simulation.prototype._wrapMessage = function(message, data) {
   this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: message, data: data});
 };
@@ -485,18 +492,8 @@ Simulation.prototype._sendMessages = function() {
       break;
 
     case 32:
-      // The zoneCount guard repeats part of BLACKOUTS_REPORTED's test. It is left for the rewrite of this case's
-      // wall-clock throttle (#2), so this case's lines stay as they are until then.
-      var zoneCount = this._census.unpoweredZoneCount + this._census.poweredZoneCount;
-      if (zoneCount > 0) {
-        if (holds(Messages.BLACKOUTS_REPORTED)) {
-          var d = new Date();
-          if (this._lastPowerMessage === null || d - this._lastPowerMessage > 1000 * 60 * 2) {
-            this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.BLACKOUTS_REPORTED});
-            this._lastPowerMessage = d;
-          }
-        }
-      }
+      if (holds(Messages.BLACKOUTS_REPORTED))
+        this._sendPowerMessage(Messages.BLACKOUTS_REPORTED);
       break;
 
     case 35:

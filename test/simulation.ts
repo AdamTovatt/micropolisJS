@@ -13,6 +13,7 @@
 
 import { GameMap } from "../src/gameMap.js";
 import { MapGenerator } from "../src/mapGenerator.js";
+import * as Messages from "../src/messages";
 import { Random } from "../src/random";
 import { Simulation } from "../src/simulation.js";
 import { ANIMBIT } from "../src/tileFlags";
@@ -157,6 +158,58 @@ describe("a simulation", () => {
 
             expect(phasesRun(simulation)).toBe(0);
             expect(simulation.spriteManager.spriteCycle).toBe(0);
+        });
+    });
+
+    describe("throttling its power messages", () => {
+
+        const POWER_MESSAGE_INTERVAL = 3 * 48;
+
+        function listen(simulation: SimulationInstance) {
+            const subjects: string[] = [];
+            simulation.addEventListener(Messages.FRONT_END_MESSAGE,
+                                        (message: {subject: string}) => subjects.push(message.subject));
+            return subjects;
+        }
+
+        function reportNotEnoughPower(simulation: SimulationInstance, cityTime: number) {
+            simulation._cityTime = cityTime;
+            (simulation._powerManager as unknown as {_emitEvent(event: string): void})._emitEvent(
+                Messages.NOT_ENOUGH_POWER);
+        }
+
+        it("sends NOT_ENOUGH_POWER again only once the interval of city time has passed", () => {
+            const simulation = newSimulation(SEED);
+            const subjects = listen(simulation);
+
+            reportNotEnoughPower(simulation, 100);
+            reportNotEnoughPower(simulation, 100 + POWER_MESSAGE_INTERVAL);
+            reportNotEnoughPower(simulation, 100 + POWER_MESSAGE_INTERVAL + 1);
+
+            expect(subjects).toEqual([Messages.NOT_ENOUGH_POWER, Messages.NOT_ENOUGH_POWER]);
+        });
+
+        it("holds back BLACKOUTS_REPORTED for the interval after NOT_ENOUGH_POWER", () => {
+            const simulation = newSimulation(SEED);
+            const subjects = listen(simulation);
+
+            // Most zones unpowered while a plant runs: the blackouts condition holds
+            const census = simulation._census;
+            census.coalPowerPop = 1;
+            census.poweredZoneCount = 1;
+            census.unpoweredZoneCount = 9;
+
+            // _sendMessages checks for blackouts when cityTime & 63 is 32: the first two checks fall inside the interval
+            // after the NOT_ENOUGH_POWER at 0, and the third past it
+            reportNotEnoughPower(simulation, 0);
+            for (const cityTime of [32, 96, 160]) {
+                simulation._cityTime = cityTime;
+                simulation._sendMessages();
+            }
+
+            const powerMessages = subjects.filter((subject) =>
+                subject === Messages.NOT_ENOUGH_POWER || subject === Messages.BLACKOUTS_REPORTED);
+            expect(powerMessages).toEqual([Messages.NOT_ENOUGH_POWER, Messages.BLACKOUTS_REPORTED]);
         });
     });
 });
