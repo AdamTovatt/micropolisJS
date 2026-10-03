@@ -166,7 +166,7 @@ var fireZone = function(map, x, y, blockMaps) {
       if (!map.testBounds(xTem, yTem))
         continue;
 
-      if (map.getTileValue(xTem, yTem >= TileValues.ROADBASE))
+      if (map.getTileValue(xTem, yTem) >= TileValues.ROADBASE)
         map.addTileFlags(xTem, yTem, BULLBIT);
     }
   }
