@@ -25,7 +25,7 @@ import { ToolPaths } from './dragPath.ts';
 import { EvaluationWindow } from './evaluationWindow.ts';
 import { GameCanvas } from './gameCanvas.ts';
 import { placeInfoBar } from './infoBar.ts';
-import { InputStatus } from './inputStatus.js';
+import { InputStatus } from './inputStatus.ts';
 import * as Messages from './messages.ts';
 import { MonsterTV } from './monsterTV.ts';
 import { placeNotificationBar } from './notification.ts';
@@ -533,10 +533,8 @@ Game.prototype.calculateMouseForPaint = function() {
       mouse.x = tileCoords.x;
       mouse.y = tileCoords.y;
 
-      // The inputStatus fields came from DOM attributes, so will be strings.
-      // Coerce back to numbers.
-      mouse.width = this.inputStatus.toolWidth - 0;
-      mouse.height = this.inputStatus.toolWidth - 0;
+      mouse.width = this.inputStatus.toolWidth;
+      mouse.height = this.inputStatus.toolWidth;
       mouse.colour = this.inputStatus.toolColour || 'yellow';
     }
   }
