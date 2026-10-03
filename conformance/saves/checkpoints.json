@@ -1,10 +1,14 @@
 {
   "broke": {"built":0,"run":6912},
+  "forestFire": {"built":0,"run":6912},
+  "overloaded": {"built":0,"run":6912},
   "suburb": {"built":0,"run":6912},
   "suburbBroke": {"built":0,"run":6912},
   "suburbFast": {"built":0,"run":6912},
   "suburbSlow": {"built":0,"run":6912},
   "suburbUnderfunded": {"built":0,"run":6912},
   "town": {"built":0,"run":6912},
-  "underfunded": {"built":0,"run":6912}
+  "twinPlants": {"built":0,"run":6912},
+  "underfunded": {"built":0,"run":6912},
+  "wilderness": {"built":0,"run":6912}
 }

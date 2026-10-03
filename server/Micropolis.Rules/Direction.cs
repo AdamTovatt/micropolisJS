@@ -31,7 +31,11 @@ namespace Micropolis.Rules
 
         private static readonly Direction[] AllDirections = [North, NorthEast, East, SouthEast, South, SouthWest, West, NorthWest];
 
-        private static readonly Direction[] CardinalDirections = [North, East, South, West];
+        /// <summary>
+        /// North, east, south and west, in that order: the order <c>forEachCardinalDirection</c> in
+        /// <c>src/direction.ts</c> visits them, which a walk that stops at the first ways it finds depends on.
+        /// </summary>
+        public static readonly IReadOnlyList<Direction> CardinalDirections = [North, East, South, West];
 
         private readonly string _name;
         private readonly int _index;
@@ -89,9 +93,9 @@ namespace Micropolis.Rules
             return AllDirections[(_index + delta) % AllDirections.Length];
         }
 
-        private static Direction GetRandomDirectionFrom(Direction[] directions, RandomStream random)
+        private static Direction GetRandomDirectionFrom(IReadOnlyList<Direction> directions, RandomStream random)
         {
-            int maxIndex = directions.Length - 1;
+            int maxIndex = directions.Count - 1;
             int index = random.GetRandom(maxIndex);
             return directions[index];
         }

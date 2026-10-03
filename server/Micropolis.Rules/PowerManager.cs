@@ -21,6 +21,9 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed class PowerManager
     {
+        // The tiles a coal and a nuclear plant can power
+        private const long CoalPowerStrength = 700;
+        private const long NuclearPowerStrength = 2000;
         private readonly GameMap _map;
 
         public PowerManager(GameMap map)
@@ -98,9 +101,87 @@ namespace Micropolis.Rules
             _powerStack = new List<Position>();
         }
 
+        // Whether the tile one step from the position is on the map, conductive and not yet reached by the scan
+        private bool TestForConductive(BlockMap visitedMap, Position position, Direction testDir)
+        {
+            Position movedPos = Position.Move(position, testDir);
+
+            return _map.IsPositionInBounds(movedPos) && _map.GetTile(movedPos.X, movedPos.Y).IsConductive() &&
+                   visitedMap.WorldGet(movedPos.X, movedPos.Y) == 0;
+        }
+
+        /// <summary>
+        /// Walks the conductive tiles from each power source on the stack, powering them in the grid until the walk
+        /// passes what the plants deliver, and raises <see cref="Messages.NOT_ENOUGH_POWER"/> when it does.
+        /// </summary>
+        /// <remarks>
+        /// As in the original, a plant beside another is walked as a load of the first rather than as a source. The
+        /// original stops at the first step past the capacity; this walk goes on to measure the whole load, and powers
+        /// exactly the tiles the original does.
+        /// </remarks>
         public void DoPowerScan(Census census)
         {
-            throw new NotPortedException("powerManager.doPowerScan");
+            PowerGridMap.Clear();
+
+            // Every tile the walk has reached, powered or not. Each scan starts it afresh, so no save holds it.
+            BlockMap visitedMap = new BlockMap(_map.Width, _map.Height, 1, 0, 1);
+
+            long maxPower = census.CoalPowerPop * CoalPowerStrength + census.NuclearPowerPop * NuclearPowerStrength;
+            long powerConsumption = 0;
+
+            while (_powerStack.Count > 0)
+            {
+                Position position = _powerStack[^1];
+                _powerStack.RemoveAt(_powerStack.Count - 1);                Direction? anyDir = null;
+                int conNum;
+
+                do
+                {
+                    powerConsumption++;
+
+                    if (anyDir is not null)
+                    {
+                        position = Position.Move(position, anyDir);
+                    }
+
+                    visitedMap.WorldSet(position.X, position.Y, 1);
+                    if (powerConsumption <= maxPower)
+                    {
+                        PowerGridMap.WorldSet(position.X, position.Y, 1);
+                    }
+
+                    // Counts up to two ways on, looking north, east, south then west. The walk goes on the last way
+                    // counted, and a tile with two is stacked to walk from again.
+                    conNum = 0;
+
+                    foreach (Direction dir in Direction.CardinalDirections)
+                    {
+                        if (conNum >= 2)
+                        {
+                            break;
+                        }
+
+                        if (TestForConductive(visitedMap, position, dir))
+                        {
+                            conNum++;
+                            anyDir = dir;
+                        }
+                    }
+
+                    if (conNum > 1)
+                    {
+                        _powerStack.Add(position);
+                    }
+                } while (conNum > 0);
+            }
+
+            PowerCapacity = maxPower;
+            PowerLoad = powerConsumption;
+
+            if (powerConsumption > maxPower)
+            {
+                Events.Emit(Messages.NOT_ENOUGH_POWER);
+            }
         }
 
         public void CoalPowerFound(GameMap map, int x, int y, SimData simData)
