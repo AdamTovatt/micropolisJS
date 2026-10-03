@@ -207,14 +207,15 @@ function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name
   // XXX Not yet activated
   //this.simulation.addEventListener(Messages.DATE_UPDATED, this.onDateChange.bind(this));
 
-  this.infoBar = InfoBar('cclass', 'population', 'score', 'funds', 'date', 'name');
+  this.infoBar = InfoBar('cclass', 'population', 'score', 'funds', 'date', 'name', 'seed');
   var initialValues = {
     classification: this.simulation.evaluation.cityClass,
     population: this.simulation.evaluation.cityPop,
     score: this.simulation.evaluation.cityScore,
     funds: this.simulation.budget.totalFunds,
     date: this.simulation.getDate(),
-    name: this.name
+    name: this.name,
+    seed: this.simulation.seed
   };
   this.infoBar(this.simulation, initialValues);
 

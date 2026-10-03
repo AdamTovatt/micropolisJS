@@ -19,13 +19,14 @@ import { Text } from './text.js';
 
 // TODO L20N
 
-var InfoBar = function(classification, population, score, funds, date, name) {
+var InfoBar = function(classification, population, score, funds, date, name, seed) {
   var classificationSelector = MiscUtils.normaliseDOMid(classification);
   var populationSelector = MiscUtils.normaliseDOMid(population);
   var scoreSelector = MiscUtils.normaliseDOMid(score);
   var fundsSelector = MiscUtils.normaliseDOMid(funds);
   var dateSelector = MiscUtils.normaliseDOMid(date);
   var nameSelector = MiscUtils.normaliseDOMid(name);
+  var seedSelector = MiscUtils.normaliseDOMid(seed);
 
   return function(dataSource, initialValues) {
     $(classificationSelector).text(initialValues.classification);
@@ -34,6 +35,7 @@ var InfoBar = function(classification, population, score, funds, date, name) {
     $(fundsSelector).text(initialValues.funds);
     $(dateSelector).text([Text.months[initialValues.date.month], initialValues.date.year].join(' '));
     $(nameSelector).text(initialValues.name);
+    $(seedSelector).text(initialValues.seed);
 
     // Add the various listeners
     dataSource.addEventListener(Messages.CLASSIFICATION_UPDATED, function(classification) {

@@ -80,6 +80,7 @@ function SplashScreen(tileSet, snowTileSet, spriteSheet) {
 var generateMap = function() {
   this.seed = UiRandom.newSeed();
   this.map = MapGenerator(Random.mapStream(this.seed));
+  $('#splashSeed').text(this.seed);
 };
 
 
