@@ -36,6 +36,7 @@ import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.js';
 import { Simulation } from './simulation.js';
 import { StatusPanel } from './statusPanel.ts';
+import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
 import { Text } from './text.js';
 import { TouchWarnWindow } from './touchWarnWindow.js';
@@ -234,6 +235,7 @@ function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name
   this.revealControls();
 
   // Run the sim
+  this.stepDriver = new StepDriver();
   this.tick = tick.bind(this);
   this.tick();
 
@@ -665,13 +667,20 @@ var tick = function() {
   this.handleInput();
 
   if (this.dialogOpen) {
+    this.stepDriver.idle();
     window.setTimeout(this.tick, 0);
     return;
   }
 
-  if (!this.simulation.isPaused() && !$('#tooSmall').is(':visible')) {
-    // Run the sim
-    this.simulation.simTick();
+  // A hidden tab is not watched: the city waits rather than running on unseen
+  if (!this.simulation.isPaused() && !$('#tooSmall').is(':visible') && !document.hidden) {
+    // Run the sim: as many steps as the time since the last tick is due. A step can open a dialog, such as the
+    // budget window, which stops the rest
+    var steps = this.stepDriver.stepsDue(performance.now());
+    for (var i = 0; i < steps && !this.dialogOpen; i++)
+      this.simulation.step();
+  } else {
+    this.stepDriver.idle();
   }
 
   // Run this even when paused: you can still build when paused
@@ -686,9 +695,6 @@ var commonAnimate = function() {
     nextFrame(this.animate);
     return;
   }
-
-  if (!this.isPaused)
-    this.simulation.spriteManager.moveObjects(this.simulation._constructSimData());
 
   var sprites = this.calculateSpritesForPaint(this.gameCanvas);
   this.gameCanvas.paint(this.mouse, sprites, this.isPaused);

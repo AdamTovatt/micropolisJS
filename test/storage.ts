@@ -34,5 +34,14 @@ describe("storage", () => {
             expect(savedGame.seed).toBeLessThanOrEqual(0xffffffff);
             expect(savedGame.randomState).toEqual(Random.simulationStream(savedGame.seed!).getState());
         });
+
+        it("starts its speed cycle from 0", async () => {
+            const Storage = await loadStorage();
+            const savedGame: {version: number, _speedCycle?: number} = {version: 3};
+
+            Storage.transitionOldSave(savedGame);
+
+            expect(savedGame._speedCycle).toBe(0);
+        });
     });
 });

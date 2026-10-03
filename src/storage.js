@@ -60,6 +60,7 @@ var transitionOldSave = function(savedGame) {
       // Saves before the seeded stream have no seed: the city continues from a fresh one
       savedGame.seed = UiRandom.newSeed();
       savedGame.randomState = Random.simulationStream(savedGame.seed).getState();
+      savedGame._speedCycle = 0;
 
       break;
 

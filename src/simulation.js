@@ -51,6 +51,7 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGa
   this.seed = savedGame ? savedGame.seed : seed;
   this.random = Random.simulationStream(this.seed);
 
+  this._speedCycle = 0;
   this._phaseCycle = 0;
   this._simCycle = 0;
   this._cityTime = 0;
@@ -163,7 +164,7 @@ Simulation.prototype.isPaused = function() {
 };
 
 
-var saveProps = ['_cityTime', '_speed', '_gameLevel'];
+var saveProps = ['_cityTime', '_speed', '_speedCycle', '_gameLevel'];
 
 Simulation.prototype.save = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
@@ -195,47 +196,37 @@ Simulation.prototype.load = function(saveData) {
 };
 
 
-Simulation.prototype.simTick = function() {
+// One loop of the simulation, as simLoop in the original: a phase of the city cycle when the game speed lets one
+// through, then one move of every sprite, so sprites move at the same rate whatever the speed. The number of steps,
+// never wall time, is what advances the city: the same seed and the same steps give the same city. A paused
+// simulation's step does nothing, as the original's simFrame and moveObjects do nothing at speed 0.
+Simulation.prototype.step = function() {
+  if (this.isPaused())
+    return;
+
   this._simFrame();
+  this.spriteManager.moveObjects(this._constructSimData());
   this._updateTime();
   // TODO Graphs
 };
 
 
+// As simFrame in the original: speedCycle lets a phase through on every 5th step at slow speed, every 3rd at medium,
+// and every step at fast
 Simulation.prototype._simFrame = function() {
   if (this.budget.awaitingValues)
     return;
 
-  // Default to slow speed
-  var threshold = 100;
+  if (++this._speedCycle > 1023)
+    this._speedCycle = 0;
 
-  switch (this._speed) {
-    case Simulation.SPEED_PAUSED:
-      return;
-
-    case Simulation.SPEED_SLOW:
-      // We've already set the threshold correctly
-      break;
-
-    case Simulation.SPEED_MED:
-      threshold = 50;
-      break;
-
-    case Simulation.SPEED_FAST:
-      threshold = 10;
-      break;
-
-    default:
-      console.warn('Unexpected speed ('  + this._speed + '): defaulting to slow');
-  }
-
-  var d = new Date();
-  if (d - this._lastTickTime < threshold)
+  if (this._speed === Simulation.SPEED_SLOW && (this._speedCycle % 5) !== 0)
     return;
 
-  var simData = this._constructSimData();
-  this._simulate(simData);
-  this._lastTickTime = new Date();
+  if (this._speed === Simulation.SPEED_MED && (this._speedCycle % 3) !== 0)
+    return;
+
+  this._simulate(this._constructSimData());
 };
 
 
@@ -267,8 +258,6 @@ Simulation.prototype._constructSimData = function() {
 
 
 Simulation.prototype.init = function() {
-  this._lastTickTime = -1;
-
   // Add various listeners that we will in turn transmit upwards
   var evaluationEvents = ['CLASSIFICATION_UPDATED', 'POPULATION_UPDATED', 'SCORE_UPDATED'].map(function(m) {
     return Messages[m];
