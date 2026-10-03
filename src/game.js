@@ -37,7 +37,7 @@ import { QueryWindow } from './queryWindow.ts';
 import { RCI } from './rci.js';
 import { SaveWindow } from './saveWindow.ts';
 import { ScreenshotLinkWindow } from './screenshotLinkWindow.ts';
-import { ScreenshotWindow } from './screenshotWindow.js';
+import { ScreenshotWindow } from './screenshotWindow.ts';
 import { SettingsWindow } from './settingsWindow.ts';
 import { Simulation } from './simulation.js';
 import { SpeedControl } from './speedControl.ts';
@@ -318,18 +318,13 @@ Game.prototype.downloadLog = function() {
 };
 
 
-Game.prototype.handleScreenshotWindowClosure = function(action) {
+Game.prototype.handleScreenshotWindowClosure = function(area) {
   this.windows.closed();
 
-  if (action === null)
+  if (area === null)
     return;
 
-  var dataURI;
-  if (action === ScreenshotWindow.SCREENSHOT_VISIBLE)
-    dataURI = this.gameCanvas.screenshotVisible();
-  else if (action === ScreenshotWindow.SCREENSHOT_ALL)
-    dataURI = this.gameCanvas.screenshotMap();
-
+  var dataURI = area === 'visible' ? this.gameCanvas.screenshotVisible() : this.gameCanvas.screenshotMap();
   this.windows.open(this.screenshotLinkWindow, dataURI);
 };
 
