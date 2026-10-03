@@ -117,7 +117,7 @@ namespace Micropolis.Rules
 
                 for (int i = 0; i < tiles.Length; i++)
                 {
-                    map._data[i].Set(tiles[i] & TileFlags.BIT_MASK, tiles[i] & TileFlags.ALLBITS);
+                    map._data[i].SetRawValue(tiles[i]);
                 }
 
                 map.CityCentreX = saved.ReadInt("cityCentreX", 0, width - 1);

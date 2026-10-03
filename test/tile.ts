@@ -142,6 +142,26 @@ describe("when setting the value", () => {
     });
 });
 
+describe("when setting the raw value", () => {
+
+    it("should assume the value and flags it holds", () => {
+        const tile = new Tile(DIRT, TileFlags.BURNBIT);
+
+        tile.setRawValue(LIGHTNINGBOLT | TileFlags.ANIMBIT | TileFlags.CONDBIT);
+
+        expect(tile.getValue()).toBe(LIGHTNINGBOLT);
+        expect(tile.getFlags()).toBe(TileFlags.ANIMBIT | TileFlags.CONDBIT);
+    });
+
+    it("should clear the flags when it holds none", () => {
+        const tile = new Tile(FLOOD, TileFlags.BULLBIT);
+
+        tile.setRawValue(DIRT);
+
+        expect(tile.getRawValue()).toBe(DIRT);
+    });
+});
+
 describe("when adding flags", () => {
 
     it("should be a no-op when the tile already has the flags", () => {

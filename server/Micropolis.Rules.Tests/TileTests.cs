@@ -79,6 +79,27 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
+        public void SetRawValue_ValueWithFlagBits_TakesValueAndFlags()
+        {
+            Tile tile = new Tile(DIRT, BURNBIT);
+
+            tile.SetRawValue(LIGHTNINGBOLT | ANIMBIT | CONDBIT);
+
+            Assert.AreEqual(LIGHTNINGBOLT, tile.GetValue());
+            Assert.AreEqual(ANIMBIT | CONDBIT, tile.GetFlags());
+        }
+
+        [TestMethod]
+        public void SetRawValue_ValueWithoutFlagBits_ClearsTheFlags()
+        {
+            Tile tile = new Tile(FLOOD, BULLBIT);
+
+            tile.SetRawValue(DIRT);
+
+            Assert.AreEqual(DIRT, tile.GetRawValue());
+        }
+
+        [TestMethod]
         [DataRow(ANIMBIT, nameof(Tile.IsAnimated))]
         [DataRow(BULLBIT, nameof(Tile.IsBulldozable))]
         [DataRow(CONDBIT, nameof(Tile.IsConductive))]
