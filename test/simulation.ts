@@ -16,7 +16,7 @@ import * as Messages from "../src/messages";
 import { Simulation } from "../src/simulation.js";
 import { ANIMBIT } from "../src/tileFlags";
 import { FIRE } from "../src/tileValues";
-import { SimulationInstance, simulationFromSeed } from "./helpers/simulations";
+import { SimulationInstance, YEAR, buildCity, simulationFromSeed } from "./helpers/simulations";
 
 const SEED = 2026;
 
@@ -211,6 +211,60 @@ describe("a simulation", () => {
             const powerMessages = subjects.filter((subject) =>
                 subject === Messages.NOT_ENOUGH_POWER || subject === Messages.BLACKOUTS_REPORTED);
             expect(powerMessages).toEqual([Messages.NOT_ENOUGH_POWER, Messages.BLACKOUTS_REPORTED]);
+        });
+    });
+
+    // The year end is the one point where the city waits on the player: nothing else stops the year advancing while a
+    // window shows
+    describe("at a year end that needs the player's budget", () => {
+
+        // Steps the city until it asks for the budget, and returns how often it asked
+        function stepUntilBudgetNeeded(simulation: SimulationInstance) {
+            const needed = jest.fn();
+            simulation.addEventListener(Messages.BUDGET_NEEDED, needed);
+
+            for (let i = 0; i < 2 * YEAR && needed.mock.calls.length === 0; i++) {
+                simulation.step();
+            }
+
+            return needed;
+        }
+
+        function expectHeldUntilBudgeted(simulation: SimulationInstance, needed: jest.Mock) {
+            expect(needed).toHaveBeenCalledTimes(1);
+            expect(simulation.budget.awaitingValues).toBe(true);
+
+            const heldAt = simulation._cityTime;
+            steps(simulation, YEAR);
+            expect(simulation._cityTime).toBe(heldAt);
+            expect(needed).toHaveBeenCalledTimes(1);
+
+            // The rest of the year-end cycle, then the next cycle's first phase
+            simulation.budget.doBudgetWindow();
+            expect(simulation.budget.awaitingValues).toBe(false);
+            steps(simulation, 16);
+            expect(simulation._cityTime).toBe(heldAt + 1);
+        }
+
+        it("asks once with auto-budget off, and holds the city time until it has the values", () => {
+            const simulation = buildCity(SEED, SEED);
+            simulation.budget.setAutoBudget(false);
+
+            const needed = stepUntilBudgetNeeded(simulation);
+
+            expectHeldUntilBudgeted(simulation, needed);
+        });
+
+        it("asks once when auto-budget can't pay for the services, turns auto-budget off, and holds the city time",
+           () => {
+            const simulation = buildCity(SEED, SEED);
+            simulation.budget.setFunds(0);
+            simulation.budget.setTax(0);
+
+            const needed = stepUntilBudgetNeeded(simulation);
+
+            expect(simulation.budget.autoBudget).toBe(false);
+            expectHeldUntilBudgeted(simulation, needed);
         });
     });
 });
