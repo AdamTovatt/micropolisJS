@@ -12,13 +12,13 @@
  */
 
 import { cityFromSeed, Level, Simulation as HeadlessSimulation } from "../../headless/city";
-import { CityBuilder } from "../../headless/fixtures/builder";
 import { Command, CommandResult, LOCAL_PLAYER } from "../../src/commands";
 import { GameMap } from "../../src/gameMap.js";
 import { MapGenerator } from "../../src/mapGenerator.js";
 import { Random } from "../../src/random";
 import { Simulation } from "../../src/simulation.js";
 import { DIRT } from "../../src/tileValues";
+import { CityBuilder } from "./cityBuilder";
 
 // Building simulations, and editing their cities, as the tests do
 

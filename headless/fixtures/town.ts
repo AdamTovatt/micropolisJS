@@ -11,14 +11,15 @@
  *
  */
 
-import { Level, Speed } from "../city";
-import { CityBuilder, Fixture } from "./builder";
+import { Command, ToolName } from "../../src/commands";
+import { builtFixture, RUN_STEPS } from "./fixture";
+import { buildingAt, lineOf } from "./toolCommands";
 
 // A small powered town: two rows of ten zones either side of a road, a coal plant at the west end, and an airport
 // and a railway to the south, which bring planes, a helicopter and trains. It has no police or fire station: their
-// upkeep would run its funds down until auto-budget couldn't pay, turned itself off and left the services underfunded,
-// and the run would pin that slide rather than a growing town. Seed 8's map has open land
-// and woods from (10, 10) to (53, 33), and the town fits inside it.
+// upkeep would run its funds down until auto-budget couldn't pay, turned itself off and left the services
+// underfunded, and the run would pin that slide rather than a growing town. Seed 8's map has open land and woods from
+// (10, 10) to (53, 33), and the town fits inside it.
 
 const LEFT = 14;
 const TOP = 12;
@@ -26,54 +27,40 @@ const ZONES_PER_ROW = 10;
 const RIGHT = LEFT + 3 * ZONES_PER_ROW;
 
 // R residential, C commercial, I industrial
+const ZONE_TOOLS: Record<string, ToolName> = {R: "residential", C: "commercial", I: "industrial"};
 const NORTH_ROW = "RRCRRCRRCR";
 const SOUTH_ROW = "IIIRRCRRII";
 
-function zoneRow(builder: CityBuilder, kinds: string, top: number) {
-  for (let i = 0; i < ZONES_PER_ROW; i++) {
-    const x = LEFT + 3 * i + 1;
-    const y = top + 1;
-
-    switch (kinds[i]) {
-      case "R":
-        builder.residential(x, y);
-        break;
-
-      case "C":
-        builder.commercial(x, y);
-        break;
-
-      case "I":
-        builder.industrial(x, y);
-        break;
-
-      default:
-        throw new Error(`Unknown zone kind ${kinds[i]}`);
-    }
+function zoneRow(kinds: string, top: number): Command[] {
+  if (kinds.length !== ZONES_PER_ROW) {
+    throw new Error(`A row has ${ZONES_PER_ROW} zones, got ${kinds}`);
   }
+
+  return Array.from(kinds, (kind, i) => buildingAt(ZONE_TOOLS[kind], LEFT + 3 * i + 1, top + 1));
 }
 
-export const town: Fixture = {
-  seed: 8,
-  level: Level.easy,
-  speed: Speed.medium,
+const commands: Command[] = [
+  // The plant's east side touches the north row's first zone
+  buildingAt("coal", LEFT - 3, TOP + 1),
+  ...zoneRow(NORTH_ROW, TOP),
+  lineOf("road", LEFT, TOP + 3, RIGHT, TOP + 3),
+  ...zoneRow(SOUTH_ROW, TOP + 4),
+  lineOf("road", LEFT, TOP + 7, RIGHT, TOP + 7),
+  lineOf("road", RIGHT, TOP + 4, RIGHT, TOP + 6),
 
-  build(builder) {
-    // The plant's east side touches the north row's first zone
-    builder.coal(LEFT - 3, TOP + 1);
-    zoneRow(builder, NORTH_ROW, TOP);
-    builder.road(LEFT, TOP + 3, RIGHT, TOP + 3);
-    zoneRow(builder, SOUTH_ROW, TOP + 4);
-    builder.road(LEFT, TOP + 7, RIGHT, TOP + 7);
-    builder.road(RIGHT, TOP + 4, RIGHT, TOP + 6);
+  // The south row touches the plant only at a corner, which doesn't conduct
+  lineOf("wire", LEFT - 1, TOP + 4, LEFT - 1, TOP + 4),
 
-    // The south row touches the plant only at a corner, which doesn't conduct
-    builder.wire(LEFT - 1, TOP + 4, LEFT - 1, TOP + 4);
+  // A wire from the south row crosses the south road to the airport
+  lineOf("wire", LEFT, TOP + 7, LEFT, TOP + 9),
+  buildingAt("airport", LEFT + 1, TOP + 11),
 
-    // A wire from the south row crosses the south road to the airport
-    builder.wire(LEFT, TOP + 7, LEFT, TOP + 9);
-    builder.airport(LEFT + 1, TOP + 11);
+  lineOf("rail", LEFT, TOP + 17, RIGHT + 6, TOP + 17),
+];
 
-    builder.rail(LEFT, TOP + 17, RIGHT + 6, TOP + 17);
-  },
-};
+// Its checkpoints are its golden hashes: the town as built, and after its run
+export const town = builtFixture(
+  "A small powered town of twenty zones, with a coal plant, an airport and a railway", commands, [
+    {step: 0, hash: "2bef2f8f64e1941c8a29b6202fa3dd23c8c0d54f73a37f9a56f50b46959ff2ec"},
+    {step: RUN_STEPS, hash: "8abbc233606361020d9ef13643b9759cc2aa993cae85149c3dd1b5d10f5c1644"},
+  ]);

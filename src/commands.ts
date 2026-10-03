@@ -60,6 +60,8 @@ export type Command =
 
 export type CommandType = Command["type"];
 
+export type ToolCommand = Extract<Command, {type: "tool"}>;
+
 // A player's id. Single player has the one player.
 export type PlayerId = string;
 
@@ -122,7 +124,7 @@ function hasFields(value: Record<string, unknown>, rules: Record<string, FieldRu
          keys.every((key) => Object.prototype.hasOwnProperty.call(rules, key));
 }
 
-function isWholeNumber(value: unknown): value is number {
+export function isWholeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value);
 }
 

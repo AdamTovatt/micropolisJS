@@ -11,8 +11,7 @@
  *
  */
 
-import { fixtureSave } from "../headless/fixtures/index";
-import { advance, startCity } from "../headless/runner";
+import { advance, fixtureSave, startCity } from "../headless/runner";
 import { AUTO_BULLDOZE_KEY } from "../src/autoBulldozePreference";
 import { Budget } from "../src/budget.js";
 import { GameMap } from "../src/gameMap.js";

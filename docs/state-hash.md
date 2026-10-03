@@ -145,10 +145,12 @@ block map.
 
 ## Golden hashes
 
-`test/goldenHashes.ts` pins two hashes per fixture: the **built** hash of the state its script builds, and the
-**run** hash after the number of steps given there (`STEPS`) at medium speed. `npm run fixtures` exports each
-fixture's built state to `headless/fixtures/export/<name>.json`, whose SHA-256 is the built hash. The C# port takes
-that file as its starting state, sets the speed to medium, steps it `STEPS` times and must produce the run hash.
+Each fixture is a command log (`docs/command-log.md`) whose checkpoints are its golden hashes: the **built** hash at
+step 0, of the state its commands build, and the **run** hash after a fixed run at the medium speed a new city starts
+at. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtures` exports each fixture's log to
+`headless/fixtures/export/<name>.log.json`, and its built state to `<name>.json`, whose SHA-256 is the built hash. The
+C# port replays the log, or takes the built state as its starting state and steps it at medium speed to the run
+checkpoint's step, and must produce the run hash.
 
 ## What the hash leaves out
 

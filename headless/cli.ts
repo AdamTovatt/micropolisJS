@@ -12,22 +12,21 @@
  */
 
 // The headless runner: `npm run simulate -- (--seed <n> | --fixture <name> [--reseed <n>]) [--speed <speed>]
-// --steps <n>`. Prints the state hash, then the year, population and funds.
+// --steps <n>`, or `npm run simulate -- --log <file>`, which replays a command log, counts its commands' outcomes and
+// verifies its checkpoints, printing how many match, and fails when it has none to verify. Prints the state hash, then
+// the year, population and funds.
 
-import { parseCommandLine } from "./commandLine";
-import { advance, startCity, summarise } from "./runner";
+import * as fs from "fs";
+import { run } from "./run";
 
-async function main() {
-  const run = parseCommandLine(process.argv.slice(2));
-  const city = startCity(run.start);
-  advance(city, run.steps);
+run(process.argv.slice(2), (path) => fs.readFileSync(path, "utf8")).then((report) => {
+  report.lines.forEach((line) => console.log(line));
 
-  const summary = await summarise(city);
-  console.log(summary.hash);
-  console.log(`year ${summary.year}, population ${summary.population}, funds ${summary.funds}`);
-}
-
-main().catch((error: Error) => {
+  if (report.failure !== null) {
+    console.error(report.failure);
+    process.exitCode = 1;
+  }
+}, (error: Error) => {
   console.error(error.message);
   process.exitCode = 1;
 });

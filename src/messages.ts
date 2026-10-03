@@ -38,6 +38,7 @@ export const HEAVY_TRAFFIC = "Total funds has changed";
 export const HELICOPTER_CRASHED = "Helicopter crashed";
 export const HIGH_CRIME = "High crime";
 export const HIGH_POLLUTION = "High pollution";
+export const LOG_UNCHECKED = "Command log saved without checkpoints";
 export const MONSTER_SIGHTED = "Monster sighted";
 export const NEED_AIRPORT = "Airport needed";
 export const NEED_ELECTRICITY = "More power needed";

@@ -26,7 +26,7 @@ function control(simulation: SimulationInstance) {
     const queue = new CommandQueue({
         applyCommands: (received: ReceivedCommand[]) => simulation.applyCommands(received) as CommandResult[],
         step: () => simulation.step(),
-    }, () => {});
+    }, {applied: () => {}, beforeStep: () => {}});
     const shown: boolean[] = [];
     const sent: number[] = [];
     const speedControl = new SpeedControl(simulation, (speed) => {

@@ -11,20 +11,38 @@
  *
  */
 
-import { cityFromSave, cityFromSeed, Level, SaveData, Speed } from "../headless/city";
+import { cityFromSave, SaveData, Speed } from "../headless/city";
 import { parseCommandLine } from "../headless/commandLine";
-import { buildFixture, CityBuilder } from "../headless/fixtures/builder";
-import { fixtureNames, fixtures, fixtureSave } from "../headless/fixtures/index";
-import { advance, Start, startCity, startFromSave, summarise } from "../headless/runner";
+import { RUN_STEPS } from "../headless/fixtures/fixture";
+import { fixtureLog, fixtureNames } from "../headless/fixtures/index";
+import { lineOf } from "../headless/fixtures/toolCommands";
+import { run } from "../headless/run";
+import { advance, fixtureSave, replay, Start, startCity, startFromSave, summarise } from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
+import { parseLog } from "../src/commandLog";
+import { LOCAL_PLAYER } from "../src/commands";
 import { plainSavedState, savedState, stateHash } from "../src/stateHash";
 import { InspectedSave } from "./helpers/savedState";
 
 describe("a fixture", () => {
 
-    it.each(fixtureNames())("%s loads to exactly the state its script builds", (name) => {
+    it.each(fixtureNames())("%s is a command log as a file holds one", (name) => {
+        const log = fixtureLog(name);
+
+        expect(parseLog(JSON.parse(JSON.stringify(log)))).toEqual(log);
+    });
+
+    // A fixture whose build silently skipped an edit would pin a different city than its log describes
+    it.each(fixtureNames())("%s is built by commands that all succeed", (name) => {
+        const {results} = replay(fixtureLog(name), {verify: false});
+
+        expect(results).toHaveLength(fixtureLog(name).entries.length);
+        expect(results.filter((result) => result.outcome !== "ok")).toEqual([]);
+    });
+
+    it.each(fixtureNames())("%s loads to exactly the state its log builds", (name) => {
         expect(canonicalJson(savedState(startCity({fixture: name}))))
-            .toBe(canonicalJson(savedState(buildFixture(fixtures[name]))));
+            .toBe(canonicalJson(savedState(replay(fixtureLog(name), {to: 0, verify: false}).city)));
     });
 });
 
@@ -193,26 +211,50 @@ describe("a run", () => {
     });
 });
 
-describe("the fixture builder", () => {
+describe("a fixture's tool commands", () => {
 
-    const builderOnSeed8 = () => new CityBuilder(cityFromSeed(8, Level.easy, Speed.medium));
+    it("lay only straight lines", () => {
+        expect(() => lineOf("road", 12, 12, 14, 14)).toThrow("A road line must be horizontal or vertical");
+    });
+});
 
-    it("lays only straight lines", () => {
-        expect(() => builderOnSeed8().road(12, 12, 14, 14)).toThrow("A road line must be horizontal or vertical");
+describe("the command line's replay of a log", () => {
+
+    // The town's log, with a road off the map that the town's replay rejects and that changes nothing
+    const townWithRejection = () => {
+        const town = fixtureLog("town");
+        const offMap = {step: 0, player: LOCAL_PLAYER, command: lineOf("road", -1, 0, -1, 0)};
+        return {...town, entries: [...town.entries, offMap]};
+    };
+    const replayLog = (log: object) => run(["--log", "session.json"], () => JSON.stringify(log));
+
+    it("counts its commands' outcomes and its checkpoints, and passes when they all match", async () => {
+        const log = townWithRejection();
+        const town = startCity({fixture: "town"});
+        advance(town, RUN_STEPS);
+        const summary = await summarise(town);
+
+        expect(await replayLog(log)).toEqual({
+            lines: [`${log.entries.length} commands: ${log.entries.length - 1} ok, 1 rejected`, "2 checkpoints match",
+                    summary.hash, `year ${summary.year}, population ${summary.population}, funds ${summary.funds}`],
+            failure: null,
+        });
     });
 
-    // A zone centred on the corner tile would hang off the map
-    it("fails when a tool does", () => {
-        expect(() => builderOnSeed8().residential(0, 0))
-            .toThrow("The residential tool failed at (0, 0) with outcome failed");
+    // As a log the browser saved without Web Crypto has none
+    it("fails a log with no checkpoints, having verified nothing", async () => {
+        const report = await replayLog({...townWithRejection(), checkpoints: []});
+
+        expect(report.lines[0]).toMatch(/ 1 rejected$/);
+        expect(report.lines.filter((line) => line.includes("checkpoints match"))).toEqual([]);
+        expect(report.failure).toBe("The log has no checkpoints, so its replay verified nothing");
     });
 
-    // The line's first tile is open ground, where the road is laid, and its last the plant's
-    it("fails when a line fails at any tile", () => {
-        const builder = builderOnSeed8();
-        builder.coal(2, 2);
+    it("fails at a checkpoint that doesn't match", async () => {
+        const log = townWithRejection();
+        const checkpoints = [log.checkpoints[0], {...log.checkpoints[1], hash: "0".repeat(64)}];
 
-        expect(() => builder.road(0, 1, 1, 1)).toThrow("The road tool failed from (0, 1) to (1, 1) with outcome failed");
+        await expect(replayLog({...log, checkpoints})).rejects.toThrow(`At step ${RUN_STEPS} the replay's state hash`);
     });
 });
 
@@ -228,7 +270,14 @@ describe("the command line", () => {
             .toEqual({start: {seed: 42, fixture: undefined, reseed: undefined, speed: undefined}, steps: 0});
     });
 
+    it("reads a log to replay", () => {
+        expect(parseCommandLine(["--log", "session.json"])).toEqual({log: "session.json"});
+    });
+
     it.each([
+        [["--log", "session.json", "--steps", "10"], "--log replays a log as it stands, and takes no other option, got --steps"],
+        [["--log", "session.json", "--seed", "1", "--speed", "fast"],
+            "--log replays a log as it stands, and takes no other option, got --seed, --speed"],
         [["--seed", "1"], "--steps is required"],
         [["--seed", "1", "--steps", "3.5"], "--steps takes a whole number, got 3.5"],
         [["--seed", "x", "--steps", "1"], "--seed takes a whole number, got x"],

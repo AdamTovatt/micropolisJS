@@ -11,7 +11,7 @@
  *
  */
 
-import { CommandQueue, CommandTarget, StampedCommand } from "../src/commandQueue";
+import { CommandQueue, CommandTarget, QueueRecorder, StampedCommand } from "../src/commandQueue";
 import { CommandResult, ReceivedCommand } from "../src/commands";
 
 // A simulation that records what reaches it, in order
@@ -28,7 +28,7 @@ class Recorder implements CommandTarget {
     }
 }
 
-const ignore = () => {};
+const ignore: QueueRecorder = {applied: () => {}, beforeStep: () => {}};
 
 describe("a command queue", () => {
 
@@ -60,7 +60,8 @@ describe("a command queue", () => {
         expect(simulation.calls).toEqual([[{player: "player", command: {type: "addFunds"}}]]);
     });
 
-    it("keeps the commands after one that throws, to apply next time", () => {
+    // A command that throws may have changed the city before it did, so it is recorded, and a replay throws there too
+    it("records a command that throws, and keeps the commands after it to apply next time", () => {
         const simulation = new Recorder();
         const applyCommands = simulation.applyCommands.bind(simulation);
         simulation.applyCommands = (received) => {
@@ -69,7 +70,8 @@ describe("a command queue", () => {
             }
             return applyCommands(received);
         };
-        const queue = new CommandQueue(simulation, ignore);
+        const recorded: StampedCommand[] = [];
+        const queue = new CommandQueue(simulation, {applied: (stamped) => recorded.push(stamped), beforeStep: () => {}});
 
         queue.send("thrower", {type: "addFunds"});
         queue.send("player", {type: "addFunds"});
@@ -78,6 +80,10 @@ describe("a command queue", () => {
         queue.applyCommands();
 
         expect(simulation.calls).toEqual([[{player: "player", command: {type: "addFunds"}}]]);
+        expect(recorded).toEqual([
+            {step: 0, player: "thrower", command: {type: "addFunds"}},
+            {step: 0, player: "player", command: {type: "addFunds"}},
+        ]);
     });
 
     it("steps the simulation, counting the steps", () => {
@@ -91,9 +97,12 @@ describe("a command queue", () => {
         expect(queue.stepIndex).toBe(2);
     });
 
-    it("stamps each command with the index of the step it precedes", () => {
-        const stamped: StampedCommand[] = [];
-        const queue = new CommandQueue(new Recorder(), (command) => stamped.push(command));
+    it("tells its recorder each command, stamped with the index of the step it precedes, and each step before it", () => {
+        const recorded: (StampedCommand | number)[] = [];
+        const queue = new CommandQueue(new Recorder(), {
+            applied: (stamped) => recorded.push(stamped),
+            beforeStep: (step) => recorded.push(step),
+        });
 
         queue.send("player", {type: "setSpeed", speed: 0});
         queue.applyCommands();
@@ -103,8 +112,10 @@ describe("a command queue", () => {
         queue.send("player", {type: "setSpeed", speed: 2});
         queue.applyCommands();
 
-        expect(stamped).toEqual([
+        expect(recorded).toEqual([
             {step: 0, player: "player", command: {type: "setSpeed", speed: 0}},
+            0,
+            1,
             {step: 2, player: "player", command: {type: "addFunds"}},
             {step: 2, player: "player", command: {type: "setSpeed", speed: 2}},
         ]);

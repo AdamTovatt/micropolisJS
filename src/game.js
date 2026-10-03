@@ -15,6 +15,7 @@ import $ from "jquery";
 
 import { AutoBulldozePreference } from './autoBulldozePreference.ts';
 import { BudgetWindow } from './budgetWindow.js';
+import { CommandRecorder } from './commandLog.ts';
 import { CommandQueue } from './commandQueue.ts';
 import { LOCAL_PLAYER } from './commands.ts';
 import { Config } from './config.js';
@@ -35,6 +36,7 @@ import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.js';
 import { Simulation } from './simulation.js';
 import { SpeedControl } from './speedControl.ts';
+import { plainSavedState } from './stateHash.ts';
 import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
@@ -48,7 +50,7 @@ var disasterTimeout = 20 * 1000;
 
 
 // A game of the given simulation: Game.newGame and Game.fromSave build one
-function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
+function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
   this.name = name;
@@ -167,9 +169,8 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
   this.revealControls();
 
   // Run the sim. Every change the player makes to the city is a command, sent through the queue.
-  this.commandQueue = new CommandQueue(this.simulation, function() {
-    // Nothing records the commands applied
-  });
+  this.recorder = new CommandRecorder(this.simulation, logStart);
+  this.commandQueue = new CommandQueue(this.simulation, this.recorder);
   this.stepDriver = new StepDriver();
   this.isStepping = isStepping.bind(this);
   this.stepSimulation = this.commandQueue.step.bind(this.commandQueue);
@@ -201,14 +202,17 @@ Game.prototype.save = function() {
 
 // A new game on the map generated from the game seed, at the chosen level
 Game.newGame = function(map, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
-  var simulation = new Simulation(map, difficulty || 0, Simulation.SPEED_MED, seed);
-  return new Game(simulation, tileSet, snowTileSet, spriteSheet, name || 'MyTown');
+  var level = difficulty || 0;
+  var simulation = new Simulation(map, level, Simulation.SPEED_MED, seed);
+  return new Game(simulation, {seed: seed, level: level}, tileSet, snowTileSet, spriteSheet, name || 'MyTown');
 };
 
 
 // A game restored from what Game.save wrote
 Game.fromSave = function(savedGame, tileSet, snowTileSet, spriteSheet) {
-  return new Game(Simulation.fromSave(savedGame), tileSet, snowTileSet, spriteSheet, savedGame.name);
+  // The session's log starts from the city as loaded
+  var simulation = Simulation.fromSave(savedGame);
+  return new Game(simulation, {save: plainSavedState(simulation)}, tileSet, snowTileSet, spriteSheet, savedGame.name);
 };
 
 
@@ -293,10 +297,38 @@ Game.prototype.handleDebugWindowClosure = function(actions) {
         this.commandQueue.send(LOCAL_PLAYER, {type: 'addFunds'});
         break;
 
+      case DebugWindow.DOWNLOAD_LOG:
+        this.downloadLog();
+        break;
+
       default:
         console.warn('Unexpected action', a);
     }
   }
+};
+
+
+// Saves the session's command log as a file, for the headless runner to replay: `npm run simulate -- --log <file>`.
+// Where the page can't work out state hashes, the log has no checkpoints, and the player is told.
+Game.prototype.downloadLog = function() {
+  var step = this.commandQueue.stepIndex;
+
+  this.recorder.log().then(function(recorded) {
+    var url = URL.createObjectURL(new Blob([JSON.stringify(recorded.log)], {type: 'application/json'}));
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'micropolis-log-' + step + '.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Revoked once the download has had time to start: revoking at once can cancel it
+    window.setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+
+    if (recorded.unhashed !== null) {
+      console.error('The command log has no checkpoints: ' + recorded.unhashed.message);
+      this._notificationBar.badNews({subject: Messages.LOG_UNCHECKED});
+    }
+  }.bind(this));
 };
 
 
