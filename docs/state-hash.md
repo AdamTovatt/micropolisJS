@@ -152,6 +152,9 @@ at. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtu
 C# port replays the log, or takes the built state as its starting state and steps it at medium speed to the run
 checkpoint's step, and must produce the run hash.
 
+`e2e/goldenHashes.json` pins the hash of the city at each checkpoint of the end-to-end playthrough: the hash of the
+keys `Simulation.save` writes, taken from the browser's save, which leaves out what the next section lists.
+
 ## What the hash leaves out
 
 The browser's own state is not simulation state and is not hashed: the city's name and the save version, which

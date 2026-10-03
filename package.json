@@ -19,6 +19,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "e2e": "playwright test --config e2e/playwright.config.ts",
+    "e2e:golden": "E2E_WRITE_GOLDEN=1 playwright test --config e2e/playwright.config.ts e2e/playthrough.spec.ts",
     "lint": "eslint",
     "simulate": "tsx headless/cli.ts",
     "fixtures": "tsx headless/buildFixtures.ts",

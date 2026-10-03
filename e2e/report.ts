@@ -14,6 +14,8 @@
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 
+import { HashCheck } from "./goldenHashes";
+
 // The playthrough's report: one static page showing every stage in order, with its screenshot, so anyone can flip
 // through it and see the game working. Each checkpoint's save sits beside it, and debug mode's "Load save file" opens
 // it.
@@ -26,6 +28,10 @@ export interface Checkpoint {
   // Files in the report's directory, absent only when taking the checkpoint itself failed
   screenshot?: string;
   save?: string;
+  // The state hash of the save, and how it compares with its golden hash: absent when the run writes the golden
+  // hashes rather than checking them
+  hash?: string;
+  hashCheck?: HashCheck;
   error?: string;
 }
 
@@ -39,6 +45,8 @@ export class Report {
   readonly checkpoints: Checkpoint[] = [];
   driverRun: DriverRun | null = null;
   buildId = "unknown";
+  // Why the run failed, as the test reports it, the first stage that diverged included
+  failures: string[] = [];
 
   constructor(readonly directory: string, private readonly seed: number) {
     rmSync(directory, {recursive: true, force: true});
@@ -56,17 +64,24 @@ export class Report {
   }
 
   private html(): string {
-    const stages = this.checkpoints.map((checkpoint, index) => `
-      <section class="stage${checkpoint.error ? " failed" : ""}">
+    const stages = this.checkpoints.map((checkpoint, index) => {
+      const diverged = checkpoint.hashCheck?.diverged ?? false;
+
+      return `
+      <section class="stage${checkpoint.error || diverged ? " failed" : ""}">
         <h2>${index + 1}. ${escapeHtml(checkpoint.stage)}</h2>
         <dl>
           <dt>Steps</dt><dd>${checkpoint.steps}</dd>
           <dt>Steps in all</dt><dd>${checkpoint.totalSteps}</dd>
+          ${checkpoint.hashCheck ?
+            `<dt>Expected hash</dt><dd>${checkpoint.hashCheck.expected ?? "none pinned"}</dd>` : ""}
+          ${checkpoint.hash ? `<dt>State hash</dt><dd>${checkpoint.hash}${diverged ? " (differs)" : ""}</dd>` : ""}
           ${checkpoint.save ? `<dt>Save</dt><dd><a href="${checkpoint.save}">${checkpoint.save}</a></dd>` : ""}
         </dl>
         ${errorBlock(checkpoint.error)}
         ${screenshotBlock(checkpoint.screenshot, checkpoint.stage)}
-      </section>`).join("");
+      </section>`;
+    }).join("");
 
     const driverRun = this.driverRun === null ? "" : `
       <section class="stage${this.driverRun.error ? " failed" : ""}">
@@ -85,7 +100,7 @@ export class Report {
 <style>
   body { font-family: sans-serif; margin: 0 auto; max-width: 1480px; padding: 16px; }
   .stage { border-top: 1px solid #ccc; padding: 8px 0 24px; }
-  .failed h2 { color: #b00020; }
+  .failed h2, h2.failed { color: #b00020; }
   dl { display: grid; grid-template-columns: max-content auto; gap: 4px 16px; }
   dt { font-weight: bold; }
   dd { margin: 0; font-family: monospace; }
@@ -97,6 +112,7 @@ export class Report {
 <h1>Playthrough report</h1>
 <p>Build ${escapeHtml(this.buildId)}, seed ${this.seed}. Open a stage's save in the game with <code>?debug=1</code> and
 "Load save file".</p>
+${this.failures.length > 0 ? `<h2 class="failed">The run failed</h2>\n${errorBlock(this.failures.join("\n"))}` : ""}
 ${stages}
 ${driverRun}
 </body>
