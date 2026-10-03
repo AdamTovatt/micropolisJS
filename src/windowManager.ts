@@ -30,8 +30,8 @@ class WindowManager {
   constructor(private readonly budgetWindow: GameWindow, private readonly budgetDue: () => boolean,
               private readonly budgetValues: () => unknown[]) {}
 
-  // Opens a window unless one is already showing. A window that opens unasked, such as the nag, is not shown at all
-  // when another is showing, so it can't take the budget window's place while the budget holds the city.
+  // Opens a window unless one is already showing. A window that opens unasked, such as the touch warning, is not shown
+  // at all when another is showing, so it can't take the budget window's place while the budget holds the city.
   open(window: GameWindow, ...args: unknown[]): void {
     if (this.shown !== null)
       return;

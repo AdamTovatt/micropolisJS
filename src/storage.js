@@ -150,6 +150,12 @@ var transitionOldSave = function(savedGame) {
       /* falls through */
     case 4:
       migrateToVersion5(savedGame);
+
+      /* falls through */
+    case 5:
+      // Version 5 kept whether the player had followed the donation link, for a donation request the game no longer
+      // makes
+      delete savedGame.everClicked;
       break;
 
     default:
@@ -165,7 +171,7 @@ var Storage = {
 };
 
 
-Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(5));
+Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(6));
 Object.defineProperty(Storage, 'KEY', MiscUtils.makeConstantDescriptor('micropolisJSGame'));
 Object.defineProperty(Storage, 'canStore', MiscUtils.makeConstantDescriptor(window.localStorage !== undefined));
 

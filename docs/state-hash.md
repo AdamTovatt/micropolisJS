@@ -153,9 +153,8 @@ that file as its starting state, sets the speed to medium, steps it `STEPS` time
 
 ## What the hash leaves out
 
-The browser's own settings and UI state are not simulation state and are not hashed: the city's name, whether the
-player has clicked, the auto-bulldoze setting, and the save version, which `storage.js` adds when it writes to
-`localStorage`.
+The browser's own settings and UI state are not simulation state and are not hashed: the city's name, the auto-bulldoze
+setting, and the save version, which `storage.js` adds when it writes to `localStorage`.
 
 The simulation decides when to send the advisor's notifications, so the counters it decides that with are city
 state and are hashed. What is left out is what only remembers what one display was last told, such as the last

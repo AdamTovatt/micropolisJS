@@ -24,7 +24,6 @@ import { InfoBar } from './infoBar.js';
 import { InputStatus } from './inputStatus.js';
 import * as Messages from './messages.ts';
 import { MonsterTV } from './monsterTV.js';
-import { NagWindow } from './nagWindow.js';
 import { Notification } from './notification.js';
 import { QueryWindow } from './queryWindow.js';
 import { RCI } from './rci.js';
@@ -46,11 +45,10 @@ var disasterTimeout = 20 * 1000;
 
 
 // A game of the given simulation: Game.newGame and Game.fromSave build one
-function Game(simulation, tileSet, snowTileSet, spriteSheet, name, everClicked) {
+function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
   this.name = name;
-  this.everClicked = everClicked;
   this.simulation = simulation;
   this.gameMap = simulation.getMap();
 
@@ -67,25 +65,6 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name, everClicked) 
   this.lastBadMessageTime = null;
 
   this.speedControl = new SpeedControl(this.simulation, this.inputStatus.showPaused.bind(this.inputStatus));
-
-  var self = this;
-  if (!this.everClicked) {
-    this.nagger = window.setTimeout(function() {
-      self.windows.open(self.nagWindow);
-    }, 30 * 60 * 1000);
-
-    $('.nag').each(function() {
-      $(this).click(function() {
-        if (self.nagger !== null) {
-          window.clearTimeout(self.nagger);
-        self.nagger = null;
-        self.everClicked = true;
-      }
-
-      return true;
-      });
-    });
-  }
 
   // Initialise monsterTV
   this.monsterTV = new MonsterTV(this.gameMap, tileSet, spriteSheet);
@@ -135,10 +114,6 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name, everClicked) 
   // ... the save confirmation window
   this.saveWindow = new SaveWindow(opacityLayerID, 'saveWindow');
   this.saveWindow.addEventListener(Messages.SAVE_WINDOW_CLOSED, this.handleWindowClosure);
-
-  // ... the nag confirmation window
-  this.nagWindow = new NagWindow(opacityLayerID, 'nagWindow');
-  this.nagWindow.addEventListener(Messages.NAG_WINDOW_CLOSED, this.handleWindowClosure);
 
   // ... the touch warn window
   this.touchWindow = new TouchWarnWindow(opacityLayerID, 'touchWarnWindow');
@@ -208,7 +183,7 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name, everClicked) 
 
 
 Game.prototype.save = function() {
-  var saveData = {name: this.name, everClicked: this.everClicked};
+  var saveData = {name: this.name};
   BaseTool.save(saveData);
   this.simulation.save(saveData);
 
@@ -219,15 +194,14 @@ Game.prototype.save = function() {
 // A new game on the map generated from the game seed, at the chosen level
 Game.newGame = function(map, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   var simulation = new Simulation(map, difficulty || 0, Simulation.SPEED_MED, seed);
-  return new Game(simulation, tileSet, snowTileSet, spriteSheet, name || 'MyTown', false);
+  return new Game(simulation, tileSet, snowTileSet, spriteSheet, name || 'MyTown');
 };
 
 
 // A game restored from what Game.save wrote
 Game.fromSave = function(savedGame, tileSet, snowTileSet, spriteSheet) {
   BaseTool.load(savedGame);
-  return new Game(Simulation.fromSave(savedGame), tileSet, snowTileSet, spriteSheet, savedGame.name,
-                  savedGame.everClicked);
+  return new Game(Simulation.fromSave(savedGame), tileSet, snowTileSet, spriteSheet, savedGame.name);
 };
 
 

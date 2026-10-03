@@ -32,7 +32,10 @@ async function loadStorage() {
 const SEED = 2026;
 
 // The keys the game itself saves beside the simulation, and the version storage.js adds
-const GAME_KEYS = ["version", "name", "everClicked", "autoBulldoze"];
+const GAME_KEYS = ["version", "name", "autoBulldoze"];
+
+// The keys version 4 saved that no save holds any more
+const DROPPED_KEYS = ["everClicked"];
 
 // An empty map with one coal plant tile, which a scan counts, and one burning tile, which makes a scan draw from the
 // stream and change the map
@@ -105,6 +108,19 @@ function keyPaths(value: unknown, path = ""): string[] {
     return [];
 }
 
+// A new city's simulation state, as a save holds it
+function simulationSave() {
+    return plainSavedState(new Simulation(plantMap(), Simulation.LEVEL_EASY, Simulation.SPEED_MED, 1)) as Save;
+}
+
+// A migrated save's key paths, and those a current save holds: the simulation's, and the game's own. The scanned state
+// is null in a migrated save, and derived when it loads, so neither list holds the keys under it.
+function migratedAndCurrentKeys(migrated: Save) {
+    const outsideScannedState = (paths: string[]) => paths.filter((path) => !path.startsWith(".scannedState."));
+    const current = [...keyPaths(simulationSave()), ...GAME_KEYS.map((key) => `.${key}`)];
+    return [outsideScannedState(keyPaths(migrated)).sort(), outsideScannedState(current).sort()];
+}
+
 describe("storage", () => {
 
     afterAll(() => {
@@ -136,21 +152,18 @@ describe("storage", () => {
         });
     });
 
-    describe("when migrating a version 4 save", () => {
-
-        // The scanned state is null in a migrated save, and derived when it loads
-        const outsideScannedState = (paths: string[]) => paths.filter((path) => !path.startsWith(".scannedState."));
-
-        it("gives it every key a current save holds, at every level", async () => {
+    it.each([1, 2, 3, 4])("gives a migrated version %i save exactly the keys a current save holds, at every level",
+        async (version) => {
             const Storage = await loadStorage();
-            const savedGame = version4Save();
+            const savedGame = oldSave(version);
 
             Storage.transitionOldSave(savedGame);
 
-            const current = plainSavedState(new Simulation(plantMap(), Simulation.LEVEL_EASY, Simulation.SPEED_MED, 1));
-            expect(outsideScannedState(keyPaths(savedGame)).sort())
-                .toEqual(outsideScannedState([...keyPaths(current), ...GAME_KEYS.map((key) => `.${key}`)]).sort());
+            const [migrated, current] = migratedAndCurrentKeys(savedGame);
+            expect(migrated).toEqual(current);
         });
+
+    describe("when migrating a version 4 save", () => {
 
         // Each value turns up under its own name, without a leading underscore, in one of the current save's groups
         it("keeps every value it holds through a load", async () => {
@@ -163,7 +176,7 @@ describe("storage", () => {
 
             const groups = Object.values(restored).filter((group) => group !== null && typeof group === "object");
             for (const [key, value] of Object.entries(version4)) {
-                if (GAME_KEYS.includes(key) || key === "map") {
+                if (GAME_KEYS.includes(key) || DROPPED_KEYS.includes(key) || key === "map") {
                     continue;
                 }
                 const name = key.replace(/^_/, "");
@@ -202,6 +215,20 @@ describe("storage", () => {
             grown.load(JSON.parse(JSON.stringify(savedGame)));
 
             expect(plainSavedState(grown)).toEqual(plainSavedState(Simulation.fromSave(savedGame)));
+        });
+    });
+
+    describe("when migrating a version 5 save", () => {
+
+        it("drops the donation flag, and keeps every other key and value", async () => {
+            const Storage = await loadStorage();
+            const version5 = {...simulationSave(), version: 5, name: "Newtown", autoBulldoze: false, everClicked: true};
+            const savedGame = JSON.parse(JSON.stringify(version5)) as Save;
+
+            Storage.transitionOldSave(savedGame);
+
+            delete (version5 as Save).everClicked;
+            expect(savedGame).toEqual(version5);
         });
     });
 });

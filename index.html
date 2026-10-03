@@ -26,17 +26,6 @@
     <img id="tiles" class="imageData" src="images/tiles.png" alt="These are the game's principal tiles">
     <img id="snowtiles" class="imageData" src="images/tilessnow.png" alt="These are the game's alternate tiles">
     <img id="sprites" class="imageData" src="images/sprites.png" alt="These are the game's sprites">
-    <header id="header" class="chunk border-bottom padding10">
-      <div class="left inlineblock">
-        <h1 id="title" class="white fontlarge">micropolisJS</h1>
-      </div>
-      <nav class="white right padding10 inlineblock">
-        <ul>
-          <li class="padding10"><a href="about.html" target="_blank">About</a></li>
-          <li class="padding10"><a href="https://github.com/graememcc/micropolisJS" target="_blank">GitHub</a></li>
-        </ul>
-      </nav>
-    </header>
     <div id="wrapper">
       <main id="canvasContainer">
         <div class="hidden" id="opaque"></div>
@@ -51,6 +40,14 @@
               <button id="splashLoad" class="width140 block loadSave splashButton" disabled>Load game</button>
               <button id="splashPlay" class="width140 block margin10 splashButton">Play this map</button>
               <button id="splashGenerate" class="width140 block margin10 splashButton">Generate another</button>
+            </div>
+          </div>
+          <div id="splashCredits" class="alignCenter">
+            <p>This is a modified version of Graeme McCutcheon's micropolisJS.</p>
+            <!-- Source points to this repository, not upstream, so that a build served to players comes with its own source -->
+            <p><a href="about.html" target="_blank">About</a> &middot; <a href="https://github.com/AdamTovatt/micropolisJS" target="_blank">Source</a></p>
+            <div class="nameLicense">
+              Micropolis is a registered trademark of <a href="https://www.micropolis.com">Micropolis Corporation (Micropolis GmbH)</a> and is licensed here as a courtesy of the owner under the <a href="name_license.html">Micropolis Public Name License</a>.
             </div>
           </div>
         </div>
@@ -168,15 +165,6 @@
           </div>
         </noscript>
       </main>
-      <footer id="footer" class="alignCenter chunk white padding10">
-        Enjoyed micropolisJS? <a href="https://www.refuweegee.co.uk/your-donations">Click here to donate to a charity whose work I love!</a>
-        <div id="author" class="open">Brought to you by <a rel="author" href="http://www.graememcc.co.uk" target="_blank">Graeme McCutcheon</a><i><a rel="author" href="https://twitter.com/graememcc" target="_blank">(@graememcc)</a></i> and <a rel="author" href="https://github.com/graememcc/micropolisJS/graphs/contributors" target="_blank">contributors</a>
-          <div id="build">Build: <%= htmlWebpackPlugin.options.buildId %></div>
-        </div>
-        <div class="nameLicense">
-          Micropolis is a registered trademark of <a href="https://www.micropolis.com">Micropolis Corporation (Micropolis GmbH)</a> and is licensed here as a courtesy of the owner under the <a href="name_license.html">Micropolis Public Name License</a>.
-        </div>
-      </footer>
       <div class="hidden modal shadow" id="budget">
         <header id="budgetHeader" class="budgetHeader padding10 chunk alignCenter">
            Budget
@@ -344,19 +332,6 @@
           </form>
         </div>
       </div>
-      <div class="hidden modal shadow" id="nagWindow">
-        <header id="nagHeader" class="nagHeader padding10 chunk white alignCenter">
-           micropolisJS
-        </header>
-        <div id="nagContainer" class="padding10 open">
-          <div id="nagMessage" class="alignCenter">
--            Whoa! You've been playing this thing for half an hour?!? This is the point I used to solicit donations, back when life was less kind. These days I'd prefer to see your money reach <a class="nag" href="https://www.refuweegee.co.uk/your-donations" target="_blank">Refuweegee</a>, a charity whose work I admire!
-          </div>
-          <form id="nagForm" class="alignCenter margin10">
-            <input type="submit" id="nagOK" class="dialogOK" value="OK">
-          </form>
-        </div>
-      </div>
       <div class="hidden modal shadow" id="saveWindow">
         <header id="saveHeader" class="saveHeader padding10 chunk alignCenter">
           Save
@@ -427,6 +402,9 @@
               </div>
               <div id="seedDisplay" class="padding10">
                 Seed: <span id="settingsSeed"></span>
+              </div>
+              <div id="buildDisplay" class="padding10">
+                Build: <%= htmlWebpackPlugin.options.buildId %>
               </div>
             </div>
             <button id="settingsCancel" class="cancel">Cancel</button>
