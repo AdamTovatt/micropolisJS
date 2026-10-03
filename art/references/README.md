@@ -19,10 +19,14 @@ Zone (1, 1) of each sheet is the empty zone: its letter on bare ground.
 - `zones/commercial_glass_tower.py`: commercial (2, 3), the blue glass tower.
 - `zones/commercial_green_tower.py`: commercial (2, 4), the green glass tower.
 - `zones/commercial_office_park.py`: commercial (1, 2), the office building and the low store.
+- `zones/commercial_offices_and_store.py`: commercial (1, 7), the stone office, the car park and the red store. The reference's crossing streets become a lane that stops short of the zone's edges.
 - `zones/commercial_stepped_terrace.py`: commercial (3, 6), the building stepping down in terraces.
+- `zones/commercial_twin_towers.py`: commercial (2, 7), the two blue towers.
 - `zones/residential_apartment_slabs.py`: residential (1, 3), two slabs. The reference's streets are left out: a zone holds no street.
+- `zones/residential_blue_c_block.py`: residential (2, 1), the blue C block round a car park, and the slab beside it. Lower than the reference, so the sun reaches the court.
 - `zones/residential_courtyard_block.py`: residential (2, 5), the red and navy blocks round a courtyard.
 - `zones/residential_green_l_block.py`: residential (2, 2), the green L block and its wing round a garden.
+- `zones/residential_red_and_blue.py`: residential (1, 6), the red L block and the blue block. The reference's crossroads becomes a paved square, a playground and a car park.
 - `zones/residential_round_towers.py`: residential (3, 4), the two round towers.
 
 Issue #57 tracks every asset still to make, these zone designs included.
