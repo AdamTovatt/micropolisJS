@@ -45,8 +45,9 @@ var getZonePopulation = function(map, x, y, tileValue) {
   if (tileValue === TileValues.FREEZ)
     return getFreeZonePopulation(map, x, y, tileValue);
 
-  var populationIndex = Math.floor((tileValue - TileValues.RZB) / 9) % 4 + 1;
-  return populationIndex * 8 + 16;
+  // As getResZonePop in the original: the density, 0 to 3, counts 16, 24, 32 or 40
+  var density = Math.floor((tileValue - TileValues.RZB) / 9) % 4;
+  return density * 8 + 16;
 };
 
 

@@ -49,5 +49,5 @@ export const broke = fixture(
     {type: "setBudget", road: 100, fire: 100, police: 100, tax: 0},
   ], [
     {step: 0, hash: "55f86f6a27ea1c58475acac7362c45836312de779a716b331923aacd121c7d31"},
-    {step: RUN_STEPS, hash: "03f4c76bff5ffd77cf1a5e557e82530ceb71577cf51eea3b2a94ce272deaa8b0"},
+    {step: RUN_STEPS, hash: "d852ed3e3f113f9afadcea4e4339105e01bbf30d8daf75efd1f56bebc2f73da2"},
   ]);

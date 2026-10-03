@@ -46,7 +46,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// The population of the residential zone centred at (x, y), whose centre has the tile value: its houses when
-        /// it is empty, and 24, 32, 40 or 48 when it is built up.
+        /// it is empty, and when it is built up, as getResZonePop in the original, 16, 24, 32 or 40 by its density.
         /// </summary>
         public static int GetZonePopulation(GameMap map, int x, int y, int tileValue)
         {
@@ -55,8 +55,8 @@ namespace Micropolis.Rules
                 return GetFreeZonePopulation(map, x, y);
             }
 
-            int populationIndex = JsMath.FloorDiv(tileValue - TileValues.RZB, 9) % 4 + 1;
-            return populationIndex * 8 + 16;
+            int density = JsMath.FloorDiv(tileValue - TileValues.RZB, 9) % 4;
+            return density * 8 + 16;
         }
 
         public static void ResidentialFound(GameMap map, int x, int y, SimData simData)

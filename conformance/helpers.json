@@ -101,7 +101,7 @@
     {"fixture":"suburbBroke","point":"run","x":24,"y":13,"value":244,"kind":"residential","population":8,"perimeterRoad":{"x":25,"y":15}},
     {"fixture":"suburbBroke","point":"run","x":27,"y":13,"value":244,"kind":"residential","population":7,"perimeterRoad":{"x":28,"y":15}},
     {"fixture":"suburbBroke","point":"run","x":30,"y":13,"value":553,"kind":"commercial","population":4,"perimeterRoad":{"x":31,"y":15}},
-    {"fixture":"suburbBroke","point":"run","x":33,"y":13,"value":337,"kind":"residential","population":24,"perimeterRoad":{"x":34,"y":15}},
+    {"fixture":"suburbBroke","point":"run","x":33,"y":13,"value":337,"kind":"residential","population":16,"perimeterRoad":{"x":34,"y":15}},
     {"fixture":"suburbBroke","point":"run","x":36,"y":13,"value":244,"kind":"residential","population":7,"perimeterRoad":{"x":37,"y":15}},
     {"fixture":"suburbBroke","point":"run","x":39,"y":13,"value":427,"kind":"commercial","population":0,"perimeterRoad":{"x":40,"y":15}},
     {"fixture":"suburbBroke","point":"run","x":42,"y":13,"value":244,"kind":"residential","population":7,"perimeterRoad":{"x":43,"y":15}},

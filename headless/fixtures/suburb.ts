@@ -59,5 +59,5 @@ export const suburbBroke = fixture(
     {type: "setBudget", road: 100, fire: 100, police: 100, tax: 0},
   ], [
     {step: 0, hash: "4b9e31eace4bf0bb72f2eb20cad5f02f6d1e094060e3b6edde1339cdc187200c"},
-    {step: RUN_STEPS, hash: "6e7d312b78affdc91d701581f8c198665b141040865594d47a59f65bf71f093d"},
+    {step: RUN_STEPS, hash: "118d2066ee50faa4fe98a1ee73e38e0702ea2f85a6acc9c8671fa819c04fe7dc"},
   ]);
