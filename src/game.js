@@ -19,7 +19,7 @@ import { CommandRecorder } from './commandLog.ts';
 import { CommandQueue } from './commandQueue.ts';
 import { LOCAL_PLAYER } from './commands.ts';
 import { Config } from './config.js';
-import { DebugWindow } from './debugWindow.js';
+import { DebugWindow } from './debugWindow.ts';
 import { DisasterWindow } from './disasterWindow.js';
 import { ToolPaths } from './dragPath.ts';
 import { EvaluationWindow } from './evaluationWindow.ts';
@@ -295,22 +295,14 @@ Game.prototype.handleSettingsWindowClosure = function(actions) {
 Game.prototype.handleDebugWindowClosure = function(actions) {
   this.windows.closed();
 
-  for (var i = 0, l = actions.length; i < l; i++) {
-    var a = actions[i];
-
-    switch (a.action) {
-      case DebugWindow.ADD_FUNDS:
-        this.commandQueue.send(LOCAL_PLAYER, {type: 'addFunds'});
-        break;
-
-      case DebugWindow.DOWNLOAD_LOG:
-        this.downloadLog();
-        break;
-
-      default:
-        console.warn('Unexpected action', a);
-    }
-  }
+  actions.forEach(function(action) {
+    if (action === 'addFunds')
+      this.commandQueue.send(LOCAL_PLAYER, {type: 'addFunds'});
+    else if (action === 'downloadLog')
+      this.downloadLog();
+    else
+      console.warn('Unexpected action', action);
+  }, this);
 };
 
 
