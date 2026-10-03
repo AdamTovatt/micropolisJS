@@ -17,18 +17,21 @@ import { CITY_TIME_PER_YEAR, stepsPerCityTime, stepsPerYear } from "../src/cityT
 import { cityTools } from "../src/cityTools";
 import { GameMap } from "../src/gameMap.js";
 import { Simulation } from "../src/simulation.js";
-import { BIT_MASK } from "../src/tileFlags";
+import { POWERBIT } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import {
   AIRPORT, COMCLR, FIRESTATION, FREEZ, HROADPOWER, INDCLR, LASTPOWER, LASTRUBBLE, POLICESTATION, POWERBASE, POWERPLANT,
-  RUBBLE, TREEBASE, VROADPOWER, WOODS5,
+  RUBBLE, VROADPOWER,
 } from "../src/tileValues";
-import { Player, GameSave, Tile } from "./player";
+import { Player, Tile } from "./player";
+import { Rect, rawTileAt, tileAt, tilesIn, tilesWhere } from "./savedMap";
+import { buildStation, planStation, STRONGEST_COVER } from "./stationSite";
 
 // The playthrough: one city played from a fixed seed through stages in order, each building on the last. A stage is
 // a named block of player actions, and the runner takes a checkpoint after each one. Adding a stage is the normal way
-// to cover a new feature. A stage builds only on SITE, which it may widen, or in FOREST, so the first stage's map check
-// covers it.
+// to cover a new feature. A stage builds only on SITE, which it may widen, so the first stage's map check covers it,
+// or where it chooses from the city, as the fire stage does: a rule change that moves the random stream then moves
+// only the goldens, unless the fire lands where the stage finds no site for its station, which it names.
 
 export const SEED = 23;
 export const CITY_NAME = "Playthrough";
@@ -40,71 +43,24 @@ const YEAR = stepsPerYear(Simulation.SPEED_MED);
 // leaves out.
 const AIRPORT_COST = (cityTools(new GameMap(120, 100)).airport as unknown as {toolCost: number}).toolCost;
 
-interface Rect {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-}
-
 // The building site, all in view and clear of the panels at the runner's window size. Every tile a stage builds on
-// lies in these rectangles, all clear land on the seed's map, except the forest the fire burns in.
+// at a fixed place lies in these rectangles, all clear land on the seed's map.
 export const SITE: Rect[] = [
   {left: 47, top: 30, right: 69, bottom: 38},
   // The airport
   {left: 46, top: 40, right: 51, bottom: 45},
   // A second airport, refused for lack of funds
   {left: 71, top: 29, right: 76, bottom: 34},
-  // The power line south to the forest, and the road beside it
-  {left: 47, top: 46, right: 47, bottom: 61},
-  {left: 35, top: 61, right: 46, bottom: 61},
-  {left: 33, top: 63, right: 33, bottom: 63},
 ];
-
-// The forest the seed's fire lands in, where the fire station stands
-const FOREST: Rect = {left: 31, top: 60, right: 34, bottom: 62};
-
-// Where the fire the disasters menu starts lands on this seed, at that point in the playthrough
-const FIRE_TILE = {x: 31, y: 61};
 
 export interface Stage {
   name: string;
   play(player: Player): Promise<void>;
 }
 
-// A raw tile value's tile, without its flags
-function tileId(value: number): number {
-  return value & BIT_MASK;
-}
-
-function tileAt(save: GameSave, tile: Tile): number {
-  return tileId(save.map.tiles[tile.x + tile.y * save.map.width]);
-}
-
-function tilesIn(rect: Rect): Tile[] {
-  const tiles = [];
-  for (let y = rect.top; y <= rect.bottom; y++) {
-    for (let x = rect.left; x <= rect.right; x++) {
-      tiles.push({x, y});
-    }
-  }
-
-  return tiles;
-}
-
-function tilesWhere(save: GameSave, test: (id: number) => boolean): Tile[] {
-  const width = save.map.width;
-  return save.map.tiles.flatMap((value, i) => test(tileId(value)) ? [{x: i % width, y: Math.floor(i / width)}] : []);
-}
-
-// Trees and woods, from the first tree to the last woods tile
-function isTree(id: number): boolean {
-  return id >= TREEBASE && id <= WOODS5;
-}
-
 // Power lines, those crossing a road or a rail included
 function isPowerLine(id: number): boolean {
-  return id >= POWERBASE && id <= LASTPOWER;
+  return (id >= POWERBASE && id <= LASTPOWER) || id === HROADPOWER || id === VROADPOWER;
 }
 
 // Checks that each tile holds the tile value given for it
@@ -120,8 +76,6 @@ export const STAGES: Stage[] = [
       const start = await player.save();
       const builtOn = SITE.flatMap(tilesIn).filter((tile) => tileAt(start, tile) !== 0);
       expect(builtOn, "the building site is clear land on the seed's map").toEqual([]);
-      const unwooded = tilesIn(FOREST).filter((tile) => !isTree(tileAt(start, tile)));
-      expect(unwooded, "the forest is trees on the seed's map").toEqual([]);
 
       await player.selectTool("road");
       await player.dragTiles({x: 47, y: 36}, {x: 69, y: 36});
@@ -248,19 +202,22 @@ export const STAGES: Stage[] = [
   {
     name: "A fire, and the fire department's response",
     async play(player) {
-      // A fire station in the forest the fire will land in, powered by a line from the airport, with a road beside
-      // it. Building draws nothing from the simulation's stream, so the fire lands where it would have without them.
-      await player.selectTool("wire");
-      await player.dragTiles({x: 47, y: 46}, {x: 47, y: 61});
-      await player.dragTiles({x: 46, y: 61}, {x: 35, y: 61});
-      await player.selectTool("road");
-      await player.clickTile({x: 33, y: 63});
-      await player.selectTool("fire");
-      await player.clickTile({x: 33, y: 61});
-      await expectTiles(player, [[{x: 33, y: 61}, FIRESTATION]], "the fire station's centre");
-
+      // The fire lands where the stream puts it, so the stage reads where from the city, then builds a fire station
+      // whose cover reaches it, with a road beside it and a power line to the grid, all chosen from the city around
+      // the fire. Building takes no steps, so the station answers the fire from its first scan.
       await player.triggerDisaster("Fire");
-      expect(tilesWhere(await player.save(), TileUtils.isFire), "the tiles on fire").toEqual([FIRE_TILE]);
+      const lit = await player.save();
+      const fires = tilesWhere(lit, TileUtils.isFire);
+      expect(fires, "the tiles on fire").toHaveLength(1);
+      const fire = fires[0];
+      const plan = planStation(lit, fire);
+      await buildStation(player, plan);
+
+      const built = await player.save();
+      expect(tileAt(built, plan.centre), "the fire station's centre").toBe(FIRESTATION);
+      expect(TileUtils.isRoad(tileAt(built, plan.road)), "the road beside the station").toBe(true);
+      const line = plan.line.map((tile) => tileAt(built, tile));
+      expect(line.every(isPowerLine), `the power line's tiles ${line}`).toBe(true);
 
       // Until the fire is out: a unit of city time at a time, the time a scan of the map takes. Even under the
       // strongest cover a burning tile goes out on only one scan in eight, so a fire can last a year.
@@ -274,12 +231,12 @@ export const STAGES: Stage[] = [
         save = await player.save();
       }
 
-      const burnt = tileAt(save, FIRE_TILE);
+      const burnt = tileAt(save, fire);
       expect(burnt >= RUBBLE && burnt <= LASTRUBBLE, `the burnt tile, ${burnt}, is rubble`).toBe(true);
-      // Over 100 is the strongest cover, under which a fire goes out on half the scans that test it, against one in
-      // eleven uncovered
-      expect(await player.queryDebugFigure(FIRE_TILE, "queryFireStationEffectRaw"),
-             "the fire department's cover where the fire was").toBeGreaterThan(100);
+      expect(rawTileAt(save, plan.centre) & POWERBIT, "the fire station's power").toBe(POWERBIT);
+      await player.showTiles([fire]);
+      expect(await player.queryDebugFigure(fire, "queryFireStationEffectRaw"),
+             "the fire department's cover where the fire was").toBeGreaterThan(STRONGEST_COVER);
     },
   },
   {
