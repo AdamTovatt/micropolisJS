@@ -156,6 +156,11 @@ var transitionOldSave = function(savedGame) {
       // Version 5 kept whether the player had followed the donation link, for a donation request the game no longer
       // makes
       delete savedGame.everClicked;
+
+      /* falls through */
+    case 6:
+      // The score breakdown wasn't recorded: show none until the next evaluation
+      savedGame.evaluation.cityScoreBreakdown = [];
       break;
 
     default:
@@ -171,7 +176,7 @@ var Storage = {
 };
 
 
-Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(6));
+Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(7));
 Object.defineProperty(Storage, 'KEY', MiscUtils.makeConstantDescriptor('micropolisJSGame'));
 Object.defineProperty(Storage, 'canStore', MiscUtils.makeConstantDescriptor(window.localStorage !== undefined));
 

@@ -57,7 +57,32 @@ EvaluationWindow.prototype._populateWindow = function(evaluation, gameLevel) {
   $('#evalLevel').text(Text.gameLevel['' + gameLevel]);
   $('#evalClass').text(Text.cityClass[evaluation.cityClass]);
   $('#evalScore').text(evaluation.cityScore);
-  $('#evalScoreDelta').text(evaluation.cityScoreDelta);
+  $('#evalScoreDelta').text(signedPoints(evaluation.cityScoreDelta));
+  populateScoreBreakdown(evaluation);
+};
+
+
+var signedPoints = function(points) {
+  return points > 0 ? '+' + points : '' + points;
+};
+
+
+// Lists each step of the score calculation with the points it moved the score and the score it
+// left. The steps sum to the annual change.
+var populateScoreBreakdown = function(evaluation) {
+  var breakdown = evaluation.cityScoreBreakdown;
+  var list = $('#evalScoreBreakdown');
+  list.empty();
+
+  $('#evalScoreBreakdownHeader').toggle(breakdown.length > 0);
+  list.toggle(breakdown.length > 0);
+
+  for (var i = 0; i < breakdown.length; i++) {
+    var entry = breakdown[i];
+    list.append($('<dt class="evalItem statisticsItem"></dt>').text(Text.scoreReasons[entry.reason] + ':'));
+    list.append($('<dd class="elided statisticsRight evalItem evalRight"></dd>')
+      .text(signedPoints(entry.points) + ' → ' + entry.score));
+  }
 };
 
 

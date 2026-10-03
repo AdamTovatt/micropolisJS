@@ -58,6 +58,7 @@ Evaluation.prototype.evalInit = function() {
   this.cityClassLast = Evaluation.CC_VILLAGE;
   this.cityScore = 500;
   this.cityScoreDelta = 0;
+  this.cityScoreBreakdown = [];
   for (var i = 0; i < NUMPROBLEMS; i++)
     this.problemVotes[i] = {index: i, voteCount: 0};
 
@@ -75,9 +76,16 @@ var copyVotes = function(votes) {
   });
 };
 
+var copyBreakdown = function(breakdown) {
+  return breakdown.map(function(entry) {
+    return {reason: entry.reason, points: entry.points, score: entry.score};
+  });
+};
+
 
 Evaluation.prototype.save = function(saveData) {
-  var evaluation = {problemVotes: copyVotes(this.problemVotes), problemOrder: this.problemOrder.slice()};
+  var evaluation = {problemVotes: copyVotes(this.problemVotes), problemOrder: this.problemOrder.slice(),
+                    cityScoreBreakdown: copyBreakdown(this.cityScoreBreakdown)};
   for (var i = 0, l = saveProps.length; i < l; i++)
     evaluation[saveProps[i]] = this[saveProps[i]];
 
@@ -92,6 +100,7 @@ Evaluation.prototype.load = function(saveData) {
 
   this.problemVotes = copyVotes(evaluation.problemVotes);
   this.problemOrder = evaluation.problemOrder.slice();
+  this.cityScoreBreakdown = copyBreakdown(evaluation.cityScoreBreakdown);
 };
 
 
@@ -251,46 +260,86 @@ Evaluation.prototype.getScore = function(simData) {
   var cityScoreLast = this.cityScore;
   var score = 0;
 
+  // Records why the score moved. Each entry holds the points one step moved the score and the
+  // score it left. The problems entry is measured from last year's score, and the problems and
+  // averaging entries are always listed; an adjustment is listed only when it moved the score.
+  // So the entries sum to cityScoreDelta.
+  var breakdown = [];
+  var scoreBefore = cityScoreLast;
+  var addEntry = function(reason) {
+    breakdown.push({reason: reason, points: score - scoreBefore, score: score});
+    scoreBefore = score;
+  };
+  var recordAdjustment = function(reason) {
+    if (score !== scoreBefore)
+      addEntry(reason);
+  };
+
   for (var i = 0; i < NUMPROBLEMS; i++)
     score += problemData[i];
 
   score = Math.floor(score / 3);
   score = (250 - Math.min(score, 250)) * 4;
+  addEntry(Evaluation.SCORE_PROBLEMS);
+
+  // The adjustments below mirror evaluate.cpp step by step, so the repeated blocks are kept
+  // rather than extracted into a loop.
 
   // Penalise the player by 15% if demand for any type of zone is capped due
   // to lack of suitable buildings
   var demandPenalty = 0.85;
 
-  if (valves.resCap)
+  if (valves.resCap) {
     score = Math.round(score * demandPenalty);
+    recordAdjustment(Evaluation.SCORE_RES_CAP);
+  }
 
-  if (valves.comCap)
+  if (valves.comCap) {
     score = Math.round(score * demandPenalty);
+    recordAdjustment(Evaluation.SCORE_COM_CAP);
+  }
 
-  if (valves.indCap)
+  if (valves.indCap) {
     score = Math.round(score * demandPenalty);
+    recordAdjustment(Evaluation.SCORE_IND_CAP);
+  }
 
   // Penalize if roads/rail underfunded
-  if (budget.roadEffect < budget.MAX_ROAD_EFFECT)
+  if (budget.roadEffect < budget.MAX_ROAD_EFFECT) {
     score -= budget.MAX_ROAD_EFFECT - budget.roadEffect;
+    recordAdjustment(Evaluation.SCORE_ROAD_FUNDING);
+  }
 
-  // Penalize player by up to 10% for underfunded police and fire services
-  if (budget.policeEffect < budget.MAX_POLICE_STATION_EFFECT)
+  // Penalize player by up to 10% for underfunded police and fire services.
+  // Known port defect, left for a separate rule change: Budget names these constants
+  // MAX_POLICESTATION_EFFECT and MAX_FIRESTATION_EFFECT, so both comparisons are against
+  // undefined and these cuts never apply.
+  if (budget.policeEffect < budget.MAX_POLICE_STATION_EFFECT) {
     score = Math.round(score * (0.9 + (budget.policeEffect / (10 * budget.MAX_POLICE_STATION_EFFECT))));
+    recordAdjustment(Evaluation.SCORE_POLICE_FUNDING);
+  }
 
-  if (budget.fireEffect < budget.MAX_FIRE_STATION_EFFECT)
+  if (budget.fireEffect < budget.MAX_FIRE_STATION_EFFECT) {
     score = Math.round(score * (0.9 + (budget.fireEffect / (10 * budget.MAX_FIRE_STATION_EFFECT))));
+    recordAdjustment(Evaluation.SCORE_FIRE_FUNDING);
+  }
 
   // Penalise the player by 15% if demand for any type of zone has collapsed due
   // to overprovision
-  if (valves.resValve < -1000)
+  if (valves.resValve < -1000) {
     score = Math.round(score * 0.85);
+    recordAdjustment(Evaluation.SCORE_RES_OVERSUPPLY);
+  }
 
-  if (valves.comValve < -1000)
+  if (valves.comValve < -1000) {
     score = Math.round(score * 0.85);
+    recordAdjustment(Evaluation.SCORE_COM_OVERSUPPLY);
+  }
 
-  if (valves.indValve < -1000)
+  if (valves.indValve < -1000) {
     score = Math.round(score * 0.85);
+    recordAdjustment(Evaluation.SCORE_IND_OVERSUPPLY);
+  }
 
   var scale = 1.0;
   if (this.cityPop === 0 || this.cityPopDelta === 0 || this.cityPopDelta === this.cityPop) {
@@ -301,23 +350,37 @@ Evaluation.prototype.getScore = function(simData) {
     // If the city is growing, scale score by percentage growth in population
     scale = (this.cityPopDelta / this.cityPop) + 1.0;
   } else if (this.cityPopDelta < 0) {
-    // If the city is shrinking, scale down by up to 5% based on level of outward migration
+    // If the city is shrinking, scale down by up to 5% based on level of outward migration.
+    // Known port defect, left for a separate rule change: evaluate.cpp has no Math.floor here.
+    // The floor turns any decline into -1, so the scale becomes -0.05.
     scale = 0.95 + Math.floor(this.cityPopDelta / (this.cityPop - this.cityPopDelta));
   }
 
   score = Math.round(score * scale);
+  recordAdjustment(Evaluation.SCORE_MIGRATION);
 
-  // Penalize player for having fires and a burdensome tax rate
-  score = score - getFireSeverity(census) - budget.cityTax;
+  // Penalize player for having fires and a burdensome tax rate. The two subtractions are
+  // recorded separately; on integers they are the same arithmetic as one expression.
+  score = score - getFireSeverity(census);
+  recordAdjustment(Evaluation.SCORE_FIRES);
+
+  score = score - budget.cityTax;
+  recordAdjustment(Evaluation.SCORE_TAXES);
 
   // Penalize player based on ratio of unpowered zones to total zones
   scale = census.unpoweredZoneCount + census.poweredZoneCount;
   if (scale > 0)
     score = Math.round(score * (census.poweredZoneCount / scale));
+  recordAdjustment(Evaluation.SCORE_UNPOWERED_ZONES);
 
   // Force in to range 0-1000. New score is average of last score and new computed value
   score = MiscUtils.clamp(score, 0, 1000);
+  recordAdjustment(Evaluation.SCORE_RANGE);
+
   this.cityScore = Math.round((this.cityScore + score) / 2);
+  score = this.cityScore;
+  addEntry(Evaluation.SCORE_AVERAGING);
+  this.cityScoreBreakdown = breakdown;
 
   this.cityScoreDelta = this.cityScore - cityScoreLast;
 
@@ -359,5 +422,22 @@ Object.defineProperties(Evaluation,
   TAXES: MiscUtils.makeConstantDescriptor(3),
   TRAFFIC: MiscUtils.makeConstantDescriptor(4),
   UNEMPLOYMENT: MiscUtils.makeConstantDescriptor(5),
-  FIRE: MiscUtils.makeConstantDescriptor(6)});
+  FIRE: MiscUtils.makeConstantDescriptor(6),
+  // Reasons in the score breakdown. The SCORE_ prefix keeps them apart from the problem indices.
+  SCORE_PROBLEMS: MiscUtils.makeConstantDescriptor('PROBLEMS'),
+  SCORE_RES_CAP: MiscUtils.makeConstantDescriptor('RES_CAP'),
+  SCORE_COM_CAP: MiscUtils.makeConstantDescriptor('COM_CAP'),
+  SCORE_IND_CAP: MiscUtils.makeConstantDescriptor('IND_CAP'),
+  SCORE_ROAD_FUNDING: MiscUtils.makeConstantDescriptor('ROAD_FUNDING'),
+  SCORE_POLICE_FUNDING: MiscUtils.makeConstantDescriptor('POLICE_FUNDING'),
+  SCORE_FIRE_FUNDING: MiscUtils.makeConstantDescriptor('FIRE_FUNDING'),
+  SCORE_RES_OVERSUPPLY: MiscUtils.makeConstantDescriptor('RES_OVERSUPPLY'),
+  SCORE_COM_OVERSUPPLY: MiscUtils.makeConstantDescriptor('COM_OVERSUPPLY'),
+  SCORE_IND_OVERSUPPLY: MiscUtils.makeConstantDescriptor('IND_OVERSUPPLY'),
+  SCORE_MIGRATION: MiscUtils.makeConstantDescriptor('MIGRATION'),
+  SCORE_FIRES: MiscUtils.makeConstantDescriptor('FIRES'),
+  SCORE_TAXES: MiscUtils.makeConstantDescriptor('TAXES'),
+  SCORE_UNPOWERED_ZONES: MiscUtils.makeConstantDescriptor('UNPOWERED_ZONES'),
+  SCORE_RANGE: MiscUtils.makeConstantDescriptor('RANGE'),
+  SCORE_AVERAGING: MiscUtils.makeConstantDescriptor('AVERAGING')});
 export { Evaluation };
