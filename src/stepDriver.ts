@@ -56,6 +56,20 @@ class StepDriver {
     this.lastTime = null;
     this.owedUnits = 0;
   }
+
+  // Takes the steps due by now while the city is stepping. A step can stop it, as by opening a dialog, which ends the
+  // run there.
+  run(now: number, isStepping: () => boolean, step: () => void): void {
+    if (!isStepping()) {
+      this.idle();
+      return;
+    }
+
+    const steps = this.stepsDue(now);
+    for (let i = 0; i < steps && isStepping(); i++) {
+      step();
+    }
+  }
 }
 
 export { MAX_STEPS_PER_CALL, STEPS_PER_SECOND, StepDriver };

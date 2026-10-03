@@ -236,6 +236,8 @@ function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name
 
   // Run the sim
   this.stepDriver = new StepDriver();
+  this.isStepping = isStepping.bind(this);
+  this.stepSimulation = this.simulation.step.bind(this.simulation);
   this.tick = tick.bind(this);
   this.tick();
 
@@ -663,28 +665,22 @@ Game.prototype.calculateSpritesForPaint = function(canvas) {
 };
 
 
+// The city steps unless it is paused, a dialog is open, the screen is too small to play, or the tab is hidden: a
+// hidden tab is not watched, so the city waits rather than running on unseen
+var isStepping = function() {
+  return !this.simulation.isPaused() && !this.dialogOpen && !$('#tooSmall').is(':visible') && !document.hidden;
+};
+
+
 var tick = function() {
   this.handleInput();
 
-  if (this.dialogOpen) {
-    this.stepDriver.idle();
-    window.setTimeout(this.tick, 0);
-    return;
-  }
-
-  // A hidden tab is not watched: the city waits rather than running on unseen
-  if (!this.simulation.isPaused() && !$('#tooSmall').is(':visible') && !document.hidden) {
-    // Run the sim: as many steps as the time since the last tick is due. A step can open a dialog, such as the
-    // budget window, which stops the rest
-    var steps = this.stepDriver.stepsDue(performance.now());
-    for (var i = 0; i < steps && !this.dialogOpen; i++)
-      this.simulation.step();
-  } else {
-    this.stepDriver.idle();
-  }
+  // Run the sim: as many steps as the time since the last tick is due
+  this.stepDriver.run(performance.now(), this.isStepping, this.stepSimulation);
 
   // Run this even when paused: you can still build when paused
-  this.mouse = this.calculateMouseForPaint();
+  if (!this.dialogOpen)
+    this.mouse = this.calculateMouseForPaint();
 
   window.setTimeout(this.tick, 0);
 };

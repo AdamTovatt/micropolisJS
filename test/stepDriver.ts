@@ -77,6 +77,44 @@ describe("the step driver", () => {
         expect(driver.stepsDue(60 * 1000 + 1)).toBe(0);
     });
 
+    describe("running", () => {
+
+        it("takes the steps due while the city is stepping", () => {
+            const driver = new StepDriver();
+            const step = jest.fn();
+            driver.run(0, () => true, step);
+
+            driver.run(3 * STEP + 1, () => true, step);
+
+            expect(step).toHaveBeenCalledTimes(3);
+        });
+
+        it("ends the run at the step that stops the city", () => {
+            const driver = new StepDriver();
+            let stepping = true;
+            const step = jest.fn(() => {
+                stepping = step.mock.calls.length < 2;
+            });
+            driver.run(0, () => stepping, step);
+
+            driver.run(5 * STEP + 1, () => stepping, step);
+
+            expect(step).toHaveBeenCalledTimes(2);
+        });
+
+        it("owes nothing for time the city was not stepping", () => {
+            const driver = new StepDriver();
+            const step = jest.fn();
+            driver.run(0, () => true, step);
+            driver.run(10 * STEP, () => false, step);
+
+            driver.run(10 * STEP + 1, () => true, step);
+            driver.run(11 * STEP + 2, () => true, step);
+
+            expect(step).toHaveBeenCalledTimes(1);
+        });
+    });
+
     it("owes nothing for time spent idle", () => {
         const driver = new StepDriver();
         driver.stepsDue(0);
