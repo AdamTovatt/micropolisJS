@@ -144,11 +144,11 @@ messageText[Messages.TAX_TOO_HIGH] = 'Citizens upset. The tax rate is too high';
 messageText[Messages.TORNADO_SIGHTED] = 'Tornado reported !';
 messageText[Messages.TRAFFIC_JAMS] = 'Frequent traffic jams reported';
 messageText[Messages.TRAIN_CRASHED] = 'A train crashed ';
-messageText[Messages.REACHED_CAPITAL] = 'Population has reached 50,000';
-messageText[Messages.REACHED_CITY] = 'Population has reached 10,000';
-messageText[Messages.REACHED_MEGALOPOLIS] = 'Population has reached 500,000';
-messageText[Messages.REACHED_METROPOLIS] = 'Population has reached 100,000';
-messageText[Messages.REACHED_TOWN] = 'Population has reached 2,000';
+messageText[Messages.REACHED_CAPITAL] = 'Now a capital! Population has reached 50,000';
+messageText[Messages.REACHED_CITY] = 'Now a city! Population has reached 10,000';
+messageText[Messages.REACHED_MEGALOPOLIS] = 'Now a megalopolis! Population has reached 500,000';
+messageText[Messages.REACHED_METROPOLIS] = 'Now a metropolis! Population has reached 100,000';
+messageText[Messages.REACHED_TOWN] = 'Now a town! Population has reached 2,000';
 
 // Status panel strings
 var statusPanel = {

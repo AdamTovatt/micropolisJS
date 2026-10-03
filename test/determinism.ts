@@ -11,50 +11,10 @@
  *
  */
 
-import { BuildingTool } from "../src/buildingTool.js";
-import { MapGenerator } from "../src/mapGenerator.js";
-import { Random } from "../src/random";
-import { RoadTool } from "../src/roadTool.js";
-import { Simulation } from "../src/simulation.js";
-import { COMCLR, DIRT, FREEZ, INDCLR, POWERPLANT } from "../src/tileValues";
-import { SimulationInstance, newSimulation, useTool } from "./helpers/simulations";
+import { SimulationInstance, YEAR, buildCity } from "./helpers/simulations";
 
 const SEED = 2026;
 const OTHER_SEED = 2027;
-
-// A city year at fast speed, where every step runs a phase: 16 phases advance the city time by 1, and 48 make a year
-const YEAR = 16 * 48;
-
-// A city on the map of mapSeed, simulated from simulationSeed: a coal plant powering a row of zones along a road,
-// built on ground cleared to dirt so the same tools build it on any map
-function buildCity(mapSeed: number, simulationSeed: number) {
-    const map = MapGenerator(Random.mapStream(mapSeed));
-    for (let y = 38; y <= 50; y++) {
-        for (let x = 38; x <= 72; x++) {
-            map.setTile(x, y, DIRT, 0);
-        }
-    }
-
-    const simulation = newSimulation(map, simulationSeed, Simulation.SPEED_FAST);
-
-    // A building tool's coordinates are its footprint's second column and row: the centre of a 3x3 zone
-    useTool(simulation,new BuildingTool(3000, POWERPLANT, map, 4, false), 41, 42);
-    for (const x of [45, 48, 51, 54]) {
-        useTool(simulation,new BuildingTool(100, FREEZ, map, 3, false), x, 43);
-    }
-    for (const x of [57, 60]) {
-        useTool(simulation,new BuildingTool(100, COMCLR, map, 3, false), x, 43);
-    }
-    for (const x of [63, 66]) {
-        useTool(simulation,new BuildingTool(100, INDCLR, map, 3, false), x, 43);
-    }
-    const road = new RoadTool(map);
-    for (let x = 40; x <= 68; x++) {
-        useTool(simulation,road, x, 45);
-    }
-
-    return simulation;
-}
 
 // Two cities stepped in turn, so each step of one runs between steps of the other in the same process
 function stepBoth(first: SimulationInstance, second: SimulationInstance, steps: number) {
