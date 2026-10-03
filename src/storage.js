@@ -68,9 +68,6 @@ var sameNames = function(names) {
 // working values reset, and the evaluation due again. The scanned state can only be derived by a scan: a null
 // scannedState, which only a migrated save holds, makes the Simulation scan for it on load.
 var migrateToVersion5 = function(savedGame) {
-  // Whether the player followed the donation link, which version 4 kept for a donation request no game makes any more
-  delete savedGame.everClicked;
-
   var simulation = regroup(savedGame, {_cityTime: 'cityTime', _gameLevel: 'gameLevel', _speed: 'speed',
                                        _speedCycle: 'speedCycle', seed: 'seed', randomState: 'randomState'});
   simulation.phaseCycle = 0;
@@ -134,6 +131,9 @@ var migrateToVersion5 = function(savedGame) {
 var transitionOldSave = function(savedGame) {
   switch (savedGame.version) {
     case 1:
+      savedGame.everClicked = false;
+
+      /* falls through */
     case 2:
       savedGame.pollutionMaxX = Math.floor(savedGame.width / 2);
       savedGame.pollutionMaxY = Math.floor(savedGame.height / 2);
@@ -150,6 +150,12 @@ var transitionOldSave = function(savedGame) {
       /* falls through */
     case 4:
       migrateToVersion5(savedGame);
+
+      /* falls through */
+    case 5:
+      // Version 5 kept whether the player had followed the donation link, for a donation request the game no longer
+      // makes
+      delete savedGame.everClicked;
       break;
 
     default:
@@ -165,7 +171,7 @@ var Storage = {
 };
 
 
-Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(5));
+Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(6));
 Object.defineProperty(Storage, 'KEY', MiscUtils.makeConstantDescriptor('micropolisJSGame'));
 Object.defineProperty(Storage, 'canStore', MiscUtils.makeConstantDescriptor(window.localStorage !== undefined));
 

@@ -43,15 +43,6 @@ button, input[type="submit"] {
   font-family: sans-serif;
 }
 
-footer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0px;
-  height: 5em;
-  background-color: darkslategray;
-}
-
 /* The striped bar: a static page's header bar, and every window's title bar. Without specificity, so that a window's
    own colour rule wins. */
 :where(body > header, .modal > header) {
@@ -64,32 +55,12 @@ footer {
   height: 18px;
 }
 
-header h1 {
-  margin-left: 50px;
-}
-
 main {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 100%;
   overflow: hidden;
-}
-
-nav a, nav a:link, nav a:visited, nav a:hover, footer a, footer a:link, footer a:visited, footer a:hover,
-#aboutHeader a, #aboutHeader a:link, #aboutHeader a:visited, #aboutHeader a:hover,
-#licenseHeader a, #licenseHeader a:link, #licenseHeader a:visited, #licenseHeader a:hover {
-  text-decoration: none;
-  color: white;
-}
-
-footer a, footer a:link, footer a:visited, footer a:hover {
-  text-decoration: underline;
-  margin-left: 5px;
-}
-
-nav li {
-  display: inline;
 }
 
 .alignCenter {
@@ -883,6 +854,35 @@ body > header {
   height: 35px;
 }
 
+header h1 {
+  margin-left: 50px;
+}
+
+nav li {
+  display: inline;
+}
+
+footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0px;
+  height: 5em;
+  background-color: darkslategray;
+}
+
+nav a, nav a:link, nav a:visited, nav a:hover, footer a, footer a:link, footer a:visited, footer a:hover,
+#aboutHeader a, #aboutHeader a:link, #aboutHeader a:visited, #aboutHeader a:hover,
+#licenseHeader a, #licenseHeader a:link, #licenseHeader a:visited, #licenseHeader a:hover {
+  text-decoration: none;
+  color: white;
+}
+
+footer a, footer a:link, footer a:visited, footer a:hover {
+  text-decoration: underline;
+  margin-left: 5px;
+}
+
 @media (max-height: 742px) {
   body > header {
     height: 15px;
@@ -892,11 +892,11 @@ body > header {
     height: 4em;
   }
 
-  .border-bottom {
+  body > header.border-bottom {
     border: none;
   }
 
-  .fontlarge {
+  body > header .fontlarge {
       font-size: 16px;
   }
 
