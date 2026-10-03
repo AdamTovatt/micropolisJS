@@ -15,7 +15,7 @@ import $ from "jquery";
 
 import { AnimationManager } from './animationManager.ts';
 import { MiscUtils } from './miscUtils.js';
-import { MouseBox } from './mouseBox.js';
+import { drawMouseBox } from './mouseBox.ts';
 import { CanvasOverlay } from './overlayRenderer.ts';
 import { Position } from './position.ts';
 import { TILE_INVALID } from "./tileValues.ts";
@@ -455,7 +455,6 @@ GameCanvas.prototype._processMouse = (function() {
     var mouseY = mouse.y;
     var mouseWidth = mouse.width;
     var mouseHeight = mouse.height;
-    var options = {colour: mouse.colour, outline: true};
 
     if (mouseWidth > 2)
       mouseX -= 1;
@@ -475,7 +474,7 @@ GameCanvas.prototype._processMouse = (function() {
     var pos = {x: mouseX * this._tileSet.tileWidth, y: mouseY * this._tileSet.tileWidth};
     var width = mouseWidth * this._tileSet.tileWidth;
     var height = mouseHeight * this._tileSet.tileWidth;
-    MouseBox.draw(this._canvas, pos, width, height, options);
+    drawMouseBox(this._canvas, pos, width, height, mouse.colour);
 
     // Return an object representing tiles that were damaged that will need redrawn
     // Note that we must take an extra tile either side to account for the outline
