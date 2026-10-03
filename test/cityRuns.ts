@@ -59,16 +59,21 @@ describe("a city run", () => {
         expect(paid.yearEnds).toBeGreaterThan(1);
     });
 
-    it("fails on a city that creates a sprite", async () => {
-        await expect(recordRun({fixture: "town", built: await builtSave("town")}, "medium", RUN_STEPS, RUN_STEPS))
-            .rejects.toThrow(/^town at medium speed created a sprite at step \d+/);
+    // The town sends out trains and aircraft over its run; the suburb, without rail or an airport, sends out nothing
+    it("notes whether the city had sprites moving", async () => {
+        const town = await recordRun({fixture: "town", built: await builtSave("town")}, "medium", RUN_STEPS, RUN_STEPS);
+        const suburb = await recordRun({fixture: "suburb", built: await builtSave("suburb")}, "fast", 40, 40);
+
+        expect([town.sprites, suburb.sprites]).toEqual([true, false]);
     });
 
-    it("fails on a city with random disasters enabled", async () => {
+    it("notes whether random disasters could strike the city", async () => {
         const save = await builtSave("suburb") as SaveData & {disasters: {disastersEnabled: boolean}};
         save.disasters.disastersEnabled = true;
 
-        await expect(recordRun({fixture: "suburb", built: save}, "fast", 1, 1))
-            .rejects.toThrow("suburb at fast speed has disasters enabled");
+        const enabled = await recordRun({fixture: "suburb", built: save}, "fast", 1, 1);
+        const disabled = await recordRun({fixture: "suburb", built: await builtSave("suburb")}, "fast", 1, 1);
+
+        expect([enabled.disasters, disabled.disasters]).toEqual([true, false]);
     });
 });

@@ -21,7 +21,7 @@ import {
   cityFromSave, cityOnMap, Level, LevelName, RUNNING_SPEEDS, RunningSpeed, SaveData, Speed,
 } from "../headless/city";
 import { RUN_STEPS } from "../headless/fixtures/fixture";
-import { fixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index";
+import { fixtureNames } from "../headless/fixtures/index";
 import { builtSave, fixtureLog, replay, startFromSave } from "../headless/runner";
 import { BlockMap } from "../src/blockMap";
 import { canonicalJson } from "../src/canonicalJson";
@@ -993,11 +993,11 @@ const RUN_CHECKPOINT_INTERVAL = 256;
 // What the runs' events may take in the repository, compressed
 const RUN_LIMIT = 5 * 1024 * 1024;
 
-// A new city from each seed, at each level in turn, and each sprite-free fixture's city as built
+// A new city from each seed, at each level in turn, and each fixture's city as built
 async function runStarts(seeds: number[]): Promise<RunStart[]> {
   const levels = Object.keys(Level) as LevelName[];
   const fixtures: RunStart[] = [];
-  for (const fixture of spriteFreeFixtureNames()) {
+  for (const fixture of fixtureNames()) {
     fixtures.push({fixture, built: await builtSave(fixture)});
   }
 
@@ -1054,6 +1054,8 @@ function ensureRunsCover(runs: CityRun[]): void {
   ensureCovers(budgets.some((budget) => budget.autoBudget && !budget.shortfall), "a year's budget auto-budget paid");
   ensureCovers(budgets.some((budget) => budget.shortfall), "a year's budget auto-budget ran short of");
   ensureCovers(budgets.some((budget) => !budget.autoBudget), "a year's budget with auto-budget off");
+  ensureCovers(runs.some((run) => run.sprites), "a run with sprites moving");
+  ensureCovers(runs.some((run) => run.disasters), "a run with random disasters on");
 }
 
 async function writeRuns(seeds: number[]): Promise<void> {

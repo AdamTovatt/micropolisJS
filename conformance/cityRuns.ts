@@ -20,8 +20,8 @@ import { startFromSave } from "../headless/runner";
 import { stateHash } from "../src/stateHash";
 import { captureEvents, Internals, RecordedEvent, replaceMethod } from "./instrumentation";
 
-// Where a run's city starts: a new city on the map a seed generates, at a level, or a sprite-free fixture's city as
-// built, at its saved level
+// Where a run's city starts: a new city on the map a seed generates, at a level, or a fixture's city as built, at its
+// saved level
 export type RunStart = {seed: number, level: LevelName} | {fixture: string, built: SaveData};
 
 export interface RunEvent extends RecordedEvent {
@@ -50,9 +50,12 @@ export interface CityRun {
   // The state hash at step 0, as the city starts, after every interval of steps, and after the last step
   checkpoints: Checkpoint[];
   events: RunEvent[];
-  // Not written: what the generator checks the runs cover. Each year end the run reaches, and each year's budget.
+  // Not written: what the generator checks the runs cover. Each year end the run reaches, each year's budget, whether
+  // the city had sprites moving, and whether random disasters could strike it.
   yearEnds: number;
   budgets: YearBudget[];
+  sprites: boolean;
+  disasters: boolean;
 }
 
 function startCity(start: RunStart, speed: RunningSpeed): Internals {
@@ -66,16 +69,12 @@ export function describeStart(start: {seed?: number | null, fixture?: string | n
   return start.fixture ?? `seed ${start.seed}`;
 }
 
-// The city run for the steps at the speed, checkpointed every interval of steps. A run is one the C# can make before it
-// ports the sprites and the disasters: one that creates a sprite or has random disasters enabled fails.
+// The city run for the steps at the speed, checkpointed every interval of steps
 export async function recordRun(start: RunStart, speed: RunningSpeed, steps: number,
                                 interval: number): Promise<CityRun> {
   const city = startCity(start, speed);
-  const name = `${describeStart(start)} at ${speed} speed`;
-
-  if (city.disasterManager.disastersEnabled) {
-    throw new Error(`${name} has disasters enabled: a run is made with disasters off`);
-  }
+  const disasters = city.disasterManager.disastersEnabled;
+  let sprites = false;
 
   const capturing = captureEvents(city);
   const checkpoints: Checkpoint[] = [{step: 0, hash: await stateHash(city)}];
@@ -101,9 +100,7 @@ export async function recordRun(start: RunStart, speed: RunningSpeed, steps: num
     capturing.pop();
     events.push(...stepEvents.map((event) => ({step, ...event})));
 
-    if (city.spriteManager.spriteList.length > 0) {
-      throw new Error(`${name} created a sprite at step ${step}: runs are made of sprite-free cities`);
-    }
+    sprites = sprites || city.spriteManager.spriteList.length > 0;
 
     if ((step + 1) % interval === 0 || step + 1 === steps) {
       checkpoints.push({step: step + 1, hash: await stateHash(city)});
@@ -112,6 +109,6 @@ export async function recordRun(start: RunStart, speed: RunningSpeed, steps: num
 
   return {
     seed: "seed" in start ? start.seed : null, fixture: "fixture" in start ? start.fixture : null,
-    level: nameOf(Level, city._gameLevel), speed, steps, checkpoints, events, yearEnds, budgets,
+    level: nameOf(Level, city._gameLevel), speed, steps, checkpoints, events, yearEnds, budgets, sprites, disasters,
   };
 }

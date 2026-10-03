@@ -18,6 +18,7 @@ import { forestFire, overloaded, twinPlants, wilderness } from "./branches";
 import { broke, underfunded } from "./budgets";
 import { disasters } from "./disasters";
 import { harbour } from "./harbour";
+import { harbourWithDisasters } from "./harbourWithDisasters";
 import { hospitalTown } from "./hospitalTown";
 import { roadlessTown } from "./roadlessTown";
 import { smokyWoods } from "./smokyWoods";
@@ -52,6 +53,7 @@ const fixtures: Record<string, {fixture: Fixture, kind: FixtureKind}> = {
   disasters: {fixture: disasters, kind: "branch"},
   forestFire: {fixture: forestFire, kind: "branch"},
   harbour: {fixture: harbour, kind: "sprites"},
+  harbourWithDisasters: {fixture: harbourWithDisasters, kind: "sprites"},
   hospitalTown: {fixture: hospitalTown, kind: "branch"},
   overloaded: {fixture: overloaded, kind: "branch"},
   roadlessTown: {fixture: roadlessTown, kind: "branch"},

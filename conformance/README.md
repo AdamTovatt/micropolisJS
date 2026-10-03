@@ -335,26 +335,27 @@ simulation emitted, so the C# port proves the whole cycle, every unit running to
 `cityRuns.ts` records them.
 
 A run starts from a new city on the map a seed generates, as the browser starts one, for each seed of `maps.json`, the
-seeds taking the levels easy, medium and hard in turn; or from a sprite-free fixture's city as built (`saves/`), at its
-saved level. Each start is run at slow, medium and fast speed, a fixture's saved speed overridden as the headless
+seeds taking the levels easy, medium and hard in turn; or from a fixture's city as built (`saves/`), at its saved
+level, with the sprites it makes and, in `harbourWithDisasters`, random disasters striking. Each start is run at slow, medium and fast speed, a fixture's saved speed overridden as the headless
 runner overrides it, for as many steps as the fixtures' golden run takes, `RUN_STEPS` in
 `headless/fixtures/fixture.ts`, in which a city reaches a year end at every speed. A start that is the state another
 run starts from, such as a fixture that differs from another only in its saved speed, makes the same run and is
 recorded once.
 
 `index.json` lists each run: its `file`; its `seed` and its `fixture`, one of them `null`; the `level` its city is at,
-which for a fixture is its saved level; its `speed`, `steps`, how many `events` it emitted, and its `checkpoints`, each a `step` and the state `hash` after that many steps: at step 0, as the
-city starts, after its first scans for a new city, and then every 256 steps and at the last. A pull request's index diff
+which for a fixture is its saved level; its `speed`, `steps`, how many `events` it emitted, and its `checkpoints`,
+each a `step` and the state `hash` after that many steps: at step 0, as the city starts, after its first scans for a
+new city, and then every 256 steps and at the last. A pull request's index diff
 shows which hashes it moves. Each file, `<fixture>.<speed>.json.gz` or `seed<seed>.<speed>.json.gz`, is gzip over the
 canonical text of the run's events, in order, each with the `step`, counted from 0, during which it was emitted, its
 `name` and its `payload`, as a unit snapshot's record holds them.
 
 The generator fails when:
 
-- a run's city has random disasters enabled, or creates a sprite: runs are what the C# can run before it ports them;
 - a fixture's run at its saved speed, which is its golden run, does not end at its golden run hash;
 - a run reaches no year end, or the runs together don't cover a year's budget that auto-budget paid, one it ran short
   of, and one with auto-budget off;
+- no run has sprites moving, or none has random disasters on;
 - no new city runs at one of the levels, or the gzipped files take more than 5 MB.
 
 `CityRunTests` runs every run the index lists, through `CityRunner`: it starts the city, `Simulation.NewCity` for a
