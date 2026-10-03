@@ -115,7 +115,7 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 | `budget.roadSpend`, `budget.fireSpend`, `budget.policeSpend` | The spend booked on each service, from which its effectiveness is set: what the player's funding costs, what the year-end budget paid, or the full cost of every service after an autobudget year end |
 | `budget.roadMaintenanceBudget`, `budget.fireMaintenanceBudget`, `budget.policeMaintenanceBudget` | What each service needs |
 | `budget.roadEffect`, `budget.fireEffect`, `budget.policeEffect` | Each service's effectiveness |
-| `budget.cashFlow` | The last year's cash flow |
+| `budget.cashFlow` | The last year's cash flow, wrapped into −32768 to 32767 as the original's short wraps it |
 | `budget.taxFund` | The last tax collected |
 
 ### Census

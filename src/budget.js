@@ -263,7 +263,10 @@ Budget.prototype.collectTax = function(gameLevel, census) {
   this.taxFund = Math.floor(Math.fround(Math.fround(taxBase) * FLevels[gameLevel]));
 
   if (census.totalPop > 0) {
-    this.cashFlow = this.taxFund - (this.policeMaintenanceBudget + this.fireMaintenanceBudget + this.roadMaintenanceBudget);
+    // The original keeps the cash flow in a short, which wraps past 32767: a city taxing more than that over its
+    // upkeep has a negative cash flow, which the money history shows
+    var cashFlow = this.taxFund - (this.policeMaintenanceBudget + this.fireMaintenanceBudget + this.roadMaintenanceBudget);
+    this.cashFlow = (cashFlow << 16) >> 16;
     this.doBudgetNow();
   } else {
     // We don't want roads etc deteriorating when population hasn't yet been established

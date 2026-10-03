@@ -18,10 +18,12 @@ import { differences as firstDifferences, outcomeDifference } from "./helpers/or
 // The original's collectTax, from simulate.cpp in its MicropolisEngine, as far as it works out the year's figures,
 // transcribed with each C type's arithmetic made explicit, as the oracle the port is compared with below: float
 // arithmetic rounds every operation to 32 bits (Math.fround), a (long) of a float drops the fraction, and the shorts,
-// ints and Quads are whole numbers. One thing follows the port rather than simulate.cpp: the cash flow is kept whole,
-// where the original's short wraps.
+// ints and Quads are whole numbers, and a (short) of a Quad wraps.
 
 const f = Math.fround;
+
+// A whole number stored in a short: it wraps into -32768 to 32767
+const toShort = (value: number) => ((value + 32768) % 65536 + 65536) % 65536 - 32768;
 
 const R_LEVELS = [f(0.7), f(0.9), f(1.2)];
 const F_LEVELS = [f(1.4), f(1.2), f(0.8)];
@@ -54,7 +56,7 @@ function originalCollectTax(figures: Figures): Outcome {
     const fireFund = figures.fireStationPop * 100;
     const roadFund = Math.trunc(f(f(roadTotal + railTotal * 2) * R_LEVELS[gameLevel]));
     const taxFund = Math.trunc(f(f(Math.trunc(totalPop * landValueAverage / 120) * cityTax) * F_LEVELS[gameLevel]));
-    const cashFlow = totalPop > 0 ? taxFund - (policeFund + fireFund + roadFund) : 0;
+    const cashFlow = totalPop > 0 ? toShort(taxFund - (policeFund + fireFund + roadFund)) : 0;
 
     return {policeMaintenanceBudget: policeFund, fireMaintenanceBudget: fireFund, roadMaintenanceBudget: roadFund,
             taxFund, cashFlow};
