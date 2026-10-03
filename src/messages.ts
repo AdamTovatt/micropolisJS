@@ -54,6 +54,7 @@ export const NEED_STADIUM = "Stadium needed";
 export const NO_MONEY = "No money";
 export const NOT_ENOUGH_POWER = "Not enough power";
 export const NUCLEAR_MELTDOWN = "Nuclear Meltdown";
+export const OVERLAY_UPDATED = "Overlay layer updated";
 export const PAUSE_REQUESTED = "Pause requested";
 export const PLANE_CRASHED = "Plane crashed";
 export const POLICE_NEEDS_FUNDING = "Police need funding";

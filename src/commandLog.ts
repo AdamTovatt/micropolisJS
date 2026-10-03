@@ -12,7 +12,7 @@
  */
 
 import { QueueRecorder, StampedCommand } from "./commandQueue";
-import { isRecord, isWholeNumber } from "./commands";
+import { isRecord, isWholeNumber } from "./validation";
 import { Saveable, stateHash } from "./stateHash";
 
 // A command log: where a city starts, every command it was sent, stamped with the step it preceded, and the state

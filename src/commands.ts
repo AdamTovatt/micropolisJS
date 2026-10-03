@@ -13,6 +13,7 @@
 
 import { Command, CommandType, DISASTER_KINDS, TilePosition, TOOL_NAMES } from "./protocol";
 import { SERVICES } from "./serviceFunding";
+import { FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumber, oneOf } from "./validation";
 
 // How the simulation takes the commands a player sends it, which protocol.ts defines. They arrive untrusted: the
 // simulation validates each one before it applies it, and never branches on which player sent it.
@@ -47,11 +48,6 @@ export interface CommandResult {
   reason: string | null;
 }
 
-type FieldRule = "required" | "optional";
-
-// Whether each of a command's fields but its type must be there, as its Command type says
-type FieldRules<C> = {[K in Exclude<keyof C, "type">]: undefined extends C[K] ? "optional" : "required"};
-
 // Each command's fields but its type: a command missing a required one, or with any other, is rejected. The compiler
 // holds the table to the Command type, both ways: a field one has and the other lacks is a type error.
 const FIELDS = {
@@ -71,31 +67,8 @@ export function maxCommandLength(width: number, height: number): number {
   return 32 * width * height + 1024;
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function fieldsWith(rules: Record<string, FieldRule>, rule: FieldRule): string[] {
-  return Object.keys(rules).filter((field) => rules[field] === rule).sort();
-}
-
-// Whether the keys, but the one left out, are every required field and otherwise only optional ones
-function hasFields(value: Record<string, unknown>, rules: Record<string, FieldRule>, leaveOut?: string): boolean {
-  const keys = Object.keys(value).filter((key) => key !== leaveOut);
-  return fieldsWith(rules, "required").every((field) => keys.includes(field)) &&
-         keys.every((key) => Object.prototype.hasOwnProperty.call(rules, key));
-}
-
-export function isWholeNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value);
-}
-
 function isWholeNumberIn(value: unknown, min: number, max: number): boolean {
   return isWholeNumber(value) && value >= min && value <= max;
-}
-
-function oneOf(value: unknown, values: readonly string[]): boolean {
-  return typeof value === "string" && values.indexOf(value) !== -1;
 }
 
 function pathRejection(path: unknown, width: number, height: number): string | null {
@@ -143,9 +116,7 @@ export function commandRejection(command: unknown, width: number, height: number
   const type = command.type as CommandType;
   const rules: Record<string, FieldRule> = FIELDS[type];
   if (!hasFields(command, rules, "type")) {
-    const optional = fieldsWith(rules, "optional");
-    return `the ${type} command has exactly the fields ${["type", ...fieldsWith(rules, "required")].join(", ")}` +
-           (optional.length === 0 ? "" : `, and may have ${optional.join(", ")}`);
+    return fieldsReason(`the ${type} command`, rules);
   }
 
   switch (type) {
