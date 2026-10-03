@@ -53,13 +53,22 @@ function SplashScreen(tileSet, snowTileSet, spriteSheet) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
   this.spriteSheet = spriteSheet;
-  generateMap.call(this);
+  // Whether the player has moved on, to a new game or a saved one
+  this.left = false;
+  generateMap.call(this, Config.seed);
 
   // Set up listeners on buttons. When play is clicked, we will move on to get the player's desired
   // difficulty level and city name before launching the game properly
   $('#splashGenerate').click(regenerateMap.bind(this));
   $('#splashPlay').click(acquireNameAndDifficulty.bind(this));
   $('#splashLoad').click(handleLoad.bind(this));
+
+  // Debug mode can open a save file, such as an end-to-end checkpoint's, to reproduce what it shows
+  if (Config.debug) {
+    $('#splashLoadFileContainer').removeClass('hidden');
+    $('#splashLoadFile').click(chooseSaveFile);
+    $('#splashLoadFileInput').on('change', handleLoadFile.bind(this));
+  }
 
   // Conditionally enable load/save buttons
   $('#saveRequest').prop('disabled', !Storage.canStore);
@@ -75,9 +84,9 @@ function SplashScreen(tileSet, snowTileSet, spriteSheet) {
 }
 
 
-// Pick a new game seed and generate its map
-var generateMap = function() {
-  this.seed = UiRandom.newSeed();
+// Generate the map of this game seed, or of a new one when none is given
+var generateMap = function(seed) {
+  this.seed = seed === undefined || seed === null ? UiRandom.newSeed() : seed;
   this.map = MapGenerator(Random.mapStream(this.seed));
   $('#splashSeed').text(this.seed);
 };
@@ -101,13 +110,58 @@ var handleLoad = function(e) {
   if (savedGame === null)
     return;
 
-  // Remove installed event listeners
+  launchSavedGame.call(this, savedGame);
+};
+
+
+var chooseSaveFile = function(e) {
+  e.preventDefault();
+  $('#splashLoadFileInput').trigger('click');
+};
+
+
+// Launches the game saved in the chosen file. The file holds the text the game saves to storage.
+var handleLoadFile = function(e) {
+  var file = e.target.files[0];
+  // Choosing the same file again, after it failed, is a change too
+  e.target.value = '';
+  if (file === undefined)
+    return;
+
+  file.text().then(function(text) {
+    // The player moved on while the file was read
+    if (this.left)
+      return;
+
+    var savedGame;
+
+    try {
+      savedGame = Storage.parse(text);
+    } catch (err) {
+      alert('Could not read ' + file.name + ': ' + err.message);
+      return;
+    }
+
+    launchSavedGame.call(this, savedGame);
+  }.bind(this));
+};
+
+
+// Removes the splash screen's listeners and hides it
+var leaveSplash = function() {
   $('#splashLoad').off('click');
+  $('#splashLoadFile').off('click');
+  $('#splashLoadFileInput').off('change');
   $('#splashGenerate').off('click');
   $('#splashPlay').off('click');
 
-  // Hide the splashscreen UI
   $('#splash').toggle();
+  this.left = true;
+};
+
+
+var launchSavedGame = function(savedGame) {
+  leaveSplash.call(this);
 
   // Launch
   Game.fromSave(savedGame, this.tileSet, this.snowTileSet, this.spriteSheet);
@@ -119,13 +173,7 @@ var handleLoad = function(e) {
 var acquireNameAndDifficulty = function(e) {
   e.preventDefault();
 
-  // Remove the initial event listeners
-  $('#splashLoad').off('click');
-  $('#splashGenerate').off('click');
-  $('#splashPlay').off('click');
-
-  // Get rid of the initial splash screen
-  $('#splash').toggle();
+  leaveSplash.call(this);
 
   // As a convenience, the city name is not mandatory in debug mode
   if (Config.debug)
