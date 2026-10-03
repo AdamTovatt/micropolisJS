@@ -27,7 +27,7 @@ import { GameCanvas } from './gameCanvas.ts';
 import { InfoBar } from './infoBar.js';
 import { InputStatus } from './inputStatus.js';
 import * as Messages from './messages.ts';
-import { MonsterTV } from './monsterTV.js';
+import { MonsterTV } from './monsterTV.ts';
 import { Notification } from './notification.js';
 import { OverlayPicker, pageOverlaySource } from './overlayPicker.ts';
 import { SPEEDS } from './protocol.ts';
