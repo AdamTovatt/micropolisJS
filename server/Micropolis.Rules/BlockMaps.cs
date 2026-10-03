@@ -21,9 +21,11 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed class BlockMaps
     {
-        // The most a station map's block holds: each station in the block adds up to 1000, its funded effect
-        // (emergencyServices.js), and at most nine stations, three tiles a side, have their centres in one block of 8
-        private const int MaxStationMap = 9 * 1000;
+        // The most a station map's block holds: each station adds up to 1000, its funded effect, at the road tile on its
+        // perimeter, or at its centre when it has none (emergencyServices.js). Either is at most two tiles from its
+        // centre, so the stations a block of 8 collects from have their centres in a 12×12 square, and stations three
+        // tiles a side that don't overlap have at most one centre in each of its sixteen 3×3 squares.
+        private const int MaxStationMap = 16 * 1000;
 
         private readonly IReadOnlyList<(string Key, BlockMap Map)> _saved;
 

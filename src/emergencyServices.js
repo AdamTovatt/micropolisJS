@@ -24,14 +24,18 @@ var handleService = function(censusStat, budgetEffect, blockMap) {
     if (!isPowered)
       effect = Math.floor(effect / 2);
 
+    // As the original's doSpecialZone does, the effect is noted at the road tile found on the station's perimeter,
+    // which may be in a block other than the station's, or at the station when it has no road
     var pos = new Position(x, y);
-    var connectedToRoads = simData.trafficManager.findPerimeterRoad(pos) !== null;
-    if (!connectedToRoads)
+    var roadPos = simData.trafficManager.findPerimeterRoad(pos);
+    if (roadPos === null) {
       effect = Math.floor(effect / 2);
+      roadPos = pos;
+    }
 
-    var currentEffect = simData.blockMaps[blockMap].worldGet(x, y);
+    var currentEffect = simData.blockMaps[blockMap].worldGet(roadPos.x, roadPos.y);
     currentEffect += effect;
-    simData.blockMaps[blockMap].worldSet(x, y, currentEffect);
+    simData.blockMaps[blockMap].worldSet(roadPos.x, roadPos.y, currentEffect);
   };
 };
 
