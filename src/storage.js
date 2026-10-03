@@ -20,24 +20,32 @@ import { UiRandom } from './uiRandom.ts';
 // (such as indexedDB) in the future
 
 var getSavedGame = function() {
-  var savedGame = window.localStorage.getItem(this.KEY);
+  var text = window.localStorage.getItem(this.KEY);
 
-  if (savedGame !== null) {
-    savedGame = JSON.parse(savedGame);
-
-    if (savedGame.version !== this.CURRENT_VERSION)
-      this.transitionOldSave(savedGame);
-  }
-
-  return savedGame;
+  return text === null ? null : this.parse(text);
 };
 
 
 var saveGame = function(gameData) {
-  gameData.version = this.CURRENT_VERSION;
-  gameData = JSON.stringify(gameData);
+  window.localStorage.setItem(this.KEY, this.serialise(gameData));
+};
 
-  window.localStorage.setItem(this.KEY, gameData);
+
+// The text a game is saved as: its save data, stamped with the current version. A save file holds the same text.
+var serialise = function(gameData) {
+  gameData.version = this.CURRENT_VERSION;
+  return JSON.stringify(gameData);
+};
+
+
+// A saved game from its text, migrated to the current version
+var parse = function(text) {
+  var savedGame = JSON.parse(text);
+
+  if (savedGame.version !== this.CURRENT_VERSION)
+    this.transitionOldSave(savedGame);
+
+  return savedGame;
 };
 
 
@@ -191,7 +199,9 @@ var transitionOldSave = function(savedGame) {
 
 var Storage = {
   getSavedGame: getSavedGame,
+  parse: parse,
   saveGame: saveGame,
+  serialise: serialise,
   transitionOldSave: transitionOldSave
 };
 

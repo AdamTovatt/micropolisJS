@@ -13,7 +13,7 @@
 
 import { QueueRecorder, StampedCommand } from "./commandQueue";
 import { isRecord, isWholeNumber } from "./validation";
-import { Saveable, stateHash } from "./stateHash";
+import { hashSavedState, Saveable, stateHash } from "./stateHash";
 
 // A command log: where a city starts, every command it was sent, stamped with the step it preceded, and the state
 // hashes it reached along the way. Replaying the log reproduces the city, and its checkpoints check that it does.
@@ -114,6 +114,55 @@ export function parseLog(value: unknown): CommandLog {
 export function lastStep(log: CommandLog): number {
   const last = <T extends {step: number}>(list: T[]) => (list.length === 0 ? 0 : list[list.length - 1].step);
   return Math.max(last(log.entries), last(log.checkpoints));
+}
+
+// Sessions played one after another as one log, from where the first one started. Each later session started from a
+// save of the city the one before it ended on, so it carries on where that one stopped: its entries and checkpoints
+// follow, their steps counted on from the step the one before ended at. The log needs no entry for the load, because
+// a load is transparent: the city it loads hashes as the city that was saved. It fails when one isn't, and on a
+// session that applied a command before its first step, whose state there the joined log can't check, since a
+// checkpoint is taken after its step's commands.
+export async function joinSessions(sessions: CommandLog[]): Promise<CommandLog> {
+  if (sessions.length === 0) {
+    throw new Error("No session to join");
+  }
+
+  const first = sessions[0];
+  const entries = [...first.entries];
+  const checkpoints = [...first.checkpoints];
+
+  for (let i = 1; i < sessions.length; i++) {
+    const session = sessions[i];
+    const number = i + 1;
+    if (!("save" in session)) {
+      throw new Error(`Session ${number} starts from a seed, not from the city the session before it saved`);
+    }
+
+    // A recorded log ends with a checkpoint of the city at the step it ended at
+    const ended = checkpoints[checkpoints.length - 1];
+    if (ended === undefined) {
+      throw new Error(`The session before session ${number} has no checkpoints`);
+    }
+
+    const loaded = await hashSavedState(session.save);
+    if (loaded !== ended.hash) {
+      throw new Error(`Session ${number} loads a city whose state hash is ${loaded}, but the session before it ended ` +
+                      `on ${ended.hash}`);
+    }
+
+    if (session.entries.some((entry) => entry.step === 0)) {
+      throw new Error(`Session ${number} applies a command before its first step`);
+    }
+
+    entries.push(...session.entries.map((entry) => ({...entry, step: entry.step + ended.step})));
+    // Its checkpoint at its first step is of the city as loaded: the one the session before ended on
+    checkpoints.push(...session.checkpoints.filter((checkpoint) => checkpoint.step > 0)
+      .map((checkpoint) => ({...checkpoint, step: checkpoint.step + ended.step})));
+  }
+
+  const {formatVersion} = first;
+  const start = "seed" in first ? {seed: first.seed, level: first.level} : {save: first.save};
+  return {formatVersion, ...start, entries, checkpoints};
 }
 
 // A checkpoint every this many steps, a minute of play

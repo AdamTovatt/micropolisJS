@@ -77,6 +77,15 @@ fails.
 - **Fixtures.** Each fixture in `headless/fixtures/` is a log whose checkpoints are its golden hashes: one at step 0,
   of the city as its commands build it, and one after a fixed run. `npm run fixtures` exports each as
   `headless/fixtures/export/<name>.log.json`.
+- **The end-to-end playthrough.** The runner downloads each session's log from the debug window and joins them into
+  one from the seed (`joinSessions`): a session that loaded the save the one before it ended on carries on its steps,
+  with no entry for the load. A joined session may apply no command before its first step: the joined log takes its
+  city there for the city as loaded, which such a command would have changed. `e2e/goldenPlaythrough.json` holds the
+  log, beside each stage's step, the number of the log's entries before it and its hash, and every run's log must be
+  that one. A stage may end partway through a step's commands, before those the next stage applies first, so its hash
+  is not a checkpoint of the log: `test/playthroughReplay.ts` replays each stage from the one before it, with the
+  log's entries between the two. A run that took its log puts it in its report, `e2e-report/command-log.json`; one
+  that ended at a failed stage, or couldn't join its sessions, has none.
 
 `npm run simulate -- --log <file>` replays the whole log and counts its commands' outcomes. It then reports that the
 checkpoints all match, or fails naming the earliest that didn't, or, for a log with no checkpoints, fails because it

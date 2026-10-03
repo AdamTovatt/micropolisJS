@@ -44,6 +44,7 @@ import { plainSavedState } from './stateHash.ts';
 import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
+import { attachToTestHook } from './testHook.ts';
 import { Text } from './text.js';
 import { TouchWarnWindow } from './touchWarnWindow.ts';
 import { UiRandom } from './uiRandom.ts';
@@ -180,8 +181,10 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   this.recorder = new CommandRecorder(this.simulation, logStart);
   this.commandQueue = new CommandQueue(this.simulation, this.recorder);
   this.stepDriver = new StepDriver();
+  this.notSteppingReason = notSteppingReason.bind(this);
   this.isStepping = isStepping.bind(this);
   this.stepSimulation = this.commandQueue.step.bind(this.commandQueue);
+  attachToTestHook(this);
   this.tick = tick.bind(this);
   this.tick();
 
@@ -200,11 +203,17 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
 }
 
 
-Game.prototype.save = function() {
+// What the game saves, before storage stamps its version
+Game.prototype.saveData = function() {
   var saveData = {name: this.name};
   this.simulation.save(saveData);
 
-  Storage.saveGame(saveData);
+  return saveData;
+};
+
+
+Game.prototype.save = function() {
+  Storage.saveGame(this.saveData());
 };
 
 
@@ -586,10 +595,24 @@ Game.prototype.calculateSpritesForPaint = function(canvas) {
 };
 
 
-// The city steps unless it is paused, the screen is too small to play, or the tab is hidden: a hidden tab is not
-// watched, so the city waits rather than running on unseen
+// Why the city isn't stepping, or null when it is. It steps unless it is paused, the screen is too small to play, or
+// the tab is hidden: a hidden tab is not watched, so the city waits rather than running on unseen.
+var notSteppingReason = function() {
+  if (this.simulation.isPaused())
+    return 'it is paused';
+
+  if ($('#tooSmall').is(':visible'))
+    return 'the screen is too small to play';
+
+  if (document.hidden)
+    return 'the page is hidden';
+
+  return null;
+};
+
+
 var isStepping = function() {
-  return !this.simulation.isPaused() && !$('#tooSmall').is(':visible') && !document.hidden;
+  return this.notSteppingReason() === null;
 };
 
 
@@ -597,9 +620,12 @@ var tick = function() {
   this.handleInput();
 
   // The tiles clicked or dragged over since the last tick go as tool commands, one per path. The commands sent since the
-  // last tick apply first, whether or not the city is stepping: you can build when paused.
-  this.sendToolPaths();
-  this.commandQueue.applyCommands();
+  // last tick apply first, whether or not the city is stepping: you can build when paused. While the end-to-end runner
+  // holds the driver, it applies them itself, so that how a drag splits into commands never depends on when ticks ran.
+  if (!this.stepDriver.isHeld()) {
+    this.sendToolPaths();
+    this.commandQueue.applyCommands();
+  }
 
   // Run the sim: as many steps as the time since the last tick is due
   this.stepDriver.run(performance.now(), this.isStepping, this.stepSimulation);

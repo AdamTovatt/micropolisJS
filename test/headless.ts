@@ -111,8 +111,8 @@ describe("the runner", () => {
     it("takes a whole number of steps", () => {
         const city = startCity({fixture: "town"});
 
-        expect(() => advance(city, -1)).toThrow("A run takes a whole number of steps, got -1");
-        expect(() => advance(city, 1.5)).toThrow("A run takes a whole number of steps, got 1.5");
+        expect(() => advance(city, -1)).toThrow("Steps are taken in whole numbers, got -1");
+        expect(() => advance(city, 1.5)).toThrow("Steps are taken in whole numbers, got 1.5");
     });
 });
 
@@ -189,7 +189,7 @@ describe("a run", () => {
         city.step = () => {};
 
         expect(() => advance(city, 64))
-            .toThrow("The simulation stalled: 64 steps should advance city time from 0 to 4, but it reached 0");
+            .toThrow("The city stalled: 64 steps should advance city time from 0 to 4, but it reached 0");
     });
 
     // Two whole speed cycles: each wrap from 1023 to 0 lets a phase through at slow and medium speed that the step

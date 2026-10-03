@@ -18,7 +18,9 @@
 var Config = {
   debug: false,
   gameDebug: false,
-  queryDebug: false
+  queryDebug: false,
+  // The game seed the page was opened with (?seed=<n>), or null to pick one at random
+  seed: null
 };
 
 

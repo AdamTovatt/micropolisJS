@@ -14,10 +14,12 @@
 import { cityFromSeed, Level, Simulation, Speed } from "../headless/city";
 import { buildingAt, lineOf } from "../headless/fixtures/toolCommands";
 import { advance, fixtureSave, replay, startCity } from "../headless/runner";
-import { CommandLog, CommandRecorder, lastStep, LOG_FORMAT_VERSION, LogStart, parseLog } from "../src/commandLog";
+import {
+    CommandLog, CommandRecorder, joinSessions, lastStep, LOG_FORMAT_VERSION, LogStart, parseLog,
+} from "../src/commandLog";
 import { CommandQueue } from "../src/commandQueue";
 import { CommandResult, LOCAL_PLAYER } from "../src/commands";
-import { plainSavedState, stateHash } from "../src/stateHash";
+import { hashSavedState, plainSavedState, stateHash } from "../src/stateHash";
 import { InspectedSave } from "./helpers/savedState";
 
 const HASH = "0".repeat(64);
@@ -273,5 +275,97 @@ describe("a log's replay", () => {
         const saved = fixtureSave("town");
 
         expect(plainSavedState(replay(logFrom({save: saved}, [])).city)).toEqual(saved);
+    });
+});
+
+describe("joining sessions", () => {
+
+    const HASHES = {start: "a".repeat(64), later: "b".repeat(64)};
+
+    const command = (step: number) =>
+        ({step, player: LOCAL_PLAYER, command: {type: "setAutoBudget", on: step % 2 === 0}});
+
+    // Three sessions, each after the first loading the city the one before it ended on: a session from seed 23 that
+    // ended at step 100, one that took 50 steps more, and one that took 20
+    async function sessions(): Promise<[CommandLog, CommandLog, CommandLog]> {
+        const city = cityFromSeed(23, Level.medium, Speed.medium);
+        advance(city, 100);
+        const firstSave = plainSavedState(city);
+        const firstEnd = await stateHash(city);
+        advance(city, 50);
+        const secondEnd = await stateHash(city);
+
+        const first: CommandLog = {formatVersion: LOG_FORMAT_VERSION, seed: 23, level: Level.medium,
+                                   entries: [command(0), command(40)],
+                                   checkpoints: [{step: 0, hash: HASHES.start}, {step: 100, hash: firstEnd}]};
+        const second: CommandLog = {formatVersion: LOG_FORMAT_VERSION, save: firstSave, entries: [command(5)],
+                                    checkpoints: [{step: 0, hash: firstEnd}, {step: 50, hash: secondEnd}]};
+        const third: CommandLog = {formatVersion: LOG_FORMAT_VERSION, save: plainSavedState(city),
+                                   entries: [command(7)], checkpoints: [{step: 0, hash: secondEnd}, {step: 20, hash: HASHES.later}]};
+        return [first, second, third];
+    }
+
+    it("carries each loaded session on from the step the one before ended at, with no entry for the load", async () => {
+        const [first, second, third] = await sessions();
+
+        expect(await joinSessions([first, second, third])).toEqual({
+            formatVersion: LOG_FORMAT_VERSION, seed: 23, level: Level.medium,
+            entries: [command(0), command(40), {...command(5), step: 105}, {...command(7), step: 157}],
+            checkpoints: [...first.checkpoints, {step: 150, hash: second.checkpoints[1].hash},
+                          {step: 170, hash: HASHES.later}],
+        });
+    });
+
+    it("starts where the first session started, from a save", async () => {
+        const [first, second] = await sessions();
+        const save = plainSavedState(cityFromSeed(23, Level.medium, Speed.medium));
+        const fromSave: CommandLog = {formatVersion: LOG_FORMAT_VERSION, save, entries: first.entries,
+                                      checkpoints: first.checkpoints};
+
+        const joined = await joinSessions([fromSave, second]);
+
+        expect(joined).toEqual(expect.objectContaining({save}));
+        expect(joined).not.toHaveProperty("seed");
+    });
+
+    it("leaves one session as it was", async () => {
+        const [first] = await sessions();
+
+        expect(await joinSessions([first])).toEqual(first);
+    });
+
+    it("refuses a later session that loads another city than the one before it ended on", async () => {
+        const [first, second] = await sessions();
+        const other = plainSavedState(cityFromSeed(24, Level.medium, Speed.medium));
+        const loaded = await hashSavedState(other);
+
+        await expect(joinSessions([first, {...second, save: other}])).rejects.toThrow(
+            `Session 2 loads a city whose state hash is ${loaded}, but the session before it ended on ` +
+            first.checkpoints[1].hash);
+    });
+
+    it("refuses a later session that starts from a seed", async () => {
+        const [first] = await sessions();
+
+        await expect(joinSessions([first, first])).rejects.toThrow("Session 2 starts from a seed");
+    });
+
+    // Its checkpoint at its first step comes after those commands, where the joined log has the city as loaded
+    it("refuses a later session that applies a command before its first step", async () => {
+        const [first, second] = await sessions();
+
+        await expect(joinSessions([first, {...second, entries: [command(0)]}])).rejects.toThrow(
+            "Session 2 applies a command before its first step");
+    });
+
+    it("refuses a session after one without checkpoints", async () => {
+        const [first, second] = await sessions();
+
+        await expect(joinSessions([{...first, checkpoints: []}, second])).rejects.toThrow(
+            "The session before session 2 has no checkpoints");
+    });
+
+    it("refuses no sessions at all", async () => {
+        await expect(joinSessions([])).rejects.toThrow("No session to join");
     });
 });

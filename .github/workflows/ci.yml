@@ -28,3 +28,30 @@ jobs:
         run: cc -O2 -o conformance/random conformance/random.c && conformance/random | diff - conformance/random.json
       - run: dotnet build server/Micropolis.slnx
       - run: dotnet test server/Micropolis.slnx --no-build
+
+  e2e:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      # The report shows every stage of the playthrough, so it is kept on every run, not only on failure
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playthrough-report
+          path: e2e-report/
+          if-no-files-found: error
+      # The trace of each test that failed, which `npx playwright show-trace` opens
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-traces
+          path: e2e-results/
+          if-no-files-found: ignore
