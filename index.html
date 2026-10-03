@@ -65,6 +65,16 @@
             </div>
           </form>
         </div>
+        <div id="signIn" class="mintcream open shadow padding10 centred">
+          <h2 class="chunk alignCenter">Sign in</h2>
+          <form id="signInForm">
+            <label for="signInName">Your name, as the other mayors will see it</label>
+            <input id="signInName" required class="margin10" type="text" maxlength="32" autocomplete="nickname">
+            <p id="signInError" role="alert"></p>
+            <input id="signInSubmit" type="submit" value="Sign in">
+          </form>
+        </div>
+        <div id="onlineList" class="open centredAcross neutral z1 padding10 controlShadow elided initialHidden" aria-live="polite">Offline</div>
         <div id="infobar" class="alignCenter leftedge open width140 padding10 controlShadow mintcream z1 initialHidden">
           <div class="inner">
             <div class="semibold chunk">
@@ -152,7 +162,7 @@
             <button id="debugRequest">Debug</button>
           </div>
         </div>
-        <div id="notifications" class="initialHidden neutral z1 rightedge alignCenter elided padding10 controlShadow"></div>
+        <div id="notifications" class="initialHidden centredAcross neutral z1 rightedge alignCenter elided padding10 controlShadow"></div>
         <div id="tooSmall" data-hasscript="false" class="mintcream open"><div id="tooSmallInner" class="alignCenter padding10"><h2 class="chunk">Uh-oh!</h2><p>This screen is too small&mdash;I won't be able to fit in all the controls, buttons and gizmos! Sorry!</p></div></div>
         <noscript>
           <div id="noscript" class="open mintcream centred padding10">

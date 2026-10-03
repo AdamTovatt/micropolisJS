@@ -13,7 +13,11 @@
 
 import $ from "jquery";
 
+import { browserEnvironment } from './browserCityEnvironment.ts';
+import { CityClient } from './cityClient.ts';
 import { Config } from './config.js';
+import { showOnlineList } from './onlineList.ts';
+import { signInIfServerAnswers } from './signInForm.ts';
 import { SplashScreen } from './splashScreen.js';
 import { TileSet } from './tileSet.js';
 import { TileSetURI } from './tileSetURI.ts';
@@ -41,7 +45,18 @@ var onAllTilesLoaded = function() {
   var sprites = $('#sprites')[0];
   if (sprites.complete) {
     $('#loadingBanner').css('display', 'none');
-    new SplashScreen(tileSet, snowTileSet, sprites);
+
+    var startGame = function() {
+      new SplashScreen(tileSet, snowTileSet, sprites);
+    };
+
+    // Sign in first when a server answers. The game starts whatever happens, single-player when it must.
+    var cityClient = new CityClient(browserEnvironment());
+    showOnlineList(document.getElementById('onlineList'), cityClient);
+    signInIfServerAnswers(cityClient).then(startGame, function(error) {
+      console.error('Signing in failed', error);
+      startGame();
+    });
   } else {
      window.setTimeout(onAllTilesLoaded, 0);
   }
