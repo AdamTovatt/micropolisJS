@@ -17,13 +17,11 @@ import { COMCLR, CZB, INDBASE, ROADS } from "../src/tileValues";
 import { ZoneUtils } from "../src/zoneUtils.js";
 import { registeredHandler } from "./helpers/handlers";
 import { streamDrawing } from "./helpers/streams";
-import { makeMap, makeSimData } from "./helpers/zoneCity";
+import { ASSESS, DECLINE, DRIVE, GROW, makeMap, makeSimData, ZONE_X, ZONE_Y } from "./helpers/zoneCity";
 
 describe("a commercial zone", () => {
 
     // A powered zone, empty or of the lowest population, with a road on the west end of its northern edge
-    const ZONE_X = 20;
-    const ZONE_Y = 20;
     const ROAD_X = ZONE_X - 1;
     const ROAD_Y = ZONE_Y - 2;
 
@@ -34,16 +32,8 @@ describe("a commercial zone", () => {
     // A rate of growth's step for each level a zone grows or declines: incRateOfGrowth's 8, times its scale of 4
     const LEVEL_OF_GROWTH = 8 * 4;
 
-    // The draws, each test giving exactly those its zone takes, so a draw too many fails it: getRandom(5) of 0, so a
-    // zone of population 1 drives; getChance(7), which 0 passes, so the zone is assessed; and getRandom16Signed of
-    // -32768, under any score a zone can grow at, or of 32767, over any score a zone can decline at
-    const DRIVE = 0;
-    const ASSESS = 0;
-    const GROW = 0x8000;
-    const DECLINE = 0x7fff;
-
     // A zone of the given centre tile under the given demand, whose road on the perimeter leads to the destination
-    // tile, or nowhere
+    // tile, or nowhere. Each test gives exactly the draws its zone takes, so a draw too many fails it.
     function makeCity(centreTile: number, roadLeadsTo: number | null, demand: number, draws: number[]) {
         const map = makeMap();
         ZoneUtils.putZone(map, ZONE_X, ZONE_Y, centreTile, true);

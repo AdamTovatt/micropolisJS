@@ -11,9 +11,9 @@
  *
  */
 
-import { Command, ToolName } from "../../src/protocol";
+import { Command } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
-import { buildingAt, lineOf } from "./toolCommands";
+import { buildingAt, lineOf, zoneRow } from "./toolCommands";
 
 // A small powered town: two rows of ten zones either side of a road, a coal plant at the west end, and an airport
 // and a railway to the south, which bring planes, a helicopter and trains. It has no police or fire station: their
@@ -26,26 +26,16 @@ const TOP = 12;
 const ZONES_PER_ROW = 10;
 const RIGHT = LEFT + 3 * ZONES_PER_ROW;
 
-// R residential, C commercial, I industrial
-const ZONE_TOOLS: Record<string, ToolName> = {R: "residential", C: "commercial", I: "industrial"};
 const NORTH_ROW = "RRCRRCRRCR";
 const SOUTH_ROW = "IIIRRCRRII";
-
-function zoneRow(kinds: string, top: number): Command[] {
-  if (kinds.length !== ZONES_PER_ROW) {
-    throw new Error(`A row has ${ZONES_PER_ROW} zones, got ${kinds}`);
-  }
-
-  return Array.from(kinds, (kind, i) => buildingAt(ZONE_TOOLS[kind], LEFT + 3 * i + 1, top + 1));
-}
 
 // The commands that build the town's plant, zones and roads, which create no sprites
 export const zonedTownCommands: Command[] = [
   // The plant's east side touches the north row's first zone
   buildingAt("coal", LEFT - 3, TOP + 1),
-  ...zoneRow(NORTH_ROW, TOP),
+  ...zoneRow(NORTH_ROW, LEFT, TOP),
   lineOf("road", LEFT, TOP + 3, RIGHT, TOP + 3),
-  ...zoneRow(SOUTH_ROW, TOP + 4),
+  ...zoneRow(SOUTH_ROW, LEFT, TOP + 4),
   lineOf("road", LEFT, TOP + 7, RIGHT, TOP + 7),
   lineOf("road", RIGHT, TOP + 4, RIGHT, TOP + 6),
 

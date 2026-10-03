@@ -260,26 +260,26 @@ namespace Micropolis.Rules
         /// <summary>
         /// The value of the tile next to the position in a cardinal direction, or the default off the map.
         /// </summary>
-        public int GetTileFromMapOrDefault(Position pos, Direction dir, int defaultTile)
+        public int GetTileFromMapOrDefault(Position position, Direction direction, int defaultTile)
         {
-            if (dir == Direction.North)
+            if (direction == Direction.North)
             {
-                return pos.Y > 0 ? GetTileValue(pos.X, pos.Y - 1) : defaultTile;
+                return position.Y > 0 ? GetTileValue(position.X, position.Y - 1) : defaultTile;
             }
 
-            if (dir == Direction.East)
+            if (direction == Direction.East)
             {
-                return pos.X < Width - 1 ? GetTileValue(pos.X + 1, pos.Y) : defaultTile;
+                return position.X < Width - 1 ? GetTileValue(position.X + 1, position.Y) : defaultTile;
             }
 
-            if (dir == Direction.South)
+            if (direction == Direction.South)
             {
-                return pos.Y < Height - 1 ? GetTileValue(pos.X, pos.Y + 1) : defaultTile;
+                return position.Y < Height - 1 ? GetTileValue(position.X, position.Y + 1) : defaultTile;
             }
 
-            if (dir == Direction.West)
+            if (direction == Direction.West)
             {
-                return pos.X > 0 ? GetTileValue(pos.X - 1, pos.Y) : defaultTile;
+                return position.X > 0 ? GetTileValue(position.X - 1, position.Y) : defaultTile;
             }
 
             return defaultTile;

@@ -17,20 +17,13 @@ import { INDCLR } from "../src/tileValues";
 import { ZoneUtils } from "../src/zoneUtils.js";
 import { registeredHandler } from "./helpers/handlers";
 import { streamDrawing } from "./helpers/streams";
-import { makeMap, makeSimData } from "./helpers/zoneCity";
+import { ASSESS, DECLINE, DRIVE, makeMap, makeSimData, ZONE_X, ZONE_Y } from "./helpers/zoneCity";
 
 describe("an industrial zone", () => {
 
-    const ZONE_X = 20;
-    const ZONE_Y = 20;
     const WEAKEST_DEMAND = -1500;
 
-    // The draws: getRandom(5), which an empty zone never drives on; getChance(7), which 0 passes, so the zone is
-    // assessed; getRandom16Signed of 32767, over any score a zone can decline at; and the land value's draw, 0 or 1 by
-    // its low bit, which the decline still takes
-    const DRIVE = 0;
-    const ASSESS = 0;
-    const DECLINE = 0x7fff;
+    // The land value's draw, 0 or 1 by its low bit, which the decline still takes after the zone's other draws
     const LAND_VALUE = 0;
 
     // As doIndOut in the original, an empty zone that declines is left as it is, and its rate of growth with it

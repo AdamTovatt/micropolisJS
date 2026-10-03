@@ -18,6 +18,9 @@ namespace Micropolis.Rules
     /// </summary>
     public static class Residential
     {
+        // The pollution above which a residential zone grows no further
+        private const int MaxPollution = 128;
+
         // The lots of an empty zone, in the order degradeZone scans them, column by column, as the tile each becomes when
         // its house is removed, counted from RESBASE: the free zone's tiles run row by row
         private static readonly int[] FreeZone = [0, 3, 6, 1, 4, 7, 2, 5, 8];
@@ -157,7 +160,7 @@ namespace Micropolis.Rules
             int pollution = blockMaps.PollutionDensityMap.WorldGet(x, y);
 
             // Cough! Too polluted! No-one wants to move here!
-            if (pollution > 128)
+            if (pollution > MaxPollution)
             {
                 return;
             }

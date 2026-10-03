@@ -17,6 +17,14 @@ import * as TileValues from "./tileValues.ts";
 import { Traffic } from './traffic.js';
 import { ZoneUtils } from './zoneUtils.js';
 
+// The pollution above which a residential zone grows no further
+var MAX_POLLUTION = 128;
+
+// The 8 lots around an empty zone's centre, relative to it, in the order buildHouse scans them, after the centre itself
+// at index 0, which is never a lot, so a best lot of 0 is none
+var LOT_X_DELTA = [0, -1, 0, 1, -1, 1, -1, 0, 1];
+var LOT_Y_DELTA = [0, -1, -1, -1, 0, 0, 1, 1, 1];
+
 // Residential tiles have 'populations' of 16, 24, 32 or 40, and value from 0 to 3. The tiles are laid out in
 // increasing order of land value, cycling through each population value
 var placeResidential = function(map, x, y, population, lpValue, zonePower) {
@@ -86,13 +94,9 @@ var buildHouse = function(map, x, y, lpValue, random) {
   var best = 0;
   var bestScore = 0;
 
-  // The centre is at index 0, and never a lot
-  var xDelta = [0, -1, 0, 1, -1, 1, -1, 0, 1];
-  var yDelta = [0, -1, -1, -1, 0, 0, 1, 1, 1];
-
   for (var i = 1; i < 9; i++) {
-    var xx = x + xDelta[i];
-    var yy = y + yDelta[i];
+    var xx = x + LOT_X_DELTA[i];
+    var yy = y + LOT_Y_DELTA[i];
 
     if (!map.testBounds(xx, yy))
       continue;
@@ -109,8 +113,8 @@ var buildHouse = function(map, x, y, lpValue, random) {
       best = i;
   }
 
-  if (best > 0 && map.testBounds(x + xDelta[best], y + yDelta[best]))
-    map.setTile(x + xDelta[best], y + yDelta[best],
+  if (best > 0 && map.testBounds(x + LOT_X_DELTA[best], y + LOT_Y_DELTA[best]))
+    map.setTile(x + LOT_X_DELTA[best], y + LOT_Y_DELTA[best],
               TileValues.HOUSE + random.getRandom(2) + lpValue * 3, BLBNCNBIT);
 };
 
@@ -119,7 +123,7 @@ var growZone = function(map, x, y, blockMaps, population, lpValue, zonePower, ra
   var pollution = blockMaps.pollutionDensityMap.worldGet(x, y);
 
   // Cough! Too polluted! No-one wants to move here!
-  if (pollution > 128)
+  if (pollution > MAX_POLLUTION)
     return;
 
   var tileValue = map.getTileValue(x, y);
@@ -318,7 +322,10 @@ var Residential = {
     repairManager.addAction(TileValues.HOSPITAL, 15, 3);
   },
   evalLot: evalLot,
-  getZonePopulation: getZonePopulation
+  getZonePopulation: getZonePopulation,
+  LOT_X_DELTA: LOT_X_DELTA,
+  LOT_Y_DELTA: LOT_Y_DELTA,
+  MAX_POLLUTION: MAX_POLLUTION
 };
 
 

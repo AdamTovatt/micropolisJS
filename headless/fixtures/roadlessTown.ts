@@ -11,16 +11,12 @@
  *
  */
 
-import { ToolName } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
-import { buildingAt, lineOf } from "./toolCommands";
+import { buildingAt, lineOf, zoneRow } from "./toolCommands";
 
 // A sprite-free city made to reach branches of the zone handlers and their drives that neither the suburbs nor the
 // hospital town reach, whose unit snapshots are recorded from it alone (conformance/snapshotPoints.ts). Seed 8's map
 // has open land and woods from (10, 10) to (53, 33).
-
-// R residential, C commercial, I industrial
-const ZONE_TOOLS: Record<string, ToolName> = {R: "residential", C: "commercial", I: "industrial"};
 
 // A row of ten zones along a road, which gives the city its demand
 const TOWN_LEFT = 14;
@@ -44,7 +40,7 @@ export const roadlessTown = builtFixture(
     buildingAt("coal", 11, 11),
     buildingAt("commercial", 15, 11),
     buildingAt("industrial", 18, 11),
-    ...Array.from(TOWN_ROW, (kind, i) => buildingAt(ZONE_TOOLS[kind], TOWN_LEFT + 3 * i + 1, TOWN_TOP + 1)),
+    ...zoneRow(TOWN_ROW, TOWN_LEFT, TOWN_TOP),
     lineOf("road", TOWN_LEFT, TOWN_ROAD_Y, TOWN_LEFT + 3 * TOWN_ROW.length, TOWN_ROAD_Y),
 
     // From beside the plant and under the commercial zone to the town's first zone

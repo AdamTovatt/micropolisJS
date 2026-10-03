@@ -13,7 +13,7 @@
 
 import { streamDrawing } from "./helpers/streams";
 import { makeBlockMaps, makeMap } from "./helpers/zoneCity";
-import { COMBASE, DIRT, FREEZ, HOSPITAL, HOUSE, INDBASE, NUCLEAR, PORT, ROADS } from "../src/tileValues";
+import { COMBASE, DIRT, FREEZ, HOSPITAL, HOUSE, INDBASE, LHTHR, NUCLEAR, PORT, ROADS } from "../src/tileValues";
 import { Traffic } from "../src/traffic.js";
 
 
@@ -24,7 +24,8 @@ interface Destination {
 
 // traffic.js defines its results and destinations with Object.defineProperties, so the type inferred from it lacks them
 const Results = Traffic as unknown as {ROUTE_FOUND: number, NO_ROUTE_FOUND: number, COMMERCIAL: Destination,
-                                       INDUSTRIAL: Destination, RESIDENTIAL: Destination};
+                                       INDUSTRIAL: Destination, RESIDENTIAL: Destination, MAX_TRAFFIC_DENSITY: number,
+                                       TRIP_TRAFFIC: number};
 
 describe("traffic", () => {
 
@@ -34,9 +35,6 @@ describe("traffic", () => {
     const DESTINATION_X = 15;
     const ZONE_X = 11;
     const ZONE_Y = 12;
-
-    // Each trip adds this much to the density of the road it remembers
-    const TRIP_DENSITY = 50;
 
     function makeRoadMap(destinationTile: number) {
         const map = makeMap();
@@ -62,14 +60,15 @@ describe("traffic", () => {
         traffic.makeTraffic(ZONE_X, ZONE_Y, blockMaps, Results.COMMERCIAL);
 
         // Every second tile of the drive east from (10, 10) is remembered
-        expect(blockMaps.trafficDensityMap.worldGet(12, ROAD_Y)).toBe(TRIP_DENSITY);
-        expect(blockMaps.trafficDensityMap.worldGet(14, ROAD_Y)).toBe(TRIP_DENSITY);
+        expect(blockMaps.trafficDensityMap.worldGet(12, ROAD_Y)).toBe(Results.TRIP_TRAFFIC);
+        expect(blockMaps.trafficDensityMap.worldGet(14, ROAD_Y)).toBe(Results.TRIP_TRAFFIC);
     });
 
     // A drive that takes a block to its heaviest traffic draws 0 to 5, and a 0 points the helicopter at the block. The
     // block of (14, 10) is the one of the drive's that starts near its heaviest, so the drive draws once.
     describe("at the heaviest traffic", () => {
-        const HEAVY = 200;
+        // Traffic one drive takes past the heaviest a block holds
+        const HEAVY = Results.MAX_TRAFFIC_DENSITY - Results.TRIP_TRAFFIC + 10;
         const HELICOPTER_DRAW = 0;
         const NO_HELICOPTER_DRAW = 1;
 
@@ -81,7 +80,7 @@ describe("traffic", () => {
 
             traffic.makeTraffic(ZONE_X, ZONE_Y, blockMaps, Results.COMMERCIAL);
 
-            expect(blockMaps.trafficDensityMap.worldGet(14, ROAD_Y)).toBe(240);
+            expect(blockMaps.trafficDensityMap.worldGet(14, ROAD_Y)).toBe(Results.MAX_TRAFFIC_DENSITY);
             return helicopter;
         }
 
@@ -136,8 +135,13 @@ describe("traffic", () => {
             expect(drive(tile, Results.RESIDENTIAL)).toBe(Results.ROUTE_FOUND);
         });
 
+        // Each just outside its range, at either end
         it.each([
+            ["commercial at the tile before commercial's first", Results.COMMERCIAL, COMBASE - 1],
+            ["commercial at the nuclear plant past its centre", Results.COMMERCIAL, NUCLEAR + 1],
+            ["industry at an empty residential zone's last tile", Results.INDUSTRIAL, LHTHR - 1],
             ["industry at the seaport past its centre", Results.INDUSTRIAL, PORT + 1],
+            ["residential at an empty residential zone's last tile", Results.RESIDENTIAL, LHTHR - 1],
             ["residential at an empty residential zone", Results.RESIDENTIAL, FREEZ],
             ["residential at commercial past its first tile", Results.RESIDENTIAL, COMBASE + 1],
             ["commercial at a house", Results.COMMERCIAL, HOUSE],

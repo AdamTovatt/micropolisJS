@@ -16,9 +16,10 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The traffic helicopter, which the unit snapshots cannot reach, since they are recorded from cities with no
-    /// sprites: as <c>test/traffic.ts</c> has it, a drive that takes a block to its heaviest traffic and then draws 0
-    /// from five points the helicopter at the block.
+    /// What of the traffic the unit snapshots need not reach, as <c>test/traffic.ts</c> has it: the helicopter, which
+    /// they cannot, since they are recorded from cities with no sprites, where a drive that takes a block to its heaviest
+    /// traffic and then draws 0 from five points the helicopter at the block; and the tiles at and just past each end of
+    /// a destination's range.
     /// </summary>
     [TestClass]
     public sealed class TrafficTests
@@ -31,8 +32,8 @@ namespace Micropolis.Rules.Tests
         private const int RoadX = ZoneX - 1;
         private const int ArrivalY = ZoneY - 4;
 
-        // Traffic one drive takes past the heaviest a block holds, 240
-        private const int HeavyTraffic = 200;
+        // Traffic one drive takes past the heaviest a block holds
+        private const int HeavyTraffic = Traffic.MaxTrafficDensity - Traffic.TripTraffic + 10;
 
         [TestMethod]
         public void MakeTraffic_TrafficCappedAndADrawOfZero_PointsTheHelicopterAtTheBlock()
@@ -48,6 +49,31 @@ namespace Micropolis.Rules.Tests
             Sprite helicopter = Drive(SeedWhoseFirstDraw(draw => draw != 0));
 
             Assert.AreEqual((0L, 0L), (helicopter.DestX, helicopter.DestY));
+        }
+
+        [TestMethod]
+        [DataRow("commercial", COMBASE - 1, false)]
+        [DataRow("commercial", COMBASE, true)]
+        [DataRow("commercial", NUCLEAR, true)]
+        [DataRow("commercial", NUCLEAR + 1, false)]
+        [DataRow("industrial", LHTHR - 1, false)]
+        [DataRow("industrial", LHTHR, true)]
+        [DataRow("industrial", PORT, true)]
+        [DataRow("industrial", PORT + 1, false)]
+        [DataRow("residential", LHTHR - 1, false)]
+        [DataRow("residential", LHTHR, true)]
+        [DataRow("residential", COMBASE, true)]
+        [DataRow("residential", COMBASE + 1, false)]
+        public void Contains_TileAtOrJustPastAnEnd_IsInsideOnlyAtTheEnd(string destination, int tileValue, bool inside)
+        {
+            TrafficDestination range = destination switch
+            {
+                "commercial" => TrafficDestination.Commercial,
+                "industrial" => TrafficDestination.Industrial,
+                _ => TrafficDestination.Residential,
+            };
+
+            Assert.AreEqual(inside, range.Contains(tileValue));
         }
 
         // The helicopter after the drive, from a city whose stream is seeded with the seed
@@ -69,7 +95,7 @@ namespace Micropolis.Rules.Tests
                 .MakeTraffic(ZoneX, ZoneY, blockMaps, TrafficDestination.Industrial);
 
             Assert.AreEqual(TrafficResult.RouteFound, result);
-            Assert.AreEqual(240, blockMaps.TrafficDensityMap.WorldGet(RoadX, ArrivalY));
+            Assert.AreEqual(Traffic.MaxTrafficDensity, blockMaps.TrafficDensityMap.WorldGet(RoadX, ArrivalY));
             return helicopter;
         }
 

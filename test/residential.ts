@@ -11,8 +11,6 @@
  *
  */
 
-import { BlockMap } from "../src/blockMap";
-import { GameMap } from "../src/gameMap.js";
 import { Random } from "../src/random";
 import { Residential } from "../src/residential.js";
 import { BLBNCNBIT, BULLBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
@@ -22,9 +20,7 @@ import { DIRT, FREEZ, HHTHR, HOUSE, LHTHR, ROADS, RZB } from "../src/tileValues"
 import { ZoneUtils } from "../src/zoneUtils.js";
 import { registeredHandler } from "./helpers/handlers";
 import { streamAlwaysDrawing, streamDrawing } from "./helpers/streams";
-import { makeMap, makeSimData } from "./helpers/zoneCity";
-
-type TileHandler = (map: unknown, x: number, y: number, simData: unknown) => void;
+import { makeMap, makeSimData, ZONE_X, ZONE_Y } from "./helpers/zoneCity";
 
 // What a drive finds, which Traffic defines as properties its type leaves out
 const Results = Traffic as unknown as {ROUTE_FOUND: number, NO_ROAD_FOUND: number};
@@ -34,36 +30,22 @@ const Y = 50;
 // The land value category of the zones, the highest, where the land is worth the most there is
 const LAND_VALUE = 3;
 
-function residentialHandler(): TileHandler {
-    const handlers = new Map<unknown, TileHandler>();
-    Residential.registerHandlers({addAction: (key: unknown, handler: TileHandler) => handlers.set(key, handler)},
-                                 {addAction: () => undefined});
-    return handlers.get(TileUtils.isResidentialZone)!;
-}
-
 // A powered zone of the density at (X, Y), scanned once with the stream given and a drive that ends as given:
 // the map after
-function scanZone(density: number, random: Random, traffic: number): InstanceType<typeof GameMap> {
-    const map = new GameMap(120, 100);
+function scanZone(density: number, random: Random, traffic: number): ReturnType<typeof makeMap> {
+    const map = makeMap();
     map.putZone(X, Y, RZB + 36 * LAND_VALUE + 9 * density, 3);
     map.addTileFlags(X, Y, POWERBIT);
 
-    const landValueMap = new BlockMap(120, 100, 2);
-    landValueMap.worldSet(X, Y, 250);
-    const simData = {
-        census: {resZonePop: 0, resPop: 0},
-        blockMaps: {landValueMap, pollutionDensityMap: new BlockMap(120, 100, 2),
-                    populationDensityMap: new BlockMap(120, 100, 2), rateOfGrowthMap: new BlockMap(120, 100, 8)},
-        valves: {resValve: 2000},
-        random,
-        trafficManager: {makeTraffic: () => traffic},
-    };
+    const simData = {...makeSimData(map, random), trafficManager: {makeTraffic: () => traffic}};
+    simData.blockMaps.landValueMap.worldSet(X, Y, 250);
+    simData.valves.resValve = 2000;
 
-    residentialHandler()(map, X, Y, simData);
+    registeredHandler(Residential.registerHandlers, TileUtils.isResidentialZone)(map, X, Y, simData);
     return map;
 }
 
-function population(map: InstanceType<typeof GameMap>): number {
+function population(map: ReturnType<typeof makeMap>): number {
     return Residential.getZonePopulation(map, X, Y, map.getTileValue(X, Y));
 }
 
@@ -72,7 +54,7 @@ describe("a built residential zone's population", () => {
     // As getResZonePop in the original: the zone's density, 0 to 3, counts 16, 24, 32 or 40, whatever its land value.
     // Each land value's variants run through the four densities, nine tiles to a zone.
     it.each([[0, 16], [1, 24], [2, 32], [3, 40]])("at density %i is %i, at each land value", (density, expected) => {
-        const map = new GameMap(120, 100);
+        const map = makeMap();
 
         for (let landValue = 0; landValue < 4; landValue++) {
             expect(Residential.getZonePopulation(map, 50, 50, RZB + 36 * landValue + 9 * density)).toBe(expected);
@@ -112,8 +94,6 @@ describe("a residential zone of single houses", () => {
 
     // A powered zone of single houses, with no house unless the test builds one, on land valuable enough, under demand
     // strong enough, for it to grow
-    const ZONE_X = 20;
-    const ZONE_Y = 20;
     const LAND_VALUE = 100;
     const STRONG_DEMAND = 2000;
     // The land value's grade, 80 to 149, and so the house's: HOUSE plus three per grade, plus the house's draw

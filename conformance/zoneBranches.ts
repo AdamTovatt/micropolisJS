@@ -28,12 +28,13 @@ import { TileUtils } from "../src/tileUtils.js";
 import { Traffic } from "../src/traffic.js";
 import { FREEZ, HHTHR, HOSPITAL, LHTHR } from "../src/tileValues";
 import { ZoneUtils } from "../src/zoneUtils.js";
-import { Internals, registerFamilies, SnapshotPoint, SnapshotRecord, unrecorded } from "./unitSnapshots";
+import { Internals, registerFamilies, replaceMethod, SnapshotPoint, SnapshotRecord, unrecorded } from "./unitSnapshots";
 
 export type ZoneFamily = "residential" | "commercial" | "industrial";
 
-// What a drive came to, which Traffic defines as properties its type leaves out
-const Results = Traffic as unknown as {NO_ROAD_FOUND: number, NO_ROUTE_FOUND: number};
+// What a drive came to, and the traffic it adds, which Traffic defines as properties its type leaves out
+const Results = Traffic as unknown as {NO_ROAD_FOUND: number, NO_ROUTE_FOUND: number, MAX_TRAFFIC_DENSITY: number,
+                                       TRIP_TRAFFIC: number};
 
 // --- Traces
 
@@ -100,23 +101,6 @@ let tracing: {x: number, y: number, events: ZoneEvent[]}[] | null = null;
 
 function note(event: ZoneEvent): void {
   tracing?.[tracing.length - 1]?.events.push(event);
-}
-
-type Method = (...args: unknown[]) => unknown;
-
-// Replaces an object's method, and gives what restores it
-function replaceMethod(owner: object, name: string, replace: (original: Method) => Method): () => void {
-  const methods = owner as Record<string, Method>;
-  const own = Object.prototype.hasOwnProperty.call(owner, name);
-  const original = methods[name];
-  methods[name] = replace(original);
-  return () => {
-    if (own) {
-      methods[name] = original;
-    } else {
-      delete methods[name];
-    }
-  };
 }
 
 // The stream's draws, which call one another: only the one the handler made is noted
@@ -347,31 +331,25 @@ const declinePassed = (visit: ZoneVisit, growthReads: BlockMapRead) =>
 const isBlock = (value: number) => TileUtils.isResidential(value) && value !== FREEZ;
 const isHouse = (value: number) => value >= LHTHR && value <= HHTHR;
 
-// The lots of an empty residential zone, in the order buildHouse scans them
-const LOTS = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
-
 // A house built on a lot that is not the first of the best scoring: a tie decided by a draw
 const builtOnATie = visited((visit, {mapBefore, mapAfter}) => {
   if (visit.before !== FREEZ || visit.after !== FREEZ) {
     return false;
   }
 
-  const lots = LOTS.map(([dx, dy]) => ({x: visit.x + dx, y: visit.y + dy}));
+  // The lots in the order buildHouse scans them, after the centre at index 0
+  const lots = Residential.LOT_X_DELTA.slice(1).map((dx, i) =>
+    ({x: visit.x + dx, y: visit.y + Residential.LOT_Y_DELTA[i + 1]}));
   const scores = lots.map(({x, y}) => (mapBefore.testBounds(x, y) ? Residential.evalLot(mapBefore, x, y) : -1));
   const built = lots.findIndex(({x, y}) => mapBefore.testBounds(x, y) && !isHouse(mapBefore.getTileValue(x, y)) &&
                                            isHouse(mapAfter.getTileValue(x, y)));
   return built >= 0 && built !== scores.indexOf(Math.max(...scores));
 });
 
-// The pollution above which growZone builds nothing
-const POLLUTED = 128;
-
 // The heaviest traffic a block holds, reached by a drive that took it over
-const MAX_TRAFFIC = 240;
-const TRIP_TRAFFIC = 50;
-
 const trafficCapped: Branch = ({trafficBefore, trafficAfter}) => trafficBefore.some((value, i) =>
-  value > MAX_TRAFFIC - TRIP_TRAFFIC && value < MAX_TRAFFIC && trafficAfter[i] === MAX_TRAFFIC);
+  value > Results.MAX_TRAFFIC_DENSITY - Results.TRIP_TRAFFIC && value < Results.MAX_TRAFFIC_DENSITY &&
+  trafficAfter[i] === Results.MAX_TRAFFIC_DENSITY);
 
 // A zone of the kind whose drive found no road, and which declined for it
 const declinedWithNoRoad = (isKind: (value: number) => boolean) => visited((visit) =>
@@ -401,7 +379,7 @@ const ZONE_BRANCHES: Record<string, Branch> = {
   "a hospital built": visited((visit) => visit.before === FREEZ && visit.after === HOSPITAL),
   "a hospital emptied": visited((visit) => visit.before === HOSPITAL && visit.after === FREEZ),
   "residential growth held back by pollution": visited((visit) =>
-    TileUtils.isResidential(visit.before) && visit.pollution > POLLUTED && growthPassed(visit, "pollution") &&
+    TileUtils.isResidential(visit.before) && visit.pollution > Residential.MAX_POLLUTION && growthPassed(visit, "pollution") &&
     !called(visit, "incRateOfGrowth")),
   "a residential zone with no road declined": declinedWithNoRoad(TileUtils.isResidential),
 

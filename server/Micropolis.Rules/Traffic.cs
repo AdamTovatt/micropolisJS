@@ -66,8 +66,8 @@ namespace Micropolis.Rules
         private const int MaxTrafficDistance = 30;
 
         // The heaviest traffic a block holds, and the traffic one arriving drive adds to each block it passes
-        private const int MaxTrafficDensity = 240;
-        private const int TripTraffic = 50;
+        internal const int MaxTrafficDensity = 240;
+        internal const int TripTraffic = 50;
 
         private readonly GameMap _map;
         private readonly SpriteManager _spriteManager;

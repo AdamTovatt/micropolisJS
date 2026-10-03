@@ -32,7 +32,7 @@ import { Transport } from "../src/transport.js";
 
 // --- The simulation's internals, which the recorder reaches into
 
-type Method = (...args: unknown[]) => unknown;
+export type Method = (...args: unknown[]) => unknown;
 
 interface ScanAction {
   criterion: unknown;
@@ -304,13 +304,28 @@ function wrap(name: string, original: Method): Method {
   };
 }
 
-function wrapMethod(owner: object, method: string, name: string): () => void {
+// Replaces an object's method with what `replace` makes of it, and gives what restores it, as the object's own or as
+// what it inherits. It throws when the object has no such method, so a renamed one fails rather than going unwatched.
+export function replaceMethod(owner: object, method: string, replace: (original: Method) => Method): () => void {
   const methods = methodsOf(owner);
   const original = methods[method];
-  methods[method] = wrap(name, original);
+  if (typeof original !== "function") {
+    throw new Error(`No method named ${method} to replace`);
+  }
+
+  const own = Object.prototype.hasOwnProperty.call(owner, method);
+  methods[method] = replace(original);
   return () => {
-    methods[method] = original;
+    if (own) {
+      methods[method] = original;
+    } else {
+      delete methods[method];
+    }
   };
+}
+
+function wrapMethod(owner: object, method: string, name: string): () => void {
+  return replaceMethod(owner, method, (original) => wrap(name, original));
 }
 
 function wrapUnits(simulation: Internals): void {

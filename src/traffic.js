@@ -27,20 +27,24 @@ function Traffic(map, spriteManager, random) {
 }
 
 
-// The tiles a drive from each kind of zone ends beside, from the lowest tile value to the highest, as driveDone in the
-// original has them, which are not the kind of zone each is named for:
-// - commercial, COMBASE to NUCLEAR: commercial, industry, the seaport, the airport, the coal plant, the fire and police
-//   stations, the stadium, and the nuclear plant up to its centre tile;
-// - industrial, LHTHR to PORT: a house, a built residential zone, a hospital, a church, commercial, industry, and the
-//   seaport up to its centre tile;
-// - residential, LHTHR to COMBASE: a house, a built residential zone, a hospital, a church, and commercial's first
-//   tile.
+// The destinations, each the tiles a drive to it ends beside, from the lowest tile value to the highest, as driveDone
+// in the original has them, which are not only the kind of zone each is named for:
+// - commercial, a residential zone's drive, COMBASE to NUCLEAR: commercial, industry, the seaport, the airport, the
+//   coal plant, the fire and police stations, the stadium, and the nuclear plant up to its centre tile;
+// - industrial, a commercial zone's drive, LHTHR to PORT: a house, a built residential zone, a hospital, a church,
+//   commercial, industry, and the seaport up to its centre tile;
+// - residential, an industrial zone's drive, LHTHR to COMBASE: a house, a built residential zone, a hospital, a church,
+//   and commercial's first tile.
 // No drive ends beside an empty residential zone, whose tiles lie below LHTHR.
 var DESTINATIONS = {
   commercial: {low: COMBASE, high: NUCLEAR},
   industrial: {low: LHTHR, high: PORT},
   residential: {low: LHTHR, high: COMBASE}
 };
+
+// The heaviest traffic a block holds, and the traffic one arriving drive adds to each block it passes
+var MAX_TRAFFIC_DENSITY = 240;
+var TRIP_TRAFFIC = 50;
 
 
 // Drives from the zone centred at (x, y) to the destination, one of Traffic.COMMERCIAL, Traffic.INDUSTRIAL and
@@ -78,12 +82,12 @@ Traffic.prototype.addToTrafficDensityMap = function(blockMaps) {
     if (tileValue >= ROADBASE && tileValue < POWERBASE) {
       // Update traffic density.
       var traffic = trafficDensityMap.worldGet(pos.x, pos.y);
-      traffic += 50;
-      traffic = Math.min(traffic, 240);
+      traffic += TRIP_TRAFFIC;
+      traffic = Math.min(traffic, MAX_TRAFFIC_DENSITY);
       trafficDensityMap.worldSet(pos.x, pos.y, traffic);
 
       // Attract traffic copter to the traffic
-      if (traffic >= 240 && this._random.getRandom(5) === 0) {
+      if (traffic >= MAX_TRAFFIC_DENSITY && this._random.getRandom(5) === 0) {
         var sprite = this._spriteManager.getSprite(SPRITE_HELICOPTER);
         if (sprite !== null) {
           sprite.destX = SpriteUtils.worldToPix(pos.x);
@@ -216,7 +220,9 @@ Object.defineProperties(Traffic,
    NO_ROAD_FOUND: MiscUtils.makeConstantDescriptor(-1),
    COMMERCIAL: MiscUtils.makeConstantDescriptor(DESTINATIONS.commercial),
    INDUSTRIAL: MiscUtils.makeConstantDescriptor(DESTINATIONS.industrial),
-   RESIDENTIAL: MiscUtils.makeConstantDescriptor(DESTINATIONS.residential)});
+   RESIDENTIAL: MiscUtils.makeConstantDescriptor(DESTINATIONS.residential),
+   MAX_TRAFFIC_DENSITY: MiscUtils.makeConstantDescriptor(MAX_TRAFFIC_DENSITY),
+   TRIP_TRAFFIC: MiscUtils.makeConstantDescriptor(TRIP_TRAFFIC)});
 
 
 export { Traffic };

@@ -18,6 +18,11 @@ namespace Micropolis.Rules
     /// </summary>
     public static class Industrial
     {
+        // Which of the 8 kinds of populated industrial zone are animated, and the tile, relative to the centre, that is
+        private static readonly bool[] Animated = [true, false, true, true, false, false, true, true];
+        private static readonly int[] AnimationXDelta = [-1, 0, 1, 0, 0, 0, 0, 1];
+        private static readonly int[] AnimationYDelta = [-1, 0, -1, -1, 0, 0, -1, -1];
+
         /// <summary>
         /// The population level, 0–4, of the industrial zone whose centre has the tile value.
         /// </summary>
@@ -30,11 +35,6 @@ namespace Micropolis.Rules
 
             return JsMath.FloorDiv(tileValue - TileValues.IZB, 9) % 4 + 1;
         }
-
-        // Which of the 8 kinds of populated industrial zone are animated, and the tile, relative to the centre, that is
-        private static readonly bool[] Animated = [true, false, true, true, false, false, true, true];
-        private static readonly int[] AnimationXDelta = [-1, 0, 1, 0, 0, 0, 0, 1];
-        private static readonly int[] AnimationYDelta = [-1, 0, -1, -1, 0, 0, -1, -1];
 
         // Places the industrial zone of a population category in the range 0-3, one less than the population level it
         // gives, and a value category in the range 0-1

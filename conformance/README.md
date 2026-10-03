@@ -224,7 +224,8 @@ The generator fails when:
   object;
 - a call replayed from the state before it, with every family registered, does not leave the state and the events the
   city's own call did;
-- a point's call is not found within 20000 steps, or no record of a point reaches its branch, or the record of the family it names does not;
+- a point's call is not found within 20000 steps, or no record of a point reaches its branch, or the record of the
+  family it names does not;
 - a unit has no record, or the gzipped files take more than 5 MB, past which fewer points are recorded rather than
   fewer units.
 

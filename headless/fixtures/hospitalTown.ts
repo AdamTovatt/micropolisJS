@@ -11,9 +11,9 @@
  *
  */
 
-import { Command, SPEEDS, ToolName } from "../../src/protocol";
+import { SPEEDS } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
-import { buildingAt, lineOf } from "./toolCommands";
+import { buildingAt, lineOf, zoneRow } from "./toolCommands";
 
 // A sprite-free city made to reach branches of the zone handlers that the suburbs never reach, whose unit snapshots
 // are recorded from it alone (conformance/snapshotPoints.ts). Seed 8's map has open land and woods from (10, 10) to
@@ -23,17 +23,6 @@ const LEFT = 14;
 const TOP = 10;
 const ZONES_PER_ROW = 11;
 const RIGHT = LEFT + 3 * ZONES_PER_ROW;
-
-// R residential, C commercial, I industrial
-const ZONE_TOOLS: Record<string, ToolName> = {R: "residential", C: "commercial", I: "industrial"};
-
-function zoneRow(kinds: string, top: number): Command[] {
-  if (kinds.length !== ZONES_PER_ROW) {
-    throw new Error(`A row has ${ZONES_PER_ROW} zones, got ${kinds}`);
-  }
-
-  return Array.from(kinds, (kind, i) => buildingAt(ZONE_TOOLS[kind], LEFT + 3 * i + 1, top + 1));
-}
 
 // Three rows of zones with a road under the second and the third. The first row has no road within the reach of a
 // zone's drive, so a house built there moves out again once the zone drives, and the zone is often empty. The
@@ -45,10 +34,10 @@ export const hospitalTown = builtFixture(
   "Three rows of zones, the first with no road, whose residents grow to need a hospital and then shrink", [
     // The plant's east side touches the second row's first zone, which powers the first row through its zones
     buildingAt("coal", LEFT - 3, TOP + 4),
-    ...zoneRow("RRRRRRRRRRR", TOP),
-    ...zoneRow("RRRRRRRRRRR", TOP + 3),
+    ...zoneRow("RRRRRRRRRRR", LEFT, TOP),
+    ...zoneRow("RRRRRRRRRRR", LEFT, TOP + 3),
     lineOf("road", LEFT, TOP + 6, RIGHT, TOP + 6),
-    ...zoneRow("CCCCCIIIIII", TOP + 7),
+    ...zoneRow("CCCCCIIIIII", LEFT, TOP + 7),
     lineOf("road", LEFT, TOP + 10, RIGHT, TOP + 10),
     lineOf("road", RIGHT, TOP + 7, RIGHT, TOP + 9),
 

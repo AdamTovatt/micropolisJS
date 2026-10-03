@@ -23,6 +23,18 @@ import { Traffic } from "../../src/traffic.js";
 export const WIDTH = 120;
 export const HEIGHT = 100;
 
+// The centre of the zone a test calls a handler on, well inside the map
+export const ZONE_X = 20;
+export const ZONE_Y = 20;
+
+// A zone handler's draws, as the 16-bit values a stream gives: getRandom(5) of 0, so a zone of any population but 0
+// drives; getChance(7), which 0 passes, so the zone is assessed; and getRandom16Signed of -32768, under any score a
+// zone can grow at, or of 32767, over any score a zone can decline at
+export const DRIVE = 0;
+export const ASSESS = 0;
+export const GROW = 0x8000;
+export const DECLINE = 0x7fff;
+
 export function makeMap(): InstanceType<typeof GameMap> {
     return new GameMap(WIDTH, HEIGHT);
 }
