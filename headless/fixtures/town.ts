@@ -11,7 +11,7 @@
  *
  */
 
-import { Command, ToolName } from "../../src/commands";
+import { Command, ToolName } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
 import { buildingAt, lineOf } from "./toolCommands";
 

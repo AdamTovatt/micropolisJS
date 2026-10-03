@@ -14,14 +14,21 @@
 import { readdirSync, readFileSync } from "fs";
 import { basename, join } from "path";
 
+import { commandRejection } from "../src/commands";
 import {
-    parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, serverMessageTypes, signInRequest,
+    commandTypes, parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, serverMessageTypes,
+    signInRequest,
 } from "../src/protocol";
 import { repositoryPath } from "./helpers/repository";
 
 // The examples and reader cases are shared with the server's tests: protocol/README.md describes them
 const SOCKET_EXAMPLES = repositoryPath("protocol/examples/socket");
 const SESSION_EXAMPLES = repositoryPath("protocol/examples/session");
+const COMMAND_EXAMPLES = repositoryPath("protocol/examples/commands");
+
+// The game's map, which every command example's tiles lie on
+const MAP_WIDTH = 120;
+const MAP_HEIGHT = 100;
 
 function exampleFiles(directory: string): string[] {
     return readdirSync(directory).filter((file) => file.endsWith(".json")).sort();
@@ -93,6 +100,28 @@ describe("the protocol", () => {
 
     it.each(readerCases.accepted)("reads a message with $case and writes it in the protocol's order", ({text, canonical}) => {
         expect(JSON.stringify(parseServerMessage(text))).toBe(canonical);
+    });
+});
+
+describe("the protocol's commands", () => {
+
+    // The simulation takes a command as it arrived once it has validated it, so writing it back pins the example's
+    // wire text
+    it.each(exampleFiles(COMMAND_EXAMPLES))("reads the command %s, which the simulation accepts, and writes it back to identical bytes",
+        (file) => {
+            expectRoundTrip(join(COMMAND_EXAMPLES, file), (wire) => {
+                const command: unknown = JSON.parse(wire);
+                expect(commandRejection(command, MAP_WIDTH, MAP_HEIGHT)).toBeNull();
+                return JSON.stringify(command);
+            });
+        });
+
+    it("has an example of every command type", () => {
+        const exampleTypes = exampleFiles(COMMAND_EXAMPLES).map((file) => JSON.parse(readWireText(join(COMMAND_EXAMPLES, file))).type);
+        const distinctExampleTypes = exampleTypes.filter((type, i) => exampleTypes.indexOf(type) === i);
+
+        expect(commandTypes().length).toBeGreaterThan(0);
+        expect(distinctExampleTypes.sort()).toEqual(commandTypes().sort());
     });
 });
 

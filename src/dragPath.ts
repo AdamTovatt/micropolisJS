@@ -11,7 +11,7 @@
  *
  */
 
-import { TilePosition, ToolName } from "./commands";
+import { TilePosition, ToolName } from "./protocol";
 
 // The tiles a drag passes over on its way from one tile to the next the mouse was seen on, so that a fast mouse skips
 // none: the tiles after from, up to and including to, each one step along a row or a column from the one before, as a

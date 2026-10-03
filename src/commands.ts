@@ -11,28 +11,11 @@
  *
  */
 
+import { Command, CommandType, DISASTER_KINDS, TilePosition, TOOL_NAMES } from "./protocol";
 import { SERVICES } from "./serviceFunding";
 
-// The commands a player sends the simulation: every change a player makes to the city, as plain JSON. They are the
-// multiplayer protocol, so they arrive untrusted: the simulation validates each one before it applies it, and never
-// branches on which player sent it.
-
-// The tools that change the city, as cityTools.ts builds them
-export const TOOL_NAMES = [
-  "airport", "bulldozer", "coal", "commercial", "fire", "industrial", "nuclear", "park", "police", "port", "rail",
-  "residential", "road", "stadium", "wire",
-] as const;
-
-export type ToolName = typeof TOOL_NAMES[number];
-
-export const DISASTER_KINDS = ["monster", "fire", "flood", "crash", "meltdown", "tornado"] as const;
-
-export type DisasterKind = typeof DISASTER_KINDS[number];
-
-export interface TilePosition {
-  x: number;
-  y: number;
-}
+// How the simulation takes the commands a player sends it, which protocol.ts defines. They arrive untrusted: the
+// simulation validates each one before it applies it, and never branches on which player sent it.
 
 // The ranges the budget window offers, in whole percent
 export const MAX_FUNDING_PERCENT = 100;
@@ -40,27 +23,6 @@ export const MAX_TAX_PERCENT = 20;
 
 // The speeds, as Simulation numbers them: 0 is paused
 export const MAX_SPEED = 3;
-
-export type Command =
-  // The tool applied at each tile of the path in order, with the per-tile rules and costs of a click. A click is a
-  // one-tile path; a drag's tiles are each one step along a row or column from the last. autoBulldoze is the sending
-  // player's preference: whether the building, road, rail and wire tools clear what they can before building.
-  | {type: "tool", tool: ToolName, path: TilePosition[], autoBulldoze: boolean}
-  // The tax rate in percent, and the funding of each service named, road, fire or police, in whole percent of what it
-  // needs, as the original's budget sliders set it. A service left out keeps its funding. It takes effect at once:
-  // each service named works at its new funding from then on, and the next year end pays for it.
-  | {type: "setBudget", road?: number, fire?: number, police?: number, tax: number}
-  | {type: "setSpeed", speed: number}
-  | {type: "setAutoBudget", on: boolean}
-  | {type: "setDisasters", on: boolean}
-  | {type: "triggerDisaster", kind: DisasterKind}
-  // The debug menu's grant of funds. It is a command so that a session that used it replays; like every command, any
-  // player may send it.
-  | {type: "addFunds"};
-
-export type CommandType = Command["type"];
-
-export type ToolCommand = Extract<Command, {type: "tool"}>;
 
 // A player's id. Single player has the one player.
 export type PlayerId = string;

@@ -12,9 +12,10 @@
  */
 
 import { cityFromSeed, Level, Simulation as HeadlessSimulation } from "../../headless/city";
-import { Command, CommandResult, LOCAL_PLAYER } from "../../src/commands";
+import { CommandResult, LOCAL_PLAYER } from "../../src/commands";
 import { GameMap } from "../../src/gameMap.js";
 import { MapGenerator } from "../../src/mapGenerator.js";
+import { Command } from "../../src/protocol";
 import { Random } from "../../src/random";
 import { Simulation } from "../../src/simulation.js";
 import { DIRT } from "../../src/tileValues";

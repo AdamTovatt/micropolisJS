@@ -11,8 +11,8 @@
  *
  */
 
-import { ToolCommand, ToolName } from "../../src/commands";
 import { dragPath } from "../../src/dragPath";
+import { ToolCommand, ToolName } from "../../src/protocol";
 
 // Tool commands as scripts write them, with auto-bulldoze on as the player has it by default
 

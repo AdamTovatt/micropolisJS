@@ -13,9 +13,9 @@
 
 import { BuildingTool } from "./buildingTool.js";
 import { BulldozerTool } from "./bulldozerTool.js";
-import { ToolName } from "./commands";
 import { GameMap } from "./gameMap.js";
 import { ParkTool } from "./parkTool.js";
+import { ToolName } from "./protocol";
 import { RailTool } from "./railTool.js";
 import { Random } from "./random";
 import { RoadTool } from "./roadTool.js";

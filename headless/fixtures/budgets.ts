@@ -12,7 +12,7 @@
  */
 
 import { Checkpoint, CommandLog } from "../../src/commandLog";
-import { Command } from "../../src/commands";
+import { Command } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
 import { buildingAt, lineOf } from "./toolCommands";
 import { townCommands } from "./town";

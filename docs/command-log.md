@@ -35,13 +35,14 @@ Each entry is `{"step", "player", "command"}`:
   are in the order they applied.
 - `player` is the id of the player who sent it, a string. Single player has the one player, `"local"`. The
   simulation never branches on the player.
-- `command` is the command as it arrived. `src/commands.ts` defines the commands and how they are validated. A log
-  holds every command the city was sent, rejected ones included: a rejected command changes nothing, and a replay
-  rejects it again, which checks that the validation agrees. A command longer than `maxCommandLength` allows, room
-  for a tool command over every tile of the map, is rejected before anything else is read, which bounds an entry.
+- `command` is the command as it arrived. `src/protocol.ts` defines the commands, and `src/commands.ts` how they are
+  validated. A log holds every command the city was sent, rejected ones included: a rejected command changes nothing,
+  and a replay rejects it again, which checks that the validation agrees. A command longer than `maxCommandLength`
+  allows, room for a tool command over every tile of the map, is rejected before anything else is read, which bounds
+  an entry.
 
-The commands, by `type`, with what their fields mean. `Command` in `src/commands.ts` gives their exact fields, and
-`commandRejection` there the values each accepts.
+The commands, by `type`, with what their fields mean. `Command` in `src/protocol.ts` gives their exact fields,
+`commandRejection` in `src/commands.ts` the values each accepts, and `protocol/examples/commands/` an example of each.
 
 | `type` | Fields |
 |--------|--------|

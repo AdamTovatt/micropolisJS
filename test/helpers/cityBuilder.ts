@@ -13,7 +13,8 @@
 
 import { Simulation } from "../../headless/city";
 import { buildingAt, lineOf } from "../../headless/fixtures/toolCommands";
-import { LOCAL_PLAYER, TilePosition, ToolCommand } from "../../src/commands";
+import { LOCAL_PLAYER } from "../../src/commands";
+import { TilePosition, ToolCommand } from "../../src/protocol";
 
 // Builds on a city with tool commands, as the player does, on maps the tests prepare. Every command must succeed: a
 // build that silently skipped an edit would leave a different city than the test describes.

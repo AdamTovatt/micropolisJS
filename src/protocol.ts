@@ -11,9 +11,10 @@
  *
  */
 
-// The bodies of /api/session and the messages on the city's WebSocket, /ws/city. server/Micropolis.Rules/Protocol.cs
-// defines the same by hand, and the examples under protocol/examples/ pin the two together: each side's tests read
-// every example and write it back to the same bytes. protocol/README.md describes the wire format.
+// The bodies of /api/session, the messages on the city's WebSocket, /ws/city, and the commands a player sends the
+// simulation. server/Micropolis.Rules/Protocol.cs defines the bodies and messages by hand, and the examples under
+// protocol/examples/ pin the sides together: each side's tests read every example of what it reads or writes and
+// write it back to the same bytes. protocol/README.md describes the wire format.
 
 // A player as the others see them. Two players may share a name, never an id.
 export interface PlayerInfo {
@@ -159,4 +160,56 @@ export function parseServerMessage(text: string): ServerMessage {
     default:
       fail(`unknown type ${JSON.stringify((value as JsonObject).type)}`);
   }
+}
+
+// The commands a player sends the simulation: every change a player makes to the city. commands.ts validates each one
+// as the simulation receives it.
+
+// The tools that change the city, as cityTools.ts builds them
+export const TOOL_NAMES = [
+  "airport", "bulldozer", "coal", "commercial", "fire", "industrial", "nuclear", "park", "police", "port", "rail",
+  "residential", "road", "stadium", "wire",
+] as const;
+
+export type ToolName = typeof TOOL_NAMES[number];
+
+export const DISASTER_KINDS = ["monster", "fire", "flood", "crash", "meltdown", "tornado"] as const;
+
+export type DisasterKind = typeof DISASTER_KINDS[number];
+
+export interface TilePosition {
+  x: number;
+  y: number;
+}
+
+export type Command =
+  // The tool applied at each tile of the path in order, with the per-tile rules and costs of a click. A click is a
+  // one-tile path; a drag's tiles are each one step along a row or column from the last. autoBulldoze is the sending
+  // player's preference: whether the building, road, rail and wire tools clear what they can before building.
+  | {type: "tool", tool: ToolName, path: TilePosition[], autoBulldoze: boolean}
+  // The tax rate in percent, and the funding of each service named, road, fire or police, in whole percent of what it
+  // needs, as the original's budget sliders set it. A service left out keeps its funding. It takes effect at once:
+  // each service named works at its new funding from then on, and the next year end pays for it.
+  | {type: "setBudget", road?: number, fire?: number, police?: number, tax: number}
+  | {type: "setSpeed", speed: number}
+  | {type: "setAutoBudget", on: boolean}
+  | {type: "setDisasters", on: boolean}
+  | {type: "triggerDisaster", kind: DisasterKind}
+  // The debug menu's grant of funds. It is a command so that a session that used it replays; like every command, any
+  // player may send it.
+  | {type: "addFunds"};
+
+export type CommandType = Command["type"];
+
+export type ToolCommand = Extract<Command, {type: "tool"}>;
+
+// Every command type, as the compiler checks against the union: a type added to Command and not here fails to
+// compile, and the tests fail on a type with no example.
+const COMMAND_TYPES: Record<CommandType, true> = {
+  tool: true, setBudget: true, setSpeed: true, setAutoBudget: true, setDisasters: true, triggerDisaster: true,
+  addFunds: true,
+};
+
+export function commandTypes(): string[] {
+  return Object.keys(COMMAND_TYPES);
 }

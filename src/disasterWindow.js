@@ -13,10 +13,10 @@
 
 import $ from "jquery";
 
-import { DISASTER_KINDS } from './commands.ts';
 import { DISASTER_WINDOW_CLOSED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import { ModalWindow } from './modalWindow.js';
+import { DISASTER_KINDS } from './protocol.ts';
 
 var disasterSelectID = '#disasterSelect';
 var disasterCancelID = '#disasterCancel';
