@@ -73,9 +73,11 @@ Valves.prototype.setValves = function(gameLevel, census, budget) {
   var taxTableScale = 600;
   var employment, labourBase;
 
-  // Residential zones scale their population index when reporting it to the census
+  // Residential zones scale their population index when reporting it to the census. The original stores the total in a
+  // short, and its (short) drops the fraction. Past a short's range C leaves that conversion undefined, and the port
+  // keeps the whole value.
   var normalizedResPop = f(census.resPop / resPopDenom);
-  census.totalPop = Math.round(f(f(normalizedResPop + census.comPop) + census.indPop));
+  census.totalPop = Math.trunc(f(f(normalizedResPop + census.comPop) + census.indPop));
 
   // A lack of developed commercial and industrial zones means there are no employment opportunities, which constrain
   // growth. (This might hurt initially if, for example, the player lays out an initial grid, as the residential zones
@@ -137,9 +139,10 @@ Valves.prototype.setValves = function(gameLevel, census, budget) {
   comRatio = f(f(f(comRatio - 1) * taxTableScale) + taxTable[z]);
   indRatio = f(f(f(indRatio - 1) * taxTableScale) + taxTable[z]);
 
-  this.resValve = MiscUtils.clamp(this.resValve + Math.round(resRatio), -RES_VALVE_RANGE, RES_VALVE_RANGE);
-  this.comValve = MiscUtils.clamp(this.comValve + Math.round(comRatio), -COM_VALVE_RANGE, COM_VALVE_RANGE);
-  this.indValve = MiscUtils.clamp(this.indValve + Math.round(indRatio), -IND_VALVE_RANGE, IND_VALVE_RANGE);
+  // Each ratio is a change to its valve, which the original's (short) takes whole by dropping the fraction, toward zero
+  this.resValve = MiscUtils.clamp(this.resValve + Math.trunc(resRatio), -RES_VALVE_RANGE, RES_VALVE_RANGE);
+  this.comValve = MiscUtils.clamp(this.comValve + Math.trunc(comRatio), -COM_VALVE_RANGE, COM_VALVE_RANGE);
+  this.indValve = MiscUtils.clamp(this.indValve + Math.trunc(indRatio), -IND_VALVE_RANGE, IND_VALVE_RANGE);
 
   if (this.resCap && this.resValve > 0)
     this.resValve = 0;

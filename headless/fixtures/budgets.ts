@@ -33,7 +33,7 @@ export const underfunded = fixture(
     {type: "setBudget", road: 60, fire: 40, police: 75, tax: 7},
   ], [
     {step: 0, hash: "99394d3b50e55da27586d1b8982ae93690c82126e9ba4b309d37919824269c1e"},
-    {step: RUN_STEPS, hash: "f5d22b7d1fdc95b12270d31df732ac807377d72f5edadc3e0ed2ca656021c9a9"},
+    {step: RUN_STEPS, hash: "9b4098faa6087c02385e8dcb32614b00a076a89d0c9e2b3db18278bf40e1ddc8"},
   ]);
 
 // No tax comes in, and building has spent all but a few hundred of the funds: the first year end pays roads and fire
@@ -49,5 +49,5 @@ export const broke = fixture(
     {type: "setBudget", road: 100, fire: 100, police: 100, tax: 0},
   ], [
     {step: 0, hash: "55f86f6a27ea1c58475acac7362c45836312de779a716b331923aacd121c7d31"},
-    {step: RUN_STEPS, hash: "d852ed3e3f113f9afadcea4e4339105e01bbf30d8daf75efd1f56bebc2f73da2"},
+    {step: RUN_STEPS, hash: "d341e498efab9b865a2e19ac53d098772ef5162648ab6fd618fb76e8362919c4"},
   ]);

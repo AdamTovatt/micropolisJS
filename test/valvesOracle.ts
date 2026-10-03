@@ -17,11 +17,9 @@ import { differences as firstDifferences, outcomeDifference } from "./helpers/or
 
 // The original's setValves, from simulate.cpp in its MicropolisEngine, transcribed with each C type's arithmetic made
 // explicit, as the oracle the port is compared with below: float arithmetic rounds every operation to 32 bits
-// (Math.fround), and the shorts and ints are whole numbers. Two things follow the port rather than simulate.cpp:
-// - simulate.cpp's resRatio = min(indRatio, indRatioMax), a slip the 1989 C doesn't make, which the port leaves out:
-//   each ratio is clamped on its own.
-// - the population and each valve's change are rounded, as the port rounds them, where the original's (short) drops
-//   the fraction.
+// (Math.fround), the shorts and ints are whole numbers, and a (short) of a float drops the fraction (Math.trunc). One
+// thing follows the port rather than simulate.cpp: its resRatio = min(indRatio, indRatioMax), a slip the 1989 C doesn't
+// make, which the port leaves out, clamping each ratio on its own.
 
 const f = Math.fround;
 
@@ -61,7 +59,7 @@ function originalSetValves(figures: Figures): Outcome {
     const {gameLevel, cityTax, resPop, comPop, indPop, resHist, comHist, indHist} = figures;
 
     const normalizedResPop = f(f(resPop) / f(8));
-    const totalPop = Math.round(f(f(normalizedResPop + comPop) + indPop));
+    const totalPop = Math.trunc(f(f(normalizedResPop + comPop) + indPop));
 
     const employment = resPop > 0 ? f(f(comHist + indHist) / normalizedResPop) : f(1);
     const migration = f(normalizedResPop * f(employment - 1));
@@ -90,9 +88,9 @@ function originalSetValves(figures: Figures): Outcome {
     comRatio = f(f(f(comRatio - 1) * f(600)) + TAX_TABLE[z]);
     indRatio = f(f(f(indRatio - 1) * f(600)) + TAX_TABLE[z]);
 
-    let resValve = clamp(figures.resValve + Math.round(resRatio), -2000, 2000);
-    let comValve = clamp(figures.comValve + Math.round(comRatio), -1500, 1500);
-    let indValve = clamp(figures.indValve + Math.round(indRatio), -1500, 1500);
+    let resValve = clamp(figures.resValve + Math.trunc(resRatio), -2000, 2000);
+    let comValve = clamp(figures.comValve + Math.trunc(comRatio), -1500, 1500);
+    let indValve = clamp(figures.indValve + Math.trunc(indRatio), -1500, 1500);
 
     if (figures.resCap && resValve > 0) resValve = 0;
     if (figures.comCap && comValve > 0) comValve = 0;
