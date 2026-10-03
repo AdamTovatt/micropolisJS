@@ -13,7 +13,7 @@
 
 import $ from "jquery";
 
-import { GameCanvas } from './gameCanvas.js';
+import { GameCanvas } from './gameCanvas.ts';
 import { SPRITE_DYING, SPRITE_MOVED } from './messages.ts';
 
 var TIMEOUT_SECS = 10;
@@ -27,7 +27,7 @@ var MonsterTV = function(map, tileSet, spriteSheet) {
   // hack as we're reusing the same GameCanvas that paints the main map, but it avoids a lot of duplication)
   $(monsterTVID).toggle();
 
-  this.canvas = new GameCanvas(monsterTVCanvasID, monsterTVContainerID);
+  this.canvas = new GameCanvas(monsterTVContainerID, monsterTVCanvasID);
   this.canvas.init(map, tileSet, spriteSheet);
   this.canvas.disallowOffMap();
 
@@ -42,8 +42,8 @@ var MonsterTV = function(map, tileSet, spriteSheet) {
 
 
 var monsterTVFormID = '#monsterTVForm';
-var monsterTVContainerID = '#tvContainer';
-var monsterTVCanvasID = '#tvCanvas';
+var monsterTVContainerID = 'tvContainer';
+var monsterTVCanvasID = 'tvCanvas';
 var monsterTVID = '#monstertv';
 
 // Marks the view as open, so the stylesheet can clear its slot: the status panel shares it.

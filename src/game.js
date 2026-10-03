@@ -23,7 +23,7 @@ import { DebugWindow } from './debugWindow.ts';
 import { DisasterWindow } from './disasterWindow.ts';
 import { ToolPaths } from './dragPath.ts';
 import { EvaluationWindow } from './evaluationWindow.ts';
-import { GameCanvas } from './gameCanvas.js';
+import { GameCanvas } from './gameCanvas.ts';
 import { InfoBar } from './infoBar.js';
 import { InputStatus } from './inputStatus.js';
 import * as Messages from './messages.ts';
