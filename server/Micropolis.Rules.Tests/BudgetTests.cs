@@ -14,8 +14,8 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The year end's branches the unit snapshots don't reach, as <c>test/budget.ts</c> tests the TypeScript's: the
-    /// fixtures' cities always have someone living in them, and too little tax to leave a short's range.
+    /// The year end's branches, as <c>test/budget.ts</c> tests the TypeScript's: an empty city, and a cash flow past a
+    /// short's range, tested directly rather than left to whichever of them the unit snapshots' cities happen to reach.
     /// </summary>
     [TestClass]
     public sealed class BudgetTests

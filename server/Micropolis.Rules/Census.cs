@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using static Micropolis.Rules.JsMath;
 
 namespace Micropolis.Rules
 {
@@ -25,6 +26,12 @@ namespace Micropolis.Rules
         /// The entries in each history, newest first.
         /// </summary>
         public const int HistoryLength = 120;
+
+        /// <summary>
+        /// What the residential population is divided by to compare it with the other zone types', as each residential
+        /// zone reports its population scaled up.
+        /// </summary>
+        public const long ResPopDenom = 8;
 
         public long ResPop { get; internal set; }
 
@@ -150,9 +157,7 @@ namespace Micropolis.Rules
         /// </summary>
         public void Take10Census(Budget budget)
         {
-            const long resPopDenom = 8;
-
-            ResHist10 = Rotated(ResHist10, JsMath.FloorDiv(ResPop, resPopDenom));
+            ResHist10 = Rotated(ResHist10, FloorDiv(ResPop, ResPopDenom));
             ComHist10 = Rotated(ComHist10, ComPop);
             IndHist10 = Rotated(IndHist10, IndPop);
 
@@ -190,9 +195,7 @@ namespace Micropolis.Rules
         /// </summary>
         public void Take120Census()
         {
-            const long resPopDenom = 8;
-
-            ResHist120 = Rotated(ResHist120, JsMath.FloorDiv(ResPop, resPopDenom));
+            ResHist120 = Rotated(ResHist120, FloorDiv(ResPop, ResPopDenom));
             ComHist120 = Rotated(ComHist120, ComPop);
             IndHist120 = Rotated(IndHist120, IndPop);
             CrimeHist120 = Rotated(CrimeHist120, CrimeHist10[0]);

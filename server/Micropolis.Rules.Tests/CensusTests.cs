@@ -14,9 +14,9 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The short-term census's branches the unit snapshots don't reach, as <c>test/census.ts</c> tests the
-    /// TypeScript's: the fixtures' cities have too few residents to need a hospital, and too small a cash flow to leave
-    /// the money history's range.
+    /// The short-term census's branches, as <c>test/census.ts</c> tests the TypeScript's: each hospital outcome, and a
+    /// cash flow at the money history's range, tested directly rather than left to whichever of them the unit
+    /// snapshots' cities happen to reach.
     /// </summary>
     [TestClass]
     public sealed class CensusTests

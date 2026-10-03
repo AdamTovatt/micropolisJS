@@ -226,6 +226,48 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(Messages.REACHED_TOWN, city.MessageLast);
         }
 
+        // A town of 3200 people shrunk to a village of (40 + 1 * 8) * 20 = 960: a village is never announced
+        [TestMethod]
+        public void SendMessages_TownShrunkToAVillage_SendsThePopulationAlone()
+        {
+            Simulation city = City("suburb", "built", save =>
+            {
+                save["simulation"]!["cityTime"] = 64;
+                save["simulation"]!["cityPopLast"] = 3200;
+                save["simulation"]!["messageLast"] = null;
+            });
+            city.Census.ResPop = 40;
+            city.Census.ComPop = 1;
+            city.Census.IndPop = 0;
+            List<string> events = Record(city);
+
+            city.SendMessages();
+
+            CollectionAssert.AreEqual(new[] { $"{Messages.POPULATION_UPDATED} 960" }, events);
+            Assert.AreEqual((960L, (string?)null), (city.CityPopLast, city.MessageLast));
+        }
+
+        // 66 is no month's start, nor a place in the advisor's round: a population changed since the last growth check
+        // waits for the next
+        [TestMethod]
+        public void SendMessages_BetweenMonths_ChecksNoGrowth()
+        {
+            Simulation city = City("suburb", "built", save =>
+            {
+                save["simulation"]!["cityTime"] = 66;
+                save["simulation"]!["cityPopLast"] = 1000;
+            });
+            city.Census.ResPop = 40;
+            city.Census.ComPop = 5;
+            city.Census.IndPop = 10;
+            List<string> events = Record(city);
+
+            city.SendMessages();
+
+            Assert.IsEmpty(events);
+            Assert.AreEqual(1000L, city.CityPopLast);
+        }
+
         // A calm city at a place in the advisor's round, with the figures given changed, whose growth check announces no
         // class and whose power messages aren't held back
         private static Simulation AdvisedCity(long cityTime, string figures)

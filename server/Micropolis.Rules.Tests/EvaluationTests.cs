@@ -16,9 +16,9 @@ using static Micropolis.Rules.Tests.FixtureCities;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The yearly evaluation's branches the unit snapshots don't reach, as <c>test/evaluation.ts</c> and
-    /// <c>test/evaluationOracle.ts</c> test the TypeScript's: the fixtures' cities have no capped demand, no fires, no
-    /// jobs past a short's range, and always someone living in them at the year end.
+    /// The yearly evaluation's branches, as <c>test/evaluation.ts</c> and <c>test/evaluationOracle.ts</c> test the
+    /// TypeScript's: capped demand, fires, jobs past a short's range and an empty city, tested directly rather than
+    /// left to whichever of them the unit snapshots' cities happen to reach.
     /// </summary>
     [TestClass]
     public sealed class EvaluationTests
@@ -104,7 +104,8 @@ namespace Micropolis.Rules.Tests
             Assert.IsEmpty(evaluation.CityScoreBreakdown);
             CollectionAssert.AreEqual(Enumerable.Repeat(Evaluation.NumProblems, Evaluation.NumComplaints).ToArray(),
                                       evaluation.ProblemOrder.ToArray());
-            Assert.IsTrue(evaluation.ProblemVotes.All(vote => vote.VoteCount == 0));
+            CollectionAssert.AreEqual(Enumerable.Range(0, Evaluation.NumProblems).Select(index => new ProblemVote(index, 0)).ToArray(),
+                                      evaluation.ProblemVotes.ToArray());
         }
 
         /// <summary>

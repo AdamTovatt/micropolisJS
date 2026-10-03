@@ -49,10 +49,10 @@ namespace Micropolis.Rules
     public sealed class Simulation
     {
         /// <summary>
-        /// The city-class announcements a city may have sent last.
+        /// The city-class announcements a city may have sent last, in class order.
         /// </summary>
         public static readonly IReadOnlyList<string> CityClassMessages =
-            [Messages.REACHED_TOWN, Messages.REACHED_CITY, Messages.REACHED_CAPITAL, Messages.REACHED_METROPOLIS, Messages.REACHED_MEGALOPOLIS];
+            Enum.GetValues<CityClass>().Select(ClassAnnouncement).OfType<string>().ToList();
 
         // The handler families, each a module of src/ that registers tile handlers with the map scanner and zones with
         // the repair manager, by name, in the order Simulation.init registers them: the first handler whose criterion
@@ -745,17 +745,7 @@ namespace Micropolis.Rules
 
                 if (lastClass != newClass)
                 {
-                    message = newClass switch
-                    {
-                        // A village is never announced
-                        CityClass.Village => null,
-                        CityClass.Town => Messages.REACHED_TOWN,
-                        CityClass.City => Messages.REACHED_CITY,
-                        CityClass.Capital => Messages.REACHED_CAPITAL,
-                        CityClass.Metropolis => Messages.REACHED_METROPOLIS,
-                        CityClass.Megalopolis => Messages.REACHED_MEGALOPOLIS,
-                        _ => throw new ArgumentOutOfRangeException(nameof(cityPop), newClass, "No such city class."),
-                    };
+                    message = ClassAnnouncement(newClass);
                 }
             }
 
@@ -766,6 +756,22 @@ namespace Micropolis.Rules
             }
 
             CityPopLast = cityPop;
+        }
+
+        // The announcement of a city reaching a class, as checkGrowth's switch in the original: a village is never
+        // announced
+        private static string? ClassAnnouncement(CityClass cityClass)
+        {
+            return cityClass switch
+            {
+                CityClass.Village => null,
+                CityClass.Town => Messages.REACHED_TOWN,
+                CityClass.City => Messages.REACHED_CITY,
+                CityClass.Capital => Messages.REACHED_CAPITAL,
+                CityClass.Metropolis => Messages.REACHED_METROPOLIS,
+                CityClass.Megalopolis => Messages.REACHED_MEGALOPOLIS,
+                _ => throw new ArgumentOutOfRangeException(nameof(cityClass), cityClass, "No such city class."),
+            };
         }
 
         /// <summary>

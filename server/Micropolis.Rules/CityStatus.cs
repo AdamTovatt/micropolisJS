@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using static Micropolis.Rules.JsMath;
 
 namespace Micropolis.Rules
 {
@@ -32,9 +33,9 @@ namespace Micropolis.Rules
             (Messages.NEED_STADIUM, (census, _, _) => census.ResPop > 500 && census.StadiumPop == 0),
             (Messages.NEED_AIRPORT, (census, _, _) => census.ComPop > 100 && census.AirportPop == 0),
             (Messages.NEED_SEAPORT, (census, _, _) => census.IndPop > 70 && census.SeaportPop == 0),
-            (Messages.NEED_MORE_RESIDENTIAL, (census, _, _) => JsMath.FloorDiv(TotalZonePop(census), 4) >= census.ResZonePop),
-            (Messages.NEED_MORE_COMMERCIAL, (census, _, _) => JsMath.FloorDiv(TotalZonePop(census), 8) >= census.ComZonePop),
-            (Messages.NEED_MORE_INDUSTRIAL, (census, _, _) => JsMath.FloorDiv(TotalZonePop(census), 8) >= census.IndZonePop),
+            (Messages.NEED_MORE_RESIDENTIAL, (census, _, _) => FloorDiv(TotalZonePop(census), 4) >= census.ResZonePop),
+            (Messages.NEED_MORE_COMMERCIAL, (census, _, _) => FloorDiv(TotalZonePop(census), 8) >= census.ComZonePop),
+            (Messages.NEED_MORE_INDUSTRIAL, (census, _, _) => FloorDiv(TotalZonePop(census), 8) >= census.IndZonePop),
             (Messages.NEED_MORE_ROADS, (census, _, _) => TotalZonePop(census) > 10 && TotalZonePop(census) * 2 > census.RoadTotal),
             (Messages.NEED_MORE_RAILS, (census, _, _) => TotalZonePop(census) > 50 && TotalZonePop(census) > census.RailTotal),
             (Messages.HIGH_POLLUTION, (census, _, _) => census.PollutionAverage > 60),
@@ -44,11 +45,11 @@ namespace Micropolis.Rules
             (Messages.NEED_POLICE_STATION, (census, _, _) => census.TotalPop > 60 && census.PoliceStationPop == 0),
             (Messages.TAX_TOO_HIGH, (_, budget, _) => budget.CityTax > 12),
             (Messages.ROAD_NEEDS_FUNDING,
-             (census, budget, _) => budget.RoadEffect < JsMath.FloorDiv(5 * Budget.MaxRoadEffect, 8) && census.RoadTotal > 30),
+             (census, budget, _) => budget.RoadEffect < FloorDiv(5 * Budget.MaxRoadEffect, 8) && census.RoadTotal > 30),
             (Messages.FIRE_STATION_NEEDS_FUNDING,
-             (census, budget, _) => budget.FireEffect < JsMath.FloorDiv(7 * Budget.MaxFireStationEffect, 10) && census.TotalPop > 20),
+             (census, budget, _) => budget.FireEffect < FloorDiv(7 * Budget.MaxFireStationEffect, 10) && census.TotalPop > 20),
             (Messages.POLICE_NEEDS_FUNDING,
-             (census, budget, _) => budget.PoliceEffect < JsMath.FloorDiv(7 * Budget.MaxPoliceStationEffect, 10) && census.TotalPop > 20),
+             (census, budget, _) => budget.PoliceEffect < FloorDiv(7 * Budget.MaxPoliceStationEffect, 10) && census.TotalPop > 20),
         ];
 
         /// <summary>
@@ -102,7 +103,7 @@ namespace Micropolis.Rules
         private static bool Blackouts(Census census)
         {
             long zoneCount = census.UnpoweredZoneCount + census.PoweredZoneCount;
-            return zoneCount > 0 && JsMath.Fround((double)census.PoweredZoneCount / zoneCount) < 0.7 && PowerPop(census) > 0;
+            return zoneCount > 0 && Fround((double)census.PoweredZoneCount / zoneCount) < 0.7 && PowerPop(census) > 0;
         }
     }
 }

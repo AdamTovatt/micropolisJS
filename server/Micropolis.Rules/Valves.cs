@@ -54,7 +54,6 @@ namespace Micropolis.Rules
         /// </summary>
         public void SetValves(Level gameLevel, Census census, Budget budget)
         {
-            const double resPopDenom = 8;
             double birthRate = Fround(0.02);
             double labourBaseMax = Fround(1.3);
             double internalMarketDenom = Fround(3.7);
@@ -68,8 +67,8 @@ namespace Micropolis.Rules
 
             // Residential zones scale their population index when reporting it to the census. The original stores the
             // total in a short, and its (short) drops the fraction. Past a short's range C leaves that conversion
-            // undefined, and the port keeps the whole value.
-            double normalizedResPop = Fround(census.ResPop / resPopDenom);
+            // undefined, and the port keeps the whole value. The division is in floating point, keeping the fraction.
+            double normalizedResPop = Fround(census.ResPop / (double)Census.ResPopDenom);
             census.TotalPop = (long)Math.Truncate(Fround(Fround(normalizedResPop + census.ComPop) + census.IndPop));
 
             // No developed commercial and industrial zones means no jobs, which holds growth back

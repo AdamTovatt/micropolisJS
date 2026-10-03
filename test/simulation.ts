@@ -12,7 +12,7 @@
  */
 
 import { cityFromSave, cityFromSeed, Level, SaveData, Speed } from "../headless/city";
-import { advance, startCity } from "../headless/runner";
+import { advance, fixtureSave, startCity } from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
@@ -403,6 +403,45 @@ describe("a simulation", () => {
             simulation._sendMessages();
 
             expect(events).toEqual([{name: Messages.POPULATION_UPDATED, payload: 3200}]);
+        });
+
+        it("announces nothing for a town shrunk back to a village", () => {
+            const simulation = simulationFromSeed(SEED);
+            const events = listen(simulation);
+            simulation._cityPopLast = 3200;
+            Object.assign(simulation._census, {resPop: 40, comPop: 1, indPop: 0});
+
+            simulation._cityTime = 64;
+            simulation._sendMessages();
+
+            expect(events).toEqual([{name: Messages.POPULATION_UPDATED, payload: 960}]);
+        });
+
+        // 66 is no month's start, nor a place in the advisor's round
+        it("checks nothing between months", () => {
+            const simulation = simulationFromSeed(SEED);
+            const events = listen(simulation);
+            simulation._cityPopLast = 1000;
+            populate(simulation);
+
+            simulation._cityTime = 66;
+            simulation._sendMessages();
+
+            expect(events).toEqual([]);
+            expect(simulation._cityPopLast).toBe(1000);
+        });
+
+        // The census is cleared at phase 0 and counted again over phases 1 to 8, so a save taken between them holds
+        // a census part counted
+        it("gives a loaded city the population its last growth check found", () => {
+            const city = cityFromSave(fixtureSave("suburb")) as unknown as SimulationInstance;
+            while (city._cityPopLast === 0 || city._phaseCycle !== 4)
+                city.step();
+
+            const loaded = cityFromSave(plainSavedState(city) as SaveData) as unknown as SimulationInstance;
+
+            expect(loaded.evaluation.getPopulation(loaded._census)).not.toBe(city._cityPopLast);
+            expect(loaded.getPopulation()).toBe(city._cityPopLast);
         });
     });
 
