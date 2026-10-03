@@ -19,10 +19,6 @@ import { SpriteUtils } from './spriteUtils.js';
 
 function CopterSprite(map, spriteManager, random, x, y) {
   this.init(SPRITE_HELICOPTER, map, spriteManager, random, x, y);
-  this.width = 32;
-  this.height = 32;
-  this.xOffset = -16;
-  this.yOffset = -16;
   this.frame = 5;
   this.count = 1500;
   this.destX = this.random.getRandom(SpriteUtils.worldToPix(map.width)) + 8;
@@ -32,7 +28,7 @@ function CopterSprite(map, spriteManager, random, x, y) {
 }
 
 
-BaseSprite(CopterSprite);
+BaseSprite(CopterSprite, {width: 32, height: 32, xOffset: -16, yOffset: -16});
 
 
 var xDelta = [0, 0, 3, 5, 3, 0, -3, -5, -3];

@@ -20,15 +20,11 @@ import { DIRT } from "./tileValues.ts";
 
 function ExplosionSprite(map, spriteManager, random, x, y) {
   this.init(SPRITE_EXPLOSION, map, spriteManager, random, x, y);
-  this.width = 48;
-  this.height = 48;
-  this.xOffset = -24;
-  this.yOffset = -24;
   this.frame = 1;
 }
 
 
-BaseSprite(ExplosionSprite);
+BaseSprite(ExplosionSprite, {width: 48, height: 48, xOffset: -24, yOffset: -24});
 
 
 ExplosionSprite.prototype.startFire = function(x, y) {

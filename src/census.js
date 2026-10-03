@@ -25,7 +25,9 @@ function Census() {
   this.landValueAverage = 0;
   this.pollutionAverage = 0;
   this.crimeAverage = 0;
+  this.trafficAverage = 0;
   this.totalPop = 0;
+  this.needHospital = 0;
 
   var createArray = function(arrName) {
     this[arrName] = [];
@@ -89,15 +91,39 @@ var saveProps = ['resPop', 'comPop', 'indPop', 'crimeRamp', 'pollutionRamp', 'la
              'indHist120', 'crimeHist10', 'crimeHist120', 'moneyHist10', 'moneyHist120', 'pollutionHist10',
              'pollutionHist120'];
 
+// What the map scan counts between clearing the census and using it, and what the census derives from the scans:
+// part of the simulation's scanned state.
+var scanProps = ['poweredZoneCount', 'unpoweredZoneCount', 'firePop', 'roadTotal', 'railTotal', 'resZonePop',
+                 'comZonePop', 'indZonePop', 'hospitalPop', 'churchPop', 'policeStationPop', 'fireStationPop',
+                 'stadiumPop', 'coalPowerPop', 'nuclearPowerPop', 'seaportPop', 'airportPop', 'needHospital',
+                 'trafficAverage'];
+
+var copy = function(value) {
+  return Array.isArray(value) ? value.slice() : value;
+};
+
+
 Census.prototype.save = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
-    saveData[saveProps[i]] = this[saveProps[i]];
+    saveData[saveProps[i]] = copy(this[saveProps[i]]);
 };
 
 
 Census.prototype.load = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
-    this[saveProps[i]] = saveData[saveProps[i]];
+    this[saveProps[i]] = copy(saveData[saveProps[i]]);
+};
+
+
+Census.prototype.saveScan = function(scanData) {
+  for (var i = 0, l = scanProps.length; i < l; i++)
+    scanData[scanProps[i]] = this[scanProps[i]];
+};
+
+
+Census.prototype.loadScan = function(scanData) {
+  for (var i = 0, l = scanProps.length; i < l; i++)
+    this[scanProps[i]] = scanData[scanProps[i]];
 };
 
 

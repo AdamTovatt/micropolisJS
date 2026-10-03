@@ -39,6 +39,7 @@ Valves.prototype.save = function(saveData) {
   saveData.resValve = this.resValve;
   saveData.comValve = this.comValve;
   saveData.indValve = this.indValve;
+  saveData.valves = {resCap: this.resCap, comCap: this.comCap, indCap: this.indCap};
 };
 
 
@@ -46,6 +47,9 @@ Valves.prototype.load = function(saveData) {
   this.resValve = saveData.resValve;
   this.comValve = saveData.comValve;
   this.indValve = saveData.indValve;
+  this.resCap = saveData.valves.resCap;
+  this.comCap = saveData.valves.comCap;
+  this.indCap = saveData.valves.indCap;
 
   this._emitEvent(VALVES_UPDATED);
 };

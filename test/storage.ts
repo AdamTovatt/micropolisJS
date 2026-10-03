@@ -11,7 +11,12 @@
  *
  */
 
+import { GameMap } from "../src/gameMap.js";
 import { Random } from "../src/random";
+import { Simulation } from "../src/simulation.js";
+import { plainSavedState } from "../src/stateHash";
+import { ANIMBIT, CONDBIT } from "../src/tileFlags";
+import { FIRE, POWERPLANT } from "../src/tileValues";
 
 type Window = {window?: unknown};
 
@@ -48,6 +53,57 @@ describe("storage", () => {
             Storage.transitionOldSave(savedGame);
 
             expect(savedGame._speedCycle).toBe(0);
+        });
+    });
+
+    describe("when migrating a version 4 save", () => {
+
+        const VERSION_5_KEYS = ["_phaseCycle", "_simCycle", "_cityPopLast", "_messageLast",
+                                "_initialEvaluationPending", "evaluation", "valves", "budget", "sprites", "disasters",
+                                "scannedState"];
+
+        // An empty city with one coal plant tile, which a scan counts, and one burning tile, which makes a scan draw
+        // from the stream and change the map
+        function newCity() {
+            const map = new GameMap(120, 100);
+            map.setTile(60, 50, POWERPLANT, CONDBIT);
+            map.setTile(30, 30, FIRE, ANIMBIT);
+            return new Simulation(map, Simulation.LEVEL_EASY, Simulation.SPEED_MED, 1, null);
+        }
+
+        // What a version 5 save holds, less what version 5 added
+        function version4Save() {
+            const saveData = plainSavedState(newCity()) as Record<string, unknown>;
+            VERSION_5_KEYS.forEach((key) => delete saveData[key]);
+            saveData.version = 4;
+            return saveData;
+        }
+
+        // Every key path in a save, following objects and the elements of arrays
+        function keyPaths(value: unknown, path = ""): string[] {
+            if (Array.isArray(value)) {
+                return Array.from(new Set(value.flatMap((element) => keyPaths(element, `${path}[]`))));
+            }
+
+            if (value !== null && typeof value === "object") {
+                return Object.entries(value).flatMap(([key, child]) => [`${path}.${key}`,
+                                                                        ...keyPaths(child, `${path}.${key}`)]);
+            }
+
+            return [];
+        }
+
+        // The scanned state is null in a migrated save, and derived when it loads
+        const outsideScannedState = (paths: string[]) => paths.filter((path) => !path.startsWith(".scannedState."));
+
+        it("gives it every key a version 5 save holds, at every level", async () => {
+            const Storage = await loadStorage();
+            const savedGame = version4Save();
+
+            Storage.transitionOldSave(savedGame);
+
+            expect(outsideScannedState(keyPaths(savedGame)).sort())
+                .toEqual(outsideScannedState([...keyPaths(plainSavedState(newCity())), ".version"]).sort());
         });
     });
 });

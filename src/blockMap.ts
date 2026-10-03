@@ -75,6 +75,20 @@ export class BlockMap {
     this.forEach((x, y) => this.set(x, y, 0));
   }
 
+  // The values row by row, top row first: block (x, y) is at index width * y + x
+  save(): number[] {
+    return this.data.slice();
+  }
+
+  load(values: readonly number[]) {
+    if (values.length !== this.width * this.height) {
+      throw new Error(`A ${this.width}x${this.height} block map needs ${this.width * this.height} values, ` +
+                      `got ${values.length}`);
+    }
+
+    this.data = values.slice();
+  }
+
   copyFrom(source: BlockMap, transform: TransformationFunction = ID) {
     if (this.hasIncompatibleDimensions(source)) {
       console.warn("Copying from incompatible blockMap!");

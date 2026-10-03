@@ -21,16 +21,12 @@ import * as TileValues from "./tileValues.ts";
 function TrainSprite(map, spriteManager, random, x, y) {
   this.init(SPRITE_TRAIN, map,
             spriteManager, random, x, y);
-  this.width = 32;
-  this.height = 32;
-  this.xOffset = -16;
-  this.yOffset = -16;
   this.frame = 1;
   this.dir = 4;
 }
 
 
-BaseSprite(TrainSprite);
+BaseSprite(TrainSprite, {width: 32, height: 32, xOffset: -16, yOffset: -16});
 
 
 var tileDeltaX = [  0, 16, 0, -16];

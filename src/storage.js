@@ -62,6 +62,28 @@ var transitionOldSave = function(savedGame) {
       savedGame.randomState = Random.simulationStream(savedGame.seed).getState();
       savedGame._speedCycle = 0;
 
+      /* falls through */
+    case 4:
+      // Saves before version 5 hold only part of the state. The rest starts as it did when such a save was loaded:
+      // no sprites, disasters off, the counters and the evaluation's working values reset, and the evaluation due
+      // again. The scanned state can only be derived by a scan: a null scannedState, which only a migrated save
+      // holds, leaves it to the scan the Simulation runs on load.
+      savedGame._phaseCycle = 0;
+      savedGame._simCycle = 0;
+      savedGame._cityPopLast = 0;
+      savedGame._messageLast = null;
+      savedGame._lastPowerMessage = null;
+      savedGame._initialEvaluationPending = true;
+      savedGame.evaluation = {cityYes: 0, cityPop: 0, cityPopDelta: 0, cityAssessedValue: 0, cityClassLast: 'VILLAGE',
+                              cityScoreDelta: 0, problemVotes: [0, 1, 2, 3, 4, 5, 6].map(function(i) {
+                                return {index: i, voteCount: 0};
+                              }), problemOrder: [7, 7, 7, 7]};
+      savedGame.valves = {resCap: false, comCap: false, indCap: false};
+      savedGame.budget = {cashFlow: 0, taxFund: 0, awaitingValues: false};
+      savedGame.sprites = {spriteCycle: 0, list: []};
+      savedGame.disasters = {floodCount: 0, disastersEnabled: false};
+      savedGame.scannedState = null;
+
       break;
 
     default:
@@ -77,7 +99,7 @@ var Storage = {
 };
 
 
-Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(4));
+Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(5));
 Object.defineProperty(Storage, 'KEY', MiscUtils.makeConstantDescriptor('micropolisJSGame'));
 Object.defineProperty(Storage, 'canStore', MiscUtils.makeConstantDescriptor(window.localStorage !== undefined));
 

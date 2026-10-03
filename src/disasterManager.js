@@ -29,6 +29,17 @@ var DisasterManager = EventEmitter(function(map, spriteManager, gameLevel, rando
 });
 
 
+DisasterManager.prototype.save = function(saveData) {
+  saveData.disasters = {floodCount: this._floodCount, disastersEnabled: this.disastersEnabled};
+};
+
+
+DisasterManager.prototype.load = function(saveData) {
+  this._floodCount = saveData.disasters.floodCount;
+  this.disastersEnabled = saveData.disasters.disastersEnabled;
+};
+
+
 var DisChance = [479, 239, 59];
 
 DisasterManager.prototype.doDisasters = function(census) {

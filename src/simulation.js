@@ -44,8 +44,10 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGa
     throw new Error('A simulation starts from either a seed or a saved game');
 
   this._map = gameMap;
-  this.setLevel(gameLevel);
-  this.setSpeed(speed);
+
+  // A saved game's level and speed are its own, and the managers below are built with that level
+  this.setLevel(savedGame ? savedGame._gameLevel : gameLevel);
+  this.setSpeed(savedGame ? savedGame._speed : speed);
 
   // Every random draw that changes the city comes from this stream
   this.seed = savedGame ? savedGame.seed : seed;
@@ -56,7 +58,8 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGa
   this._simCycle = 0;
   this._cityTime = 0;
   this._cityPopLast = 0;
-  this._messageLast = undefined;
+  this._messageLast = null;
+  this._initialEvaluationPending = true;
   this._startingYear = 1900;
 
   // Last date sent to front end
@@ -131,8 +134,9 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGa
   }
 
   this.init();
+  this._scan();
 
-  // init's scans draw from the stream: a saved game continues from the state it was saved with
+  // The scans draw from the stream: a saved game continues from the state it was saved with
   if (savedGame)
     this.random.setState(savedGame.randomState);
 });
@@ -164,7 +168,15 @@ Simulation.prototype.isPaused = function() {
 };
 
 
-var saveProps = ['_cityTime', '_speed', '_speedCycle', '_gameLevel'];
+// A save holds the complete state, so a loaded city continues exactly as it would have without the save. The format
+// is specified in docs/state-hash.md, which the state hash is computed over.
+var saveProps = ['_cityTime', '_speed', '_speedCycle', '_gameLevel', '_phaseCycle', '_simCycle', '_cityPopLast',
+                 '_messageLast', '_lastPowerMessage', '_initialEvaluationPending'];
+
+// The temporary block maps are left out: each scan writes them in full before reading them
+var scannedBlockMaps = ['cityCentreDistScoreMap', 'crimeRateMap', 'fireStationMap', 'fireStationEffectMap',
+                        'landValueMap', 'policeStationMap', 'policeStationEffectMap', 'pollutionDensityMap',
+                        'populationDensityMap', 'rateOfGrowthMap', 'terrainDensityMap', 'trafficDensityMap'];
 
 Simulation.prototype.save = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
@@ -178,10 +190,33 @@ Simulation.prototype.save = function(saveData) {
   this._valves.save(saveData);
   this.budget.save(saveData);
   this._census.save(saveData);
+  this.spriteManager.save(saveData);
+  this.disasterManager.save(saveData);
+
+  var scannedState = {blockMaps: {}, census: {}, power: {}};
+  for (i = 0, l = scannedBlockMaps.length; i < l; i++)
+    scannedState.blockMaps[scannedBlockMaps[i]] = this.blockMaps[scannedBlockMaps[i]].save();
+
+  this._census.saveScan(scannedState.census);
+  this._powerManager.saveScan(scannedState.power);
+  saveData.scannedState = scannedState;
 };
 
 
+// Restores everything a save holds, and its scanned state unless a migrated save has none (see storage.js)
 Simulation.prototype.load = function(saveData) {
+  if (saveData.scannedState === undefined)
+    throw new Error('A save from before version 5 must be migrated before it is loaded');
+
+  this._loadSaved(saveData);
+
+  if (saveData.scannedState !== null)
+    this._loadScanned(saveData.scannedState);
+};
+
+
+// Everything a save holds but its scanned state
+Simulation.prototype._loadSaved = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
     this[saveProps[i]] = saveData[saveProps[i]];
 
@@ -193,6 +228,17 @@ Simulation.prototype.load = function(saveData) {
   this._valves.load(saveData);
   this.budget.load(saveData);
   this._census.load(saveData);
+  this.spriteManager.load(saveData);
+  this.disasterManager.load(saveData);
+};
+
+
+Simulation.prototype._loadScanned = function(scannedState) {
+  for (var i = 0, l = scannedBlockMaps.length; i < l; i++)
+    this.blockMaps[scannedBlockMaps[i]].load(scannedState.blockMaps[scannedBlockMaps[i]]);
+
+  this._census.loadScan(scannedState.census);
+  this._powerManager.loadScan(scannedState.power);
 };
 
 
@@ -293,7 +339,11 @@ Simulation.prototype.init = function() {
   Residential.registerHandlers(this._mapScanner, this._repairManager);
   Stadia.registerHandlers(this._mapScanner, this._repairManager);
   Transport.registerHandlers(this._mapScanner, this._repairManager);
+};
 
+
+// The scans a city runs as it is constructed
+Simulation.prototype._scan = function() {
   var simData = this._constructSimData();
   this._mapScanner.mapScan(0, this._map.width, simData);
   this._powerManager.doPowerScan(this._census);
@@ -400,12 +450,13 @@ var simulate = function(simData) {
 
 
 Simulation.prototype._simulate = function(simData) {
-  // This is actually a wrapper function that will only be called once, to perform the initial
-  // evaluation. Once that has completed, it will supplant itself with the standard "simulate"
-  // procedure defined above
-  this.evaluation.cityEvaluation(simData);
-  this._simulate = simulate;
-  this._simulate(simData);
+  // A city is evaluated before the first phase it runs. A saved game records whether that has happened.
+  if (this._initialEvaluationPending) {
+    this.evaluation.cityEvaluation(simData);
+    this._initialEvaluationPending = false;
+  }
+
+  simulate.call(this, simData);
 };
 
 

@@ -173,4 +173,27 @@ describe("when copying from one block map to another", () => {
 
         expect(dest.get(x, y)).toBe(transformed(value));
     });
+
+    it("saves its values row by row, by its own width in blocks", () => {
+        // A 5x3 map in blocks of 2 is 3 blocks wide and 2 high
+        const blockMap = new BlockMap(5, 3, 2);
+        blockMap.set(2, 0, 7);
+        blockMap.set(0, 1, 9);
+
+        expect(blockMap.save()).toEqual([0, 0, 7, 9, 0, 0]);
+    });
+
+    it("loads what it saved, sharing nothing with the saved values", () => {
+        const values = [1, 2, 3, 4, 5, 6];
+        const blockMap = new BlockMap(5, 3, 2);
+        blockMap.load(values);
+        values[0] = 99;
+
+        expect(blockMap.get(0, 0)).toBe(1);
+        expect(blockMap.save()).toEqual([1, 2, 3, 4, 5, 6]);
+    });
+
+    it("refuses to load the wrong number of values", () => {
+        expect(() => new BlockMap(5, 3, 2).load([1, 2, 3])).toThrow("A 3x2 block map needs 6 values, got 3");
+    });
 });

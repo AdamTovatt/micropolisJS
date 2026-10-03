@@ -69,12 +69,18 @@ var saveProps = ['autoBudget', 'totalFunds', 'policePercent', 'roadPercent', 'fi
 Budget.prototype.save = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
     saveData[saveProps[i]] = this[saveProps[i]];
+
+  saveData.budget = {cashFlow: this.cashFlow, taxFund: this.taxFund, awaitingValues: this.awaitingValues};
 };
 
 
 Budget.prototype.load = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
     this[saveProps[i]] = saveData[saveProps[i]];
+
+  this.cashFlow = saveData.budget.cashFlow;
+  this.taxFund = saveData.budget.taxFund;
+  this.awaitingValues = saveData.budget.awaitingValues;
 
   this._emitEvent(Messages.AUTOBUDGET_CHANGED, this.autoBudget);
   this._emitEvent(Messages.FUNDS_CHANGED, this.totalFunds);
