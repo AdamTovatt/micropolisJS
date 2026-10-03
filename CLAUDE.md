@@ -116,7 +116,7 @@ A condition that holds over time (power load against capacity, a demand cap, an 
 
 ## The original as reference
 
-The original C/C++ source is the behavioural reference: <https://github.com/SimHacker/micropolis>, engine in `MicropolisCore/src/MicropolisEngine/src/`. This port follows it closely, function by function — for example `boatSprite.js` mirrors `doShipSprite` in `sprite.cpp`. When something behaves oddly, compare against the original before calling it a port bug: much odd behaviour is faithful to 1989, such as ships that wander the channel at random and wreck at dead ends.
+The original C/C++ source is the behavioural reference: <https://github.com/SimHacker/micropolis>, engine in `MicropolisCore/src/MicropolisEngine/src/`. The behaviour of the original's windows, such as the budget window's sliders, lives in the older C and Tcl version under `micropolis-activity/src/sim/` (`w_budget.c`, `w_sim.c`) and its Tcl scripts. This port follows it closely, function by function — for example `boatSprite.js` mirrors `doShipSprite` in `sprite.cpp`. When something behaves oddly, compare against the original before calling it a port bug: much odd behaviour is faithful to 1989, such as ships that wander the channel at random and wreck at dead ends.
 
 ## Code style
 

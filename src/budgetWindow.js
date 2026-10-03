@@ -17,7 +17,7 @@ import { BUDGET_WINDOW_CLOSED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import { ModalWindow } from './modalWindow.js';
 import { formatMoney } from './money.ts';
-import { wholePercent } from './wholePercent.ts';
+import { percentLabel, wholePercent } from './fundingDisplay.ts';
 
 var BudgetWindow = ModalWindow(function() {
   $(budgetCancelID).on('click', cancel.bind(this));
@@ -30,12 +30,11 @@ var BudgetWindow = ModalWindow(function() {
 });
 
 
-// The funded services: each one's slider, and the budget data's keys for its funding percentage (0 to 1) and its full
-// maintenance cost
+// The funded services, each with its slider
 var services = [
-  {name: 'road', sliderID: 'roadRate', percentKey: 'roadPercent', maintenanceKey: 'roadMaintenanceBudget'},
-  {name: 'fire', sliderID: 'fireRate', percentKey: 'firePercent', maintenanceKey: 'fireMaintenanceBudget'},
-  {name: 'police', sliderID: 'policeRate', percentKey: 'policePercent', maintenanceKey: 'policeMaintenanceBudget'}
+  {name: 'road', sliderID: 'roadRate'},
+  {name: 'fire', sliderID: 'fireRate'},
+  {name: 'police', sliderID: 'policeRate'}
 ];
 
 var budgetResetID = '#budgetReset';
@@ -49,13 +48,15 @@ var sliderPercentage = function(elementID) {
 
 
 // Shows each service's cost at its funding level, and the cash flow and year-end balance the budget forecasts for
-// those levels.
-var updateFunding = function() {
+// those levels. A service whose slider hasn't moved shows the percentage it has, fraction included.
+var showFunding = function() {
   var forecast = this.forecast(this.funding);
 
   for (var i = 0; i < services.length; i++) {
     var service = services[i];
-    var text = [sliderPercentage(service.sliderID), '% of ', formatMoney(this.maintenance[service.name]),
+    var percent = this.funding[service.name] !== undefined ? this.funding[service.name] :
+                  percentLabel(this.originalPercents[service.name]);
+    var text = [percent, '% of ', formatMoney(this.maintenance[service.name]),
                 ' = ', formatMoney(forecast.wanted[service.name])].join('');
     $(MiscUtils.normaliseDOMid(service.sliderID + 'Label')).text(text);
   }
@@ -67,24 +68,21 @@ var updateFunding = function() {
 
 // Draws each slider at the whole percent of the percentage the budget has, and starts the window's funding with no
 // changes. The funding holds the whole percent of each slider the player moves, and OK sends only those, which the
-// budget funds as the original's slider handlers do. A service whose slider hasn't moved keeps its percentage.
-//
-// This keeps the fraction of a percentage the budget scaled back to the cash it had, where the original loses it: its
-// window, on drawing a slider at a whole percent other than the slider's last position, sets the slider, and setting a
-// slider stores its whole percent back. Opening a window never changes the city here, so that is not ported.
+// budget funds as the original's slider handlers do. A service whose slider hasn't moved keeps its percentage, with
+// the fraction of a percent the original's window loses on drawing it (see Budget.doBudgetNow).
 var startFunding = function() {
   this.funding = {};
   for (var i = 0; i < services.length; i++) {
     var service = services[i];
     $(MiscUtils.normaliseDOMid(service.sliderID))[0].value = wholePercent(this.originalPercents[service.name]);
   }
-  updateFunding.call(this);
+  showFunding.call(this);
 };
 
 
 var onSliderMoved = function(service) {
   this.funding[service.name] = sliderPercentage(service.sliderID);
-  updateFunding.call(this);
+  showFunding.call(this);
 };
 
 
@@ -132,14 +130,8 @@ var requireBudgetData = function(budgetData, key) {
 
 BudgetWindow.prototype.open = function(budgetData) {
   this.forecast = requireBudgetData(budgetData, 'forecast');
-  this.maintenance = {};
-  this.originalPercents = {};
-
-  for (var i = 0; i < services.length; i++) {
-    var service = services[i];
-    this.maintenance[service.name] = requireBudgetData(budgetData, service.maintenanceKey);
-    this.originalPercents[service.name] = requireBudgetData(budgetData, service.percentKey);
-  }
+  this.maintenance = requireBudgetData(budgetData, 'maintenance');
+  this.originalPercents = requireBudgetData(budgetData, 'percents');
 
   this.originalTaxRate = requireBudgetData(budgetData, 'taxRate');
   $('#taxRate')[0].value = this.originalTaxRate;

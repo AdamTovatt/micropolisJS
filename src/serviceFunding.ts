@@ -12,7 +12,8 @@
  */
 
 // How the budget funds road, fire and police services: at year end, as doBudgetNow in the original's budget.cpp does;
-// during the year, at the whole percent the player sets, as the original's budget slider handlers do; and the effect
+// during the year, at the whole percent the player sets, as the original's budget slider handlers in
+// micropolis-activity's w_sim.c do; and the effect
 // that funding has, as its updateFundEffects does. Budget charges through fundServices, and forecasts with
 // forecastYear.
 //
@@ -45,19 +46,21 @@ export interface YearForecast {
 // The services in the order the budget funds them
 export const SERVICES: (keyof ServiceAmounts)[] = ["road", "fire", "police"];
 
-// The cost of a service at its funding percentage (0 to 1): (int)(fund * percent), multiplied in float
-export function serviceSpend(maintenance: number, percent: number): number {
+// What a service wants at year end at its funding percentage (0 to 1), as doBudgetNow computes it: (int)(fund *
+// percent), multiplied in float
+export function costAt(maintenance: number, percent: number): number {
   return Math.floor(Math.fround(Math.fround(maintenance) * Math.fround(percent)));
 }
 
-// The funding percentage (0 to 1) of a service funded at a whole percent, as the original's budget slider handler
-// stores it: percent / 100.0, kept in a float
+// The funding percentage (0 to 1) of a service funded at a whole percent, as the original's budget slider handlers
+// (SimCmdRoadFund, SimCmdFireFund and SimCmdPoliceFund in micropolis-activity's w_sim.c) store it: percent / 100.0,
+// kept in a float
 export function fundingPercent(wholePercent: number): number {
   return Math.fround(wholePercent / 100);
 }
 
-// The spend booked on a service funded at a whole percent, as the original's budget slider handler books it:
-// (max * percent) / 100, in integers
+// The spend booked on a service funded at a whole percent, as those slider handlers book it: (max * percent) / 100, in
+// integers
 export function fundingSpend(maintenance: number, wholePercent: number): number {
   return Math.floor(maintenance * wholePercent / 100);
 }
@@ -77,7 +80,7 @@ export function fundEffect(maxEffect: number, spend: number, maintenance: number
 export function fundServices(cash: number, maintenance: ServiceAmounts, percents: ServiceAmounts): Funding {
   const wanted = { road: 0, fire: 0, police: 0 };
   for (const service of SERVICES)
-    wanted[service] = serviceSpend(maintenance[service], percents[service]);
+    wanted[service] = costAt(maintenance[service], percents[service]);
   const total = wanted.road + wanted.fire + wanted.police;
 
   if (cash > total)

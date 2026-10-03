@@ -343,17 +343,13 @@ Game.prototype.handleBudgetWindowClosure = function(data) {
 };
 
 
-// The values the budget window opens with. Each service's funding percentage is a fraction (0 to 1).
+// The values the budget window opens with: each service's maintenance cost and funding percentage (0 to 1), by service.
 Game.prototype.budgetWindowValues = function() {
   var budget = this.simulation.budget;
 
   return [{
-    roadMaintenanceBudget: budget.roadMaintenanceBudget,
-    roadPercent: budget.roadPercent,
-    fireMaintenanceBudget: budget.fireMaintenanceBudget,
-    firePercent: budget.firePercent,
-    policeMaintenanceBudget: budget.policeMaintenanceBudget,
-    policePercent: budget.policePercent,
+    maintenance: budget.maintenance(),
+    percents: budget.percents(),
     taxRate: budget.cityTax,
     totalFunds: budget.totalFunds,
     taxesCollected: budget.taxFund,

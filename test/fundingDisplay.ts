@@ -11,8 +11,8 @@
  *
  */
 
+import { percentLabel, wholePercent } from "../src/fundingDisplay";
 import { fundingPercent } from "../src/serviceFunding";
-import { wholePercent } from "../src/wholePercent";
 
 describe("wholePercent", () => {
 
@@ -36,5 +36,24 @@ describe("wholePercent", () => {
         }
 
         expect(shownOtherwise).toEqual([[53, 52], [59, 58]]);
+    });
+});
+
+describe("percentLabel", () => {
+
+    it("should show a percentage scaled back to the cash to a tenth of a percent", () => {
+        expect(percentLabel(Math.fround(94 / 300))).toBe("31.3");
+        expect(percentLabel(Math.fround(140 / 300))).toBe("46.7");
+    });
+
+    it("should show every percentage set from a slider at the slider's whole percent", () => {
+        const shownOtherwise: [number, string][] = [];
+        for (let percent = 0; percent <= 100; percent++) {
+            const shown = percentLabel(fundingPercent(percent));
+            if (shown !== String(percent))
+                shownOtherwise.push([percent, shown]);
+        }
+
+        expect(shownOtherwise).toEqual([]);
     });
 });

@@ -96,27 +96,24 @@ Budget.prototype.setAutoBudget = function(value) {
 var RLevels = [0.7, 0.9, 1.2];
 var FLevels = [1.4, 1.2, 0.8];
 
-// Calculates the best possible outcome in terms of funding the various services
-// given the player's current funds and tax yield. On entry, roadPercent etc. are
-// assumed to contain the desired percentage level, and taxFunds should contain the
-// most recent tax collected. On exit, the *Percent members will be updated with what
-// we can actually afford to spend. Returns an object containing the amount of cash
-// that would be spent on each service.
+// Funds the services from the funds and the last tax collection, scaling back the percentages the cash can't cover, and
+// returns what each service is paid
 Budget.prototype._calculateBestPercentages = function() {
-  // Note: the *Budget items are updated every January by collectTax
-  var funding = fundServices(this.totalFunds + this.taxFund, this._maintenance(), this._percents());
+  var funding = fundServices(this.totalFunds + this.taxFund, this.maintenance(), this.percents());
   this._setPercents(funding.percents);
 
   return funding.paid;
 };
 
 
-Budget.prototype._maintenance = function() {
+// Each service's full maintenance cost, by service
+Budget.prototype.maintenance = function() {
   return {road: this.roadMaintenanceBudget, fire: this.fireMaintenanceBudget, police: this.policeMaintenanceBudget};
 };
 
 
-Budget.prototype._percents = function() {
+// Each service's funding percentage (0 to 1), by service
+Budget.prototype.percents = function() {
   return {road: this.roadPercent, fire: this.firePercent, police: this.policePercent};
 };
 
@@ -142,7 +139,7 @@ var servicesIn = function(wholePercents) {
 // The percentages with the services given funded at the given whole percents, and the others at the percentages they
 // have
 Budget.prototype._percentsWith = function(wholePercents) {
-  var percents = this._percents();
+  var percents = this.percents();
   servicesIn(wholePercents).forEach(function(service) {
     percents[service] = fundingPercent(wholePercents[service]);
   });
@@ -155,19 +152,19 @@ Budget.prototype._percentsWith = function(wholePercents) {
 // maintenance costs, with the services given funded at the given whole percents, as setFunding would set them, and
 // the others at the percentages they have
 Budget.prototype.forecast = function(wholePercents) {
-  return forecastYear(this.totalFunds, this.taxFund, this._maintenance(), this._percentsWith(wholePercents));
+  return forecastYear(this.totalFunds, this.taxFund, this.maintenance(), this._percentsWith(wholePercents));
 };
 
 
-// Funds the services given at the given whole percents, as the original's budget slider handlers do, and leaves the
-// others as they are: each one's spend is booked from its whole percent, and the effects are set from the spends.
+// Funds the services given at the given whole percents, as the original's budget slider handlers (SimCmdRoadFund,
+// SimCmdFireFund and SimCmdPoliceFund in micropolis-activity's w_sim.c) do, and leaves the others as they are: each one's spend is booked from its whole percent, and the effects are set from the spends.
 // With no service given, nothing changes.
 Budget.prototype.setFunding = function(wholePercents) {
   var services = servicesIn(wholePercents);
   if (services.length === 0)
     return;
 
-  var maintenance = this._maintenance();
+  var maintenance = this.maintenance();
   var spends = this._spends();
   services.forEach(function(service) {
     spends[service] = fundingSpend(maintenance[service], wholePercents[service]);
@@ -202,11 +199,14 @@ Budget.prototype.doBudgetNow = function(fromWindow) {
   var cashRemaining = this.totalFunds + this.taxFund - totalCost;
 
   // The player's values, which the city waits on. As in the original, what each service gets is booked as its spend.
-  // The effects are then set from those spends, standing in for the original's budget window: on drawing a scaled-back
-  // percentage at a slider position other than the slider's last one, it sets the slider, whose handler re-books that
-  // service's spend from the whole percent and updates the effects. So there a fire department paid $94 of $300, drawn
-  // at 31%, gets the effect of $93, and when no slider is drawn at a new position, no effect changes. Here the effects
-  // always follow what was paid, and are set as the player's values are applied, never when the window opens.
+  // The effects are then set from those spends, standing in for the original's budget window. That window
+  // (drawCurrPercents in micropolis-activity's w_budget.c, and the Tcl it calls), on drawing a percentage at a slider
+  // position other than the slider's last one, sets the slider, which runs its handler (SimCmdRoadFund,
+  // SimCmdFireFund or SimCmdPoliceFund in w_sim.c). The handler stores the whole percent back as the percentage, losing
+  // any fraction, re-books the service's spend from it, and updates the effects. So there a fire department paid $94
+  // of $300, drawn at 31%, is set to 31% and gets the effect of $93, and when no slider is drawn at a new position, no
+  // effect changes. Here opening a window never changes the city: the percentages keep their fractions, and the effects
+  // always follow what was paid, set as the player's values are applied.
   if (fromWindow) {
     this.awaitingValues = false;
     this._collectTaxAndPayServices(totalCost);
@@ -220,7 +220,7 @@ Budget.prototype.doBudgetNow = function(fromWindow) {
   if (cashRemaining > 0 && this.autoBudget) {
     this.awaitingValues = false;
     this._collectTaxAndPayServices(totalCost);
-    this._bookSpend(this._maintenance());
+    this._bookSpend(this.maintenance());
     return;
   }
 

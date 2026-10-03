@@ -104,7 +104,7 @@ block map.
 | `budget.totalFunds` | Funds |
 | `budget.cityTax` | The tax rate, percent |
 | `budget.autoBudget` | Whether the budget is set automatically |
-| `budget.roadPercent`, `budget.firePercent`, `budget.policePercent` | The share of each service's need funded, a number from 0 to 1, not always an integer |
+| `budget.roadPercent`, `budget.firePercent`, `budget.policePercent` | The share of each service's need funded, a number from 0 to 1, not always an integer. The budget sets each one as a single-precision value, as the original keeps it, and the save writes the double it equals: 53% is `0.5299999713897705`, not `0.53`. A save written before the budget did so may hold any double, which loading keeps. |
 | `budget.roadSpend`, `budget.fireSpend`, `budget.policeSpend` | The spend booked on each service, from which its effectiveness is set: what the player's funding costs, what the year-end budget paid, or the full cost of every service after an autobudget year end |
 | `budget.roadMaintenanceBudget`, `budget.fireMaintenanceBudget`, `budget.policeMaintenanceBudget` | What each service needs |
 | `budget.roadEffect`, `budget.fireEffect`, `budget.policeEffect` | Each service's effectiveness |

@@ -12,29 +12,29 @@
  */
 
 import {
-    forecastYear, fundEffect, fundServices, serviceSpend, fundingPercent, fundingSpend,
+    costAt, forecastYear, fundEffect, fundServices, fundingPercent, fundingSpend,
 } from "../src/serviceFunding";
 
 const fullFunding = { road: 1, fire: 1, police: 1 };
 const noFunding = { road: 0, fire: 0, police: 0 };
 
-describe("serviceSpend", () => {
+describe("costAt", () => {
 
     it("should charge the full maintenance cost at full funding", () => {
-        expect(serviceSpend(240, 1)).toBe(240);
+        expect(costAt(240, 1)).toBe(240);
     });
 
     it("should drop the fraction of a dollar, as the original's (int) cast does", () => {
-        expect(serviceSpend(101, 0.5)).toBe(50);
+        expect(costAt(101, 0.5)).toBe(50);
     });
 
     it("should multiply in float, as the original does", () => {
         // In double, 100 * 0.57 is 56.99999999999999; the original's float product is 57
-        expect(serviceSpend(100, 0.57)).toBe(57);
+        expect(costAt(100, 0.57)).toBe(57);
     });
 
     it("should charge nothing at zero funding", () => {
-        expect(serviceSpend(240, 0)).toBe(0);
+        expect(costAt(240, 0)).toBe(0);
     });
 });
 
@@ -55,7 +55,7 @@ describe("fundingSpend", () => {
 
     it("should book a whole percent of $100 as that many dollars, where the float cost may be a dollar less", () => {
         expect(fundingSpend(100, 53)).toBe(53);
-        expect(serviceSpend(100, fundingPercent(53))).toBe(52);
+        expect(costAt(100, fundingPercent(53))).toBe(52);
     });
 });
 
@@ -66,6 +66,12 @@ describe("fundEffect", () => {
         expect(fundEffect(1000, 93, 300)).toBe(310);
         expect(fundEffect(1000, 300, 300)).toBe(1000);
         expect(fundEffect(1000, 0, 300)).toBe(0);
+    });
+
+    it("should multiply and divide in float, as the original does", () => {
+        // In double, 1000 * 27431 / 32773 is 836.99...; the original's float quotient is 837. No city's costs reach
+        // these figures, but the formula the C# port carries is the float one.
+        expect(fundEffect(1000, 27431, 32773)).toBe(837);
     });
 });
 

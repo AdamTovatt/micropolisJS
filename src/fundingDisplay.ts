@@ -11,8 +11,17 @@
  *
  */
 
-// A funding percentage (0 to 1) as the original's budget window shows it on a slider: (int)(percent * 100),
-// multiplied in float
+// How the budget window shows a service's funding percentage (0 to 1).
+
+// The whole percent the window draws a slider at, as the original's budget window does (ReallyDrawCurrPercents in
+// micropolis-activity's w_budget.c): (int)(percent * 100), multiplied in float
 export function wholePercent(percent: number): number {
   return Math.floor(Math.fround(Math.fround(percent) * 100));
+}
+
+// The percent a slider's label shows, to a tenth of a percent. A percentage the year end scaled back to the cash it had
+// holds a fraction the slider can't, and the cost beside it is at that fraction: $94 of $300 is 31.3%, not the 31%
+// the slider is drawn at.
+export function percentLabel(percent: number): string {
+  return String(Math.round(percent * 1000) / 10);
 }

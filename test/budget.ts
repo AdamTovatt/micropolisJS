@@ -65,10 +65,12 @@ describe("Budget.setFunding", () => {
 
     it("should leave the percentages and spends of the services not given as they are", () => {
         const budget = budgetWith(0, 0);
+        budget.roadSpend = 57;
+        budget.policeSpend = 10;
         budget.setFunding({ fire: 53 });
 
         expect(percentsOf(budget)).toEqual({ ...held, fire: Math.fround(0.53) });
-        expect(spendsOf(budget)).toEqual({ road: 0, fire: 159, police: 0 });
+        expect(spendsOf(budget)).toEqual({ road: 57, fire: 159, police: 10 });
     });
 });
 
@@ -88,6 +90,7 @@ describe("Budget.updateFundEffects", () => {
     it("should give a service that costs nothing its full effect", () => {
         const budget = budgetWith(0, 0);
         budget.policeMaintenanceBudget = 0;
+        budget.policeEffect = 0;
         budget.updateFundEffects();
 
         expect(budget.policeEffect).toBe(1000);
@@ -97,9 +100,13 @@ describe("Budget.updateFundEffects", () => {
 describe("Budget.forecast", () => {
 
     it("should forecast the sliders moved at their whole percents, and the others at the percentages they have", () => {
-        const budget = budgetWith(1000, 0);
+        const budget = budgetWith(1000, 500);
 
-        expect(budget.forecast({ fire: 80 }).wanted).toEqual({ ...heldCosts, fire: 240 });
+        // The fire department at 80% wants $240 of $300; with the held roads and police, the services want $307 of the
+        // $500 of taxes
+        expect(budget.forecast({ fire: 80 })).toEqual({
+            wanted: { ...heldCosts, fire: 240 }, fundsChange: 500 - (57 + 240 + 10), fundsAfterYear: 1000 + 193
+        });
     });
 });
 
@@ -155,6 +162,21 @@ describe("A year-end budget with the player's values", () => {
         expect(spendsOf(budget)).toEqual(heldCosts);
         // 32 * 57 / 100 is 18, 1000 * 140 / 300 is 466, and 1000 * 10 / 200 is 50, each rounded down
         expect(effectsOf(budget)).toEqual({ road: 18, fire: 466, police: 50 });
+    });
+});
+
+describe("A year-end budget the player sets", () => {
+
+    it("should charge nothing until the player's values come, with the percentages already scaled back to the cash", () => {
+        // $150 would pay the $57 of roads and $93 of the fire department's $140; police would go unpaid
+        const budget = budgetWith(50, 100);
+        budget.setAutoBudget(false);
+        budget.doBudgetNow(false);
+
+        expect(budget.awaitingValues).toBe(true);
+        expect(budget.totalFunds).toBe(50);
+        expect(percentsOf(budget)).toEqual({ road: 0.57, fire: Math.fround(93 / 300), police: 0 });
+        expect(spendsOf(budget)).toEqual({ road: 0, fire: 0, police: 0 });
     });
 });
 
