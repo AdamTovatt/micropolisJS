@@ -13,66 +13,20 @@
 
 import { EventEmitter } from './eventEmitter.js';
 
+// A sprite's starting state, as the original's initSprite sets it before its type's own. (x, y) is the sprite's
+// position in map pixels, in the original's frame: it is neither where the sprite is drawn nor where it collides. Each
+// type is drawn at (x + xOffset, y + yOffset), and collides, crashes and leaves the map at its hot spot,
+// (x + xHot, y + yHot), with the values the original gives the type. The tiles a sprite reads or damages lie at the
+// offsets its move names, as in the original.
 var init = function(type, map, spriteManager, random, x, y) {
   this.type = type;
   this.map = map;
   this.spriteManager = spriteManager;
   this.random = random;
 
-  var pixX = x;
-  var pixY = y;
-  var worldX = x >> 4;
-  var worldY = y >> 4;
-
-  Object.defineProperty(this, 'x',
-    {configurable: false,
-     enumerable: true,
-     set: function(val) {
-       // XXX These getters have implicit knowledge of tileWidth: need to decide whether to disallow non 16px tiles
-       pixX = val;
-       worldX = val >> 4;
-     },
-     get: function() {
-      return pixX;
-     }
-  });
-
-  Object.defineProperty(this, 'y',
-    {configurable: false,
-     enumerable: true,
-     set: function(val) {
-       pixY = val;
-       worldY = val >> 4;
-     },
-     get: function() {
-      return pixY;
-     }
-  });
-
-  Object.defineProperty(this, 'worldX',
-    {configurable: false,
-     enumerable: true,
-     set: function(val) {
-       worldX = val;
-       pixX = val << 4;
-     },
-     get: function() {
-      return worldX;
-     }
-  });
-
-  Object.defineProperty(this, 'worldY',
-    {configurable: false,
-     enumerable: true,
-     set: function(val) {
-       worldY = val;
-       pixY = val << 4;
-     },
-     get: function() {
-      return worldY;
-     }
-  });
-
+  this.x = x;
+  this.y = y;
+  this.frame = 0;
   this.origX = 0;
   this.origY = 0;
   this.destX = 0;
@@ -91,43 +45,50 @@ var getFileName = function() {
 };
 
 
+// Whether the hot spot is off the map
 var spriteNotInBounds = function() {
-  var x = this.worldX;
-  var y = this.worldY;
+  var x = this.x + this.xHot;
+  var y = this.y + this.yHot;
 
-  return x < 0 || y < 0 || x >= this.map.width || y >= this.map.height;
+  return x < 0 || y < 0 || x >= (this.map.width << 4) || y >= (this.map.height << 4);
 };
 
 
-// A sprite's saved state. Its size and offsets are its type's, on the prototype, so they aren't saved.
+// The sprite dies in an explosion at its hot spot, and a type that can crash reports it, as the original's
+// explodeSprite does
+var explodeSprite = function() {
+  this.frame = 0;
+
+  var x = this.x + this.xHot;
+  var y = this.y + this.yHot;
+  this.spriteManager.makeExplosionAt(x, y);
+
+  if (this.crashMessage !== undefined)
+    this._emitEvent(this.crashMessage, {showable: true, x: x >> 4, y: y >> 4});
+};
+
+
+// A sprite's saved state. Its size, offsets and hot spot are its type's, on the prototype, so they aren't saved.
 var saveProps = ['type', 'frame', 'x', 'y', 'origX', 'origY', 'destX', 'destY', 'count', 'soundCount', 'dir',
                  'newDir', 'step', 'flag'];
 
 
-var getSaveProps = function() {
-  return saveProps.concat(this.extraSaveProps);
-};
-
-
 var save = function() {
   var data = {};
-  var props = this.getSaveProps();
 
-  for (var i = 0, l = props.length; i < l; i++)
-    data[props[i]] = this[props[i]];
+  for (var i = 0, l = saveProps.length; i < l; i++)
+    data[saveProps[i]] = this[saveProps[i]];
 
   return data;
 };
 
 
 var load = function(data) {
-  var props = this.getSaveProps();
+  for (var i = 0, l = saveProps.length; i < l; i++) {
+    if (data[saveProps[i]] === undefined)
+      throw new Error('A saved sprite has no ' + saveProps[i]);
 
-  for (var i = 0, l = props.length; i < l; i++) {
-    if (data[props[i]] === undefined)
-      throw new Error('A saved sprite has no ' + props[i]);
-
-    this[props[i]] = data[props[i]];
+    this[saveProps[i]] = data[saveProps[i]];
   }
 };
 
@@ -136,21 +97,24 @@ var base = {
   init: init,
   getFileName: getFileName,
   spriteNotInBounds: spriteNotInBounds,
-  // State a sprite type holds beyond the common fields
-  extraSaveProps: [],
-  getSaveProps: getSaveProps,
+  explodeSprite: explodeSprite,
   save: save,
   load: load
 };
 
 
-// geometry is the type's fixed size and drawing offset: {width, height, xOffset, yOffset}
-var BaseSprite = function(spriteConstructor, geometry) {
+// traits are what the type fixes for every sprite of it, as the original's initSprite and explodeSprite give them: its
+// size, drawing offset and hot spot, {width, height, xOffset, yOffset, xHot, yHot}, and crashMessage, the message a
+// crash of the type reports, for the types the original reports
+var BaseSprite = function(spriteConstructor, traits) {
   spriteConstructor.prototype = Object.create(base);
-  spriteConstructor.prototype.width = geometry.width;
-  spriteConstructor.prototype.height = geometry.height;
-  spriteConstructor.prototype.xOffset = geometry.xOffset;
-  spriteConstructor.prototype.yOffset = geometry.yOffset;
+  spriteConstructor.prototype.width = traits.width;
+  spriteConstructor.prototype.height = traits.height;
+  spriteConstructor.prototype.xOffset = traits.xOffset;
+  spriteConstructor.prototype.yOffset = traits.yOffset;
+  spriteConstructor.prototype.xHot = traits.xHot;
+  spriteConstructor.prototype.yHot = traits.yHot;
+  spriteConstructor.prototype.crashMessage = traits.crashMessage;
   EventEmitter(spriteConstructor);
 };
 

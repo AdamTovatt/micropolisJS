@@ -161,7 +161,7 @@ namespace Micropolis.Rules.Tests
                 ["census.comPop"] = ("102", city => city.Census.ComPop),
                 ["census.indPop"] = ("113", city => city.Census.IndPop),
                 ["census.totalPop"] = ("104", city => city.Census.TotalPop),
-                ["census.crimeRamp"] = ("105", city => city.Census.CrimeRamp),
+                ["census.crimeRamp"] = ("115", city => city.Census.CrimeRamp),
                 ["census.pollutionRamp"] = ("106", city => city.Census.PollutionRamp),
                 ["census.landValueAverage"] = ("107", city => city.Census.LandValueAverage),
                 ["census.pollutionAverage"] = ("108", city => city.Census.PollutionAverage),
@@ -179,7 +179,8 @@ namespace Micropolis.Rules.Tests
                 ["census.moneyHist120[0]"] = ("211", city => city.Census.MoneyHist120[0]),
                 ["census.pollutionHist120[0]"] = ("212", city => city.Census.PollutionHist120[0]),
                 ["sprites.spriteCycle"] = ("99", city => city.SpriteManager.SpriteCycle),
-                ["sprites.list[0].type"] = ("4", city => (int)city.SpriteManager.SpriteList[0].Type),
+                ["sprites.absDist"] = ("98", city => city.SpriteManager.AbsDist),
+                ["sprites.list[0].type"] = ("3", city => (int)city.SpriteManager.SpriteList[0].Type),
                 ["sprites.list[0].frame"] = ("301", city => city.SpriteManager.SpriteList[0].Frame),
                 ["sprites.list[0].x"] = ("302", city => city.SpriteManager.SpriteList[0].X),
                 ["sprites.list[0].y"] = ("303", city => city.SpriteManager.SpriteList[0].Y),
@@ -438,27 +439,14 @@ namespace Micropolis.Rules.Tests
             AssertRejected(SetAt("simulation.randomState", "[0,0,0,0]"), "simulation.randomState");
         }
 
+        // Version 10 dropped the monster's flag, which nothing read
         [TestMethod]
-        public void FromSave_MonsterWithoutSeenLand_ThrowsNamingTheKey()
-        {
-            AssertRejected(SetAt("sprites.list[0].type", "5"), "sprites.list[0]._seenLand");
-        }
-
-        [TestMethod]
-        public void FromSave_OtherSpriteWithSeenLand_ThrowsNamingTheKey()
-        {
-            AssertRejected(SetAt("sprites.list[0]._seenLand", "true"), "sprites.list[0]._seenLand");
-        }
-
-        [TestMethod]
-        [DataRow(true)]
-        [DataRow(false)]
-        public void Save_Monster_WritesWhetherItHasSeenLand(bool seenLand)
+        public void FromSave_MonsterWithSeenLand_ThrowsNamingTheKey()
         {
             JsonNode save = SetAt("sprites.list[0].type", "5");
-            ObjectAt(save, "sprites.list[0]")["_seenLand"] = seenLand;
+            ObjectAt(save, "sprites.list[0]")["_seenLand"] = true;
 
-            Assert.AreEqual(CanonicalJson.Write(save), CanonicalJson.Write(Resave(save.ToJsonString())));
+            AssertRejected(save, "sprites.list[0]._seenLand");
         }
 
         private static JsonObject Resave(string text)

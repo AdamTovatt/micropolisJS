@@ -131,8 +131,8 @@ describe("a rejected command", () => {
         ["auto-budget that isn't true or false", {type: "setAutoBudget", on: 1}, "setAutoBudget takes on, true or false"],
         ["disasters that aren't true or false", {type: "setDisasters", on: null},
             "setDisasters takes on, true or false"],
-        ["an unknown disaster", {type: "triggerDisaster", kind: "earthquake"},
-            "the disaster is one of monster, fire, flood, crash, meltdown, tornado"],
+        ["an unknown disaster", {type: "triggerDisaster", kind: "volcano"},
+            "the disaster is one of monster, fire, flood, crash, meltdown, tornado, earthquake"],
         ["funds of a chosen amount", {type: "addFunds", amount: 1000000},
             "the addFunds command has exactly the fields type"],
     ])("is %s", (_, command, reason) => {
@@ -432,16 +432,17 @@ describe("a disaster command", () => {
         expect(city.spriteManager.spriteList.map((sprite: {type: number}) => sprite.type)).toEqual([spriteType]);
     });
 
-    // Fire, flood, crash and meltdown each need something on the map to strike, and are tested with their manager:
-    // this checks the command reaches the right one
+    // Fire, flood, crash, meltdown and earthquake each need something on the map to strike, and are tested with their
+    // manager: this checks the command reaches the right one
     it.each([
         ["fire", "makeFire"],
         ["flood", "makeFlood"],
         ["crash", "makeCrash"],
         ["meltdown", "makeMeltdown"],
+        ["earthquake", "makeEarthquake"],
     ] as const)("triggers a %s", (kind, method) => {
         const city = emptyCity();
-        const calls = ["makeFire", "makeFlood", "makeCrash", "makeMeltdown"].map((name) =>
+        const calls = ["makeFire", "makeFlood", "makeCrash", "makeMeltdown", "makeEarthquake"].map((name) =>
             ({name, spy: jest.spyOn(city.disasterManager, name as typeof method)}));
 
         expect(applyCommand(city, {type: "triggerDisaster", kind}).outcome).toBe("ok");

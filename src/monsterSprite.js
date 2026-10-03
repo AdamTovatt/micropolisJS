@@ -16,36 +16,34 @@ import { SOUND_MONSTER } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import * as SpriteConstants  from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
-import { DIRT, RIVER, WATER_HIGH } from "./tileValues.ts";
+import { RIVER } from "./tileValues.ts";
 
 function MonsterSprite(map, spriteManager, random, x, y) {
   this.init(SpriteConstants.SPRITE_MONSTER, map, spriteManager, random, x, y);
 
-  if (x > SpriteUtils.worldToPix(map.width) / 2) {
-    if (y > SpriteUtils.worldToPix(map.height) / 2)
+  var middleX = Math.floor(SpriteUtils.worldToPix(map.width) / 2);
+  var middleY = Math.floor(SpriteUtils.worldToPix(map.height) / 2);
+
+  if (x > middleX) {
+    if (y > middleY)
       this.frame = 10;
     else
       this.frame = 7;
-  } else if (y > SpriteUtils.worldToPix(map.height) / 2) {
+  } else if (y > middleY) {
       this.frame = 1;
   } else {
       this.frame = 4;
   }
 
-  this.flag = 0;
   this.count = 1000;
   this.destX = SpriteUtils.worldToPix(map.pollutionMaxX);
   this.destY = SpriteUtils.worldToPix(map.pollutionMaxY);
   this.origX = this.x;
   this.origY = this.y;
-  this._seenLand = false;
 }
 
 
-BaseSprite(MonsterSprite, {width: 48, height: 48, xOffset: -24, yOffset: -24});
-
-
-MonsterSprite.prototype.extraSaveProps = ['_seenLand'];
+BaseSprite(MonsterSprite, {width: 48, height: 48, xOffset: 24, yOffset: 0, xHot: 40, yHot: 16});
 
 
 var xDelta = [ 2, 2, -2, -2, 0];
@@ -80,9 +78,9 @@ MonsterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
     else
       frame--;
 
-    var absDist = SpriteUtils.absoluteDistance(this.x, this.y, this.destX, this.destY);
+    this.spriteManager.getDir(this.x, this.y, this.destX, this.destY);
 
-    if (absDist < 60) {
+    if (this.spriteManager.absDist < 60) {
       if (this.flag === 0) {
         this.flag = 1;
         this.destX = this.origX;
@@ -94,10 +92,10 @@ MonsterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
     }
 
     // Perhaps switch to a cardinal direction
-    dir = SpriteUtils.getDir(this.x, this.y, this.destX, this.destY);
+    dir = this.spriteManager.getDir(this.x, this.y, this.destX, this.destY);
     dir = Math.floor((dir - 1) / 2);
 
-    if (dir !== currentDir && this.random.getChance(10)) {
+    if (dir !== currentDir && this.random.getRandom(10) === 0) {
       if (this.random.getRandom16() & 1)
         frame = cardinals1[currentDir];
       else
@@ -141,13 +139,11 @@ MonsterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
   if (this.count > 0)
     this.count--;
 
-  var tileValue = SpriteUtils.getTileValue(this.map, this.x, this.y);
+  // Off the map, or back in the river before its time is up, it dies
+  var tileValue = SpriteUtils.getTileValue(this.map, this.x + this.xHot, this.y + this.yHot);
 
-  if (tileValue === -1 || (tileValue === RIVER && this.count < 500))
+  if (tileValue === -1 || (tileValue === RIVER && this.count !== 0))
     this.frame = 0;
-
-  if (tileValue === DIRT || tileValue > WATER_HIGH)
-    this._seenLand = true;
 
   var spriteList = this.spriteManager.getSpriteList();
   for (var i = 0; i < spriteList.length; i++) {
@@ -160,7 +156,7 @@ MonsterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
       s.explodeSprite();
   }
 
-  SpriteUtils.destroyMapTile(this.spriteManager, this.map, blockMaps, this.x, this.y);
+  SpriteUtils.destroyMapTile(this.spriteManager, this.map, blockMaps, this.x + 48, this.y + 16);
 };
 
 

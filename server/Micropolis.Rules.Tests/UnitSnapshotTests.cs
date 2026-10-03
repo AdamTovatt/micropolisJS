@@ -32,6 +32,7 @@ namespace Micropolis.Rules.Tests
             "disasterManager.doDisasters",
             "disasterManager.doMeltdown",
             "disasterManager.makeCrash",
+            "disasterManager.makeEarthquake",
             "disasterManager.makeFire",
             "disasterManager.makeFlood",
             "disasterManager.makeMeltdown",

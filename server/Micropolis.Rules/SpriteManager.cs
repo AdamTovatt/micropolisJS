@@ -29,6 +29,11 @@ namespace Micropolis.Rules
 
         public long SpriteCycle { get; internal set; }
 
+        /// <summary>
+        /// The distance getDir last found, in pixels across and down, which every sprite shares.
+        /// </summary>
+        public long AbsDist { get; internal set; }
+
         public IReadOnlyList<Sprite> SpriteList { get; internal set; } = [];
 
         /// <summary>
@@ -41,15 +46,19 @@ namespace Micropolis.Rules
         // creating or moving a sprite throws. A sprite-free city's step moves nothing, so it runs as the TypeScript does.
 
         /// <summary>
-        /// The first live sprite of the type, or <see langword="null"/>.
+        /// The sprite of the type the list holds, if it is alive, or <see langword="null"/>: the original keeps one
+        /// sprite of each type but explosions, and finds none while that one is dead.
         /// </summary>
         public Sprite? GetSprite(SpriteType type)
         {
-            return SpriteList.FirstOrDefault(sprite => sprite.Frame != 0 && sprite.Type == type);
+            Sprite? sprite = SpriteList.FirstOrDefault(sprite => sprite.Type == type);
+
+            return sprite is null || sprite.Frame == 0 ? null : sprite;
         }
 
         /// <summary>
-        /// The distance in pixels, across and down, from the tile at (x, y) to the nearest live ship: 99999 with none.
+        /// The distance in pixels, across and down, from the middle of the tile at (x, y) to the nearest live ship's
+        /// hot spot: 99999 with none.
         /// </summary>
         public long GetBoatDistance(int x, int y)
         {
@@ -61,7 +70,7 @@ namespace Micropolis.Rules
             {
                 if (sprite.Type == SpriteType.Ship && sprite.Frame != 0)
                 {
-                    long sprDist = Math.Abs(sprite.X - pixelX) + Math.Abs(sprite.Y - pixelY);
+                    long sprDist = Math.Abs(sprite.X + sprite.XHot - pixelX) + Math.Abs(sprite.Y + sprite.YHot - pixelY);
 
                     dist = Math.Min(dist, sprDist);
                 }
@@ -108,6 +117,7 @@ namespace Micropolis.Rules
             saveData["sprites"] = new JsonObject
             {
                 ["spriteCycle"] = SpriteCycle,
+                ["absDist"] = AbsDist,
                 ["list"] = new JsonArray(SpriteList.Select(sprite => (JsonNode?)sprite.Save()).ToArray()),
             };
         }
@@ -117,6 +127,7 @@ namespace Micropolis.Rules
             saveData.ReadObject("sprites", sprites =>
             {
                 SpriteCycle = sprites.ReadSafeInteger("spriteCycle");
+                AbsDist = sprites.ReadSafeInteger("absDist");
                 SpriteList = sprites.ReadObjectList("list", Sprite.Load);
             });
         }

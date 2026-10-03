@@ -169,6 +169,10 @@ namespace Micropolis.Rules
                 case DisasterKind.Tornado:
                     SpriteManager.MakeTornado();
                     break;
+
+                case DisasterKind.Earthquake:
+                    DisasterManager.MakeEarthquake();
+                    break;
             }
         }
     }

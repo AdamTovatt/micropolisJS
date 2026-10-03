@@ -37,7 +37,7 @@ import { CITY_CLASSES, DISASTER_KINDS, LOCAL_PLAYER, OUTCOMES, SCORE_REASONS, TO
 import { Random } from "../src/random";
 import { Residential } from "../src/residential.js";
 import { SaveFormat } from "../src/savedGame";
-import { SPRITE_EXPLOSION, SPRITE_SHIP } from "../src/spriteConstants";
+import { SPRITE_EXPLOSION, SPRITE_MONSTER, SPRITE_SHIP } from "../src/spriteConstants";
 import { hashSavedState, plainSavedState, savedState, stateHash } from "../src/stateHash";
 import { Tile } from "../src/tile";
 import * as TileFlags from "../src/tileFlags";
@@ -621,17 +621,21 @@ function putZoneVectors(): object[] {
   return puts;
 }
 
-// The city whose sprites are read, with ships added: a dead one, which counts for nothing, and two at sea
+// The city whose sprites are read, with a ship at sea added, and a monster that has died, which getSprite finds none
+// of while no pass has taken it out of the list. A list holds at most one sprite of each type but explosions, so these
+// are types the city's list holds none of.
 const SPRITE_FIXTURE = "town";
 const SPRITE_TILES = [[0, 0], [1, 1], [37, 31], [56, 12], [119, 99]];
 
 function spriteVector(): object {
   const save = writtenSave(SPRITE_FIXTURE, "run");
-  const list = (save as unknown as {sprites: {list: object[]}}).sprites.list;
+  const list = (save as unknown as {sprites: {list: {type: number}[]}}).sprites.list;
   const template = list[0];
-  const added = [{...template, type: SPRITE_SHIP, frame: 0, x: 24, y: 24},
-                 {...template, type: SPRITE_SHIP, frame: 3, x: 600, y: 500},
-                 {...template, type: SPRITE_SHIP, frame: 1, x: 900, y: 210}];
+  const added = [{...template, type: SPRITE_SHIP, frame: 3, x: 600, y: 500},
+                 {...template, type: SPRITE_MONSTER, frame: 0, x: 900, y: 210}];
+  if (list.some((sprite) => added.some((each) => each.type === sprite.type))) {
+    throw new Error(`${SPRITE_FIXTURE}'s list already holds a ship or a monster, which a list holds one of at most`);
+  }
   list.push(...added);
 
   const sprites = helperCity(save).spriteManager;
@@ -641,7 +645,10 @@ function spriteVector(): object {
     return {type, index: index === -1 ? null : index};
   });
 
-  ensureCovers(firstOfType.some(({index}) => index === null), "a type with no live sprite");
+  ensureCovers(firstOfType.some(({index}) => index !== null), "a type with a live sprite");
+  // The monster added is the list's one monster, and dead
+  ensureCovers(firstOfType.some(({type, index}) => type === SPRITE_MONSTER && index === null),
+               "a type whose sprite has died");
 
   return {
     fixture: SPRITE_FIXTURE, point: "run", added, firstOfType,

@@ -1,13 +1,13 @@
 {
   "checkpoints": [
-    {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"96a4b76ad4670eee2c1ce9e573fbdaf3ce87a63802f7c0f2a05359078737b63e"},
-    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"0a5a7e3952667fe6a282f7e23d0b4e58b9b554fa67d3e22602063a0a70e5153b"},
-    {"stage":"Build while paused","step":5760,"commands":17,"hash":"0362cf4a8d369af1c93ace9f5cfc77b642e3e4dcb8ce9dccc638bbc925b4ac05"},
-    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"69c717886c4a0b2a2d4f8661f7168b376426792551bed124e6c735f20819a654"},
-    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"f88fed37a7a030d9cb1ccbb080487db9d6667a0310e8c84f4590f4c02548f661"},
-    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"751e30678aa3adec13b1a50da0c25745a75f0573d36db2e58ef2388c2105187b"},
-    {"stage":"A fire, and the fire department's response","step":8640,"commands":28,"hash":"668dce6632441f78b155ea9a3689b565d75224481836da75f2ae627d6cc8bba7"},
-    {"stage":"Save, reload, and carry on","step":9792,"commands":28,"hash":"4bcbdc4ddd45f4762ce5b05062af89dbba7c062883aff300996214c07dcf4d52"}
+    {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"b8067f66ee4a2947f8f9c2326e2ac8506505f18e8489de6bebc4228f2fdec548"},
+    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"3e8f90920d9e0885264b1a5aefb1e2989013906de1555dd7971ea80c341f945f"},
+    {"stage":"Build while paused","step":5760,"commands":17,"hash":"07b4adb6e4cd35f98c34894a987e6aeeaee71e1ee17eb59284c6512134d3506c"},
+    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"8053e2ece5ced97b82fcbb73fca60cb7e33490c0ff80e7d8eadbe3b8c9639520"},
+    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"6422316db4dcfe25f07a7c8639c60fae93697ef99d1b3a4baee46e127958b5af"},
+    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"2684b723180f60219d477c8fae6fec196ad0e120ab617bf44db62722dde93af8"},
+    {"stage":"A fire, and the fire department's response","step":8640,"commands":33,"hash":"96952829ce802780a995a7737e18f07a16d6fff9664e445468e523be997c39a2"},
+    {"stage":"Save, reload, and carry on","step":9792,"commands":33,"hash":"f03f2e6c811cc9d33c79cb0ac6ea7500bc13b7bdd8c8748089535e8228f8b86c"}
   ],
   "log": {
     "formatVersion": 1,
@@ -38,17 +38,22 @@
       {"step":6912,"player":"local","command":{"type":"setAutoBudget","on":true}},
       {"step":8064,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":47,"y":31},{"x":48,"y":31},{"x":49,"y":31},{"x":50,"y":31},{"x":51,"y":31},{"x":52,"y":31},{"x":53,"y":31},{"x":54,"y":31},{"x":55,"y":31},{"x":56,"y":31},{"x":57,"y":31},{"x":58,"y":31},{"x":59,"y":31},{"x":60,"y":31},{"x":61,"y":31},{"x":62,"y":31},{"x":63,"y":31},{"x":64,"y":31},{"x":65,"y":31},{"x":66,"y":31},{"x":67,"y":31},{"x":68,"y":31},{"x":69,"y":31}],"autoBulldoze":true}},
       {"step":8064,"player":"local","command":{"type":"triggerDisaster","kind":"fire"}},
-      {"step":8064,"player":"local","command":{"type":"tool","tool":"fire","path":[{"x":48,"y":27}],"autoBulldoze":true}},
-      {"step":8064,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":47,"y":25}],"autoBulldoze":true}},
-      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":50,"y":28},{"x":51,"y":28},{"x":52,"y":28}],"autoBulldoze":true}},
-      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":52,"y":29},{"x":52,"y":30},{"x":52,"y":31},{"x":52,"y":32}],"autoBulldoze":true}}
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"fire","path":[{"x":55,"y":71}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":57,"y":70}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":53,"y":70},{"x":52,"y":70},{"x":51,"y":70}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":51,"y":69},{"x":50,"y":69}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":50,"y":68},{"x":50,"y":67}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":49,"y":67},{"x":49,"y":66}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":48,"y":66},{"x":47,"y":66}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":47,"y":65},{"x":47,"y":64},{"x":47,"y":63},{"x":47,"y":62},{"x":47,"y":61},{"x":47,"y":60},{"x":47,"y":59},{"x":47,"y":58},{"x":47,"y":57},{"x":47,"y":56},{"x":47,"y":55},{"x":47,"y":54}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":47,"y":53},{"x":47,"y":52},{"x":47,"y":51},{"x":47,"y":50},{"x":47,"y":49},{"x":47,"y":48},{"x":47,"y":47},{"x":47,"y":46}],"autoBulldoze":true}}
     ],
     "checkpoints": [
-      {"step":0,"hash":"c8d63c5e8fd94165461a609bbed78358750ec2f55d396dab521ab34b830d6614"},
-      {"step":3600,"hash":"0961fc166e4fe7fb126d105427835a578f3e0f907f6b2cd9587b0a13042d5105"},
-      {"step":7200,"hash":"7051866ebc97290b1978d1d764c5233a87ab421426836a67a9b74b2f6cde12d5"},
-      {"step":8640,"hash":"668dce6632441f78b155ea9a3689b565d75224481836da75f2ae627d6cc8bba7"},
-      {"step":9792,"hash":"4bcbdc4ddd45f4762ce5b05062af89dbba7c062883aff300996214c07dcf4d52"}
+      {"step":0,"hash":"12b5f5491e724a7115743594be3fda72bcfb8544cad879eaf29c99b3be302478"},
+      {"step":3600,"hash":"ab81eda48ad0c942e2a31adcbab2d280f786203fc0170ce6a2cfe7d3f9499c44"},
+      {"step":7200,"hash":"785bd3f09d6b7ea96bcf0104dbbd45b9b087981138e82f2bbe5358a1664ae321"},
+      {"step":8640,"hash":"96952829ce802780a995a7737e18f07a16d6fff9664e445468e523be997c39a2"},
+      {"step":9792,"hash":"f03f2e6c811cc9d33c79cb0ac6ea7500bc13b7bdd8c8748089535e8228f8b86c"}
     ]
   }
 }

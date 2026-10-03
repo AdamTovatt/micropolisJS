@@ -134,7 +134,8 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 | Key | Value |
 |-----|-------|
 | `sprites.spriteCycle` | The sprite movement counter |
-| `sprites.list` | Every sprite in the order they move, each an object with `type` (1 train, 2 helicopter, 3 airplane, 4 ship, 5 monster, 6 tornado, 7 explosion), `frame` (0 for a sprite that has died this pass), `x`, `y` (pixels), `origX`, `origY`, `destX`, `destY`, `count`, `soundCount`, `dir`, `newDir`, `step` and `flag`, and for a monster also `_seenLand` (boolean). A sprite's size and drawing offset are fixed by its type and not saved |
+| `sprites.absDist` | The distance, in pixels across and down, that the sprites' direction finder last measured, which every sprite shares as in the original |
+| `sprites.list` | Every sprite in the order they move: a new sprite joins at the front, but one restarted in the place of the dead sprite of its type keeps that sprite's place. The list holds at most one sprite of each type but explosions, of which it may hold any number. Each sprite is an object with `type` (1 train, 2 helicopter, 3 airplane, 4 ship, 5 monster, 6 tornado, 7 explosion), `frame` (0 for a sprite that has died and that no pass has reached since), `x`, `y` (pixels, in the original's frame: the type's hot spot and drawing offset are fixed offsets from it), `origX`, `origY`, `destX`, `destY`, `count`, `soundCount`, `dir`, `newDir`, `step` and `flag`. A sprite's size, drawing offset and hot spot are fixed by its type and not saved |
 | `disasters.floodCount` | Passes left until a flood recedes |
 | `disasters.disastersEnabled` | Whether random disasters happen |
 

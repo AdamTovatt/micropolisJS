@@ -39,15 +39,15 @@ export const overloaded = builtFixture(
     buildingAt("coal", PLANT_LEFT + 1, PLANT_TOP + 1),
     ...wireBlock(),
   ], [
-    {step: 0, hash: "6db6d42ac774965450d4fad4900132d4380947a93ebe778356ea81a23d5a432f"},
-    {step: RUN_STEPS, hash: "d559f2106317ab1fd9f55d855749f51d643969056c22e464c9b15c821e5f625c"},
+    {step: 0, hash: "5bb2b4396e3eadac841f0dcb9faef1259c39b19ad119b25537cab5768dc5751f"},
+    {step: RUN_STEPS, hash: "13569d2c3b1aec97d82c4484ff387edd47ad8f3b4ac0a53579c6ade7e96c3312"},
   ]);
 
 // Seed 8's map as generated: no zone, no developed tile and no pollution
 export const wilderness = builtFixture(
   "Seed 8's map with nothing built", [], [
-    {step: 0, hash: "464e4fd88b7a6bdb3e511da11e7d920c7b06e609b6d6a88b63786ed8ef0f685b"},
-    {step: RUN_STEPS, hash: "817d4860b30fd2d2bc3f476a0fba5abc38023c0bfc14473c5dcca4c8b31d25f9"},
+    {step: 0, hash: "de47377aaf535ab182de27aeb65e6671def8944661238109c430ee1f95878a98"},
+    {step: RUN_STEPS, hash: "7a724f9c2e95be5c3691ddb77b3c5b38b7a552a7655c9b0c2b43e09b67145791"},
   ]);
 
 // Two coal plants side by side, the second's west side against the first's east side. The power scan takes the last
@@ -58,8 +58,8 @@ export const twinPlants = builtFixture(
     buildingAt("coal", PLANT_LEFT + 1, PLANT_TOP + 1),
     buildingAt("coal", PLANT_LEFT + 5, PLANT_TOP + 1),
   ], [
-    {step: 0, hash: "d75e7922d6b7914bfef42b17d70bfdda1c56577c5cfa1c66de4d5c564bce2456"},
-    {step: RUN_STEPS, hash: "9958a8868b4718086aa2383945495cd1cbc4d239b7c35465b0546fcb270db210"},
+    {step: 0, hash: "1005389f49c511bdaaec8c4262d947399359f9240eb307e959dee3942737e0b4"},
+    {step: RUN_STEPS, hash: "e8e97db919cc48ab7d66bb57bbdd870a0a0fc54002152eb9ae28cfaddbb8f986"},
   ]);
 
 // Two fires set in the woods, which spread through them: the scan that scores pollution meets burning tiles, and a tile
@@ -69,6 +69,6 @@ export const forestFire = builtFixture(
     {type: "triggerDisaster", kind: "fire"},
     {type: "triggerDisaster", kind: "fire"},
   ], [
-    {step: 0, hash: "2b3fafa39fc0154b1b25c4cf8bdd57e8600978260b33a9724db12d09cdc5be80"},
-    {step: RUN_STEPS, hash: "f1ec8eef89c8019306a773a391f4c72a896afd8bccc001f4c0a9b91d8686f739"},
+    {step: 0, hash: "46ab566ecdb9905ee982fc254789c6d86b7e66b579b1cb26e7ffdc97e709c4ec"},
+    {step: RUN_STEPS, hash: "9d8d06cd17af0e6742db35bbf1af2430180456c1c4361ccd85ccbda75953907b"},
   ]);

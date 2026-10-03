@@ -119,8 +119,8 @@ namespace Micropolis.Rules.Tests
     public sealed record HelperRepair(int X, int Y, long CityTime, bool Repaired, IReadOnlyList<int> Area);
 
     /// <summary>
-    /// A fixture's save with sprites added to its list: the index of the sprite the manager finds first of each type,
-    /// and the distance from tiles to the nearest live ship.
+    /// A fixture's save with sprites added to its list: the index of the sprite the manager finds of each type, the
+    /// type's one sprite while it is alive, or none, and the distance from tiles to the nearest live ship.
     /// </summary>
     public sealed record HelperSprites(
         string Fixture, string Point, JsonArray Added, IReadOnlyList<FirstOfType> FirstOfType,

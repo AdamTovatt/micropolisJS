@@ -36,7 +36,7 @@ import { StepDriver } from "./stepDriver";
 // What the host reads of the simulation, which is JavaScript, so its reader declares the shape
 interface HostedSimulation extends CommandTarget, ClockedSimulation, Saveable {
   readonly seed: number;
-  readonly spriteManager: {getSpriteList(): HostedSprite[]};
+  readonly spriteManager: {getLiveSprites(): HostedSprite[]};
   getMap(): HostedMap;
   getDate(): {month: number, year: number};
   getPopulation(): number;
@@ -150,7 +150,7 @@ class HostedCity {
       messages.push(tiles);
     }
 
-    const sprites: SpriteView[] = simulation.spriteManager.getSpriteList().map((sprite) => ({
+    const sprites: SpriteView[] = simulation.spriteManager.getLiveSprites().map((sprite) => ({
       type: sprite.type, frame: sprite.frame, x: sprite.x + sprite.xOffset, y: sprite.y + sprite.yOffset,
       width: sprite.width,
     }));

@@ -29,19 +29,19 @@ function fixture(description: string, commands: Command[], checkpoints: Checkpoi
 // Auto-budget pays every service in full at each year end, and the town grows
 export const suburb = fixture(
   "The town without its airport and railway, with a fire and a police station", [], [
-    {step: 0, hash: "fa08081b6f968bd5bf255a57c4bbe78dac6169496f8928c1ea1d98b9aee03a2f"},
-    {step: RUN_STEPS, hash: "83a84e849dc7bbbd557feb4a476f2d52946075acd8db4b8e276f0d3c0dac4f00"},
+    {step: 0, hash: "c5f5fb32520e5e74c967e2b9001a0bca83ecd3440200df1f1d1a901b6733b02f"},
+    {step: RUN_STEPS, hash: "396763d6c1abe7bd5a3e787d7286c489eeea97bcafa1fc0c97b1fe33a86c323c"},
   ]);
 
 // The suburb at slow and at fast speed, which gate the scans of phases 11 to 15 on other cycles than medium speed does
 export const suburbSlow = fixture("The suburb at slow speed", [{type: "setSpeed", speed: SPEEDS.slow}], [
-  {step: 0, hash: "97e7f14cefc13d584c4dd092cce2f08630d2c27e59ba647a631f38433ab2e1da"},
-  {step: RUN_STEPS, hash: "74327c35bf9616121078d4ed6222e9de82451b2c6423c8b12207ca0a676e9b89"},
+  {step: 0, hash: "3d113663769481815655350bb21285312c377b499cecb8b60ad4df7fcd41949c"},
+  {step: RUN_STEPS, hash: "99a42e13c8e063d4836cd5b42c303ad926a80255c213b6c5c08c68aa7c0a8f65"},
 ]);
 
 export const suburbFast = fixture("The suburb at fast speed", [{type: "setSpeed", speed: SPEEDS.fast}], [
-  {step: 0, hash: "e4d4f8483402ca579b6e755b07294e528cac70ee369c9348eb8e5fe15369a6c7"},
-  {step: RUN_STEPS, hash: "f50a8985b33d4976e4451dcfd6acd80201d57990a8114cb45e78e05829c514cc"},
+  {step: 0, hash: "ee6cf1717e213ca516bc3548e1a3ec5ad8232990d416e27ee4a2679c3c225ba3"},
+  {step: RUN_STEPS, hash: "ffb108b8006875d60186e29d8744b851d58f5cf0b6bf3654dce5f733f7b63e96"},
 ]);
 
 // With auto-budget off, each year end pays every service at the share the player chose
@@ -50,8 +50,8 @@ export const suburbUnderfunded = fixture(
     {type: "setAutoBudget", on: false},
     {type: "setBudget", road: 60, fire: 40, police: 75, tax: 7},
   ], [
-    {step: 0, hash: "490672ef0a69fe227a02ec583a0a5676ce83449ad7f077d3b8074eee05567a13"},
-    {step: RUN_STEPS, hash: "6ea918ad8e53ac49fefaae549e708954f2040cc40aa7eb84f21365164a846c34"},
+    {step: 0, hash: "1a745dcb07498a6548fde4bd1f6adbdb27fb2501d93b9ae5f727ab402d0dfac0"},
+    {step: RUN_STEPS, hash: "f3773d07752ee292a78a350d2e4d58d1321458afdfe3f06cb0b18399f47deddd"},
   ]);
 
 // No tax comes in, and building a stadium, a nuclear plant and more stations has spent all but a couple of hundred of
@@ -69,6 +69,6 @@ export const suburbBroke = fixture(
     buildingAt("police", 31, 23),
     {type: "setBudget", road: 100, fire: 100, police: 100, tax: 0},
   ], [
-    {step: 0, hash: "4b9e31eace4bf0bb72f2eb20cad5f02f6d1e094060e3b6edde1339cdc187200c"},
-    {step: RUN_STEPS, hash: "c344ff3beca3198077209b3c9784a6cf7372b1d7b50ba54ff9aea59d7c2abbfb"},
+    {step: 0, hash: "c3291dc8394080bec0e9fcfd45c9142f6b07fad975f04bc6624b6687e3b841f0"},
+    {step: RUN_STEPS, hash: "bf91fbe40b106fda6ebc3a0d0ec922fd6c7ddf25baf32e6618b72153acbadf89"},
   ]);

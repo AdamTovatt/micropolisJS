@@ -125,9 +125,11 @@ What the helpers the tile handlers share answered in the TypeScript:
   centre, overwritten, then checked by the repair manager at a `cityTime`: whether it `repaired` anything, and the six
   by six tiles from the centre's upper left neighbour after it (`area`), as raw values row by row. The generator fails
   unless a zone is repaired and a zone is left for another time.
-- `sprites`: a fixture's save with the sprites `added` to the end of its list: the index of the sprite
-  `spriteManager.getSprite` finds first of each type (`firstOfType`), or `null`, and `getBoatDistance` from tiles
-  (`boatDistances`).
+- `sprites`: a fixture's save with the sprites `added` to the end of its list, a live ship and a dead monster, of
+  types the list held none of, since a list holds at most one sprite of each type but explosions: the index of the
+  sprite `spriteManager.getSprite` finds of each type, the type's one sprite while it is alive, or `null`
+  (`firstOfType`), and `getBoatDistance` from tiles (`boatDistances`). The generator fails unless a type's sprite is
+  found and a dead one is not.
 
 ### speedGate.json
 
@@ -172,6 +174,7 @@ the C# migrated saves were written by these commits on `main`:
 | `version7.json`, `version7AwaitingBudget.json` | `824956a` |
 | `version8.json` | `051aa86` |
 | `version9.json` | `17098d0` |
+| `version10.json` | rule change: sprites and disasters follow the original |
 
 `migrated/<sample>.json` is what the TypeScript loads each sample to, `SaveFormat.parse` and then the simulation's
 load, as canonical text: the C#'s `SavedGame.Load` must load the sample to the same state.

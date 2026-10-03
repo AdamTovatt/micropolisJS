@@ -45,6 +45,11 @@ namespace Micropolis.Rules
             throw new NotPortedException("disasterManager.makeMeltdown");
         }
 
+        public static void MakeEarthquake(this DisasterManager disasterManager)
+        {
+            throw new NotPortedException("disasterManager.makeEarthquake");
+        }
+
         public static void MakeMonster(this SpriteManager spriteManager)
         {
             throw new NotPortedException("spriteManager.makeMonster");

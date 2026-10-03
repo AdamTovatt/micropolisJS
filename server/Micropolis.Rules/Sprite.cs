@@ -71,13 +71,31 @@ namespace Micropolis.Rules
         public long Flag { get; internal set; }
 
         /// <summary>
-        /// For a monster only: whether it has reached land. Saved only for a monster.
+        /// The pixels across from <see cref="X"/> to the point where the sprite collides, crashes and leaves the map.
         /// </summary>
-        public bool SeenLand { get; internal set; }
+        public long XHot => HotSpot.X;
+
+        /// <summary>
+        /// The pixels down from <see cref="Y"/> to the sprite's hot spot.
+        /// </summary>
+        public long YHot => HotSpot.Y;
+
+        // The hot spot as the original's initSprite gives each type
+        private (long X, long Y) HotSpot => Type switch
+        {
+            SpriteType.Train => (40, -8),
+            SpriteType.Helicopter => (40, -8),
+            SpriteType.Airplane => (48, 16),
+            SpriteType.Ship => (48, 0),
+            SpriteType.Monster => (40, 16),
+            SpriteType.Tornado => (40, 36),
+            SpriteType.Explosion => (40, 16),
+            _ => throw new InvalidOperationException($"No sprite type {Type}."),
+        };
 
         internal JsonObject Save()
         {
-            JsonObject sprite = new JsonObject
+            return new JsonObject
             {
                 ["type"] = (int)Type,
                 ["frame"] = Frame,
@@ -94,18 +112,11 @@ namespace Micropolis.Rules
                 ["step"] = Step,
                 ["flag"] = Flag,
             };
-
-            if (Type == SpriteType.Monster)
-            {
-                sprite["_seenLand"] = SeenLand;
-            }
-
-            return sprite;
         }
 
         internal static Sprite Load(SavedObject data)
         {
-            Sprite sprite = new Sprite
+            return new Sprite
             {
                 Type = data.ReadEnum<SpriteType>("type"),
                 Frame = data.ReadSafeInteger("frame"),
@@ -122,14 +133,6 @@ namespace Micropolis.Rules
                 Step = data.ReadSafeInteger("step"),
                 Flag = data.ReadSafeInteger("flag"),
             };
-
-            // Read only for a monster, so another sprite holding it fails as an unknown key
-            if (sprite.Type == SpriteType.Monster)
-            {
-                sprite.SeenLand = data.ReadBool("_seenLand");
-            }
-
-            return sprite;
         }
     }
 }

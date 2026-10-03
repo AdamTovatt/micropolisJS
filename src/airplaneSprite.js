@@ -20,6 +20,7 @@ import { SpriteUtils } from './spriteUtils.js';
 function AirplaneSprite(map, spriteManager, random, x, y) {
   this.init(SPRITE_AIRPLANE, map, spriteManager, random, x, y);
   if (x > SpriteUtils.worldToPix(map.width - 20)) {
+    this.x -= 100 + 48;
     this.destX = this.x - 200;
     this.frame = 7;
   } else {
@@ -30,7 +31,8 @@ function AirplaneSprite(map, spriteManager, random, x, y) {
 }
 
 
-BaseSprite(AirplaneSprite, {width: 48, height: 48, xOffset: -24, yOffset: -24});
+BaseSprite(AirplaneSprite, {width: 48, height: 48, xOffset: 24, yOffset: 0, xHot: 48, yHot: 16,
+                            crashMessage: PLANE_CRASHED});
 
 
 var xDelta = [0, 0, 6, 8, 6, 0, -6, -8, -6, 8, 8, 8];
@@ -49,20 +51,21 @@ AirplaneSprite.prototype.move = function(spriteCycle, disasterManager) {
       }
       this.frame = frame;
     } else {
-      var d = SpriteUtils.getDir(this.x, this.y, this.destX, this.destY);
+      var d = this.spriteManager.getDir(this.x, this.y, this.destX, this.destY);
       frame = SpriteUtils.turnTo(frame, d);
       this.frame = frame;
     }
   }
 
-  var absDist = SpriteUtils.absoluteDistance(this.x, this.y, this.destX, this.destY);
-  if (absDist < 50) {
-    // We're pretty close to the destination
-    this.destX = this.random.getRandom(SpriteUtils.worldToPix(this.map.width)) + 8;
-    this.destY = this.random.getRandom(SpriteUtils.worldToPix(this.map.height)) + 8;
+  // The distance getDir last found, which is the plane's own only on a step that turned it: on the others it is
+  // whatever getDir last measured, for any sprite, as in the original
+  if (this.spriteManager.absDist < 50) {
+    // At the destination: pick another, anywhere up to 50 pixels off the map
+    this.destX = this.random.getRandom(SpriteUtils.worldToPix(this.map.width) + 100) - 50;
+    this.destY = this.random.getRandom(SpriteUtils.worldToPix(this.map.height) + 100) - 50;
   }
 
-  if (disasterManager.enableDisasters) {
+  if (disasterManager.disastersEnabled) {
     var explode = false;
 
     var spriteList = this.spriteManager.getSpriteList();
@@ -89,13 +92,6 @@ AirplaneSprite.prototype.move = function(spriteCycle, disasterManager) {
 
   if (this.spriteNotInBounds())
     this.frame = 0;
-};
-
-
-AirplaneSprite.prototype.explodeSprite = function() {
-  this.frame = 0;
-  this.spriteManager.makeExplosionAt(this.x, this.y);
-  this._emitEvent(PLANE_CRASHED, {showable: true, x: this.worldX, y: this.worldY});
 };
 
 

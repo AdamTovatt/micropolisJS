@@ -36,7 +36,7 @@
     {"step":0,"player":"local","command":{"type":"setBudget","road":60,"fire":40,"police":75,"tax":7}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"490672ef0a69fe227a02ec583a0a5676ce83449ad7f077d3b8074eee05567a13"},
-    {"step":6912,"hash":"6ea918ad8e53ac49fefaae549e708954f2040cc40aa7eb84f21365164a846c34"}
+    {"step":0,"hash":"1a745dcb07498a6548fde4bd1f6adbdb27fb2501d93b9ae5f727ab402d0dfac0"},
+    {"step":6912,"hash":"f3773d07752ee292a78a350d2e4d58d1321458afdfe3f06cb0b18399f47deddd"}
   ]
 }

@@ -39,7 +39,9 @@ DisasterManager.prototype.load = function(saveData) {
 };
 
 
-var DisChance = [479, 239, 59];
+// The maximum of the draw a disaster needs a 0 from, at each level: getRandom includes its maximum, so the chance is one
+// in one more than these
+var DisChance = [10 * 48, 5 * 48, 60];
 
 DisasterManager.prototype.doDisasters = function(gameLevel, census) {
   if (this._floodCount)
@@ -70,8 +72,7 @@ DisasterManager.prototype.doDisasters = function(gameLevel, census) {
         break;
 
       case 6:
-        // TODO Earthquakes
-        //this.makeEarthquake();
+        this.makeEarthquake();
         break;
 
       case 7:
@@ -112,12 +113,13 @@ var vulnerable = function(tile) {
 };
 
 
-// User initiated earthquake
+// An earthquake, of a strength drawn first: each of that many tiles drawn at random, if a building but no zone's centre,
+// falls to rubble three times in four, and catches fire the fourth. The original's doEarthquake, which shakes the
+// screen, is the client's to do on the news.
 DisasterManager.prototype.makeEarthquake = function() {
   var strength = this._random.getRandom(700) + 300;
-  this.doEarthquake(strength);
 
-  this._emitEvent(Messages.EARTHQUAKE, {x: this._map.cityCenterX, y: this._map.cityCenterY});
+  this._emitEvent(Messages.EARTHQUAKE, {showable: true, x: this._map.cityCentreX, y: this._map.cityCentreY});
 
   for (var i = 0; i < strength; i++)  {
     var x = this._random.getRandom(this._map.width - 1);
@@ -136,51 +138,52 @@ DisasterManager.prototype.makeEarthquake = function() {
 };
 
 
-DisasterManager.prototype.setFire = function(times, zonesOnly) {
-  times = times || 1;
-  zonesOnly = zonesOnly || false;
+// The random fire: one tile drawn at random, which burns if it is a building, but no zone's centre
+DisasterManager.prototype.setFire = function() {
+  var x = this._random.getRandom(this._map.width - 1);
+  var y = this._random.getRandom(this._map.height - 1);
+  var tile = this._map.getTile(x, y);
 
-  for (var i = 0; i < times; i++) {
-    var x = this._random.getRandom(this._map.width - 1);
-    var y = this._random.getRandom(this._map.height - 1);
-
-    if (!this._map.testBounds(x, y))
-      continue;
-
-    var tile = this._map.getTile(x, y);
-
-    if (!tile.isZone()) {
-      tile = tile.getValue();
-      var lowerLimit = zonesOnly ? TileValues.LHTHR : TileValues.TREEBASE;
-      if (tile > lowerLimit && tile < TileValues.LASTZONE) {
-        this._map.setTo(x, y, TileUtils.randomFire(this._random));
-        this._emitEvent(Messages.FIRE_REPORTED, {showable: true, x: x, y: y});
-        return;
-      }
+  if (!tile.isZone()) {
+    var tileValue = tile.getValue();
+    if (tileValue > TileValues.LHTHR && tileValue < TileValues.LASTZONE) {
+      this._map.setTo(x, y, TileUtils.randomFire(this._random));
+      this._emitEvent(Messages.FIRE_REPORTED, {showable: true, x: x, y: y});
     }
   }
 };
 
 
-// User initiated plane crash
+// User initiated plane crash: the plane in the air, or a new one over the land away from the map's edges, crashes. The
+// original's engine has no crash; this is MakeAirCrash from its older C version.
 DisasterManager.prototype.makeCrash = function() {
-  var s = this._spriteManager.getSprite(SPRITE_AIRPLANE);
-  if (s !== null) {
-    s.explodeSprite();
-    return;
+  if (this._spriteManager.getSprite(SPRITE_AIRPLANE) === null) {
+    var x = this._random.getRandom(this._map.width - 20) + 10;
+    var y = this._random.getRandom(this._map.height - 10) + 5;
+    this._spriteManager.generatePlane(x, y);
   }
 
-  var x = this._random.getRandom(this._map.width - 1);
-  var y = this._random.getRandom(this._map.height - 1);
-  this._spriteManager.generatePlane(x, y);
-  s = this._spriteManager.getSprite(SPRITE_AIRPLANE);
-  s.explodeSprite();
+  this._spriteManager.getSprite(SPRITE_AIRPLANE).explodeSprite();
 };
 
 
-// User initiated fire
+// User initiated fire: up to 40 tiles drawn at random until one burns, which must be flammable, past the trees, and no
+// zone's centre. The original reports it without a picture.
 DisasterManager.prototype.makeFire = function() {
-  this.setFire(40, false);
+  for (var i = 0; i < 40; i++) {
+    var x = this._random.getRandom(this._map.width - 1);
+    var y = this._random.getRandom(this._map.height - 1);
+    var tile = this._map.getTile(x, y);
+
+    if (!tile.isZone() && tile.isCombustible()) {
+      var tileValue = tile.getValue();
+      if (tileValue > TileValues.TREEBASE && tileValue < TileValues.LASTZONE) {
+        this._map.setTo(x, y, TileUtils.randomFire(this._random));
+        this._emitEvent(Messages.FIRE_REPORTED, {x: x, y: y});
+        return;
+      }
+    }
+  }
 };
 
 
@@ -277,7 +280,8 @@ DisasterManager.prototype.doMeltdown = function(x, y) {
     if (tile.isZone())
         continue;
 
-    if (tile.isCombustible() || tile.getValue() === TileValues.DIRT)
+    // As in the original, only dirt without flags counts as dirt
+    if (tile.isCombustible() || tile.getRawValue() === TileValues.DIRT)
         this._map.setTile(dX, dY, TileValues.RADTILE, 0);
   }
 

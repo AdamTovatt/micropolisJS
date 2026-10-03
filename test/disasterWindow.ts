@@ -46,6 +46,7 @@ describe("the disaster window's options", () => {
     it("name each disaster's option after it", () => {
         expect(DISASTER_KINDS.map(disasterOptionID)).toEqual([
             "disasterMonster", "disasterFire", "disasterFlood", "disasterCrash", "disasterMeltdown", "disasterTornado",
+            "disasterEarthquake",
         ]);
     });
 });

@@ -24,12 +24,13 @@ function ExplosionSprite(map, spriteManager, random, x, y) {
 }
 
 
-BaseSprite(ExplosionSprite, {width: 48, height: 48, xOffset: -24, yOffset: -24});
+BaseSprite(ExplosionSprite, {width: 48, height: 48, xOffset: 24, yOffset: 0, xHot: 40, yHot: 16});
 
 
+// Fire on the tile under the pixel (x, y), if it burns or is bare dirt, and isn't a zone's centre
 ExplosionSprite.prototype.startFire = function(x, y) {
-  x = this.worldX;
-  y = this.worldY;
+  x = x >> 4;
+  y = y >> 4;
 
   if (!this.map.testBounds(x, y))
     return;
@@ -50,24 +51,22 @@ ExplosionSprite.prototype.startFire = function(x, y) {
 ExplosionSprite.prototype.move = function(spriteCycle) {
   if ((spriteCycle & 1) === 0) {
     if (this.frame === 1) {
-      // Convert sprite coordinates to tile coordinates.
-      var explosionX = this.worldX;
-      var explosionY = this.worldY;
       this._emitEvent(SOUND_EXPLOSIONHIGH);
-      this._emitEvent(EXPLOSION_REPORTED, {x: explosionX, y: explosionY});
+      this._emitEvent(EXPLOSION_REPORTED, {x: (this.x >> 4) + 3, y: this.y >> 4});
     }
 
     this.frame++;
   }
 
+  // Burnt out: fire under the hot spot, and on the four tiles diagonally around it
   if (this.frame > 6) {
     this.frame = 0;
 
-    this.startFire(this.x, this.y);
-    this.startFire(this.x - 16, this.y - 16);
-    this.startFire(this.x + 16, this.y + 16);
-    this.startFire(this.x - 16, this.y + 16);
-    this.startFire(this.x + 16, this.y + 16);
+    this.startFire(this.x + 48 - 8, this.y + 16);
+    this.startFire(this.x + 48 - 24, this.y);
+    this.startFire(this.x + 48 + 8, this.y);
+    this.startFire(this.x + 48 - 24, this.y + 32);
+    this.startFire(this.x + 48 + 8, this.y + 32);
   }
 };
 
