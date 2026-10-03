@@ -111,7 +111,7 @@ var industrialFound = function(map, x, y, simData) {
   var trafficOK = Traffic.ROUTE_FOUND;
   if (population > simData.random.getRandom(5)) {
     // Try to find a route from here to a residential zone
-    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, TileUtils.isResidential);
+    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, Traffic.RESIDENTIAL);
 
     // Trigger outward migration if not connected to road network (unless the zone is already empty)
     if (trafficOK === Traffic.NO_ROAD_FOUND) {

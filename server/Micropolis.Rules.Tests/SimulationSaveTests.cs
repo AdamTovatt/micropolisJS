@@ -179,7 +179,7 @@ namespace Micropolis.Rules.Tests
                 ["census.moneyHist120[0]"] = ("211", city => city.Census.MoneyHist120[0]),
                 ["census.pollutionHist120[0]"] = ("212", city => city.Census.PollutionHist120[0]),
                 ["sprites.spriteCycle"] = ("99", city => city.SpriteManager.SpriteCycle),
-                ["sprites.list[0].type"] = ("3", city => (int)city.SpriteManager.SpriteList[0].Type),
+                ["sprites.list[0].type"] = ("4", city => (int)city.SpriteManager.SpriteList[0].Type),
                 ["sprites.list[0].frame"] = ("301", city => city.SpriteManager.SpriteList[0].Frame),
                 ["sprites.list[0].x"] = ("302", city => city.SpriteManager.SpriteList[0].X),
                 ["sprites.list[0].y"] = ("303", city => city.SpriteManager.SpriteList[0].Y),

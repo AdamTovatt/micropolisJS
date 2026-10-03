@@ -225,7 +225,7 @@ var residentialFound = function(map, x, y, simData) {
   // will never be be bigger than any of the values Random will generate
   if (population > simData.random.getRandom(35)) {
     // Is there a route from this zone to a commercial zone?
-    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, TileUtils.isCommercial);
+    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, Traffic.COMMERCIAL);
 
     // If we're not connected to the road network, then going shopping will be a pain. Move out.
     if (trafficOK === Traffic.NO_ROAD_FOUND) {
