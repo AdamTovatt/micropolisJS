@@ -43,6 +43,16 @@ function stateOf(simulation: SimulationInstance): string {
 const road = (path: {x: number, y: number}[], autoBulldoze = true): Command =>
     ({type: "tool", tool: "road", path, autoBulldoze});
 
+// Lists nested this many deep, around a number
+function nested(levels: number): unknown {
+    let value: unknown = 0;
+    for (let i = 0; i < levels; i++) {
+        value = [value];
+    }
+
+    return value;
+}
+
 describe("a rejected command", () => {
 
     const validTool = {type: "tool", tool: "road", path: [{x: 10, y: 10}], autoBulldoze: true};
@@ -54,6 +64,14 @@ describe("a rejected command", () => {
         // Longer than a tool command over every tile of the 120x100 map can be, which is rejected before it is read
         ["a command longer than any valid one", {...validTool, padding: "x".repeat(32 * 12000 + 1024)},
             "a command is at most 385024 characters of JSON"],
+        // The command is the first level, so its field holds the other 63, and the command is read on
+        ["a field nested as deep as a command may nest", {type: "addFunds", padding: nested(63)},
+            "the addFunds command has exactly the fields type"],
+        ["a command nested deeper than it may be", {type: "addFunds", padding: nested(64)},
+            "a command nests objects and lists at most 64 deep"],
+        // Deeper than JSON.stringify, which measures a command's length, can walk on the call stack
+        ["a command nested deeper than a call stack", {type: "addFunds", padding: nested(100000)},
+            "a command nests objects and lists at most 64 deep"],
         ["a field named as one every object inherits", {type: "addFunds", toString: 1},
             "the addFunds command has exactly the fields type"],
         ["a list", [], "not a command"],

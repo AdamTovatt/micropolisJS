@@ -37,9 +37,9 @@ Each entry is `{"step", "player", "command"}`:
   simulation never branches on the player.
 - `command` is the command as it arrived. `src/protocol.ts` defines the commands, and `src/commands.ts` how they are
   validated. A log holds every command the city was sent, rejected ones included: a rejected command changes nothing,
-  and a replay rejects it again, which checks that the validation agrees. A command longer than `maxCommandLength`
-  allows, room for a tool command over every tile of the map, is rejected before anything else is read, which bounds
-  an entry.
+  and a replay rejects it again, which checks that the validation agrees. A command nesting objects and lists deeper
+  than `MAX_COMMAND_DEPTH`, or longer than `maxCommandLength` allows, room for a tool command over every tile of the
+  map, is rejected before anything else is read, which bounds an entry.
 
 The commands, by `type`, with what their fields mean. `Command` in `src/protocol.ts` gives their exact fields,
 `commandRejection` in `src/commands.ts` the values each accepts, and `protocol/examples/commands/` an example of each.

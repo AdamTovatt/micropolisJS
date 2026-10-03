@@ -15,7 +15,7 @@ import {
   Command, CommandType, DISASTER_KINDS, PlayerId, SERVICES, SPEEDS, TilePosition, TOOL_NAMES,
 } from "./protocol";
 import {
-  FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumber, isWholeNumberIn, oneOf,
+  FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumber, isWholeNumberIn, nestsDeeperThan, oneOf,
 } from "./validation";
 
 // How the simulation takes the commands a player sends it, which protocol.ts defines. They arrive untrusted: the
@@ -51,6 +51,10 @@ const FIELDS = {
 export function maxCommandLength(width: number, height: number): number {
   return 32 * width * height + 1024;
 }
+
+// The most objects and lists a command may nest, the command itself the first: far more than a valid one does, and
+// few enough that JSON.stringify, which recurses, measures the length of any command allowed on every runtime
+export const MAX_COMMAND_DEPTH = 64;
 
 // Why the funding a setBudget command or a budgetForecast query names is out of range, or null when each service it
 // names is at a whole percent the budget window offers
@@ -96,6 +100,10 @@ function pathRejection(path: unknown, width: number, height: number): string | n
 // Command: exactly its type's fields, each in the range the game offers. A reason quotes no value from the command
 // but a coordinate already checked to be a number, so a hostile command can't make it long.
 export function commandRejection(command: unknown, width: number, height: number): string | null {
+  if (nestsDeeperThan(command, MAX_COMMAND_DEPTH)) {
+    return `a command nests objects and lists at most ${MAX_COMMAND_DEPTH} deep`;
+  }
+
   const maxLength = maxCommandLength(width, height);
   // JSON.stringify writes nothing for undefined, which is not a command either
   if ((JSON.stringify(command) ?? "").length > maxLength) {
