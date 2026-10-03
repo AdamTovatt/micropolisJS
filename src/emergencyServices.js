@@ -25,7 +25,7 @@ var handleService = function(censusStat, budgetEffect, blockMap) {
       effect = Math.floor(effect / 2);
 
     var pos = new Position(x, y);
-    var connectedToRoads = simData.trafficManager.findPerimeterRoad(pos);
+    var connectedToRoads = simData.trafficManager.findPerimeterRoad(pos) !== null;
     if (!connectedToRoads)
       effect = Math.floor(effect / 2);
 
