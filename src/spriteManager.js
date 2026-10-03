@@ -51,7 +51,6 @@ SpriteManager.prototype.getSpriteList = function() {
 
 
 SpriteManager.prototype.getSpritesInView = function(startX, startY, pixelWidth, pixelHeight) {
-  var sprites = [];
   startX = SpriteUtils.worldToPix(startX);
   startY = SpriteUtils.worldToPix(startY);
   var lastX = startX + pixelWidth;
@@ -269,7 +268,7 @@ SpriteManager.prototype.makeMonster = function() {
 };
 
 
-SpriteManager.prototype.pruneDeadSprites = function(type) {
+SpriteManager.prototype.pruneDeadSprites = function() {
   this.spriteList = this.spriteList.filter(function (s) {
     return s.frame !== 0;
   });

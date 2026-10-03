@@ -114,7 +114,7 @@ WireTool.prototype.layWire = function(x, y) {
 };
 
 
-WireTool.prototype.doTool = function(x, y, blockMaps) {
+WireTool.prototype.doTool = function(x, y) {
   this.result = this.layWire(x, y);
 };
 

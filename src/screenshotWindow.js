@@ -25,7 +25,6 @@ var ScreenshotWindow = ModalWindow(function() {
 
 var screenshotCancelID = '#screenshotCancel';
 var screenshotFormID = '#screenshotForm';
-var screenshotOKID = '#screenshotOK';
 
 
 ScreenshotWindow.prototype.close = function(action) {
@@ -45,7 +44,7 @@ var cancel = function(e) {
 var submit = function(e) {
   e.preventDefault();
 
-  var action = null;
+  var action;
 
   // Get choice
   var screenshotType = $('.screenshotType:checked').val();
@@ -58,7 +57,7 @@ var submit = function(e) {
 };
 
 
-ScreenshotWindow.prototype.open = function(screenshotData) {
+ScreenshotWindow.prototype.open = function() {
   this._toggleDisplay();
 };
 

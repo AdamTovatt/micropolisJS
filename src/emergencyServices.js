@@ -41,7 +41,7 @@ var fireStationFound = handleService('fireStationPop', 'fireEffect', 'fireStatio
 
 
 var EmergencyServices = {
-  registerHandlers: function(mapScanner, repairManager) {
+  registerHandlers: function(mapScanner) {
     mapScanner.addAction(POLICESTATION, policeStationFound);
     mapScanner.addAction(FIRESTATION, fireStationFound);
   }

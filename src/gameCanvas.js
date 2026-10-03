@@ -14,16 +14,14 @@
 import $ from "jquery";
 
 import { AnimationManager } from './animationManager.js';
-import { GameMap } from './gameMap.js';
 import { MiscUtils } from './miscUtils.js';
 import { MouseBox } from './mouseBox.js';
 import { Position } from './position.ts';
-import { TileSet } from './tileSet.js';
 import { TILE_INVALID } from "./tileValues.ts";
 
 function GameCanvas(id, parentNode) {
   if (!(this instanceof GameCanvas))
-    return new GameCanvas(id, parentNode, width, height);
+    return new GameCanvas(id, parentNode);
 
   if (arguments.length < 1)
     throw new Error('Attempt to construct a GameCanvas with no parameters');
@@ -69,9 +67,7 @@ function GameCanvas(id, parentNode) {
 }
 
 
-GameCanvas.prototype.init = function(map, tileSet, spriteSheet, animationManager) {
-  animationManager = animationManager || new AnimationManager(map);
-
+GameCanvas.prototype.init = function(map, tileSet, spriteSheet) {
   if (arguments.length < 3)
     throw new Error('GameCanvas constructor called with too few arguments ' + [].toString.apply(arguments));
 
@@ -82,6 +78,7 @@ GameCanvas.prototype.init = function(map, tileSet, spriteSheet, animationManager
   this._tileSet = tileSet;
   var w = this._tileSet.tileWidth;
   this._map = map;
+  // Each canvas has its own: the manager remembers what this view painted last
   this.animationManager = new AnimationManager(map);
 
   if (this._canvas.width < w || this._canvas.height < w)
@@ -110,7 +107,7 @@ GameCanvas.prototype.init = function(map, tileSet, spriteSheet, animationManager
 
   // Have the dimensions changed since the last paint?
   this._pendingDimensionChange = false;
-  var onResize = function(e) {
+  var onResize = function() {
     this._pendingDimensionChange = true;
   }.bind(this);
 
@@ -349,7 +346,7 @@ GameCanvas.prototype.tileToCanvasCoordinate = function(x, y) {
   if (x === undefined || y === undefined || x < this.minX || y < this.minY ||
       x > (this.maxX + this._totalTilesInViewX - 1) ||
       y > (this.maxY + this._totalTilesInViewY - 1))
-    throw e;
+    throw new Error('GameCanvas tileToCanvasCoordinate called with invalid tile ' + x + ', ' + y);
 
   if (x < this._originX || x >= this._originX + this._totalTilesInViewX ||
       y < this._originY || y >= this._originY + this._totalTilesInViewY)
@@ -423,7 +420,7 @@ GameCanvas.prototype._processSprites = function(ctx, spriteList) {
                     sprite.width,
                     sprite.width);
     } catch (e) {
-      throw new Error('Failed to draw sprite ' + sprite.type + ' frame ' + sprite.frame + ' at ' + sprite.x +  ', ' + sprite.y);
+      throw new Error('Failed to draw sprite ' + sprite.type + ' frame ' + sprite.frame + ' at ' + sprite.x +  ', ' + sprite.y, {cause: e});
     }
 
     // sprite values are in pixels
@@ -506,13 +503,13 @@ GameCanvas.prototype._paintOne = function(ctx, tileVal, x, y) {
   } catch (e) {
     var mapX = this._originX + x;
     var mapY = this._originY + y;
-    throw new Error('Failed to draw tile ' + tileVal + ' at ' + x + ', ' + y + ' (map ' + mapX + ', ' + mapY + ' tile ' + (this._map.testBounds(mapX, mapY) ? this._map.getTileValue(mapX, mapY) : '?? (Out of bounds)') + ')');
+    throw new Error('Failed to draw tile ' + tileVal + ' at ' + x + ', ' + y + ' (map ' + mapX + ', ' + mapY + ' tile ' + (this._map.testBounds(mapX, mapY) ? this._map.getTileValue(mapX, mapY) : '?? (Out of bounds)') + ')', {cause: e});
   }
 };
 
 
 GameCanvas.prototype._paintTiles = function(ctx, paintData) {
-  var x, y, row, index;
+  var x, y, index;
   var lastPaintedTiles = this._lastPaintedTiles;
 
   var width = this._totalTilesInViewX;
@@ -581,7 +578,7 @@ GameCanvas.prototype._paintTiles = function(ctx, paintData) {
 
 
 GameCanvas.prototype.paint = function(mouse, sprites, isPaused) {
-  var i, l, x, y, row, damaged, xBound, yBound, index;
+  var i, l, x, y, damaged, xBound, yBound, index;
 
   if (!this.ready)
     throw new Error('Not ready!');

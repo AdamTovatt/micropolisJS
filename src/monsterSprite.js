@@ -17,7 +17,6 @@ import { MiscUtils } from './miscUtils.js';
 import { Random } from './random.ts';
 import * as SpriteConstants  from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
-import { TileUtils } from './tileUtils.js';
 import { DIRT, RIVER, WATER_HIGH } from "./tileValues.ts";
 
 function MonsterSprite(map, spriteManager, x, y) {

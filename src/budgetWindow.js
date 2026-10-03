@@ -30,7 +30,6 @@ var spendKeys = ['roadRate', 'fireRate', 'policeRate'];
 var budgetResetID = '#budgetReset';
 var budgetCancelID = '#budgetCancel';
 var budgetFormID = '#budgetForm';
-var budgetOKID = '#budgetOK';
 
 
 var setSpendRangeText = function(element, percentage, totalSpend) {
@@ -41,7 +40,7 @@ var setSpendRangeText = function(element, percentage, totalSpend) {
 };
 
 
-var onFundingUpdate = function(elementID, e) {
+var onFundingUpdate = function(elementID) {
   var element = $(MiscUtils.normaliseDOMid(elementID))[0];
   var percentage = element.value - 0;
   var dataSource = element.getAttribute('data-source');
@@ -49,7 +48,7 @@ var onFundingUpdate = function(elementID, e) {
 };
 
 
-var onTaxUpdate = function(e) {
+var onTaxUpdate = function() {
   var elem = $('#taxRateLabel')[0];
   var sourceElem = $('#taxRate')[0];
   $(elem).text(['Tax rate: ', sourceElem.value, '%'].join(''));

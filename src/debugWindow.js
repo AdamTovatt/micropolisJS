@@ -25,7 +25,6 @@ var DebugWindow = ModalWindow(function() {
 
 var debugCancelID = '#debugCancel';
 var debugFormID = '#debugForm';
-var debugOKID = '#debugOK';
 
 
 DebugWindow.prototype.close = function(actions) {

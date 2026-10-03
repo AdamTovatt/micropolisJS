@@ -67,7 +67,7 @@ var fireFound = function(map, x, y, simData) {
 };
 
 
-var radiationFound = function(map, x, y, simData) {
+var radiationFound = function(map, x, y) {
   if (Random.getChance(4095))
     map.setTile(x, y, DIRT, 0);
 };
@@ -79,7 +79,7 @@ var floodFound = function(map, x, y, simData) {
 
 
 var MiscTiles = {
-  registerHandlers: function(mapScanner, repairManager) {
+  registerHandlers: function(mapScanner) {
     mapScanner.addAction(TileUtils.isFire, fireFound, true);
     mapScanner.addAction(RADTILE, radiationFound, true);
     mapScanner.addAction(TileUtils.isFlood, floodFound, true);

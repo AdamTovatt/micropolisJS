@@ -23,7 +23,6 @@ var EvaluationWindow = ModalWindow(function() {
 
 
 var evaluationFormID = '#evalButtons';
-var evaluationOKID = '#evalOK';
 
 
 EvaluationWindow.prototype.close = function() {

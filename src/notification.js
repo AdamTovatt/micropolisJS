@@ -19,7 +19,7 @@ import { Text } from './text.js';
 var TIMEOUT_SECS = 30;
 
 
-function Notification(element, map, initialText) {
+function Notification(element, map) {
   element = MiscUtils.normaliseDOMid(element);
 
   this._map = map;
@@ -68,7 +68,7 @@ Notification.prototype._displayLink = function(text, x, y) {
 };
 
 
-Notification.prototype._displayText = function(text, x, y) {
+Notification.prototype._displayText = function(text) {
   if (this._timeout !== null) {
     window.clearTimeout(this._timeout);
     this._timeout = null;
@@ -98,7 +98,7 @@ var handleClick = function(e) {
 
 Notification.prototype.createMessage = function(message) {
 
-  if (message.hasOwnProperty('data') && message.data !== undefined && message.data.hasOwnProperty('x') && message.data.hasOwnProperty('y')) {
+  if (Object.hasOwn(message, 'data') && message.data !== undefined && Object.hasOwn(message.data, 'x') && Object.hasOwn(message.data, 'y')) {
     this._displayLink(Text.messageText[message.subject], message.data.x, message.data.y);
     return;
   }

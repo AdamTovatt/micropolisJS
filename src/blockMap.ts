@@ -16,7 +16,7 @@ interface BlockCoordinate {
   y: number;
 }
 
-type ForEachFunction = (x: number, y: number) => any;
+type ForEachFunction = (x: number, y: number) => void;
 
 type TransformationFunction = (n: number) => number;
 
@@ -31,9 +31,7 @@ const ID: TransformationFunction = (n) => n;
 
 export class BlockMap {
 
-  // tslint:disable-next-line:variable-name
   private _width: number;
-  // tslint:disable-next-line:variable-name
   private _height: number;
   private data: number[] = [];
 
@@ -53,31 +51,31 @@ export class BlockMap {
     return this._height;
   }
 
-  public get(blockX: number, blockY: number): number {
+  get(blockX: number, blockY: number): number {
     const index = this.toIndex(blockX, blockY);
     return this.data[index];
   }
 
-  public set(blockX: number, blockY: number, value: number) {
+  set(blockX: number, blockY: number, value: number) {
     const index = this.toIndex(blockX, blockY);
     this.data[index] = value;
   }
 
-  public worldGet(worldX: number, worldY: number): number {
+  worldGet(worldX: number, worldY: number): number {
     const {x, y} = this.toBlockCoordinate(worldX, worldY);
     return this.get(x, y);
   }
 
-  public worldSet(worldX: number, worldY: number, value: number) {
+  worldSet(worldX: number, worldY: number, value: number) {
     const {x, y} = this.toBlockCoordinate(worldX, worldY);
     this.set(x, y, value);
   }
 
-  public clear() {
+  clear() {
     this.forEach((x, y) => this.set(x, y, 0));
   }
 
-  public copyFrom(source: BlockMap, transform: TransformationFunction = ID) {
+  copyFrom(source: BlockMap, transform: TransformationFunction = ID) {
     if (this.hasIncompatibleDimensions(source)) {
       console.warn("Copying from incompatible blockMap!");
     }

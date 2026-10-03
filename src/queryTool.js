@@ -122,9 +122,6 @@ QueryTool.prototype.classifyZone = function(x, y) {
 
 
 QueryTool.prototype.doTool = function(x, y, blockMaps) {
-  var text = 'Position (' + x + ', ' + y + ')';
-  text += ' TileValue: ' + this._map.getTileValue(x, y);
-
   if (Config.debug || Config.queryDebug) {
     var tile = this._map.getTile(x, y);
     $('#queryTile').text([x,y].join(', '));

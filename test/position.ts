@@ -90,7 +90,7 @@ describe("the Position class", () => {
         it("should throw an error for an unexpected direction", () => {
             const position = new Position(31, 11);
 
-            const apiAbuse = () => Position.move(position, undefined as any);
+            const apiAbuse = () => Position.move(position, undefined as never);
 
             expect(apiAbuse).toThrow();
         });

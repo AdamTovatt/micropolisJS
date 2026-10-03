@@ -39,8 +39,6 @@ var tileDeltaY = [-16, 0, 16, 0 ];
 var xDelta = [  0, 4, 0, -4, 0];
 var yDelta = [ -4, 0, 4, 0, 0];
 
-var TrainPic2 = [ 1, 2, 1, 2, 5];
-
 // Frame values
 var NORTHSOUTH = 1;
 var EASTWEST = 2;
@@ -48,14 +46,16 @@ var NWSE = 3;
 var NESW = 4;
 var UNDERWATER = 5;
 
-// Direction values
-var NORTH = 0;
-var EAST = 1;
-var SOUTH = 2;
-var WEST = 3;
+// Direction values: 0 north, 1 east, 2 south, 3 west
 var CANTMOVE = 4;
 
-TrainSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) {
+// A turn between north and west, or between east and south, has directions summing to this, and shows the NWSE frame
+var NWSE_TURN_SUM = 3;
+
+// The frame for each direction of travel
+var TrainPic2 = [NORTHSOUTH, EASTWEST, NORTHSOUTH, EASTWEST, UNDERWATER];
+
+TrainSprite.prototype.move = function(spriteCycle) {
   // Trains can only move in the 4 cardinal directions
   // Over the course of 4 frames, we move through a tile, so
   // ever fourth frame, we try to find a direction to move in
@@ -90,7 +90,7 @@ TrainSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) {
       if ((tileValue >= TileValues.RAILBASE && tileValue <= TileValues.LASTRAIL) ||
           tileValue === TileValues.RAILVPOWERH || tileValue === TileValues.RAILHPOWERV) {
         if (this.dir !== dir2 && this.dir !== CANTMOVE) {
-          if (this.dir + dir2 === WEST)
+          if (this.dir + dir2 === NWSE_TURN_SUM)
             this.frame = NWSE;
           else
             this.frame = NESW;

@@ -106,7 +106,7 @@ RailTool.prototype.layRail = function(x, y) {
 
 
 
-RailTool.prototype.doTool = function(x, y, blockMaps) {
+RailTool.prototype.doTool = function(x, y) {
   this.result = this.layRail(x, y);
 };
 

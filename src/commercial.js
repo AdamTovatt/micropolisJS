@@ -142,7 +142,7 @@ var commercialFound = function(map, x, y, simData) {
 
 
 var Commercial = {
-  registerHandlers: function(mapScanner, repairManager) {
+  registerHandlers: function(mapScanner) {
     mapScanner.addAction(TileUtils.isCommercialZone, commercialFound);
   },
   getZonePopulation: getZonePopulation

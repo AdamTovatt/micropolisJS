@@ -254,7 +254,7 @@ Simulation.prototype.init = function() {
   for (var i = 0, l = evaluationEvents.length; i < l; i++)
     this.evaluation.addEventListener(evaluationEvents[i], MiscUtils.reflectEvent.bind(this, evaluationEvents[i]));
 
-  this._powerManager.addEventListener(Messages.NOT_ENOUGH_POWER, function(e) {
+  this._powerManager.addEventListener(Messages.NOT_ENOUGH_POWER, function() {
     var d = new Date();
 
     if (this._lastPowerMessage === null || d - this._lastPowerMessage > 1000 * 60 * 2) {

@@ -108,7 +108,7 @@ RoadTool.prototype.layRoad = function(x, y) {
 };
 
 
-RoadTool.prototype.doTool = function(x, y, blockMaps) {
+RoadTool.prototype.doTool = function(x, y) {
   this.result = this.layRoad(x, y);
 };
 
