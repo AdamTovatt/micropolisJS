@@ -20,7 +20,7 @@ import { CommandQueue } from './commandQueue.ts';
 import { LOCAL_PLAYER } from './commands.ts';
 import { Config } from './config.js';
 import { DebugWindow } from './debugWindow.ts';
-import { DisasterWindow } from './disasterWindow.js';
+import { DisasterWindow } from './disasterWindow.ts';
 import { ToolPaths } from './dragPath.ts';
 import { EvaluationWindow } from './evaluationWindow.ts';
 import { GameCanvas } from './gameCanvas.js';
@@ -257,13 +257,11 @@ Game.prototype.onDateChange = function(date) {
 };
 
 
-Game.prototype.handleDisasterWindowClosure = function(request) {
+Game.prototype.handleDisasterWindowClosure = function(kind) {
   this.windows.closed();
 
-  if (request === DisasterWindow.DISASTER_NONE)
-    return;
-
-  this.commandQueue.send(LOCAL_PLAYER, {type: 'triggerDisaster', kind: request});
+  if (kind !== null)
+    this.commandQueue.send(LOCAL_PLAYER, {type: 'triggerDisaster', kind: kind});
 };
 
 

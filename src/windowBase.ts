@@ -60,8 +60,10 @@ function toggle(element: HTMLElement): boolean {
 // A window that closes by hiding, then emitting its closed event, so that a handler that opens another window in its
 // place starts from a hidden opacity layer
 export class ClosableWindow extends WindowBase {
-  constructor(opacityLayerID: string, windowID: string, private readonly closedEvent: string) {
-    super(opacityLayerID, windowID);
+  // focusID names the element that takes the focus when the window shows, by default its submit button
+  constructor(opacityLayerID: string, windowID: string, private readonly closedEvent: string,
+              focusID: string | null = null) {
+    super(opacityLayerID, windowID, focusID);
   }
 
   // value goes with the closed event, such as the actions a window closes with
