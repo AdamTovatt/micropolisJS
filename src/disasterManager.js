@@ -231,7 +231,8 @@ DisasterManager.prototype.doFlood = function(x, y, blockMaps) {
           var tile = this._map.getTile(xx, yy);
           var tileValue = tile.getValue();
 
-          if (tile.isCombustible() || tileValue === TileValues.DIRT ||
+          // As in makeFlood, only bare dirt, carrying no flags, floods unless it burns
+          if (tile.isCombustible() || tile.getRawValue() === TileValues.DIRT ||
               (tileValue >= TileValues.WOODS5 && tileValue < TileValues.FLOOD)) {
             if (tile.isZone())
               ZoneUtils.fireZone(this._map, xx, yy, blockMaps);
