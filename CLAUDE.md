@@ -58,7 +58,7 @@ Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an und
 
 ### Layers
 
-- **Simulation** — DOM-free. `simulation.js` orchestrates; the subsystems are `mapScanner.js`, `residential.js`, `commercial.js`, `industrial.js`, `road.js`, `transport.js`, `powerManager.js`, `traffic.js`, `stadia.js`, `miscTiles.js`, `emergencyServices.js`, `valves.js` (residential/commercial/industrial demand), `census.js`, `budget.js`, `evaluation.js`, `disasterManager.js`, `blockMapUtils.js`.
+- **Simulation** — DOM-free. `simulation.js` orchestrates; the subsystems are `mapScanner.js`, `residential.js`, `commercial.js`, `industrial.js`, `road.js`, `transport.js`, `powerManager.js`, `traffic.js`, `stadia.js`, `miscTiles.js`, `emergencyServices.js`, `valves.js` (residential/commercial/industrial demand), `census.js`, `budget.js`, `evaluation.js`, `disasterManager.js`, `blockMapUtils.js`, `cityStatus.ts` (the advisor conditions and the city status record).
 - **Game and UI** — `game.js` owns the `Simulation`, the canvas, the tools and the windows (`*Window.js`). It runs two loops: `tick` (`setTimeout(0)`: input, then one simulation tick) and `animate` (`requestAnimationFrame`: sprite movement, then painting).
 - **Rendering** — `gameCanvas.js` draws 16×16 tiles from `images/tiles.png` through `tileSet.js` (with a snow variant), and sprites from `images/sprites.png`. `monsterTV.js` is the small disaster-follow view.
 
@@ -72,7 +72,7 @@ Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an und
 | 1–8   | scan one eighth of the map's columns each, calling the tile handlers |
 | 9     | census, tax collection and city evaluation at their frequencies |
 | 10    | decay the rate-of-growth and traffic maps, send advisor messages |
-| 11–15 | power scan; pollution, terrain and land value; crime; population density; fire coverage and disasters |
+| 11–15 | power scan; pollution, terrain and land value; crime; population density; fire coverage and disasters, then publish the city status record |
 
 How often phases 11–15 run depends on the game speed (`speedPowerScan` and its siblings in `simulation.js`), so speed changes simulation results. It is simulation state, not a display setting.
 
@@ -89,6 +89,8 @@ Subsystems register handlers with `mapScanner.addAction(tileValueOrPredicate, ha
 ### Events
 
 `eventEmitter.js` decorates a constructor or object with `addEventListener`, `removeEventListener` and `_emitEvent`. Event names live in `messages.ts`. Subsystems emit, `Simulation` re-emits upward, and the UI listens: the simulation never calls UI code.
+
+A condition that holds over time (power load against capacity, a demand cap, an advisor warning) is state, published each cycle in the `CITY_STATUS_UPDATED` record that `statusPanel.ts` renders. A `FRONT_END_MESSAGE` notification announces a condition or a one-off event and then times out; the record is what shows a condition for as long as it holds. The record is built each cycle and not saved, and neither are its sources: the power figures come from the last power scan, which also runs when the simulation is constructed, and the cap flags from the valves, which the advisor sets again on its next check.
 
 ### Sprites
 
@@ -112,7 +114,7 @@ The original C/C++ source is the behavioural reference: <https://github.com/SimH
 ## Code style
 
 - New modules are TypeScript. Convert a legacy client module whole, together with its tests, rather than mixing styles inside one file. Legacy simulation modules are not converted, since the C# port retires them.
-- Imports name the file extension (`./tile.ts`, `./game.js`); webpack's `extensionAlias` resolves both.
+- JavaScript modules name the file extension in their imports (`./tile.ts`, `./game.js`); webpack's `extensionAlias` resolves both. TypeScript modules import TypeScript files without an extension (`./tile`), because `tsconfig.json` rejects a `.ts` suffix, and name it for JavaScript files (`./text.js`).
 - `tsconfig.json` is strict, including `noUnusedLocals` and `noUnusedParameters`.
 - Every source file keeps the GPL and Micropolis header comment at the top, new files included.
 

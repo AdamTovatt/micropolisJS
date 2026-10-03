@@ -15,6 +15,7 @@ import { BlockMap } from './blockMap.ts';
 import { BlockMapUtils } from './blockMapUtils.js';
 import { Budget } from './budget.js';
 import { Census } from './census.js';
+import { buildCityStatus, conditionHolds } from './cityStatus.ts';
 import { Commercial } from './commercial.js';
 import { DisasterManager } from './disasterManager.js';
 import { EventEmitter } from './eventEmitter.js';
@@ -385,6 +386,7 @@ var simulate = function(simData) {
         BlockMapUtils.fireAnalysis(this.blockMaps);
 
       this.disasterManager.doDisasters(this._census);
+      this._publishCityStatus();
       break;
   }
 
@@ -411,43 +413,42 @@ Simulation.prototype._wrapMessage = function(message, data) {
 Simulation.prototype._sendMessages = function() {
   this._checkGrowth();
 
-  var totalZonePop = this._census.resZonePop + this._census.comZonePop +
-                     this._census.indZonePop;
-  var powerPop = this._census.nuclearPowerPop + this._census.coalPowerPop;
+  var holds = function(condition) {
+    return conditionHolds(condition, this._census, this.budget, this._powerManager);
+  }.bind(this);
+
+  var sendIfHolds = function(condition) {
+    if (holds(condition))
+      this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: condition});
+  }.bind(this);
 
   switch (this._cityTime & 63) {
     case 1:
-      if (Math.floor(totalZonePop / 4) >= this._census.resZonePop)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_MORE_RESIDENTIAL});
+      sendIfHolds(Messages.NEED_MORE_RESIDENTIAL);
       break;
 
     case 5:
-      if (Math.floor(totalZonePop / 8) >= this._census.comZonePop)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_MORE_COMMERCIAL});
+      sendIfHolds(Messages.NEED_MORE_COMMERCIAL);
       break;
 
     case 10:
-      if (Math.floor(totalZonePop / 8) >= this._census.indZonePop)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_MORE_INDUSTRIAL});
+      sendIfHolds(Messages.NEED_MORE_INDUSTRIAL);
       break;
 
     case 14:
-      if (totalZonePop > 10 && totalZonePop * 2 > this._census.roadTotal)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_MORE_ROADS});
+      sendIfHolds(Messages.NEED_MORE_ROADS);
       break;
 
     case 18:
-      if (totalZonePop > 50 && totalZonePop > this._census.railTotal)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_MORE_RAILS});
+      sendIfHolds(Messages.NEED_MORE_RAILS);
       break;
 
     case 22:
-      if (totalZonePop > 10 && powerPop === 0)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_ELECTRICITY});
+      sendIfHolds(Messages.NEED_ELECTRICITY);
       break;
 
     case 26:
-      if (this._census.resPop > 500 && this._census.stadiumPop === 0) {
+      if (holds(Messages.NEED_STADIUM)) {
         this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_STADIUM});
         this._valves.resCap = true;
       } else {
@@ -456,7 +457,7 @@ Simulation.prototype._sendMessages = function() {
       break;
 
     case 28:
-      if (this._census.indPop > 70 && this._census.seaportPop === 0) {
+      if (holds(Messages.NEED_SEAPORT)) {
           this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_SEAPORT});
         this._valves.indCap = true;
       } else {
@@ -465,7 +466,7 @@ Simulation.prototype._sendMessages = function() {
       break;
 
     case 30:
-      if (this._census.comPop > 100 && this._census.airportPop === 0) {
+      if (holds(Messages.NEED_AIRPORT)) {
           this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_AIRPORT});
         this._valves.comCap = true;
       } else {
@@ -474,9 +475,11 @@ Simulation.prototype._sendMessages = function() {
       break;
 
     case 32:
+      // The zoneCount guard repeats part of BLACKOUTS_REPORTED's test. It is left for the rewrite of this case's
+      // wall-clock throttle (#2), so this case's lines stay as they are until then.
       var zoneCount = this._census.unpoweredZoneCount + this._census.poweredZoneCount;
       if (zoneCount > 0) {
-        if (this._census.poweredZoneCount / zoneCount < 0.7 && powerPop > 0) {
+        if (holds(Messages.BLACKOUTS_REPORTED)) {
           var d = new Date();
           if (this._lastPowerMessage === null || d - this._lastPowerMessage > 1000 * 60 * 2) {
             this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.BLACKOUTS_REPORTED});
@@ -487,51 +490,50 @@ Simulation.prototype._sendMessages = function() {
       break;
 
     case 35:
-      if (this._census.pollutionAverage > 60)
+      if (holds(Messages.HIGH_POLLUTION))
         this._emitEvent(Messages.FRONT_END_MESSAGE,
                        {subject: Messages.HIGH_POLLUTION, data: {x: this._map.pollutionMaxX, y: this._map.pollutionMaxY}});
       break;
 
     case 42:
-      if (this._census.crimeAverage > 100)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.HIGH_CRIME});
+      sendIfHolds(Messages.HIGH_CRIME);
       break;
 
     case 45:
-      if (this._census.totalPop > 60 && this._census.fireStationPop === 0)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_FIRE_STATION});
+      sendIfHolds(Messages.NEED_FIRE_STATION);
       break;
 
     case 48:
-      if (this._census.totalPop > 60 && this._census.policeStationPop === 0)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NEED_POLICE_STATION});
+      sendIfHolds(Messages.NEED_POLICE_STATION);
       break;
 
     case 51:
-      if (this.budget.cityTax > 12)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.TAX_TOO_HIGH});
+      sendIfHolds(Messages.TAX_TOO_HIGH);
       break;
 
     case 54:
-      if (this.budget.roadEffect < Math.floor(5 * this.budget.MAX_ROAD_EFFECT / 8) && this._census.roadTotal > 30)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.ROAD_NEEDS_FUNDING});
+      sendIfHolds(Messages.ROAD_NEEDS_FUNDING);
       break;
 
     case 57:
-      if (this.budget.fireEffect < Math.floor(7 * this.budget.MAX_FIRE_STATION_EFFECT / 10) && this._census.totalPop > 20)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.FIRE_STATION_NEEDS_FUNDING});
+      sendIfHolds(Messages.FIRE_STATION_NEEDS_FUNDING);
       break;
 
     case 60:
-      if (this.budget.policeEffect < Math.floor(7 * this.budget.MAX_POLICE_STATION_EFFECT / 10) && this._census.totalPop > 20)
-        this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.POLICE_NEEDS_FUNDING});
+      sendIfHolds(Messages.POLICE_NEEDS_FUNDING);
       break;
 
   case 63:
-    if (this._census.trafficAverage > 60)
-      this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.TRAFFIC_JAMS});
+    sendIfHolds(Messages.TRAFFIC_JAMS);
     break;
   }
+};
+
+
+// The status record describes the city at the end of each cycle. It is derived, never saved.
+Simulation.prototype._publishCityStatus = function() {
+  this._emitEvent(Messages.CITY_STATUS_UPDATED,
+                  buildCityStatus(this._census, this.budget, this._powerManager, this._valves));
 };
 
 

@@ -28,6 +28,15 @@ var PowerManager = EventEmitter(function(map) {
   this._map = map;
   this._powerStack = [];
   this.powerGridMap = new BlockMap(this._map.width, this._map.height, 1);
+
+  // Every tile the scan has reached, powered or not. The scan walks on past the capacity limit to measure the
+  // full load, and only the tiles it reached within the limit are marked in powerGridMap.
+  this._visitedMap = new BlockMap(this._map.width, this._map.height, 1);
+
+  // The result of the last scan. The load is counted in the same steps the capacity is compared against, so
+  // the load exceeds the capacity exactly when the scan reports NOT_ENOUGH_POWER.
+  this.powerCapacity = 0;
+  this.powerLoad = 0;
 });
 
 
@@ -56,7 +65,7 @@ PowerManager.prototype.testForConductive = function(pos, testDir) {
 
   if (this._map.isPositionInBounds(movedPos)) {
     if (this._map.getTile(movedPos.x, movedPos.y).isConductive()) {
-      if (this.powerGridMap.worldGet(movedPos.x, movedPos.y) === 0)
+      if (this._visitedMap.worldGet(movedPos.x, movedPos.y) === 0)
           return true;
     }
   }
@@ -71,6 +80,7 @@ PowerManager.prototype.testForConductive = function(pos, testDir) {
 PowerManager.prototype.doPowerScan = function(census) {
   // Clear power this._map.
   this.powerGridMap.clear();
+  this._visitedMap.clear();
 
   // Power that the combined coal and nuclear power plants can deliver.
   var maxPower = census.coalPowerPop * COAL_POWER_STRENGTH +
@@ -78,21 +88,21 @@ PowerManager.prototype.doPowerScan = function(census) {
 
   var powerConsumption = 0; // Amount of power used.
 
+  // The original stops the walk at the first step past maxPower. This walk goes on to the end to measure the
+  // load, and stops powering tiles at that same step, so it powers exactly the tiles the original does.
   while (this._powerStack.length > 0) {
     var pos = this._powerStack.pop();
     var anyDir = undefined;
     var conNum;
     do {
       powerConsumption++;
-      if (powerConsumption > maxPower) {
-        this._emitEvent(NOT_ENOUGH_POWER);
-        return;
-      }
 
       if (anyDir)
         pos = Position.move(pos, anyDir);
 
-      this.powerGridMap.worldSet(pos.x, pos.y, 1);
+      this._visitedMap.worldSet(pos.x, pos.y, 1);
+      if (powerConsumption <= maxPower)
+        this.powerGridMap.worldSet(pos.x, pos.y, 1);
       conNum = 0;
 
       forEachCardinalDirection(dir => {
@@ -110,6 +120,12 @@ PowerManager.prototype.doPowerScan = function(census) {
         this._powerStack.push(new Position(pos.x, pos.y));
     } while (conNum);
   }
+
+  this.powerCapacity = maxPower;
+  this.powerLoad = powerConsumption;
+
+  if (powerConsumption > maxPower)
+    this._emitEvent(NOT_ENOUGH_POWER);
 };
 
 

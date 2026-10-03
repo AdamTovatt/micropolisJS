@@ -46,6 +46,9 @@ var monsterTVContainerID = '#tvContainer';
 var monsterTVCanvasID = '#tvCanvas';
 var monsterTVID = '#monstertv';
 
+// Marks the view as open, so the stylesheet can clear its slot: the status panel shares it.
+var SHOWING_CLASS = 'showing';
+
 
 var close = function(e) {
   if (e)
@@ -53,6 +56,7 @@ var close = function(e) {
 
   this.isOpen = false;
   $(monsterTVID).toggle();
+  $(monsterTVID).removeClass(SHOWING_CLASS);
 };
 
 
@@ -123,6 +127,7 @@ MonsterTV.prototype.show = function(x, y) {
 MonsterTV.prototype.open = function() {
   this.isOpen = true;
   $(monsterTVID).toggle();
+  $(monsterTVID).addClass(SHOWING_CLASS);
 };
 
 

@@ -36,6 +36,7 @@ import { ScreenshotLinkWindow } from './screenshotLinkWindow.js';
 import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.js';
 import { Simulation } from './simulation.js';
+import { StatusPanel } from './statusPanel.ts';
 import { Storage } from './storage.js';
 import { Text } from './text.js';
 import { TouchWarnWindow } from './touchWarnWindow.js';
@@ -67,6 +68,7 @@ function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
     this.load(savedGame);
 
   this.rci = new RCI('RCIContainer', this.simulation);
+  this.statusPanel = new StatusPanel('statusPanel', this.simulation);
 
   // Note: must init canvas before inputStatus
   this.gameCanvas = new GameCanvas('canvasContainer');

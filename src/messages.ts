@@ -16,6 +16,7 @@ export const BUDGET_NEEDED = "User needs to budget";
 export const BUDGET_REQUESTED = "Budget window requested";
 export const BUDGET_WINDOW_CLOSED = "Budget window closed";
 export const BLACKOUTS_REPORTED = "Blackouts reported";
+export const CITY_STATUS_UPDATED = "City status updated";
 export const CLASSIFICATION_UPDATED = "Classification updated";
 export const CONGRATS_SHOWING = "Congratulations showing";
 export const CONGRATS_WINDOW_CLOSED = "Congratulations window closed";
