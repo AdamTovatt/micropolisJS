@@ -6,13 +6,14 @@ A continuation of [micropolisJS](https://github.com/graememcc/micropolisJS), Gra
 
 This repository is Adam's private continuation. The aim is to grow it from a faithful single-player port into the foundation of a multiplayer city builder with a richer simulated world. The **Direction** section below is the source of truth for where the code is heading.
 
-| Component   | Technology                                                            |
-|-------------|-----------------------------------------------------------------------|
-| Language    | JavaScript (legacy, ES5-style prototypes) and TypeScript (new code)   |
-| Bundler     | webpack 5 + ts-loader, entry `src/micropolis.js`, output `dist/`      |
-| UI          | jQuery-driven DOM windows in `index.html`; the map on a `<canvas>`    |
-| Tests       | Jest + ts-jest, `test/*.ts`                                           |
-| Persistence | JSON in `localStorage` (`src/storage.js`)                             |
+| Component   | Technology                                                                         |
+|-------------|------------------------------------------------------------------------------------|
+| Language    | JavaScript (legacy, ES5-style prototypes) and TypeScript (new code) in the browser; C# on .NET 10 for the server |
+| Bundler     | webpack 5 + ts-loader, entry `src/micropolis.js`, output `dist/`                   |
+| UI          | jQuery-driven DOM windows in `index.html`; the map on a `<canvas>`                 |
+| Server      | .NET 10 solution `server/Micropolis.slnx`                                          |
+| Tests       | Jest + ts-jest, `test/*.ts`; MSTest, one test project per C# project               |
+| Persistence | JSON in `localStorage` (`src/storage.js`)                                          |
 
 ## Direction
 
@@ -48,11 +49,13 @@ npx jest test/tile.ts    # one test file
 npm run lint             # ESLint over src/, test/, headless/ and the build config
 npm run simulate -- --fixture town --steps 3000   # headless run: prints the state hash, year, population, funds
 npm run fixtures         # export each fixture's saved state to headless/fixtures/export/ (ignored by git)
+dotnet build server/Micropolis.slnx   # the C# solution
+dotnet test server/Micropolis.slnx    # MSTest
 ```
 
 The headless runner takes `--seed <n>` (a generated map) or `--fixture <name>`, `--reseed <n>` to replace a fixture's stream, `--speed slow|medium|fast` to override the saved speed, and `--steps <n>`.
 
-Node 24 or later (`engines` in `package.json`). CI (`.github/workflows/ci.yml`) runs `npm ci`, then build, test and lint, on Node 24 on every push and pull request.
+Node 24 or later (`engines` in `package.json`), and the .NET 10 SDK for `server/`. CI (`.github/workflows/ci.yml`) runs on every push and pull request: one job runs `npm ci`, then build, test and lint, on Node 24, and another builds and tests the C# solution.
 
 Tests are TypeScript and can import the legacy JavaScript modules: ts-jest compiles both. The game's Settings window and the footers of the about and name-license pages show the build ID, `git rev-parse --short=12 HEAD`, or `unknown` outside a git checkout.
 
@@ -66,6 +69,9 @@ Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an und
 - **Game and UI** — `game.js` owns the `Simulation`, the canvas, the tools and the windows (`*Window.js`). It runs two loops: `tick` (`setTimeout(0)`: input, then the simulation steps due) and `animate` (`requestAnimationFrame`: painting). `stepDriver.ts` turns real time into steps at a fixed 60 per second. It catches up after a slow frame, up to a second's worth of steps at a time, and drops the rest of a longer gap. It owes nothing while the city is not stepping: paused, behind the budget window, in a hidden tab, or under the screen-too-small overlay. `windowManager.ts` shows the windows one at a time. A window showing holds the keyboard and mouse, but only the budget window holds the city. A year-end budget that falls due while another window shows opens when that window closes, and the simulation holds its phases until it has the player's values. Milestones are good-news notifications, not windows. `speedControl.ts` applies the speed the player sets with Pause, Play and Settings; the simulation's speed is the only record of whether the game is paused.
 - **Headless** — `headless/` runs the simulation in Node through `tsx`, without a browser: `runner.ts` starts a city from a seed or a fixture and steps it, failing rather than stalling silently, and `cli.ts` is its command line. A fixture is a seed plus a build script in `headless/fixtures/` that drives the tool objects. The runner and the tests build a fixture from its script each time they use it, then load its saved state; no saved copy is committed. The state hash (`stateHash.ts`, specified in `docs/state-hash.md`) is SHA-256 over the canonical text of the saved state.
 - **Rendering** — `gameCanvas.js` draws 16×16 tiles from `images/tiles.png` through `tileSet.js` (with a snow variant), and sprites from `images/sprites.png`. `animationManager.js` animates tiles from their value and the client's clock, and never writes the map: an explosion holds its last frame until the simulation's scan turns the tile to rubble. `monsterTV.js` is the small disaster-follow view.
+- **Server** — `server/` is a .NET 10 solution, `Micropolis.slnx`, with a test project per project. `Micropolis.Rules` holds the game rules and has no ASP.NET dependency, so a test or a tool can run them without a host: `RandomStream`, the port of `random.ts`, and `Protocol.cs`, the server's half of the protocol.
+- **Protocol** — `src/protocol.ts` and `server/Micropolis.Rules/Protocol.cs` define the messages between browser and server by hand. `protocol/README.md` specifies the wire format, and the examples and reader cases under `protocol/` pin the two sides together: both test suites read them in place.
+- **Conformance data** — `conformance/` holds data both implementations of the game rules test against, read in place by both test suites: `random.json`, the random stream's reference vectors, and `random.c`, the reference C program that writes them.
 
 ### The simulation cycle
 
@@ -89,7 +95,7 @@ Subsystems register handlers with `mapScanner.addAction(tileValueOrPredicate, ha
 
 - `gameMap.js` holds the tile grid. `tile.ts` is a tile's value plus flags (`tileFlags.ts`: powered, conductive, burnable, bulldozable, zone centre…). `tileValues.ts` names every tile id (`RIVER`, `CHANNEL`, `PORT`…).
 - `simulation.blockMaps` holds coarse overlays at block sizes 2, 4 or 8 (`blockMap.ts`): land value, pollution, crime, traffic density, population density, police and fire coverage, rate of growth. Each map's comment in the `Simulation` constructor states its range.
-- `simulation.random` is the simulation's random stream (`random.ts`), seeded from the game seed. The map generator draws from the same seed's map stream, so one seed reproduces map and city. The `random.ts` header specifies the stream, which the C# port reproduces bit for bit, and `test/random.ts` holds reference vectors computed by the reference C implementation.
+- `simulation.random` is the simulation's random stream (`random.ts`), seeded from the game seed. The map generator draws from the same seed's map stream, so one seed reproduces map and city. The `random.ts` header specifies the stream, which the C# port (`RandomStream` in `server/Micropolis.Rules`) reproduces bit for bit. `conformance/random.json` holds reference vectors computed by the reference C implementation, and the tests of both read it in place.
 - A stateful component's `save(saveData)` and `load(saveData)` write and read its fields under its own key of the save. What the scans derive is saved under `scannedState` instead, through `saveScan` and `loadScan`: the census has both pairs, and the power manager, which holds only scan results, has only the scan pair. `test/savedFields.ts` fails on a field a component holds but neither saves nor explains. A save holds the complete simulation state, the stream's included, so a loaded city continues exactly as it would have without the save; `docs/state-hash.md` lists every key, and a field the simulation adds is saved and listed there too. The `Simulation` constructor starts a new city from a seed, and `Simulation.fromSave` builds one from a save. `Simulation.load` restores a save over a city of the same map size, and nothing of the city it replaces survives. It restores without scanning, except for a browser save that `transitionOldSave` migrated from a version without the scanned state: that save's scanned state is `null`, so loading derives it by scanning from a new city's scanned state, then restores the rest of the save over whatever the scan changed. `storage.js` writes the combined object, versions it (`Storage.CURRENT_VERSION`) and migrates old saves (`transitionOldSave`). A change to saved state bumps the version, adds a migration step and updates the golden hashes in the same commit.
 
 ### Events
@@ -125,7 +131,8 @@ Where the original's behaviour is undefined in C, the port keeps defined, portab
 - New modules are TypeScript. Convert a legacy client module whole, together with its tests, rather than mixing styles inside one file. Legacy simulation modules are not converted, since the C# port retires them.
 - JavaScript modules name the file extension in their imports (`./tile.ts`, `./game.js`); webpack's `extensionAlias` resolves both. TypeScript modules import TypeScript files without an extension (`./tile`), because `tsconfig.json` rejects a `.ts` suffix, and name it for JavaScript files (`./text.js`).
 - `tsconfig.json` is strict, including `noUnusedLocals` and `noUnusedParameters`.
-- Every source file keeps the GPL and Micropolis header comment at the top, new files included.
+- Every source file keeps the GPL and Micropolis header comment at the top, new files included, C# and C as well.
+- C#: block-scoped namespaces, explicit types rather than `var`, and nullable reference types; `server/Directory.Build.props` treats warnings as errors. Tests are MSTest, named `Method_Scenario_Expectation`.
 
 ## License and naming
 

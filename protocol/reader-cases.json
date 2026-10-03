@@ -1,0 +1,21 @@
+{
+  "rejected": [
+    {"case": "an unknown field", "text": "{\"type\":\"players\",\"players\":[{\"id\":\"a\",\"name\":\"Ada\",\"colour\":\"red\"}]}"},
+    {"case": "a missing field", "text": "{\"type\":\"players\",\"players\":[{\"id\":\"a\"}]}"},
+    {"case": "a null name", "text": "{\"type\":\"players\",\"players\":[{\"id\":\"a\",\"name\":null}]}"},
+    {"case": "a null player", "text": "{\"type\":\"players\",\"players\":[null]}"},
+    {"case": "players that are not a list", "text": "{\"type\":\"players\",\"players\":{}}"},
+    {"case": "null players", "text": "{\"type\":\"players\",\"players\":null}"},
+    {"case": "a hello without you", "text": "{\"type\":\"hello\",\"players\":[]}"},
+    {"case": "an unknown type", "text": "{\"type\":\"goodbye\"}"},
+    {"case": "no type", "text": "{\"players\":[]}"},
+    {"case": "null", "text": "null"}
+  ],
+  "accepted": [
+    {
+      "case": "the type after the other fields",
+      "text": "{\"players\":[{\"name\":\"Ada\",\"id\":\"a\"}],\"type\":\"players\"}",
+      "canonical": "{\"type\":\"players\",\"players\":[{\"id\":\"a\",\"name\":\"Ada\"}]}"
+    }
+  ]
+}
