@@ -11,14 +11,15 @@
  *
  */
 
-import { cityFromSave, cityFromSeed, Level, Speed } from "../headless/city";
+import { cityFromSave, cityFromSeed, Level, SaveData, Speed } from "../headless/city";
 import { parseCommandLine } from "../headless/commandLine";
 import { buildFixture, CityBuilder } from "../headless/fixtures/builder";
-import { BaseTool } from "../src/baseTool.js";
 import { fixtureNames, fixtures, fixtureSave } from "../headless/fixtures/index";
-import { advance, startCity, startFromSave, summarise } from "../headless/runner";
+import { advance, Start, startCity, startFromSave, summarise } from "../headless/runner";
+import { BaseTool } from "../src/baseTool.js";
 import { canonicalJson } from "../src/canonicalJson";
-import { savedState, stateHash } from "../src/stateHash";
+import { plainSavedState, savedState, stateHash } from "../src/stateHash";
+import { InspectedSave } from "./helpers/savedState";
 
 describe("a fixture", () => {
 
@@ -92,6 +93,97 @@ describe("the runner", () => {
 
         expect(() => advance(city, -1)).toThrow("A run takes a whole number of steps, got -1");
         expect(() => advance(city, 1.5)).toThrow("A run takes a whole number of steps, got 1.5");
+    });
+});
+
+describe("a run", () => {
+
+    // A fast city runs a phase every step: 16 steps are one cycle, and one cycle is one unit of city time
+    const STEPS_PER_YEAR_AT_FAST = 16 * 48;
+
+    async function hashAfter(start: Start, steps: number) {
+        const city = startCity(start);
+        advance(city, steps);
+        return (await summarise(city)).hash;
+    }
+
+    it("gives the same hash for the same fixture run twice", async () => {
+        expect(await hashAfter({fixture: "town"}, 3000)).toBe(await hashAfter({fixture: "town"}, 3000));
+    });
+
+    it("gives the same hash for the same seed run twice", async () => {
+        expect(await hashAfter({seed: 1234}, 1000)).toBe(await hashAfter({seed: 1234}, 1000));
+    });
+
+    it("gives a different hash for a different seed", async () => {
+        expect(await hashAfter({seed: 1234}, 1000)).not.toBe(await hashAfter({seed: 1235}, 1000));
+    });
+
+    // N steps, save, load and M more steps end in the same state as one run of N + M steps. N stops mid-cycle and
+    // between phases, with sprites in flight.
+    it("continues from a save exactly as it would have without one", async () => {
+        const N = 4001;
+        const M = 3000;
+
+        const uninterrupted = startCity({fixture: "town"});
+        advance(uninterrupted, N + M);
+
+        const first = startCity({fixture: "town"});
+        advance(first, N);
+        const saved = plainSavedState(first) as InspectedSave;
+        expect(saved._phaseCycle).not.toBe(0);
+        expect(saved._speedCycle % 3).not.toBe(0);
+        expect(saved.sprites.list.length).toBeGreaterThan(0);
+
+        const second = cityFromSave(saved);
+        advance(second, M);
+
+        expect(await stateHash(second)).toBe(await stateHash(uninterrupted));
+    });
+
+    // The values themselves are the golden hashes' business: this checks each field is read from the right place
+    it("summarises the year, population and funds from the city", async () => {
+        const city = startCity({fixture: "town", speed: "fast"});
+        const startYear = city.getDate().year;
+        advance(city, 2 * STEPS_PER_YEAR_AT_FAST);
+
+        const summary = await summarise(city);
+        expect(summary.year).toBe(startYear + 2);
+        expect(summary.population).toBe(city.evaluation.cityPop);
+        expect(summary.population).toBeGreaterThan(0);
+        expect(summary.funds).toBe(city.budget.totalFunds);
+    });
+
+    // With auto-budget off, the year-end budget waits for the player
+    it("fails when the simulation stops for the player's budget", () => {
+        const city = startFromSave({...fixtureSave("town"), autoBudget: false} as SaveData, {speed: "fast"});
+
+        expect(() => advance(city, STEPS_PER_YEAR_AT_FAST))
+            .toThrow("The simulation stopped for the player's budget");
+    });
+
+    // Saved while waiting for the player's budget, so the city never sends BUDGET_NEEDED during the run
+    it("fails when city time doesn't advance as far as the steps imply", () => {
+        const saved = fixtureSave("town") as InspectedSave;
+        const city = startFromSave({...saved, budget: {...saved.budget, awaitingValues: true}} as SaveData,
+                                   {speed: "fast"});
+
+        expect(() => advance(city, 64))
+            .toThrow("The simulation stalled: 64 steps should advance city time from 0 to 4, but it reached 0");
+    });
+
+    // Two whole speed cycles: each wrap from 1023 to 0 lets a phase through at slow and medium speed that the step
+    // count alone wouldn't, which shows in the phase reached
+    it.each([
+        ["slow", 26, 10],
+        ["medium", 43, 12],
+        ["fast", 128, 0],
+    ] as const)("reaches the city time and phase its steps imply at %s speed", (speed, cityTime, phase) => {
+        const city = startCity({fixture: "town", speed});
+
+        advance(city, 2048);
+
+        expect([city._cityTime, city._phaseCycle]).toEqual([cityTime, phase]);
     });
 });
 

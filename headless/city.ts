@@ -41,6 +41,7 @@ export interface Simulation {
   _map: {setTile(x: number, y: number, value: number, flags: number): void};
   _phaseCycle: number;
   _speed: number;
+  _speedCycle: number;
 }
 
 // The parts of a saved state the headless code reads or overrides. The rest is in docs/state-hash.md.
@@ -52,15 +53,14 @@ export interface SaveData {
   _speed: number;
 }
 
-const Constants = SimulationConstructor as unknown as {
-  LEVEL_EASY: number, LEVEL_MED: number, LEVEL_HARD: number,
-  SPEED_PAUSED: number, SPEED_SLOW: number, SPEED_MED: number, SPEED_FAST: number,
+export const Level = {
+  easy: SimulationConstructor.LEVEL_EASY, medium: SimulationConstructor.LEVEL_MED,
+  hard: SimulationConstructor.LEVEL_HARD,
 };
 
-export const Level = {easy: Constants.LEVEL_EASY, medium: Constants.LEVEL_MED, hard: Constants.LEVEL_HARD};
-
 export const Speed = {
-  paused: Constants.SPEED_PAUSED, slow: Constants.SPEED_SLOW, medium: Constants.SPEED_MED, fast: Constants.SPEED_FAST,
+  paused: SimulationConstructor.SPEED_PAUSED, slow: SimulationConstructor.SPEED_SLOW,
+  medium: SimulationConstructor.SPEED_MED, fast: SimulationConstructor.SPEED_FAST,
 };
 
 // The speeds a city can run at: every speed but paused

@@ -11,16 +11,16 @@
  *
  */
 
-import { cityFromSave, cityFromSeed, Simulation as HeadlessSimulation, Level, SaveData, Speed } from "../headless/city";
-import { buildFixture } from "../headless/fixtures/builder";
-import { town } from "../headless/fixtures/town";
+import { cityFromSave, cityFromSeed, Level, SaveData, Speed } from "../headless/city";
+import { advance, startCity } from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
-import { plainSavedState } from "../src/stateHash";
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
 import { Simulation } from "../src/simulation.js";
+import { plainSavedState } from "../src/stateHash";
 import { ANIMBIT } from "../src/tileFlags";
 import { FIRE } from "../src/tileValues";
+import { InspectedSave } from "./helpers/savedState";
 import { SimulationInstance, YEAR, buildCity, simulationFromSeed } from "./helpers/simulations";
 
 const SEED = 2026;
@@ -111,29 +111,12 @@ describe("a simulation", () => {
 
     describe("restored from a version 5 save", () => {
 
-        interface Phases {
-            _constructSimData(): object;
-            _simulate(simData: object): void;
-            spriteManager: {moveObjects(simData: object): void};
-        }
-
-        // Each phase, then the sprites, as the simulation's step runs them
-        function runPhases(city: HeadlessSimulation, count: number) {
-            const phases = city as unknown as Phases;
-
-            for (let i = 0; i < count; i++) {
-                const simData = phases._constructSimData();
-                phases._simulate(simData);
-                phases.spriteManager.moveObjects(simData);
-            }
-        }
-
-        // A grown town, with sprites in flight, mid-cycle
-        let grownTownSave: SaveData & {_phaseCycle: number, sprites: {list: unknown[]}};
+        // A grown town, with sprites in flight, mid-cycle: at fast speed every step runs a phase
+        let grownTownSave: InspectedSave;
 
         beforeAll(() => {
-            const city = buildFixture(town);
-            runPhases(city, 3001);
+            const city = startCity({fixture: "town", speed: "fast"});
+            advance(city, 3001);
             grownTownSave = plainSavedState(city) as typeof grownTownSave;
         });
 
@@ -148,7 +131,7 @@ describe("a simulation", () => {
             const before = canonicalJson(grownTownSave);
 
             // Long enough for a yearly evaluation, so every array the load copies has been written since
-            runPhases(cityFromSave(grownTownSave), 800);
+            advance(cityFromSave(grownTownSave), 800);
 
             expect(canonicalJson(grownTownSave)).toBe(before);
         });

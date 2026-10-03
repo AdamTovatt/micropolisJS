@@ -18,7 +18,8 @@ import { cityFromSave, cityFromSeed, Level, RunningSpeed, SaveData, Simulation, 
 import { fixtureSave } from "./fixtures/index";
 
 // Starts a city from a seed or a fixture and advances it step by step, as fast as the CPU allows. A run never
-// stalls silently: it fails when the simulation is paused or waits for the player.
+// stalls silently: it fails when the simulation is paused, waits for the player, or doesn't advance city time as
+// far as the step count implies.
 
 export interface Start {
   // A map generated from this seed, or the named fixture: exactly one
@@ -82,7 +83,37 @@ export async function summarise(city: Simulation): Promise<Summary> {
   };
 }
 
-// Never steps a paused simulation, and fails rather than leaving the simulation waiting for the player's budget
+// Steps a phase is let through on, by speed: every 5th at slow, every 3rd at medium, every one at fast
+const STEPS_PER_PHASE = {[Speed.slow]: 5, [Speed.medium]: 3, [Speed.fast]: 1};
+const PHASES_PER_CYCLE = 16;
+
+// The city time a run of this many steps reaches, worked out from the step and phase counters alone, as the
+// original's simFrame and simulate advance them: the speed cycle lets a phase through, and city time advances on
+// phase 0. A run that ends anywhere else has stalled. This restates the simulation's speed gate on purpose: the check
+// is an independent model of it, so a simulation that stops letting phases through can't vouch for itself.
+function impliedCityTime(city: Simulation, steps: number): number {
+  const stepsPerPhase = STEPS_PER_PHASE[city._speed];
+  let speedCycle = city._speedCycle;
+  let phase = city._phaseCycle;
+  let cityTime = city._cityTime;
+
+  for (let i = 0; i < steps; i++) {
+    speedCycle = speedCycle === 1023 ? 0 : speedCycle + 1;
+
+    if (speedCycle % stepsPerPhase === 0) {
+      if (phase === 0) {
+        cityTime++;
+      }
+
+      phase = (phase + 1) % PHASES_PER_CYCLE;
+    }
+  }
+
+  return cityTime;
+}
+
+// Never steps a paused simulation, and fails rather than stalling: when the simulation waits for the player's budget,
+// or city time doesn't advance as far as the step count implies
 export function advance(city: Simulation, steps: number): void {
   if (!Number.isInteger(steps) || steps < 0) {
     throw new Error(`A run takes a whole number of steps, got ${steps}`);
@@ -91,6 +122,9 @@ export function advance(city: Simulation, steps: number): void {
   if (city.isPaused()) {
     throw new Error("The simulation is paused: a run never steps a paused simulation");
   }
+
+  const startTime = city._cityTime;
+  const expectedTime = impliedCityTime(city, steps);
 
   let budgetNeeded = false;
   const onBudgetNeeded = () => {
@@ -109,5 +143,10 @@ export function advance(city: Simulation, steps: number): void {
     }
   } finally {
     city.removeEventListener(BUDGET_NEEDED, onBudgetNeeded);
+  }
+
+  if (city._cityTime !== expectedTime) {
+    throw new Error(`The simulation stalled: ${steps} steps should advance city time from ${startTime} to ` +
+                    `${expectedTime}, but it reached ${city._cityTime}`);
   }
 }
