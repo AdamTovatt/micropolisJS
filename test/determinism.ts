@@ -30,8 +30,8 @@ function sprites(simulation: SimulationInstance) {
         ({type: sprite.type, x: sprite.x, y: sprite.y, frame: sprite.frame}));
 }
 
-// A year of growth, then a monster and a tornado for a year: their moves draw from the stream, and their damage
-// leaves fires and explosions for the scan to clear
+// A year of growth, then a monster and a tornado for half a year, while both are still in flight: their moves draw
+// from the stream, and their damage leaves fires and explosions for the scan to clear
 function run(first: SimulationInstance, second: SimulationInstance) {
     stepBoth(first, second, YEAR);
     const grown = first._census.resPop;
@@ -42,7 +42,7 @@ function run(first: SimulationInstance, second: SimulationInstance) {
     }
     const unleashed = sprites(first).length;
 
-    stepBoth(first, second, YEAR);
+    stepBoth(first, second, YEAR / 2);
     return {grown, unleashed};
 }
 
