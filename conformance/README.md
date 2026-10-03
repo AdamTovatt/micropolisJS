@@ -203,6 +203,10 @@ evaluation, each when its city time falls due; phase 10 easing the rate of growt
 and to fast. A point for a rare branch names the branch in `reaches`, so a change that stops the point reaching it fails
 the generator rather than leaving the branch unproven.
 
+The generator watches a fixture's city for sprites only until its last point; `test/goldenHashes.ts` checks that every
+sprite-free fixture, a `"branch"` fixture included, creates none over its whole golden run. A test fails on a point
+naming a fixture that is not sprite-free.
+
 The generator fails when:
 
 - a fixture's city as built does not match the golden hash its log pins at step 0, or the log pins none there;
@@ -228,5 +232,8 @@ or the block's position. A record passes when nothing differs. It is inconclusiv
 TypeScript's call reached, the unit itself or one in `reached`, and fails when it stops at any other stub: the C#
 called what the TypeScript did not.
 
-Two tests hold what is ported to passing, and fail rather than report inconclusive: every phase 0 record that reaches
-no other unit, the counters and the census clearing, and every map scan record with no handlers, the scanner's core.
+What is ported is held to passing. `UnitSnapshotTests` lists the units, handlers and sprite or disaster functions not
+yet ported, and fails unless the list names exactly the stubs in `server/Micropolis.Rules`, each of which names its
+unit in a string literal, `new NotPortedException("census.take10Census")`: a port removes its units from it, and a
+stub that comes back fails rather than turning its records inconclusive. Every record whose call reaches no listed
+unit, the unit itself included, must pass.

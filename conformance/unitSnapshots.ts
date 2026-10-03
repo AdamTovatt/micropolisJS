@@ -625,8 +625,17 @@ export function recordSnapshots(points: SnapshotPoint[], built: Map<string, Save
   }
 }
 
+// A record's saved state before and after its call, read as the saved state it is, or as more of it
+export function stateBefore<State extends SaveData = SaveData>(record: SnapshotRecord): State {
+  return record.before as State;
+}
+
+export function stateAfter<State extends SaveData = SaveData>(record: SnapshotRecord): State {
+  return record.after as State;
+}
+
 function speedOf(record: SnapshotRecord): number {
-  return (record.before as {simulation: {speed: number}}).simulation.speed;
+  return stateBefore(record).simulation.speed;
 }
 
 function sortKey(record: SnapshotRecord): string {

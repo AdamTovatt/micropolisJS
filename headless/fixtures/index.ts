@@ -12,6 +12,7 @@
  */
 
 import { CommandLog } from "../../src/commandLog";
+import { forestFire, overloaded, twinPlants, wilderness } from "./branches";
 import { broke, underfunded } from "./budgets";
 import { suburb, suburbBroke, suburbFast, suburbSlow, suburbUnderfunded } from "./suburb";
 import { town } from "./town";
@@ -27,13 +28,17 @@ export type FixtureKind = "sprites" | "snapshots" | "branch";
 // which is never read back. The copies of its state in conformance/saves/ are for the C# tests.
 const fixtures: Record<string, {log: CommandLog, kind: FixtureKind}> = {
   broke: {log: broke, kind: "sprites"},
+  forestFire: {log: forestFire, kind: "branch"},
+  overloaded: {log: overloaded, kind: "branch"},
   suburb: {log: suburb, kind: "snapshots"},
   suburbBroke: {log: suburbBroke, kind: "snapshots"},
   suburbFast: {log: suburbFast, kind: "branch"},
   suburbSlow: {log: suburbSlow, kind: "branch"},
   suburbUnderfunded: {log: suburbUnderfunded, kind: "snapshots"},
   town: {log: town, kind: "sprites"},
+  twinPlants: {log: twinPlants, kind: "branch"},
   underfunded: {log: underfunded, kind: "sprites"},
+  wilderness: {log: wilderness, kind: "branch"},
 };
 
 export function fixtureNames(): string[] {
