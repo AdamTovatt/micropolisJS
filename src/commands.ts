@@ -44,7 +44,7 @@ export const MAX_SPEED = 3;
 export type Command =
   // The tool applied at each tile of the path in order, with the per-tile rules and costs of a click. A click is a
   // one-tile path; a drag's tiles are each one step along a row or column from the last. autoBulldoze is the sending
-  // player's preference: whether a building tool clears what it can from its site before building.
+  // player's preference: whether the building, road, rail and wire tools clear what they can before building.
   | {type: "tool", tool: ToolName, path: TilePosition[], autoBulldoze: boolean}
   // The tax rate in percent, and the funding of each service named, road, fire or police, in whole percent of what it
   // needs, as the original's budget sliders set it. A service left out keeps its funding.

@@ -81,7 +81,7 @@ var TOOLRESULT_NEEDS_BULLDOZE = 3;
 
 // Each tool adds doTool(x, y, random, autoBulldoze), which stages the tool's edits at tile (x, y) and sets result. random
 // is the simulation's stream, which the tools that make a random choice draw from, and autoBulldoze is the player's
-// setting, which the building tools read; a tool that needs neither leaves them off. modifyIfEnoughFunding then applies
+// setting, which the building, road, rail and wire tools read; a tool that needs neither leaves them off. modifyIfEnoughFunding then applies
 // the staged edits if the budget can pay for them.
 var BaseToolConstructor = {
   addCost: addCost,

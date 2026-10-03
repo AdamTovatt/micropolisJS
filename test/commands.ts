@@ -241,6 +241,27 @@ describe("a tool command", () => {
             expect(applyCommand(city, zone(true)).outcome).toBe("ok");
             expect(city.budget.totalFunds).toBe(STARTING_FUNDS - 100 - 9);
         });
+
+        // As connectTile in the original: road, rail and wire clear the tile first only with auto-bulldoze
+        it.each(["road", "rail", "wire"] as const)("leaves them standing for %s without auto-bulldoze", (tool) => {
+            const city = wooded();
+
+            expect(applyCommand(city, {type: "tool", tool, path: [{x: 10, y: 10}], autoBulldoze: false}).outcome)
+                .toBe("failed");
+            expect(city._map.getTileValue(10, 10)).toBe(WOODS);
+        });
+
+        it.each([
+            ["road", 10],
+            ["rail", 20],
+            ["wire", 5],
+        ] as const)("clears them for %s with auto-bulldoze, at a cost of 1", (tool, cost) => {
+            const city = wooded();
+
+            expect(applyCommand(city, {type: "tool", tool, path: [{x: 10, y: 10}], autoBulldoze: true}).outcome)
+                .toBe("ok");
+            expect(city.budget.totalFunds).toBe(STARTING_FUNDS - cost - 1);
+        });
     });
 
     describe("in a city that can't pay", () => {
