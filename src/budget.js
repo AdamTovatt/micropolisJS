@@ -90,8 +90,10 @@ Budget.prototype.setAutoBudget = function(value) {
 };
 
 
-var RLevels = [0.7, 0.9, 1.2];
-var FLevels = [1.4, 1.2, 0.8];
+// The road maintenance and tax multipliers for each level. collectTax in the original's simulate.cpp keeps them in
+// floats, so each product with one is a float's: Math.fround rounds to the nearest float, as a C# (float) cast does.
+var RLevels = [Math.fround(0.7), Math.fround(0.9), Math.fround(1.2)];
+var FLevels = [Math.fround(1.4), Math.fround(1.2), Math.fround(0.8)];
 
 // Funds the services from the funds and the last tax collection, scaling back the percentages the cash can't cover, and
 // returns what each service is paid
@@ -254,9 +256,11 @@ Budget.prototype.collectTax = function(gameLevel, census) {
 
   var roadCost = census.roadTotal * roadMaintenanceCost;
   var railCost = census.railTotal * railMaintenanceCost;
-  this.roadMaintenanceBudget = Math.floor((roadCost + railCost) * RLevels[gameLevel]);
+  this.roadMaintenanceBudget = Math.floor(Math.fround(Math.fround(roadCost + railCost) * RLevels[gameLevel]));
 
-  this.taxFund = Math.floor(Math.floor(census.totalPop * census.landValueAverage / 120) * this.cityTax * FLevels[gameLevel]);
+  // The tax base is a whole number, which the original converts to a float to multiply by the level's multiplier
+  var taxBase = Math.floor(census.totalPop * census.landValueAverage / 120) * this.cityTax;
+  this.taxFund = Math.floor(Math.fround(Math.fround(taxBase) * FLevels[gameLevel]));
 
   if (census.totalPop > 0) {
     this.cashFlow = this.taxFund - (this.policeMaintenanceBudget + this.fireMaintenanceBudget + this.roadMaintenanceBudget);
