@@ -185,6 +185,9 @@ Evaluation.prototype.voteProblems = function() {
       voteCount++;
     }
 
+    // A deliberate divergence: evaluate.cpp's loop cycles through PROBNUM + 1 slots, past the end
+    // of its problem table, which is undefined behaviour no port can reproduce. This cycles through
+    // the seven problems, so the votes draw from the stream differently from the original's.
     problem = (problem + 1) % NUMPROBLEMS;
     loopCount++;
   }
