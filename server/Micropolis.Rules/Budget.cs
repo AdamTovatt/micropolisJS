@@ -58,6 +58,17 @@ namespace Micropolis.Rules
 
         public long TaxFund { get; internal set; }
 
+        /// <summary>
+        /// Raises <see cref="Messages.FUNDS_CHANGED"/>, <see cref="Messages.BUDGET_REVIEW_DUE"/> and
+        /// <see cref="Messages.NO_MONEY"/>, as <c>src/budget.js</c> does.
+        /// </summary>
+        internal EventEmitter Events { get; } = new EventEmitter();
+
+        public void CollectTax(Level gameLevel, Census census)
+        {
+            throw new NotPortedException("budget.collectTax");
+        }
+
         internal void Save(JsonObject saveData)
         {
             saveData["budget"] = new JsonObject

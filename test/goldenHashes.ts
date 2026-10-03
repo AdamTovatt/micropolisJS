@@ -11,9 +11,10 @@
  *
  */
 
-import { fixtureLog, fixtureNames } from "../headless/fixtures/index";
+import { fixtureLog, fixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index";
 import { replay } from "../headless/runner";
 import { Simulation } from "../headless/city";
+import { SpriteManager } from "../src/spriteManager.js";
 import { savedState } from "../src/stateHash";
 
 // Each fixture's golden hashes are its log's checkpoints: the built hash at step 0, of the city once the log's
@@ -30,6 +31,32 @@ describe("the golden hashes", () => {
 
     it.each(fixtureNames())("hold for %s", async (name) => {
         await expect(replay(fixtureLog(name)).verified).resolves.toBe(fixtureLog(name).checkpoints.length);
+    });
+});
+
+// The unit snapshots are recorded from these fixtures because the C# port can run their every step before it ports the
+// sprites: a sprite created on the way would make that untrue without moving a hash
+describe("the sprite-free fixtures", () => {
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    it.each(spriteFreeFixtureNames())("create no sprite in %s's run", (name) => {
+        const makeSprite = jest.spyOn(SpriteManager.prototype, "makeSprite");
+
+        replay(fixtureLog(name), {verify: false});
+
+        expect(makeSprite).not.toHaveBeenCalled();
+    });
+
+    // The same watch sees a fixture that does create sprites, so it is not one that passes every fixture
+    it("sees the town's run create sprites", () => {
+        const makeSprite = jest.spyOn(SpriteManager.prototype, "makeSprite");
+
+        replay(fixtureLog("town"), {verify: false});
+
+        expect(makeSprite).toHaveBeenCalled();
     });
 });
 
@@ -64,6 +91,24 @@ describe("the budget fixtures", () => {
         // Each share is kept in float, as the original's sliders keep it
         expect([budget.autoBudget, ...shares(budget)])
             .toEqual([false, Math.fround(0.6), Math.fround(0.4), Math.fround(0.75)]);
+    });
+
+    it("keep suburbUnderfunded's services at the shares the player chose through every year end", () => {
+        const budget = budgetOf(replay(fixtureLog("suburbUnderfunded"), {verify: false}).city);
+
+        expect([budget.autoBudget, ...shares(budget)])
+            .toEqual([false, Math.fround(0.6), Math.fround(0.4), Math.fround(0.75)]);
+    });
+
+    it("leave suburbBroke short at its first year end, paying fire with what is left, and turn auto-budget off", () => {
+        const log = fixtureLog("suburbBroke");
+        const built = budgetOf(replay(log, {to: 0, verify: false}).city);
+        const budget = budgetOf(replay(log, {to: YEAR, verify: false}).city);
+
+        expect([built.autoBudget, built.cityTax]).toEqual([true, 0]);
+        expect([budget.autoBudget, budget.totalFunds, budget.roadPercent, budget.policePercent]).toEqual([false, 0, 1, 0]);
+        expect(budget.firePercent).toBeGreaterThan(0);
+        expect(budget.firePercent).toBeLessThan(1);
     });
 
     it("leave broke short at its first year end, paying police with what is left, and turn auto-budget off", () => {

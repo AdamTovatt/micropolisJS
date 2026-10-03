@@ -32,6 +32,16 @@ namespace Micropolis.Rules
 
         public bool IndCap { get; internal set; }
 
+        /// <summary>
+        /// Raises <see cref="Messages.VALVES_UPDATED"/>, as <c>src/valves.js</c> does.
+        /// </summary>
+        internal EventEmitter Events { get; } = new EventEmitter();
+
+        public void SetValves(Level gameLevel, Census census, Budget budget)
+        {
+            throw new NotPortedException("valves.setValves");
+        }
+
         internal void Save(JsonObject saveData)
         {
             saveData["valves"] = new JsonObject

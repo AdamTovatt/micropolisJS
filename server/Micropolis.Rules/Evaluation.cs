@@ -100,6 +100,17 @@ namespace Micropolis.Rules
 
         public IReadOnlyList<ScoreStep> CityScoreBreakdown { get; internal set; } = [];
 
+        /// <summary>
+        /// Raises <see cref="Messages.CLASSIFICATION_UPDATED"/>, <see cref="Messages.POPULATION_UPDATED"/> and
+        /// <see cref="Messages.SCORE_UPDATED"/>, as <c>src/evaluation.js</c> does.
+        /// </summary>
+        internal EventEmitter Events { get; } = new EventEmitter();
+
+        public void CityEvaluation(SimData simData)
+        {
+            throw new NotPortedException("evaluation.cityEvaluation");
+        }
+
         internal void Save(JsonObject saveData)
         {
             saveData["evaluation"] = new JsonObject

@@ -251,6 +251,23 @@ describe("a simulation", () => {
         });
     });
 
+    describe("told the power falls short", () => {
+
+        // The power messages share a throttle of three years, 144 in city time, after the last sent
+        it.each([[244, false], [245, true]])("at city time %d, a hundred after the last message, sends one: %s", (cityTime, sent) => {
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_MED);
+            const messages: unknown[] = [];
+            simulation.addEventListener(Messages.FRONT_END_MESSAGE, (message: unknown) => messages.push(message));
+            simulation._cityTime = cityTime;
+            simulation._lastPowerMessage = 100;
+
+            simulation._powerManager._emitEvent(Messages.NOT_ENOUGH_POWER);
+
+            expect(messages).toEqual(sent ? [{subject: Messages.NOT_ENOUGH_POWER}] : []);
+            expect(simulation._lastPowerMessage).toBe(sent ? cityTime : 100);
+        });
+    });
+
     describe("setting its speed", () => {
 
         it("announces a change of speed, and not a speed it already has", () => {

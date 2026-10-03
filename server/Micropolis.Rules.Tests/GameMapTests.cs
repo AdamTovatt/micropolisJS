@@ -79,6 +79,39 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
+        public void AddTileFlags_FlagsSetOrNot_SetsThemAndKeepsTheRest()
+        {
+            GameMap map = new GameMap(5, 3);
+            map.SetTile(1, 1, WOODS, BLBNBIT);
+
+            map.AddTileFlags(1, 1, BULLBIT | POWERBIT);
+
+            Assert.AreEqual(WOODS, map.GetTileValue(1, 1));
+            Assert.AreEqual(BLBNBIT | POWERBIT, map.GetTileFlags(1, 1));
+        }
+
+        [TestMethod]
+        public void RemoveTileFlags_FlagsSetOrNot_ClearsThemAndKeepsTheRest()
+        {
+            GameMap map = new GameMap(5, 3);
+            map.SetTile(1, 1, WOODS, BLBNBIT);
+
+            map.RemoveTileFlags(1, 1, BURNBIT | POWERBIT);
+
+            Assert.AreEqual(WOODS, map.GetTileValue(1, 1));
+            Assert.AreEqual(BULLBIT, map.GetTileFlags(1, 1));
+        }
+
+        [TestMethod]
+        public void AddTileFlags_OutsideTheMap_Throws()
+        {
+            GameMap map = new GameMap(5, 3);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => map.AddTileFlags(0, 3, POWERBIT));
+            Assert.Throws<ArgumentOutOfRangeException>(() => map.RemoveTileFlags(-1, 0, POWERBIT));
+        }
+
+        [TestMethod]
         public void Save_Map_WritesItsFieldsAndRawTilesRowByRow()
         {
             GameMap map = new GameMap(3, 2);

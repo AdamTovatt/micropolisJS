@@ -39,8 +39,8 @@ function zoneRow(kinds: string, top: number): Command[] {
   return Array.from(kinds, (kind, i) => buildingAt(ZONE_TOOLS[kind], LEFT + 3 * i + 1, top + 1));
 }
 
-// The commands that build the town, which other fixtures build on
-export const townCommands: Command[] = [
+// The commands that build the town's plant, zones and roads, which create no sprites
+export const zonedTownCommands: Command[] = [
   // The plant's east side touches the north row's first zone
   buildingAt("coal", LEFT - 3, TOP + 1),
   ...zoneRow(NORTH_ROW, TOP),
@@ -51,12 +51,25 @@ export const townCommands: Command[] = [
 
   // The south row touches the plant only at a corner, which doesn't conduct
   lineOf("wire", LEFT - 1, TOP + 4, LEFT - 1, TOP + 4),
+];
+
+// The commands that build the town, which other fixtures build on
+export const townCommands: Command[] = [
+  ...zonedTownCommands,
 
   // A wire from the south row crosses the south road to the airport
   lineOf("wire", LEFT, TOP + 7, LEFT, TOP + 9),
   buildingAt("airport", LEFT + 1, TOP + 11),
 
   lineOf("rail", LEFT, TOP + 17, RIGHT + 6, TOP + 17),
+];
+
+// A fire and a police station east of the north row, which other fixtures add to the town: a wire from the row's last
+// zone powers the fire station, and the police station touches it
+export const stations: Command[] = [
+  lineOf("wire", 44, 13, 44, 13),
+  buildingAt("fire", 46, 13),
+  buildingAt("police", 46, 16),
 ];
 
 // Its checkpoints are its golden hashes: the town as built, and after its run

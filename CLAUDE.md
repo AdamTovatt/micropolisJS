@@ -118,7 +118,7 @@ Subsystems register handlers with `mapScanner.addAction(tileValueOrPredicate, ha
 
 ### Events
 
-`eventEmitter.js` decorates a constructor or object with `addEventListener`, `removeEventListener` and `_emitEvent`. Event names live in `messages.ts`. Subsystems emit, `Simulation` re-emits upward, and the UI listens: the simulation never calls UI code.
+`eventEmitter.js` decorates a constructor or object with `addEventListener`, `removeEventListener` and `_emitEvent`. Event names live in `messages.ts`, each a string no other message shares, since listeners and the unit snapshots tell events apart by the string; `test/messages.ts` fails on two that share one. Subsystems emit, `Simulation` re-emits upward, and the UI listens: the simulation never calls UI code.
 
 A condition that holds over time (power load against capacity, a demand cap, an advisor warning) is state, published each cycle in the `CITY_STATUS_UPDATED` record that `statusPanel.ts` renders. A `FRONT_END_MESSAGE` notification announces a condition or a one-off event and then times out; the record is what shows a condition for as long as it holds. The record is built each cycle and not saved, but its sources are: the power figures from the last power scan, and the cap flags from the valves.
 

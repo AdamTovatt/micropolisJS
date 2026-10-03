@@ -42,5 +42,39 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(map.Width, map.Get(0, 1));
             Assert.AreEqual(5, map.Get(2, 1));
         }
+
+        // As test/blockMap.ts sets and gets by world coordinates, on a map of three by three blocks of four tiles
+        [TestMethod]
+        public void WorldSet_TileInABlock_SetsTheBlock()
+        {
+            BlockMap map = new BlockMap(12, 12, 4, 0, 255);
+
+            map.WorldSet(5, 1, 234);
+
+            Assert.AreEqual(234, map.Get(1, 0));
+        }
+
+        [TestMethod]
+        public void WorldGet_TileInABlock_ReadsTheBlock()
+        {
+            BlockMap map = new BlockMap(12, 12, 4, 0, 255);
+
+            map.Set(0, 1, 234);
+
+            Assert.AreEqual(234, map.WorldGet(2, 6));
+        }
+
+        [TestMethod]
+        public void Clear_EntriesSet_SetsEveryEntryToZero()
+        {
+            BlockMap map = new BlockMap(12, 12, 4, 0, 255);
+            map.Set(0, 1, 234);
+            map.WorldSet(11, 11, 12);
+
+            map.Clear();
+
+            Assert.AreEqual(0, map.Get(0, 1));
+            Assert.AreEqual(0, map.Get(2, 2));
+        }
     }
 }

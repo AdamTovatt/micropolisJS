@@ -24,6 +24,24 @@ namespace Micropolis.Rules
 
         public bool DisastersEnabled { get; internal set; }
 
+        /// <summary>
+        /// Raises the <see cref="Messages.DISASTER_MESSAGES"/>, as <c>src/disasterManager.js</c> does.
+        /// </summary>
+        internal EventEmitter Events { get; } = new EventEmitter();
+
+        public void DoDisasters(Level gameLevel, Census census)
+        {
+            throw new NotPortedException("disasterManager.doDisasters");
+        }
+
+        /// <summary>
+        /// A nuclear plant's meltdown, a disaster, which creates sprites: it isn't ported, so it throws.
+        /// </summary>
+        public void DoMeltdown(int x, int y)
+        {
+            throw new NotPortedException("disasterManager.doMeltdown");
+        }
+
         internal void Save(JsonObject saveData)
         {
             saveData["disasters"] = new JsonObject

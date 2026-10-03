@@ -139,6 +139,41 @@ namespace Micropolis.Rules
             return IsPositionInBounds(new Position(x, y));
         }
 
+        /// <summary>
+        /// The map's own tile at (x, y), which changes the map as it changes. Off the map, as <c>getTile</c> in
+        /// <c>src/gameMap.js</c> does, it is a new tile of <see cref="TileValues.TILE_INVALID"/> belonging to nothing.
+        /// </summary>
+        public Tile GetTile(int x, int y)
+        {
+            return TestBounds(x, y) ? _data[x + y * Width] : new Tile(TileValues.TILE_INVALID);
+        }
+
+        /// <summary>
+        /// Copies the tile at (x, y) into <paramref name="into"/>, and returns the map's own tile, as <c>getTile</c>
+        /// does given a tile to fill. Off the map, <paramref name="into"/> is left as it was.
+        /// </summary>
+        public Tile GetTile(int x, int y, Tile into)
+        {
+            Tile tile = GetTile(x, y);
+
+            if (TestBounds(x, y))
+            {
+                into.SetFrom(tile);
+            }
+
+            return tile;
+        }
+
+        public void AddTileFlags(int x, int y, int flags)
+        {
+            GetTileAt(x, y, nameof(AddTileFlags)).AddFlags(flags);
+        }
+
+        public void RemoveTileFlags(int x, int y, int flags)
+        {
+            GetTileAt(x, y, nameof(RemoveTileFlags)).RemoveFlags(flags);
+        }
+
         public int GetTileValue(int x, int y)
         {
             return GetTileAt(x, y, nameof(GetTileValue)).GetValue();

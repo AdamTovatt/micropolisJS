@@ -115,6 +115,44 @@ namespace Micropolis.Rules
         /// </summary>
         public double TrafficAverage { get; internal set; }
 
+        /// <summary>
+        /// Zeroes what the map scan counts up, and the populations the zone handlers add to, as phase 0 does before
+        /// the cycle's scan.
+        /// </summary>
+        public void ClearCensus()
+        {
+            PoweredZoneCount = 0;
+            UnpoweredZoneCount = 0;
+            FirePop = 0;
+            RoadTotal = 0;
+            RailTotal = 0;
+            ResPop = 0;
+            ComPop = 0;
+            IndPop = 0;
+            ResZonePop = 0;
+            ComZonePop = 0;
+            IndZonePop = 0;
+            HospitalPop = 0;
+            ChurchPop = 0;
+            PoliceStationPop = 0;
+            FireStationPop = 0;
+            StadiumPop = 0;
+            CoalPowerPop = 0;
+            NuclearPowerPop = 0;
+            SeaportPop = 0;
+            AirportPop = 0;
+        }
+
+        public void Take10Census(Budget budget)
+        {
+            throw new NotPortedException("census.take10Census");
+        }
+
+        public void Take120Census()
+        {
+            throw new NotPortedException("census.take120Census");
+        }
+
         internal void Save(JsonObject saveData)
         {
             saveData["census"] = new JsonObject
