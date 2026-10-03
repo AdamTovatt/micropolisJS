@@ -14,7 +14,7 @@
 import { BlockMap } from "../src/blockMap";
 import { GameMap } from "../src/gameMap.js";
 import { BNCNBIT, BULLBIT, ZONEBIT } from "../src/tileFlags";
-import { RIVER, RZB, WOODS } from "../src/tileValues";
+import { POWERPLANT, RIVER, ROADS, RZB, WOODS } from "../src/tileValues";
 import { ZoneUtils } from "../src/zoneUtils.js";
 
 describe("zone utilities", () => {
@@ -60,6 +60,23 @@ describe("zone utilities", () => {
             burn(map);
 
             expect(map.getTileFlags(CENTRE_X - 1, CENTRE_Y - 1) & BULLBIT).toBe(0);
+        });
+    });
+
+    describe("when a zone from the seaport up catches fire", () => {
+
+        // As in the original's fireZone, every zone from PORTBASE up but the airport is swept from -1 to 3 around
+        // its centre, so a 4x4 zone's sweep reaches one column and one row past it
+        it("should make tiles of the roads and above in the row and column past it bulldozable", () => {
+            const map = new GameMap(120, 100);
+            map.setTile(50, 50, POWERPLANT, BNCNBIT | ZONEBIT);
+            map.setTile(53, 51, ROADS, 0);
+            map.setTile(51, 53, ROADS, 0);
+
+            ZoneUtils.fireZone(map, 50, 50, {rateOfGrowthMap: new BlockMap(120, 100, 8)});
+
+            expect(map.getTileFlags(53, 51) & BULLBIT).toBe(BULLBIT);
+            expect(map.getTileFlags(51, 53) & BULLBIT).toBe(BULLBIT);
         });
     });
 });
