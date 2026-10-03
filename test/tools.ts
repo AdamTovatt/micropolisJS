@@ -52,6 +52,15 @@ describe("the park tool", () => {
 
 describe("the bulldozer", () => {
 
+    // As bulldozerTool in the original. Commands never reach it there, as the simulation rejects them first.
+    it.each([[-1, 50], [120, 50], [50, -1], [50, 100]])("should fail off the map, at (%i, %i)", (x, y) => {
+        const tool = new BulldozerTool(new GameMap(120, 100));
+
+        tool.doTool(x, y, streamDrawing([]));
+
+        expect(tool.result).toBe(tool.TOOLRESULT_FAILED);
+    });
+
     it("should blow up each tile of a zone with the explosion frame the stream draws for it", () => {
         const map = new GameMap(120, 100);
         for (let dy = -1; dy <= 1; dy++) {
