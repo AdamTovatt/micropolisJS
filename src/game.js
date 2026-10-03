@@ -43,7 +43,7 @@ import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
 import { Text } from './text.js';
-import { TouchWarnWindow } from './touchWarnWindow.js';
+import { TouchWarnWindow } from './touchWarnWindow.ts';
 import { UiRandom } from './uiRandom.ts';
 import { budgetCommand, settingsCommands, toolOutcome } from './windowCommands.ts';
 import { WindowManager } from './windowManager.ts';
