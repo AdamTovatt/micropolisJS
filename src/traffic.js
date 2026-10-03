@@ -146,6 +146,9 @@ Traffic.prototype.tryDrive = function(startPos, destination) {
 };
 
 
+// As tryGo in the original: the four directions clockwise from north, each null where there is no road or it is the
+// way back. With more than one way open, a draw picks one of the four, and a closed one gives way to the next open one
+// clockwise.
 Traffic.prototype.tryGo = function(pos, dirLast) {
   var directions = [];
 
@@ -156,6 +159,8 @@ Traffic.prototype.tryGo = function(pos, dirLast) {
     if (dir != dirLast && TileUtils.isDriveable(this._map.getTileFromMapOrDefault(pos, dir, DIRT))) {
       directions.push(dir);
       count++;
+    } else {
+      directions.push(null);
     }
   });
 
@@ -164,11 +169,15 @@ Traffic.prototype.tryGo = function(pos, dirLast) {
   }
 
   if (count === 1) {
-    return directions[0];
+    return directions.find((dir) => dir !== null);
   }
 
-  const index = this._random.getRandom(directions.length - 1);
-  return directions[index];
+  var i = this._random.getRandom16() & 3;
+  while (directions[i] === null) {
+    i = (i + 1) & 3;
+  }
+
+  return directions[i];
 };
 
 

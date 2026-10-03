@@ -131,17 +131,24 @@ describe("traffic", () => {
             return map;
         }
 
-        // At the junction the open roads are east, then south, in clockwise order from north
-        it("should reach the destination when it picks the road leading there", () => {
-            const traffic = new Traffic(makeJunctionMap(), null, streamDrawing([0]));
+        // At the junction, arriving from the west, the open roads are east and south. As tryGo in the original, the
+        // draw's low two bits pick one of the four directions clockwise from north, 0 to 3, and a closed one gives way
+        // to the next open one clockwise.
+        it.each([
+            ["east", 1],
+            ["north, closed, giving way to east", 0],
+            ["west, the way back, giving way through north to east", 3],
+            ["east, from the draw's low bits alone", 0x100 | 1],
+        ])("should reach the destination when the draw picks %s", (_, draw) => {
+            const traffic = new Traffic(makeJunctionMap(), null, streamDrawing([draw]));
 
             const result = traffic.makeTraffic(ZONE_X, ZONE_Y, makeBlockMaps(), Results.COMMERCIAL);
 
             expect(result).toBe(Results.ROUTE_FOUND);
         });
 
-        it("should give up when it picks the dead end", () => {
-            const traffic = new Traffic(makeJunctionMap(), null, streamDrawing([1]));
+        it("should give up when the draw picks the dead end to the south", () => {
+            const traffic = new Traffic(makeJunctionMap(), null, streamDrawing([2]));
 
             const result = traffic.makeTraffic(ZONE_X, ZONE_Y, makeBlockMaps(), Results.COMMERCIAL);
 

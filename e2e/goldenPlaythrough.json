@@ -1,13 +1,13 @@
 {
   "checkpoints": [
     {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"96a4b76ad4670eee2c1ce9e573fbdaf3ce87a63802f7c0f2a05359078737b63e"},
-    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"342c5c76e3710c20a313a24bbcf3279773ab84f9dc8353eae0f4a181e89faada"},
-    {"stage":"Build while paused","step":5760,"commands":17,"hash":"855b500ec8d08085997355b410e0ee4722e37b62fcc77a8338bfb60d3eea2808"},
-    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"652c98cdcbb78409fd3756c33656d372fcf8b95dad1a12eaa2435f36433fbcef"},
-    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"7cbb877b2fcdbd00e727872d0fa495ee183de9430f2e48da9b63990202d6e19a"},
-    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"cf7e733c6ed0f341118c3788638b09f16eff6b3dd19bc062ad68ee949beb355f"},
-    {"stage":"A fire, and the fire department's response","step":9888,"commands":29,"hash":"e1df5dbfd5e86d60bbd2aa4063829f55b0ddb5ed559877206e0d60f62a1b4907"},
-    {"stage":"Save, reload, and carry on","step":11040,"commands":29,"hash":"3174aedbfc1e8c570bed9f3c38fbcb8b758345b50eb532cc5f53891a52d5e288"}
+    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"356e3b2adbe0f0df508b183085994049c23cb94e7bc4c169aaf92236324702c9"},
+    {"stage":"Build while paused","step":5760,"commands":17,"hash":"04c0055ab4ef985218a55fb4968f00847d138a8708a19ff0f6d5ec18b654afef"},
+    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"21f596aacfad92139639cb9a54a508e0f6167429bdab5393ab3b6db2b15f5fd7"},
+    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"c7047503eee651d1702fd0956581a3a421131b21fa71d9adf07c8be35c7396b8"},
+    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"3c28de69f06b0454a0951e7f4e84df28dd489b82dd17e084e9670db866f058fc"},
+    {"stage":"A fire, and the fire department's response","step":9648,"commands":29,"hash":"a78fa5b71fae8559f5110527ffbd0dd5e1a073a45f2b3dcb67b2d7f9cfa80a8a"},
+    {"stage":"Save, reload, and carry on","step":10800,"commands":29,"hash":"5ca94d1c1cbee1e771bbd13b69f5b87d42d0c835b0820cfef9a0720fabd295b4"}
   ],
   "log": {
     "formatVersion": 1,
@@ -46,10 +46,10 @@
     ],
     "checkpoints": [
       {"step":0,"hash":"c8d63c5e8fd94165461a609bbed78358750ec2f55d396dab521ab34b830d6614"},
-      {"step":3600,"hash":"3fa31e63ff9520e20d319284f8d0bc583cf7ccdc88fc7529bfe0b9bd074b6bcd"},
-      {"step":7200,"hash":"eda6fd5bab2b58d4ad2ed42a7f1dd7c5d28a305ee3d9f5898312b07a12fe80f7"},
-      {"step":9888,"hash":"e1df5dbfd5e86d60bbd2aa4063829f55b0ddb5ed559877206e0d60f62a1b4907"},
-      {"step":11040,"hash":"3174aedbfc1e8c570bed9f3c38fbcb8b758345b50eb532cc5f53891a52d5e288"}
+      {"step":3600,"hash":"3cc792239e1f1299c52dc45fbb3853d2714cdac30e2e09a030756b420b9731d5"},
+      {"step":7200,"hash":"7d96c0b10d45367c6dfbad63104ced534de8a59be4fc513326e89c69ac95b37a"},
+      {"step":9648,"hash":"a78fa5b71fae8559f5110527ffbd0dd5e1a073a45f2b3dcb67b2d7f9cfa80a8a"},
+      {"step":10800,"hash":"5ca94d1c1cbee1e771bbd13b69f5b87d42d0c835b0820cfef9a0720fabd295b4"}
     ]
   }
 }

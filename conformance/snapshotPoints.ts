@@ -230,7 +230,7 @@ function infrastructurePoints(): SnapshotPoint[] {
     scanOf(BRIDGE_STRIP, 3, "road", "a drawbridge opening", drawbridgeOpened),
     scanOf(BRIDGE_STRIP, 1, "road", "a drawbridge closing", (record) => tileChanged(record, is(BRWH), is(HBRIDGE))),
     scanOf(BRIDGE_STRIP, 49, "road", "a road wearing away", (record) => tileChanged(record, isRoad, isRubble)),
-    scanOf(BRIDGE_STRIP, 132, "road", "a bridge wearing away to water",
+    scanOf(BRIDGE_STRIP, 119, "road", "a bridge wearing away to water",
            (record) => tileChanged(record, isBridge, is(RIVER)) && !drawbridgeOpened(record)),
     scanOf(STADIUM_STRIP, 17, "stadia", "a stadium's game starting",
            (record) => tileChanged(record, is(STADIUM), is(FULLSTADIUM))),
@@ -464,7 +464,7 @@ function cityRulesPoints(): SnapshotPoint[] {
     atCityTime("suburb", "evaluation.cityEvaluation", 144, {
       branch: "a new class", test: (record) => eventNames(record).includes(CLASSIFICATION_UPDATED),
     }),
-    atCityTime("disasters", "evaluation.cityEvaluation", 192, {
+    atCityTime("suburb", "evaluation.cityEvaluation", 192, {
       branch: "a shrinking population",
       test: (record) => stateAfter<CityRulesState>(record).evaluation.cityPopDelta < 0,
     }),
@@ -481,7 +481,7 @@ function cityRulesPoints(): SnapshotPoint[] {
     adviceAt("suburb", 26, null),
     adviceAt("suburbBroke", 118, ROAD_NEEDS_FUNDING),
     adviceAt("suburbBroke", 185, FIRE_STATION_NEEDS_FUNDING),
-    adviceAt("suburbBroke", 124, POLICE_NEEDS_FUNDING),
+    adviceAt("suburbBroke", 188, POLICE_NEEDS_FUNDING),
     adviceAt("suburbBroke", 298, HIGH_CRIME),
 
     // The status of a city whose roads lack funding
