@@ -189,6 +189,23 @@ var statusPanel = {
   residentialCapTitle: 'Residential demand can\'t rise above zero until the city has a stadium'
 };
 
+// Map overlay strings: the picker, and each layer's name and the words for its low and high ends
+var overlays = {
+  label: 'Map overlay',
+  none: 'None',
+  layers: {
+    landValue: {name: 'Land value', low: 'Low', high: 'High'},
+    pollution: {name: 'Pollution', low: 'None', high: 'Heavy'},
+    crime: {name: 'Crime', low: 'None', high: 'High'},
+    trafficDensity: {name: 'Traffic', low: 'None', high: 'Jammed'},
+    populationDensity: {name: 'Population density', low: 'Empty', high: 'Dense'},
+    policeCoverage: {name: 'Police coverage', low: 'None', high: 'Full'},
+    fireCoverage: {name: 'Fire coverage', low: 'None', high: 'Full'},
+    rateOfGrowth: {name: 'Rate of growth', low: 'Declining', high: 'Growing'},
+    powerGrid: {name: 'Power grid', low: 'Unpowered', high: 'Powered'}
+  }
+};
+
 var Text = {
   badMessages: badMessages,
   cityClass: cityClass,
@@ -200,6 +217,7 @@ var Text = {
   messageText: messageText,
   months: months,
   neutralMessages: neutralMessages,
+  overlays: overlays,
   problems: problems,
   pollutionStrings: pollutionStrings,
   rateStrings: rateStrings,

@@ -29,6 +29,7 @@ import { InputStatus } from './inputStatus.js';
 import * as Messages from './messages.ts';
 import { MonsterTV } from './monsterTV.js';
 import { Notification } from './notification.js';
+import { OverlayPicker, pageOverlaySource } from './overlayPicker.ts';
 import { QueryWindow } from './queryWindow.js';
 import { RCI } from './rci.js';
 import { SaveWindow } from './saveWindow.js';
@@ -66,6 +67,8 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   this.gameCanvas = new GameCanvas('canvasContainer');
   this.gameCanvas.init(this.gameMap, this.tileSet, spriteSheet);
   this.inputStatus = new InputStatus(this.gameMap, tileSet.tileWidth);
+
+  this.overlayPicker = new OverlayPicker('overlayPanel', pageOverlaySource(this.simulation), this.gameCanvas);
 
   this.mouse = null;
   this.lastCoord = null;

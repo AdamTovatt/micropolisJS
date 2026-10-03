@@ -12,6 +12,7 @@
  */
 
 import type { CityStatus } from "./cityStatus";
+import { appendElement } from "./domElements";
 import { CITY_STATUS_UPDATED } from "./messages";
 import { Text } from "./text.js";
 
@@ -117,13 +118,4 @@ export class StatusPanel {
       return item;
     }));
   }
-}
-
-function appendElement(parent: HTMLElement, tagName: string, className?: string): HTMLElement {
-  const element = document.createElement(tagName);
-  if (className !== undefined) {
-    element.className = className;
-  }
-  parent.appendChild(element);
-  return element;
 }
