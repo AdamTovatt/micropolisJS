@@ -24,6 +24,9 @@ const HEIGHT = 100;
 const COAL_POWER_STRENGTH = 700;
 const NUCLEAR_POWER_STRENGTH = 2000;
 
+type GameMapInstance = InstanceType<typeof GameMap>;
+type PowerManagerInstance = InstanceType<typeof PowerManager>;
+
 interface Plant {
     x: number;
     y: number;
@@ -45,7 +48,8 @@ interface OriginalResult {
 // The original's power scan, which stops the walk at the first step past maxPower (doPowerScan in the C++
 // engine's power.cpp), as this port transcribed it, with `this` made explicit. It is the oracle the scan's
 // powered tiles are pinned against.
-function originalPowerScan(map: any, stack: Position[], coalPowerPop: number, nuclearPowerPop: number): OriginalResult {
+function originalPowerScan(map: GameMapInstance, stack: Position[], coalPowerPop: number,
+                           nuclearPowerPop: number): OriginalResult {
     const powerGridMap = new BlockMap(map.width, map.height, 1);
 
     const testForConductive = (pos: Position, testDir: Direction) => {
@@ -134,7 +138,7 @@ function nuclearCount(fixture: Fixture) {
 
 // Scans the way the simulation does each cycle: the census and the stack are cleared, the map scan finds the
 // plants, which pushes them and counts them in the census, then the power scan runs.
-function findPlantsAndScan(manager: any, map: any, fixture: Fixture) {
+function findPlantsAndScan(manager: PowerManagerInstance, map: GameMapInstance, fixture: Fixture) {
     const simData = {census: {coalPowerPop: 0, nuclearPowerPop: 0},
                      disasterManager: {disastersEnabled: false}, gameLevel: 0};
 
