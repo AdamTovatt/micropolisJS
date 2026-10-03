@@ -63,6 +63,19 @@ describe("the park tool", () => {
         tool.doTool(10, 10, streamDrawing([2]));
         expect(tool.result).toBe(tool.TOOLRESULT_NEEDS_BULLDOZE);
     });
+
+    // As putDownPark in the original, which compares the tile with its flags to plain dirt
+    it("should plant nothing on dirt that carries flags", () => {
+        const map = new GameMap(120, 100);
+        map.setTile(10, 10, DIRT, BULLBIT);
+        const tool = new ParkTool(map);
+
+        tool.doTool(10, 10, streamDrawing([2]));
+        tool.modifyIfEnoughFunding(budget);
+
+        expect(tool.result).toBe(tool.TOOLRESULT_NEEDS_BULLDOZE);
+        expect(map.getTile(10, 10).getRawValue()).toBe(DIRT | BULLBIT);
+    });
 });
 
 describe("the bulldozer", () => {

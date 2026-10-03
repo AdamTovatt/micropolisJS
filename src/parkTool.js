@@ -22,11 +22,11 @@ var ParkTool = makeTool(function(map) {
 
 
 // As putDownPark in the original, the tool picks what to plant before it looks at the tile, so it draws from the stream
-// even where it can't plant
+// even where it can't plant. It plants only on dirt without flags, as the original compares the tile with its flags.
 ParkTool.prototype.doTool = function(x, y, random) {
   var value = random.getRandom(4);
 
-  if (this._worldEffects.getTileValue(x, y) !== DIRT) {
+  if (this._worldEffects.getTile(x, y).getRawValue() !== DIRT) {
     this.result = this.TOOLRESULT_NEEDS_BULLDOZE;
     return;
   }
