@@ -16,7 +16,7 @@ import { stepsPerYear } from "../../src/cityTimeModel";
 import { CommandResult, LOCAL_PLAYER } from "../../src/commands";
 import { GameMap } from "../../src/gameMap.js";
 import { MapGenerator } from "../../src/mapGenerator.js";
-import { Command } from "../../src/protocol";
+import { Command, Query, QueryAnswer } from "../../src/protocol";
 import { Random } from "../../src/random";
 import { Simulation } from "../../src/simulation.js";
 import { DIRT } from "../../src/tileValues";
@@ -41,6 +41,17 @@ export function simulationFromSeed(seed: number, speed = Simulation.SPEED_MED): 
 // Applies a command as the player sends it, and returns its result
 export function applyCommand(simulation: SimulationInstance, command: Command): CommandResult {
     return (simulation.applyCommands([{player: LOCAL_PLAYER, command}]) as CommandResult[])[0];
+}
+
+// The simulation's answer to the query, which must be of the type given
+export function answerOf<T extends QueryAnswer["type"]>(simulation: SimulationInstance | HeadlessSimulation,
+                                                        query: Query, type: T): Extract<QueryAnswer, {type: T}> {
+    const answer: QueryAnswer = simulation.answerQuery(query);
+    if (answer.type !== type) {
+        throw new Error(`The ${query.type} query was answered with ${JSON.stringify(answer)}`);
+    }
+
+    return answer as Extract<QueryAnswer, {type: T}>;
 }
 
 // A city year at fast speed, the speed buildCity's city runs at

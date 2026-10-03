@@ -14,6 +14,7 @@
 import { BlockMap } from './blockMap.ts';
 import { BlockMapUtils } from './blockMapUtils.js';
 import { Budget } from './budget.js';
+import { budgetRecord } from './budgetRecord.ts';
 import { Census } from './census.js';
 import { buildCityStatus, conditionHolds } from './cityStatus.ts';
 import { cityTools } from './cityTools.ts';
@@ -152,6 +153,12 @@ Simulation.prototype.getMap = function() {
 // The city's evaluation, as the evaluation window shows it
 Simulation.prototype.evaluationRecord = function() {
   return evaluationRecord(this.evaluation, this._gameLevel);
+};
+
+
+// The budget, as the budget window shows it
+Simulation.prototype.budgetRecord = function() {
+  return budgetRecord(this.budget);
 };
 
 
@@ -321,7 +328,7 @@ Simulation.prototype.applyCommands = function(received) {
 // it changes nothing, draws nothing from the stream, and is never logged, so it may be asked at any time.
 Simulation.prototype.answerQuery = function(query) {
   return answerQuery(query, {map: this._map, blockMaps: this.blockMaps,
-                             powerGridMap: this._powerManager.powerGridMap});
+                             powerGridMap: this._powerManager.powerGridMap, budget: this.budget});
 };
 
 

@@ -18,13 +18,13 @@ import { CommandQueue } from "../src/commandQueue";
 import * as Messages from "../src/messages";
 import { startCity } from "../headless/runner";
 import {
-    OVERLAY_LAYERS, OverlayAnswer, OverlayLayer, QueryAnswer, TileReportAnswer, ZONE_CATEGORIES, ZoneCategory,
+    OVERLAY_LAYERS, OverlayAnswer, OverlayLayer, Query, QueryAnswer, TileReportAnswer, ZONE_CATEGORIES, ZoneCategory,
 } from "../src/protocol";
-import { LAYER_PHASES, queryRejection, zoneCategory } from "../src/queries";
+import { answerQuery, LAYER_PHASES, queryRejection, type QuerySources, zoneCategory } from "../src/queries";
 import { stateHash } from "../src/stateHash";
 import * as TileValues from "../src/tileValues";
 import { CityBuilder } from "./helpers/cityBuilder";
-import { buildCity, SimulationInstance, YEAR } from "./helpers/simulations";
+import { answerOf, buildCity, SimulationInstance, YEAR } from "./helpers/simulations";
 
 const MAP_SEED = 2026;
 const SIMULATION_SEED = 7;
@@ -42,12 +42,7 @@ function cityWithStations(): SimulationInstance {
 }
 
 function overlay(simulation: SimulationInstance | HeadlessSimulation, layer: OverlayLayer): OverlayAnswer {
-    const answer: QueryAnswer = simulation.answerQuery({type: "overlay", layer});
-    if (answer.type !== "overlay") {
-        throw new Error(`The ${layer} query was not answered: ${JSON.stringify(answer)}`);
-    }
-
-    return answer;
+    return answerOf(simulation, {type: "overlay", layer}, "overlay");
 }
 
 // Each layer's map, read from the simulation's internals rather than through the query
@@ -443,10 +438,129 @@ describe("a simulation answering a tile report query", () => {
     });
 });
 
+describe("a budget forecast query", () => {
+
+    it.each([
+        ["no service", {type: "budgetForecast"}],
+        ["every service", {type: "budgetForecast", road: 0, fire: 55, police: 100}],
+        ["one service", {police: 30, type: "budgetForecast"}],
+    ])("is valid naming %s", (_, query) => {
+        expect(queryRejection(query, WIDTH, HEIGHT)).toBeNull();
+    });
+
+    it("is rejected with a field it doesn't have", () => {
+        expect(queryRejection({type: "budgetForecast", road: 50, tax: 7}, WIDTH, HEIGHT))
+            .toBe("the budgetForecast query has exactly the fields type, and may have fire, police, road");
+    });
+
+    it.each([
+        ["above 100", {type: "budgetForecast", fire: 101}, "fire"],
+        ["below 0", {type: "budgetForecast", road: -1}, "road"],
+        ["with a fraction", {type: "budgetForecast", police: 50.5}, "police"],
+        ["that isn't a number", {type: "budgetForecast", road: "50"}, "road"],
+        ["that is null", {type: "budgetForecast", fire: null}, "fire"],
+    ])("is rejected with funding %s", (_, query, service) => {
+        expect(queryRejection(query, WIDTH, HEIGHT)).toBe(`${service} funding is a whole percent from 0 to 100`);
+    });
+});
+
+describe("a simulation answering a budget forecast query", () => {
+
+    // A city a year old, which has collected taxes and has maintenance to pay
+    let city: SimulationInstance;
+
+    beforeAll(() => {
+        city = cityWithStations();
+        for (let i = 0; i < YEAR; i++) {
+            city.step();
+        }
+    });
+
+    function forecast(query: Omit<Extract<Query, {type: "budgetForecast"}>, "type">) {
+        return answerOf(city, {type: "budgetForecast", ...query}, "budgetForecast");
+    }
+
+    it("has taxes and maintenance to forecast", () => {
+        const maintenance = city.budget.maintenance();
+
+        expect(city.budget.taxFund).toBeGreaterThan(0);
+        expect([maintenance.road, maintenance.fire, maintenance.police].every((cost: number) => cost > 0)).toBe(true);
+    });
+
+    it.each([
+        ["no service, at the funding each has", {}],
+        ["services at whole percents, and the others at the funding they have", {road: 40, police: 0}],
+        ["every service", {road: 100, fire: 55, police: 7}],
+    ])("answers %s as the budget forecasts it", (_, query) => {
+        const expected = city.budget.forecast(query);
+
+        expect(forecast(query)).toEqual({
+            type: "budgetForecast", budget: city.budgetRecord(), costs: expected.wanted,
+            fundsChange: expected.fundsChange, fundsAfterYear: expected.fundsAfterYear,
+        });
+    });
+
+    it("answers with the budget now, which the forecast is worked out from", () => {
+        const budget = city.budget;
+        const answer = forecast({fire: 20});
+
+        expect(answer.budget).toEqual({
+            type: "budget", taxRate: budget.cityTax, taxesCollected: budget.taxFund, funds: budget.totalFunds,
+            maintenance: budget.maintenance(), funding: budget.percents(),
+        });
+        expect(answer.fundsAfterYear).toBe(answer.budget.funds + answer.fundsChange);
+    });
+
+    it("answers with the costs at the percents given, and the funds the year end would leave", () => {
+        const maintenance = city.budget.maintenance();
+        const answer = forecast({road: 50, fire: 0, police: 100});
+
+        expect(answer.costs).toEqual({road: Math.floor(maintenance.road / 2), fire: 0, police: maintenance.police});
+        expect(answer.fundsChange).toBe(city.budget.taxFund - (answer.costs.road + answer.costs.police));
+        expect(answer.fundsAfterYear).toBe(city.budget.totalFunds + answer.fundsChange);
+    });
+
+    it("changes nothing in the city", async () => {
+        const before = await stateHash(city);
+        const percents = city.budget.percents();
+
+        forecast({road: 3, fire: 4, police: 5});
+
+        expect(await stateHash(city)).toBe(before);
+        expect(city.budget.percents()).toEqual(percents);
+    });
+
+    // budget.js builds a new forecast on each call, so a budget that hands out the same objects each time shows
+    // whether the answer copies them
+    it("answers with a copy, so changing the answer changes nothing in the budget", () => {
+        const forecastYear = {wanted: {road: 54, fire: 140, police: 150}, fundsChange: -158, fundsAfterYear: 4545};
+        const sources = {
+            map: {width: WIDTH, height: HEIGHT},
+            budget: {
+                cityTax: 7, taxFund: 186, totalFunds: 4703, maintenance: () => ({road: 108, fire: 300, police: 200}),
+                percents: () => ({road: 0.5, fire: 1, police: 0.75}), forecast: () => forecastYear,
+            },
+        } as unknown as QuerySources;
+
+        const answer = answerQuery({type: "budgetForecast", road: 50}, sources);
+        if (answer.type !== "budgetForecast") {
+            throw new Error(`The forecast was answered with ${JSON.stringify(answer)}`);
+        }
+        answer.costs.road = 99;
+
+        expect(forecastYear.wanted).toEqual({road: 54, fire: 140, police: 150});
+    });
+
+    it("answers a query it rejects with the reason", () => {
+        expect(city.answerQuery({type: "budgetForecast", road: 120}))
+            .toEqual({type: "rejected", reason: "road funding is a whole percent from 0 to 100"});
+    });
+});
+
 describe("a replay with queries interleaved", () => {
 
-    // Replays a log as headless/runner.ts does, through a command queue, but asks every overlay and a few tile
-    // reports, and a few queries the simulation rejects, before each command, after it, and before each step. Returns
+    // Replays a log as headless/runner.ts does, through a command queue, but asks every overlay, a few tile reports
+    // and budget forecasts, and a few queries the simulation rejects, before each command, after it, and before each step. Returns
     // the state hash at each of the log's checkpoints, and how many queries of each type were answered.
     function replayAsking(log: CommandLog): {hashes: Promise<string[]>, answered: Record<string, number>} {
         if (!("seed" in log)) {
@@ -458,8 +572,10 @@ describe("a replay with queries interleaved", () => {
             ...OVERLAY_LAYERS.map((layer) => ({type: "overlay", layer})), {type: "overlay"}, {type: "weather"}, null,
             {type: "tileReport", x: 0, y: 0}, {type: "tileReport", x: 27, y: 13},
             {type: "tileReport", x: WIDTH - 1, y: HEIGHT - 1}, {type: "tileReport", x: WIDTH, y: 0},
+            {type: "budgetForecast"}, {type: "budgetForecast", road: 40, fire: 0, police: 100},
+            {type: "budgetForecast", road: 101},
         ];
-        const answered: Record<string, number> = {overlay: 0, tileReport: 0, rejected: 0};
+        const answered: Record<string, number> = {overlay: 0, tileReport: 0, budgetForecast: 0, rejected: 0};
         const askAll = () => {
             for (const query of queries) {
                 answered[city.answerQuery(query).type]++;
@@ -504,7 +620,8 @@ describe("a replay with queries interleaved", () => {
         const steps = log.checkpoints[log.checkpoints.length - 1].step;
         expect(answered.overlay).toBeGreaterThan(steps * OVERLAY_LAYERS.length);
         expect(answered.tileReport).toBeGreaterThan(steps * 3);
-        expect(answered.rejected).toBeGreaterThan(steps * 4);
+        expect(answered.budgetForecast).toBeGreaterThan(steps * 2);
+        expect(answered.rejected).toBeGreaterThan(steps * 5);
         expect(await hashes).toEqual(log.checkpoints.map((checkpoint) => checkpoint.hash));
     });
 });

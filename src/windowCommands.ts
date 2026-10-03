@@ -13,8 +13,7 @@
 
 import { CommandResult, LOCAL_PLAYER, Outcome } from "./commands";
 import { isRecord } from "./validation";
-import { Command } from "./protocol";
-import { ServiceAmounts } from "./serviceFunding";
+import { Command, ServiceAmounts } from "./protocol";
 
 // The commands the player's choices in the game's windows send, and what the game shows of their results
 
