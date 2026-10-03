@@ -17,6 +17,8 @@ module.exports = {
   testMatch: ["**/test/*.ts", "**/test/**/*.ts"],
   // Shared test code, imported by the suites
   testPathIgnorePatterns: ["/node_modules/", "/test/helpers/"],
+  // Several suites replay cities for a few seconds each, past the five-second default on a loaded machine
+  testTimeout: 30000,
   // The legacy JavaScript modules are ES modules too, so ts-jest compiles both (tsconfig's allowJs).
   transform: {
     "^.+\\.[jt]s$": "ts-jest"

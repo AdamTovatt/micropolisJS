@@ -33,16 +33,13 @@ function goldenRun(): GoldenRun {
 
 const golden = goldenRun();
 
-// Each replay takes about two seconds alone, and past Jest's five-second default on a loaded machine
-const REPLAY_TIMEOUT_MS = 30000;
-
 describe("the playthrough's command log, replayed headless", () => {
 
     it("reaches every checkpoint the game took", async () => {
         expect(golden.log.checkpoints.length).toBeGreaterThan(0);
 
         await expect(replay(golden.log).verified).resolves.toBe(golden.log.checkpoints.length);
-    }, REPLAY_TIMEOUT_MS);
+    });
 
     // In one pass, stage after stage: each is replayed at its step and commands (StageCheckpoint), from the city the
     // stage before it reached, saved and loaded, as a load is transparent
@@ -67,5 +64,5 @@ describe("the playthrough's command log, replayed headless", () => {
             start = {save: plainSavedState(city)};
             reached = {step, commands};
         }
-    }, REPLAY_TIMEOUT_MS);
+    });
 });

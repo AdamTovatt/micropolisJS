@@ -108,11 +108,24 @@ describe("a unit called on a copy of the city", () => {
 
 describe("the fixtures every unit's first calls are recorded from", () => {
 
-    it("are those of the kind snapshots", () => {
-        const swept = SNAPSHOT_POINTS.filter((point) => point.unit === "mapScanner.mapScan" && point.handlers === "each")
-            .map((point) => point.fixture);
+    // The fixtures whose map scan's first sweep the points record: each "each" point of the map scan that takes its
+    // call by count, not by where
+    function swept(points: SnapshotPoint[]): string[] {
+        return Array.from(new Set(points.filter((point) => point.unit === "mapScanner.mapScan" &&
+                                                           point.handlers === "each" && point.where === undefined)
+            .map((point) => point.fixture))).sort();
+    }
 
-        expect(Array.from(new Set(swept)).sort()).toEqual(fixtureNamesOf("snapshots"));
+    it("are those of the kind snapshots", () => {
+        expect(swept(SNAPSHOT_POINTS)).toEqual(fixtureNamesOf("snapshots"));
+    });
+
+    // A point for a branch, as a lane adds, that finds its map scan by where in a fixture made for the branch
+    it("are not counted from a point that finds its call by where", () => {
+        const branchPoint: SnapshotPoint = {fixture: "suburbSlow", unit: "mapScanner.mapScan", call: 0, handlers: "each",
+                                            where: () => true};
+
+        expect(swept([...SNAPSHOT_POINTS, branchPoint])).toEqual(fixtureNamesOf("snapshots"));
     });
 
     it("are sprite-free, as are those made for a branch", () => {
