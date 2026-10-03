@@ -18,8 +18,8 @@ import { SPRITE_EXPLOSION } from './spriteConstants.ts';
 import { TileUtils } from './tileUtils.js';
 import { DIRT } from "./tileValues.ts";
 
-function ExplosionSprite(map, spriteManager, x, y) {
-  this.init(SPRITE_EXPLOSION, map, spriteManager, x, y);
+function ExplosionSprite(map, spriteManager, random, x, y) {
+  this.init(SPRITE_EXPLOSION, map, spriteManager, random, x, y);
   this.width = 48;
   this.height = 48;
   this.xOffset = -24;
@@ -47,7 +47,7 @@ ExplosionSprite.prototype.startFire = function(x, y) {
   if (tile.isZone())
     return;
 
-  this.map.setTo(x, y, TileUtils.randomFire());
+  this.map.setTo(x, y, TileUtils.randomFire(this.random));
 };
 
 

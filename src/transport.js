@@ -11,7 +11,6 @@
  *
  */
 
-import { Random } from './random.ts';
 import { SPRITE_SHIP } from './spriteConstants.ts';
 import { ANIMBIT, CONDBIT, BURNBIT } from "./tileFlags.ts";
 import { TileUtils } from './tileUtils.js';
@@ -22,21 +21,21 @@ var railFound = function(map, x, y, simData) {
   simData.spriteManager.generateTrain(simData.census, x, y);
 
   if (simData.budget.shouldDegradeRoad()) {
-    if (Random.getChance(511)) {
+    if (simData.random.getChance(511)) {
       var currentTile = map.getTile(x, y);
 
       // Don't degrade tiles with power lines
       if (currentTile.isConductive())
         return;
 
-      if (simData.budget.roadEffect < (Random.getRandom16() & 31)) {
+      if (simData.budget.roadEffect < (simData.random.getRandom16() & 31)) {
         var mapValue = currentTile.getValue();
 
         // Replace bridge tiles with water, otherwise rubble
         if (mapValue < TileValues.RAILBASE + 2)
           map.setTile(x, y, TileValues.RIVER, 0);
         else
-          map.setTo(x, y, TileUtils.randomRubble());
+          map.setTo(x, y, TileUtils.randomRubble(simData.random));
       }
     }
   }
@@ -51,12 +50,12 @@ var airportFound = function(map, x, y, simData) {
     if (map.getTileValue(x + 1, y - 1) === TileValues.RADAR)
       map.setTile(x + 1, y - 1, TileValues.RADAR0, CONDBIT | ANIMBIT | BURNBIT);
 
-    if (Random.getRandom(5) === 0) {
+    if (simData.random.getRandom(5) === 0) {
       simData.spriteManager.generatePlane(x, y);
       return;
     }
 
-    if (Random.getRandom(12) === 0)
+    if (simData.random.getRandom(12) === 0)
       simData.spriteManager.generateCopter(x, y);
   } else {
       map.setTile(x + 1, y - 1, TileValues.RADAR, CONDBIT | BURNBIT);

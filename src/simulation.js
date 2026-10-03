@@ -27,6 +27,7 @@ import * as Messages from './messages.ts';
 import { MiscTiles } from './miscTiles.js';
 import { MiscUtils } from './miscUtils.js';
 import { PowerManager } from './powerManager.js';
+import { Random } from './random.ts';
 import { RepairManager } from './repairManager.js';
 import { Residential } from './residential.js';
 import { Road } from './road.js';
@@ -36,10 +37,19 @@ import { Traffic } from './traffic.js';
 import { Transport } from './transport.js';
 import { Valves } from './valves.js';
 
-var Simulation = EventEmitter(function (gameMap, gameLevel, speed, savedGame) {
+// A new game passes the game seed its map was generated from, and a null savedGame. A saved game passes a null seed:
+// the save holds the seed and the stream's state.
+var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGame) {
+  if ((seed === null) === (savedGame === null))
+    throw new Error('A simulation starts from either a seed or a saved game');
+
   this._map = gameMap;
   this.setLevel(gameLevel);
   this.setSpeed(speed);
+
+  // Every random draw that changes the city comes from this stream
+  this.seed = savedGame ? savedGame.seed : seed;
+  this.random = Random.simulationStream(this.seed);
 
   this._phaseCycle = 0;
   this._simCycle = 0;
@@ -56,16 +66,16 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, savedGame) {
   this._lastPowerMessage = null;
 
   // And now, the main cast of characters
-  this.evaluation = new Evaluation(this._gameLevel);
+  this.evaluation = new Evaluation(this._gameLevel, this.random);
   this._valves = new Valves();
   this.budget = new Budget();
   this._census = new Census();
   this._powerManager = new PowerManager(this._map);
-  this.spriteManager = new SpriteManager(this._map);
+  this.spriteManager = new SpriteManager(this._map, this.random);
   this._mapScanner = new MapScanner(this._map);
   this._repairManager = new RepairManager(this._map);
-  this._traffic = new Traffic(this._map, this.spriteManager);
-  this.disasterManager = new DisasterManager(this._map, this.spriteManager, this._gameLevel);
+  this._traffic = new Traffic(this._map, this.spriteManager, this.random);
+  this.disasterManager = new DisasterManager(this._map, this.spriteManager, this._gameLevel, this.random);
 
   this.blockMaps = {
     // Holds a "distance score" for the block from the city centre, range  -64 to 64
@@ -120,6 +130,10 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, savedGame) {
   }
 
   this.init();
+
+  // init's scans draw from the stream: a saved game continues from the state it was saved with
+  if (savedGame)
+    this.random.setState(savedGame.randomState);
 });
 
 
@@ -155,6 +169,9 @@ Simulation.prototype.save = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
     saveData[saveProps[i]] = this[saveProps[i]];
 
+  saveData.seed = this.seed;
+  saveData.randomState = this.random.getState();
+
   this._map.save(saveData);
   this.evaluation.save(saveData);
   this._valves.save(saveData);
@@ -166,6 +183,9 @@ Simulation.prototype.save = function(saveData) {
 Simulation.prototype.load = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
     this[saveProps[i]] = saveData[saveProps[i]];
+
+  this.seed = saveData.seed;
+  this.random.setState(saveData.randomState);
 
   this._map.load(saveData);
   this.evaluation.load(saveData);
@@ -237,6 +257,7 @@ Simulation.prototype._constructSimData = function() {
     gameLevel: this._gameLevel,
     repairManager: this._repairManager,
     powerManager: this._powerManager,
+    random: this.random,
     simulator: this,
     spriteManager: this.spriteManager,
     trafficManager: this._traffic,
@@ -293,7 +314,7 @@ Simulation.prototype.init = function() {
   var simData = this._constructSimData();
   this._mapScanner.mapScan(0, this._map.width, simData);
   this._powerManager.doPowerScan(this._census);
-  BlockMapUtils.pollutionTerrainLandValueScan(this._map, this._census, this.blockMaps);
+  BlockMapUtils.pollutionTerrainLandValueScan(this._map, this._census, this.blockMaps, this.random);
   BlockMapUtils.crimeScan(this._census, this.blockMaps);
   BlockMapUtils.populationDensityScan(this._map, this.blockMaps);
   BlockMapUtils.fireAnalysis(this.blockMaps);
@@ -368,7 +389,7 @@ var simulate = function(simData) {
 
     case 12:
       if ((this._simCycle % speedPollutionTerrainLandValueScan[speedIndex]) === 0)
-        BlockMapUtils.pollutionTerrainLandValueScan(this._map, this._census, this.blockMaps);
+        BlockMapUtils.pollutionTerrainLandValueScan(this._map, this._census, this.blockMaps, this.random);
       break;
 
     case 13:

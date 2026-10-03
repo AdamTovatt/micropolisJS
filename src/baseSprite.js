@@ -13,10 +13,11 @@
 
 import { EventEmitter } from './eventEmitter.js';
 
-var init = function(type, map, spriteManager, x, y) {
+var init = function(type, map, spriteManager, random, x, y) {
   this.type = type;
   this.map = map;
   this.spriteManager = spriteManager;
+  this.random = random;
 
   var pixX = x;
   var pixY = y;

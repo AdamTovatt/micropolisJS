@@ -15,6 +15,7 @@ import { ANIMBIT, BIT_MASK, POWERBIT, ZONEBIT } from './tileFlags.ts';
 import { TileHistory } from './tileHistory.js';
 import { LASTTINYEXP, LIGHTNINGBOLT, TILE_COUNT, TILE_INVALID } from "./tileValues.ts";
 import { TileUtils } from './tileUtils.js';
+import { UiRandom } from './uiRandom.ts';
 
 
 function AnimationManager(map, animationPeriod, blinkPeriod) {
@@ -128,7 +129,7 @@ AnimationManager.prototype.getTiles = function(tileValues, offsetX, offsetY, xBo
           // end of the animation. We would otherwise have to wait on MapScan running and picking up the explosion
           // tile, which may not happen for several frames
           if (last === LASTTINYEXP) {
-            this._map.setTo(mapX, mapY, TileUtils.randomRubble());
+            this._map.setTo(mapX, mapY, TileUtils.randomRubble(UiRandom.stream));
             newTile = this._map.getTileValue(mapX, mapY);
           } else {
             newTile = this._data[last];

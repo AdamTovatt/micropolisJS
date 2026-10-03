@@ -14,20 +14,19 @@
 import { BaseSprite } from './baseSprite.js';
 import { HEAVY_TRAFFIC, HELICOPTER_CRASHED, SOUND_HEAVY_TRAFFIC } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { Random } from './random.ts';
 import { SPRITE_HELICOPTER, SPRITE_MONSTER, SPRITE_TORNADO } from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
 
-function CopterSprite(map, spriteManager, x, y) {
-  this.init(SPRITE_HELICOPTER, map, spriteManager, x, y);
+function CopterSprite(map, spriteManager, random, x, y) {
+  this.init(SPRITE_HELICOPTER, map, spriteManager, random, x, y);
   this.width = 32;
   this.height = 32;
   this.xOffset = -16;
   this.yOffset = -16;
   this.frame = 5;
   this.count = 1500;
-  this.destX = Random.getRandom(SpriteUtils.worldToPix(map.width)) + 8;
-  this.destY = Random.getRandom(SpriteUtils.worldToPix(map.height)) + 8;
+  this.destX = this.random.getRandom(SpriteUtils.worldToPix(map.width)) + 8;
+  this.destY = this.random.getRandom(SpriteUtils.worldToPix(map.height)) + 8;
   this.origX = x;
   this.origY = y;
 }
@@ -79,7 +78,7 @@ CopterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) 
       var y = this.worldY;
 
       if (x >= 0 && x < this.map.width && y >= 0 && y < this.map.height) {
-        if (blockMaps.trafficDensityMap.worldGet(x, y) > 170 && (Random.getRandom16() & 7) === 0) {
+        if (blockMaps.trafficDensityMap.worldGet(x, y) > 170 && (this.random.getRandom16() & 7) === 0) {
           this._emitEvent(HEAVY_TRAFFIC, {x: x, y: y});
           this._emitEvent(SOUND_HEAVY_TRAFFIC);
           this.soundCount = 200;

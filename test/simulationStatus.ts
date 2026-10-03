@@ -19,13 +19,14 @@ import { CONDBIT } from "../src/tileFlags";
 import { POWERPLANT } from "../src/tileValues";
 
 const PHASES_PER_CYCLE = 16;
+const SEED = 1;
 
 // An empty map with one coal plant tile, which the map scan finds and counts.
 function cityWithAPlant() {
     const map = new GameMap(120, 100);
     map.setTile(60, 50, POWERPLANT, CONDBIT);
 
-    const simulation = new Simulation(map, Simulation.LEVEL_EASY, Simulation.SPEED_MED);
+    const simulation = new Simulation(map, Simulation.LEVEL_EASY, Simulation.SPEED_MED, SEED, null);
     const records: CityStatus[] = [];
     const messages: Array<{cycle: number, subject: string}> = [];
     let cycle = 0;

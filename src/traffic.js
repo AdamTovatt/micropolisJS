@@ -14,16 +14,16 @@
 import { forEachCardinalDirection } from './direction.ts';
 import { MiscUtils } from './miscUtils.js';
 import { Position } from './position.ts';
-import { Random } from './random.ts';
 import { SPRITE_HELICOPTER } from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
 import { TileUtils } from './tileUtils.js';
 import { DIRT, POWERBASE, ROADBASE } from "./tileValues.ts";
 
-function Traffic(map, spriteManager) {
+function Traffic(map, spriteManager, random) {
   this._map = map;
   this._stack = [];
   this._spriteManager = spriteManager;
+  this._random = random;
 }
 
 
@@ -65,7 +65,7 @@ Traffic.prototype.addToTrafficDensityMap = function(blockMaps) {
       trafficDensityMap.worldSet(pos.x, pos.y, traffic);
 
       // Attract traffic copter to the traffic
-      if (traffic >= 240 && Random.getRandom(5) === 0) {
+      if (traffic >= 240 && this._random.getRandom(5) === 0) {
         var sprite = this._spriteManager.getSprite(SPRITE_HELICOPTER);
         if (sprite !== null) {
           sprite.destX = SpriteUtils.worldToPix(pos.x);
@@ -149,7 +149,7 @@ Traffic.prototype.tryGo = function(pos, dirLast) {
     return directions[0];
   }
 
-  const index = Random.getRandom(directions.length - 1);
+  const index = this._random.getRandom(directions.length - 1);
   return directions[index];
 };
 

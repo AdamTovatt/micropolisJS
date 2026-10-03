@@ -78,13 +78,14 @@ How often phases 11–15 run depends on the game speed (`speedPowerScan` and its
 
 ### Tile handlers
 
-Subsystems register handlers with `mapScanner.addAction(tileValueOrPredicate, handler)` from `registerHandlers`, all called in `Simulation.init`. During phases 1–8 the scanner calls the handler for every matching tile with `(map, x, y, simData)`; `simData` (from `_constructSimData`) carries the census, budget, block maps, sprite manager and the other managers.
+Subsystems register handlers with `mapScanner.addAction(tileValueOrPredicate, handler)` from `registerHandlers`, all called in `Simulation.init`. During phases 1–8 the scanner calls the handler for every matching tile with `(map, x, y, simData)`; `simData` (from `_constructSimData`) carries the census, budget, block maps, the random stream, the sprite manager and the other managers.
 
 ### State
 
 - `gameMap.js` holds the tile grid. `tile.ts` is a tile's value plus flags (`tileFlags.ts`: powered, conductive, burnable, bulldozable, zone centre…). `tileValues.ts` names every tile id (`RIVER`, `CHANNEL`, `PORT`…).
 - `simulation.blockMaps` holds coarse overlays at block sizes 2, 4 or 8 (`blockMap.ts`): land value, pollution, crime, traffic density, population density, police and fire coverage, rate of growth. Each map's comment in the `Simulation` constructor states its range.
-- Every stateful component has `save(saveData)` and `load(saveData)`. `storage.js` writes the combined object, versions it (`Storage.CURRENT_VERSION`) and migrates old saves (`transitionOldSave`). A change to saved state bumps the version and adds a migration step.
+- `simulation.random` is the simulation's random stream (`random.ts`), seeded from the game seed. The map generator draws from the same seed's map stream, so one seed reproduces map and city. The `random.ts` header specifies the stream, which the C# port reproduces bit for bit, and `test/random.ts` holds reference vectors computed by the reference C implementation.
+- Every stateful component has `save(saveData)` and `load(saveData)`. A save holds the game seed and the stream's state. `storage.js` writes the combined object, versions it (`Storage.CURRENT_VERSION`) and migrates old saves (`transitionOldSave`). A change to saved state bumps the version and adds a migration step.
 
 ### Events
 
@@ -102,7 +103,7 @@ A condition that holds over time (power load against capacity, a demand cap, an 
 
 ## Rules for simulation code
 
-- **Deterministic.** Randomness comes only from `random.ts`; time comes only from the simulation's own counters (`_cityTime`, `_simCycle`, `_phaseCycle`). A `Math.random`, `Date` or `performance.now` read inside simulation code is a defect to fix, not a pattern to copy. UI code never draws from the simulation's random stream.
+- **Deterministic.** Randomness comes only from `random.ts`; time comes only from the simulation's own counters (`_cityTime`, `_simCycle`, `_phaseCycle`). A `Math.random`, `Date` or `performance.now` read inside simulation code is a defect to fix, not a pattern to copy. Only what changes city state draws from the simulation's stream, tools and disasters included; the UI's own randomness, such as picking a new seed, comes from `uiRandom.ts`.
 - **No DOM.** No `window`, `document` or jQuery in simulation modules.
 - **Portable arithmetic.** No transcendental `Math` functions (`sqrt`, `pow`, `sin`, `log`…) in simulation code: their results can differ between runtimes. Arithmetic, `Math.floor` and `Math.round` are fine, provided the C# port mirrors JavaScript's `Math.round`, where halves round toward +∞ rather than to even.
 - **Rule changes are deliberate.** The original's numbers are tuned against each other. A change to how the city behaves is named as such in its commit, never folded into a refactor.

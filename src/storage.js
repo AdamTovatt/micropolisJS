@@ -12,6 +12,8 @@
  */
 
 import { MiscUtils } from './miscUtils.js';
+import { Random } from './random.ts';
+import { UiRandom } from './uiRandom.ts';
 
 // A very thin wrapper around localStorage, in case we wish to move to some other storage mechanism
 // (such as indexedDB) in the future
@@ -53,6 +55,12 @@ var transitionOldSave = function(savedGame) {
       savedGame.cityCentreX = Math.floor(savedGame.width / 2);
       savedGame.cityCentreY = Math.floor(savedGame.height / 2);
 
+      /* falls through */
+    case 3:
+      // Saves before the seeded stream have no seed: the city continues from a fresh one
+      savedGame.seed = UiRandom.newSeed();
+      savedGame.randomState = Random.simulationStream(savedGame.seed).getState();
+
       break;
 
     default:
@@ -68,7 +76,7 @@ var Storage = {
 };
 
 
-Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(3));
+Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(4));
 Object.defineProperty(Storage, 'KEY', MiscUtils.makeConstantDescriptor('micropolisJSGame'));
 Object.defineProperty(Storage, 'canStore', MiscUtils.makeConstantDescriptor(window.localStorage !== undefined));
 

@@ -29,7 +29,6 @@ import { MonsterTV } from './monsterTV.js';
 import { NagWindow } from './nagWindow.js';
 import { Notification } from './notification.js';
 import { QueryWindow } from './queryWindow.js';
-import { Random } from './random.ts';
 import { RCI } from './rci.js';
 import { SaveWindow } from './saveWindow.js';
 import { ScreenshotLinkWindow } from './screenshotLinkWindow.js';
@@ -40,11 +39,14 @@ import { StatusPanel } from './statusPanel.ts';
 import { Storage } from './storage.js';
 import { Text } from './text.js';
 import { TouchWarnWindow } from './touchWarnWindow.js';
+import { UiRandom } from './uiRandom.ts';
 
 var disasterTimeout = 20 * 1000;
 
 
-function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
+// gameMap is either a generated map, with seed the game seed it was generated from, or a saved game, with a null
+// seed: the save holds its own
+function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   difficulty = difficulty || 0;
   var savedGame;
 
@@ -59,7 +61,7 @@ function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
   this.defaultSpeed = Simulation.SPEED_MED;
-  this.simulation = new Simulation(this.gameMap, difficulty, this.defaultSpeed, savedGame);
+  this.simulation = new Simulation(this.gameMap, difficulty, this.defaultSpeed, seed, savedGame);
 
   this.name = name || 'MyTown';
   this.everClicked = false;
@@ -289,7 +291,7 @@ var genericDialogClosure = function() {
 
 
 Game.prototype.onDateChange = function(date) {
-  if (date.month === 10 && Random.getChance(10))
+  if (date.month === 10 && UiRandom.stream.getChance(10))
     this.gameCanvas.changeTileSet(this.snowTileSet);
   else if (date.month === 1)
     this.gameCanvas.changeTileSet(this.tileSet);
@@ -463,7 +465,7 @@ Game.prototype.handleTool = function(data) {
   var budget = this.simulation.budget;
 
   // do it!
-  tool.doTool(tileCoords.x, tileCoords.y, this.simulation.blockMaps);
+  tool.doTool(tileCoords.x, tileCoords.y, this.simulation.blockMaps, this.simulation.random);
 
   tool.modifyIfEnoughFunding(budget);
   switch (tool.result) {

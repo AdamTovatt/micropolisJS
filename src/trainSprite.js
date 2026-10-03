@@ -14,14 +14,13 @@
 import { BaseSprite } from './baseSprite.js';
 import { TRAIN_CRASHED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { Random } from './random.ts';
 import { SPRITE_TRAIN } from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
 import * as TileValues from "./tileValues.ts";
 
-function TrainSprite(map, spriteManager, x, y) {
+function TrainSprite(map, spriteManager, random, x, y) {
   this.init(SPRITE_TRAIN, map,
-            spriteManager, x, y);
+            spriteManager, random, x, y);
   this.width = 32;
   this.height = 32;
   this.xOffset = -16;
@@ -74,7 +73,7 @@ TrainSprite.prototype.move = function(spriteCycle) {
   // Find a new direction.
   if ((spriteCycle & 3) === 0) {
     // Choose a random starting point for our search
-    var dir = Random.getRandom16() & 3;
+    var dir = this.random.getRandom16() & 3;
 
     for (var i = dir; i < dir + 4; i++) {
       var dir2 = i & 3;

@@ -14,12 +14,11 @@
 import { BaseSprite } from './baseSprite.js';
 import { SPRITE_DYING, SPRITE_MOVED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { Random } from './random.ts';
 import * as SpriteConstants from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
 
-function TornadoSprite(map, spriteManager, x, y) {
-  this.init(SpriteConstants.SPRITE_TORNADO, map, spriteManager, x, y);
+function TornadoSprite(map, spriteManager, random, x, y) {
+  this.init(SpriteConstants.SPRITE_TORNADO, map, spriteManager, random, x, y);
   this.width = 48;
   this.height = 48;
   this.xOffset = -24;
@@ -74,14 +73,14 @@ TornadoSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
     }
   }
 
-  frame = Random.getRandom(5);
+  frame = this.random.getRandom(5);
   this.x += xDelta[frame];
   this.y += yDelta[frame];
 
   if (this.spriteNotInBounds())
     this.frame = 0;
 
-  if (this.count !== 0 && Random.getRandom(500) === 0)
+  if (this.count !== 0 && this.random.getRandom(500) === 0)
     this.frame = 0;
 
   if (this.frame === 0)

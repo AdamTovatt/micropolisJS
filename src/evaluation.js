@@ -14,7 +14,6 @@
 import { EventEmitter } from './eventEmitter.js';
 import { CLASSIFICATION_UPDATED, POPULATION_UPDATED, SCORE_UPDATED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { Random } from './random.ts';
 
 var PROBLEMS = ['CVP_CRIME', 'CVP_POLLUTION', 'CVP_HOUSING', 'CVP_TAXES',
                 'CVP_TRAFFIC', 'CVP_UNEMPLOYMENT', 'CVP_FIRE'];
@@ -23,7 +22,8 @@ var NUM_COMPLAINTS = 4;
 var problemData = [];
 
 
-var Evaluation = EventEmitter(function(gameLevel) {
+var Evaluation = EventEmitter(function(gameLevel, random) {
+  this._random = random;
   this.problemVotes = [];
   this.problemOrder = [];
   this.evalInit();
@@ -150,7 +150,7 @@ Evaluation.prototype.voteProblems = function() {
 
   // Try to acquire up to 100 votes on problems, but bail if it takes too long
   while (voteCount < 100 && loopCount < 600) {
-    var voterProblemTolerance = Random.getRandom(300);
+    var voterProblemTolerance = this._random.getRandom(300);
     if (problemData[problem] > voterProblemTolerance) {
       // The voter is upset about this problem
       this.problemVotes[problem].voteCount += 1;
@@ -317,7 +317,7 @@ Evaluation.prototype.doVotes = function() {
   this.cityYes = 0;
 
   for (var i = 0; i < 100; i++) {
-    var voterExpectation = Random.getRandom(1000);
+    var voterExpectation = this._random.getRandom(1000);
     if (this.cityScore > voterExpectation)
       this.cityYes++;
   }

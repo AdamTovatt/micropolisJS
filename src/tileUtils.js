@@ -11,7 +11,6 @@
  *
  */
 
-import { Random } from './random.ts';
 import { Tile } from './tile.ts';
 import { ANIMBIT, BULLBIT } from "./tileFlags.ts";
 import * as TileValues from "./tileValues.ts";
@@ -98,13 +97,13 @@ var normalizeRoad = unwrapTile(function(tile) {
 });
 
 
-var randomFire = function() {
-  return new Tile(TileValues.FIRE + (Random.getRandom16() & 3), ANIMBIT);
+var randomFire = function(random) {
+  return new Tile(TileValues.FIRE + (random.getRandom16() & 3), ANIMBIT);
 };
 
 
-var randomRubble = function() {
-  return new Tile(TileValues.RUBBLE + (Random.getRandom16() & 3), BULLBIT);
+var randomRubble = function(random) {
+  return new Tile(TileValues.RUBBLE + (random.getRandom16() & 3), BULLBIT);
 };
 
 

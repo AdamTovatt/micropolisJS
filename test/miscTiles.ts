@@ -14,12 +14,11 @@
 import { BlockMap } from "../src/blockMap";
 import { GameMap } from "../src/gameMap.js";
 import { MiscTiles } from "../src/miscTiles.js";
-import { Random } from "../src/random";
 import { BLBNBIT, BNCNBIT, ZONEBIT } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import { DIRT, FIRE, IZB, RZB, WOODS } from "../src/tileValues";
+import { streamAlwaysDrawing } from "./helpers/streams";
 
-jest.mock("../src/random");
 
 type TileHandler = (map: unknown, x: number, y: number, simData: unknown) => void;
 
@@ -37,12 +36,9 @@ describe("miscellaneous tiles", () => {
         const FIRE_Y = 10;
         const NEIGHBOUR_X = FIRE_X + 1;
 
-        beforeEach(() => {
-            // Spread to every neighbour, and never burn out
-            (Random.getRandom16 as jest.Mock).mockReturnValue(0);
-            (Random.getChance as jest.Mock).mockReturnValue(true);
-            (Random.getRandom as jest.Mock).mockReturnValue(1);
-        });
+        // Every draw is 8: its low three bits are clear, so the fire always spreads, to every neighbour, as a plain
+        // FIRE tile; and 8 modulo the burn-out range is never 0, so it never burns out
+        const SPREAD_NEVER_BURN_OUT = 8;
 
         function makeMap(neighbourValue: number, neighbourFlags: number) {
             const map = new GameMap(120, 100);
@@ -58,6 +54,7 @@ describe("miscellaneous tiles", () => {
                     rateOfGrowthMap: new BlockMap(120, 100, 8),
                 },
                 census: {firePop: 0},
+                random: streamAlwaysDrawing(SPREAD_NEVER_BURN_OUT),
                 spriteManager: {makeExplosion: jest.fn()},
             };
             findHandler(TileUtils.isFire)(map, FIRE_X, FIRE_Y, simData);

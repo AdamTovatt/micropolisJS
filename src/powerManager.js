@@ -16,7 +16,6 @@ import { forEachCardinalDirection } from './direction.ts';
 import { EventEmitter } from './eventEmitter.js';
 import { Position } from './position.ts';
 import { NOT_ENOUGH_POWER } from './messages.ts';
-import { Random } from './random.ts';
 import { ANIMBIT, BURNBIT, CONDBIT, POWERBIT } from "./tileFlags.ts";
 import { NUCLEAR, POWERPLANT } from "./tileValues.ts";
 
@@ -150,7 +149,7 @@ PowerManager.prototype.nuclearPowerFound = function(map, x, y, simData) {
   // TODO With the auto repair system, zone gets repaired before meltdown
   // In original Micropolis code, we bail and don't repair if melting down
   if (simData.disasterManager.disastersEnabled &&
-      Random.getRandom(meltdownTable[simData.gameLevel]) === 0) {
+      simData.random.getRandom(meltdownTable[simData.gameLevel]) === 0) {
     simData.disasterManager.doMeltdown(x, y);
     return;
   }

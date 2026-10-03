@@ -14,12 +14,11 @@
 import { BaseSprite } from './baseSprite.js';
 import { PLANE_CRASHED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { Random } from './random.ts';
 import { SPRITE_AIRPLANE, SPRITE_HELICOPTER } from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
 
-function AirplaneSprite(map, spriteManager, x, y) {
-  this.init(SPRITE_AIRPLANE, map, spriteManager, x, y);
+function AirplaneSprite(map, spriteManager, random, x, y) {
+  this.init(SPRITE_AIRPLANE, map, spriteManager, random, x, y);
   this.width = 48;
   this.height = 48;
   this.xOffset = -24;
@@ -63,8 +62,8 @@ AirplaneSprite.prototype.move = function(spriteCycle, disasterManager) {
   var absDist = SpriteUtils.absoluteDistance(this.x, this.y, this.destX, this.destY);
   if (absDist < 50) {
     // We're pretty close to the destination
-    this.destX = Random.getRandom(SpriteUtils.worldToPix(this.map.width)) + 8;
-    this.destY = Random.getRandom(SpriteUtils.worldToPix(this.map.height)) + 8;
+    this.destX = this.random.getRandom(SpriteUtils.worldToPix(this.map.width)) + 8;
+    this.destY = this.random.getRandom(SpriteUtils.worldToPix(this.map.height)) + 8;
   }
 
   if (disasterManager.enableDisasters) {

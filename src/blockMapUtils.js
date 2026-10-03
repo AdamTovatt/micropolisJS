@@ -14,7 +14,6 @@
 import { Commercial } from './commercial.js';
 import { Industrial } from './industrial.js';
 import { MiscUtils } from './miscUtils.js';
-import { Random } from './random.ts';
 import { Residential } from './residential.js';
 import * as TileValues from "./tileValues.ts";
 
@@ -183,7 +182,7 @@ var getCityCentreDistance = function(map, x, y) {
 //   * Proximity to undeveloped terrain (who doesn't love a good view?)
 //
 // Pollution is completely determined by the tile types in the block
-var pollutionTerrainLandValueScan = function(map, census, blockMaps) {
+var pollutionTerrainLandValueScan = function(map, census, blockMaps, random) {
   // We record raw pollution readings for each tile into tempMap1, and then use tempMap2 and tempMap1 to smooth
   // out the pollution in order to construct the new values for the populationDensityMap
   var tempMap1 = blockMaps.tempMap1;
@@ -294,7 +293,7 @@ var pollutionTerrainLandValueScan = function(map, census, blockMaps) {
 
         // Note the most polluted location: any monsters will be drawn there (randomly choosing one
         // if we have multiple competitors for most polluted)
-        if (pollution > maxPollution || (pollution === maxPollution && Random.getChance(3))) {
+        if (pollution > maxPollution || (pollution === maxPollution && random.getChance(3))) {
           maxPollution = pollution;
           map.pollutionMaxX = x;
           map.pollutionMaxY = y;
