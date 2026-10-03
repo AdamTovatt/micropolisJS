@@ -30,6 +30,7 @@ import * as Messages from './messages.ts';
 import { MiscTiles } from './miscTiles.js';
 import { MiscUtils } from './miscUtils.js';
 import { PowerManager } from './powerManager.js';
+import { answerQuery, layersOfPhase } from './queries.ts';
 import { Random } from './random.ts';
 import { RepairManager } from './repairManager.js';
 import { Residential } from './residential.js';
@@ -314,6 +315,13 @@ Simulation.prototype.applyCommands = function(received) {
 };
 
 
+// The answer to a query, such as an overlay's layer, or its rejection. A query only reads the city: it changes nothing,
+// draws nothing from the stream, and is never logged, so it may be asked at any time.
+Simulation.prototype.answerQuery = function(query) {
+  return answerQuery(query, {blockMaps: this.blockMaps, powerGridMap: this._powerManager.powerGridMap});
+};
+
+
 // The debug menu's grant
 var ADDED_FUNDS = 20000;
 
@@ -589,32 +597,43 @@ var simulate = function(simData) {
         BlockMapUtils.neutraliseRateOfGrowthMap(simData.blockMaps);
 
       BlockMapUtils.neutraliseTrafficMap(this.blockMaps);
+      this._overlaysUpdated();
       this._sendMessages();
       break;
 
     case 11:
-      if ((this._simCycle % speedPowerScan[speedIndex]) === 0)
+      if ((this._simCycle % speedPowerScan[speedIndex]) === 0) {
         this._powerManager.doPowerScan(this._census);
+        this._overlaysUpdated();
+      }
       break;
 
     case 12:
-      if ((this._simCycle % speedPollutionTerrainLandValueScan[speedIndex]) === 0)
+      if ((this._simCycle % speedPollutionTerrainLandValueScan[speedIndex]) === 0) {
         BlockMapUtils.pollutionTerrainLandValueScan(this._map, this._census, this.blockMaps, this.random);
+        this._overlaysUpdated();
+      }
       break;
 
     case 13:
-      if ((this._simCycle % speedCrimeScan[speedIndex]) === 0)
+      if ((this._simCycle % speedCrimeScan[speedIndex]) === 0) {
         BlockMapUtils.crimeScan(this._census, this.blockMaps);
+        this._overlaysUpdated();
+      }
       break;
 
     case 14:
-      if ((this._simCycle % speedPopulationDensityScan[speedIndex]) === 0)
+      if ((this._simCycle % speedPopulationDensityScan[speedIndex]) === 0) {
         BlockMapUtils.populationDensityScan(this._map, this.blockMaps);
+        this._overlaysUpdated();
+      }
       break;
 
     case 15:
-      if ((this._simCycle % speedFireAnalysis[speedIndex]) === 0)
+      if ((this._simCycle % speedFireAnalysis[speedIndex]) === 0) {
         BlockMapUtils.fireAnalysis(this.blockMaps);
+        this._overlaysUpdated();
+      }
 
       this.disasterManager.doDisasters(this._gameLevel, this._census);
       this._publishCityStatus();
@@ -762,6 +781,15 @@ Simulation.prototype._sendMessages = function() {
     sendIfHolds(Messages.TRAFFIC_JAMS);
     break;
   }
+};
+
+
+// Each layer the phase running has just recomputed, by name, so that an overlay showing it asks for it again. The
+// phase counter moves on only once the phase has run.
+Simulation.prototype._overlaysUpdated = function() {
+  var layers = layersOfPhase(this._phaseCycle);
+  for (var i = 0, l = layers.length; i < l; i++)
+    this._emitEvent(Messages.OVERLAY_UPDATED, {layer: layers[i]});
 };
 
 

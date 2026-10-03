@@ -419,6 +419,36 @@ main {
   z-index: 10;
 }
 
+#overlayPanel {
+  top: 58px;
+  width: 220px;
+  font-size: 14px;
+  text-align: center;
+}
+
+#overlayPanel .overlayLabel {
+  margin-right: 6px;
+}
+
+#overlayPanel .overlayLegend {
+  margin-top: 6px;
+}
+
+#overlayPanel .overlayLegendTitle {
+  font-weight: 600;
+}
+
+#overlayPanel .overlayLegendBar {
+  height: 12px;
+  margin: 4px 0;
+  border: 1px solid black;
+}
+
+#overlayPanel .overlayLegendEnds {
+  display: flex;
+  justify-content: space-between;
+}
+
 #playit {
   background-color: green;
   color: white;

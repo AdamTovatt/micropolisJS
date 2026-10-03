@@ -14,6 +14,7 @@
 import { CommandResult, ReceivedCommand } from "../src/commands";
 import { GameMap } from "../src/gameMap.js";
 import { MapGenerator } from "../src/mapGenerator.js";
+import { QueryAnswer } from "../src/protocol";
 import { Random } from "../src/random";
 import { Simulation as SimulationConstructor } from "../src/simulation.js";
 
@@ -34,6 +35,7 @@ export interface Simulation {
   save(saveData: object): void;
   load(saveData: object): void;
   applyCommands(received: ReceivedCommand[]): CommandResult[];
+  answerQuery(query: unknown): QueryAnswer;
   step(): void;
   isPaused(): boolean;
   getLevel(): number;

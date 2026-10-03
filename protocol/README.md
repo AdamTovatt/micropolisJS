@@ -1,8 +1,9 @@
 # Protocol
 
 The bodies and messages between the browser and the server, defined by hand on each side: `src/protocol.ts` for the
-client and `server/Micropolis.Rules/Protocol.cs` for the server, and the commands a player sends the simulation,
-defined in `src/protocol.ts`. The examples and reader cases here pin the sides together.
+client and `server/Micropolis.Rules/Protocol.cs` for the server, and the commands and queries a player sends the
+simulation, with the queries' answers, defined in `src/protocol.ts`. The examples and reader cases here pin the sides
+together.
 
 ## Transport
 
@@ -49,17 +50,34 @@ defines each command's fields, and `docs/command-log.md` says what they mean. Th
 it receives it (`src/commands.ts`), and rejects one with a field missing, a field the command doesn't have, or a value
 of the wrong kind or outside the range the game offers. Fields may come in any order.
 
+## Queries
+
+A query asks the simulation about the city and changes nothing: a JSON object whose `type` field names it.
+`src/protocol.ts` defines each query and its answer. The simulation validates each query as it receives it
+(`src/queries.ts`) and answers a rejected one with `{"type": "rejected", "reason"}`. A query is never logged as a
+command, since replaying it would change nothing.
+
+- `overlay` names a `layer`, one of the maps the simulation computes, and is answered with the layer's values in
+  blocks: `blockSize`, the tiles a block covers along each side; `width` and `height`, the blocks across and down;
+  `low` and `high`, the ends of the layer's range; and `values`, row by row, top row first. A block in the last
+  column or row may reach past the map's edge. A value may pass an end of the range where the original's rules let
+  it, such as the police or fire coverage of several stations in one block.
+
+The protocol has no message announcing that a layer was recomputed. In the page, the simulation announces it with the
+`OVERLAY_UPDATED` event (`src/messages.ts`), which is not part of the wire format.
+
 ## Examples
 
 Each file in `examples/socket/` is one WebSocket message, each file in `examples/session/` is one body of
-`/api/session`, named after the body, and each file in `examples/commands/` is one command. An example is its exact
-wire text on one line, then a newline, in UTF-8 without a byte order mark. Each side's tests read every example of
-what that side reads or writes, deserialize it into their own types and serialize it back, and fail unless the bytes
-are identical, so a field renamed, added or dropped on one side turns that side red. Each side reads back every
-example of a body, message or command it reads, and writes back every example of one it writes, building it from the
-example's fields where it has no reader for it. The simulation reads a command by validating it, so a command
-example must also be one it accepts. Each side's tests also fail when a message type, a session body or a command
-type that side reads or writes has no example.
+`/api/session`, named after the body, each file in `examples/commands/` is one command, and each file in
+`examples/queries/` is one query. An example is its exact wire text on one line, then a newline, in UTF-8 without a
+byte order mark. Each side's tests read every example of what that side reads or writes, deserialize it into their
+own types and serialize it back, and fail unless the bytes are identical, so a field renamed, added or dropped on one
+side turns that side red. Each side reads back every example of a body, message, command or query it reads, and
+writes back every example of one it writes, building it from the example's fields where it has no reader for it. The
+simulation reads a command or a query by validating it, so such an example must also be one it accepts. Each side's
+tests also fail when a message type, a session body, a command type or a query type that side reads or writes has no
+example.
 
 `reader-cases.json` holds the messages both readers must reject, messages they must accept and write back in the
 protocol's order, and session bodies a reader must reject, each tested by the sides that read that body.

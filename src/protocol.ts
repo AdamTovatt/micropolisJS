@@ -213,3 +213,52 @@ const COMMAND_TYPES: Record<CommandType, true> = {
 export function commandTypes(): string[] {
   return Object.keys(COMMAND_TYPES);
 }
+
+// The queries a player sends the simulation: questions about the city that change nothing. A query is answered at
+// once, between steps or during them, and never logged as a command, since replaying it would change nothing.
+// queries.ts validates each one and builds its answer.
+
+// The maps the simulation computes, which an overlay shows one at a time over the city
+export const OVERLAY_LAYERS = [
+  "landValue", "pollution", "crime", "trafficDensity", "populationDensity", "policeCoverage", "fireCoverage",
+  "rateOfGrowth", "powerGrid",
+] as const;
+
+export type OverlayLayer = typeof OVERLAY_LAYERS[number];
+
+// The layer's values as the simulation last computed them
+export type Query = {type: "overlay", layer: OverlayLayer};
+
+export type QueryType = Query["type"];
+
+// Every query type, as the compiler checks against the union: a type added to Query and not here fails to compile,
+// and the tests fail on a type with no example.
+const QUERY_TYPES: Record<QueryType, true> = {overlay: true};
+
+export function queryTypes(): string[] {
+  return Object.keys(QUERY_TYPES);
+}
+
+// The answer to an overlay query: the layer's values over the map in square blocks of blockSize tiles a side, width
+// blocks across and height down, row by row, top row first, so block (x, y) is at index width * y + x and covers the
+// tiles from (x * blockSize, y * blockSize). A block at the right or bottom edge may reach past the map. low and high
+// are the ends of the layer's range, which a value may pass where the original lets it, such as the coverage of
+// several stations in one block.
+export interface OverlayAnswer {
+  type: "overlay";
+  layer: OverlayLayer;
+  blockSize: number;
+  width: number;
+  height: number;
+  low: number;
+  high: number;
+  values: number[];
+}
+
+// A query the simulation could not answer, and why
+export interface QueryRejection {
+  type: "rejected";
+  reason: string;
+}
+
+export type QueryAnswer = OverlayAnswer | QueryRejection;

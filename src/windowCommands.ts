@@ -11,7 +11,8 @@
  *
  */
 
-import { CommandResult, isRecord, LOCAL_PLAYER, Outcome } from "./commands";
+import { CommandResult, LOCAL_PLAYER, Outcome } from "./commands";
+import { isRecord } from "./validation";
 import { Command } from "./protocol";
 import { ServiceAmounts } from "./serviceFunding";
 

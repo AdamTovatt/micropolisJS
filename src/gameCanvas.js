@@ -16,6 +16,7 @@ import $ from "jquery";
 import { AnimationManager } from './animationManager.js';
 import { MiscUtils } from './miscUtils.js';
 import { MouseBox } from './mouseBox.js';
+import { CanvasOverlay } from './overlayRenderer.ts';
 import { Position } from './position.ts';
 import { TILE_INVALID } from "./tileValues.ts";
 
@@ -102,6 +103,9 @@ GameCanvas.prototype.init = function(map, tileSet, spriteSheet) {
 
   // After painting tiles, we store the image data here before painting sprites and mousebox
   this._lastCanvasData = null;
+
+  // The map overlay tinting each tile as it is painted, under the sprites
+  this._overlay = new CanvasOverlay();
 
   this._calculateDimensions();
 
@@ -508,6 +512,21 @@ GameCanvas.prototype._paintOne = function(ctx, tileVal, x, y) {
 };
 
 
+// Shows an overlay view (overlayRenderer.ts), or none
+GameCanvas.prototype.setOverlay = function(view) {
+  this._overlay.show(view);
+};
+
+
+// A tile of the view, at (x, y) from the view's origin, with the overlay's tint
+GameCanvas.prototype._paintViewTile = function(ctx, tileVal, x, y) {
+  this._paintOne(ctx, tileVal, x, y);
+  var w = this._tileSet.tileWidth;
+  if (tileVal !== TILE_INVALID)
+    this._overlay.paintTile(ctx, this._originX + x, this._originY + y, x * w, y * w, w);
+};
+
+
 GameCanvas.prototype._paintTiles = function(ctx, paintData) {
   var x, y, index;
   var lastPaintedTiles = this._lastPaintedTiles;
@@ -534,7 +553,7 @@ GameCanvas.prototype._paintTiles = function(ctx, paintData) {
           continue;
 
         // Tile is different: repaint
-        this._paintOne(ctx, paintData[index], x, y);
+        this._paintViewTile(ctx, paintData[index], x, y);
       }
     }
 
@@ -543,7 +562,7 @@ GameCanvas.prototype._paintTiles = function(ctx, paintData) {
       for (y = 0; y < height; y++) {
         for (x = this._lastPaintedWidth; x < width; x++) {
           index  = y * width + x;
-          this._paintOne(ctx, paintData[index], x, y);
+          this._paintViewTile(ctx, paintData[index], x, y);
         }
       }
     }
@@ -552,7 +571,7 @@ GameCanvas.prototype._paintTiles = function(ctx, paintData) {
       for (y = this._lastPaintedHeight; y < height; y++) {
         for (x = 0; x < width; x++) {
           index  = y * width + x;
-          this._paintOne(ctx, paintData[index], x, y);
+          this._paintViewTile(ctx, paintData[index], x, y);
         }
       }
     }
@@ -561,7 +580,7 @@ GameCanvas.prototype._paintTiles = function(ctx, paintData) {
     for (y = 0; y < height; y++) {
       for (x = 0; x < width; x++) {
         index = y * width + x;
-        this._paintOne(ctx, paintData[index], x, y);
+        this._paintViewTile(ctx, paintData[index], x, y);
       }
     }
   }
@@ -606,6 +625,9 @@ GameCanvas.prototype.paint = function(mouse, sprites, isPaused) {
 
     this._pendingTileSet = null;
   }
+
+  if (this._overlay.needsFullRepaint(this._originX, this._originY) && lastPaintedTiles !== null)
+    lastPaintedTiles.fill(-2);
 
   var paintWidth = this._totalTilesInViewX;
   var paintHeight = this._totalTilesInViewY;

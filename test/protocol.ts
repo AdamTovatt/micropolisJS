@@ -16,15 +16,17 @@ import { basename, join } from "path";
 
 import { commandRejection } from "../src/commands";
 import {
-    commandTypes, parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, serverMessageTypes,
-    signInRequest,
+    commandTypes, parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, queryTypes,
+    serverMessageTypes, signInRequest,
 } from "../src/protocol";
+import { queryRejection } from "../src/queries";
 import { repositoryPath } from "./helpers/repository";
 
 // The examples and reader cases are shared with the server's tests: protocol/README.md describes them
 const SOCKET_EXAMPLES = repositoryPath("protocol/examples/socket");
 const SESSION_EXAMPLES = repositoryPath("protocol/examples/session");
 const COMMAND_EXAMPLES = repositoryPath("protocol/examples/commands");
+const QUERY_EXAMPLES = repositoryPath("protocol/examples/queries");
 
 // The game's map, which every command example's tiles lie on
 const MAP_WIDTH = 120;
@@ -122,6 +124,26 @@ describe("the protocol's commands", () => {
 
         expect(commandTypes().length).toBeGreaterThan(0);
         expect(distinctExampleTypes.sort()).toEqual(commandTypes().sort());
+    });
+});
+
+describe("the protocol's queries", () => {
+
+    it.each(exampleFiles(QUERY_EXAMPLES))("reads the query %s, which the simulation accepts, and writes it back to identical bytes",
+        (file) => {
+            expectRoundTrip(join(QUERY_EXAMPLES, file), (wire) => {
+                const query: unknown = JSON.parse(wire);
+                expect(queryRejection(query)).toBeNull();
+                return JSON.stringify(query);
+            });
+        });
+
+    it("has an example of every query type", () => {
+        const exampleTypes = exampleFiles(QUERY_EXAMPLES).map((file) => JSON.parse(readWireText(join(QUERY_EXAMPLES, file))).type);
+        const distinctExampleTypes = exampleTypes.filter((type, i) => exampleTypes.indexOf(type) === i);
+
+        expect(queryTypes().length).toBeGreaterThan(0);
+        expect(distinctExampleTypes.sort()).toEqual(queryTypes().sort());
     });
 });
 
