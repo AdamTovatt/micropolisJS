@@ -80,7 +80,7 @@ function SplashCanvas(parentID, tileSet, id) {
 
 // Paint an individual tile at the given map coordinates, with the tile scaled down to 3x3
 SplashCanvas.prototype._paintTile = function(tileVal, x, y, ctx) {
-  var src = this._tileSet[tileVal];
+  var src = this._tileSet.tile(tileVal);
   ctx.drawImage(src, x * 3, y * 3, 3, 3);
 };
 

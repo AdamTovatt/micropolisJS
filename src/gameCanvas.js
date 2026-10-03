@@ -501,7 +501,7 @@ GameCanvas.prototype._paintOne = function(ctx, tileVal, x, y) {
     return;
   }
 
-  var src = this._tileSet[tileVal];
+  var src = this._tileSet.tile(tileVal);
   try {
     ctx.drawImage(src, x * this._tileSet.tileWidth, y * this._tileSet.tileWidth);
   } catch (e) {

@@ -20,7 +20,7 @@ import { showOnlineList } from './onlineList.ts';
 import { signInIfServerAnswers } from './signInForm.ts';
 import { SplashScreen } from './splashScreen.js';
 import { installTestHook } from './testHook.ts';
-import { TileSet } from './tileSet.js';
+import { TileSet } from './tileSet.ts';
 import { TileSetURI } from './tileSetURI.ts';
 import { TileSetSnowURI } from './tileSetSnowURI.ts';
 import { debugOption, seedOption } from './urlOptions.ts';
