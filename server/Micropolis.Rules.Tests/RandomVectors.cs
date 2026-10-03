@@ -29,50 +29,32 @@ namespace Micropolis.Rules.Tests
         MaximumVector GetERandom,
         ChanceVector GetChance)
     {
-        private static readonly JsonSerializerOptions Options = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-            RespectNullableAnnotations = true,
-            RespectRequiredConstructorParameters = true,
-            Converters = { new HexWordConverter() },
-        };
-
         public static RandomVectors Load()
         {
-            return Parse(File.ReadAllText(RepositoryFiles.GetPath("conformance/random.json")));
+            return Parse(ConformanceFile.Read("random.json"));
         }
 
         public static RandomVectors Parse(string json)
         {
-            RandomVectors vectors = JsonSerializer.Deserialize<RandomVectors>(json, Options)
-                ?? throw new InvalidDataException("The reference vectors cannot be null.");
+            RandomVectors vectors = ConformanceFile.Parse<RandomVectors>(json, new HexWordConverter());
 
-            NonEmpty("seeds", vectors.Seeds);
+            ConformanceFile.NonEmpty("seeds", vectors.Seeds);
 
             foreach (SeedVector vector in vectors.Seeds)
             {
                 FourWords("seeded", vector.Seeded);
-                NonEmpty("outputs", vector.Outputs);
+                ConformanceFile.NonEmpty("outputs", vector.Outputs);
                 FourWords("jumped", vector.Jumped);
             }
 
-            NonEmpty("getRandom.maxima", vectors.GetRandom.Maxima);
-            NonEmpty("getRandom.outputs", vectors.GetRandom.Outputs);
-            NonEmpty("getRandomAtTheBoundary.outputs", vectors.GetRandomAtTheBoundary.Outputs);
-            NonEmpty("getRandom16Signed.outputs", vectors.GetRandom16Signed.Outputs);
-            NonEmpty("getERandom.outputs", vectors.GetERandom.Outputs);
-            NonEmpty("getChance.outputs", vectors.GetChance.Outputs);
+            ConformanceFile.NonEmpty("getRandom.maxima", vectors.GetRandom.Maxima);
+            ConformanceFile.NonEmpty("getRandom.outputs", vectors.GetRandom.Outputs);
+            ConformanceFile.NonEmpty("getRandomAtTheBoundary.outputs", vectors.GetRandomAtTheBoundary.Outputs);
+            ConformanceFile.NonEmpty("getRandom16Signed.outputs", vectors.GetRandom16Signed.Outputs);
+            ConformanceFile.NonEmpty("getERandom.outputs", vectors.GetERandom.Outputs);
+            ConformanceFile.NonEmpty("getChance.outputs", vectors.GetChance.Outputs);
 
             return vectors;
-        }
-
-        private static void NonEmpty<T>(string name, IReadOnlyCollection<T> values)
-        {
-            if (values.Count == 0)
-            {
-                throw new InvalidDataException($"The reference vector {name} is empty.");
-            }
         }
 
         private static void FourWords(string name, IReadOnlyCollection<uint> words)

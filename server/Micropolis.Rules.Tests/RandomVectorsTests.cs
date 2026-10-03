@@ -22,7 +22,7 @@ namespace Micropolis.Rules.Tests
     [TestClass]
     public sealed class RandomVectorsTests
     {
-        private static readonly string FileText = File.ReadAllText(RepositoryFiles.GetPath("conformance/random.json"));
+        private static readonly string FileText = ConformanceFile.Read("random.json");
 
         [TestMethod]
         public void Parse_SharedFile_ReadsIt()

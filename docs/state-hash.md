@@ -4,7 +4,10 @@ The state hash identifies a city's complete simulation state. Two simulations wh
 as long as they are given the same commands (`src/protocol.ts`), each of which carries whatever setting of its
 sender's it depends on. The headless runner prints the hash, and the C# port is correct when it produces the same
 hash from the same seed, starting state and command log (`CLAUDE.md`, Direction 3). This document specifies it so the
-port can produce identical bytes. `src/canonicalJson.ts` and `src/stateHash.ts` are the reference implementation.
+two produce identical bytes. `src/canonicalJson.ts` and `src/stateHash.ts` are the reference implementation, and
+`CanonicalJson` and `StateHash` in `server/Micropolis.Rules` the port. `conformance/canonicalJson.json` holds the
+canonical text the reference writes for numbers, strings and documents, which the port's tests check: a change to a
+rule below regenerates it (`npm run conformance`).
 
 ## The hash
 
