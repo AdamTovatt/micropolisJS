@@ -17,6 +17,7 @@ import { Budget } from "../src/budget.js";
 import { GameMap } from "../src/gameMap.js";
 import { Random } from "../src/random";
 import { Simulation } from "../src/simulation.js";
+import { CITY_PROBLEMS } from "../src/protocol";
 import { plainSavedState } from "../src/stateHash";
 import { ANIMBIT, CONDBIT } from "../src/tileFlags";
 import { FIRE, POWERPLANT } from "../src/tileValues";
@@ -396,10 +397,12 @@ describe("storage", () => {
             return {...saved, version: 8, evaluation: {...(saved.evaluation as Save), problemOrder}};
         }
 
+        const none = CITY_PROBLEMS.length;
+
         it.each([
-            [[3, 0, null, null, null, null, null], [3, 0, 7, 7]],
+            [[3, 0, null, null, null, null, null], [3, 0, none, none]],
             [[0, 1, 2, 4, null, null, null], [0, 1, 2, 4]],
-            [[7, 7, 7, 7], [7, 7, 7, 7]],
+            [[none, none, none, none], [none, none, none, none]],
         ])("keeps the worst four problems of %j, with 7 for none", async (problemOrder, migrated) => {
             const {Storage} = await loadStorage();
             const savedGame = version8Save(problemOrder);

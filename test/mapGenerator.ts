@@ -13,7 +13,7 @@
 
 import { MapGenerator } from "../src/mapGenerator.js";
 import { Random } from "../src/random";
-import { DIRT, RIVER } from "../src/tileValues";
+import { RIVER } from "../src/tileValues";
 
 // Every tile's raw value, flags included
 function rawTiles(seed: number): number[] {
@@ -32,11 +32,11 @@ describe("the map generator", () => {
         expect(rawTiles(1234)).not.toEqual(rawTiles(1235));
     });
 
-    it("places a lake where the stream puts it", () => {
-        // Each draw gets a fixed answer, looked up by the maximum it asks for, so the map is laid out by hand: a
-        // cleared map, a river straight up and down at x = 40, one lake of small plops at (80, 50), and trees straight
-        // up from (0, 70)
-        const answers: Record<number, number> = {
+    it("places each of a lake's plops at its offset from the lake, drawing x first", () => {
+        // Each draw gets an answer looked up by the maximum it asks for, the same every time or the next of a list, so
+        // the map is laid out by hand: a cleared map, a river straight up and down at x = 40, one lake of two small
+        // plops around (80, 50), and trees straight up from (0, 70)
+        const answers: Record<number, number | number[]> = {
             2: 1,     // no island
             40: 0,    // the river starts at x = 40
             33: 0,    // and y = 33
@@ -45,7 +45,7 @@ describe("the map generator", () => {
             10: 1,    // one lake
             99: 70,   // at x = 80; also the tree splash's y
             80: 40,   // and y = 50
-            12: 6,    // of eight plops, each offset by nothing
+            12: [0, 10, 3, 1, 8],  // of two plops, at (84, 47) and (75, 52): offset by (+4, -3) and (-5, +2)
             4: 1,     // each a small one
             1: 0,     // river edges as they are
             119: 0,   // the tree splash's x
@@ -54,19 +54,32 @@ describe("the map generator", () => {
         };
         const random = {
             getRandom(max: number): number {
-                if (!(max in answers)) {
+                const answer = answers[max];
+                if (answer === undefined || (Array.isArray(answer) && answer.length === 0)) {
                     throw new Error(`No answer for getRandom(${max})`);
                 }
 
-                return answers[max];
+                return Array.isArray(answer) ? answer.shift()! : answer;
             },
         };
 
         const map = MapGenerator(random);
 
-        // The middle of a small plop
-        expect(map.getTileValue(82, 52)).toBe(RIVER);
-        // Clear of the lake, the river and the trees
-        expect(map.getTileValue(100, 52)).toBe(DIRT);
+        // The water a small plop lays from its corner: its matrix's river tiles, which smoothing leaves as they are
+        const plopWater = (x: number, y: number) =>
+            [[2, 1], [3, 1], [1, 2], [2, 2], [3, 2], [4, 2], [1, 3], [2, 3], [3, 3], [4, 3], [2, 4], [3, 4]]
+                .map(([dx, dy]) => `${x + dx},${y + dy}`);
+        // The water around the lake, clear of the river and the trees
+        const water: string[] = [];
+        for (let y = 30; y < 75; y++) {
+            for (let x = 60; x < 105; x++) {
+                if (map.getTileValue(x, y) === RIVER) {
+                    water.push(`${x},${y}`);
+                }
+            }
+        }
+
+        expect(answers[12]).toEqual([]);
+        expect(water.sort()).toEqual([...plopWater(84, 47), ...plopWater(75, 52)].sort());
     });
 });

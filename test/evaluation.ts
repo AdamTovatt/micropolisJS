@@ -12,7 +12,7 @@
  */
 
 import { Evaluation } from "../src/evaluation.js";
-import type { ScoreEntry } from "../src/protocol";
+import { CITY_PROBLEMS, type ScoreEntry } from "../src/protocol";
 import { developedLand, evaluateYear, makeCity, newEvaluation, problemFreeYear, type Year } from "./helpers/evaluationCity";
 
 // Each year sets its figures over a problem-free year of its residents
@@ -322,8 +322,24 @@ describe("the problems", () => {
         const city = makeCity();
         evaluateYear(city, problemFreeYear(200, developedLand(15, 0)));
 
-        expect(city.evaluation.problemOrder).toEqual([Evaluation.HOUSING, 7, 7, 7]);
+        const none = CITY_PROBLEMS.length;
+        expect(city.evaluation.problemOrder).toEqual([Evaluation.HOUSING, none, none, none]);
         expect([0, 1, 2, 3].map((i) => city.evaluation.getProblemNumber(i))).toEqual([Evaluation.HOUSING, null, null, null]);
+    });
+
+    // The sort is stable, and the poll lists the problems by index, so a tie ranks the lower index first
+    it("rank tied problems lowest index first", () => {
+        const city = makeCity();
+        const evaluation = city.evaluation;
+        evaluation.voteProblems = () => {
+            [0, 30, 20, 0, 30, 20, 0].forEach((voteCount, index) => {
+                evaluation.problemVotes[index] = {index, voteCount};
+            });
+        };
+        evaluateYear(city, problemFreeYear(200, developedLand(15, 0)));
+
+        expect(evaluation.problemVotes.map((vote: {index: number}) => vote.index)).toEqual([1, 4, 2, 5, 0, 3, 6]);
+        expect(evaluation.problemOrder).toEqual([1, 4, 2, 5]);
     });
 
     it("name none for a city not yet evaluated", () => {

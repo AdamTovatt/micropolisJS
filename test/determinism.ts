@@ -11,6 +11,7 @@
  *
  */
 
+import { SPRITE_MONSTER, SPRITE_TORNADO } from "../src/spriteConstants";
 import { SimulationInstance, YEAR, buildCity } from "./helpers/simulations";
 
 const SEED = 2026;
@@ -63,7 +64,7 @@ describe("two simulations stepped together", () => {
         // The comparison covers zones the simulation grew and sprites it moved, not just the map it started from
         expect(grown).toBeGreaterThan(0);
         expect(unleashed).toBe(2);
-        expect(sprites(first).length).toBeGreaterThan(0);
+        expect(sprites(first).map((sprite: {type: number}) => sprite.type)).toEqual(expect.arrayContaining([SPRITE_MONSTER, SPRITE_TORNADO]));
         expect(savedState(second)).toEqual(savedState(first));
         expect(sprites(second)).toEqual(sprites(first));
     });
