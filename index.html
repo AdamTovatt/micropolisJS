@@ -33,13 +33,13 @@
         <div id="splash" class="mintcream awaitGeneration open shadow padding10 centred">
           <h2 class="chunk alignCenter">Welcome!</h2>
           <p>micropolisJS is a handmade Javascript port of the open-source city simulator <cite>Micropolis</cite></p>
-          <div id="splashContainer"></div>
           <p class="alignCenter">Seed <span id="splashSeed"></span></p>
-          <div id="splashButtonContainer">
+          <div id="splashMapRow">
+            <div id="splashContainer"></div>
             <div id="splashButtons">
-              <button id="splashLoad" class="width140 block loadSave splashButton" disabled>Load game</button>
-              <button id="splashPlay" class="width140 block margin10 splashButton">Play this map</button>
-              <button id="splashGenerate" class="width140 block margin10 splashButton">Generate another</button>
+              <button id="splashLoad" class="width140 block loadSave" disabled>Load game</button>
+              <button id="splashPlay" class="width140 block margin10">Play this map</button>
+              <button id="splashGenerate" class="width140 block margin10">Generate another</button>
             </div>
           </div>
           <div id="splashCredits" class="alignCenter">
@@ -133,9 +133,6 @@
             <button id="queryButton" data-size="1" data-tool="query" data-colour="cyan" class="toolButton unselected">Query</button>
             <button id="parkButton" data-size="1" data-tool="park" data-colour="darkgreen" class="toolButton unselected">Park $10</button>
           </div>
-        </div>
-        <div id="tw" class="z1 rightedge initialHidden">
-          <a class="twitter-share-button" href="https://twitter.com/share?count=none" data-text="I'm city-building like it's 1989! Playing micropolisJS, a HTML5 retro city-builder https://graememcc.github.io/micropolisJS">Tweet</a><script type="text/javascript">window.twttr=(function(d,s,id){var t,js,fjs=d.getElementsByTagName(s)[0];if(d.getElementById(id)){return}js=d.createElement(s);js.id=id;js.src="https://platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);return window.twttr||(t={_e:[],ready:function(f){t._e.push(f)}})}(document,"script","twitter-wjs"));</script>
         </div>
         <div id="monstertv" class="alignCenter z1 hidden rightedge padding10 controlShadow open">
           <div id="monsterTVContainer">
