@@ -12,7 +12,8 @@
  */
 
 // The simulation's random stream. The C# port reproduces it bit for bit, so its specification is part of the game
-// rules, and test/random.ts holds vectors computed by the reference C implementation:
+// rules, and conformance/random.json holds vectors computed by the reference C implementation, which the tests of
+// both ports read:
 //
 // - xoshiro128** 1.1 (Blackman & Vigna, https://prng.di.unimi.it/), four uint32 words of state.
 // - Seeded from a uint32 game seed with SplitMix64: the generator starts at the seed, and its first two outputs

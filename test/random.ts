@@ -1,61 +1,13 @@
 import { Random } from "../src/random";
+import { loadRandomVectors } from "./helpers/randomVectors";
 import { streamDrawing } from "./helpers/streams";
 
-// Computed by the reference C implementations of xoshiro128** 1.1 and SplitMix64 (https://prng.di.unimi.it/), and of
-// the original's getRandom over 16-bit draws. The C# port must reproduce every one.
-const vectors = [
-    {
-        seed: 0,
-        seeded: [0x7b1dcdaf, 0xe220a839, 0xa1b965f4, 0x6e789e6a],
-        outputs: [
-            0xdec9045d, 0x9a089d75, 0xab77d362, 0xc3e16405, 0x5c95a8da, 0x60dea056, 0xc25a5140, 0xa4290614,
-            0x9e0525af, 0x953d37b9, 0xca973b77, 0x362c8457, 0x7ef8d208, 0xc98402b2, 0xe77ed1a6, 0xeaa8401b,
-            0xd16aa762, 0xeeb6087f, 0x0b68d0f0, 0x35106425,
-        ],
-        jumped: [0xe8ad2042, 0x2070022f, 0x3528a847, 0xbe31d5d0],
-    },
-    {
-        seed: 1,
-        seeded: [0x89025cc1, 0x910a2dec, 0x658eec67, 0xbeeb8da1],
-        outputs: [
-            0x650941ba, 0x54d30301, 0x25d2f321, 0x3fabdca9, 0x2ab8e0a6, 0xf9890067, 0xe12b0ad9, 0xa193d86a,
-            0xaa60a3ad, 0xa0512e90, 0x68158fcc, 0xb46cdf85, 0xd5db5b1e, 0xe9c55a71, 0x62d0cd1f, 0x45180848,
-            0x4025b235, 0x1e514604, 0x3a36018c, 0x4f094038,
-        ],
-        jumped: [0x78d283ee, 0x5d6f623e, 0xcabe44b7, 0x2ce0ca9e],
-    },
-    {
-        seed: 42,
-        seeded: [0x2feb6e95, 0xbdd73226, 0xb266f103, 0x28efe333],
-        outputs: [
-            0x69e85a2a, 0xf843fad0, 0x0105185f, 0x8a1f1ea6, 0xa66be2a9, 0x9844904e, 0xaf4213e7, 0x85c95cd7,
-            0xd4a5504a, 0xae8d0101, 0xbc7a4de1, 0x44932982, 0xce49369c, 0x871358fb, 0x2a97f2c4, 0x5f673e85,
-            0x8329897f, 0x557ef647, 0x9c7e2e51, 0x5a0f943f,
-        ],
-        jumped: [0x80cd013d, 0xe411de0c, 0xaa58d032, 0xe1f479f7],
-    },
-    {
-        seed: 0xffffffff,
-        seeded: [0xaff181c0, 0x73b13ba2, 0x1340d3b4, 0x61204305],
-        outputs: [
-            0x13bdbe29, 0x894d4f2d, 0xa2d85227, 0x68a9dbc8, 0x013843e3, 0x19fcb943, 0x06df56e6, 0x981fc82e,
-            0x37396a38, 0x244d92d0, 0x6e3ae13c, 0x1916ba58, 0x77045ec1, 0x6533544e, 0xda0a5712, 0xf4514cfb,
-            0x3ac5798a, 0xee1a93be, 0xee341b32, 0x722f2dee,
-        ],
-        jumped: [0xa8c455c7, 0x50e8e194, 0x6dd9d9fa, 0xa20a5530],
-    },
-];
-
-// Seed 42, four calls to getRandom with each maximum in turn
-const getRandomMaxima = [0, 1, 2, 5, 100, 1919, 30000, 65534];
-const getRandomOutputs = [
-    0, 0, 0, 0, 1, 0, 0, 1, 2, 0, 1, 2, 3, 1, 1, 3, 45, 70, 66, 27, 1652, 1437, 695, 76, 12004, 2245, 9993, 27867,
-    29552, 39249, 16616, 16379,
-];
+// Computed by the reference C implementations, and shared with the C# port: conformance/README.md describes them
+const vectors = loadRandomVectors();
 
 describe("the random stream", () => {
 
-    describe.each(vectors)("seeded with $seed", ({seed, seeded, outputs, jumped}) => {
+    describe.each(vectors.seeds)("seeded with $seed", ({seed, seeded, outputs, jumped}) => {
 
         it("fills its state with SplitMix64", () => {
             expect(Random.fromSeed(seed).getState()).toEqual(seeded);
@@ -81,10 +33,40 @@ describe("the random stream", () => {
     });
 
     it("draws the reference getRandom outputs", () => {
-        const random = Random.fromSeed(42);
-        const results = getRandomMaxima.flatMap((max) => [0, 1, 2, 3].map(() => random.getRandom(max)));
+        const {seed, callsPerMaximum, maxima, outputs} = vectors.getRandom;
+        const random = Random.fromSeed(seed);
+        const calls = Array.from({length: callsPerMaximum});
+        const results = maxima.flatMap((max) => calls.map(() => random.getRandom(max)));
 
-        expect(results).toEqual(getRandomOutputs);
+        expect(results).toEqual(outputs);
+    });
+
+    it("rejects a draw equal to the largest multiple of the range, as the reference does", () => {
+        const {seed, maximum, outputs} = vectors.getRandomAtTheBoundary;
+        const random = Random.fromSeed(seed);
+
+        expect(outputs.map(() => random.getRandom(maximum))).toEqual(outputs);
+    });
+
+    it("draws the reference getRandom16Signed outputs", () => {
+        const {seed, outputs} = vectors.getRandom16Signed;
+        const random = Random.fromSeed(seed);
+
+        expect(outputs.map(() => random.getRandom16Signed())).toEqual(outputs);
+    });
+
+    it("draws the reference getERandom outputs", () => {
+        const {seed, maximum, outputs} = vectors.getERandom;
+        const random = Random.fromSeed(seed);
+
+        expect(outputs.map(() => random.getERandom(maximum))).toEqual(outputs);
+    });
+
+    it("draws the reference getChance outputs", () => {
+        const {seed, mask, outputs} = vectors.getChance;
+        const random = Random.fromSeed(seed);
+
+        expect(outputs.map(() => random.getChance(mask))).toEqual(outputs);
     });
 
     it("continues from a restored state exactly where the original stream is", () => {
