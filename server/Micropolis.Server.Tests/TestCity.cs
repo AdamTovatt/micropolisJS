@@ -48,8 +48,7 @@ namespace Micropolis.Server.Tests
 
         public static async Task<TestCity> StartAsync(string trustedProxies = ServerApplication.NoTrustedProxies)
         {
-            // The clock starts at the real time, since token validation reads the real one
-            FakeTimeProvider time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+            FakeTimeProvider time = new FakeTimeProvider();
             WebApplicationBuilder builder = CreateBuilder(Secret, trustedProxies);
             builder.Services.AddSingleton<TimeProvider>(time);
 
@@ -100,39 +99,30 @@ namespace Micropolis.Server.Tests
         }
 
         /// <summary>
-        /// A token signed with this server's secret, for the cases sign-in never issues.
+        /// A token the server's own token service mints on the server's clock, for the lifetimes sign-in never issues.
         /// </summary>
-        public static string CreateToken(string playerId, string name, DateTime expiresAt)
+        public string CreateToken(string playerId, string name, TimeSpan lifetime)
         {
-            return new JwtTokenService(Secret).CreateToken(playerId, PlayerClaims.AuthType, PlayerClaims.For(name), [], expiresAt);
+            IJwtTokenService tokens = App.Services.GetRequiredService<IJwtTokenService>();
+            return tokens.CreateToken(playerId, PlayerClaims.AuthType, PlayerClaims.For(name), [], Time.GetUtcNow().Add(lifetime).UtcDateTime);
         }
 
         /// <summary>
-        /// A token signed with this server's secret that expired a second ago, inside any clock skew a validator might
-        /// allow. The token service cannot issue it: it makes every token valid from the moment it is created.
+        /// A token signed with this server's secret, valid for a day on the server's clock, carrying only the given
+        /// claims besides the authentication type the token service adds.
         /// </summary>
-        public static string CreateExpiredToken(string playerId, string name)
+        public string CreateTokenWithClaims(params Claim[] claims)
         {
-            DateTime now = DateTime.UtcNow;
-            return SignToken([new Claim(JwtRegisteredClaimNames.Sub, playerId), .. PlayerClaims.For(name)], now.AddMinutes(-10), now.AddSeconds(-1));
-        }
-
-        /// <summary>
-        /// A token signed with this server's secret, valid for a day, carrying only the given claims besides the
-        /// authentication type the token service adds.
-        /// </summary>
-        public static string CreateTokenWithClaims(params Claim[] claims)
-        {
-            DateTime now = DateTime.UtcNow;
+            DateTime now = Time.GetUtcNow().UtcDateTime;
             return SignToken(claims, now.AddMinutes(-10), now.AddDays(1));
         }
 
         /// <summary>
-        /// A token signed with this server's secret, valid from ten minutes ago, with no expiry.
+        /// A token signed with this server's secret, valid from ten minutes ago on the server's clock, with no expiry.
         /// </summary>
-        public static string CreateTokenWithoutExpiry(string playerId, string name)
+        public string CreateTokenWithoutExpiry(string playerId, string name)
         {
-            return SignToken([new Claim(JwtRegisteredClaimNames.Sub, playerId), .. PlayerClaims.For(name)], DateTime.UtcNow.AddMinutes(-10), expires: null);
+            return SignToken([new Claim(JwtRegisteredClaimNames.Sub, playerId), .. PlayerClaims.For(name)], Time.GetUtcNow().UtcDateTime.AddMinutes(-10), expires: null);
         }
 
         private static string SignToken(IEnumerable<Claim> claims, DateTime notBefore, DateTime? expires)

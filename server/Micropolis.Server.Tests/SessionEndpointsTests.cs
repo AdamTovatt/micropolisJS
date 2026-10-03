@@ -212,7 +212,9 @@ namespace Micropolis.Server.Tests
         public async Task GetSession_TokenExpiredASecondAgo_IsUnauthorized()
         {
             await using TestCity city = await TestCity.StartAsync();
-            string token = TestCity.CreateExpiredToken("someone", "Ada");
+            TimeSpan lifetime = TimeSpan.FromHours(1);
+            string token = city.CreateToken("someone", "Ada", lifetime);
+            city.Time.Advance(lifetime + TimeSpan.FromSeconds(1));
 
             HttpResponseMessage response = await GetSessionAsync(city, token);
 
@@ -223,7 +225,7 @@ namespace Micropolis.Server.Tests
         public async Task GetSession_TokenWithoutName_IsUnauthorized()
         {
             await using TestCity city = await TestCity.StartAsync();
-            string token = TestCity.CreateTokenWithClaims(new Claim(JwtRegisteredClaimNames.Sub, "someone"));
+            string token = city.CreateTokenWithClaims(new Claim(JwtRegisteredClaimNames.Sub, "someone"));
 
             HttpResponseMessage response = await GetSessionAsync(city, token);
 
@@ -234,7 +236,7 @@ namespace Micropolis.Server.Tests
         public async Task GetSession_TokenWithoutExpiry_IsUnauthorized()
         {
             await using TestCity city = await TestCity.StartAsync();
-            string token = TestCity.CreateTokenWithoutExpiry("someone", "Ada");
+            string token = city.CreateTokenWithoutExpiry("someone", "Ada");
 
             HttpResponseMessage response = await GetSessionAsync(city, token);
 

@@ -40,8 +40,8 @@ namespace Micropolis.Server.Tests
         public async Task Connect_TokenSignedWithAnotherSecret_IsRefused()
         {
             await using TestCity city = await TestCity.StartAsync();
-            string token = new JwtTokenService("another-secret-that-signs-nothing-here-at-all")
-                .CreateToken("someone", PlayerClaims.AuthType, PlayerClaims.For("Eve"), [], DateTime.UtcNow.AddDays(1));
+            string token = new JwtTokenService("another-secret-that-signs-nothing-here-at-all", issuer: null, audience: null, city.Time)
+                .CreateToken("someone", PlayerClaims.AuthType, PlayerClaims.For("Eve"), [], city.Time.GetUtcNow().AddDays(1).UtcDateTime);
 
             InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => city.ConnectAsync(token));
 
@@ -52,7 +52,9 @@ namespace Micropolis.Server.Tests
         public async Task Connect_TokenExpiredASecondAgo_IsRefused()
         {
             await using TestCity city = await TestCity.StartAsync();
-            string token = TestCity.CreateExpiredToken("someone", "Ada");
+            TimeSpan lifetime = TimeSpan.FromHours(1);
+            string token = city.CreateToken("someone", "Ada", lifetime);
+            city.Time.Advance(lifetime + TimeSpan.FromSeconds(1));
 
             InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => city.ConnectAsync(token));
 
@@ -63,7 +65,7 @@ namespace Micropolis.Server.Tests
         public async Task Connect_TokenWithoutName_IsRefused()
         {
             await using TestCity city = await TestCity.StartAsync();
-            string token = TestCity.CreateTokenWithClaims(new Claim(JwtRegisteredClaimNames.Sub, "someone"));
+            string token = city.CreateTokenWithClaims(new Claim(JwtRegisteredClaimNames.Sub, "someone"));
 
             InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => city.ConnectAsync(token));
 
@@ -74,7 +76,7 @@ namespace Micropolis.Server.Tests
         public async Task Connect_TokenWithoutExpiry_IsRefused()
         {
             await using TestCity city = await TestCity.StartAsync();
-            string token = TestCity.CreateTokenWithoutExpiry("someone", "Ada");
+            string token = city.CreateTokenWithoutExpiry("someone", "Ada");
 
             InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => city.ConnectAsync(token));
 
@@ -205,7 +207,7 @@ namespace Micropolis.Server.Tests
             SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
             await graceSocket.ReceiveAsync<HelloMessage>();
-            string shortToken = TestCity.CreateToken(ada.PlayerId, "Ada", city.Time.GetUtcNow().AddHours(1).UtcDateTime);
+            string shortToken = city.CreateToken(ada.PlayerId, "Ada", TimeSpan.FromHours(1));
             await using TestSocket adaSocket = await city.ConnectAsync(shortToken);
             await adaSocket.ReceiveAsync<HelloMessage>();
             await graceSocket.ReceiveAsync<PlayersMessage>();
@@ -229,7 +231,7 @@ namespace Micropolis.Server.Tests
         {
             await using TestCity city = await TestCity.StartAsync();
             SignedIn ada = await city.SignInAsync("Ada");
-            string longToken = TestCity.CreateToken(ada.PlayerId, "Ada", city.Time.GetUtcNow().AddDays(60).UtcDateTime);
+            string longToken = city.CreateToken(ada.PlayerId, "Ada", TimeSpan.FromDays(60));
             await using TestSocket socket = await city.ConnectAsync(longToken);
             await socket.ReceiveAsync<HelloMessage>();
 
@@ -248,7 +250,7 @@ namespace Micropolis.Server.Tests
             SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
             await graceSocket.ReceiveAsync<HelloMessage>();
-            string shortToken = TestCity.CreateToken(ada.PlayerId, "Ada", city.Time.GetUtcNow().AddHours(1).UtcDateTime);
+            string shortToken = city.CreateToken(ada.PlayerId, "Ada", TimeSpan.FromHours(1));
             await using TestSocket adaSocket = await city.ConnectAsync(shortToken);
             await adaSocket.ReceiveAsync<HelloMessage>();
             await graceSocket.ReceiveAsync<PlayersMessage>();

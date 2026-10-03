@@ -15,14 +15,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="EasyReasy.Auth" Version="5.8.0" />
+    <PackageReference Include="EasyReasy.Auth" Version="5.9.0" />
     <PackageReference Include="Microsoft.AspNetCore.SpaProxy" Version="10.0.11" />
-    <!-- The IdentityModel packages only work at one version, and mixed ones reject every token (IDX14102).
-         EasyReasy.Auth references a newer Microsoft.IdentityModel.Tokens than the JwtBearer it depends on brings these
-         two at, so these follow the version of Microsoft.IdentityModel.Tokens in the restored graph. They come out once
-         EasyReasy.Auth pins every IdentityModel package itself. -->
-    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.19.1" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
   </ItemGroup>
 
   <ItemGroup>
