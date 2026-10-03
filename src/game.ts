@@ -15,7 +15,7 @@ import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetChoice, BudgetWindow } from "./budgetWindow";
 import type { CitySource, StartedCity } from "./citySource";
 import { CityState } from "./cityState";
-import { Config } from "./config.js";
+import { ClientConfig } from "./clientConfig";
 import { DebugAction, DebugWindow } from "./debugWindow";
 import { DisasterWindow } from "./disasterWindow";
 import { isShown, requiredElement, toggleShown } from "./domElements";
@@ -256,7 +256,7 @@ export class Game {
     this.tick();
 
     // Paint the map
-    const debug = Config.debug || Config.gameDebug;
+    const debug = ClientConfig.debug;
     if (debug) {
       toggleShown(requiredElement("debug"));
       this.animStart = Date.now();

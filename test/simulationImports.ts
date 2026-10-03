@@ -11,22 +11,14 @@
  *
  */
 
-import * as fs from "fs";
 import * as path from "path";
 import ts from "typescript";
+import { createProgram, OPTIONS, SIMULATION_ROOTS, sourceModules, SRC } from "./helpers/importGraph";
 
 // A simulation module is any file the simulation, the map generator or a map-editing tool imports, directly or
 // through other modules. What the city becomes must depend on its seed, its steps and the edits applied to it alone,
 // so a simulation module may use only pure, portable built-ins: no clock, no unseeded randomness, no DOM, storage,
 // timers or packages, and no Math function whose result can differ between runtimes.
-
-const SRC = path.resolve(__dirname, "../src");
-
-// Every *Tool.js edits the map. The query tool, which only asks the simulation about a tile, is client code in
-// queryTool.ts. cityTools.ts holds the map-editing tools and their costs, which the browser and the headless fixtures
-// share.
-const ROOTS = ["simulation.js", "mapGenerator.js", "cityTools.ts",
-               ...fs.readdirSync(SRC).filter((file) => file.endsWith("Tool.js"))];
 
 // The globals a simulation module may use. Any other global, whether the environment defines it or not, is a finding.
 const PURE_GLOBALS = new Set([
@@ -38,34 +30,6 @@ const PURE_GLOBALS = new Set([
 // The Math functions whose results are exact on every runtime. Math may be used only as Math.<one of these>.
 const PORTABLE_MATH = new Set(["abs", "ceil", "clz32", "floor", "fround", "imul", "max", "min", "round", "sign",
                                "trunc"]);
-
-const OPTIONS: ts.CompilerOptions = {
-    allowJs: true,
-    allowImportingTsExtensions: true,
-    lib: ["lib.es2020.d.ts", "lib.dom.d.ts"],
-    module: ts.ModuleKind.ESNext,
-    moduleResolution: ts.ModuleResolutionKind.Bundler,
-    noEmit: true,
-    target: ts.ScriptTarget.ES2020,
-    // No ambient Node or Jest declarations: require, process and the like resolve to nothing, and are findings
-    types: [],
-};
-
-// A program over the given roots, which may name in-memory files that exist nowhere on disk
-function createProgram(roots: string[], inMemory = new Map<string, string>()): ts.Program {
-    const host = ts.createCompilerHost(OPTIONS);
-    const getSourceFile = host.getSourceFile;
-    const fileExists = host.fileExists;
-    const readFile = host.readFile;
-
-    host.getSourceFile = (fileName, languageVersion, ...rest) => inMemory.has(fileName)
-        ? ts.createSourceFile(fileName, inMemory.get(fileName)!, languageVersion, true)
-        : getSourceFile(fileName, languageVersion, ...rest);
-    host.fileExists = (fileName) => inMemory.has(fileName) || fileExists(fileName);
-    host.readFile = (fileName) => inMemory.get(fileName) ?? readFile(fileName);
-
-    return ts.createProgram(roots, OPTIONS, host);
-}
 
 // The references in a module that a simulation module must not make, each as file:line text
 function findForbidden(program: ts.Program, sourceFile: ts.SourceFile): string[] {
@@ -141,13 +105,11 @@ function findForbidden(program: ts.Program, sourceFile: ts.SourceFile): string[]
 
 // Every simulation module, as a path relative to src, with the forbidden references in it
 function simulationModules(): Map<string, string[]> {
-    const program = createProgram(ROOTS.map((root) => path.join(SRC, root)));
+    const program = createProgram(SIMULATION_ROOTS.map((root) => path.join(SRC, root)));
     const modules = new Map<string, string[]>();
 
-    for (const sourceFile of program.getSourceFiles()) {
-        if (!sourceFile.isDeclarationFile && sourceFile.fileName.startsWith(SRC + path.sep)) {
-            modules.set(path.relative(SRC, sourceFile.fileName), findForbidden(program, sourceFile));
-        }
+    for (const sourceFile of sourceModules(program)) {
+        modules.set(path.relative(SRC, sourceFile.fileName), findForbidden(program, sourceFile));
     }
 
     return modules;

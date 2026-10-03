@@ -11,12 +11,8 @@
  *
  */
 
-// The simulation's debug mode, in which an event with no name throws rather than warns (eventEmitter.js). Each city
-// source sets it from the client's debug mode (clientConfig.ts), which the simulation never imports.
-
-var Config = {
-  debug: false
+// The client's debug mode, which ?debug=1 turns on (micropolis.ts). The simulation keeps its own (config.js), which
+// each city source sets from this when it is made.
+export const ClientConfig = {
+  debug: false,
 };
-
-
-export { Config };

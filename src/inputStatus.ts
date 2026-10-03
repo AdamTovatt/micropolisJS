@@ -12,7 +12,7 @@
  */
 
 import { requiredElement } from "./domElements";
-import { EventEmitter } from "./eventEmitter.js";
+import { Emitter } from "./emitter";
 import { GameCanvas } from "./gameCanvas";
 import * as Messages from "./messages";
 import { Text } from "./text";
@@ -86,11 +86,7 @@ export interface ToolClick {
   start: boolean;
 }
 
-export class InputStatus {
-  declare addEventListener: (event: string, listener: (value: never) => void) => void;
-  declare removeEventListener: (event: string, listener: (value: never) => void) => void;
-  declare _emitEvent: (event: string, value?: unknown) => void;
-
+export class InputStatus extends Emitter {
   // Keyboard Movement
   up = false;
   down = false;
@@ -122,6 +118,7 @@ export class InputStatus {
   private readonly canvasClickHandler = (e: MouseEvent) => this.onCanvasClick(e);
 
   constructor(private readonly tileWidth: number) {
+    super();
     this.canvas = requiredElement(GameCanvas.DEFAULT_ID);
     this.pauseButton = requiredElement("pauseRequest");
     this.toolOutput = requiredElement("toolOutput");
@@ -148,7 +145,7 @@ export class InputStatus {
       [requiredElement("debugRequest"), Messages.DEBUG_WINDOW_REQUESTED],
     ];
     for (const [button, message] of requests) {
-      button.addEventListener("click", () => this._emitEvent(message));
+      button.addEventListener("click", () => this.emit(message));
     }
   }
 
@@ -223,7 +220,7 @@ export class InputStatus {
     this.mouseY = coords.y;
 
     this.dragging = true;
-    this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
+    this.emit(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
 
     this.lastDragX = Math.floor(this.mouseX / this.tileWidth);
     this.lastDragY = Math.floor(this.mouseY / this.tileWidth);
@@ -269,7 +266,7 @@ export class InputStatus {
       const y = Math.floor(this.mouseY / this.tileWidth);
 
       if (x !== this.lastDragX || y !== this.lastDragY) {
-        this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: false} satisfies ToolClick);
+        this.emit(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: false} satisfies ToolClick);
         this.lastDragX = x;
         this.lastDragY = y;
       }
@@ -281,7 +278,7 @@ export class InputStatus {
       return;
     }
 
-    this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
+    this.emit(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
     e.preventDefault();
   }
 
@@ -302,5 +299,3 @@ export class InputStatus {
     e.preventDefault();
   }
 }
-
-EventEmitter(InputStatus);

@@ -12,21 +12,18 @@
  */
 
 import { requiredElement, toggleShown } from "./domElements";
-import { EventEmitter } from "./eventEmitter.js";
+import { Emitter } from "./emitter";
 
-// The base of the game's windows: a window over the opacity layer, which windowManager.ts shows one at a time. A
-// window emits its events through the event emitter. Each window extends ClosableWindow below.
-export class WindowBase {
-  declare addEventListener: (event: string, listener: (value: never) => void) => void;
-  declare removeEventListener: (event: string, listener: (value: never) => void) => void;
-  declare _emitEvent: (event: string, value?: unknown) => void;
-
+// The base of the game's windows: a window over the opacity layer, which windowManager.ts shows one at a time, and
+// which announces its events to the listeners added for them. Each window extends ClosableWindow below.
+export class WindowBase extends Emitter {
   private readonly opacityLayer: HTMLElement;
   private readonly windowElement: HTMLElement;
   private readonly focusID: string | null;
 
   // focusID names the element that takes the focus when the window shows, by default its submit button
   constructor(opacityLayerID: string, windowID: string, focusID: string | null = null) {
+    super();
     this.opacityLayer = requiredElement(opacityLayerID);
     this.windowElement = requiredElement(windowID);
     this.focusID = focusID;
@@ -46,8 +43,6 @@ export class WindowBase {
   }
 }
 
-EventEmitter(WindowBase);
-
 // A window that closes by hiding, then emitting its closed event, so that a handler that opens another window in its
 // place starts from a hidden opacity layer
 export class ClosableWindow extends WindowBase {
@@ -60,7 +55,7 @@ export class ClosableWindow extends WindowBase {
   // value goes with the closed event, such as the actions a window closes with
   close(value?: unknown): void {
     this._toggleDisplay();
-    this._emitEvent(this.closedEvent, value);
+    this.emit(this.closedEvent, value);
   }
 
   protected closeOnSubmit(formID: string): void {

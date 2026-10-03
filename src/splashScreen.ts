@@ -12,7 +12,7 @@
  */
 
 import type { CityStart } from "./citySource";
-import { Config } from "./config.js";
+import { ClientConfig } from "./clientConfig";
 import { isChecked, isShown, requiredElement, setShown } from "./domElements";
 import { Game, GameParts } from "./game";
 import { GAME_LEVELS, GameLevel, MapPreviewAnswer } from "./protocol";
@@ -139,7 +139,7 @@ class SplashScreen {
     this.leave();
 
     // As a convenience, the city name is not mandatory in debug mode
-    if (Config.debug) {
+    if (ClientConfig.debug) {
       this.nameInput.removeAttribute("required");
     }
 
@@ -169,7 +169,7 @@ class SplashScreen {
     this.loadButton.addEventListener("click", this.onLoad);
 
     // Debug mode can open a save file, such as an end-to-end checkpoint's, to reproduce what it shows
-    if (Config.debug) {
+    if (ClientConfig.debug) {
       requiredElement("splashLoadFileContainer").classList.remove("hidden");
       this.loadFileButton.addEventListener("click", this.onChooseFile);
       this.fileInput.addEventListener("change", this.onFileChosen);

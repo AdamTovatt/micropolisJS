@@ -15,7 +15,7 @@ import { browserCityEnvironment } from "./browserCityEnvironment";
 import { CityClient } from "./cityClient";
 import type { CitySource } from "./citySource";
 import { CityState } from "./cityState";
-import { Config } from "./config.js";
+import { ClientConfig } from "./clientConfig";
 import { requiredElement } from "./domElements";
 import { showOnlineList } from "./onlineList";
 import { signInIfServerAnswers } from "./signInForm";
@@ -91,11 +91,11 @@ async function start(seed: number | null): Promise<void> {
   showSplashScreen({source, state, tileSet, spriteSheet: sprites}, seed);
 }
 
-Config.debug = debugOption(window.location.search);
+ClientConfig.debug = debugOption(window.location.search);
 const seed = pageSeed();
 
 // The end-to-end runner drives the game through this
-if (Config.debug) {
+if (ClientConfig.debug) {
   installTestHook();
 }
 
@@ -111,7 +111,7 @@ worker.addEventListener("error", (event) => {
 });
 
 // The only way the client reaches the city, and the client's copy of it, which follows the source from the start
-const source: CitySource = new WorkerCitySource(worker, Config.debug);
+const source: CitySource = new WorkerCitySource(worker, ClientConfig.debug);
 const state = new CityState(source);
 attachDriverToTestHook(source.driver);
 
