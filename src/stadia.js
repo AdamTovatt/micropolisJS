@@ -31,12 +31,12 @@ var emptyStadiumFound = function(map, x, y, simData) {
 
 var fullStadiumFound = function(map, x, y, simData) {
   simData.census.stadiumPop += 1;
-  var isPowered = map.getTile(x, y).isPowered();
 
+  // As drawStadium in the original does, the centre is marked powered whether or not it was: the next scan of its
+  // tile sets the power from the grid
   if (((simData.cityTime + x + y) & 7) === 0) {
     map.putZone(x, y, STADIUM, 4);
-    if (isPowered)
-      map.addTileFlags(x, y, POWERBIT);
+    map.addTileFlags(x, y, POWERBIT);
   }
 };
 
