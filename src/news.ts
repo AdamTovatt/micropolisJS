@@ -12,37 +12,13 @@
  */
 
 import { DISASTER_MESSAGES } from "./messages";
-import type { TrackableSprite } from "./monsterTV";
-import type { NotificationMessage } from "./notification";
+import type { NewsMessage, ShowablePlace, TrackablePlace } from "./protocol";
 import { MessageTone, Text } from "./text";
 
 // What becomes of a message the simulation sends for the player: whether the notification bar announces it, and
 // whether the monster TV shows where it happened
 
 const DISASTER_HOLD = 20 * 1000;
-
-// Where a message happened, in map tiles
-interface Place {
-  x: number;
-  y: number;
-}
-
-// A place the monster TV shows
-export interface ShowablePlace extends Place {
-  showable: true;
-}
-
-// A place the monster TV shows, following the sprite there as it moves
-export interface TrackablePlace extends Place {
-  trackable: true;
-  sprite: TrackableSprite;
-}
-
-// A message the simulation sends for the player: its subject, from messages.ts, and where it happened, if it did
-// somewhere
-export interface FrontEndMessage extends NotificationMessage {
-  data?: Place | ShowablePlace | TrackablePlace;
-}
 
 // Holds neutral news back while a disaster is recent: for DISASTER_HOLD after the last one reported. Good news is a
 // milestone, which shows even over a recent disaster, as the notification is the only place the player learns of it.
@@ -72,7 +48,7 @@ export interface NewsRoute {
   unknown: boolean;
 }
 
-export function routeMessage(message: FrontEndMessage, hold: NewsHold, now: number): NewsRoute {
+export function routeMessage(message: NewsMessage, hold: NewsHold, now: number): NewsRoute {
   const subject = message.subject;
   const tone = Object.prototype.hasOwnProperty.call(Text.messages, subject) ? Text.messages[subject].tone : null;
 

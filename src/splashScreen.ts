@@ -11,26 +11,19 @@
  *
  */
 
+import type { CityStart } from "./citySource";
 import { Config } from "./config.js";
 import { isChecked, isShown, requiredElement, setShown } from "./domElements";
-import { Game } from "./game";
-import { MapGenerator } from "./mapGenerator.js";
-import { Random } from "./random";
-import { GAME_LEVELS, GameLevel } from "./protocol";
+import { Game, GameParts } from "./game";
+import { GAME_LEVELS, GameLevel, MapPreviewAnswer } from "./protocol";
 import { PreviewMap, SplashCanvas } from "./splashCanvas";
-import { SavedGame, Storage } from "./storage";
-import { TileSet } from "./tileSet";
+import { Storage } from "./storage";
 import { UiRandom } from "./uiRandom";
 
-// The splash screen is the first screen the player sees, once the tiles and sprites have loaded. It generates maps for
-// the player to choose from, or loads a saved game; for a new game it then asks for the city's name and level, and
-// launches the game.
-
-// A map the player can choose, and the game seed it was generated from
-interface MapChoice {
-  seed: number;
-  map: PreviewMap;
-}
+// The splash screen is the first screen the player sees, once the tiles and sprites have loaded. It shows maps for the
+// player to choose from, or loads a saved game; for a new game it then asks for the city's name and level, and
+// launches the game. Generating a map belongs to the simulation, so each map comes from the city source, as the answer
+// to a map preview query, which it answers before any city has started.
 
 // The radio button of each level a new city can start at
 const LEVEL_RADIOS: {level: GameLevel, id: string}[] = [
@@ -49,17 +42,26 @@ function checkedLevel(): number {
   return GAME_LEVELS.indexOf(radio.level);
 }
 
+// A preview's tiles as the splash canvas reads them
+function previewMap(answer: MapPreviewAnswer): PreviewMap {
+  return {
+    width: answer.width,
+    height: answer.height,
+    getTileValue: (x, y) => answer.tiles[y * answer.width + x],
+  };
+}
+
 // Shows the splash screen, first offering the map of the seed, or of a new one when given none. While the screen is too
 // small to play, it waits until a resize makes room.
-export function showSplashScreen(tileSet: TileSet, spriteSheet: HTMLImageElement, seed: number | null): void {
+export function showSplashScreen(parts: GameParts, seed: number | null): void {
   if (!isShown(requiredElement("tooSmall"))) {
-    new SplashScreen(tileSet, spriteSheet, seed);
+    new SplashScreen(parts, seed);
     return;
   }
 
   const onResize = () => {
     window.removeEventListener("resize", onResize);
-    showSplashScreen(tileSet, spriteSheet, seed);
+    showSplashScreen(parts, seed);
   };
   window.addEventListener("resize", onResize);
 }
@@ -77,25 +79,26 @@ class SplashScreen {
   private readonly playForm = requiredElement("playForm");
   private readonly nameInput = requiredElement("nameForm", HTMLInputElement);
 
-  private choice: MapChoice;
+  // The game seed of the map the player has chosen, whose preview may yet be on its way
+  private seed: number;
   private readonly splashCanvas: SplashCanvas;
   // Whether the player has moved on, to a new game or a saved one
   private departed = false;
+  // Whether a saved game is being started, which the player waits for
+  private loading = false;
 
   private readonly onGenerate = (e: Event) => {
     e.preventDefault();
-
-    this.choice = this.generate(null);
-    this.splashCanvas.paint(this.choice.map);
+    this.choose(UiRandom.newSeed());
   };
 
   // Fetches the saved game from storage, and launches it
   private readonly onLoad = (e: Event) => {
     e.preventDefault();
 
-    const savedGame = Storage.getSavedGame();
-    if (savedGame !== null) {
-      this.launchSavedGame(savedGame);
+    const text = Storage.getSavedText();
+    if (text !== null) {
+      this.launchSavedGame(text, (err) => alert(`The saved game would not load: ${err}`));
     }
   };
 
@@ -120,17 +123,18 @@ class SplashScreen {
       }
 
       // A file that reads as a save can still fail to load
-      try {
-        this.launchSavedGame(Storage.parse(text));
-      } catch (err) {
-        alert(`Could not read ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      this.launchSavedGame(text, (err) => alert(`Could not read ${file.name}: ${err}`));
     });
   };
 
   // Moves on from the chosen map to the form asking for the city's name and level
   private readonly onPlay = (e: Event) => {
     e.preventDefault();
+
+    // A saved game is starting
+    if (this.loading) {
+      return;
+    }
 
     this.leave();
 
@@ -144,19 +148,21 @@ class SplashScreen {
     this.nameInput.focus();
   };
 
-  // Launches a new game on the chosen map, with the name and level the player gave
+  // Launches a new game on the chosen map, with the name and level the player gave. The name may be empty: the start
+  // form doesn't require one in debug mode.
   private readonly onSubmit = (e: Event) => {
     e.preventDefault();
 
     this.playForm.removeEventListener("submit", this.onSubmit);
     setShown(this.start, false);
 
-    Game.newGame(this.choice.map, this.choice.seed, this.tileSet, this.spriteSheet, checkedLevel(),
-                 this.nameInput.value);
+    void this.startGame({name: this.nameInput.value || "MyTown", seed: this.seed, level: checkedLevel()});
   };
 
-  constructor(private readonly tileSet: TileSet, private readonly spriteSheet: HTMLImageElement, seed: number | null) {
-    this.choice = this.generate(seed);
+  constructor(private readonly parts: GameParts, seed: number | null) {
+    this.splashCanvas = new SplashCanvas("splashContainer", parts.tileSet);
+    this.seed = seed === null ? UiRandom.newSeed() : seed;
+    this.choose(this.seed);
 
     this.generateButton.addEventListener("click", this.onGenerate);
     this.playButton.addEventListener("click", this.onPlay);
@@ -171,23 +177,27 @@ class SplashScreen {
 
     // Saving needs storage, and loading needs a game saved there
     requiredElement("saveRequest", HTMLButtonElement).disabled = !Storage.canStore;
-    this.loadButton.disabled = !(Storage.canStore && Storage.getSavedGame() !== null);
-
-    // Paint the minimap
-    this.splashCanvas = new SplashCanvas("splashContainer", tileSet);
-    this.splashCanvas.paint(this.choice.map);
+    this.loadButton.disabled = !(Storage.canStore && Storage.getSavedText() !== null);
 
     setShown(this.splash, true);
     this.playButton.focus();
   }
 
-  // Generates the map of the game seed, or of a new seed when given none, and shows the seed
-  private generate(seed: number | null): MapChoice {
-    const chosen = seed === null ? UiRandom.newSeed() : seed;
-    const map = MapGenerator(Random.mapStream(chosen));
-    this.seedText.textContent = String(chosen);
+  // Chooses the map of the game seed, shows the seed, and paints the map once the source answers with it, unless the
+  // player has chosen another by then
+  private choose(seed: number): void {
+    this.seed = seed;
+    this.seedText.textContent = String(seed);
 
-    return {seed: chosen, map};
+    this.parts.source.ask({type: "mapPreview", seed}, (answer) => {
+      if (answer.type !== "mapPreview") {
+        throw new Error(`The source answered a map preview with ${JSON.stringify(answer)}`);
+      }
+
+      if (answer.seed === this.seed) {
+        this.splashCanvas.paint(previewMap(answer));
+      }
+    });
   }
 
   // Removes the splash screen's listeners and hides it
@@ -202,10 +212,25 @@ class SplashScreen {
     this.departed = true;
   }
 
-  // The game is built before the splash screen goes, so a save that won't load leaves it showing
-  private launchSavedGame(savedGame: SavedGame): void {
-    Game.fromSave(savedGame, this.tileSet, this.spriteSheet);
+  // The game starts before the splash screen goes, so a save that won't load leaves it showing, and the player can
+  // choose again. Only one saved game starts at a time, and no new one while it does.
+  private launchSavedGame(text: string, failed: (reason: string) => void): void {
+    if (this.loading) {
+      return;
+    }
 
-    this.leave();
+    this.loading = true;
+    this.startGame({save: text}).then(() => {
+      this.loading = false;
+      this.leave();
+    }, (err: unknown) => {
+      this.loading = false;
+      failed(err instanceof Error ? err.message : String(err));
+    });
+  }
+
+  // Starts the city, then the game
+  private async startGame(start: CityStart): Promise<void> {
+    new Game(this.parts, await this.parts.source.start(start));
   }
 }

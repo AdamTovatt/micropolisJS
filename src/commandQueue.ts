@@ -11,7 +11,8 @@
  *
  */
 
-import { CommandResult, PlayerId, ReceivedCommand } from "./commands";
+import { ReceivedCommand } from "./commands";
+import { CommandResult, PlayerId } from "./protocol";
 
 // The parts of the simulation that commands and steps reach
 export interface CommandTarget {

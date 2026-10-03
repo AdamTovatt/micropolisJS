@@ -12,7 +12,7 @@
  */
 
 import { parseLog } from "../src/commandLog";
-import { CommandResult } from "../src/commands";
+import { CommandResult } from "../src/protocol";
 import { parseCommandLine } from "./commandLine";
 import { advance, replay, startCity, summarise } from "./runner";
 

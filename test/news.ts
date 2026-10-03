@@ -12,8 +12,8 @@
  */
 
 import * as Messages from "../src/messages";
-import type { TrackableSprite } from "../src/monsterTV";
 import { NewsHold, routeMessage } from "../src/news";
+import { SPRITE_MONSTER } from "../src/spriteConstants";
 
 const SECOND = 1000;
 const HOLD = 20 * SECOND;
@@ -57,10 +57,10 @@ describe("news held after a disaster", () => {
 
 describe("where a message goes", () => {
 
-    const sprite: TrackableSprite = {addEventListener: () => {}, removeEventListener: () => {}};
+    const sprite = SPRITE_MONSTER;
 
     it("announces good news without the monster TV, even about a place", () => {
-        const route = routeMessage({subject: Messages.REACHED_TOWN, data: {x: 1, y: 2, showable: true}},
+        const route = routeMessage({type: "news", subject: Messages.REACHED_TOWN, data: {x: 1, y: 2, showable: true}},
                                    new NewsHold(), 0);
 
         expect(route).toEqual({notify: true, tv: null, unknown: false});
@@ -69,32 +69,32 @@ describe("where a message goes", () => {
     it("shows a place the message says the TV can show", () => {
         const data = {x: 1, y: 2, showable: true} as const;
 
-        expect(routeMessage({subject: Messages.FIRE_REPORTED, data}, new NewsHold(), 0))
+        expect(routeMessage({type: "news", subject: Messages.FIRE_REPORTED, data}, new NewsHold(), 0))
             .toEqual({notify: true, tv: data, unknown: false});
     });
 
     it("follows a sprite the message says the TV can follow", () => {
         const data = {x: 1, y: 2, trackable: true, sprite} as const;
 
-        expect(routeMessage({subject: Messages.MONSTER_SIGHTED, data}, new NewsHold(), 0).tv).toBe(data);
+        expect(routeMessage({type: "news", subject: Messages.MONSTER_SIGHTED, data}, new NewsHold(), 0).tv).toBe(data);
     });
 
     it("leaves the TV as it is for a place it can neither show nor follow", () => {
-        expect(routeMessage({subject: Messages.HIGH_POLLUTION, data: {x: 1, y: 2}}, new NewsHold(), 0).tv).toBeNull();
+        expect(routeMessage({type: "news", subject: Messages.HIGH_POLLUTION, data: {x: 1, y: 2}}, new NewsHold(), 0).tv).toBeNull();
     });
 
     it("holds neutral news back after a disaster's message", () => {
         const hold = new NewsHold();
 
-        routeMessage({subject: Messages.FIRE_REPORTED, data: {x: 1, y: 2, showable: true}}, hold, 0);
+        routeMessage({type: "news", subject: Messages.FIRE_REPORTED, data: {x: 1, y: 2, showable: true}}, hold, 0);
 
-        expect(routeMessage({subject: Messages.NEED_STADIUM}, hold, SECOND).notify).toBe(false);
+        expect(routeMessage({type: "news", subject: Messages.NEED_STADIUM}, hold, SECOND).notify).toBe(false);
     });
 
     it("announces nothing for a subject there is no text for, but still shows its place", () => {
         const data = {x: 1, y: 2, showable: true} as const;
 
-        expect(routeMessage({subject: "noSuchSubject", data}, new NewsHold(), 0))
+        expect(routeMessage({type: "news", subject: "noSuchSubject", data}, new NewsHold(), 0))
             .toEqual({notify: false, tv: data, unknown: true});
     });
 });

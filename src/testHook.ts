@@ -11,32 +11,20 @@
  *
  */
 
-import { checkStepCount, ClockedSimulation, takeSteps } from "./cityTimeModel";
-import { BUDGET_REVIEW_DUE, COMMAND_RESULT } from "./messages";
-import { StepDriver } from "./stepDriver";
-import { Storage } from "./storage";
+import type { CityDriver } from "./citySource";
 
-// The end-to-end runner's hold on the game, installed on the window in debug mode. The runner holds the step driver,
-// lands its input, and moves the city on only through advance, so each step lands where it did on the last run. It
-// changes city state only through the commands the game sends and the step the driver calls: input reaches the game as
-// real mouse and keyboard.
-
-// What the hook needs of the game's simulation
-export interface HookedSimulation extends ClockedSimulation {
-  addEventListener(event: string, listener: () => void): void;
-  removeEventListener(event: string, listener: () => void): void;
-}
+// The end-to-end runner's hold on the game, installed on the window in debug mode. The runner holds the city source's
+// step driver, lands its input, and moves the city on only through advance, so each step lands where it did on the
+// last run. It changes city state only through the commands the game sends and the steps the source's driver takes:
+// input reaches the game as real mouse and keyboard. Every call that reaches the city goes through the source's
+// asynchronous driver channel, so the runner awaits it.
 
 // What the hook needs of the game
 interface HookedGame {
-  stepDriver: StepDriver;
-  // Why the city isn't stepping, or null when it is
-  notSteppingReason(): string | null;
-  stepSimulation(): void;
   sendToolPaths(): void;
-  commandQueue: {applyCommands(): unknown};
-  saveData(): object;
-  simulation: HookedSimulation;
+  // The saved game's text
+  save(): Promise<string>;
+  onCommandResult(listener: () => void): void;
   gameCanvas: {getTileOrigin(): {x: number, y: number}};
   tileSet: {tileWidth: number};
 }
@@ -56,84 +44,69 @@ export interface View {
 }
 
 class TestHook {
+  private driver: CityDriver | null = null;
   private game: HookedGame | null = null;
-  private held = false;
   private steps = 0;
   // The commands the attached game has applied
   private commands = 0;
-  private readonly countCommand = () => {
-    this.commands++;
-  };
 
-  // Called by the game as it starts, before its first step and its first command. A hold taken before the game started
-  // applies from its first step, so no step runs before the runner says so.
+  // Called as the page creates its city source, before any city starts
+  attachDriver(driver: CityDriver): void {
+    this.driver = driver;
+  }
+
+  // Called by the game as it starts, before its first command
   attach(game: HookedGame): void {
-    this.game?.simulation.removeEventListener(COMMAND_RESULT, this.countCommand);
     this.game = game;
     this.commands = 0;
-    game.simulation.addEventListener(COMMAND_RESULT, this.countCommand);
-
-    if (this.held) {
-      game.stepDriver.hold();
-    }
+    game.onCommandResult(() => {
+      if (this.game === game) {
+        this.commands++;
+      }
+    });
   }
 
-  // Stops the browser's step driver. This is not the game's pause: the game speed is untouched.
-  holdDriver(): void {
-    this.held = true;
-    this.game?.stepDriver.hold();
+  // Stops the source's step driver, from the city's next step: before a city starts, from its first. This is not the
+  // game's pause: the game speed is untouched. While it is held, the game's tick leaves the input to the runner.
+  async holdDriver(): Promise<void> {
+    await this.attachedDriver().hold();
   }
 
-  releaseDriver(): void {
-    this.held = false;
-    this.game?.stepDriver.release();
+  async releaseDriver(): Promise<void> {
+    await this.attachedDriver().release();
   }
 
   // Sends the tool paths the player has drawn, one tool command each, and applies the commands sent. While the driver is
   // held, the game's tick leaves this to the runner, so a run's input becomes the same commands on every run.
-  applyInput(): void {
-    const game = this.attachedGame();
-
-    game.sendToolPaths();
-    game.commandQueue.applyCommands();
+  async applyInput(): Promise<void> {
+    this.attachedGame().sendToolPaths();
+    await this.attachedDriver().flush();
   }
 
-  // Applies the input the game has yet to send, then takes this many steps, calling the step the driver calls, at the
-  // city's own speed. Fails when the city doesn't step at all, or when city time didn't advance as far as the steps
-  // imply.
-  advance(steps: number): Advanced {
+  // Applies the input the game has yet to send, then takes this many steps at the city's own speed. Fails when the
+  // city doesn't step at all, or when city time didn't advance as far as the steps imply.
+  async advance(steps: number): Promise<Advanced> {
     const game = this.attachedGame();
-    // Before anything is applied, so a call refused changes nothing
-    checkStepCount(steps);
+    const driver = this.attachedDriver();
+    // Before anything is sent, so a call refused changes nothing. The source checks both again, with checkStepCount in
+    // cityTimeModel.ts, which the page can't import: it imports the simulation.
+    if (!Number.isInteger(steps) || steps < 0) {
+      throw new Error(`Steps are taken in whole numbers, got ${steps}`);
+    }
 
-    if (!game.stepDriver.isHeld()) {
+    if (!driver.isHeld()) {
       throw new Error("Advance needs the driver held, or the driver's steps would land at times of its own");
     }
 
-    // Before the check that the city steps: the input may be the Pause button
-    this.applyInput();
+    game.sendToolPaths();
+    const result = await driver.advance(steps);
+    this.steps += result.steps;
 
-    const notStepping = game.notSteppingReason();
-    if (notStepping !== null) {
-      throw new Error(`The city is not stepping: ${notStepping}`);
+    if (result.error !== null) {
+      throw new Error(result.error);
     }
 
-    let budgetReviewDue = false;
-    const onReviewDue = () => {
-      budgetReviewDue = true;
-    };
-    game.simulation.addEventListener(BUDGET_REVIEW_DUE, onReviewDue);
-
-    try {
-      takeSteps(game.simulation, steps, () => {
-        game.stepSimulation();
-        this.steps++;
-      });
-    } finally {
-      game.simulation.removeEventListener(BUDGET_REVIEW_DUE, onReviewDue);
-    }
-
-    return {budgetReviewDue};
+    return {budgetReviewDue: result.budgetReviewDue};
   }
 
   // Every step advance has taken, including those of an advance that then failed
@@ -142,8 +115,8 @@ class TestHook {
   }
 
   // The save, as the object the game writes to storage
-  save(): object {
-    return JSON.parse(Storage.serialise(this.attachedGame().saveData()));
+  async save(): Promise<object> {
+    return JSON.parse(await this.attachedGame().save()) as object;
   }
 
   // The commands the game has applied since it started, rejected ones included: one entry each in its command log
@@ -153,8 +126,10 @@ class TestHook {
     return this.commands;
   }
 
-  cityTime(): number {
-    return this.attachedGame().simulation._cityTime;
+  async cityTime(): Promise<number> {
+    // Only to fail when no game has started
+    this.attachedGame();
+    return this.attachedDriver().cityTime();
   }
 
   view(): View {
@@ -171,6 +146,14 @@ class TestHook {
 
     return this.game;
   }
+
+  private attachedDriver(): CityDriver {
+    if (this.driver === null) {
+      throw new Error("No city source's driver is attached");
+    }
+
+    return this.driver;
+  }
 }
 
 declare global {
@@ -183,9 +166,14 @@ function installTestHook(): void {
   window.micropolisTestHook = new TestHook();
 }
 
+// Attaches the source's driver to the hook, if one is installed
+function attachDriverToTestHook(driver: CityDriver): void {
+  window.micropolisTestHook?.attachDriver(driver);
+}
+
 // Attaches a starting game to the hook, if one is installed
 function attachToTestHook(game: HookedGame): void {
   window.micropolisTestHook?.attach(game);
 }
 
-export { attachToTestHook, installTestHook, TestHook };
+export { attachDriverToTestHook, attachToTestHook, installTestHook, TestHook };

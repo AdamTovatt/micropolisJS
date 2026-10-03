@@ -11,9 +11,7 @@
  *
  */
 
-import { CommandResult, LOCAL_PLAYER, Outcome } from "./commands";
-import { isRecord } from "./validation";
-import { Command, ServiceAmounts } from "./protocol";
+import { Command, CommandResult, Outcome, PlayerId, ServiceAmounts } from "./protocol";
 import { Text } from "./text";
 
 // The commands the player's choices in the game's windows send, and what the game shows of their results
@@ -46,11 +44,13 @@ export function budgetCommand(funding: Partial<ServiceAmounts>, tax: number): Co
   return {type: "setBudget", tax, ...funding};
 }
 
-// The outcome the tool output shows for a command result: that of the local player's tool commands, and null for
-// any other. A result's command is whatever arrived, so it is checked before it is read.
-export function toolOutcome(result: CommandResult): Outcome | null {
+// The outcome the tool output shows for a command result: that of the player's own tool commands, and null for any
+// other. A result's command is whatever arrived, so it is checked before it is read: here rather than with
+// validation.ts's isRecord, since the client imports nothing of the simulation's but the vocabulary it shares.
+export function toolOutcome(result: CommandResult, player: PlayerId): Outcome | null {
   const command = result.command;
-  if (result.player !== LOCAL_PLAYER || !isRecord(command) || command.type !== "tool") {
+  if (result.player !== player || typeof command !== "object" || command === null || !("type" in command) ||
+      command.type !== "tool") {
     return null;
   }
 

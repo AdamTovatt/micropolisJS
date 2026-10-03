@@ -167,8 +167,8 @@ hashes.
 ## What the hash leaves out
 
 The browser's own state is not simulation state and is not hashed: the city's name and the save version, which
-`storage.ts` adds when it writes to `localStorage`. A player's own settings, such as auto-bulldoze, are not saved with
-the city at all: each command carries the ones it depends on.
+`savedGame.ts` adds when it writes the save's text, which the page keeps in `localStorage`. A player's own settings,
+such as auto-bulldoze, are not saved with the city at all: each command carries the ones it depends on.
 
 The simulation decides when to send the advisor's notifications, so the counters it decides that with are city
 state and are hashed. What is left out is what only remembers what one display was last told, such as the last

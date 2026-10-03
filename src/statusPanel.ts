@@ -11,14 +11,9 @@
  *
  */
 
-import type { CityStatus } from "./cityStatus";
 import { appendElement, requiredElement } from "./domElements";
-import { CITY_STATUS_UPDATED } from "./messages";
+import type { StatusRecord } from "./protocol";
 import { Text } from "./text";
-
-export interface CityStatusSource {
-  addEventListener(event: string, listener: (status: CityStatus) => void): void;
-}
 
 export interface CapMarker {
   label: string;
@@ -37,7 +32,7 @@ export interface StatusView {
   conditions: string[];
 }
 
-const CAPS: ReadonlyArray<{isCapped: (status: CityStatus) => boolean, label: string, title: string}> = [
+const CAPS: ReadonlyArray<{isCapped: (status: StatusRecord) => boolean, label: string, title: string}> = [
   {isCapped: (status) => status.residentialCapped, label: Text.statusPanel.residentialCap,
    title: Text.statusPanel.residentialCapTitle},
   {isCapped: (status) => status.commercialCapped, label: Text.statusPanel.commercialCap,
@@ -48,7 +43,7 @@ const CAPS: ReadonlyArray<{isCapped: (status: CityStatus) => boolean, label: str
 
 // Every decision about what the panel shows is made here, so it is tested under node. StatusPanel only writes
 // the view into the DOM, and is left untested: testing it would need a DOM environment for Jest.
-export function statusView(status: CityStatus): StatusView {
+export function statusView(status: StatusRecord): StatusView {
   const overloaded = status.powerLoad > status.powerCapacity;
   const fraction = status.powerCapacity > 0 ? Math.min(status.powerLoad / status.powerCapacity, 1) : 1;
 
@@ -71,7 +66,7 @@ export class StatusPanel {
   private readonly capsList: HTMLElement;
   private readonly conditionsList: HTMLElement;
 
-  constructor(elementId: string, source: CityStatusSource) {
+  constructor(elementId: string) {
     const container = requiredElement(elementId);
 
     const powerRow = appendElement(container, "div", "statusRow");
@@ -87,8 +82,11 @@ export class StatusPanel {
     this.capsRow.style.display = "none";
 
     this.conditionsList = appendElement(container, "ul", "statusConditions");
+  }
 
-    source.addEventListener(CITY_STATUS_UPDATED, (status) => this.render(statusView(status)));
+  // Shows each status record as it comes
+  show(status: StatusRecord): void {
+    this.render(statusView(status));
   }
 
   private render(view: StatusView): void {

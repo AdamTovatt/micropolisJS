@@ -14,7 +14,7 @@
 import { Simulation } from "../headless/city";
 import { startCity } from "../headless/runner";
 import { Query, QueryAnswer, TileReportAnswer } from "../src/protocol";
-import { pageQuerySource, QuerySource } from "../src/querySource";
+import { QuerySource } from "../src/querySource";
 import { QueryTool } from "../src/queryTool";
 
 // A source that holds each query until the test answers it, as a server does
@@ -55,7 +55,7 @@ describe("the query tool", () => {
 
     // The game asks only about tiles on the map
     it("fails on a rejection, and shows nothing", () => {
-        const {tool: queryTool, shown} = tool(pageQuerySource(town));
+        const {tool: queryTool, shown} = tool({ask: (query, reply) => reply(town.answerQuery(query))});
 
         expect(() => queryTool.query(-1, 13)).toThrow(/^The simulation rejected a tile report query: the tile is /);
         expect(shown).toEqual([]);

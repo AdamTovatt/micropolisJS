@@ -50,28 +50,6 @@ SpriteManager.prototype.getSpriteList = function() {
 };
 
 
-SpriteManager.prototype.getSpritesInView = function(startX, startY, pixelWidth, pixelHeight) {
-  startX = SpriteUtils.worldToPix(startX);
-  startY = SpriteUtils.worldToPix(startY);
-  var lastX = startX + pixelWidth;
-  var lastY = startY + pixelHeight;
-
-  return this.spriteList.filter(function(s) {
-    var spriteLeft = s.x + s.xOffset;
-    var spriteTop = s.y + s.yOffset;
-    var spriteRight = s.x + s.xOffset + s.width;
-    var spriteBottom = s.y + s.yOffset + s.width;
-
-    var leftInBounds = spriteLeft >= startX && spriteLeft < lastX;
-    var rightInBounds = spriteRight >= startX && spriteRight < lastX;
-    var topInBounds = spriteTop >= startY && spriteTop < lastY;
-    var bottomInBounds = spriteBottom >= startY && spriteBottom < lastY;
-
-    return (leftInBounds || rightInBounds) && (topInBounds || bottomInBounds);
-  });
-};
-
-
 SpriteManager.prototype.moveObjects = function(simData) {
   var disasterManager = simData.disasterManager;
   var blockMaps = simData.blockMaps;

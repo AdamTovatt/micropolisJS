@@ -18,6 +18,7 @@ import { CanvasOverlay } from "./overlayRenderer";
 import type { OverlayView } from "./overlayRenderer";
 import { PaintRecord } from "./paintRecord";
 import type { TileRect } from "./paintRecord";
+import type { SpriteView } from "./protocol";
 import type { TileSet } from "./tileSet";
 import { TILE_INVALID } from "./tileValues";
 import { ViewPosition, canvasPointToTile, viewport } from "./viewPosition";
@@ -33,17 +34,9 @@ interface PaintableMap {
   getTileValuesForPainting(x: number, y: number, w: number, h: number, result: number[]): number[];
 }
 
-// What the canvas reads of a sprite. Positions are map pixels; frame and type count from 1.
-interface PaintableSprite {
-  readonly type: number;
-  readonly frame: number;
-  readonly x: number;
-  readonly y: number;
-  readonly xOffset: number;
-  readonly yOffset: number;
-  readonly width: number;
-  readonly height: number;
-}
+// What the canvas reads of a sprite: the square it is drawn in, width map pixels a side from map pixel (x, y), and its
+// type and frame, which count from 1, as a sprites message gives them
+type PaintableSprite = Readonly<SpriteView>;
 
 // A tool's outline. x and y are the tile under the mouse, in tile offsets from the view's origin: the top-left of a
 // tool up to 2x2, and one tile in from the top-left of a bigger one. width and height are tiles.
@@ -74,15 +67,30 @@ function mustRepaintAll(width: number, height: number, lastWidth: number, lastHe
 
 // The tiles a sprite drawn with the view's origin at (originX, originY) covers, so they are repainted next time
 function spriteDamage(sprite: PaintableSprite, originX: number, originY: number, tileWidth: number): TileRect {
-  const left = sprite.x + sprite.xOffset - originX * SPRITE_PIXELS_PER_TILE;
-  const top = sprite.y + sprite.yOffset - originY * SPRITE_PIXELS_PER_TILE;
+  const left = sprite.x - originX * SPRITE_PIXELS_PER_TILE;
+  const top = sprite.y - originY * SPRITE_PIXELS_PER_TILE;
 
   return {
     x: Math.floor(left / tileWidth),
     xBound: Math.ceil((left + sprite.width) / tileWidth),
     y: Math.floor(top / tileWidth),
-    yBound: Math.ceil((top + sprite.height) / tileWidth),
+    yBound: Math.ceil((top + sprite.width) / tileWidth),
   };
+}
+
+// The sprites any part of whose square shows in the view whose top-left tile is (originX, originY), pixelWidth by
+// pixelHeight map pixels, as the original's sprite manager chose the sprites to draw
+function spritesInView(sprites: readonly PaintableSprite[], originX: number, originY: number, pixelWidth: number,
+                       pixelHeight: number): PaintableSprite[] {
+  const startX = originX * SPRITE_PIXELS_PER_TILE;
+  const startY = originY * SPRITE_PIXELS_PER_TILE;
+  const lastX = startX + pixelWidth;
+  const lastY = startY + pixelHeight;
+  const inX = (x: number) => x >= startX && x < lastX;
+  const inY = (y: number) => y >= startY && y < lastY;
+
+  return sprites.filter((sprite) => (inX(sprite.x) || inX(sprite.x + sprite.width)) &&
+                                    (inY(sprite.y) || inY(sprite.y + sprite.width)));
 }
 
 // The layout of the outline, or null for an outline of no tiles, which draws nothing
@@ -362,11 +370,11 @@ class GameCanvas {
                     (sprite.frame - 1) * SPRITE_CELL,
                     (sprite.type - 1) * SPRITE_CELL,
                     sprite.width,
-                    sprite.height,
-                    sprite.x + sprite.xOffset - origin.x * SPRITE_PIXELS_PER_TILE,
-                    sprite.y + sprite.yOffset - origin.y * SPRITE_PIXELS_PER_TILE,
                     sprite.width,
-                    sprite.height);
+                    sprite.x - origin.x * SPRITE_PIXELS_PER_TILE,
+                    sprite.y - origin.y * SPRITE_PIXELS_PER_TILE,
+                    sprite.width,
+                    sprite.width);
     } catch (e) {
       throw new Error(`Failed to draw sprite ${sprite.type} frame ${sprite.frame} at ${sprite.x}, ${sprite.y}`,
                       {cause: e});
@@ -407,5 +415,5 @@ class GameCanvas {
   }
 }
 
-export { GameCanvas, mouseOutlineLayout, mustRepaintAll, spriteDamage };
+export { GameCanvas, SPRITE_PIXELS_PER_TILE, mouseOutlineLayout, mustRepaintAll, spriteDamage, spritesInView };
 export type { MouseOutline, PaintableMap, PaintableSprite };

@@ -13,12 +13,16 @@
 
 import { browserCityEnvironment } from "./browserCityEnvironment";
 import { CityClient } from "./cityClient";
+import { browserTicker } from "./cityHost";
+import type { CitySource } from "./citySource";
+import { CityState } from "./cityState";
 import { Config } from "./config.js";
 import { requiredElement } from "./domElements";
 import { showOnlineList } from "./onlineList";
+import { PageCitySource } from "./pageCitySource";
 import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
-import { installTestHook } from "./testHook";
+import { attachDriverToTestHook, installTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
 import { debugOption, seedOption } from "./urlOptions";
 
@@ -85,7 +89,7 @@ async function start(seed: number | null): Promise<void> {
     console.error("Signing in failed", error);
   }
 
-  showSplashScreen(tileSet, sprites, seed);
+  showSplashScreen({source, state, tileSet, spriteSheet: sprites}, seed);
 }
 
 Config.debug = debugOption(window.location.search);
@@ -95,5 +99,10 @@ const seed = pageSeed();
 if (Config.debug) {
   installTestHook();
 }
+
+// The only way the client reaches the city, and the client's copy of it, which follows the source from the start
+const source: CitySource = new PageCitySource(browserTicker());
+const state = new CityState(source);
+attachDriverToTestHook(source.driver);
 
 void start(seed);

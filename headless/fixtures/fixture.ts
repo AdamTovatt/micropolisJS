@@ -12,8 +12,7 @@
  */
 
 import { Checkpoint, CommandLog, LOG_FORMAT_VERSION } from "../../src/commandLog";
-import { LOCAL_PLAYER } from "../../src/commands";
-import { Command } from "../../src/protocol";
+import { Command, LOCAL_PLAYER } from "../../src/protocol";
 import { Level } from "../city";
 
 // The step of a fixture's run checkpoint: about three city years at medium speed, the speed a new city starts at

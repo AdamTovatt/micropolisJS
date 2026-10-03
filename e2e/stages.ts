@@ -277,7 +277,7 @@ export async function letTheDriverRun(player: Player): Promise<void> {
   // A month is four units of city time
   const start = await player.cityTime();
   await player.releaseDriver();
-  await player.page.waitForFunction((target) => window.micropolisTestHook!.cityTime() >= target, start + 4,
-                                    {polling: 100, timeout: 60 * 1000});
+  // Polled from here: the page's waitForFunction doesn't await a predicate's promise, and takes the promise as true
+  await expect.poll(() => player.cityTime(), {intervals: [100], timeout: 60 * 1000}).toBeGreaterThanOrEqual(start + 4);
   await player.holdDriver();
 }

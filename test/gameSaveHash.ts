@@ -12,25 +12,17 @@
  */
 
 import { gameSaveHash } from "../src/gameSaveHash";
+import { SaveFormat } from "../src/savedGame";
 import { plainSavedState, stateHash } from "../src/stateHash";
 import { simulationFromSeed, SimulationInstance } from "./helpers/simulations";
-import { removeWindow, stubWindow } from "./helpers/window";
 
 // A game's save of a city, as the browser writes it: the simulation's state beside the game's own key, the city's
-// name, and the save version storage.ts stamps. Game needs the DOM, so its key is written out here as Game.saveData
-// writes it.
+// name, and the save version savedGame.ts stamps, as the city host's save writes them
 async function gameSave(simulation: SimulationInstance): Promise<Record<string, unknown>> {
-    stubWindow();
-    const {Storage} = await import("../src/storage");
-
-    return JSON.parse(Storage.serialise({...plainSavedState(simulation), name: "Town"}));
+    return JSON.parse(SaveFormat.serialise({...plainSavedState(simulation), name: "Town"}));
 }
 
 describe("a game save's hash", () => {
-
-    afterAll(() => {
-        removeWindow();
-    });
 
     it("is the state hash of the city in the save", async () => {
         // Any city that has moved on from a new one

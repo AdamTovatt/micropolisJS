@@ -12,7 +12,8 @@
  */
 
 import { CommandQueue, CommandTarget, QueueRecorder, StampedCommand } from "../src/commandQueue";
-import { CommandResult, ReceivedCommand } from "../src/commands";
+import { ReceivedCommand } from "../src/commands";
+import { CommandResult } from "../src/protocol";
 
 // A simulation that records what reaches it, in order
 class Recorder implements CommandTarget {

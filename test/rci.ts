@@ -11,8 +11,8 @@
  *
  */
 
-import { VALVES_UPDATED } from "../src/messages";
-import { barRect, MeterCanvas, MeterContext, RCI, Valves } from "../src/rci";
+import { DemandMessage } from "../src/protocol";
+import { barRect, MeterCanvas, MeterContext, RCI } from "../src/rci";
 
 // The meter is drawn in 5px rects, in units of padding of 3 rects (15px). The grey box is 1 unit (15px) in, below a
 // full bar of 10 rects and 1 unit (65px down); it is 7 units (105px) wide and 1 unit tall.
@@ -43,8 +43,8 @@ interface Size {
     height: number;
 }
 
-// A meter on a canvas that records what is drawn on it, in a container of the size given, which can change. The meter
-// follows only the valves event.
+// A meter on a canvas that records what is drawn on it, in a container of the size given, which can change. send
+// gives it the demand, as each demand message does.
 function meter(size: Size) {
     const drawn: Drawn[] = [];
     const context: MeterContext = {
@@ -63,23 +63,9 @@ function meter(size: Size) {
     };
     const canvas: MeterCanvas = {width: 0, height: 0, style: {margin: "", padding: ""}, getContext: () => context};
     const container = {size, getBoundingClientRect: () => container.size};
-    let send: ((valves: Valves) => void) | null = null;
+    const rci = new RCI(container, canvas);
 
-    new RCI(container, canvas, {addEventListener: (event, listener) => {
-        if (event === VALVES_UPDATED) {
-            send = listener;
-        }
-    }});
-
-    return {
-        canvas, drawn, container,
-        send: (valves: Valves) => {
-            if (send === null) {
-                throw new Error("The meter follows no valves event");
-            }
-            send(valves);
-        },
-    };
+    return {canvas, drawn, container, send: (demand: Omit<DemandMessage, "type">) => rci.update(demand)};
 }
 
 describe("the demand meter", () => {

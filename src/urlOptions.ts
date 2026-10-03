@@ -11,9 +11,9 @@
  *
  */
 
-// The options a page's URL can carry, read from its query string
+import { MAX_SEED } from "./protocol";
 
-const UINT32_MAX = 0xffffffff;
+// The options a page's URL can carry, read from its query string
 
 // ?debug=1 turns on debug mode
 function debugOption(query: string): boolean {
@@ -30,8 +30,8 @@ function seedOption(query: string): number | null {
     return null;
   }
 
-  if (!/^[0-9]+$/.test(value) || Number(value) > UINT32_MAX) {
-    throw new Error(`?seed must be a whole number from 0 to ${UINT32_MAX}, got "${value}"`);
+  if (!/^[0-9]+$/.test(value) || Number(value) > MAX_SEED) {
+    throw new Error(`?seed must be a whole number from 0 to ${MAX_SEED}, got "${value}"`);
   }
 
   return Number(value);

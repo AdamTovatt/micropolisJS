@@ -12,40 +12,21 @@
  */
 
 import { requiredElement } from "./domElements";
-import { CLASSIFICATION_UPDATED, DATE_UPDATED, FUNDS_CHANGED, POPULATION_UPDATED, SCORE_UPDATED } from "./messages";
+import type { BudgetRecord, DateMessage, EvaluationRecord } from "./protocol";
 import { Text } from "./text";
 
 // TODO L20N
 
-// The city's date, as the simulation reports it: the month from 0, and the year
-export interface CityDate {
-  month: number;
-  year: number;
-}
+// The city's date, the month from 0 and the year
+export type CityDate = Omit<DateMessage, "type">;
 
-// What the info bar shows when the game starts
-export interface InfoBarValues {
-  classification: string;
-  population: number;
-  score: number;
-  funds: number;
-  date: CityDate;
-  name: string;
-}
-
-// The events the info bar follows
-export interface InfoSource {
-  addEventListener(event: typeof CLASSIFICATION_UPDATED, listener: (classification: string) => void): void;
-  addEventListener(event: typeof POPULATION_UPDATED, listener: (population: number) => void): void;
-  addEventListener(event: typeof SCORE_UPDATED, listener: (score: number) => void): void;
-  addEventListener(event: typeof FUNDS_CHANGED, listener: (funds: number) => void): void;
-  addEventListener(event: typeof DATE_UPDATED, listener: (date: CityDate) => void): void;
-}
+// The figures the info bar shows, each written into an element of its own
+type InfoBarField = "classification" | "population" | "score" | "funds" | "date" | "name";
 
 // The element the info bar writes each figure into
-export type InfoBarElements = Record<keyof InfoBarValues, {textContent: string | null}>;
+export type InfoBarElements = Record<InfoBarField, {textContent: string | null}>;
 
-const ELEMENT_IDS: Record<keyof InfoBarValues, string> = {
+const ELEMENT_IDS: Record<InfoBarField, string> = {
   classification: "cclass",
   population: "population",
   score: "score",
@@ -58,40 +39,29 @@ export function dateText(date: CityDate): string {
   return [Text.months[date.month], date.year].join(" ");
 }
 
-// Shows the starting values, then follows the source
+// Shows the city's name, and the date, evaluation and funds the city source sends
 export class InfoBar {
-  constructor(private readonly elements: InfoBarElements, dataSource: InfoSource, initialValues: InfoBarValues) {
-    elements.classification.textContent = initialValues.classification;
-    elements.population.textContent = String(initialValues.population);
-    elements.score.textContent = String(initialValues.score);
-    elements.funds.textContent = String(initialValues.funds);
-    elements.date.textContent = dateText(initialValues.date);
-    elements.name.textContent = initialValues.name;
+  constructor(private readonly elements: InfoBarElements, name: string) {
+    elements.name.textContent = name;
+  }
 
-    dataSource.addEventListener(CLASSIFICATION_UPDATED, (value) => {
-      this.elements.classification.textContent = value;
-    });
+  showDate(date: CityDate): void {
+    this.elements.date.textContent = dateText(date);
+  }
 
-    dataSource.addEventListener(POPULATION_UPDATED, (value) => {
-      this.elements.population.textContent = String(value);
-    });
+  showEvaluation(evaluation: Pick<EvaluationRecord, "cityClass" | "population" | "score">): void {
+    this.elements.classification.textContent = evaluation.cityClass;
+    this.elements.population.textContent = String(evaluation.population);
+    this.elements.score.textContent = String(evaluation.score);
+  }
 
-    dataSource.addEventListener(SCORE_UPDATED, (value) => {
-      this.elements.score.textContent = String(value);
-    });
-
-    dataSource.addEventListener(FUNDS_CHANGED, (value) => {
-      this.elements.funds.textContent = String(value);
-    });
-
-    dataSource.addEventListener(DATE_UPDATED, (value) => {
-      this.elements.date.textContent = dateText(value);
-    });
+  showBudget(budget: Pick<BudgetRecord, "funds">): void {
+    this.elements.funds.textContent = String(budget.funds);
   }
 }
 
 // The info bar in the page's elements
-export function placeInfoBar(dataSource: InfoSource, initialValues: InfoBarValues): InfoBar {
+export function placeInfoBar(name: string): InfoBar {
   const elements = {
     classification: requiredElement(ELEMENT_IDS.classification),
     population: requiredElement(ELEMENT_IDS.population),
@@ -101,5 +71,5 @@ export function placeInfoBar(dataSource: InfoSource, initialValues: InfoBarValue
     name: requiredElement(ELEMENT_IDS.name),
   };
 
-  return new InfoBar(elements, dataSource, initialValues);
+  return new InfoBar(elements, name);
 }

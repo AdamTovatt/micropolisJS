@@ -14,10 +14,12 @@
 import { BlockMap } from "./blockMap";
 import { budgetRecord, BudgetSource } from "./budgetRecord";
 import { fundingRejection } from "./commands";
+import { MapGenerator } from "./mapGenerator.js";
 import {
-  BudgetForecastAnswer, OVERLAY_LAYERS, OverlayAnswer, OverlayLayer, Query, QueryAnswer, QueryType, ServiceAmounts,
-  TileReportAnswer, ZoneCategory,
+  BudgetForecastAnswer, MapPreviewAnswer, MAX_SEED, OVERLAY_LAYERS, OverlayAnswer, OverlayLayer, Query, QueryAnswer, QueryType,
+  ServiceAmounts, TileReportAnswer, ZoneCategory,
 } from "./protocol";
+import { Random } from "./random";
 import { YearForecast } from "./serviceFunding";
 import { Tile } from "./tile";
 import * as TileValues from "./tileValues";
@@ -83,6 +85,7 @@ const FIELDS = {
   overlay: {layer: "required"},
   tileReport: {x: "required", y: "required"},
   budgetForecast: {fire: "optional", police: "optional", road: "optional"},
+  mapPreview: {seed: "required"},
 } satisfies {[T in QueryType]: FieldRules<Extract<Query, {type: T}>>};
 
 // Why the simulation rejects this query on a map of this size, or null when it is valid. A valid query is a Query:
@@ -109,7 +112,21 @@ export function queryRejection(query: unknown, width: number, height: number): s
 
     case "budgetForecast":
       return fundingRejection(query);
+
+    case "mapPreview":
+      return isWholeNumberIn(query.seed, 0, MAX_SEED) ? null : "the seed is a uint32";
   }
+}
+
+// The answer to a query asked before any city has started: the only query that needs no city is a map preview
+export function answerQueryWithoutCity(query: unknown): QueryAnswer {
+  if (!isRecord(query) || query.type !== "mapPreview") {
+    return {type: "rejected", reason: "no city has started"};
+  }
+
+  // No map is needed to check a preview: only a tile report's checks read its size
+  const reason = queryRejection(query, 0, 0);
+  return reason === null ? mapPreview(query.seed as number) : {type: "rejected", reason};
 }
 
 // The answer to a query, or its rejection. The values are a copy, so nothing done with an answer reaches the city.
@@ -129,7 +146,23 @@ export function answerQuery(query: unknown, sources: QuerySources): QueryAnswer 
 
     case "budgetForecast":
       return budgetForecast(valid, sources);
+
+    case "mapPreview":
+      return mapPreview(valid.seed);
   }
+}
+
+// The map a new city on the seed starts on, which the generator draws from the seed's map stream alone
+function mapPreview(seed: number): MapPreviewAnswer {
+  const map = MapGenerator(Random.mapStream(seed));
+  const tiles: number[] = [];
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      tiles.push(map.getTileValue(x, y));
+    }
+  }
+
+  return {type: "mapPreview", seed, width: map.width, height: map.height, tiles};
 }
 
 function overlay(layer: OverlayLayer, sources: QuerySources): OverlayAnswer {

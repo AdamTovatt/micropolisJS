@@ -219,6 +219,25 @@ export function commandTypes(): string[] {
   return Object.keys(COMMAND_TYPES);
 }
 
+// A player's id. Single player has the one player.
+export type PlayerId = string;
+
+// The player of a city source whose simulation runs in the browser: the one player there is
+export const LOCAL_PLAYER: PlayerId = "local";
+
+// What came of a command. A tool command is ok when the tool succeeded at every tile of its path, and otherwise takes
+// the outcome of the first tile where it didn't, which the tool output shows.
+export type Outcome = "ok" | "failed" | "noMoney" | "needsBulldoze" | "rejected";
+
+// What came of a command, and who sent it. The command is whatever arrived, which a rejected one may not be.
+export interface CommandResult {
+  player: PlayerId;
+  command: unknown;
+  outcome: Outcome;
+  // Why the command was rejected, or null when it wasn't
+  reason: string | null;
+}
+
 // The queries a player sends the simulation: questions about the city that change nothing. A query is answered at
 // once, between steps or during them, and never logged as a command, since replaying it would change nothing.
 // queries.ts validates each one and builds its answer.
@@ -231,6 +250,9 @@ export const OVERLAY_LAYERS = [
 
 export type OverlayLayer = typeof OVERLAY_LAYERS[number];
 
+// The largest game seed: a seed is a uint32
+export const MAX_SEED = 0xffffffff;
+
 export type Query =
   // The layer's values as the simulation last computed them
   | {type: "overlay", layer: OverlayLayer}
@@ -238,13 +260,16 @@ export type Query =
   | {type: "tileReport", x: number, y: number}
   // What the year end would leave if it came now, with each service named, road, fire or police, funded at the whole
   // percent of what it needs given, as a setBudget command would fund it, and the others at the funding they have
-  | {type: "budgetForecast", road?: number, fire?: number, police?: number};
+  | {type: "budgetForecast", road?: number, fire?: number, police?: number}
+  // The map a game seed generates, a uint32, which a new city on that seed starts on. It is answered before any city
+  // has started, so the splash screen can show the maps a player chooses from.
+  | {type: "mapPreview", seed: number};
 
 export type QueryType = Query["type"];
 
 // Every query type, as the compiler checks against the union: a type added to Query and not here fails to compile,
 // and the tests fail on a type with no example.
-const QUERY_TYPES: Record<QueryType, true> = {overlay: true, tileReport: true, budgetForecast: true};
+const QUERY_TYPES: Record<QueryType, true> = {overlay: true, tileReport: true, budgetForecast: true, mapPreview: true};
 
 export function queryTypes(): string[] {
   return Object.keys(QUERY_TYPES);
@@ -342,7 +367,17 @@ export interface QueryRejection {
   reason: string;
 }
 
-export type QueryAnswer = OverlayAnswer | TileReportAnswer | BudgetForecastAnswer | QueryRejection;
+// The answer to a map preview query: the map the seed generates, width tiles across and height down, as the tiles'
+// values without their flags, row by row, top row first
+export interface MapPreviewAnswer {
+  type: "mapPreview";
+  seed: number;
+  width: number;
+  height: number;
+  tiles: number[];
+}
+
+export type QueryAnswer = OverlayAnswer | TileReportAnswer | BudgetForecastAnswer | MapPreviewAnswer | QueryRejection;
 
 // The records the simulation produces for the windows to show: what it says about the city, as codes and numbers. The
 // client turns the codes into text, so the wording is the client's alone.
@@ -427,4 +462,140 @@ const RECORD_TYPES: Record<SimulationRecord["type"], true> = {evaluation: true, 
 
 export function recordTypes(): string[] {
   return Object.keys(RECORD_TYPES);
+}
+
+// The state messages a city source sends the client: everything the client shows of the city. The client keeps its
+// own copy of the map, from the full map the source sends when a city starts, kept up to date by the tile changes
+// after it, and renders nothing but these messages. A source sends what changed in batches: one after each turn of its
+// loop that applied commands or took steps, however many steps that turn took, and one after each call of the
+// end-to-end runner's driver that applies commands or takes steps. The sprites, the date and the records go only when
+// they differ from what it sent last.
+
+// The whole map: width tiles across and height down, each tile's raw value, with its flags, row by row, top row first
+export interface MapMessage {
+  type: "map";
+  width: number;
+  height: number;
+  tiles: number[];
+}
+
+// A tile whose raw value changed, and its new value
+export interface TileChange {
+  x: number;
+  y: number;
+  value: number;
+}
+
+// The tiles that changed since the last map or tiles message
+export interface TilesMessage {
+  type: "tiles";
+  changes: TileChange[];
+}
+
+// A sprite as the client draws it: its type, counted from 1 as spriteConstants.ts numbers them, which is its row of
+// the sprite sheet; its frame, counted from 1, its column; and the square it is drawn in, width map pixels a side,
+// with its top-left corner at map pixel (x, y)
+export interface SpriteView {
+  type: number;
+  frame: number;
+  x: number;
+  y: number;
+  width: number;
+}
+
+// Every sprite on the map
+export interface SpritesMessage {
+  type: "sprites";
+  sprites: SpriteView[];
+}
+
+// The city's date: the month from 0, and the year
+export interface DateMessage {
+  type: "date";
+  month: number;
+  year: number;
+}
+
+// The conditions that limit the city's growth, as the simulation publishes them each cycle: the power the plants can
+// deliver and the power the grid draws, as of the last power scan; whether residential, commercial or industrial
+// demand is held at zero for want of a stadium, airport or seaport; and the advisor conditions that hold, named by
+// their message in messages.ts
+export interface StatusRecord {
+  type: "status";
+  powerCapacity: number;
+  powerLoad: number;
+  residentialCapped: boolean;
+  commercialCapped: boolean;
+  industrialCapped: boolean;
+  conditions: string[];
+}
+
+// The demand for each kind of zone, as the demand valves last set it: residential from -2000 to 2000, commercial and
+// industrial from -1500 to 1500
+export interface DemandMessage {
+  type: "demand";
+  residential: number;
+  commercial: number;
+  industrial: number;
+}
+
+// Where a piece of news happened, in map tiles
+export interface NewsPlace {
+  x: number;
+  y: number;
+}
+
+// A place the monster TV shows
+export interface ShowablePlace extends NewsPlace {
+  showable: true;
+}
+
+// A place the monster TV shows, following the sprite of the given type there as it moves: a monster or a tornado, of
+// which the map holds at most one each
+export interface TrackablePlace extends NewsPlace {
+  trackable: true;
+  sprite: number;
+}
+
+// News the simulation sends for the player: its subject, one of the messages in messages.ts, and where it happened,
+// if it did somewhere
+export interface NewsMessage {
+  type: "news";
+  subject: string;
+  data?: NewsPlace | ShowablePlace | TrackablePlace;
+}
+
+// What came of a command, any player's
+export interface CommandResultMessage {
+  type: "commandResult";
+  result: CommandResult;
+}
+
+// The year end paid the budget with values the player should review: auto-budget is off, or couldn't cover the
+// services. The city stepped on: nothing waits for the review.
+export interface BudgetReviewDueMessage {
+  type: "budgetReviewDue";
+}
+
+// The simulation recomputed the layer, so an overlay showing it is out of date
+export interface OverlayUpdatedMessage {
+  type: "overlayUpdated";
+  layer: OverlayLayer;
+}
+
+export type StateMessage = MapMessage | TilesMessage | SpritesMessage | DateMessage | EvaluationRecord |
+  BudgetRecord | SettingsRecord | StatusRecord | DemandMessage | NewsMessage | CommandResultMessage |
+  BudgetReviewDueMessage | OverlayUpdatedMessage;
+
+export type StateMessageType = StateMessage["type"];
+
+// Every state message type, as the compiler checks against the union: a type added to StateMessage and not here fails
+// to compile, and the tests fail on a type with no example.
+const STATE_MESSAGE_TYPES: Record<StateMessageType, true> = {
+  map: true, tiles: true, sprites: true, date: true, evaluation: true, budget: true, settings: true, status: true,
+  demand: true, news: true, commandResult: true, budgetReviewDue: true, overlayUpdated: true,
+};
+
+export function stateMessageTypes(): string[] {
+  return Object.keys(STATE_MESSAGE_TYPES);
 }

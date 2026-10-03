@@ -11,7 +11,9 @@
  *
  */
 
-import { Command, CommandType, DISASTER_KINDS, SERVICES, SPEEDS, TilePosition, TOOL_NAMES } from "./protocol";
+import {
+  Command, CommandType, DISASTER_KINDS, PlayerId, SERVICES, SPEEDS, TilePosition, TOOL_NAMES,
+} from "./protocol";
 import {
   FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumber, isWholeNumberIn, oneOf,
 } from "./validation";
@@ -25,27 +27,10 @@ export const MAX_TAX_PERCENT = 20;
 
 export const MAX_SPEED = SPEEDS.fast;
 
-// A player's id. Single player has the one player.
-export type PlayerId = string;
-
-export const LOCAL_PLAYER: PlayerId = "local";
-
 // A command as it arrives, from the player who sent it
 export interface ReceivedCommand {
   player: PlayerId;
   command: unknown;
-}
-
-// What came of a command. A tool command is ok when the tool succeeded at every tile of its path, and otherwise takes
-// the outcome of the first tile where it didn't, which the tool output shows.
-export type Outcome = "ok" | "failed" | "noMoney" | "needsBulldoze" | "rejected";
-
-export interface CommandResult {
-  player: PlayerId;
-  command: unknown;
-  outcome: Outcome;
-  // Why the command was rejected, or null when it wasn't
-  reason: string | null;
 }
 
 // Each command's fields but its type: a command missing a required one, or with any other, is rejected. The compiler

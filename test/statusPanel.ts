@@ -11,13 +11,14 @@
  *
  */
 
-import { CityStatus } from "../src/cityStatus";
 import * as Messages from "../src/messages";
+import { StatusRecord } from "../src/protocol";
 import { statusView } from "../src/statusPanel";
 import { Text } from "../src/text";
 
-function status(overrides: Partial<CityStatus>): CityStatus {
+function status(overrides: Partial<StatusRecord>): StatusRecord {
     return {
+        type: "status",
         commercialCapped: false,
         conditions: [],
         industrialCapped: false,

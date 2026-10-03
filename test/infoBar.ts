@@ -11,8 +11,7 @@
  *
  */
 
-import { dateText, InfoBar, InfoBarElements, InfoSource } from "../src/infoBar";
-import * as Messages from "../src/messages";
+import { dateText, InfoBar, InfoBarElements } from "../src/infoBar";
 
 describe("the info bar's date", () => {
 
@@ -23,42 +22,39 @@ describe("the info bar's date", () => {
 
 describe("the info bar", () => {
 
-    // An info bar on elements of its own, following a source that sends each event to its listener
+    // An info bar on elements of its own
     function infoBar() {
         const elements: InfoBarElements = {
             classification: {textContent: ""}, population: {textContent: ""}, score: {textContent: ""},
             funds: {textContent: ""}, date: {textContent: ""}, name: {textContent: ""},
         };
-        const listeners = new Map<string, (value: never) => void>();
-        const source: InfoSource = {
-            addEventListener: (event: string, listener: (value: never) => void) => {
-                listeners.set(event, listener);
-            },
-        };
 
-        new InfoBar(elements, source, {classification: "VILLAGE", population: 0, score: 500, funds: 20000,
-                                       date: {month: 0, year: 1900}, name: "Town"});
-
-        const send = (event: string, value: unknown) => (listeners.get(event) as (value: unknown) => void)(value);
+        const bar = new InfoBar(elements, "Town");
         const shown = () => Object.fromEntries(Object.entries(elements).map(([key, e]) => [key, e.textContent]));
-        return {send, shown};
+        return {bar, shown};
     }
 
-    it("shows each starting value in its own element", () => {
-        expect(infoBar().shown()).toEqual({classification: "VILLAGE", population: "0", score: "500", funds: "20000",
-                                           date: "Jan 1900", name: "Town"});
-    });
+    it("shows the city's name, and the date, evaluation and funds it is given, each in its own element", () => {
+        const {bar, shown} = infoBar();
 
-    it("shows each figure the source sends in its own element", () => {
-        const {send, shown} = infoBar();
-
-        send(Messages.CLASSIFICATION_UPDATED, "TOWN");
-        send(Messages.POPULATION_UPDATED, 2400);
-        send(Messages.SCORE_UPDATED, 612);
-        send(Messages.FUNDS_CHANGED, 18750);
-        send(Messages.DATE_UPDATED, {month: 3, year: 1901});
+        bar.showDate({month: 3, year: 1901});
+        bar.showEvaluation({cityClass: "TOWN", population: 2400, score: 612});
+        bar.showBudget({funds: 18750});
 
         expect(shown()).toEqual({classification: "TOWN", population: "2400", score: "612", funds: "18750",
                                  date: "Apr 1901", name: "Town"});
+    });
+
+    it("shows the latest figures it is given", () => {
+        const {bar, shown} = infoBar();
+
+        bar.showDate({month: 0, year: 1900});
+        bar.showEvaluation({cityClass: "VILLAGE", population: 0, score: 500});
+        bar.showBudget({funds: 20000});
+        bar.showDate({month: 1, year: 1900});
+        bar.showEvaluation({cityClass: "VILLAGE", population: 120, score: 510});
+        bar.showBudget({funds: 19500});
+
+        expect(shown()).toMatchObject({population: "120", score: "510", funds: "19500", date: "Feb 1900"});
     });
 });

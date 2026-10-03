@@ -11,6 +11,10 @@
  *
  */
 
+// CLASSIFICATION_UPDATED, DATE_UPDATED, FUNDS_CHANGED, POPULATION_UPDATED, SCORE_UPDATED and SPEED_CHANGED are
+// simulation behaviour, which the C# port mirrors, and which the client doesn't read: it shows the date, the speed and
+// the city's figures from the state messages the city host sends.
+
 export const AUTOBUDGET_CHANGED = "Autobudget changed";
 export const BUDGET_REVIEW_DUE = "Year-end budget to review";
 export const BUDGET_REQUESTED = "Budget window requested";
@@ -82,8 +86,6 @@ export const SOUND_HEAVY_TRAFFIC = "Heavy Traffic sound";
 export const SOUND_HONKHONK = "HonkHonk sound";
 export const SOUND_MONSTER = "Monster sound";
 export const SPEED_CHANGED = "Speed changed";
-export const SPRITE_DYING = "Sprite dying";
-export const SPRITE_MOVED = "Sprite move";
 export const TAX_TOO_HIGH = "Tax too high";
 export const TOOL_CLICKED = "Tool clicked";
 export const TORNADO_SIGHTED = "Tornado sighted";
