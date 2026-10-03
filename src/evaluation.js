@@ -12,7 +12,7 @@
  */
 
 import { EventEmitter } from './eventEmitter.js';
-import { CLASSIFICATION_UPDATED, POPULATION_UPDATED, SCORE_UPDATED } from './messages.ts';
+import { CLASSIFICATION_UPDATED, SCORE_UPDATED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 
 var PROBLEMS = ['CVP_CRIME', 'CVP_POLLUTION', 'CVP_HOUSING', 'CVP_TAXES',
@@ -46,7 +46,7 @@ Evaluation.prototype.cityEvaluation = function(simData) {
       problemData.push(0);
 
     this.getAssessedValue(census);
-    this.getPopulation(census);
+    this.doPopNum(census);
     this.doProblems(simData.census, simData.budget, simData.blockMaps);
     this.getScore(simData);
     this.doVotes();
@@ -130,42 +130,48 @@ Evaluation.prototype.getAssessedValue = function(census) {
 };
 
 
-Evaluation.prototype.getPopulation = function(census) {
+// The year's population, its change since the last evaluation, and the city's class, as doPopNum in the original's
+// evaluate.cpp works them out
+Evaluation.prototype.doPopNum = function(census) {
   var oldPopulation = this.cityPop;
-  this.cityPop = (census.resPop + (census.comPop + census.indPop) * 8) * 20;
+  this.cityPop = this.getPopulation(census);
   this.cityPopDelta = this.cityPop - oldPopulation;
-
-  if (this.cityPopDelta !== 0)
-    this._emitEvent(POPULATION_UPDATED, this.cityPop);
-
-  return this.cityPop;
-};
-
-
-Evaluation.prototype.getCityClass = function(cityPopulation) {
-  this.cityClass = Evaluation.CC_VILLAGE;
-
-  if (cityPopulation > 2000)
-      this.cityClass = Evaluation.CC_TOWN;
-
-  if (cityPopulation > 10000)
-      this.cityClass = Evaluation.CC_CITY;
-
-  if (cityPopulation > 50000)
-      this.cityClass = Evaluation.CC_CAPITAL;
-
-  if (cityPopulation > 100000)
-      this.cityClass = Evaluation.CC_METROPOLIS;
-
-  if (cityPopulation > 500000)
-      this.cityClass = Evaluation.CC_MEGALOPOLIS;
+  this.cityClass = this.getCityClass(this.cityPop);
 
   if (this.cityClass !== this.cityClassLast) {
     this.cityClassLast = this.cityClass;
     this._emitEvent(CLASSIFICATION_UPDATED, this.cityClass);
   }
+};
 
-  return this.cityClass;
+
+// The population the census counts, as getPopulation in the original: it changes nothing, so the simulation's monthly
+// growth check can ask for it too
+Evaluation.prototype.getPopulation = function(census) {
+  return (census.resPop + (census.comPop + census.indPop) * 8) * 20;
+};
+
+
+// The class of a city of the given population, as getCityClass in the original: it changes nothing
+Evaluation.prototype.getCityClass = function(cityPopulation) {
+  var cityClass = Evaluation.CC_VILLAGE;
+
+  if (cityPopulation > 2000)
+      cityClass = Evaluation.CC_TOWN;
+
+  if (cityPopulation > 10000)
+      cityClass = Evaluation.CC_CITY;
+
+  if (cityPopulation > 50000)
+      cityClass = Evaluation.CC_CAPITAL;
+
+  if (cityPopulation > 100000)
+      cityClass = Evaluation.CC_METROPOLIS;
+
+  if (cityPopulation > 500000)
+      cityClass = Evaluation.CC_MEGALOPOLIS;
+
+  return cityClass;
 };
 
 

@@ -145,10 +145,12 @@ Census.prototype.take10Census = function(budget) {
   this.comHist10[0] = this.comPop;
   this.indHist10[0] = this.indPop;
 
-  this.crimeRamp += Math.floor((this.crimeAverage - this.crimeRamp) / 4);
+  // Each ramp moves a quarter of the way to its average, by the original's integer division, which truncates toward
+  // zero: a falling average moves it no further than a rising one
+  this.crimeRamp += Math.trunc((this.crimeAverage - this.crimeRamp) / 4);
   this.crimeHist10[0] = Math.min(this.crimeRamp, 255);
 
-  this.pollutionRamp += Math.floor((this.pollutionAverage - this.pollutionRamp) / 4);
+  this.pollutionRamp += Math.trunc((this.pollutionAverage - this.pollutionRamp) / 4);
   this.pollutionHist10[0] = Math.min(this.pollutionRamp, 255);
 
   // The original's integer division truncates toward zero

@@ -18,7 +18,10 @@
 import { SaveData } from "../headless/city";
 import { BRIDGE_STRIP, FIRE_STRIP, RADIATION_STRIP, STADIUM_STRIP } from "../headless/fixtures/disasters";
 import { fixtureNamesOf } from "../headless/fixtures/index";
-import { FRONT_END_MESSAGE, NOT_ENOUGH_POWER } from "../src/messages";
+import {
+  BUDGET_REVIEW_DUE, CLASSIFICATION_UPDATED, FIRE_STATION_NEEDS_FUNDING, FRONT_END_MESSAGE, HIGH_CRIME, NO_MONEY,
+  NOT_ENOUGH_POWER, POLICE_NEEDS_FUNDING, POPULATION_UPDATED, REACHED_TOWN, ROAD_NEEDS_FUNDING,
+} from "../src/messages";
 import { savedState } from "../src/stateHash";
 import { BIT_MASK, ZONEBIT } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
@@ -226,8 +229,8 @@ function infrastructurePoints(): SnapshotPoint[] {
            (simulation) => fireEffect(simulation.budget) < 1000),
     scanOf(BRIDGE_STRIP, 3, "road", "a drawbridge opening", drawbridgeOpened),
     scanOf(BRIDGE_STRIP, 1, "road", "a drawbridge closing", (record) => tileChanged(record, is(BRWH), is(HBRIDGE))),
-    scanOf(BRIDGE_STRIP, 59, "road", "a road wearing away", (record) => tileChanged(record, isRoad, isRubble)),
-    scanOf(BRIDGE_STRIP, 56, "road", "a bridge wearing away to water",
+    scanOf(BRIDGE_STRIP, 49, "road", "a road wearing away", (record) => tileChanged(record, isRoad, isRubble)),
+    scanOf(BRIDGE_STRIP, 117, "road", "a bridge wearing away to water",
            (record) => tileChanged(record, isBridge, is(RIVER)) && !drawbridgeOpened(record)),
     scanOf(STADIUM_STRIP, 17, "stadia", "a stadium's game starting",
            (record) => tileChanged(record, is(STADIUM), is(FULLSTADIUM))),
@@ -384,4 +387,107 @@ export const SNAPSHOT_POINTS: SnapshotPoint[] = [
   },
 
   ...infrastructurePoints(),
+
+  ...cityRulesPoints(),
 ];
+
+// --- The city-level rules' rarer branches: the census, the valves, the year end, the evaluation and the advisor
+
+// The census's ramps and the averages they move toward, as the city holds them and as a save holds them
+interface Ramps {
+  crimeAverage: number;
+  crimeRamp: number;
+  pollutionAverage: number;
+  pollutionRamp: number;
+}
+
+// The parts of a saved state the city-level rules' branches are told by
+interface CityRulesState extends SaveData {
+  census: Ramps & {resPop: number, comPop: number, indPop: number};
+  evaluation: {cityPopDelta: number};
+}
+
+function eventNames(record: SnapshotRecord): string[] {
+  return record.events.map((event) => event.name);
+}
+
+// The subjects of the record's front-end messages
+function subjects(record: SnapshotRecord): string[] {
+  return record.events.filter((event) => event.name === FRONT_END_MESSAGE)
+    .map((event) => (event.payload as {subject: string}).subject);
+}
+
+// A ramp falling by other than a multiple of 4, where the census's quarter step truncates rather than floors
+function rampFallsByAFraction(census: Ramps): boolean {
+  const fallsByAFraction = (average: number, ramp: number) => average < ramp && (ramp - average) % 4 !== 0;
+  return fallsByAFraction(census.crimeAverage, census.crimeRamp) ||
+         fallsByAFraction(census.pollutionAverage, census.pollutionRamp);
+}
+
+// A unit's call at a city time, in a fixture whose city reaches the branch there
+function atCityTime(fixture: string, unit: SnapshotPoint["unit"], cityTime: number,
+                    reaches: SnapshotPoint["reaches"]): SnapshotPoint {
+  return {fixture, unit, call: 0, where: (simulation) => simulation._cityTime === cityTime, reaches};
+}
+
+// The advisor's check at a city time, which sends the subject, or nothing for null
+function adviceAt(fixture: string, cityTime: number, subject: string | null): SnapshotPoint {
+  return atCityTime(fixture, "simulation._sendMessages", cityTime, subject === null
+    ? {branch: "a check that sends nothing", test: (record) => subjects(record).length === 0}
+    : {branch: subject, test: (record) => subjects(record).includes(subject)});
+}
+
+function cityRulesPoints(): SnapshotPoint[] {
+  return [
+    {fixture: "suburb", unit: "census.take10Census", call: 0,
+     where: (simulation) => rampFallsByAFraction(simulation._census),
+     reaches: {branch: "a ramp falling by a fraction",
+               test: (record) => rampFallsByAFraction(stateBefore<CityRulesState>(record).census)}},
+
+    // A grown town's demand, worked out in float
+    atCityTime("suburb", "valves.setValves", 144, {
+      branch: "a town of every zone type",
+      test: (record) => {
+        const {resPop, comPop, indPop} = stateBefore<CityRulesState>(record).census;
+        return resPop > 0 && comPop > 0 && indPop > 0;
+      },
+    }),
+
+    // The year end: auto-budget off, and auto-budget that can't pay and turns itself off
+    {fixture: "suburbUnderfunded", unit: "budget.collectTax", call: 0,
+     reaches: {branch: "a review with auto-budget off",
+               test: (record) => eventNames(record).includes(BUDGET_REVIEW_DUE)}},
+    {fixture: "suburbBroke", unit: "budget.collectTax", call: 0,
+     reaches: {branch: "a shortfall", test: (record) => subjects(record).includes(NO_MONEY)}},
+
+    // The evaluation of a village become a town, and of a shrinking town
+    atCityTime("suburb", "evaluation.cityEvaluation", 144, {
+      branch: "a new class", test: (record) => eventNames(record).includes(CLASSIFICATION_UPDATED),
+    }),
+    atCityTime("suburbUnderfunded", "evaluation.cityEvaluation", 288, {
+      branch: "a shrinking population",
+      test: (record) => stateAfter<CityRulesState>(record).evaluation.cityPopDelta < 0,
+    }),
+
+    // The growth check, with and without a new class, and the advisor's conditions the fixtures reach
+    atCityTime("suburb", "simulation._sendMessages", 12, {
+      branch: "a new population", test: (record) => eventNames(record).includes(POPULATION_UPDATED),
+    }),
+    atCityTime("suburb", "simulation._sendMessages", 32, {
+      branch: "a growth check of an unchanged population, and no blackouts",
+      test: (record) => record.events.length === 0,
+    }),
+    adviceAt("suburb", 144, REACHED_TOWN),
+    adviceAt("suburb", 26, null),
+    adviceAt("suburbBroke", 118, ROAD_NEEDS_FUNDING),
+    adviceAt("suburbBroke", 121, FIRE_STATION_NEEDS_FUNDING),
+    adviceAt("suburbBroke", 124, POLICE_NEEDS_FUNDING),
+    adviceAt("suburbBroke", 234, HIGH_CRIME),
+
+    // The status of a city whose roads lack funding
+    {fixture: "suburbBroke", unit: "simulation._publishCityStatus", call: 0,
+     where: (simulation) => simulation.budget.roadEffect < 20,
+     reaches: {branch: "a funding condition", test: (record) => record.events.some((event) =>
+       (event.payload as {conditions?: string[]} | undefined)?.conditions?.includes(ROAD_NEEDS_FUNDING))}},
+  ];
+}

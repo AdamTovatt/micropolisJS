@@ -183,6 +183,25 @@ describe("A year-end budget short of cash", () => {
     });
 });
 
+describe("Budget.collectTax", () => {
+
+    // The original keeps the cash flow in a short
+    it("should wrap a cash flow past 32767, as the original's short does", () => {
+        const budget = new Budget();
+        budget.cityTax = 20;
+        budget.totalFunds = 1000;
+        const census = {policeStationPop: 0, fireStationPop: 0, roadTotal: 0, railTotal: 0, totalPop: 3000,
+                        landValueAverage: 250};
+
+        budget.collectTax(0, census);
+
+        // 3000 * 250 / 120 * 20 is 125000, which level 0's 1.4 makes 175000 of tax, with no upkeep to take off it.
+        // In a short that is 175000 - 3 * 65536.
+        expect(budget.taxFund).toBe(175000);
+        expect(budget.cashFlow).toBe(-21608);
+    });
+});
+
 // A budget at the year end: road upkeep of 100 asked for at the given share, the funds, and the year's tax
 function yearEnd(autoBudget: boolean, roadPercent: number, totalFunds: number, taxFund: number) {
     const budget = new Budget();

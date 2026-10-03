@@ -119,13 +119,12 @@ shows the city from these and nothing else, through its city source (`src/citySo
 the map, built from the full map the city sends when it starts, and kept up to date by the tile changes after it. The
 city sends what changed in batches, after the steps: one after each turn of its loop that applied commands or took
 steps, however many steps the turn took, and one after each call of the end-to-end runner's driver that applies
-commands or takes steps. The sprites, the date and the records go only when they differ from what it sent last. The
-simulation publishes `status` and `demand` each cycle, and a batch carries only the latest of each it published since
-the batch before. A batch announces each recomputed layer at most once in `overlayUpdated`, however often the turn
-recomputed it. The events, `news`, `commandResult`, `budgetReviewDue` and `overlayUpdated`, go in the order they came.
-A city
-that starts sends the whole map, the sprites, the date and the `evaluation`, `budget` and `settings` records (see
-Records), then the rest as they come.
+commands or takes steps. The sprites, the date, the population and the records go only when they differ from what it
+sent last. The simulation publishes `status` and `demand` each cycle, and a batch carries only the latest of each it
+published since the batch before. A batch announces each recomputed layer at most once in `overlayUpdated`, however
+often the turn recomputed it. The events, `news`, `commandResult`, `budgetReviewDue` and `overlayUpdated`, go in the
+order they came. A city that starts sends the whole map, the sprites, the date, the population and the `evaluation`,
+`budget` and `settings` records (see Records), then the rest as they come.
 
 - `map` is the whole map: `width` and `height`, in tiles, and `tiles`, each tile's raw value with its flags, row by
   row, top row first.
@@ -135,6 +134,8 @@ Records), then the rest as they come.
   is its row of the sprite sheet, and its frame, its column, both counted from 1; and the square it is drawn in,
   `width` map pixels a side with its top-left corner at map pixel (`x`, `y`). A map pixel is a sixteenth of a tile.
 - `date` is the city's date: `month`, from 0, and `year`.
+- `population` is the city's `population` as the last monthly growth check counted it. The `evaluation` record's
+  population is the yearly evaluation's.
 - `status` is the conditions that limit the city's growth: `powerCapacity` and `powerLoad`, as of the
   last power scan; `residentialCapped`, `commercialCapped` and `industrialCapped`, whether that demand is held at zero
   for want of a stadium, airport or seaport; and `conditions`, the advisor conditions that hold, each named by its

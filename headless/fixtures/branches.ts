@@ -70,5 +70,5 @@ export const forestFire = builtFixture(
     {type: "triggerDisaster", kind: "fire"},
   ], [
     {step: 0, hash: "2b3fafa39fc0154b1b25c4cf8bdd57e8600978260b33a9724db12d09cdc5be80"},
-    {step: RUN_STEPS, hash: "4f8a19384c27d625b074cdacff9955993a76d777cc0a3e5ea9e2a3ef74c22b26"},
+    {step: RUN_STEPS, hash: "f1ec8eef89c8019306a773a391f4c72a896afd8bccc001f4c0a9b91d8686f739"},
   ]);

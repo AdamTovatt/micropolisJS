@@ -66,7 +66,7 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 | `simulation.speedCycle` | The step counter, 0–1023, which lets a phase through on every 5th step at slow speed, every 3rd at medium and every step at fast |
 | `simulation.phaseCycle` | The phase the next simulation pass runs, 0–15 |
 | `simulation.simCycle` | The cycle counter, 0–1023, which sets how often the slower scans run |
-| `simulation.cityPopLast` | The population at the last growth check, which decides whether to announce a new city class |
+| `simulation.cityPopLast` | The population at the last growth check, which the info bar shows, and which decides whether the next announces a new city class |
 | `simulation.messageLast` | The last city-class announcement sent, or `null`: `"Now a town"`, `"Now a city"`, `"Now a capital"`, `"Now a metropolis"` or `"Now a megalopolis"` (the `REACHED_` messages in `src/messages.ts`) |
 | `simulation.lastPowerMessage` | The city time of the last power shortage or blackout notification, or `null` for none |
 | `simulation.initialEvaluationPending` | `true` until the city has been evaluated before its first phase |
@@ -89,7 +89,7 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 | `evaluation.cityClass` | `"VILLAGE"`, `"TOWN"`, `"CITY"`, `"CAPITAL"`, `"METROPOLIS"` or `"MEGALOPOLIS"` |
 | `evaluation.cityScore` | The city score, 0–1000 |
 | `evaluation.cityYes` | Voters approving of the mayor, out of 100 |
-| `evaluation.cityPop`, `evaluation.cityPopDelta` | The evaluated population and its last change |
+| `evaluation.cityPop`, `evaluation.cityPopDelta` | The population at the last evaluation, and its change since the evaluation before |
 | `evaluation.cityAssessedValue` | The assessed value |
 | `evaluation.cityClassLast` | The class last reported |
 | `evaluation.cityScoreDelta` | The score's last change |
@@ -115,7 +115,7 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 | `budget.roadSpend`, `budget.fireSpend`, `budget.policeSpend` | The spend booked on each service, from which its effectiveness is set: what the player's funding costs, what the year-end budget paid, or the full cost of every service after an autobudget year end |
 | `budget.roadMaintenanceBudget`, `budget.fireMaintenanceBudget`, `budget.policeMaintenanceBudget` | What each service needs |
 | `budget.roadEffect`, `budget.fireEffect`, `budget.policeEffect` | Each service's effectiveness |
-| `budget.cashFlow` | The last year's cash flow |
+| `budget.cashFlow` | The last year's cash flow, wrapped into −32768 to 32767 as the original's short wraps it |
 | `budget.taxFund` | The last tax collected |
 
 ### Census

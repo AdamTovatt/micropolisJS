@@ -11,9 +11,11 @@
  *
  */
 
+import { fixtureSave } from "../headless/runner";
 import { CityHost } from "../src/cityHost";
 import { stepsPerCityTime } from "../src/cityTimeModel";
 import { LOCAL_PLAYER, OVERLAY_LAYERS, SPEEDS, StateMessage } from "../src/protocol";
+import { SaveFormat } from "../src/savedGame";
 import { ManualTicker } from "./helpers/manualTicker";
 
 // What the city host itself decides, beyond the contract every source keeps (test/citySource.ts): how it batches the
@@ -21,6 +23,9 @@ import { ManualTicker } from "./helpers/manualTicker";
 
 // The steps of a cycle of the simulation's 16 phases, at the speed a new city runs at: one unit of city time
 const CYCLE = stepsPerCityTime(SPEEDS.medium);
+// A month's steps, four cycles, and a stretch of steps that ends at a different phase each time
+const MONTH = 4 * CYCLE;
+const CHUNK = 7;
 
 // A host on a new city, held, and every batch of messages it has published since, in order
 function heldCity() {
@@ -49,7 +54,7 @@ describe("a city host", () => {
         });
     });
 
-    it("sends the sprites, the date and the records only when they changed", () => {
+    it("sends the sprites, the date, the population and the records only when they changed", () => {
         const {host, batches} = heldCity();
         host.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
 
@@ -124,6 +129,25 @@ describe("a city host", () => {
 
             expect(turns).toHaveBeenCalledTimes(1);
         });
+    });
+
+    // The census is cleared at the start of each cycle and counted back up through it, so a population read from it
+    // between growth checks would be part counted
+    it("sends the population the last growth check found, as it changes", () => {
+        const batches: StateMessage[][] = [];
+        const host = new CityHost((messages) => batches.push(messages), new ManualTicker());
+        host.hold();
+        host.start({save: SaveFormat.serialise({...fixtureSave("suburb"), name: "Suburb"})});
+        const sent = () => batches.flatMap((batch) => batch.flatMap((message) =>
+            message.type === "population" ? [message.population] : []));
+
+        for (let taken = 0; taken < 6 * MONTH; taken += CHUNK) {
+            expect(host.advance(CHUNK).error).toBeNull();
+
+            expect(sent()[sent().length - 1]).toBe(JSON.parse(host.save()).simulation.cityPopLast);
+        }
+        expect(new Set(sent()).size).toBeGreaterThan(2);
+        expect(sent().every((population, i, all) => i === 0 || population !== all[i - 1])).toBe(true);
     });
 
     // A turn of several cycles publishes once: what holds at the end of it, and each event in the order it came

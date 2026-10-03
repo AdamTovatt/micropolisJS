@@ -234,6 +234,7 @@ export class Game {
 
     this.infoBar = placeInfoBar(started.name);
     this.infoBar.showDate(state.current("date"));
+    this.infoBar.showPopulation(state.current("population"));
     this.infoBar.showEvaluation(state.current("evaluation"));
     this.infoBar.showBudget(state.current("budget"));
 
@@ -298,6 +299,7 @@ export class Game {
     state.on("demand", (demand) => this.rci.update(demand));
     state.on("status", (status) => this.statusPanel.show(status));
     state.on("date", (date) => this.infoBar.showDate(date));
+    state.on("population", (population) => this.infoBar.showPopulation(population));
     state.on("evaluation", (evaluation) => this.infoBar.showEvaluation(evaluation));
     state.on("budget", (budget) => this.infoBar.showBudget(budget));
     state.on("settings", (settings) => this.speedControl.showSpeed(settings.speed));

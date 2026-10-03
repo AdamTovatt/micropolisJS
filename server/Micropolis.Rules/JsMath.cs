@@ -33,5 +33,15 @@ namespace Micropolis.Rules
         {
             return (int)FloorDiv((long)a, b);
         }
+
+        /// <summary>
+        /// <c>Math.fround</c>: the nearest single-precision value, as a C# <c>(float)</c> cast gives it, kept as the
+        /// double it equals. The TypeScript wraps each operand and result of the original's float arithmetic in it, and
+        /// the port wraps the same ones.
+        /// </summary>
+        public static double Fround(double value)
+        {
+            return (float)value;
+        }
     }
 }

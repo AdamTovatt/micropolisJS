@@ -15,6 +15,7 @@ import {
     BLOCK_SIZE, BLOCKS, MAP_HEIGHT, MAP_WIDTH, blockAt, evaluateYear, makeCity, problemFreeYear, type City, type Year,
 } from "./helpers/evaluationCity";
 import { lcg } from "./helpers/lcg";
+import { differences as firstDifferences } from "./helpers/oracle";
 
 // The original's yearly evaluation, as far as it works out the score: doPopNum, the problem table doProblems builds
 // (with getTrafficAverage, getUnemployment and getFireSeverity), and getScore, from evaluate.cpp in the original's
@@ -197,17 +198,7 @@ function firstDifference(years: Year[]): string | null {
 
 // The first few of the cases' differences
 function differences(cases: Year[][]): string[] {
-    const found: string[] = [];
-    for (let caseNumber = 0; caseNumber < cases.length; caseNumber++) {
-        const difference = firstDifference(cases[caseNumber]);
-        if (difference !== null) {
-            found.push(`case ${caseNumber}, ${difference}`);
-            if (found.length === 5) {
-                break;
-            }
-        }
-    }
-    return found;
+    return firstDifferences(cases, firstDifference);
 }
 
 // A year of a random city, each figure in a range the simulation produces, some at their limits. One year in twenty

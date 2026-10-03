@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using static Micropolis.Rules.JsMath;
 
 namespace Micropolis.Rules
 {
@@ -25,6 +26,12 @@ namespace Micropolis.Rules
         /// The entries in each history, newest first.
         /// </summary>
         public const int HistoryLength = 120;
+
+        /// <summary>
+        /// What the residential population is divided by to compare it with the other zone types', as each residential
+        /// zone reports its population scaled up.
+        /// </summary>
+        public const long ResPopDenom = 8;
 
         public long ResPop { get; internal set; }
 
@@ -143,14 +150,71 @@ namespace Micropolis.Rules
             AirportPop = 0;
         }
 
+        /// <summary>
+        /// The census every four units of city time, as <c>take10Census</c>: each short-term history moves on one, and
+        /// takes the populations, the crime and pollution ramps, and the cash flow scaled to 0–255; and whether the
+        /// city needs a hospital.
+        /// </summary>
         public void Take10Census(Budget budget)
         {
-            throw new NotPortedException("census.take10Census");
+            ResHist10 = Rotated(ResHist10, FloorDiv(ResPop, ResPopDenom));
+            ComHist10 = Rotated(ComHist10, ComPop);
+            IndHist10 = Rotated(IndHist10, IndPop);
+
+            // Each ramp moves a quarter of the way to its average, by C#'s integer division, which truncates toward
+            // zero as the original's does
+            CrimeRamp += (CrimeAverage - CrimeRamp) / 4;
+            CrimeHist10 = Rotated(CrimeHist10, Math.Min(CrimeRamp, 255));
+
+            PollutionRamp += (PollutionAverage - PollutionRamp) / 4;
+            PollutionHist10 = Rotated(PollutionHist10, Math.Min(PollutionRamp, 255));
+
+            // The cash flow scaled to 0–255, its division truncating as the original's does
+            MoneyHist10 = Rotated(MoneyHist10, Math.Clamp((budget.CashFlow / 20) + 128, 0, 255));
+
+            // JavaScript's >>, on the population taken to an int32
+            long resPopScaled = (int)ResPop >> 8;
+
+            if (HospitalPop < resPopScaled)
+            {
+                NeedHospital = 1;
+            }
+            else if (HospitalPop > resPopScaled)
+            {
+                NeedHospital = -1;
+            }
+            else
+            {
+                NeedHospital = 0;
+            }
         }
 
+        /// <summary>
+        /// The census every forty units of city time, as <c>take120Census</c>: each long-term history moves on one, and
+        /// takes the populations and the short-term histories' newest crime, pollution and money.
+        /// </summary>
         public void Take120Census()
         {
-            throw new NotPortedException("census.take120Census");
+            ResHist120 = Rotated(ResHist120, FloorDiv(ResPop, ResPopDenom));
+            ComHist120 = Rotated(ComHist120, ComPop);
+            IndHist120 = Rotated(IndHist120, IndPop);
+            CrimeHist120 = Rotated(CrimeHist120, CrimeHist10[0]);
+            PollutionHist120 = Rotated(PollutionHist120, PollutionHist10[0]);
+            MoneyHist120 = Rotated(MoneyHist120, MoneyHist10[0]);
+        }
+
+        // A history moved on one: the newest entry first, and the oldest dropped
+        private static long[] Rotated(IReadOnlyList<long> history, long newest)
+        {
+            long[] rotated = new long[history.Count];
+            rotated[0] = newest;
+
+            for (int i = 1; i < rotated.Length; i++)
+            {
+                rotated[i] = history[i - 1];
+            }
+
+            return rotated;
         }
 
         internal void Save(JsonObject saveData)

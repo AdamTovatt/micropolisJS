@@ -53,10 +53,13 @@ export interface Internals {
   _map: unknown;
   _mapScanner: Registry & {mapScan(startX: number, maxX: number, simData: unknown): void};
   _repairManager: Registry;
-  _census: {take10Census(budget: unknown): void, take120Census(): void};
+  _census: {
+    take10Census(budget: unknown): void, take120Census(): void,
+    crimeAverage: number, crimeRamp: number, pollutionAverage: number, pollutionRamp: number,
+  };
   _valves: {setValves(gameLevel: number, census: unknown, budget: unknown): void};
   _powerManager: {doPowerScan(census: unknown): void, registerHandlers(scanner: Registry, repairer: Registry): void};
-  budget: {collectTax(gameLevel: number, census: unknown): void};
+  budget: {collectTax(gameLevel: number, census: unknown): void, roadEffect: number};
   evaluation: {cityEvaluation(simData: unknown): void};
   disasterManager: {doDisasters(gameLevel: number, census: unknown): void, doMeltdown(x: number, y: number): void};
   spriteManager: {makeExplosion(x: number, y: number): void, spriteList: unknown[]};

@@ -12,7 +12,7 @@
  */
 
 import { cityFromSave, cityFromSeed, Level, SaveData, Speed } from "../headless/city";
-import { advance, startCity } from "../headless/runner";
+import { advance, fixtureSave, startCity } from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
@@ -332,6 +332,116 @@ describe("a simulation", () => {
             const powerMessages = subjects.filter((subject) =>
                 subject === Messages.NOT_ENOUGH_POWER || subject === Messages.BLACKOUTS_REPORTED);
             expect(powerMessages).toEqual([Messages.NOT_ENOUGH_POWER, Messages.BLACKOUTS_REPORTED]);
+        });
+    });
+
+    // _sendMessages checks the city's growth when cityTime & 3 is 0, as checkGrowth in the original does
+    describe("checking its growth", () => {
+
+        // A population of (resPop + (comPop + indPop) * 8) * 20: 3200, a town
+        function populate(simulation: SimulationInstance) {
+            Object.assign(simulation._census, {resPop: 40, comPop: 5, indPop: 10});
+        }
+
+        function listen(simulation: SimulationInstance) {
+            const events: {name: string, payload: unknown}[] = [];
+            for (const name of [Messages.POPULATION_UPDATED, Messages.CLASSIFICATION_UPDATED, Messages.FRONT_END_MESSAGE]) {
+                simulation.addEventListener(name, (payload: unknown) => events.push({name, payload}));
+            }
+            return events;
+        }
+
+        it("leaves the evaluation, which works out the population and class a year at a time, as it was", () => {
+            const simulation = simulationFromSeed(SEED);
+            const evaluation = simulation.evaluation;
+            const before = [evaluation.cityPop, evaluation.cityPopDelta, evaluation.cityClass, evaluation.cityClassLast];
+            simulation._cityPopLast = 1000;
+            populate(simulation);
+
+            simulation._cityTime = 64;
+            simulation._sendMessages();
+
+            expect([evaluation.cityPop, evaluation.cityPopDelta, evaluation.cityClass, evaluation.cityClassLast])
+                .toEqual(before);
+        });
+
+        it("sends the population when it has changed, and announces a new class", () => {
+            const simulation = simulationFromSeed(SEED);
+            const events = listen(simulation);
+            simulation._cityPopLast = 1000;
+            populate(simulation);
+
+            simulation._cityTime = 64;
+            simulation._sendMessages();
+
+            expect(events).toEqual([
+                {name: Messages.POPULATION_UPDATED, payload: 3200},
+                {name: Messages.FRONT_END_MESSAGE, payload: {subject: Messages.REACHED_TOWN}},
+            ]);
+            expect(simulation._cityPopLast).toBe(3200);
+        });
+
+        it("sends nothing when the population hasn't changed", () => {
+            const simulation = simulationFromSeed(SEED);
+            const events = listen(simulation);
+            simulation._cityPopLast = 3200;
+            populate(simulation);
+
+            simulation._cityTime = 64;
+            simulation._sendMessages();
+
+            expect(events).toEqual([]);
+        });
+
+        it("announces no class for a city that had no people at the last check", () => {
+            const simulation = simulationFromSeed(SEED);
+            const events = listen(simulation);
+            simulation._cityPopLast = 0;
+            populate(simulation);
+
+            simulation._cityTime = 64;
+            simulation._sendMessages();
+
+            expect(events).toEqual([{name: Messages.POPULATION_UPDATED, payload: 3200}]);
+        });
+
+        it("announces nothing for a town shrunk back to a village", () => {
+            const simulation = simulationFromSeed(SEED);
+            const events = listen(simulation);
+            simulation._cityPopLast = 3200;
+            Object.assign(simulation._census, {resPop: 40, comPop: 1, indPop: 0});
+
+            simulation._cityTime = 64;
+            simulation._sendMessages();
+
+            expect(events).toEqual([{name: Messages.POPULATION_UPDATED, payload: 960}]);
+        });
+
+        // 66 is no month's start, nor a place in the advisor's round
+        it("checks nothing between months", () => {
+            const simulation = simulationFromSeed(SEED);
+            const events = listen(simulation);
+            simulation._cityPopLast = 1000;
+            populate(simulation);
+
+            simulation._cityTime = 66;
+            simulation._sendMessages();
+
+            expect(events).toEqual([]);
+            expect(simulation._cityPopLast).toBe(1000);
+        });
+
+        // The census is cleared at phase 0 and counted again over phases 1 to 8, so a save taken between them holds
+        // a census part counted
+        it("gives a loaded city the population its last growth check found", () => {
+            const city = cityFromSave(fixtureSave("suburb")) as unknown as SimulationInstance;
+            while (city._cityPopLast === 0 || city._phaseCycle !== 4)
+                city.step();
+
+            const loaded = cityFromSave(plainSavedState(city) as SaveData) as unknown as SimulationInstance;
+
+            expect(loaded.evaluation.getPopulation(loaded._census)).not.toBe(city._cityPopLast);
+            expect(loaded.getPopulation()).toBe(city._cityPopLast);
         });
     });
 
