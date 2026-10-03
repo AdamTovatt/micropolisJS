@@ -189,6 +189,14 @@ var transitionOldSave = function(savedGame) {
       }
 
       delete savedGame.budget.awaitingValues;
+
+      /* falls through */
+    case 8:
+      // An evaluation wrote every problem in vote order, with null for none past the worst four: keep the worst four,
+      // with 7 for none, as a new city and the original keep them
+      savedGame.evaluation.problemOrder = savedGame.evaluation.problemOrder.slice(0, 4).map(function(problem) {
+        return problem === null ? 7 : problem;
+      });
       break;
 
     default:
@@ -206,7 +214,7 @@ var Storage = {
 };
 
 
-Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(8));
+Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(9));
 Object.defineProperty(Storage, 'KEY', MiscUtils.makeConstantDescriptor('micropolisJSGame'));
 Object.defineProperty(Storage, 'canStore', MiscUtils.makeConstantDescriptor(window.localStorage !== undefined));
 

@@ -12,7 +12,7 @@
  */
 
 import { Evaluation } from "../src/evaluation.js";
-import type { ScoreEntry } from "../src/protocol";
+import { CITY_PROBLEMS, type ScoreEntry } from "../src/protocol";
 import { developedLand, evaluateYear, makeCity, newEvaluation, problemFreeYear, type Year } from "./helpers/evaluationCity";
 
 // Each year sets its figures over a problem-free year of its residents
@@ -315,6 +315,37 @@ describe("the problems", () => {
         const housing = city.evaluation.problemVotes.find(
             (vote: {index: number}) => vote.index === Evaluation.HOUSING);
         expect(housing.voteCount).toBe(3);
+    });
+
+    // As evaluate.cpp keeps them: the worst four, worst first, with 7 for none. Only housing draws votes here.
+    it("rank the worst four, with 7 for each slot no problem fills", () => {
+        const city = makeCity();
+        evaluateYear(city, problemFreeYear(200, developedLand(15, 0)));
+
+        const none = CITY_PROBLEMS.length;
+        expect(city.evaluation.problemOrder).toEqual([Evaluation.HOUSING, none, none, none]);
+        expect([0, 1, 2, 3].map((i) => city.evaluation.getProblemNumber(i))).toEqual([Evaluation.HOUSING, null, null, null]);
+    });
+
+    // The sort is stable, and the poll lists the problems by index, so a tie ranks the lower index first
+    it("rank tied problems lowest index first", () => {
+        const city = makeCity();
+        const evaluation = city.evaluation;
+        evaluation.voteProblems = () => {
+            [0, 30, 20, 0, 30, 20, 0].forEach((voteCount, index) => {
+                evaluation.problemVotes[index] = {index, voteCount};
+            });
+        };
+        evaluateYear(city, problemFreeYear(200, developedLand(15, 0)));
+
+        expect(evaluation.problemVotes.map((vote: {index: number}) => vote.index)).toEqual([1, 4, 2, 5, 0, 3, 6]);
+        expect(evaluation.problemOrder).toEqual([1, 4, 2, 5]);
+    });
+
+    it("name none for a city not yet evaluated", () => {
+        const evaluation = newEvaluation();
+
+        expect([0, 1, 2, 3].map((i) => evaluation.getProblemNumber(i))).toEqual([null, null, null, null]);
     });
 
     // Half the 64 blocks carry traffic of 12, and the count starts at 1: 384 / 33 = 11.6, which

@@ -17,6 +17,7 @@ import { Budget } from "../src/budget.js";
 import { GameMap } from "../src/gameMap.js";
 import { Random } from "../src/random";
 import { Simulation } from "../src/simulation.js";
+import { CITY_PROBLEMS } from "../src/protocol";
 import { plainSavedState } from "../src/stateHash";
 import { ANIMBIT, CONDBIT } from "../src/tileFlags";
 import { FIRE, POWERPLANT } from "../src/tileValues";
@@ -385,6 +386,30 @@ describe("storage", () => {
             expect(budget).not.toHaveProperty("awaitingValues");
             expect([budget.totalFunds, budget.roadSpend, budget.roadEffect, budget.autoBudget])
                 .toEqual([1000 + 300 - 100, 100, new Budget().MAX_ROAD_EFFECT, false]);
+        });
+    });
+
+    describe("when migrating a version 8 save", () => {
+
+        // The town, with the problems an evaluation wrote: every problem in vote order, null for none past the worst
+        function version8Save(problemOrder: (number | null)[]): Save {
+            const saved = fixtureSave("town") as unknown as Save;
+            return {...saved, version: 8, evaluation: {...(saved.evaluation as Save), problemOrder}};
+        }
+
+        const none = CITY_PROBLEMS.length;
+
+        it.each([
+            [[3, 0, null, null, null, null, null], [3, 0, none, none]],
+            [[0, 1, 2, 4, null, null, null], [0, 1, 2, 4]],
+            [[none, none, none, none], [none, none, none, none]],
+        ])("keeps the worst four problems of %j, with 7 for none", async (problemOrder, migrated) => {
+            const {Storage} = await loadStorage();
+            const savedGame = version8Save(problemOrder);
+
+            Storage.transitionOldSave(savedGame);
+
+            expect((savedGame.evaluation as Save).problemOrder).toEqual(migrated);
         });
     });
 });

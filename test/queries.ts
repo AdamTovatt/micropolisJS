@@ -156,13 +156,15 @@ describe("a simulation answering an overlay query", () => {
         });
 
     it("answers with a copy, so changing the answer changes nothing in the city", async () => {
+        const layerMaps = () => OVERLAY_LAYERS.map((layer) => layerMap(city, layer).save());
         const before = await stateHash(city);
+        const maps = layerMaps();
         for (const layer of OVERLAY_LAYERS) {
             overlay(city, layer).values.fill(99);
         }
 
         expect(await stateHash(city)).toBe(before);
-        expect(layerMap(city, "pollution").save()).not.toContain(99);
+        expect(layerMaps()).toEqual(maps);
     });
 
     it("answers a query it rejects with the reason", () => {

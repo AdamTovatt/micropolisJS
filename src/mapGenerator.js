@@ -142,7 +142,9 @@ var makeSingleLake = function(map, pos, random) {
   var numPlops = random.getRandom(12) + 2;
 
   while (numPlops > 0) {
-    var plopPos = new Position(pos, random.getRandom(12) - 6, random.getRandom(12) - 6);
+    // The original's Position(pos, dx, dy) offsets pos. C++ leaves the order of the two draws unspecified; the port
+    // draws the x offset first.
+    var plopPos = new Position(pos.x + random.getRandom(12) - 6, pos.y + random.getRandom(12) - 6);
 
     if (random.getRandom(4))
         plopSRiver(map, plopPos);
@@ -281,8 +283,9 @@ var smoothTreesAt = function(map, x, y, preserve) {
     }
     map.setTile(x, y, temp, BLBNBIT);
   } else {
+    // The bare value 0, as the original writes it: dirt with no flags
     if (!preserve)
-      map.setTileValue(x, y, temp, 0);
+      map.setTile(x, y, temp, 0);
   }
 };
 

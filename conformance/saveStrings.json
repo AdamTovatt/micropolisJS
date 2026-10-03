@@ -1,0 +1,35 @@
+{
+  "cityClasses": [
+    "VILLAGE",
+    "TOWN",
+    "CITY",
+    "CAPITAL",
+    "METROPOLIS",
+    "MEGALOPOLIS"
+  ],
+  "scoreReasons": [
+    "PROBLEMS",
+    "RES_CAP",
+    "COM_CAP",
+    "IND_CAP",
+    "ROAD_FUNDING",
+    "POLICE_FUNDING",
+    "FIRE_FUNDING",
+    "RES_OVERSUPPLY",
+    "COM_OVERSUPPLY",
+    "IND_OVERSUPPLY",
+    "MIGRATION",
+    "FIRES",
+    "TAXES",
+    "UNPOWERED_ZONES",
+    "RANGE",
+    "AVERAGING"
+  ],
+  "cityClassMessages": [
+    "Now a town",
+    "Now a city",
+    "Now a capital",
+    "Now a metropolis",
+    "Now a megalopolis"
+  ]
+}

@@ -18,8 +18,8 @@ A log is a JSON object:
 | `entries` | The commands, in the order they were applied |
 | `checkpoints` | The state hashes to check, in order of step |
 
-A log has exactly one of `seed` and `save`. A log that builds on a fixture starts from the fixture's exported state
-(`npm run fixtures`) as its `save`.
+A log has exactly one of `seed` and `save`. A log that builds on a fixture starts from the fixture's built state,
+`conformance/saves/<name>.built.json`, as its `save`.
 
 The format version covers the file and the commands it holds: a change to the file's keys, or to the commands, their
 fields or what they accept, is a new version, since a replayer of the old one would read the log differently. A

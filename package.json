@@ -23,6 +23,7 @@
     "lint": "eslint",
     "simulate": "tsx headless/cli.ts",
     "fixtures": "tsx headless/buildFixtures.ts",
+    "conformance": "tsx conformance/generate.ts",
     "dev": "webpack serve --mode development",
     "production": "webpack serve --mode production"
   },
