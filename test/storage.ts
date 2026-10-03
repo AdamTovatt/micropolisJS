@@ -13,19 +13,25 @@
 
 import { Random } from "../src/random";
 
+type Window = {window?: unknown};
+
 // storage.js reads window.localStorage when it loads, and the tests run in Node: stub the window, then import it
 async function loadStorage() {
-    (globalThis as unknown as {window: unknown}).window = {localStorage: {}};
+    (globalThis as Window).window = {localStorage: {}};
     return (await import("../src/storage.js")).Storage;
 }
 
 describe("storage", () => {
 
-    describe("when migrating a version 3 save", () => {
+    afterAll(() => {
+        delete (globalThis as Window).window;
+    });
+
+    describe.each([1, 2, 3])("when migrating a version %i save", (version) => {
 
         it("gives it a uint32 seed and the simulation stream of that seed", async () => {
             const Storage = await loadStorage();
-            const savedGame: {version: number, seed?: number, randomState?: number[]} = {version: 3};
+            const savedGame: {version: number, seed?: number, randomState?: number[]} = {version};
 
             Storage.transitionOldSave(savedGame);
 
@@ -37,7 +43,7 @@ describe("storage", () => {
 
         it("starts its speed cycle from 0", async () => {
             const Storage = await loadStorage();
-            const savedGame: {version: number, _speedCycle?: number} = {version: 3};
+            const savedGame: {version: number, _speedCycle?: number} = {version};
 
             Storage.transitionOldSave(savedGame);
 

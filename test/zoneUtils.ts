@@ -14,7 +14,7 @@
 import { BlockMap } from "../src/blockMap";
 import { GameMap } from "../src/gameMap.js";
 import { BNCNBIT, BULLBIT, ZONEBIT } from "../src/tileFlags";
-import { POWERPLANT, RIVER, ROADS, RZB, WOODS } from "../src/tileValues";
+import { AIRPORT, POWERPLANT, RIVER, ROADS, RZB, WOODS } from "../src/tileValues";
 import { ZoneUtils } from "../src/zoneUtils.js";
 
 describe("zone utilities", () => {
@@ -77,6 +77,23 @@ describe("zone utilities", () => {
 
             expect(map.getTileFlags(53, 51) & BULLBIT).toBe(BULLBIT);
             expect(map.getTileFlags(51, 53) & BULLBIT).toBe(BULLBIT);
+        });
+
+        it.each([
+            ["a 4x4 zone", POWERPLANT, 53],
+            ["the airport", AIRPORT, 54],
+        ])("should sweep %s as far as the original, and no further", (_, centre, lastSwept) => {
+            const map = new GameMap(120, 100);
+            map.setTile(50, 50, centre, BNCNBIT | ZONEBIT);
+            map.setTile(lastSwept, 51, ROADS, 0);
+            map.setTile(lastSwept + 1, 51, ROADS, 0);
+            map.setTile(51, lastSwept + 1, ROADS, 0);
+
+            ZoneUtils.fireZone(map, 50, 50, {rateOfGrowthMap: new BlockMap(120, 100, 8)});
+
+            expect(map.getTileFlags(lastSwept, 51) & BULLBIT).toBe(BULLBIT);
+            expect(map.getTileFlags(lastSwept + 1, 51) & BULLBIT).toBe(0);
+            expect(map.getTileFlags(51, lastSwept + 1) & BULLBIT).toBe(0);
         });
     });
 });
