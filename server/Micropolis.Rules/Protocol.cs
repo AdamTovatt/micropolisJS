@@ -17,7 +17,9 @@ using System.Text.Json.Serialization;
 
 // The bodies of /api/session and the messages on the city's WebSocket, /ws/city. src/protocol.ts defines the same by
 // hand, and the examples under protocol/examples/ pin the two together: each side's tests read every example and
-// write it back to the same bytes. protocol/README.md describes the wire format.
+// write it back to the same bytes. protocol/README.md describes the wire format. The protocol lives with the game
+// rules rather than in the host, so a test or a tool reads it without one, and command messages can carry the rules'
+// own types.
 
 namespace Micropolis.Rules
 {
@@ -86,14 +88,12 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("name")] string Name) : SessionBody;
 
     /// <summary>
-    /// A new player's session, the answer to a sign-in.
+    /// A new player's session, the answer to a sign-in. The player learns their id from the socket's hello.
     /// </summary>
     /// <param name="Token">The token that authenticates the player.</param>
-    /// <param name="PlayerId">The new player's id.</param>
     /// <param name="Name">The display name as the server keeps it, trimmed.</param>
     public sealed record SessionResponse(
         [property: JsonPropertyName("token")] string Token,
-        [property: JsonPropertyName("playerId")] string PlayerId,
         [property: JsonPropertyName("name")] string Name) : SessionBody;
 
     /// <summary>

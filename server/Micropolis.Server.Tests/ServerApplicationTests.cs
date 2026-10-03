@@ -41,12 +41,36 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
-        public async Task Build_SigningSecret_Starts()
+        [DataRow(ServerApplication.NoTrustedProxies, DisplayName = "no proxies")]
+        [DataRow("10.0.0.1", DisplayName = "one proxy")]
+        [DataRow("10.0.0.1, 2001:db8::1", DisplayName = "two proxies")]
+        public async Task Build_SigningSecretAndTrustedProxies_Starts(string trustedProxies)
         {
-            await using WebApplication app = ServerApplication.Build(TestCity.CreateBuilder(TestCity.Secret));
+            await using WebApplication app = ServerApplication.Build(TestCity.CreateBuilder(TestCity.Secret, trustedProxies));
 
             await app.StartAsync();
             await app.StopAsync();
+        }
+
+        [TestMethod]
+        [DataRow(null, DisplayName = "no setting")]
+        [DataRow("", DisplayName = "an empty setting")]
+        public void Build_WithoutTrustedProxies_Fails(string? trustedProxies)
+        {
+            InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+                () => ServerApplication.Build(TestCity.CreateBuilder(TestCity.Secret, trustedProxies)));
+
+            StringAssert.Contains(exception.Message, ServerApplication.TrustedProxiesKey);
+            StringAssert.Contains(exception.Message, "required");
+        }
+
+        [TestMethod]
+        public void Build_TrustedProxyNotAnAddress_Fails()
+        {
+            InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
+                () => ServerApplication.Build(TestCity.CreateBuilder(TestCity.Secret, "10.0.0.1, proxy.example")));
+
+            StringAssert.Contains(exception.Message, "proxy.example");
         }
     }
 }

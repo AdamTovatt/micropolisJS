@@ -46,11 +46,11 @@ namespace Micropolis.Server.Tests
         public TestServer Server { get; }
         public HttpClient Client { get; }
 
-        public static async Task<TestCity> StartAsync()
+        public static async Task<TestCity> StartAsync(string trustedProxies = ServerApplication.NoTrustedProxies)
         {
             // The clock starts at the real time, since token validation reads the real one
             FakeTimeProvider time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-            WebApplicationBuilder builder = CreateBuilder(Secret);
+            WebApplicationBuilder builder = CreateBuilder(Secret, trustedProxies);
             builder.Services.AddSingleton<TimeProvider>(time);
 
             WebApplication app = ServerApplication.Build(builder);
@@ -59,22 +59,30 @@ namespace Micropolis.Server.Tests
         }
 
         /// <summary>
-        /// A builder configured as the tests run the server: the given secret, pinned over any in the environment.
+        /// A builder configured as the tests run the server: the given secret and trusted proxies, pinned over any in
+        /// the environment.
         /// </summary>
-        public static WebApplicationBuilder CreateBuilder(string? secret)
+        public static WebApplicationBuilder CreateBuilder(string? secret, string? trustedProxies = ServerApplication.NoTrustedProxies)
         {
             WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
-            builder.Configuration.AddInMemoryCollection([new KeyValuePair<string, string?>(ServerApplication.JwtSecretKey, secret)]);
+            builder.Configuration.AddInMemoryCollection([
+                new KeyValuePair<string, string?>(ServerApplication.JwtSecretKey, secret),
+                new KeyValuePair<string, string?>(ServerApplication.TrustedProxiesKey, trustedProxies),
+            ]);
             builder.WebHost.UseTestServer();
             builder.Logging.ClearProviders();
             return builder;
         }
 
-        public async Task<SessionResponse> SignInAsync(string name)
+        /// <summary>
+        /// Signs in a new player, giving the player id the token's subject carries along with the session.
+        /// </summary>
+        public async Task<SignedIn> SignInAsync(string name)
         {
             HttpResponseMessage response = await PostSignInAsync(ProtocolJson.Serialize(new SignInRequest(name)));
             response.EnsureSuccessStatusCode();
-            return await ReadBodyAsync<SessionResponse>(response);
+            SessionResponse session = await ReadBodyAsync<SessionResponse>(response);
+            return new SignedIn(session.Token, new JwtSecurityTokenHandler().ReadJwtToken(session.Token).Subject, session.Name);
         }
 
         public async Task<HttpResponseMessage> PostSignInAsync(string body)
@@ -155,4 +163,9 @@ namespace Micropolis.Server.Tests
             await App.DisposeAsync();
         }
     }
+
+    /// <summary>
+    /// A signed-in player as the tests know them.
+    /// </summary>
+    internal sealed record SignedIn(string Token, string PlayerId, string Name);
 }

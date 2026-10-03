@@ -25,10 +25,10 @@ namespace Micropolis.Server
         public const string Path = "/ws/city";
 
         // How long a client has to answer the server's close frame before the connection is dropped
-        private static readonly TimeSpan CloseHandshakeTimeout = TimeSpan.FromSeconds(5);
+        internal static readonly TimeSpan CloseHandshakeTimeout = TimeSpan.FromSeconds(5);
 
         // The longest a timer can wait; a token outliving it closes then, and the client reconnects with it
-        private static readonly TimeSpan LongestTimerDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
+        internal static readonly TimeSpan LongestTimerDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
 
         public static void Map(WebApplication app)
         {
@@ -54,7 +54,9 @@ namespace Micropolis.Server
 
             using WebSocket socket = await context.WebSockets.AcceptWebSocketAsync();
             CityConnection connection = new CityConnection(player.Value);
-            using CancellationTokenSource receiving = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+            // On the server's clock, as the token's expiry is
+            using CancellationTokenSource closeHandshake = new CancellationTokenSource(Timeout.InfiniteTimeSpan, time);
+            using CancellationTokenSource receiving = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, closeHandshake.Token);
 
             TimeSpan untilExpiry = expiresAt.Value - time.GetUtcNow();
             TimeSpan expiryDelay = untilExpiry < TimeSpan.Zero ? TimeSpan.Zero : untilExpiry > LongestTimerDelay ? LongestTimerDelay : untilExpiry;
@@ -73,7 +75,7 @@ namespace Micropolis.Server
                 try
                 {
                     await connection.SendAllAsync(socket, context.RequestAborted);
-                    receiving.CancelAfter(CloseHandshakeTimeout);
+                    closeHandshake.CancelAfter(CloseHandshakeTimeout);
                 }
                 catch
                 {

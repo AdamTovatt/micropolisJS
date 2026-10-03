@@ -152,7 +152,7 @@ function server(validTokens: string[], tokenPrefix = "token", refusedNames: stri
 
     issued++;
     validTokens.push(`${tokenPrefix}-${issued}`);
-    return session({token: `${tokenPrefix}-${issued}`, playerId: `id-${issued}`, name: name.trim()});
+    return session({token: `${tokenPrefix}-${issued}`, name: name.trim()});
   };
 }
 
@@ -273,7 +273,7 @@ describe("the city client", () => {
     it.each([
       ["the server has gone", noServer],
       ["a refusal without a reason", () => respond(400, {message: "Bad Request"})],
-      ["a session missing its token", () => respond(200, {playerId: "id-1", name: "Ada"})],
+      ["a session missing its token", () => respond(200, {name: "Ada"})],
       ["a page instead of a session", () => notJson(200)],
     ])("is offline, storing nothing, with %s", async (_, handler) => {
       const browser = new FakeBrowser(handler);

@@ -15,19 +15,24 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
+using System.Text;
 using Micropolis.Rules;
+using Microsoft.AspNetCore.Http;
 
 namespace Micropolis.Server.Tests
 {
     [TestClass]
     public sealed class SessionEndpointsTests
     {
+        private const string LengthReason = "1 to 32 characters";
+        private const string CharacterReason = "control or invisible formatting characters";
+
         [TestMethod]
         public async Task SignIn_Name_IssuesTokenForNewPlayerWithNameClaimAndNoRoles()
         {
             await using TestCity city = await TestCity.StartAsync();
 
-            SessionResponse session = await city.SignInAsync("  Ada  ");
+            SignedIn session = await city.SignInAsync("  Ada  ");
             JwtSecurityToken token = new JwtSecurityTokenHandler().ReadJwtToken(session.Token);
 
             Assert.AreEqual("Ada", session.Name);
@@ -42,31 +47,30 @@ namespace Micropolis.Server.Tests
         {
             await using TestCity city = await TestCity.StartAsync();
 
-            SessionResponse first = await city.SignInAsync("Ada");
-            SessionResponse second = await city.SignInAsync("Ada");
+            SignedIn first = await city.SignInAsync("Ada");
+            SignedIn second = await city.SignInAsync("Ada");
 
             Assert.AreNotEqual(first.PlayerId, second.PlayerId);
         }
 
         [TestMethod]
-        [DataRow("", DisplayName = "empty")]
-        [DataRow("   ", DisplayName = "only whitespace")]
-        [DataRow("abcdefghijklmnopqrstuvwxyz0123456", DisplayName = "33 characters")]
-        [DataRow("\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600", DisplayName = "17 emoji, 34 UTF-16 code units")]
-        [DataRow("Ada\u0007", DisplayName = "a control character")]
-        [DataRow("Ada\u202eEve", DisplayName = "a right-to-left override")]
-        [DataRow("\u200b", DisplayName = "only a zero-width space")]
-        [DataRow("Ada\U000E0001", DisplayName = "a format character outside the Basic Multilingual Plane")]
-        [DataRow("Ada\u2028Eve", DisplayName = "a line separator")]
-        public async Task SignIn_NameBreakingTheRule_IsBadRequestWithReason(string name)
+        [DataRow("", LengthReason, DisplayName = "empty")]
+        [DataRow("   ", LengthReason, DisplayName = "only whitespace")]
+        [DataRow("abcdefghijklmnopqrstuvwxyz0123456", LengthReason, DisplayName = "33 characters")]
+        [DataRow("\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600\U0001F600", LengthReason, DisplayName = "17 emoji, 34 UTF-16 code units")]
+        [DataRow("Ada\u0007", CharacterReason, DisplayName = "a control character")]
+        [DataRow("Ada\u202eEve", CharacterReason, DisplayName = "a right-to-left override")]
+        [DataRow("\u200b", CharacterReason, DisplayName = "only a zero-width space")]
+        [DataRow("Ada\U000E0001", CharacterReason, DisplayName = "a format character outside the Basic Multilingual Plane")]
+        [DataRow("Ada\u2028Eve", CharacterReason, DisplayName = "a line separator")]
+        public async Task SignIn_NameBreakingTheRule_IsBadRequestWithThatRule(string name, string reason)
         {
             await using TestCity city = await TestCity.StartAsync();
 
             HttpResponseMessage response = await city.PostSignInAsync(ProtocolJson.Serialize(new SignInRequest(name)));
 
             Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
-            ErrorResponse error = await TestCity.ReadBodyAsync<ErrorResponse>(response);
-            Assert.IsFalse(string.IsNullOrWhiteSpace(error.Error));
+            StringAssert.Contains((await TestCity.ReadBodyAsync<ErrorResponse>(response)).Error, reason);
         }
 
         [TestMethod]
@@ -77,7 +81,7 @@ namespace Micropolis.Server.Tests
         {
             await using TestCity city = await TestCity.StartAsync();
 
-            SessionResponse session = await city.SignInAsync(name);
+            SignedIn session = await city.SignInAsync(name);
 
             Assert.AreEqual(name, session.Name);
         }
@@ -97,8 +101,43 @@ namespace Micropolis.Server.Tests
             HttpResponseMessage response = await city.PostSignInAsync(body);
 
             Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
-            ErrorResponse error = await TestCity.ReadBodyAsync<ErrorResponse>(response);
-            Assert.IsFalse(string.IsNullOrWhiteSpace(error.Error));
+            StringAssert.Contains((await TestCity.ReadBodyAsync<ErrorResponse>(response)).Error, "name to sign in under");
+        }
+
+        [TestMethod]
+        public async Task SignIn_BodyNotUtf8_IsBadRequestWithReason()
+        {
+            await using TestCity city = await TestCity.StartAsync();
+            // {"name":"Ad\xff"}, where 0xff never occurs in UTF-8
+            using ByteArrayContent content = new ByteArrayContent([.. Encoding.ASCII.GetBytes("{\"name\":\"Ad"), 0xff, .. Encoding.ASCII.GetBytes("\"}")]);
+            content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+            HttpResponseMessage response = await city.Client.PostAsync(SessionEndpoints.Path, content);
+
+            Assert.AreEqual(HttpStatusCode.BadRequest, response.StatusCode);
+            StringAssert.Contains((await TestCity.ReadBodyAsync<ErrorResponse>(response)).Error, "name to sign in under");
+        }
+
+        [TestMethod]
+        [DataRow(true, DisplayName = "with its length declared")]
+        [DataRow(false, DisplayName = "sent in chunks of unknown length")]
+        public async Task SignIn_BodyLongerThanAnySignIn_IsTooLarge(bool lengthDeclared)
+        {
+            await using TestCity city = await TestCity.StartAsync();
+            using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, SessionEndpoints.Path)
+            {
+                Content = new StringContent($"{{\"name\":\"{new string('a', SessionEndpoints.MaximumSignInBytes)}\"}}", Encoding.UTF8, "application/json"),
+            };
+
+            if (!lengthDeclared)
+            {
+                request.Content.Headers.ContentLength = null;
+                request.Headers.TransferEncodingChunked = true;
+            }
+
+            HttpResponseMessage response = await city.Client.SendAsync(request);
+
+            Assert.AreEqual(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
         }
 
         [TestMethod]
@@ -106,7 +145,7 @@ namespace Micropolis.Server.Tests
         {
             await using TestCity city = await TestCity.StartAsync();
 
-            for (int i = 0; i < ServerApplication.SignInsPerMinute; i++)
+            for (int i = 0; i < SessionEndpoints.SignInsPerMinute; i++)
             {
                 await city.SignInAsync("Ada");
             }
@@ -119,10 +158,49 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        public async Task SignIn_ThroughTrustedProxy_LimitsEachForwardedClientApart()
+        {
+            await using TestCity city = await TestCity.StartAsync(trustedProxies: "10.0.0.1");
+
+            for (int i = 0; i < SessionEndpoints.SignInsPerMinute; i++)
+            {
+                Assert.AreEqual(StatusCodes.Status200OK, await SignInFromAsync(city, "10.0.0.1", forwardedFor: "203.0.113.5"));
+            }
+
+            Assert.AreEqual(StatusCodes.Status200OK, await SignInFromAsync(city, "10.0.0.1", forwardedFor: "203.0.113.6"));
+            Assert.AreEqual(StatusCodes.Status429TooManyRequests, await SignInFromAsync(city, "10.0.0.1", forwardedFor: "203.0.113.5"));
+        }
+
+        [TestMethod]
+        public async Task SignIn_ForwardedForFromUntrustedAddress_IsIgnored()
+        {
+            // Otherwise any client could sign in without end by naming a new address each time
+            await using TestCity city = await TestCity.StartAsync();
+
+            for (int i = 0; i < SessionEndpoints.SignInsPerMinute; i++)
+            {
+                Assert.AreEqual(StatusCodes.Status200OK, await SignInFromAsync(city, "198.51.100.7", forwardedFor: $"203.0.113.{i}"));
+            }
+
+            Assert.AreEqual(StatusCodes.Status429TooManyRequests, await SignInFromAsync(city, "198.51.100.7", forwardedFor: "203.0.113.99"));
+        }
+
+        [TestMethod]
+        public async Task GetSession_NoToken_IsUnauthorizedAsTheClientExpects()
+        {
+            // The client takes a 401 here as the sign that this server answers, and a sign-in is needed
+            await using TestCity city = await TestCity.StartAsync();
+
+            HttpResponseMessage response = await GetSessionAsync(city, token: null);
+
+            Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [TestMethod]
         public async Task GetSession_ValidToken_AnswersThePlayer()
         {
             await using TestCity city = await TestCity.StartAsync();
-            SessionResponse session = await city.SignInAsync("Ada");
+            SignedIn session = await city.SignInAsync("Ada");
 
             HttpResponseMessage response = await GetSessionAsync(city, session.Token);
 
@@ -168,21 +246,27 @@ namespace Micropolis.Server.Tests
         {
             // Only the city's socket takes a token from the query, where a browser has no other way to send it
             await using TestCity city = await TestCity.StartAsync();
-            SessionResponse session = await city.SignInAsync("Ada");
+            SignedIn session = await city.SignInAsync("Ada");
 
             HttpResponseMessage response = await city.Client.GetAsync($"{SessionEndpoints.Path}?access_token={Uri.EscapeDataString(session.Token)}");
 
             Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
-        [TestMethod]
-        public async Task GetSession_NoToken_IsUnauthorized()
+        // A sign-in arriving from the given address, carrying the given X-Forwarded-For, as a proxy sends one
+        private static async Task<int> SignInFromAsync(TestCity city, string remoteAddress, string forwardedFor)
         {
-            await using TestCity city = await TestCity.StartAsync();
+            HttpContext context = await city.Server.SendAsync(request =>
+            {
+                request.Request.Method = HttpMethods.Post;
+                request.Request.Path = SessionEndpoints.Path;
+                request.Request.ContentType = "application/json";
+                request.Request.Headers["X-Forwarded-For"] = forwardedFor;
+                request.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(ProtocolJson.Serialize(new SignInRequest("Ada"))));
+                request.Connection.RemoteIpAddress = IPAddress.Parse(remoteAddress);
+            });
 
-            HttpResponseMessage response = await GetSessionAsync(city, token: null);
-
-            Assert.AreEqual(HttpStatusCode.Unauthorized, response.StatusCode);
+            return context.Response.StatusCode;
         }
 
         private static async Task<HttpResponseMessage> GetSessionAsync(TestCity city, string? token)

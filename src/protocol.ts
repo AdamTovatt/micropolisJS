@@ -85,10 +85,10 @@ export interface SignInRequest {
   name: string;
 }
 
-// A new player's session, the answer to a sign-in. The name is as the server keeps it, trimmed.
+// A new player's session, the answer to a sign-in. The name is as the server keeps it, trimmed, and the player
+// learns their id from the socket's hello.
 export interface SessionResponse {
   token: string;
-  playerId: string;
   name: string;
 }
 
@@ -111,12 +111,8 @@ export function signInRequest(name: string): SignInRequest {
 // parseServerMessage does, and throws on anything else
 
 export function parseSessionResponse(value: unknown): SessionResponse {
-  const body = objectWithFields(value, ["token", "playerId", "name"], "a session");
-  return {
-    token: stringField(body, "token", "a session"),
-    playerId: stringField(body, "playerId", "a session"),
-    name: stringField(body, "name", "a session"),
-  };
+  const body = objectWithFields(value, ["token", "name"], "a session");
+  return {token: stringField(body, "token", "a session"), name: stringField(body, "name", "a session")};
 }
 
 export function parsePlayerResponse(value: unknown): PlayerResponse {

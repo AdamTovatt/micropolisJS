@@ -34,10 +34,14 @@ namespace Micropolis.Server.Tests
             _socket = socket;
         }
 
-        public async Task<T> ReceiveAsync<T>() where T : ServerMessage
+        /// <summary>
+        /// The next message, which must arrive within the given time, or a few seconds when none is given.
+        /// </summary>
+        public async Task<T> ReceiveAsync<T>(TimeSpan? within = null) where T : ServerMessage
         {
-            WebSocketReceiveResult result = await ReceiveFrameAsync(MessageTimeout)
-                ?? throw new TimeoutException($"No message within {MessageTimeout}.");
+            TimeSpan timeout = within ?? MessageTimeout;
+            WebSocketReceiveResult result = await ReceiveFrameAsync(timeout)
+                ?? throw new TimeoutException($"No message within {timeout}.");
 
             Assert.AreEqual(WebSocketMessageType.Text, result.MessageType, $"Expected a message, got a {result.MessageType} frame.");
             Assert.IsTrue(result.EndOfMessage, "A message spans more than one frame.");
@@ -59,21 +63,34 @@ namespace Micropolis.Server.Tests
         }
 
         /// <summary>
-        /// Waits for the server's close frame and answers it.
+        /// Waits for the server's close frame and answers it, unless told not to.
         /// </summary>
-        public async Task<WebSocketCloseStatus?> ReceiveCloseAsync()
+        public async Task<WebSocketCloseStatus?> ReceiveCloseAsync(bool answer = true)
         {
             WebSocketReceiveResult result = await ReceiveFrameAsync(MessageTimeout)
                 ?? throw new TimeoutException($"No close within {MessageTimeout}.");
 
             Assert.AreEqual(WebSocketMessageType.Close, result.MessageType);
-            await _socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+
+            if (answer)
+            {
+                await _socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+            }
+
             return result.CloseStatus;
         }
 
         public async Task CloseAsync()
         {
             await _socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Drops the connection without a close, as a client does when its network goes.
+        /// </summary>
+        public void Abort()
+        {
+            _socket.Abort();
         }
 
         public ValueTask DisposeAsync()

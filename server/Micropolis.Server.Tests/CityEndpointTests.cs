@@ -85,7 +85,7 @@ namespace Micropolis.Server.Tests
         public async Task Get_NotAWebSocketRequest_IsBadRequest()
         {
             await using TestCity city = await TestCity.StartAsync();
-            SessionResponse session = await city.SignInAsync("Ada");
+            SignedIn session = await city.SignInAsync("Ada");
             using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, CityEndpoint.Path);
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", session.Token);
 
@@ -98,7 +98,7 @@ namespace Micropolis.Server.Tests
         public async Task Connect_ValidTokenInQueryStringAsBrowserSendsIt_GetsHelloListingItself()
         {
             await using TestCity city = await TestCity.StartAsync();
-            SessionResponse ada = await city.SignInAsync("Ada");
+            SignedIn ada = await city.SignInAsync("Ada");
 
             await using TestSocket socket = await city.ConnectAsync(ada.Token);
             HelloMessage hello = await socket.ReceiveAsync<HelloMessage>();
@@ -111,8 +111,8 @@ namespace Micropolis.Server.Tests
         public async Task Connect_SecondPlayer_JoinAndLeaveReachFirst()
         {
             await using TestCity city = await TestCity.StartAsync();
-            SessionResponse ada = await city.SignInAsync("Ada");
-            SessionResponse grace = await city.SignInAsync("Grace");
+            SignedIn ada = await city.SignInAsync("Ada");
+            SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket adaSocket = await city.ConnectAsync(ada.Token);
             await adaSocket.ReceiveAsync<HelloMessage>();
 
@@ -134,8 +134,8 @@ namespace Micropolis.Server.Tests
         public async Task Connect_SameTokenTwice_ListsPlayerOnce()
         {
             await using TestCity city = await TestCity.StartAsync();
-            SessionResponse ada = await city.SignInAsync("Ada");
-            SessionResponse grace = await city.SignInAsync("Grace");
+            SignedIn ada = await city.SignInAsync("Ada");
+            SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
             await graceSocket.ReceiveAsync<HelloMessage>();
             await using TestSocket firstTab = await city.ConnectAsync(ada.Token);
@@ -159,8 +159,8 @@ namespace Micropolis.Server.Tests
         public async Task Close_OneOfTwoConnectionsOfAPlayer_KeepsPlayerOnline()
         {
             await using TestCity city = await TestCity.StartAsync();
-            SessionResponse ada = await city.SignInAsync("Ada");
-            SessionResponse grace = await city.SignInAsync("Grace");
+            SignedIn ada = await city.SignInAsync("Ada");
+            SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
             await graceSocket.ReceiveAsync<HelloMessage>();
             await using TestSocket firstTab = await city.ConnectAsync(ada.Token);
@@ -180,11 +180,72 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        public async Task Connection_DroppedWithoutClose_PlayerLeaves()
+        {
+            await using TestCity city = await TestCity.StartAsync();
+            SignedIn ada = await city.SignInAsync("Ada");
+            SignedIn grace = await city.SignInAsync("Grace");
+            await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
+            await graceSocket.ReceiveAsync<HelloMessage>();
+            await using TestSocket adaSocket = await city.ConnectAsync(ada.Token);
+            await adaSocket.ReceiveAsync<HelloMessage>();
+            await graceSocket.ReceiveAsync<PlayersMessage>();
+
+            adaSocket.Abort();
+            PlayersMessage left = await graceSocket.ReceiveAsync<PlayersMessage>();
+
+            CollectionAssert.AreEqual(new[] { new PlayerInfo(grace.PlayerId, "Grace") }, left.Players.ToArray());
+        }
+
+        [TestMethod]
+        public async Task Close_ClientNeverAnswers_DroppedAfterTheHandshakeTimeoutOnTheServersClock()
+        {
+            await using TestCity city = await TestCity.StartAsync();
+            SignedIn ada = await city.SignInAsync("Ada");
+            SignedIn grace = await city.SignInAsync("Grace");
+            await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
+            await graceSocket.ReceiveAsync<HelloMessage>();
+            string shortToken = TestCity.CreateToken(ada.PlayerId, "Ada", city.Time.GetUtcNow().AddHours(1).UtcDateTime);
+            await using TestSocket adaSocket = await city.ConnectAsync(shortToken);
+            await adaSocket.ReceiveAsync<HelloMessage>();
+            await graceSocket.ReceiveAsync<PlayersMessage>();
+
+            city.Time.Advance(TimeSpan.FromHours(1));
+            await adaSocket.ReceiveCloseAsync(answer: false);
+            // The server starts the timeout once its close frame is out; this quiet while lets it, so the clock moves
+            // from there
+            await graceSocket.ExpectNothingAsync();
+            city.Time.Advance(CityEndpoint.CloseHandshakeTimeout - TimeSpan.FromSeconds(1));
+            await graceSocket.ExpectNothingAsync();
+            city.Time.Advance(TimeSpan.FromSeconds(1));
+            // Well inside the timeout in real time, so only the server's clock can have ended the wait
+            PlayersMessage left = await graceSocket.ReceiveAsync<PlayersMessage>(within: TimeSpan.FromSeconds(1));
+
+            CollectionAssert.AreEqual(new[] { new PlayerInfo(grace.PlayerId, "Grace") }, left.Players.ToArray());
+        }
+
+        [TestMethod]
+        public async Task TokenOutlivingTheLongestTimer_WhileConnected_ServerClosesThenSoTheClientReconnects()
+        {
+            await using TestCity city = await TestCity.StartAsync();
+            SignedIn ada = await city.SignInAsync("Ada");
+            string longToken = TestCity.CreateToken(ada.PlayerId, "Ada", city.Time.GetUtcNow().AddDays(60).UtcDateTime);
+            await using TestSocket socket = await city.ConnectAsync(longToken);
+            await socket.ReceiveAsync<HelloMessage>();
+
+            city.Time.Advance(CityEndpoint.LongestTimerDelay - TimeSpan.FromMinutes(1));
+            await socket.ExpectNothingAsync();
+            city.Time.Advance(TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(WebSocketCloseStatus.PolicyViolation, await socket.ReceiveCloseAsync());
+        }
+
+        [TestMethod]
         public async Task TokenExpires_WhileConnected_ServerClosesWithPolicyViolationAndPlayerLeaves()
         {
             await using TestCity city = await TestCity.StartAsync();
-            SessionResponse ada = await city.SignInAsync("Ada");
-            SessionResponse grace = await city.SignInAsync("Grace");
+            SignedIn ada = await city.SignInAsync("Ada");
+            SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
             await graceSocket.ReceiveAsync<HelloMessage>();
             string shortToken = TestCity.CreateToken(ada.PlayerId, "Ada", city.Time.GetUtcNow().AddHours(1).UtcDateTime);
@@ -209,7 +270,7 @@ namespace Micropolis.Server.Tests
 
             try
             {
-                SessionResponse ada = await city.SignInAsync("Ada");
+                SignedIn ada = await city.SignInAsync("Ada");
                 await using TestSocket socket = await city.ConnectAsync(ada.Token);
                 await socket.ReceiveAsync<HelloMessage>();
 
@@ -229,7 +290,7 @@ namespace Micropolis.Server.Tests
         // new player stays connected until the city stops, since leaving would send the listener another message.
         private static async Task<PlayersMessage> JoinAndReceiveAsync(TestCity city, string name, TestSocket listener)
         {
-            SessionResponse session = await city.SignInAsync(name);
+            SignedIn session = await city.SignInAsync(name);
             TestSocket socket = await city.ConnectAsync(session.Token);
             await socket.ReceiveAsync<HelloMessage>();
             return await listener.ReceiveAsync<PlayersMessage>();

@@ -24,7 +24,14 @@ namespace Micropolis.Server
     /// </summary>
     internal sealed class CityConnection
     {
-        private readonly Channel<string> _outbox = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
+        /// <summary>
+        /// The most messages a connection holds unsent. A client that falls this far behind is closed, and catches up
+        /// from the hello when it reconnects.
+        /// </summary>
+        public const int MaximumQueued = 256;
+
+        private readonly Channel<string> _outbox = Channel.CreateBounded<string>(
+            new BoundedChannelOptions(MaximumQueued) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
         private readonly object _closeLock = new object();
         private WebSocketCloseStatus _closeStatus = WebSocketCloseStatus.NormalClosure;
         private string? _closeDescription;
@@ -37,11 +44,16 @@ namespace Micropolis.Server
         public PlayerInfo Player { get; }
 
         /// <summary>
-        /// Queues a message, already written as the wire carries it. A closed connection drops it.
+        /// Queues a message, already written as the wire carries it. A closed connection drops it, and a full one
+        /// drops it and closes.
         /// </summary>
         public void Send(string message)
         {
-            _outbox.Writer.TryWrite(message);
+            // Fails only when full or closed, and closing a closed connection changes nothing
+            if (!_outbox.Writer.TryWrite(message))
+            {
+                Close(WebSocketCloseStatus.PolicyViolation, "too far behind");
+            }
         }
 
         /// <summary>

@@ -9,7 +9,8 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ASPNETCORE_HOSTINGSTARTUPASSEMBLIES": "Microsoft.AspNetCore.SpaProxy",
-        "JWT_SECRET": "development-only-signing-secret-never-use-outside-local-development"
+        "JWT_SECRET": "development-only-signing-secret-never-use-outside-local-development",
+        "TRUSTED_PROXIES": "none"
       }
     }
   }

@@ -6,19 +6,22 @@ together.
 
 ## Transport
 
-- `POST /api/session` with `{"name"}` signs a player in under a new player id. It answers `{"token", "playerId",
-  "name"}`, where `token` is a JWT that lasts 30 days and `name` is the name as the server keeps it, trimmed: the
-  browser stores that name and signs in with it again when the token is rejected. It answers 400 with `{"error"}`, a
-  reason to show the player, when the body is not a sign-in or the name breaks the rule below, and 429 with
-  `{"error"}` when one client address signs in more than 10 times in a minute.
-- `GET /api/session` with the token as a bearer answers `{"playerId", "name"}` while the token is valid, and 401 once
-  it is not. A token is refused from the second it expires: the server that issues tokens is the one that checks
-  them, so it allows no clock skew.
+- `POST /api/session` with `{"name"}` signs a player in under a new player id. It answers `{"token", "name"}`, where
+  `token` is a JWT that lasts 30 days and `name` is the name as the server keeps it, trimmed: the browser stores that
+  name and signs in with it again when the token is rejected. The player learns their id from the socket's `hello`.
+  It answers with `{"error"}`, a reason to show the player, and 400 when the body is not a sign-in or the name breaks
+  the rule below, 413 when the body is longer than any sign-in, and 429 when one client address signs in more than 10
+  times in a minute.
+- `GET /api/session` with the token as a bearer answers `{"playerId", "name"}` while the token is valid, and 401 when
+  it is not or when there is no token. The browser asks it first, with any token it has stored, to find out whether a
+  server answers: a 401 or a player is this server's answer, and anything else, such as a static host's page, means
+  the game runs single-player. A token is refused from the second it expires: the server that issues tokens is the
+  one that checks them, so it allows no clock skew.
 - `/ws/city` is one plain WebSocket carrying one JSON message per text frame. The browser cannot set an
   `Authorization` header on a WebSocket, so the token travels in the `access_token` query parameter. A connection
-  without a valid token is refused. The server closes a connection with status 1008 when its token expires, and with
-  1001 when the server stops. It pings every 15 seconds, which browsers answer on their own, and drops a connection
-  that leaves a ping unanswered for 15 seconds.
+  without a valid token is refused. The server closes a connection with status 1008 when its token expires or when
+  the client falls 256 messages behind, and with 1001 when the server stops. It pings every 15 seconds, which browsers
+  answer on their own, and drops a connection that leaves a ping unanswered for 15 seconds.
 
 A display name is 1 to 32 characters, counted as UTF-16 code units as JavaScript's `length` counts them, after
 surrounding whitespace is trimmed. It holds no control characters, no format characters (Unicode category Cf, such as
@@ -45,8 +48,9 @@ Each file in `examples/socket/` is one WebSocket message, and each file in `exam
 `/api/session`, named after the body. An example is its exact wire text on one line, then a newline, in UTF-8 without
 a byte order mark. The tests on both sides read every example, deserialize it into their own types and serialize it
 back, and fail unless the bytes are identical, so a field renamed, added or dropped on one side turns that side red.
-The browser only writes a sign-in, so its tests write one with the example's name. Each side's tests also fail when a
-message type or a session body has no example.
+Each side reads back every example of a body or message it reads, and writes back every example of one it writes,
+building it from the example's fields where it has no reader for it. Each side's tests also fail when a message type
+or a session body has no example.
 
 `reader-cases.json` holds the messages both readers must reject, messages they must accept and write back in the
 protocol's order, and session bodies a reader must reject, each tested by the sides that read that body.
