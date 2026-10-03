@@ -21,12 +21,15 @@ import { lcg } from "./helpers/lcg";
 // MicropolisEngine. It is transcribed with each C type's arithmetic made explicit, and is the oracle the port is
 // compared with below:
 // - short, int and Quad values are whole numbers: a cast to one, and a division of two, drop the fraction toward zero
-//   (Math.trunc). The inputs stay in each type's range, so nothing overflows.
+//   (Math.trunc). The inputs stay in each type's range, and only getUnemployment's jobs overflow theirs.
 // - float arithmetic rounds every operation to 32 bits (Math.fround); double arithmetic is JavaScript's own.
 // The problem votes are left out: they never feed the score, and the port's vote loop differs from the original's
 // on purpose (see voteProblems).
 
 const f = Math.fround;
+
+// A whole number stored in a short: it wraps into -32768 to 32767
+const toShort = (value: number) => ((value + 32768) % 65536 + 65536) % 65536 - 32768;
 
 // The cities are 16 tiles square, so thousands of them run quickly: getTrafficAverage's loop over the blocks is the
 // same at any map size. Each year's inputs stay in their C types' ranges: the populations, averages, tax, fires,
@@ -64,7 +67,8 @@ function getTrafficAverage(year: Year): number {
 }
 
 function getUnemployment(year: Year): number {
-    const b = (year.comPop + year.indPop) * 8;
+    // short b = (comPop + indPop) * 8, which wraps
+    const b = toShort((year.comPop + year.indPop) * 8);
     if (b === 0) {
         return 0;
     }
@@ -286,6 +290,19 @@ describe("the evaluation, against the original's", () => {
                 for (let crimeAverage = 0; crimeAverage <= 2; crimeAverage++) {
                     cases.push([problemFreeYear(8, {resPop, comPop, crimeAverage})]);
                 }
+            }
+        }
+
+        expect(differences(cases)).toEqual([]);
+    });
+
+    // Past 4095 commercial and industrial people the jobs wrap negative, up to about 6700, the most a map holds.
+    // Crime and pollution at their limits keep the base below the clamp, so the unemployment shows in it.
+    it("matches evaluate.cpp's unemployment, for jobs that wrap", () => {
+        const cases: Year[][] = [];
+        for (let comPop = 4090; comPop <= 6700; comPop += 7) {
+            for (const resPop of [0, 1000, 8000, 30000]) {
+                cases.push([problemFreeYear(8, {resPop, comPop, crimeAverage: 255, pollutionAverage: 255})]);
             }
         }
 

@@ -216,7 +216,10 @@ var getTrafficAverage = function(blockMaps, census) {
 
 
 var getUnemployment = function(census) {
-  var b = (census.comPop + census.indPop) * 8;
+  // evaluate.cpp keeps the jobs in a short, which wraps past 32767: more than 4095 commercial and
+  // industrial people count as a negative number of jobs. A map that is almost all top-density
+  // commercial holds about 6700, and up to there the ratio below stays in a short's range too.
+  var b = (((census.comPop + census.indPop) * 8) << 16) >> 16;
 
   if (b === 0)
       return 0;

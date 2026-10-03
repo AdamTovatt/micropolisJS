@@ -165,6 +165,11 @@ describe("the city score breakdown", () => {
         // double falls just under and truncates to 84, float rounds to just over 85. With crime of
         // 2, 87 / 3 = 29: 1024 - 116
         ["32 residents for 24 jobs", {resPop: 32, comPop: 3, crimeAverage: 2}, 908],
+        // 4096 commercial people make 32768 jobs, which wrap in evaluate.cpp's short to -32768.
+        // Unemployment is (8192 / -32768 - 1) * 255 = -318.75, which drops its fraction to -318,
+        // and with crime and pollution of 255, 192 / 3 = 64: 1024 - 256
+        ["4096 commercial people, whose jobs wrap",
+         {resPop: 8192, comPop: 4096, crimeAverage: 255, pollutionAverage: 255}, 768],
     ])("starts from the base score for %s", (_, changes, base) => {
         const city = makeCity();
         evaluateYear(city, problemFreeYear(200, changes));
