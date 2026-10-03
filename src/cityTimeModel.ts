@@ -14,10 +14,9 @@
 import { Simulation } from "./simulation.js";
 
 // How far city time gets in a number of steps, from the step and phase counters alone, as the original's simFrame and
-// simulate advance them: the speed cycle lets a phase through, and city time advances on phase 0. It restates the
-// simulation's speed gate on purpose: an independent model, so a city that stops letting phases through can't vouch
-// for itself.
-// TODO(#3) Merge with the headless runner's model once #3 lands, so there is one.
+// simulate advance them: the speed cycle lets a phase through, and city time advances on phase 0. A run that ends
+// anywhere else has stalled. It restates the simulation's speed gate on purpose: an independent model, so a city that
+// stops letting phases through can't vouch for itself.
 
 // The counters city time follows from
 export interface CityClock {
@@ -25,6 +24,19 @@ export interface CityClock {
   speedCycle: number;
   phase: number;
   cityTime: number;
+}
+
+// What a clock is read from: the simulation's speed and its raw counters
+export interface ClockedSimulation {
+  getSpeed(): number;
+  _speedCycle: number;
+  _phaseCycle: number;
+  _cityTime: number;
+}
+
+export function clockOf(simulation: ClockedSimulation): CityClock {
+  return {speed: simulation.getSpeed(), speedCycle: simulation._speedCycle, phase: simulation._phaseCycle,
+          cityTime: simulation._cityTime};
 }
 
 const PHASES_PER_CYCLE = 16;

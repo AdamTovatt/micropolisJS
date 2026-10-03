@@ -11,7 +11,7 @@
  *
  */
 
-import { CityClock, impliedCityTime } from "./cityTimeModel";
+import { clockOf, ClockedSimulation, impliedCityTime } from "./cityTimeModel";
 import { BUDGET_REVIEW_DUE } from "./messages";
 import { StepDriver } from "./stepDriver";
 import { Storage } from "./storage.js";
@@ -29,11 +29,7 @@ interface HookedGame {
   sendToolPaths(): void;
   commandQueue: {applyCommands(): unknown};
   saveData(): object;
-  simulation: {
-    _speed: number;
-    _speedCycle: number;
-    _phaseCycle: number;
-    _cityTime: number;
+  simulation: ClockedSimulation & {
     isPaused(): boolean;
     addEventListener(event: string, listener: () => void): void;
     removeEventListener(event: string, listener: () => void): void;
@@ -54,14 +50,6 @@ export interface View {
   originY: number;
   // A tile's width and height on the canvas, in pixels
   tileWidth: number;
-}
-
-// The simulation's counters, read once here, so the rest of the hook doesn't depend on their names
-function readClock(game: HookedGame): CityClock {
-  const simulation = game.simulation;
-
-  return {speed: simulation._speed, speedCycle: simulation._speedCycle, phase: simulation._phaseCycle,
-          cityTime: simulation._cityTime};
 }
 
 function notSteppingReason(game: HookedGame): string {
@@ -131,7 +119,7 @@ class TestHook {
     };
     game.simulation.addEventListener(BUDGET_REVIEW_DUE, onReviewDue);
 
-    const before = readClock(game);
+    const before = clockOf(game.simulation);
     try {
       for (let i = 0; i < steps; i++) {
         game.stepSimulation();
@@ -142,7 +130,7 @@ class TestHook {
     }
 
     const expected = impliedCityTime(before, steps);
-    const reached = readClock(game).cityTime;
+    const reached = game.simulation._cityTime;
     if (reached !== expected) {
       throw new Error(`The city stalled: ${steps} steps should advance city time from ${before.cityTime} to ` +
                       `${expected}, but it reached ${reached}`);
@@ -162,7 +150,7 @@ class TestHook {
   }
 
   cityTime(): number {
-    return readClock(this.attachedGame()).cityTime;
+    return this.attachedGame().simulation._cityTime;
   }
 
   view(): View {

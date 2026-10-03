@@ -11,14 +11,9 @@
  *
  */
 
-import { impliedCityTime, stepsPerCityTime } from "../src/cityTimeModel";
+import { clockOf, impliedCityTime, stepsPerCityTime } from "../src/cityTimeModel";
 import { Simulation } from "../src/simulation.js";
-import { simulationFromSeed, SimulationInstance } from "./helpers/simulations";
-
-function clockOf(simulation: SimulationInstance) {
-    return {speed: simulation._speed, speedCycle: simulation._speedCycle, phase: simulation._phaseCycle,
-            cityTime: simulation._cityTime};
-}
+import { simulationFromSeed } from "./helpers/simulations";
 
 describe("the city time model", () => {
 

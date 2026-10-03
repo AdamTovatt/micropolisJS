@@ -11,6 +11,7 @@
  *
  */
 
+import { clockOf, impliedCityTime } from "../src/cityTimeModel";
 import { CommandLog, lastStep } from "../src/commandLog";
 import { CommandQueue } from "../src/commandQueue";
 import { CommandResult } from "../src/commands";
@@ -173,37 +174,8 @@ export async function summarise(city: Simulation): Promise<Summary> {
   };
 }
 
-// Steps a phase is let through on, by speed: every 5th at slow, every 3rd at medium, every one at fast
-const STEPS_PER_PHASE = {[Speed.slow]: 5, [Speed.medium]: 3, [Speed.fast]: 1};
-const PHASES_PER_CYCLE = 16;
-
-// The city time a run of this many steps reaches, worked out from the step and phase counters alone, as the
-// original's simFrame and simulate advance them: the speed cycle lets a phase through, and city time advances on
-// phase 0. A run that ends anywhere else has stalled. This restates the simulation's speed gate on purpose: the check
-// is an independent model of it, so a simulation that stops letting phases through can't vouch for itself.
-function impliedCityTime(city: Simulation, steps: number): number {
-  const stepsPerPhase = STEPS_PER_PHASE[city.getSpeed()];
-  let speedCycle = city._speedCycle;
-  let phase = city._phaseCycle;
-  let cityTime = city._cityTime;
-
-  for (let i = 0; i < steps; i++) {
-    speedCycle = speedCycle === 1023 ? 0 : speedCycle + 1;
-
-    if (speedCycle % stepsPerPhase === 0) {
-      if (phase === 0) {
-        cityTime++;
-      }
-
-      phase = (phase + 1) % PHASES_PER_CYCLE;
-    }
-  }
-
-  return cityTime;
-}
-
 // Never steps a paused simulation, and fails rather than stalling: when city time doesn't advance as far as the step
-// count implies. Each step is the city's own, or one a command queue takes.
+// count implies, as cityTimeModel.ts models it. Each step is the city's own, or one a command queue takes.
 export function advance(city: Simulation, steps: number, step = () => city.step()): void {
   if (!Number.isInteger(steps) || steps < 0) {
     throw new Error(`A run takes a whole number of steps, got ${steps}`);
@@ -214,7 +186,7 @@ export function advance(city: Simulation, steps: number, step = () => city.step(
   }
 
   const startTime = city._cityTime;
-  const expectedTime = impliedCityTime(city, steps);
+  const expectedTime = impliedCityTime(clockOf(city), steps);
 
   for (let i = 0; i < steps; i++) {
     step();
