@@ -77,10 +77,14 @@ export class OverlaySelection {
   }
 
   // An answer for a layer no longer chosen arrives after the player chose another, and is dropped. The picker only
-  // asks for the layers the simulation answers, so a rejection is a defect.
+  // asks for the layers the simulation answers, so a rejection, or any other answer, is a defect.
   private receive(answer: QueryAnswer): void {
     if (answer.type === "rejected") {
       throw new Error(`The simulation rejected an overlay query: ${answer.reason}`);
+    }
+
+    if (answer.type !== "overlay") {
+      throw new Error(`The simulation answered an overlay query with an answer of type ${answer.type}`);
     }
 
     if (answer.layer === this.layer) {

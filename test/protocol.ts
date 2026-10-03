@@ -135,7 +135,7 @@ describe("the protocol's queries", () => {
         (file) => {
             expectRoundTrip(join(QUERY_EXAMPLES, file), (wire) => {
                 const query: unknown = JSON.parse(wire);
-                expect(queryRejection(query)).toBeNull();
+                expect(queryRejection(query, MAP_WIDTH, MAP_HEIGHT)).toBeNull();
                 return JSON.stringify(query);
             });
         });

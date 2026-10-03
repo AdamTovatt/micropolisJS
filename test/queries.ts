@@ -16,14 +16,21 @@ import { fixtureLog } from "../headless/fixtures/index";
 import { CommandLog } from "../src/commandLog";
 import { CommandQueue } from "../src/commandQueue";
 import * as Messages from "../src/messages";
-import { OVERLAY_LAYERS, OverlayAnswer, OverlayLayer, QueryAnswer } from "../src/protocol";
-import { LAYER_PHASES, queryRejection } from "../src/queries";
+import { startCity } from "../headless/runner";
+import {
+    OVERLAY_LAYERS, OverlayAnswer, OverlayLayer, QueryAnswer, TileReportAnswer, ZONE_CATEGORIES, ZoneCategory,
+} from "../src/protocol";
+import { LAYER_PHASES, queryRejection, zoneCategory } from "../src/queries";
 import { stateHash } from "../src/stateHash";
+import * as TileValues from "../src/tileValues";
 import { CityBuilder } from "./helpers/cityBuilder";
 import { buildCity, SimulationInstance, YEAR } from "./helpers/simulations";
 
 const MAP_SEED = 2026;
 const SIMULATION_SEED = 7;
+// The size of every map the game makes
+const WIDTH = 120;
+const HEIGHT = 100;
 
 // The helpers' city, with a fire and a police station below its road, so that every layer has something to show
 function cityWithStations(): SimulationInstance {
@@ -37,7 +44,7 @@ function cityWithStations(): SimulationInstance {
 function overlay(simulation: SimulationInstance | HeadlessSimulation, layer: OverlayLayer): OverlayAnswer {
     const answer: QueryAnswer = simulation.answerQuery({type: "overlay", layer});
     if (answer.type !== "overlay") {
-        throw new Error(`The ${layer} query was rejected: ${answer.reason}`);
+        throw new Error(`The ${layer} query was not answered: ${JSON.stringify(answer)}`);
     }
 
     return answer;
@@ -59,8 +66,8 @@ function layerMap(simulation: SimulationInstance, layer: OverlayLayer) {
 describe("an overlay query", () => {
 
     it.each(OVERLAY_LAYERS)("is valid for the layer %s", (layer) => {
-        expect(queryRejection({type: "overlay", layer})).toBeNull();
-        expect(queryRejection({layer, type: "overlay"})).toBeNull();
+        expect(queryRejection({type: "overlay", layer}, WIDTH, HEIGHT)).toBeNull();
+        expect(queryRejection({layer, type: "overlay"}, WIDTH, HEIGHT)).toBeNull();
     });
 
     it.each([
@@ -70,19 +77,19 @@ describe("an overlay query", () => {
         ["of an unknown type", {type: "census", layer: "crime"}],
         ["without a type", {layer: "crime"}],
     ])("is not a query when it is %s", (_, query) => {
-        expect(queryRejection(query)).toBe("not a query");
+        expect(queryRejection(query, WIDTH, HEIGHT)).toBe("not a query");
     });
 
     it.each([
         ["no layer", {type: "overlay"}],
         ["a field it doesn't have", {type: "overlay", layer: "crime", blockSize: 2}],
     ])("is rejected with %s", (_, query) => {
-        expect(queryRejection(query)).toBe("the overlay query has exactly the fields type, layer");
+        expect(queryRejection(query, WIDTH, HEIGHT)).toBe("the overlay query has exactly the fields type, layer");
     });
 
     it.each([["an unknown layer", "terrainDensity"], ["a layer that isn't a string", 3], ["a null layer", null]])(
         "is rejected with %s", (_, layer) => {
-            expect(queryRejection({type: "overlay", layer})).toMatch(/^the layer is one of landValue, /);
+            expect(queryRejection({type: "overlay", layer}, WIDTH, HEIGHT)).toMatch(/^the layer is one of landValue, /);
         });
 });
 
@@ -165,7 +172,7 @@ describe("a simulation answering an overlay query", () => {
 
     it("answers a query it rejects with the reason", () => {
         expect(city.answerQuery({type: "overlay", layer: "weather"}))
-            .toEqual({type: "rejected", reason: queryRejection({type: "overlay", layer: "weather"})});
+            .toEqual({type: "rejected", reason: queryRejection({type: "overlay", layer: "weather"}, WIDTH, HEIGHT)});
         expect(city.answerQuery(undefined)).toEqual({type: "rejected", reason: "not a query"});
     });
 });
@@ -265,12 +272,183 @@ describe("a simulation announcing a recomputed overlay layer", () => {
     });
 });
 
+describe("a tile report query", () => {
+
+    it.each([[0, 0], [WIDTH - 1, HEIGHT - 1], [27, 13]])("is valid for the tile (%i, %i)", (x, y) => {
+        expect(queryRejection({type: "tileReport", x, y}, WIDTH, HEIGHT)).toBeNull();
+        expect(queryRejection({y, x, type: "tileReport"}, WIDTH, HEIGHT)).toBeNull();
+    });
+
+    it.each([
+        ["no y", {type: "tileReport", x: 3}],
+        ["a field it doesn't have", {type: "tileReport", x: 3, y: 4, layer: "crime"}],
+    ])("is rejected with %s", (_, query) => {
+        expect(queryRejection(query, WIDTH, HEIGHT)).toBe("the tileReport query has exactly the fields type, x, y");
+    });
+
+    it.each([
+        ["left of the map", -1, 0], ["right of the map", WIDTH, 0], ["above the map", 0, -1],
+        ["below the map", 0, HEIGHT], ["between two tiles", 1.5, 2], ["named by a string", "1", 2], ["null", 1, null],
+    ])("is rejected with a tile %s", (_, x, y) => {
+        expect(queryRejection({type: "tileReport", x, y}, WIDTH, HEIGHT))
+            .toBe("the tile is an x from 0 to 119 and a y from 0 to 99, in whole numbers");
+    });
+
+    it("is checked against the size of the map it asks about", () => {
+        expect(queryRejection({type: "tileReport", x: 15, y: 10}, 16, 16)).toBeNull();
+        expect(queryRejection({type: "tileReport", x: 16, y: 10}, 16, 16))
+            .toBe("the tile is an x from 0 to 15 and a y from 0 to 15, in whole numbers");
+    });
+});
+
+// The first tile of each category in the original's table, by number, as idArray in MicropolisCore's tool.cpp names
+// them and micropolis.h numbers them: DIRT, RIVER, TREEBASE, RUBBLE, FLOOD, RADTILE, FIRE, ROADBASE, POWERBASE,
+// RAILBASE, RESBASE, COMBASE, INDBASE, PORTBASE, AIRPORTBASE, COALBASE, FIRESTBASE, POLICESTBASE, STADIUMBASE,
+// NUCLEARBASE, HBRDG0, RADAR0, FOUNTAIN, INDBASE2, FOOTBALLGAME1, VBRDG0 and 952, with the names stri.219 gives them
+const ORIGINAL_CATEGORIES: [number, ZoneCategory][] = [
+    [0, "CLEAR"], [2, "WATER"], [21, "TREES"], [44, "RUBBLE"], [48, "FLOOD"], [52, "RADIOACTIVE_WASTE"], [56, "FIRE"],
+    [64, "ROAD"], [208, "POWER"], [224, "RAIL"], [240, "RESIDENTIAL"], [423, "COMMERCIAL"], [612, "INDUSTRIAL"],
+    [693, "SEAPORT"], [709, "AIRPORT"], [745, "COAL_POWER"], [761, "FIRE_STATION"], [770, "POLICE_STATION"],
+    [779, "STADIUM"], [811, "NUCLEAR_POWER"], [828, "DRAWBRIDGE"], [832, "RADAR"], [840, "FOUNTAIN"],
+    [844, "INDUSTRIAL"], [932, "FOOTBALL_GAME"], [948, "DRAWBRIDGE"], [952, "URANIUM"],
+];
+
+describe("a tile's category", () => {
+
+    it.each(ORIGINAL_CATEGORIES)("starts at tile %i with %s, as in the original's table", (first, category) => {
+        expect(zoneCategory(first)).toBe(category);
+    });
+
+    // The tile before the football game is the coal plant's smoke, which the next test covers
+    it.each(ORIGINAL_CATEGORIES.slice(1).filter(([first]) => first !== 932))(
+        "ends the category before it at the tile before %i", (first) => {
+            const before = ORIGINAL_CATEGORIES[ORIGINAL_CATEGORIES.findIndex(([tile]) => tile === first) - 1][1];
+            expect(zoneCategory(first - 1)).toBe(before);
+        });
+
+    it("takes the coal plant's smoke, among the industrial tiles, for the coal plant", () => {
+        expect(zoneCategory(TileValues.COALSMOKE1)).toBe("COAL_POWER");
+        expect(zoneCategory(TileValues.FOOTBALLGAME1 - 1)).toBe("COAL_POWER");
+        expect(zoneCategory(TileValues.COALSMOKE1 - 1)).toBe("INDUSTRIAL");
+    });
+
+    it("is the last category for the tiles past the original's table, which the port never builds", () => {
+        expect(zoneCategory(TileValues.CHURCH1BASE)).toBe("URANIUM");
+        expect(zoneCategory(TileValues.TILE_COUNT - 1)).toBe("URANIUM");
+    });
+
+    it("names every category the protocol lists", () => {
+        expect(new Set(ORIGINAL_CATEGORIES.map(([, category]) => category))).toEqual(new Set(ZONE_CATEGORIES));
+    });
+});
+
+describe("a simulation answering a tile report query", () => {
+
+    let city: SimulationInstance;
+    let reports: TileReportAnswer[];
+
+    // The town fixture, with a fire and a police station east of its zones, a few years on, so that each block map
+    // holds more than its starting values
+    beforeAll(() => {
+        const town = startCity({fixture: "town", speed: "fast"});
+        const builder = new CityBuilder(town);
+        builder.fireStation(47, 14);
+        builder.policeStation(47, 18);
+
+        // The headless interface leaves out the block maps this suite reads: the cast simulationFromSeed in
+        // helpers/simulations.ts makes, kept here since it is the only one in this file
+        city = town as unknown as SimulationInstance;
+        for (let i = 0; i < 4 * YEAR; i++) {
+            city.step();
+        }
+
+        reports = [];
+        for (let y = 0; y < HEIGHT; y++) {
+            for (let x = 0; x < WIDTH; x++) {
+                reports.push(tileReport(city, x, y));
+            }
+        }
+    });
+
+    function tileReport(simulation: SimulationInstance, x: number, y: number): TileReportAnswer {
+        const answer: QueryAnswer = simulation.answerQuery({type: "tileReport", x, y});
+        if (answer.type !== "tileReport") {
+            throw new Error(`The report of (${x}, ${y}) was not answered: ${JSON.stringify(answer)}`);
+        }
+
+        return answer;
+    }
+
+    it("answers each tile with what the simulation holds there", () => {
+        const map = city.getMap();
+        const blockMaps = city.blockMaps;
+
+        for (const report of reports) {
+            const {x, y} = report;
+            const tile = map.getTile(x, y);
+            expect(report).toEqual({
+                type: "tileReport", x, y, tile: tile.getValue(), category: zoneCategory(tile.getValue()),
+                populationDensity: blockMaps.populationDensityMap.worldGet(x, y),
+                landValue: blockMaps.landValueMap.worldGet(x, y),
+                crime: blockMaps.crimeRateMap.worldGet(x, y),
+                pollution: blockMaps.pollutionDensityMap.worldGet(x, y),
+                rateOfGrowth: blockMaps.rateOfGrowthMap.worldGet(x, y),
+                burnable: tile.isCombustible(),
+                bulldozable: tile.isBulldozable(),
+                conductive: tile.isConductive(),
+                animated: tile.isAnimated(),
+                powered: tile.isPowered(),
+                zoneCentre: tile.isZone(),
+                fireStationMap: blockMaps.fireStationMap.worldGet(x, y),
+                fireCoverage: blockMaps.fireStationEffectMap.worldGet(x, y),
+                policeStationMap: blockMaps.policeStationMap.worldGet(x, y),
+                policeCoverage: blockMaps.policeStationEffectMap.worldGet(x, y),
+                terrainDensity: blockMaps.terrainDensityMap.worldGet(x, y),
+                trafficDensity: blockMaps.trafficDensityMap.worldGet(x, y),
+                cityCentreScore: blockMaps.cityCentreDistScoreMap.worldGet(x, y),
+            });
+        }
+    });
+
+    // The comparison above holds as well for a report read from the wrong map, when both maps are all zeros: each field
+    // here takes more than one value over the town, so a report read from the wrong map would differ somewhere
+    it("answers with values that differ from tile to tile", () => {
+        const fields = Object.keys(reports[0]).filter((field) => field !== "type") as (keyof TileReportAnswer)[];
+        const varying = fields.filter((field) => new Set(reports.map((report) => report[field])).size > 1);
+
+        expect(varying).toEqual(fields);
+    });
+
+    it("answers with the town's zones in their categories", () => {
+        const categories = new Set(reports.map((report) => report.category));
+
+        for (const category of ["CLEAR", "WATER", "TREES", "ROAD", "RAIL", "RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL",
+                                "COAL_POWER"] as const) {
+            expect(categories).toContain(category);
+        }
+    });
+
+    it("changes nothing in the city", async () => {
+        const before = await stateHash(city);
+        tileReport(city, 27, 13);
+        tileReport(city, 0, 0);
+
+        expect(await stateHash(city)).toBe(before);
+    });
+
+    it("answers a tile off the map with the reason", () => {
+        expect(city.answerQuery({type: "tileReport", x: WIDTH, y: 0})).toEqual({
+            type: "rejected", reason: queryRejection({type: "tileReport", x: WIDTH, y: 0}, WIDTH, HEIGHT),
+        });
+    });
+});
+
 describe("a replay with queries interleaved", () => {
 
-    // Replays a log as headless/runner.ts does, through a command queue, but asks every query, and a few the
-    // simulation rejects, before each command, after it, and before each step. Returns the state hash at each of the
-    // log's checkpoints, and how many overlays were answered.
-    function replayAsking(log: CommandLog): {hashes: Promise<string[]>, answered: number} {
+    // Replays a log as headless/runner.ts does, through a command queue, but asks every overlay and a few tile
+    // reports, and a few queries the simulation rejects, before each command, after it, and before each step. Returns
+    // the state hash at each of the log's checkpoints, and how many queries of each type were answered.
+    function replayAsking(log: CommandLog): {hashes: Promise<string[]>, answered: Record<string, number>} {
         if (!("seed" in log)) {
             throw new Error("The replay starts from a seed");
         }
@@ -278,13 +456,13 @@ describe("a replay with queries interleaved", () => {
         const city = cityFromSeed(log.seed, log.level, Speed.medium);
         const queries: unknown[] = [
             ...OVERLAY_LAYERS.map((layer) => ({type: "overlay", layer})), {type: "overlay"}, {type: "weather"}, null,
+            {type: "tileReport", x: 0, y: 0}, {type: "tileReport", x: 27, y: 13},
+            {type: "tileReport", x: WIDTH - 1, y: HEIGHT - 1}, {type: "tileReport", x: WIDTH, y: 0},
         ];
-        let answered = 0;
+        const answered: Record<string, number> = {overlay: 0, tileReport: 0, rejected: 0};
         const askAll = () => {
             for (const query of queries) {
-                if (city.answerQuery(query).type === "overlay") {
-                    answered++;
-                }
+                answered[city.answerQuery(query).type]++;
             }
         };
 
@@ -323,7 +501,10 @@ describe("a replay with queries interleaved", () => {
         const log = fixtureLog("town");
         const {hashes, answered} = replayAsking(log);
 
-        expect(answered).toBeGreaterThan(log.checkpoints[log.checkpoints.length - 1].step * OVERLAY_LAYERS.length);
+        const steps = log.checkpoints[log.checkpoints.length - 1].step;
+        expect(answered.overlay).toBeGreaterThan(steps * OVERLAY_LAYERS.length);
+        expect(answered.tileReport).toBeGreaterThan(steps * 3);
+        expect(answered.rejected).toBeGreaterThan(steps * 4);
         expect(await hashes).toEqual(log.checkpoints.map((checkpoint) => checkpoint.hash));
     });
 });

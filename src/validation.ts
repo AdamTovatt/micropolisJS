@@ -26,6 +26,10 @@ export function isWholeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value);
 }
 
+export function isWholeNumberIn(value: unknown, min: number, max: number): boolean {
+  return isWholeNumber(value) && value >= min && value <= max;
+}
+
 export function oneOf(value: unknown, values: readonly string[]): boolean {
   return typeof value === "string" && values.indexOf(value) !== -1;
 }

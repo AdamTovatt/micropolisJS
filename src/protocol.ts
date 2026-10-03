@@ -228,14 +228,17 @@ export const OVERLAY_LAYERS = [
 
 export type OverlayLayer = typeof OVERLAY_LAYERS[number];
 
-// The layer's values as the simulation last computed them
-export type Query = {type: "overlay", layer: OverlayLayer};
+export type Query =
+  // The layer's values as the simulation last computed them
+  | {type: "overlay", layer: OverlayLayer}
+  // What the query tool reports about the tile at (x, y)
+  | {type: "tileReport", x: number, y: number};
 
 export type QueryType = Query["type"];
 
 // Every query type, as the compiler checks against the union: a type added to Query and not here fails to compile,
 // and the tests fail on a type with no example.
-const QUERY_TYPES: Record<QueryType, true> = {overlay: true};
+const QUERY_TYPES: Record<QueryType, true> = {overlay: true, tileReport: true};
 
 export function queryTypes(): string[] {
   return Object.keys(QUERY_TYPES);
@@ -257,13 +260,61 @@ export interface OverlayAnswer {
   values: number[];
 }
 
+// What the query tool calls a tile: the categories of the original's doZoneStatus, whose table queries.ts holds. The
+// original lists industrial and the drawbridge twice, under two ranges of tiles each, and both ranges of each are
+// one category here. URANIUM is the nuclear plant's swirl, which the original shows as "Ur 238".
+export const ZONE_CATEGORIES = [
+  "CLEAR", "WATER", "TREES", "RUBBLE", "FLOOD", "RADIOACTIVE_WASTE", "FIRE", "ROAD", "POWER", "RAIL", "RESIDENTIAL",
+  "COMMERCIAL", "INDUSTRIAL", "SEAPORT", "AIRPORT", "COAL_POWER", "FIRE_STATION", "POLICE_STATION", "STADIUM",
+  "NUCLEAR_POWER", "DRAWBRIDGE", "RADAR", "FOUNTAIN", "FOOTBALL_GAME", "URANIUM",
+] as const;
+
+export type ZoneCategory = typeof ZONE_CATEGORIES[number];
+
+// The answer to a tile report query: what the simulation holds at tile (x, y), as raw values. tile is the tile's
+// value without its flags, and category what the query tool calls it. The five values the query tool reports are each
+// read from the block covering the tile: populationDensity, from 0 to 510; landValue and crime, from 0 to 250;
+// pollution, from 0 to 255; and rateOfGrowth, from -200 to 200. The rest are what the query tool shows in debug mode,
+// each read from the block covering the tile but the flags: the tile's flags, where zoneCentre is the centre of a zone;
+// fireStationMap and policeStationMap, the simulation's working maps of each service, and fireCoverage and
+// policeCoverage, the coverage the service's last analysis computed, each from 0 to 1000; the block's undeveloped
+// terrain from 0 to 240, its traffic from 0 to 240, and its score for nearness to the city centre, from -64 to 64. A
+// station map is cleared as each cycle starts, and the map scan adds the funded effect of each station it finds, halved
+// for a station without power and again for one without a road beside it. When the service's analysis runs, it
+// smooths the station map into the coverage, and leaves its middle step of smoothing in the station map.
+export interface TileReportAnswer {
+  type: "tileReport";
+  x: number;
+  y: number;
+  tile: number;
+  category: ZoneCategory;
+  populationDensity: number;
+  landValue: number;
+  crime: number;
+  pollution: number;
+  rateOfGrowth: number;
+  burnable: boolean;
+  bulldozable: boolean;
+  conductive: boolean;
+  animated: boolean;
+  powered: boolean;
+  zoneCentre: boolean;
+  fireStationMap: number;
+  fireCoverage: number;
+  policeStationMap: number;
+  policeCoverage: number;
+  terrainDensity: number;
+  trafficDensity: number;
+  cityCentreScore: number;
+}
+
 // A query the simulation could not answer, and why
 export interface QueryRejection {
   type: "rejected";
   reason: string;
 }
 
-export type QueryAnswer = OverlayAnswer | QueryRejection;
+export type QueryAnswer = OverlayAnswer | TileReportAnswer | QueryRejection;
 
 // The records the simulation produces for the windows to show: what it says about the city, as codes and numbers. The
 // client turns the codes into text, so the wording is the client's alone.

@@ -13,7 +13,9 @@
 
 import { Command, CommandType, DISASTER_KINDS, TilePosition, TOOL_NAMES } from "./protocol";
 import { SERVICES } from "./serviceFunding";
-import { FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumber, oneOf } from "./validation";
+import {
+  FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumber, isWholeNumberIn, oneOf,
+} from "./validation";
 
 // How the simulation takes the commands a player sends it, which protocol.ts defines. They arrive untrusted: the
 // simulation validates each one before it applies it, and never branches on which player sent it.
@@ -65,10 +67,6 @@ const FIELDS = {
 // bounds what a hostile player can make it hold.
 export function maxCommandLength(width: number, height: number): number {
   return 32 * width * height + 1024;
-}
-
-function isWholeNumberIn(value: unknown, min: number, max: number): boolean {
-  return isWholeNumber(value) && value >= min && value <= max;
 }
 
 function pathRejection(path: unknown, width: number, height: number): string | null {

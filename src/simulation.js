@@ -317,10 +317,11 @@ Simulation.prototype.applyCommands = function(received) {
 };
 
 
-// The answer to a query, such as an overlay's layer, or its rejection. A query only reads the city: it changes nothing,
-// draws nothing from the stream, and is never logged, so it may be asked at any time.
+// The answer to a query, such as an overlay's layer or a tile's report, or its rejection. A query only reads the city:
+// it changes nothing, draws nothing from the stream, and is never logged, so it may be asked at any time.
 Simulation.prototype.answerQuery = function(query) {
-  return answerQuery(query, {blockMaps: this.blockMaps, powerGridMap: this._powerManager.powerGridMap});
+  return answerQuery(query, {map: this._map, blockMaps: this.blockMaps,
+                             powerGridMap: this._powerManager.powerGridMap});
 };
 
 
