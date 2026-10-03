@@ -77,7 +77,10 @@ namespace Micropolis.Rules.Tests
         {
             MaximumVector vector = Vectors.GetRandomAtTheBoundary;
             RandomStream random = RandomStream.FromSeed(vector.Seed);
+            int range = vector.Maximum + 1;
 
+            // The vector is at the boundary only while its seed's first draw is the largest multiple of the range
+            Assert.AreEqual(0xffff / range * range, RandomStream.FromSeed(vector.Seed).GetRandom16());
             CollectionAssert.AreEqual(vector.Outputs, Draws(vector.Outputs.Length, () => random.GetRandom(vector.Maximum)));
         }
 

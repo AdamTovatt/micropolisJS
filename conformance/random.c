@@ -13,7 +13,7 @@
 
 /* Writes random.json, the random stream's reference vectors:
  *
- *     cc -O2 -o random conformance/random.c && ./random > conformance/random.json
+ *     cc -O2 -o conformance/random conformance/random.c && conformance/random > conformance/random.json
  *
  * next, jump and splitmix_next are the reference implementations of xoshiro128** 1.1 and SplitMix64 by David
  * Blackman and Sebastiano Vigna (https://prng.di.unimi.it/, public domain), unchanged but for their names. The seeding

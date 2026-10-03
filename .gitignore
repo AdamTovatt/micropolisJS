@@ -7,3 +7,4 @@ TODO
 headless/fixtures/export/
 server/**/bin/
 server/**/obj/
+conformance/random

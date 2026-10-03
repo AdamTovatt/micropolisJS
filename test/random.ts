@@ -44,7 +44,10 @@ describe("the random stream", () => {
     it("rejects a draw equal to the largest multiple of the range, as the reference does", () => {
         const {seed, maximum, outputs} = vectors.getRandomAtTheBoundary;
         const random = Random.fromSeed(seed);
+        const range = maximum + 1;
 
+        // The vector is at the boundary only while its seed's first draw is the largest multiple of the range
+        expect(Random.fromSeed(seed).getRandom16()).toBe(Math.floor(0xffff / range) * range);
         expect(outputs.map(() => random.getRandom(maximum))).toEqual(outputs);
     });
 

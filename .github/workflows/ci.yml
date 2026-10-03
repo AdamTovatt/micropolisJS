@@ -24,5 +24,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - name: Check the random stream's vectors against the program that writes them
+        run: cc -O2 -o conformance/random conformance/random.c && conformance/random | diff - conformance/random.json
       - run: dotnet build server/Micropolis.slnx
       - run: dotnet test server/Micropolis.slnx --no-build
