@@ -34,6 +34,16 @@ export function oneOf(value: unknown, values: readonly string[]): boolean {
   return typeof value === "string" && values.indexOf(value) !== -1;
 }
 
+// Whether a value holds objects and lists nested more than this many deep, the value itself the first. It looks no
+// deeper than the limit, so it measures a value nested deeper than a call stack can walk without walking all of it.
+export function nestsDeeperThan(value: unknown, levels: number): boolean {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  return levels === 0 || Object.values(value).some((child) => nestsDeeperThan(child, levels - 1));
+}
+
 export function fieldsWith(rules: Record<string, FieldRule>, rule: FieldRule): string[] {
   return Object.keys(rules).filter((field) => rules[field] === rule).sort();
 }

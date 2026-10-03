@@ -37,7 +37,7 @@ namespace Micropolis.Rules.Tests
 
             try
             {
-                Invoke(city, (string)record["unit"]!, record["args"]!.AsArray().Select(arg => (int)arg!).ToList());
+                Invoke(city, (string)record["unit"]!, record["args"]!.AsArray());
             }
             catch (NotPortedException exception)
             {
@@ -73,13 +73,19 @@ namespace Micropolis.Rules.Tests
         }
 
         /// <summary>
-        /// Calls the unit as the cycle does, with the arguments a record holds: the C# side of the units in
-        /// <c>conformance/unitSnapshots.ts</c>.
+        /// Calls the unit as the cycle does, or as a city source applies commands, with the arguments a record holds:
+        /// the C# side of the units in <c>conformance/unitSnapshots.ts</c>.
         /// </summary>
-        private static void Invoke(Simulation city, string unit, IReadOnlyList<int> args)
+        private static void Invoke(Simulation city, string unit, JsonArray args)
         {
             switch (unit)
             {
+                case "simulation.applyCommands":
+                    city.ApplyCommands(args[0]!.AsArray()
+                        .Select(received => new ReceivedCommand((string)received!["player"]!, received["command"]?.DeepClone()))
+                        .ToList());
+                    break;
+
                 case "simulation._simulate":
                     city.Simulate(city.ConstructSimData());
                     break;
@@ -89,7 +95,7 @@ namespace Micropolis.Rules.Tests
                     break;
 
                 case "mapScanner.mapScan":
-                    city.MapScanner.MapScan(args[0], args[1], city.ConstructSimData());
+                    city.MapScanner.MapScan((int)args[0]!, (int)args[1]!, city.ConstructSimData());
                     break;
 
                 case "census.take10Census":

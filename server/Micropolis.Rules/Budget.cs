@@ -252,6 +252,40 @@ namespace Micropolis.Rules
             PoliceSpend = spends.Police;
         }
 
+        /// <summary>
+        /// Funds each service given at its whole percent, as <c>setFunding</c> does and the original's budget slider
+        /// handlers (<c>SimCmdRoadFund</c> and its siblings in micropolis-activity's <c>w_sim.c</c>), and leaves the
+        /// others as they are: each one's spend is booked from its whole percent, and the effects are set from the
+        /// spends. With no service given, nothing changes.
+        /// </summary>
+        internal void SetFunding(int? road, int? fire, int? police)
+        {
+            if (road is null && fire is null && police is null)
+            {
+                return;
+            }
+
+            if (road is int roadPercent)
+            {
+                RoadSpend = ServiceFunding.FundingSpend(RoadMaintenanceBudget, roadPercent);
+                RoadPercent = ServiceFunding.FundingPercent(roadPercent);
+            }
+
+            if (fire is int firePercent)
+            {
+                FireSpend = ServiceFunding.FundingSpend(FireMaintenanceBudget, firePercent);
+                FirePercent = ServiceFunding.FundingPercent(firePercent);
+            }
+
+            if (police is int policePercent)
+            {
+                PoliceSpend = ServiceFunding.FundingSpend(PoliceMaintenanceBudget, policePercent);
+                PolicePercent = ServiceFunding.FundingPercent(policePercent);
+            }
+
+            UpdateFundEffects();
+        }
+
         internal void Save(JsonObject saveData)
         {
             saveData["budget"] = new JsonObject

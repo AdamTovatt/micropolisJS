@@ -193,24 +193,32 @@ var checkZoneConnections = function(x, y) {
 };
 
 
-var checkBorder = function(x, y, size) {
-  // Adjust to top left tile
-  x = x - 1;
-  y = y - 1;
+// As connectTile's CONNECT_TILE_FIX in the original: fixes the connections of the tile and its neighbours, unless the
+// tile is off the map. Fixing one off the map would change nothing either, since its neighbours on the map are the
+// building's own tiles, but it would read tiles that aren't there.
+var fixBorderTile = function(x, y) {
+  if (this._map.testBounds(x, y))
+    this.checkZoneConnections(x, y);
+};
 
+
+// As checkBorder in the original: fixes the connections around each tile bordering a building of size by size tiles
+// whose top left tile is (x, y), the row above, the column to the left, the row below and the column to the right in
+// turn
+var checkBorder = function(x, y, size) {
   var i;
 
   for (i = 0; i < size; i++)
-    this.fixZone(x + i, y - 1);
+    fixBorderTile.call(this, x + i, y - 1);
 
   for (i = 0; i < size; i++)
-    this.fixZone(x - 1, y + i);
+    fixBorderTile.call(this, x - 1, y + i);
 
   for (i = 0; i < size; i++)
-    this.fixZone(x + i, y + size);
+    fixBorderTile.call(this, x + i, y + size);
 
   for (i = 0; i < size; i++)
-    this.fixZone(x + size, y + i);
+    fixBorderTile.call(this, x + size, y + i);
 };
 
 

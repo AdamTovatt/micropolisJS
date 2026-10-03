@@ -17,7 +17,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as zlib from "zlib";
-import { cityFromSave, RUNNING_SPEEDS, RunningSpeed, SaveData } from "../headless/city";
+import { cityFromSave, cityOnMap, Level, RUNNING_SPEEDS, RunningSpeed, SaveData, Speed } from "../headless/city";
 import { fixtureNames } from "../headless/fixtures/index";
 import { fixtureLog, replay, startFromSave } from "../headless/runner";
 import { BlockMap } from "../src/blockMap";
@@ -28,9 +28,10 @@ import { Industrial } from "../src/industrial.js";
 import { MapGenerator } from "../src/mapGenerator.js";
 import * as Messages from "../src/messages";
 import { Position } from "../src/position";
-import { CITY_CLASSES, SCORE_REASONS } from "../src/protocol";
+import { CITY_CLASSES, DISASTER_KINDS, OUTCOMES, SCORE_REASONS, TOOL_NAMES } from "../src/protocol";
 import { Random } from "../src/random";
 import { Residential } from "../src/residential.js";
+import { SaveFormat } from "../src/savedGame";
 import { SPRITE_EXPLOSION, SPRITE_SHIP } from "../src/spriteConstants";
 import { hashSavedState, plainSavedState, savedState } from "../src/stateHash";
 import { Tile } from "../src/tile";
@@ -39,8 +40,11 @@ import { TileUtils } from "../src/tileUtils.js";
 import * as TileValues from "../src/tileValues";
 import { Traffic } from "../src/traffic.js";
 import { ZoneUtils } from "../src/zoneUtils.js";
-import { SNAPSHOT_POINTS } from "./snapshotPoints";
-import { Internals, recordSnapshots, recordSpeed, SnapshotRecord, UNIT_NAMES } from "./unitSnapshots";
+import { COMMAND_CASES } from "./commandCases";
+import { COMMAND_POINTS, SNAPSHOT_POINTS } from "./snapshotPoints";
+import {
+  COMMAND_UNIT, Internals, recordCommandSnapshots, recordSnapshots, recordSpeed, SnapshotRecord, UNIT_NAMES,
+} from "./unitSnapshots";
 
 // Relative to the repository root, where npm runs scripts
 const CONFORMANCE_DIRECTORY = "conformance";
@@ -758,17 +762,17 @@ async function writeSnapshots(): Promise<void> {
   fs.mkdirSync(directory, {recursive: true});
 
   const built = new Map<string, SaveData>();
-  for (const fixture of Array.from(new Set(SNAPSHOT_POINTS.map((point) => point.fixture)))) {
+  for (const fixture of Array.from(new Set([...SNAPSHOT_POINTS, ...COMMAND_POINTS].map((point) => point.fixture)))) {
     built.set(fixture, await builtSave(fixture));
   }
 
-  const records = recordSnapshots(SNAPSHOT_POINTS, built);
+  const records = [...recordSnapshots(SNAPSHOT_POINTS, built), ...recordCommandSnapshots(COMMAND_POINTS, built)];
   const files: Record<string, SnapshotRecord[]> = {};
   for (const record of records) {
     (files[snapshotFile(record)] ??= []).push(record);
   }
 
-  for (const unit of UNIT_NAMES) {
+  for (const unit of [...UNIT_NAMES, COMMAND_UNIT]) {
     ensureCovers(records.some((record) => record.unit === unit), `a snapshot of ${unit}`);
   }
 
@@ -794,6 +798,100 @@ async function writeSnapshots(): Promise<void> {
   writeFile(path.join(SNAPSHOTS_DIRECTORY, SNAPSHOT_INDEX), ["{", ...listLines("snapshots", index, true), "}"]);
 }
 
+// --- migrated/: each sample save of saveVersions/ migrated to the current version and loaded
+
+const SAVE_VERSIONS_DIRECTORY = "saveVersions";
+const MIGRATED_DIRECTORY = "migrated";
+
+// The oldest save version the C# port migrates: the first that holds the complete simulation state
+const OLDEST_MIGRATED_VERSION = 5;
+
+function writeMigrated(): void {
+  fs.mkdirSync(path.join(CONFORMANCE_DIRECTORY, MIGRATED_DIRECTORY), {recursive: true});
+  const versions = new Set<unknown>();
+
+  for (const file of fs.readdirSync(path.join(CONFORMANCE_DIRECTORY, SAVE_VERSIONS_DIRECTORY)).sort()) {
+    const text = fs.readFileSync(path.join(CONFORMANCE_DIRECTORY, SAVE_VERSIONS_DIRECTORY, file), "utf8");
+    versions.add((JSON.parse(text) as {version: unknown}).version);
+    writeText(path.join(MIGRATED_DIRECTORY, file),
+              canonicalJson(plainSavedState(cityFromSave(SaveFormat.parse(text) as unknown as SaveData))));
+  }
+
+  for (let version = OLDEST_MIGRATED_VERSION; version <= SaveFormat.CURRENT_VERSION; version++) {
+    ensureCovers(versions.has(version), `a sample save of version ${version}`);
+  }
+}
+
+// --- commands.json: commands applied to a city, each with the result the simulation gave it
+
+async function commandLines(): Promise<string[]> {
+  const cases = [];
+  const outcomes = new Set<string>();
+  const reasons = new Set<string>();
+
+  for (const commandCase of COMMAND_CASES) {
+    const start = commandCase.fixture !== undefined ? await builtSave(commandCase.fixture) :
+      plainSavedState(cityOnMap(new GameMap(commandCase.blankMap!.width, commandCase.blankMap!.height), Level.easy,
+                                Speed.medium, 0)) as SaveData;
+    const city = cityFromSave(start) as unknown as Internals;
+    const results = city.applyCommands(commandCase.received) as {outcome: string, reason: string | null}[];
+    results.forEach((result) => {
+      outcomes.add(result.outcome);
+      if (result.reason !== null) {
+        reasons.add(result.reason.replace(/[0-9-][0-9e+.-]*/g, "#"));
+      }
+    });
+
+    cases.push({
+      description: commandCase.description,
+      ...(commandCase.fixture !== undefined ? {fixture: commandCase.fixture} : {state: start}),
+      results,
+      hash: await hashSavedState(plainSavedState(city)),
+    });
+  }
+
+  for (const outcome of OUTCOMES) {
+    ensureCovers(outcomes.has(outcome), `the outcome ${outcome}`);
+  }
+
+  const missing = REJECTION_REASONS.filter((reason) => !reasons.has(reason));
+  const unlisted = Array.from(reasons).filter((reason) => !REJECTION_REASONS.includes(reason));
+  ensureCovers(missing.length === 0 && unlisted.length === 0,
+               `every reason commandRejection gives: missing [${missing.join("; ")}], ` +
+               `reached but not in REJECTION_REASONS [${unlisted.join("; ")}]`);
+
+  return ["{", ...listLines("cases", cases, true), "}"];
+}
+
+// The reasons commandRejection gives, told apart by their words, with each number they quote written #. The cases must
+// reach every one, and a reason they reach that isn't listed fails too, so a reason commandRejection gains is listed.
+const REJECTION_REASONS = [
+  "a command nests objects and lists at most # deep",
+  "a command is at most # characters of JSON",
+  "not a command",
+  "the tool command has exactly the fields type, autoBulldoze, path, tool",
+  "the setBudget command has exactly the fields type, tax, and may have fire, police, road",
+  "the setSpeed command has exactly the fields type, speed",
+  "the setAutoBudget command has exactly the fields type, on",
+  "the setDisasters command has exactly the fields type, on",
+  "the triggerDisaster command has exactly the fields type, kind",
+  "the addFunds command has exactly the fields type",
+  `the tool is one of ${TOOL_NAMES.join(", ")}`,
+  "autoBulldoze is true or false",
+  "a tool's path is a list of # to # tiles",
+  "tile # of the path is not an {x, y} of whole numbers",
+  "tile # of the path, (#, #), is off the #x# map",
+  "tile # of the path, (#, #), is not next to the tile before it, (#, #)",
+  "road funding is a whole percent from # to #",
+  "fire funding is a whole percent from # to #",
+  "police funding is a whole percent from # to #",
+  "the tax rate is a whole percent from # to #",
+  "the speed is a whole number from # to #",
+  "setAutoBudget takes on, true or false",
+  "setDisasters takes on, true or false",
+  `the disaster is one of ${DISASTER_KINDS.join(", ")}`,
+];
+
 // The files in conformance/ another program writes: random.c writes random.json
 const WRITTEN_ELSEWHERE = new Set(["random.json"]);
 
@@ -806,6 +904,7 @@ function clearWritten(): void {
   }
 
   fs.rmSync(path.join(CONFORMANCE_DIRECTORY, SAVES_DIRECTORY), {recursive: true, force: true});
+  fs.rmSync(path.join(CONFORMANCE_DIRECTORY, MIGRATED_DIRECTORY), {recursive: true, force: true});
 }
 
 async function main() {
@@ -818,6 +917,8 @@ async function main() {
   await writeSaves();
   writeFile("helpers.json", helperLines());
   writeFile("speedGate.json", await speedGateLines());
+  writeFile("commands.json", await commandLines());
+  writeMigrated();
   await writeSnapshots();
 }
 

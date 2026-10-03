@@ -23,6 +23,7 @@ namespace Micropolis.Rules
         public const string BUDGET_REVIEW_DUE = "Year-end budget to review";
         public const string CITY_STATUS_UPDATED = "City status updated";
         public const string CLASSIFICATION_UPDATED = "Classification updated";
+        public const string COMMAND_RESULT = "Command result";
         public const string DATE_UPDATED = "Date changed";
         public const string EARTHQUAKE = "Earthquake";
         public const string EXPLOSION_REPORTED = "Explosion Reported";

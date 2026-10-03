@@ -31,7 +31,13 @@ namespace Micropolis.Rules.Tests
         {
             "disasterManager.doDisasters",
             "disasterManager.doMeltdown",
+            "disasterManager.makeCrash",
+            "disasterManager.makeFire",
+            "disasterManager.makeFlood",
+            "disasterManager.makeMeltdown",
             "spriteManager.makeExplosion",
+            "spriteManager.makeMonster",
+            "spriteManager.makeTornado",
             "spriteManager.moveObjects",
             "transport.airportFound",
             "transport.portFound",
@@ -181,12 +187,25 @@ namespace Micropolis.Rules.Tests
             UnitSnapshot wrong = field switch
             {
                 "step" => snapshot with { Step = snapshot.Step + 1 },
-                "args" => snapshot with { Args = snapshot.Args.Select(arg => arg + 1).ToList() },
+                "args" => snapshot with { Args = snapshot.Args.Select(arg => (JsonNode?)((int)arg! + 1)).ToList() },
                 _ => snapshot with { Handlers = [] },
             };
 
             UnitSnapshots.ReadRecord(snapshot);
             Assert.Throws<InvalidDataException>(() => UnitSnapshots.ReadRecord(wrong), description);
+        }
+
+        // A command record's arguments are the commands, compared whole, so an entry naming another record's commands
+        // is not its record
+        [TestMethod]
+        public void ReadRecord_CommandEntryWithAnotherRecordsCommands_Throws()
+        {
+            List<UnitSnapshot> commands = Snapshots.Where(snapshot => snapshot.Unit == "simulation.applyCommands").ToList();
+            UnitSnapshot snapshot = commands[0];
+            UnitSnapshot other = commands.First(candidate => !JsonNode.DeepEquals(candidate.Args[0], snapshot.Args[0]));
+
+            UnitSnapshots.ReadRecord(snapshot);
+            Assert.Throws<InvalidDataException>(() => UnitSnapshots.ReadRecord(snapshot with { Args = other.Args }));
         }
 
         /// <summary>

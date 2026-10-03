@@ -29,13 +29,29 @@ namespace Micropolis.Rules
         public static string Write(JsonNode? value)
         {
             StringBuilder output = new StringBuilder();
-            Write(value, "the state", output);
+            Write(value, "the state", false, output);
             return output.ToString();
         }
 
-        // ECMAScript's Number::toString in radix 10, of a finite number. .NET's shortest round-trip formatting gives the
-        // same digits, which are laid out here by the specification's rules rather than .NET's.
-        private static string FormatNumber(double value)
+        /// <summary>
+        /// The text ECMAScript's <c>JSON.stringify</c> writes for a value read from JSON text, as a command log or a
+        /// message carries a command as it arrived: the canonical text, but with each object's keys in their order,
+        /// and a number JSON can't hold written as <c>null</c>. A JSON number too large for a double parses as
+        /// infinite, as in JavaScript.
+        /// </summary>
+        internal static string Stringify(JsonNode? value)
+        {
+            StringBuilder output = new StringBuilder();
+            Write(value, "the value", true, output);
+            return output.ToString();
+        }
+
+        /// <summary>
+        /// ECMAScript's Number::toString in radix 10, of a finite number, as a template literal or <c>String()</c>
+        /// writes it. .NET's shortest round-trip formatting gives the same digits, which are laid out here by the
+        /// specification's rules rather than .NET's.
+        /// </summary>
+        internal static string FormatNumber(double value)
         {
             // Negative zero is written "0"
             if (value == 0)
@@ -104,7 +120,8 @@ namespace Micropolis.Rules
             return (digits[leadingZeros..].TrimEnd('0'), n - leadingZeros);
         }
 
-        private static void Write(JsonNode? value, string path, StringBuilder output)
+        // Writes the canonical text, or JSON.stringify's when stringify is true
+        private static void Write(JsonNode? value, string path, bool stringify, StringBuilder output)
         {
             switch (value)
             {
@@ -113,15 +130,15 @@ namespace Micropolis.Rules
                     break;
 
                 case JsonObject jsonObject:
-                    WriteObject(jsonObject, path, output);
+                    WriteObject(jsonObject, path, stringify, output);
                     break;
 
                 case JsonArray jsonArray:
-                    WriteArray(jsonArray, path, output);
+                    WriteArray(jsonArray, path, stringify, output);
                     break;
 
                 case JsonValue jsonValue:
-                    WriteValue(jsonValue, path, output);
+                    WriteValue(jsonValue, path, stringify, output);
                     break;
 
                 default:
@@ -129,11 +146,15 @@ namespace Micropolis.Rules
             }
         }
 
-        private static void WriteObject(JsonObject value, string path, StringBuilder output)
+        private static void WriteObject(JsonObject value, string path, bool stringify, StringBuilder output)
         {
-            // Ordinal comparison compares UTF-16 code units, which the format specifies
             List<KeyValuePair<string, JsonNode?>> members = value.ToList();
-            members.Sort((first, second) => string.CompareOrdinal(first.Key, second.Key));
+
+            if (!stringify)
+            {
+                // Ordinal comparison compares UTF-16 code units, which the format specifies
+                members.Sort((first, second) => string.CompareOrdinal(first.Key, second.Key));
+            }
 
             output.Append('{');
 
@@ -146,13 +167,13 @@ namespace Micropolis.Rules
 
                 WriteString(members[i].Key, output);
                 output.Append(':');
-                Write(members[i].Value, $"{path}.{members[i].Key}", output);
+                Write(members[i].Value, $"{path}.{members[i].Key}", stringify, output);
             }
 
             output.Append('}');
         }
 
-        private static void WriteArray(JsonArray value, string path, StringBuilder output)
+        private static void WriteArray(JsonArray value, string path, bool stringify, StringBuilder output)
         {
             output.Append('[');
 
@@ -163,13 +184,13 @@ namespace Micropolis.Rules
                     output.Append(',');
                 }
 
-                Write(value[i], $"{path}[{i}]", output);
+                Write(value[i], $"{path}[{i}]", stringify, output);
             }
 
             output.Append(']');
         }
 
-        private static void WriteValue(JsonValue value, string path, StringBuilder output)
+        private static void WriteValue(JsonValue value, string path, bool stringify, StringBuilder output)
         {
             switch (value.GetValueKind())
             {
@@ -186,7 +207,8 @@ namespace Micropolis.Rules
                     break;
 
                 case JsonValueKind.Number:
-                    output.Append(FormatNumberAt(GetNumber(value, path), path));
+                    double number = GetNumber(value, path);
+                    output.Append(stringify && !double.IsFinite(number) ? "null" : FormatNumberAt(number, path));
                     break;
 
                 default:

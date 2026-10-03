@@ -54,7 +54,7 @@ namespace Micropolis.Rules.Tests
 
             if ((string?)record["fixture"] != snapshot.Fixture || (string?)record["unit"] != snapshot.Unit ||
                 (int?)record["step"] != snapshot.Step ||
-                !record["args"]!.AsArray().Select(arg => (int)arg!).SequenceEqual(snapshot.Args) ||
+                !JsonNode.DeepEquals(record["args"], new JsonArray(snapshot.Args.Select(arg => arg?.DeepClone()).ToArray())) ||
                 !UnitSnapshotRunner.Strings(record["handlers"]).SequenceEqual(snapshot.Handlers))
             {
                 throw new InvalidDataException($"Record {snapshot.Record} of {snapshot.File} is not the index's {snapshot}.");
@@ -75,15 +75,17 @@ namespace Micropolis.Rules.Tests
     }
 
     /// <summary>
-    /// One unit snapshot as the index lists it: where its record is, and what it holds besides the states.
+    /// One unit snapshot as the index lists it: where its record is, and what it holds besides the states. A cycle
+    /// unit's arguments are numbers, and <c>simulation.applyCommands</c>'s one argument is the commands it applies.
     /// </summary>
     public sealed record UnitSnapshot(
-        string File, int Record, string Fixture, string Unit, string Speed, int Step, IReadOnlyList<int> Args,
+        string File, int Record, string Fixture, string Unit, string Speed, int Step, IReadOnlyList<JsonNode?> Args,
         IReadOnlyList<string> Handlers, IReadOnlyList<string> Reached, IReadOnlyList<string> Events)
     {
         public override string ToString()
         {
-            string args = Args.Count > 0 ? $"({string.Join(", ", Args)})" : "";
+            string args = Args.Count == 0 ? "" :
+                Args[0] is JsonArray commands ? $"({commands.Count} commands)" : $"({string.Join(", ", Args.Select(arg => arg!.ToJsonString()))})";
             string handlers = Handlers.SequenceEqual(Simulation.HandlerFamilies) ? "" :
                 Handlers.Count == 0 ? " with no handlers" : $" with {string.Join(", ", Handlers)}";
 

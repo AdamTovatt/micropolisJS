@@ -127,16 +127,15 @@ BulldozerTool.prototype.doTool = function(x, y, random) {
 
     this.result = this.TOOLRESULT_OK;
   } else {
-    var toolResult;
-    if (tileValue === TileValues.RIVER || tileValue === TileValues.REDGE || tileValue === TileValues.CHANNEL) {
-      toolResult = this.layDoze(x, y);
+    // As connectTile's CONNECT_TILE_BULLDOZE in the original, which stages the fix of the connections around the tile,
+    // water or land. As there, what is staged reaches the map only if the doze succeeds.
+    var toolResult = this.layDoze(x, y);
+    this.checkZoneConnections(x, y);
 
-      if (tileValue !== this._worldEffects.getTileValue(x, y))
-        this.addCost(5);
-    } else {
-      toolResult =  this.layDoze(x, y);
-      this.checkZoneConnections(x, y);
-    }
+    // Dozing water costs more
+    if ((tileValue === TileValues.RIVER || tileValue === TileValues.REDGE || tileValue === TileValues.CHANNEL) &&
+        tileValue !== this._worldEffects.getTileValue(x, y))
+      this.addCost(5);
 
     this.result = toolResult;
   }
