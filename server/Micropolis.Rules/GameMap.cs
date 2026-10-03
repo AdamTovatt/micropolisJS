@@ -200,6 +200,16 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// Gives a tile the value and flags of <paramref name="tile"/>, as <c>setTo</c> in <c>src/gameMap.js</c>, which
+        /// puts the tile itself on the map; the map keeps its own, so later changes to <paramref name="tile"/> don't
+        /// reach it.
+        /// </summary>
+        public void SetTo(int x, int y, Tile tile)
+        {
+            GetTileAt(x, y, nameof(SetTo)).SetFrom(tile);
+        }
+
+        /// <summary>
         /// Lays a zone of <paramref name="size"/> by <paramref name="size"/> tiles from the centre's upper left
         /// neighbour, as <c>putZone</c> in <c>src/gameMap.js</c>: the values count up row by row from the centre's less
         /// <c>size + 1</c>, each tile burnable and conductive, and the centre the zone's centre.

@@ -120,6 +120,7 @@ namespace Micropolis.Rules
             BlockMaps = new BlockMaps(map.Width, map.Height);
             PowerManager = new PowerManager(map);
             SpriteManager = new SpriteManager(map);
+            DisasterManager = new DisasterManager(map, Random);
             MapScanner = new MapScanner(map);
             RepairManager = new RepairManager(map);
             TrafficManager = new Traffic(map);
@@ -186,7 +187,7 @@ namespace Micropolis.Rules
 
         public SpriteManager SpriteManager { get; }
 
-        public DisasterManager DisasterManager { get; } = new DisasterManager();
+        public DisasterManager DisasterManager { get; }
 
         public BlockMaps BlockMaps { get; }
 

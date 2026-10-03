@@ -67,6 +67,28 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
+        public void SetTo_Tile_TakesItsValueAndFlagsButNotTheTileItself()
+        {
+            GameMap map = new GameMap(5, 3);
+            map.SetTile(1, 1, WOODS, BLBNBIT);
+            Tile tile = new Tile(RIVER, BULLBIT);
+
+            map.SetTo(1, 1, tile);
+            tile.Set(DIRT, 0);
+
+            Assert.AreEqual(RIVER, map.GetTileValue(1, 1));
+            Assert.AreEqual(BULLBIT, map.GetTileFlags(1, 1));
+        }
+
+        [TestMethod]
+        public void SetTo_OutsideTheMap_Throws()
+        {
+            GameMap map = new GameMap(5, 3);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => map.SetTo(5, 0, new Tile(RIVER, 0)));
+        }
+
+        [TestMethod]
         public void SetTileValue_ValueWithoutFlagBits_KeepsTheTileFlags()
         {
             GameMap map = new GameMap(5, 3);
