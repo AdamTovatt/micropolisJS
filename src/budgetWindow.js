@@ -16,52 +16,68 @@ import $ from "jquery";
 import { BUDGET_WINDOW_CLOSED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import { ModalWindow } from './modalWindow.js';
+import { formatMoney } from './money.ts';
 
 var BudgetWindow = ModalWindow(function() {
   $(budgetCancelID).on('click', cancel.bind(this));
   $(budgetResetID).on('click', resetItems.bind(this));
   $(budgetFormID).on('submit', submit.bind(this));
+
+  for (var i = 0; i < services.length; i++)
+    $(MiscUtils.normaliseDOMid(services[i].rateKey)).on('input', updateFunding.bind(this));
+  $('#taxRate').on('input', onTaxUpdate);
 });
 
 
-var dataKeys = ['roadMaintenanceBudget', 'fireMaintenanceBudget', 'policeMaintenanceBudget'];
-var spendKeys = ['roadRate', 'fireRate', 'policeRate'];
+// The funded services. rateKey names both the service's slider and its funding percentage in the
+// budget data, and maintenanceKey its full maintenance cost.
+var services = [
+  {name: 'road', rateKey: 'roadRate', maintenanceKey: 'roadMaintenanceBudget'},
+  {name: 'fire', rateKey: 'fireRate', maintenanceKey: 'fireMaintenanceBudget'},
+  {name: 'police', rateKey: 'policeRate', maintenanceKey: 'policeMaintenanceBudget'}
+];
 
 var budgetResetID = '#budgetReset';
 var budgetCancelID = '#budgetCancel';
 var budgetFormID = '#budgetForm';
 
 
-var setSpendRangeText = function(element, percentage, totalSpend) {
-  var labelID = element + 'Label';
-  var cash = Math.floor(totalSpend * (percentage / 100));
-  var text = [percentage, '% of $', totalSpend, ' = $', cash].join('');
-  $(MiscUtils.normaliseDOMid(labelID)).text(text);
+var sliderPercentage = function(elementID) {
+  return $(MiscUtils.normaliseDOMid(elementID))[0].value - 0;
 };
 
 
-var onFundingUpdate = function(elementID) {
-  var element = $(MiscUtils.normaliseDOMid(elementID))[0];
-  var percentage = element.value - 0;
-  var dataSource = element.getAttribute('data-source');
-  setSpendRangeText(elementID, percentage, this[dataSource]);
+// Shows each service's cost at its slider's funding level, and the cash flow and year-end
+// balance the budget forecasts for those levels.
+var updateFunding = function() {
+  var fractions = {};
+  for (var i = 0; i < services.length; i++)
+    fractions[services[i].name] = sliderPercentage(services[i].rateKey) / 100;
+
+  var forecast = this.forecast(fractions);
+
+  for (i = 0; i < services.length; i++) {
+    var service = services[i];
+    var text = [sliderPercentage(service.rateKey), '% of ', formatMoney(this.maintenance[service.name]),
+                ' = ', formatMoney(forecast.requested[service.name])].join('');
+    $(MiscUtils.normaliseDOMid(service.rateKey + 'Label')).text(text);
+  }
+
+  $('#cashFlow').text(formatMoney(forecast.fundsChange));
+  $('#fundsAfterYear').text(formatMoney(forecast.fundsAfterYear));
 };
 
 
 var onTaxUpdate = function() {
-  var elem = $('#taxRateLabel')[0];
-  var sourceElem = $('#taxRate')[0];
-  $(elem).text(['Tax rate: ', sourceElem.value, '%'].join(''));
+  $('#taxRateLabel').text(['Tax rate: ', sliderPercentage('taxRate'), '%'].join(''));
 };
 
 
 var resetItems = function(e) {
-  for (var i = 0; i < spendKeys.length; i++) {
-    var original = this['original' + spendKeys[i]];
-    $(MiscUtils.normaliseDOMid(spendKeys[i]))[0].value = original;
-    setSpendRangeText(spendKeys[i], original, this[dataKeys[i]]);
-  }
-  $('#taxRate')[0].value = this.originaltaxRate;
+  for (var i = 0; i < services.length; i++)
+    $(MiscUtils.normaliseDOMid(services[i].rateKey))[0].value = this.originalRates[services[i].name];
+  updateFunding.call(this);
+  $('#taxRate')[0].value = this.originalTaxRate;
   onTaxUpdate();
 
   e.preventDefault();
@@ -84,67 +100,40 @@ var cancel = function(e) {
 var submit = function(e) {
   e.preventDefault();
 
-  // Get element values
-  var roadPercent = $('#roadRate')[0].value;
-  var firePercent = $('#fireRate')[0].value;
-  var policePercent = $('#policeRate')[0].value;
-  var taxPercent = $('#taxRate')[0].value;
+  var data = {cancelled: false, taxPercent: sliderPercentage('taxRate'), e: e, original: e.type};
+  for (var i = 0; i < services.length; i++)
+    data[services[i].name + 'Percent'] = sliderPercentage(services[i].rateKey);
 
-  var data = {cancelled: false, roadPercent: roadPercent, firePercent: firePercent,
-                        policePercent: policePercent, taxPercent: taxPercent, e: e, original: e.type};
   this.close(data);
 };
 
 
+var requireBudgetData = function(budgetData, key) {
+  if (budgetData[key] === undefined)
+    throw new Error('Missing budget data (' + key + ')');
+  return budgetData[key];
+};
+
+
 BudgetWindow.prototype.open = function(budgetData) {
-  var i, elem;
+  this.forecast = requireBudgetData(budgetData, 'forecast');
+  this.maintenance = {};
+  this.originalRates = {};
 
-  // Store max funding levels
-  for (i = 0; i < dataKeys.length; i++) {
-    if (budgetData[dataKeys[i]] === undefined)
-      throw new Error('Missing budget data ('  + dataKeys[i] + ')');
-    this[dataKeys[i]] = budgetData[dataKeys[i]];
+  for (var i = 0; i < services.length; i++) {
+    var service = services[i];
+    this.maintenance[service.name] = requireBudgetData(budgetData, service.maintenanceKey);
+    this.originalRates[service.name] = requireBudgetData(budgetData, service.rateKey);
+    $(MiscUtils.normaliseDOMid(service.rateKey))[0].value = this.originalRates[service.name];
   }
 
-  // Update form elements with percentages, and set up listeners
-  for (i = 0; i < spendKeys.length; i++) {
-    if (budgetData[spendKeys[i]] === undefined)
-      throw new Error('Missing budget data (' + spendKeys[i] + ')');
-
-    elem = spendKeys[i];
-    this['original' + elem] = budgetData[elem];
-    setSpendRangeText(elem, budgetData[spendKeys[i]], this[dataKeys[i]]);
-    elem = $(MiscUtils.normaliseDOMid(elem));
-    elem.on('change', onFundingUpdate.bind(this, spendKeys[i]));
-    elem = elem[0];
-    elem.value = budgetData[spendKeys[i]];
-  }
-
-  if (budgetData.taxRate === undefined)
-    throw new Error('Missing budget data (taxRate)');
-
-  this.originalTaxRate = budgetData.taxRate;
-  elem = $('#taxRate');
-  elem.on('change', onTaxUpdate);
-  elem = elem[0];
-  elem.value = budgetData.taxRate;
+  this.originalTaxRate = requireBudgetData(budgetData, 'taxRate');
+  $('#taxRate')[0].value = this.originalTaxRate;
   onTaxUpdate();
 
-  // Update static parts
-  var previousFunds = budgetData.totalFunds;
-  if (previousFunds === undefined)
-    throw new Error('Missing budget data (previousFunds)');
-
-  var taxesCollected = budgetData.taxesCollected;
-  if (taxesCollected === undefined)
-    throw new Error('Missing budget data (taxesCollected)');
-
-  var cashFlow = taxesCollected - this.roadMaintenanceBudget - this.fireMaintenanceBudget - this.policeMaintenanceBudget;
-  var currentFunds = previousFunds + cashFlow;
-  $('#taxesCollected').text('$' + taxesCollected);
-  $('#cashFlow').text((cashFlow < 0 ? '-$' : '$') + cashFlow);
-  $('#previousFunds').text((previousFunds < 0 ? '-$' : '$') + previousFunds);
-  $('#currentFunds').text('$' + currentFunds);
+  $('#taxesCollected').text(formatMoney(requireBudgetData(budgetData, 'taxesCollected')));
+  $('#fundsNow').text(formatMoney(requireBudgetData(budgetData, 'totalFunds')));
+  updateFunding.call(this);
 
   this._toggleDisplay();
 };

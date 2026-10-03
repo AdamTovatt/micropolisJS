@@ -116,19 +116,19 @@
         <div id="controls" class="controlShadow mintcream z1 initialHidden rightedge open">
           <div id="toolInfo" class="alignCenter"><span id="toolOutput">Tools</span></div>
           <div id="buttons">
-            <button id="residentialButton" data-size="3" data-tool="residential" data-colour="lime" class="toolButton unselected">Residential $100</button>
+            <button id="residentialButton" data-size="3" data-tool="residential" data-colour="lime" class="toolButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block.">Residential $100</button>
             <button id="nuclearButton" data-size="4" data-tool="nuclear" data-colour="mistyrose" class="toolButton unselected">Nuclear $5000</button>
-            <button id="commercialButton" data-size="3" data-tool="commercial" data-colour="blue" class="toolButton unselected">Commercial $100</button>
+            <button id="commercialButton" data-size="3" data-tool="commercial" data-colour="blue" class="toolButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block.">Commercial $100</button>
             <button id="coalButton" data-size="4" data-tool="coal" data-colour="gray" class="toolButton unselected">Coal $3000</button>
-            <button id="industrialButton" data-size="3" data-tool="industrial" data-colour="yellow" class="toolButton unselected">Industrial $100</button>
+            <button id="industrialButton" data-size="3" data-tool="industrial" data-colour="yellow" class="toolButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block.">Industrial $100</button>
             <button id="policeButton" data-size="3" data-tool="police" data-colour="darkblue" class="toolButton unselected">Police $500</button>
             <button id="roadButton" data-size="1" data-tool="road" data-colour="black" class="toolButton unselected">Road $10</button>
             <button id="fireButton" data-size="3" data-tool="fire" data-colour="red" class="toolButton unselected">Fire $500</button>
             <button id="railButton" data-size="1" data-tool="rail" data-colour="brown" class="toolButton unselected">Rail $20</button>
             <button id="portButton" data-size="4" data-tool="port" data-colour="dodgerblue" class="toolButton unselected">Port $3000</button>
-            <button id="wireButton" data-size="1" data-tool="wire" data-colour="khaki" class="toolButton unselected">Wire $5</button>
+            <button id="wireButton" data-size="1" data-tool="wire" data-colour="khaki" class="toolButton unselected" title="Carries power from a power plant to zones. It can cross a straight road or rail at a right angle. Roads and rails carry no power.">Wire $5</button>
             <button id="stadiumButton" data-size="4" data-tool="stadium" data-colour="indigo" class="toolButton unselected">Stadium $5000</button>
-            <button id="bulldozerButton" data-size="1" data-tool="bulldozer" data-colour="salmon" class="toolButton unselected">Bulldozer $1</button>
+            <button id="bulldozerButton" data-size="1" data-tool="bulldozer" data-colour="salmon" class="toolButton unselected" title="Clears a tile. Aim at the middle of a building to demolish the whole building.">Bulldozer $1</button>
             <button id="airportButton" data-size="6" data-tool="airport" data-colour="violet" class="toolButton unselected">Airport $10000</button>
             <button id="queryButton" data-size="1" data-tool="query" data-colour="cyan" class="toolButton unselected">Query</button>
             <button id="parkButton" data-size="1" data-tool="park" data-colour="darkgreen" class="toolButton unselected">Park $10</button>
@@ -169,26 +169,26 @@
         <div id="budgetFormContainer" class="padding10 open">
           <form id="budgetForm">
             <div id="taxInfo" class="elided budgetData">Tax Collected: <span id="taxesCollected"></span></div>
-            <div id="cashInfo" class="elided budgetRight budgetData">Cashflow: <span id="cashFlow"></span></div>
-            <div id="previousInfo" class="elided budgetData">Previous funds: <span id="previousFunds"></span></div>
-            <div id="currentInfo" class="elided budgetRight budgetData">Current funds: <span id="currentFunds"></span></div>
+            <div id="cashInfo" class="elided budgetRight budgetData">Est. cash flow: <span id="cashFlow"></span></div>
+            <div id="fundsNowInfo" class="elided budgetData">Funds: <span id="fundsNow"></span></div>
+            <div id="fundsAfterYearInfo" class="elided budgetRight budgetData">Est. after this year: <span id="fundsAfterYear"></span></div>
             <fieldset>
               <legend>Roads</legend>
-              <input type="range" id="roadRate" min="0" max="100" step="1" data-source="roadMaintenanceBudget">
+              <input type="range" id="roadRate" min="0" max="100" step="1">
               <div>
                 <label for="roadRate" class="elided budgetData" id="roadRateLabel">100% of $100 = $100</label>
               </div>
             </fieldset>
             <fieldset class="budgetRight">
               <legend>Fire</legend>
-              <input type="range" id="fireRate" min="0" max="100" step="1" data-source="fireMaintenanceBudget">
+              <input type="range" id="fireRate" min="0" max="100" step="1">
               <div>
                 <label for="fireRate" class="elided budgetData" id="fireRateLabel">100% of $100 = $100</label>
               </div>
             </fieldset>
             <fieldset>
               <legend>Police</legend>
-              <input type="range" id="policeRate" min="0" max="100" step="1" data-source="policeMaintenanceBudget">
+              <input type="range" id="policeRate" min="0" max="100" step="1">
               <div>
                 <label for="policeRate" class="elided budgetData" id="policeRateLabel">100% of $100 = $100</label>
               </div>

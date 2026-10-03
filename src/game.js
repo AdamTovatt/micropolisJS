@@ -360,7 +360,8 @@ Game.prototype.budgetWindowValues = function() {
     policeRate: Math.floor(budget.policePercent * 100),
     taxRate: budget.cityTax,
     totalFunds: budget.totalFunds,
-    taxesCollected: budget.taxFund
+    taxesCollected: budget.taxFund,
+    forecast: budget.forecast.bind(budget)
   }];
 };
 
