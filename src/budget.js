@@ -14,7 +14,7 @@
 import { EventEmitter } from './eventEmitter.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { forecastYear, fundEffect, fundServices, serviceSpend } from './yearEndBudget.ts';
+import { SERVICES, forecastYear, fundEffect, fundServices, fundingPercent, fundingSpend } from './yearEndBudget.ts';
 
 // Cost of maintaining 1 police station
 var policeMaintenanceCost = 100;
@@ -53,7 +53,8 @@ var Budget = EventEmitter(function() {
   this.firePercent = 1;
   this.policePercent = 1;
 
-  // Cash value of spending. Should equal serviceSpend(_MaintenanceBudget, _Percent)
+  // The spend booked on each service, from which updateFundEffects sets its effect: what the player's funding costs,
+  // what the year-end budget paid, or the full maintenance cost when autobudget funded every service
   this.roadSpend = 0;
   this.fireSpend = 0;
   this.policeSpend = 0;
@@ -104,14 +105,7 @@ var FLevels = [1.4, 1.2, 0.8];
 Budget.prototype._calculateBestPercentages = function() {
   // Note: the *Budget items are updated every January by collectTax
   var funding = fundServices(this.totalFunds + this.taxFund, this._maintenance(), this._percents());
-
-  this.roadSpend = funding.wanted.road;
-  this.fireSpend = funding.wanted.fire;
-  this.policeSpend = funding.wanted.police;
-
-  this.roadPercent = funding.percents.road;
-  this.firePercent = funding.percents.fire;
-  this.policePercent = funding.percents.police;
+  this._setPercents(funding.percents);
 
   return funding.paid;
 };
@@ -127,21 +121,61 @@ Budget.prototype._percents = function() {
 };
 
 
-// What the year-end budget would leave if it ran now, with each service funded at the given
-// percentage (0 to 1), from the current funds and the most recent tax collection and maintenance costs.
-Budget.prototype.forecast = function(percents) {
-  return forecastYear(this.totalFunds, this.taxFund, this._maintenance(), percents);
+Budget.prototype._setPercents = function(percents) {
+  this.roadPercent = percents.road;
+  this.firePercent = percents.fire;
+  this.policePercent = percents.police;
 };
 
 
-// Sets the funding percentages (0 to 1) of the services given, and leaves the others as they are
-Budget.prototype.setFunding = function(percents) {
-  if (percents.road !== undefined)
-    this.roadPercent = percents.road;
-  if (percents.fire !== undefined)
-    this.firePercent = percents.fire;
-  if (percents.police !== undefined)
-    this.policePercent = percents.police;
+Budget.prototype._spends = function() {
+  return {road: this.roadSpend, fire: this.fireSpend, police: this.policeSpend};
+};
+
+
+// The services given a whole percent in a map of them, in the order the budget funds them
+var servicesIn = function(wholePercents) {
+  return SERVICES.filter(function(service) { return wholePercents[service] !== undefined; });
+};
+
+
+// The percentages with the services given funded at the given whole percents, and the others at the percentages they
+// have
+Budget.prototype._percentsWith = function(wholePercents) {
+  var percents = this._percents();
+  servicesIn(wholePercents).forEach(function(service) {
+    percents[service] = fundingPercent(wholePercents[service]);
+  });
+
+  return percents;
+};
+
+
+// What the year-end budget would leave if it ran now, from the current funds and the most recent tax collection and
+// maintenance costs, with the services given funded at the given whole percents, as setFunding would set them, and
+// the others at the percentages they have
+Budget.prototype.forecast = function(wholePercents) {
+  return forecastYear(this.totalFunds, this.taxFund, this._maintenance(), this._percentsWith(wholePercents));
+};
+
+
+// Funds the services given at the given whole percents, as the original's budget slider handlers do, and leaves the
+// others as they are: each one's spend is booked from its whole percent, and the effects are set from the spends.
+// With no service given, nothing changes.
+Budget.prototype.setFunding = function(wholePercents) {
+  var services = servicesIn(wholePercents);
+  if (services.length === 0)
+    return;
+
+  var maintenance = this._maintenance();
+  var spends = this._spends();
+  services.forEach(function(service) {
+    spends[service] = fundingSpend(maintenance[service], wholePercents[service]);
+  });
+
+  this._setPercents(this._percentsWith(wholePercents));
+  this._bookSpend(spends);
+  this.updateFundEffects();
 };
 
 
@@ -167,11 +201,26 @@ Budget.prototype.doBudgetNow = function(fromWindow) {
   var totalCost = roadCost + policeCost + fireCost;
   var cashRemaining = this.totalFunds + this.taxFund - totalCost;
 
-  // Autobudget
-  if ((cashRemaining > 0 && this.autoBudget) || fromWindow) {
-    // Either we were able to fully fund services, or we have just normalised user input. Go ahead and spend.
+  // The player's values, which the city waits on. As in the original, what each service gets is booked as its spend.
+  // The effects are then set from those spends, standing in for the original's budget window: on drawing a scaled-back
+  // percentage at a slider position other than the slider's last one, it sets the slider, whose handler re-books that
+  // service's spend from the whole percent and updates the effects. So there a fire department paid $94 of $300, drawn
+  // at 31%, gets the effect of $93, and when no slider is drawn at a new position, no effect changes. Here the effects
+  // always follow what was paid, and are set as the player's values are applied, never when the window opens.
+  if (fromWindow) {
     this.awaitingValues = false;
-    this.doBudgetSpend(roadCost, fireCost, policeCost);
+    this._collectTaxAndPayServices(totalCost);
+    this._bookSpend(costs);
+    this.updateFundEffects();
+    return;
+  }
+
+  // Autobudget with cash for every service. As in the original, each service's spend is booked as its full
+  // maintenance cost whatever its percentage, and the effects stay as they are.
+  if (cashRemaining > 0 && this.autoBudget) {
+    this.awaitingValues = false;
+    this._collectTaxAndPayServices(totalCost);
+    this._bookSpend(this._maintenance());
     return;
   }
 
@@ -184,23 +233,22 @@ Budget.prototype.doBudgetNow = function(fromWindow) {
 };
 
 
-Budget.prototype.doBudgetSpend = function(roadValue, fireValue, policeValue) {
-  this.roadSpend = roadValue;
-  this.fireSpend = fireValue;
-  this.policeSpend = policeValue;
-  var total = this.roadSpend + this.fireSpend + this.policeSpend;
-
+// Collects this year's taxes and pays the year's services out of them
+Budget.prototype._collectTaxAndPayServices = function(total) {
   this.spend(-(this.taxFund - total));
-  this.updateFundEffects();
 };
 
 
-Budget.prototype.updateFundEffects = function() {
-  // The caller is assumed to have correctly set the percentage spend
-  this.roadSpend = serviceSpend(this.roadMaintenanceBudget, this.roadPercent);
-  this.fireSpend = serviceSpend(this.fireMaintenanceBudget, this.firePercent);
-  this.policeSpend = serviceSpend(this.policeMaintenanceBudget, this.policePercent);
+// Books the spend on each service, which updateFundEffects reads
+Budget.prototype._bookSpend = function(spends) {
+  this.roadSpend = spends.road;
+  this.fireSpend = spends.fire;
+  this.policeSpend = spends.police;
+};
 
+
+// Sets each service's effect from the spend booked on it
+Budget.prototype.updateFundEffects = function() {
   // Update the effect this level of spending will have on infrastructure deterioration
   this.roadEffect = this.MAX_ROAD_EFFECT;
   this.policeEffect = this.MAX_POLICESTATION_EFFECT;

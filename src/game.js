@@ -340,8 +340,6 @@ Game.prototype.handleBudgetWindowClosure = function(data) {
   // the city until the window opens again
   if (budget.awaitingValues)
     budget.doBudgetWindow();
-  else if (!data.cancelled)
-    budget.updateFundEffects();
 };
 
 

@@ -19,8 +19,9 @@ export function wholePercent(percent: number): number {
   return Math.floor(Math.fround(Math.fround(percent) * 100));
 }
 
-// The funding the budget window holds while it is open. A service's percentage stays the one the budget has until the
-// player moves its slider, and OK sends only the percentages of the sliders moved.
+// The funding the budget window holds while it is open: the whole percent of each slider the player moved. A service
+// whose slider hasn't moved keeps the percentage the budget has, and OK sends only the sliders moved, which the budget
+// funds as the original's slider handler does.
 //
 // This keeps the fraction of a percentage the budget scaled back to the cash it had, where the original loses it: its
 // window, on drawing a slider at a whole percent other than the slider's last position, sets the slider, and setting a
@@ -28,19 +29,12 @@ export function wholePercent(percent: number): number {
 export class FundingChoice {
   private readonly chosen: Partial<ServiceAmounts> = {};
 
-  constructor(private readonly held: ServiceAmounts) {}
-
-  // The player moved a service's slider to a whole percent. The original stores percent / 100.0 in a float.
+  // The player moved a service's slider to a whole percent
   choose(service: keyof ServiceAmounts, wholePercent: number): void {
-    this.chosen[service] = Math.fround(wholePercent / 100);
+    this.chosen[service] = wholePercent;
   }
 
-  // Each service's percentage (0 to 1): the one chosen, or else the one the budget has
-  percents(): ServiceAmounts {
-    return { ...this.held, ...this.chosen };
-  }
-
-  // The percentages (0 to 1) of the services whose sliders the player moved
+  // The whole percents of the sliders the player moved
   changes(): Partial<ServiceAmounts> {
     return { ...this.chosen };
   }

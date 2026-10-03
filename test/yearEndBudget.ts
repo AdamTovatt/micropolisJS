@@ -11,7 +11,9 @@
  *
  */
 
-import { forecastYear, fundEffect, fundServices, serviceSpend } from "../src/yearEndBudget";
+import {
+    forecastYear, fundEffect, fundServices, serviceSpend, fundingPercent, fundingSpend,
+} from "../src/yearEndBudget";
 
 const fullFunding = { road: 1, fire: 1, police: 1 };
 const noFunding = { road: 0, fire: 0, police: 0 };
@@ -33,6 +35,27 @@ describe("serviceSpend", () => {
 
     it("should charge nothing at zero funding", () => {
         expect(serviceSpend(240, 0)).toBe(0);
+    });
+});
+
+describe("fundingPercent", () => {
+
+    it("should store a whole percent as a float, as the original's slider handler does", () => {
+        expect(fundingPercent(53)).toBe(Math.fround(0.53));
+        expect(fundingPercent(100)).toBe(1);
+    });
+});
+
+describe("fundingSpend", () => {
+
+    it("should book (maintenance * percent) / 100 in integers", () => {
+        expect(fundingSpend(300, 53)).toBe(159);
+        expect(fundingSpend(101, 50)).toBe(50);
+    });
+
+    it("should book a whole percent of $100 as that many dollars, where the float cost may be a dollar less", () => {
+        expect(fundingSpend(100, 53)).toBe(53);
+        expect(serviceSpend(100, fundingPercent(53))).toBe(52);
     });
 });
 

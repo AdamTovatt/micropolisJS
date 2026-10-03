@@ -11,8 +11,9 @@
  *
  */
 
-// How the budget funds road, fire and police services, as doBudgetNow in the original's budget.cpp does, and the
-// effect that funding has, as its updateFundEffects does. Budget charges through fundServices, and forecasts with
+// How the budget funds road, fire and police services: at year end, as doBudgetNow in the original's budget.cpp does;
+// during the year, at the whole percent the player sets, as the original's budget slider handlers do; and the effect
+// that funding has, as its updateFundEffects does. Budget charges through fundServices, and forecasts with
 // forecastYear.
 //
 // The original keeps each funding percentage in a float and does this arithmetic in float. Math.fround rounds to the
@@ -42,11 +43,23 @@ export interface YearForecast {
 }
 
 // The services in the order the budget funds them
-const SERVICES: (keyof ServiceAmounts)[] = ["road", "fire", "police"];
+export const SERVICES: (keyof ServiceAmounts)[] = ["road", "fire", "police"];
 
 // The cost of a service at its funding percentage (0 to 1): (int)(fund * percent), multiplied in float
 export function serviceSpend(maintenance: number, percent: number): number {
   return Math.floor(Math.fround(Math.fround(maintenance) * Math.fround(percent)));
+}
+
+// The funding percentage (0 to 1) of a service funded at a whole percent, as the original's budget slider handler
+// stores it: percent / 100.0, kept in a float
+export function fundingPercent(wholePercent: number): number {
+  return Math.fround(wholePercent / 100);
+}
+
+// The spend booked on a service funded at a whole percent, as the original's budget slider handler books it:
+// (max * percent) / 100, in integers
+export function fundingSpend(maintenance: number, wholePercent: number): number {
+  return Math.floor(maintenance * wholePercent / 100);
 }
 
 // The effect a service has at a spend on it, out of its effect at full funding: (short)((float)maxEffect *

@@ -51,7 +51,7 @@ var sliderPercentage = function(elementID) {
 // Shows each service's cost at its funding level, and the cash flow and year-end balance the budget forecasts for
 // those levels.
 var updateFunding = function() {
-  var forecast = this.forecast(this.funding.percents());
+  var forecast = this.forecast(this.funding.changes());
 
   for (var i = 0; i < services.length; i++) {
     var service = services[i];
@@ -67,7 +67,7 @@ var updateFunding = function() {
 
 // Starts the window's funding from the percentages the budget has, with each slider at its whole percent
 var startFunding = function() {
-  this.funding = new FundingChoice(this.originalPercents);
+  this.funding = new FundingChoice();
   for (var i = 0; i < services.length; i++) {
     var service = services[i];
     $(MiscUtils.normaliseDOMid(service.sliderID))[0].value = wholePercent(this.originalPercents[service.name]);
