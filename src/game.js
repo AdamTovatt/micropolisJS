@@ -14,7 +14,7 @@
 import $ from "jquery";
 
 import { AutoBulldozePreference } from './autoBulldozePreference.ts';
-import { BudgetWindow } from './budgetWindow.js';
+import { BudgetWindow } from './budgetWindow.ts';
 import { CommandRecorder } from './commandLog.ts';
 import { CommandQueue } from './commandQueue.ts';
 import { LOCAL_PLAYER } from './commands.ts';
@@ -88,7 +88,7 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
 
   var opacityLayerID = 'opaque';
 
-  this.budgetWindow = new BudgetWindow(opacityLayerID, 'budget');
+  this.budgetWindow = new BudgetWindow(opacityLayerID, 'budget', pageQuerySource(this.simulation));
   this.windows = new WindowManager(this.budgetWindow, this.budgetWindowValues.bind(this));
   this.simulation.addEventListener(Messages.BUDGET_REVIEW_DUE, this.windows.budgetReviewDue.bind(this.windows));
 
@@ -357,26 +357,17 @@ Game.prototype.handleScreenshotWindowClosure = function(action) {
 };
 
 
-Game.prototype.handleBudgetWindowClosure = function(data) {
+Game.prototype.handleBudgetWindowClosure = function(choice) {
   this.windows.closed();
 
-  if (!data.cancelled)
-    this.commandQueue.send(LOCAL_PLAYER, budgetCommand(data.funding, data.taxPercent));
+  if (choice !== null)
+    this.commandQueue.send(LOCAL_PLAYER, budgetCommand(choice.funding, choice.tax));
 };
 
 
-// The values the budget window opens with: each service's maintenance cost and funding percentage (0 to 1), by service.
+// The arguments the budget window opens with: the budget record
 Game.prototype.budgetWindowValues = function() {
-  var budget = this.simulation.budget;
-
-  return [{
-    maintenance: budget.maintenance(),
-    percents: budget.percents(),
-    taxRate: budget.cityTax,
-    totalFunds: budget.totalFunds,
-    taxesCollected: budget.taxFund,
-    forecast: budget.forecast.bind(budget)
-  }];
+  return [this.simulation.budgetRecord()];
 };
 
 

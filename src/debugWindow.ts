@@ -45,10 +45,7 @@ export class DebugWindow extends ClosableWindow {
   constructor(opacityLayerID: string, windowID: string) {
     super(opacityLayerID, windowID, DEBUG_WINDOW_CLOSED);
 
-    requiredElement("debugCancel").addEventListener("click", (event) => {
-      event.preventDefault();
-      this.close();
-    });
+    this.closeOnClick("debugCancel");
 
     requiredElement("debugForm", HTMLFormElement).addEventListener("submit", (event) => {
       event.preventDefault();

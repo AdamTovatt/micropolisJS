@@ -76,6 +76,14 @@ export class ClosableWindow extends WindowBase {
       this.close();
     });
   }
+
+  // Closes with no value when the button is clicked, as a cancel button does, instead of submitting its form
+  protected closeOnClick(buttonID: string): void {
+    requiredElement(buttonID).addEventListener("click", (event) => {
+      event.preventDefault();
+      this.close();
+    });
+  }
 }
 
 type WindowConstructor = new (opacityLayerID: string, windowID: string) => WindowBase;
