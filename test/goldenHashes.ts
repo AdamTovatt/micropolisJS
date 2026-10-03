@@ -22,7 +22,7 @@ const STEPS = 6912;
 const GOLDEN_HASHES: Record<string, {built: string, run: string}> = {
     town: {
         built: "706e2c074afa3ba19f658cf3fb5ed48c31a2eb31e1686e31576242d26689b918",
-        run: "d28c8c904cca066cd8d22b5e2b96acbad555cfdb6aa75124af9455a2784c5e52",
+        run: "c46811b076a46b353b1486701f1c6450891fcaa7dc5d602130fa2321ccb67afd",
     },
 };
 

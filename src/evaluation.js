@@ -207,7 +207,7 @@ var getTrafficAverage = function(blockMaps, census) {
     }
   }
 
-  var trafficAverage = census.trafficAverage = Math.floor(trafficTotal / count) * 2.4;
+  var trafficAverage = census.trafficAverage = Math.trunc(Math.trunc(trafficTotal / count) * 2.4);
 
   return trafficAverage;
 };

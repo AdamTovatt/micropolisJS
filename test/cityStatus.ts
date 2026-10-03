@@ -136,7 +136,7 @@ const THRESHOLDS: Array<[string, string, Overrides, boolean]> = [
     [Messages.HIGH_CRIME, "crime 101", {census: {crimeAverage: 101}}, true],
     [Messages.HIGH_CRIME, "crime 100", {census: {crimeAverage: 100}}, false],
 
-    [Messages.TRAFFIC_JAMS, "traffic 60.5", {census: {trafficAverage: 60.5}}, true],
+    [Messages.TRAFFIC_JAMS, "traffic 61", {census: {trafficAverage: 61}}, true],
     [Messages.TRAFFIC_JAMS, "traffic 60", {census: {trafficAverage: 60}}, false],
 
     [Messages.NEED_FIRE_STATION, "61 people, no fire station", {census: {totalPop: 61}}, true],

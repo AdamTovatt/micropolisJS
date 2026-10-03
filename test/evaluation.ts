@@ -378,6 +378,15 @@ describe("the problems", () => {
             (vote: {index: number}) => vote.index === Evaluation.HOUSING);
         expect(housing.voteCount).toBe(3);
     });
+
+    // Half the 64 blocks carry traffic of 12, and the count starts at 1: 384 / 33 = 11.6, which
+    // drops its fraction, and 11 * 2.4 = 26.4 drops its own, as evaluate.cpp's ints do
+    it("drop the fractions of the traffic average", () => {
+        const city = makeCity();
+        evaluateYear(city, problemFreeYear(200, {landValue: 1, traffic: 12}));
+
+        expect(city.census.trafficAverage).toBe(26);
+    });
 });
 
 describe("the city score", () => {
