@@ -16,8 +16,7 @@ import { SaveData } from "../../headless/city";
 // A saved state with the fields the tests read or override, as Simulation.save writes them. docs/state-hash.md
 // lists every key.
 export interface InspectedSave extends SaveData {
-    _phaseCycle: number;
-    _speedCycle: number;
-    budget: {awaitingValues: boolean};
+    simulation: SaveData["simulation"] & {phaseCycle: number, speedCycle: number};
+    budget: {autoBudget: boolean, awaitingValues: boolean};
     sprites: {list: unknown[]};
 }

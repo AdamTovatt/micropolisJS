@@ -17,7 +17,6 @@ var arrs = ['res', 'com', 'ind', 'crime',
             'money', 'pollution'];
 function Census() {
   this.clearCensus();
-  this.changed = false;
   this.crimeRamp = 0;
   this.pollutionRamp = 0;
 
@@ -111,14 +110,17 @@ var copy = function(value) {
 
 
 Census.prototype.save = function(saveData) {
+  var census = {};
   for (var i = 0, l = saveProps.length; i < l; i++)
-    saveData[saveProps[i]] = copy(this[saveProps[i]]);
+    census[saveProps[i]] = copy(this[saveProps[i]]);
+
+  saveData.census = census;
 };
 
 
 Census.prototype.load = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
-    this[saveProps[i]] = copy(saveData[saveProps[i]]);
+    this[saveProps[i]] = copy(saveData.census[saveProps[i]]);
 };
 
 
@@ -161,8 +163,6 @@ Census.prototype.take10Census = function(budget) {
     this.needHospital = -1;
   else
     this.needHospital = 0;
-
-  this.changed = true;
 };
 
 
@@ -176,7 +176,6 @@ Census.prototype.take120Census = function() {
   this.crimeHist120[0] = this.crimeHist10[0];
   this.pollutionHist120[0] = this.pollutionHist10[0];
   this.moneyHist120[0] = this.moneyHist10[0];
-  this.changed = true;
 };
 
 

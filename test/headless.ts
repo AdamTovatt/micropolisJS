@@ -63,7 +63,7 @@ describe("the runner", () => {
     it("keeps the fixture's saved stream unless told to reseed", () => {
         const city = startCity({fixture: "town"});
 
-        expect(city.random.getState()).toEqual(fixtureSave("town").randomState);
+        expect(city.random.getState()).toEqual(fixtureSave("town").simulation.randomState);
     });
 
     it("overrides the saved speed when given one", () => {
@@ -71,7 +71,10 @@ describe("the runner", () => {
     });
 
     describe("given a fixture saved paused", () => {
-        const pausedSave = () => ({...fixtureSave("town"), _speed: Speed.paused});
+        const pausedSave = () => {
+            const saved = fixtureSave("town");
+            return {...saved, simulation: {...saved.simulation, speed: Speed.paused}};
+        };
 
         it("fails at once without a speed", () => {
             expect(() => startFromSave(pausedSave(), {})).toThrow("The city is saved paused: give a speed to run it");
@@ -131,8 +134,8 @@ describe("a run", () => {
         const first = startCity({fixture: "town"});
         advance(first, N);
         const saved = plainSavedState(first) as InspectedSave;
-        expect(saved._phaseCycle).not.toBe(0);
-        expect(saved._speedCycle % 3).not.toBe(0);
+        expect(saved.simulation.phaseCycle).not.toBe(0);
+        expect(saved.simulation.speedCycle % 3).not.toBe(0);
         expect(saved.sprites.list.length).toBeGreaterThan(0);
 
         const second = cityFromSave(saved);
@@ -156,7 +159,9 @@ describe("a run", () => {
 
     // With auto-budget off, the year-end budget waits for the player
     it("fails when the simulation stops for the player's budget", () => {
-        const city = startFromSave({...fixtureSave("town"), autoBudget: false} as SaveData, {speed: "fast"});
+        const saved = fixtureSave("town") as InspectedSave;
+        const city = startFromSave({...saved, budget: {...saved.budget, autoBudget: false}} as SaveData,
+                                   {speed: "fast"});
 
         expect(() => advance(city, STEPS_PER_YEAR_AT_FAST))
             .toThrow("The simulation stopped for the player's budget");

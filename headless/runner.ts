@@ -58,20 +58,20 @@ export function startCity(start: Start): Simulation {
 
 // A city from a saved state, with a fixture's reseed and speed options
 export function startFromSave(saved: SaveData, options: {reseed?: number, speed?: RunningSpeed}): Simulation {
-  const saveData = {...saved};
+  const simulation = {...saved.simulation};
 
   if (options.reseed !== undefined) {
-    saveData.seed = options.reseed;
-    saveData.randomState = Random.simulationStream(options.reseed).getState();
+    simulation.seed = options.reseed;
+    simulation.randomState = Random.simulationStream(options.reseed).getState();
   }
 
   if (options.speed !== undefined) {
-    saveData._speed = Speed[options.speed];
-  } else if (saveData._speed === Speed.paused) {
+    simulation.speed = Speed[options.speed];
+  } else if (simulation.speed === Speed.paused) {
     throw new Error("The city is saved paused: give a speed to run it");
   }
 
-  return cityFromSave(saveData);
+  return cityFromSave({...saved, simulation});
 }
 
 export async function summarise(city: Simulation): Promise<Summary> {

@@ -66,10 +66,8 @@ Evaluation.prototype.evalInit = function() {
 };
 
 
-var saveProps = ['cityClass', 'cityScore'];
-
-// The evaluation's working values, saved under their own key
-var evaluationProps = ['cityYes', 'cityPop', 'cityPopDelta', 'cityAssessedValue', 'cityClassLast', 'cityScoreDelta'];
+var saveProps = ['cityClass', 'cityScore', 'cityYes', 'cityPop', 'cityPopDelta', 'cityAssessedValue', 'cityClassLast',
+                 'cityScoreDelta'];
 
 var copyVotes = function(votes) {
   return votes.map(function(vote) {
@@ -79,24 +77,18 @@ var copyVotes = function(votes) {
 
 
 Evaluation.prototype.save = function(saveData) {
-  for (var i = 0, l = saveProps.length; i < l; i++)
-    saveData[saveProps[i]] = this[saveProps[i]];
-
   var evaluation = {problemVotes: copyVotes(this.problemVotes), problemOrder: this.problemOrder.slice()};
-  for (i = 0, l = evaluationProps.length; i < l; i++)
-    evaluation[evaluationProps[i]] = this[evaluationProps[i]];
+  for (var i = 0, l = saveProps.length; i < l; i++)
+    evaluation[saveProps[i]] = this[saveProps[i]];
 
   saveData.evaluation = evaluation;
 };
 
 
 Evaluation.prototype.load = function(saveData) {
-  for (var i = 0, l = saveProps.length; i < l; i++)
-    this[saveProps[i]] = saveData[saveProps[i]];
-
   var evaluation = saveData.evaluation;
-  for (i = 0, l = evaluationProps.length; i < l; i++)
-    this[evaluationProps[i]] = evaluation[evaluationProps[i]];
+  for (var i = 0, l = saveProps.length; i < l; i++)
+    this[saveProps[i]] = evaluation[saveProps[i]];
 
   this.problemVotes = copyVotes(evaluation.problemVotes);
   this.problemOrder = evaluation.problemOrder.slice();

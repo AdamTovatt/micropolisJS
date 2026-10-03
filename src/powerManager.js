@@ -77,7 +77,6 @@ PowerManager.prototype.loadScan = function(scanData) {
 
 
 PowerManager.prototype.clearPowerStack = function() {
-  this._powerStackPointer = 0;
   this._powerStack = [];
 };
 

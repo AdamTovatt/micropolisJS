@@ -40,6 +40,94 @@ var saveGame = function(gameData) {
 };
 
 
+// Moves top-level keys of an old save into a new object, each under its new name, and returns the object
+var regroup = function(savedGame, newNames) {
+  var group = {};
+  Object.keys(newNames).forEach(function(oldName) {
+    group[newNames[oldName]] = savedGame[oldName];
+    delete savedGame[oldName];
+  });
+
+  return group;
+};
+
+
+var sameNames = function(names) {
+  var newNames = {};
+  names.forEach(function(name) {
+    newNames[name] = name;
+  });
+
+  return newNames;
+};
+
+
+// Version 5 keeps each component's state under its own key, and holds the complete state. Version 4 kept every field
+// at the top level: the names below are version 4's, and never change with today's components. The state version 4
+// lacks starts as it did when such a save was loaded: no sprites, disasters off, the counters and the evaluation's
+// working values reset, and the evaluation due again. The scanned state can only be derived by a scan: a null
+// scannedState, which only a migrated save holds, makes the Simulation scan for it on load.
+var migrateToVersion5 = function(savedGame) {
+  var simulation = regroup(savedGame, {_cityTime: 'cityTime', _gameLevel: 'gameLevel', _speed: 'speed',
+                                       _speedCycle: 'speedCycle', seed: 'seed', randomState: 'randomState'});
+  simulation.phaseCycle = 0;
+  simulation.simCycle = 0;
+  simulation.cityPopLast = 0;
+  simulation.messageLast = null;
+  simulation.lastPowerMessage = null;
+  simulation.initialEvaluationPending = true;
+
+  var tiles = savedGame.map;
+  delete savedGame.map;
+  var map = regroup(savedGame, sameNames(['width', 'height', 'cityCentreX', 'cityCentreY', 'pollutionMaxX',
+                                          'pollutionMaxY']));
+  map.tiles = tiles.map(function(tile) {
+    return tile.value;
+  });
+
+  var evaluation = regroup(savedGame, sameNames(['cityClass', 'cityScore']));
+  evaluation.cityYes = 0;
+  evaluation.cityPop = 0;
+  evaluation.cityPopDelta = 0;
+  evaluation.cityAssessedValue = 0;
+  evaluation.cityClassLast = 'VILLAGE';
+  evaluation.cityScoreDelta = 0;
+  evaluation.problemVotes = [0, 1, 2, 3, 4, 5, 6].map(function(i) {
+    return {index: i, voteCount: 0};
+  });
+  evaluation.problemOrder = [7, 7, 7, 7];
+
+  var valves = regroup(savedGame, sameNames(['resValve', 'comValve', 'indValve']));
+  valves.resCap = false;
+  valves.comCap = false;
+  valves.indCap = false;
+
+  var budget = regroup(savedGame, sameNames(['autoBudget', 'totalFunds', 'policePercent', 'roadPercent', 'firePercent',
+                                             'roadSpend', 'policeSpend', 'fireSpend', 'roadMaintenanceBudget',
+                                             'policeMaintenanceBudget', 'fireMaintenanceBudget', 'cityTax',
+                                             'roadEffect', 'policeEffect', 'fireEffect']));
+  budget.cashFlow = 0;
+  budget.taxFund = 0;
+  budget.awaitingValues = false;
+
+  var census = regroup(savedGame, sameNames(['resPop', 'comPop', 'indPop', 'crimeRamp', 'pollutionRamp',
+                                             'landValueAverage', 'pollutionAverage', 'crimeAverage', 'totalPop',
+                                             'resHist10', 'resHist120', 'comHist10', 'comHist120', 'indHist10',
+                                             'indHist120', 'crimeHist10', 'crimeHist120', 'moneyHist10',
+                                             'moneyHist120', 'pollutionHist10', 'pollutionHist120']));
+
+  savedGame.simulation = simulation;
+  savedGame.map = map;
+  savedGame.evaluation = evaluation;
+  savedGame.valves = valves;
+  savedGame.budget = budget;
+  savedGame.census = census;
+  savedGame.sprites = {spriteCycle: 0, list: []};
+  savedGame.disasters = {floodCount: 0, disastersEnabled: false};
+  savedGame.scannedState = null;
+};
+
+
 var transitionOldSave = function(savedGame) {
   switch (savedGame.version) {
     case 1:
@@ -61,26 +149,7 @@ var transitionOldSave = function(savedGame) {
 
       /* falls through */
     case 4:
-      // Saves before version 5 hold only part of the state. The rest starts as it did when such a save was loaded:
-      // no sprites, disasters off, the counters and the evaluation's working values reset, and the evaluation due
-      // again. The scanned state can only be derived by a scan: a null scannedState, which only a migrated save
-      // holds, makes the Simulation scan for it on load.
-      savedGame._phaseCycle = 0;
-      savedGame._simCycle = 0;
-      savedGame._cityPopLast = 0;
-      savedGame._messageLast = null;
-      savedGame._lastPowerMessage = null;
-      savedGame._initialEvaluationPending = true;
-      savedGame.evaluation = {cityYes: 0, cityPop: 0, cityPopDelta: 0, cityAssessedValue: 0, cityClassLast: 'VILLAGE',
-                              cityScoreDelta: 0, problemVotes: [0, 1, 2, 3, 4, 5, 6].map(function(i) {
-                                return {index: i, voteCount: 0};
-                              }), problemOrder: [7, 7, 7, 7]};
-      savedGame.valves = {resCap: false, comCap: false, indCap: false};
-      savedGame.budget = {cashFlow: 0, taxFund: 0, awaitingValues: false};
-      savedGame.sprites = {spriteCycle: 0, list: []};
-      savedGame.disasters = {floodCount: 0, disastersEnabled: false};
-      savedGame.scannedState = null;
-
+      migrateToVersion5(savedGame);
       break;
 
     default:

@@ -67,11 +67,39 @@ describe("a simulation", () => {
             grownTownSave = plainSavedState(city) as typeof grownTownSave;
         });
 
+        // The grown town with every field it shares with a new city changed, so a load that skipped a field would
+        // leave the new city's value and show
+        type Groups = Record<string, Record<string, unknown>>;
+
+        function awayFromNewCity(saved: InspectedSave): Groups {
+            const s = saved as unknown as Groups;
+            return {
+                ...s,
+                simulation: {...s.simulation, gameLevel: Level.hard, lastPowerMessage: 11},
+                budget: {...s.budget, autoBudget: false, awaitingValues: true, cityTax: 9, fireEffect: 900,
+                         fireMaintenanceBudget: 50, firePercent: 0.9, fireSpend: 45, policeEffect: 800,
+                         policeMaintenanceBudget: 60, policePercent: 0.8, policeSpend: 48, roadEffect: 30,
+                         roadPercent: 0.9},
+                disasters: {floodCount: 4, disastersEnabled: true},
+                valves: {...s.valves, resCap: true, comCap: true, indCap: true},
+            };
+        }
+
         it("holds exactly the saved state: loading runs no scan", () => {
-            expect(grownTownSave._phaseCycle).not.toBe(0);
+            const saved = awayFromNewCity(grownTownSave);
+            expect(grownTownSave.simulation.phaseCycle).not.toBe(0);
             expect(grownTownSave.sprites.list.length).toBeGreaterThan(0);
 
-            expect(plainSavedState(cityFromSave(grownTownSave))).toEqual(grownTownSave);
+            // Every saved field outside the map and the scanned state differs from a new city's
+            const newCity = plainSavedState(cityFromSeed(OTHER_SEED, Level.easy, Speed.medium)) as Groups;
+            const sameAsNew = Object.keys(saved)
+                .filter((group) => group !== "map" && group !== "scannedState")
+                .flatMap((group) => Object.keys(saved[group])
+                    .filter((key) => canonicalJson(saved[group][key]) === canonicalJson(newCity[group][key]))
+                    .map((key) => `${group}.${key}`));
+            expect(sameAsNew).toEqual([]);
+
+            expect(plainSavedState(cityFromSave(saved as unknown as SaveData))).toEqual(saved);
         });
 
         it("never shares the saved object with the city it restores", () => {
@@ -81,6 +109,29 @@ describe("a simulation", () => {
             advance(cityFromSave(grownTownSave), 800);
 
             expect(canonicalJson(grownTownSave)).toBe(before);
+        });
+
+        it.each([
+            ["level", "gameLevel", "Invalid level!"],
+            ["speed", "speed", "Invalid speed!"],
+        ])("rejects a save with an invalid %s", (_, field, message) => {
+            const saved = plainSavedState(simulationFromSeed(SEED)) as {simulation: Record<string, unknown>};
+            saved.simulation[field] = 7;
+
+            expect(() => simulationFromSeed(OTHER_SEED).load(saved)).toThrow(message);
+        });
+
+        // The UI is sent the date only when it changes: a city loaded at the date it last sent sends it again
+        it("sends its date on its first step, even loaded over a city that last sent the same date", () => {
+            const city = simulationFromSeed(SEED);
+            steps(city, 1);
+            const dates = jest.fn();
+            city.addEventListener(Messages.DATE_UPDATED, dates);
+
+            city.load(plainSavedState(city));
+            steps(city, 1);
+
+            expect(dates).toHaveBeenCalledTimes(1);
         });
 
         it("gives its own level and speed to the city it is loaded over", () => {
@@ -110,6 +161,7 @@ describe("a simulation", () => {
             expect((plainSavedState(other) as InspectedSave).sprites.list.length).toBeGreaterThan(0);
             other.load(grownTownSave);
             const overBlank = cityFromSave(grownTownSave);
+            expect(plainSavedState(other)).toEqual(grownTownSave);
 
             advance(other, 800);
             advance(overBlank, 800);

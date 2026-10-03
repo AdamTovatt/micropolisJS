@@ -172,8 +172,10 @@ Simulation.prototype.isPaused = function() {
 
 // A save holds the complete state, so a loaded city continues exactly as it would have without the save. The format
 // is specified in docs/state-hash.md, which the state hash is computed over.
-var saveProps = ['_cityTime', '_speed', '_speedCycle', '_gameLevel', '_phaseCycle', '_simCycle', '_cityPopLast',
-                 '_messageLast', '_lastPowerMessage', '_initialEvaluationPending'];
+// The simulation's counters, each saved under its field's name without the underscore. The level and speed are saved
+// beside them, and restored through their setters.
+var saveProps = ['cityTime', 'speedCycle', 'phaseCycle', 'simCycle', 'cityPopLast', 'messageLast', 'lastPowerMessage',
+                 'initialEvaluationPending'];
 
 // The temporary block maps are left out: each scan writes them in full before reading them
 var scannedBlockMaps = ['cityCentreDistScoreMap', 'crimeRateMap', 'fireStationMap', 'fireStationEffectMap',
@@ -181,11 +183,12 @@ var scannedBlockMaps = ['cityCentreDistScoreMap', 'crimeRateMap', 'fireStationMa
                         'populationDensityMap', 'rateOfGrowthMap', 'terrainDensityMap', 'trafficDensityMap'];
 
 Simulation.prototype.save = function(saveData) {
+  var simulation = {gameLevel: this._gameLevel, speed: this._speed, seed: this.seed,
+                    randomState: this.random.getState()};
   for (var i = 0, l = saveProps.length; i < l; i++)
-    saveData[saveProps[i]] = this[saveProps[i]];
+    simulation[saveProps[i]] = this['_' + saveProps[i]];
 
-  saveData.seed = this.seed;
-  saveData.randomState = this.random.getState();
+  saveData.simulation = simulation;
 
   this._map.save(saveData);
   this.evaluation.save(saveData);
@@ -207,24 +210,28 @@ Simulation.prototype.save = function(saveData) {
 
 // A new city restored from a save, on a blank map of the save's size
 Simulation.fromSave = function(saveData) {
-  var simulation = new Simulation(new GameMap(saveData.width, saveData.height), saveData._gameLevel, saveData._speed,
-                                  saveData.seed);
+  var saved = saveData.simulation;
+  var simulation = new Simulation(new GameMap(saveData.map.width, saveData.map.height), saved.gameLevel, saved.speed,
+                                  saved.seed);
   simulation.load(saveData);
   return simulation;
 };
 
 
 // Restores a saved game over this city of the same map size. The save holds the complete state, the level, speed,
-// seed and stream's included, so nothing the city held before survives.
+// seed and stream's included, so nothing of the city it replaces survives, down to the date last sent to the UI.
 Simulation.prototype.load = function(saveData) {
   if (saveData.scannedState === undefined)
     throw new Error('A save from before version 5 must be migrated before it is loaded');
 
-  if (saveData.width !== this._map.width || saveData.height !== this._map.height)
-    throw new Error('A ' + saveData.width + 'x' + saveData.height + ' save cannot be loaded over a ' +
+  var map = saveData.map;
+  if (map.width !== this._map.width || map.height !== this._map.height)
+    throw new Error('A ' + map.width + 'x' + map.height + ' save cannot be loaded over a ' +
                     this._map.width + 'x' + this._map.height + ' city');
 
   this._loadSaved(saveData);
+  this._cityYearLast = -1;
+  this._cityMonthLast = -1;
 
   if (saveData.scannedState !== null) {
     this._loadScanned(saveData.scannedState);
@@ -242,11 +249,14 @@ Simulation.prototype.load = function(saveData) {
 
 // Everything a save holds but its scanned state
 Simulation.prototype._loadSaved = function(saveData) {
+  var simulation = saveData.simulation;
+  this.setLevel(simulation.gameLevel);
+  this.setSpeed(simulation.speed);
   for (var i = 0, l = saveProps.length; i < l; i++)
-    this[saveProps[i]] = saveData[saveProps[i]];
+    this['_' + saveProps[i]] = simulation[saveProps[i]];
 
-  this.seed = saveData.seed;
-  this.random.setState(saveData.randomState);
+  this.seed = simulation.seed;
+  this.random.setState(simulation.randomState);
 
   this._map.load(saveData);
   this.evaluation.load(saveData);
@@ -683,10 +693,6 @@ Simulation.prototype._checkGrowth = function() {
 
 
 Simulation.prototype._onValveChange  = function() {
-  this._resLast = this._valves.resValve;
-  this._comLast = this._valves.comValve;
-  this._indLast = this._valves.indValve;
-
   this._emitEvent(Messages.VALVES_UPDATED, {residential: this._valves.resValve,
                                             commercial: this._valves.comValve,
                                             industrial: this._valves.indValve});

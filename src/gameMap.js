@@ -69,24 +69,28 @@ function GameMap(width, height, defaultValue) {
 var saveProps = ['cityCentreX', 'cityCentreY', 'pollutionMaxX', 'pollutionMaxY', 'width', 'height'];
 
 GameMap.prototype.save = function(saveData) {
+  var map = {};
   for (var i = 0, l = saveProps.length; i < l; i++)
-    saveData[saveProps[i]] = this[saveProps[i]];
+    map[saveProps[i]] = this[saveProps[i]];
 
-  saveData.map = this._data.map(function(t) {
-    return {value: t.getRawValue()};
+  map.tiles = this._data.map(function(t) {
+    return t.getRawValue();
   });
+
+  saveData.map = map;
 };
 
 
 GameMap.prototype.load = function(saveData) {
+  var map = saveData.map;
   for (var i = 0, l = saveProps.length; i < l; i++)
-    this[saveProps[i]] = saveData[saveProps[i]];
+    this[saveProps[i]] = map[saveProps[i]];
 
   // Each tile takes its saved value and flags exactly: setTileValue would keep a tile's flags where the saved value
   // has none, so flags of the map loaded over would survive
-  var map = saveData.map;
-  for (i = 0, l = map.length; i < l; i++)
-    this._data[i].set(map[i].value & BIT_MASK, map[i].value & ALLBITS);
+  var tiles = map.tiles;
+  for (i = 0, l = tiles.length; i < l; i++)
+    this._data[i].set(tiles[i] & BIT_MASK, tiles[i] & ALLBITS);
 };
 
 

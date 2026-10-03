@@ -50,12 +50,8 @@ export interface Simulation {
 
 // The parts of a saved state the headless code reads or overrides. The rest is in docs/state-hash.md.
 export interface SaveData {
-  width: number;
-  height: number;
-  seed: number;
-  randomState: number[];
-  _gameLevel: number;
-  _speed: number;
+  simulation: {seed: number, randomState: number[], gameLevel: number, speed: number};
+  map: {width: number, height: number};
 }
 
 export const Level = {

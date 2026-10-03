@@ -44,42 +44,44 @@ The canonical text is JSON with these rules:
 The saved state is the object `Simulation.save` writes. It holds everything that determines how the city evolves,
 the random stream included, so a city restored from it continues exactly as it would have without the save.
 
-Every key below is required. Unless noted, numbers are integers. A list ordered "row by row" holds the entry for
-(x, y) at index `width * y + x`, where `width` is the list's own width: the map's width in tiles for a per-tile
-list, and the block map's width in blocks for a block map.
+Each component's state is an object under its own key: `simulation`, `map`, `evaluation`, `valves`, `budget`, `census`,
+`sprites` and `disasters`. What the scans derive is under `scannedState`. Every key below is required. Unless noted,
+numbers are integers. A list ordered "row by row" holds the entry for (x, y) at index `width * y + x`, where `width`
+is the list's own width: the map's width in tiles for a per-tile list, and the block map's width in blocks for a
+block map.
 
 ### Simulation
 
 | Key | Value |
 |-----|-------|
-| `_cityTime` | City time: four per month, 48 per year, counted from 1900 |
-| `_speed` | 0 paused, 1 slow, 2 medium, 3 fast |
-| `_gameLevel` | 0 easy, 1 medium, 2 hard |
-| `_speedCycle` | The step counter, 0–1023, which lets a phase through on every 5th step at slow speed, every 3rd at medium and every step at fast |
-| `_phaseCycle` | The phase the next simulation pass runs, 0–15 |
-| `_simCycle` | The cycle counter, 0–1023, which sets how often the slower scans run |
-| `_cityPopLast` | The population at the last growth check, which decides whether to announce a new city class |
-| `_messageLast` | The last city-class announcement sent, or `null`: `"Now a town"`, `"Now a city"`, `"Now a capital"`, `"Now a metropolis"` or `"Now a megalopolis"` (the `REACHED_` messages in `src/messages.ts`) |
-| `_lastPowerMessage` | The city time of the last power shortage or blackout notification, or `null` for none |
-| `_initialEvaluationPending` | `true` until the city has been evaluated before its first phase |
-| `seed` | The game seed, a uint32 |
-| `randomState` | The simulation stream's four uint32 state words (`src/random.ts`) |
+| `simulation.cityTime` | City time: four per month, 48 per year, counted from 1900 |
+| `simulation.speed` | 0 paused, 1 slow, 2 medium, 3 fast |
+| `simulation.gameLevel` | 0 easy, 1 medium, 2 hard |
+| `simulation.speedCycle` | The step counter, 0–1023, which lets a phase through on every 5th step at slow speed, every 3rd at medium and every step at fast |
+| `simulation.phaseCycle` | The phase the next simulation pass runs, 0–15 |
+| `simulation.simCycle` | The cycle counter, 0–1023, which sets how often the slower scans run |
+| `simulation.cityPopLast` | The population at the last growth check, which decides whether to announce a new city class |
+| `simulation.messageLast` | The last city-class announcement sent, or `null`: `"Now a town"`, `"Now a city"`, `"Now a capital"`, `"Now a metropolis"` or `"Now a megalopolis"` (the `REACHED_` messages in `src/messages.ts`) |
+| `simulation.lastPowerMessage` | The city time of the last power shortage or blackout notification, or `null` for none |
+| `simulation.initialEvaluationPending` | `true` until the city has been evaluated before its first phase |
+| `simulation.seed` | The game seed, a uint32 |
+| `simulation.randomState` | The simulation stream's four uint32 state words (`src/random.ts`) |
 
 ### Map
 
 | Key | Value |
 |-----|-------|
-| `width`, `height` | The map's size in tiles |
-| `map` | One `{"value": raw}` per tile, row by row. `raw` is the tile value (bits 0–9) combined with its flags (bits 10–15, `src/tileFlags.ts`) |
-| `cityCentreX`, `cityCentreY` | The population centre |
-| `pollutionMaxX`, `pollutionMaxY` | The most polluted tile |
+| `map.width`, `map.height` | The map's size in tiles |
+| `map.tiles` | One raw value per tile, row by row: the tile value (bits 0–9) combined with its flags (bits 10–15, `src/tileFlags.ts`) |
+| `map.cityCentreX`, `map.cityCentreY` | The population centre |
+| `map.pollutionMaxX`, `map.pollutionMaxY` | The most polluted tile |
 
 ### Evaluation
 
 | Key | Value |
 |-----|-------|
-| `cityClass` | `"VILLAGE"`, `"TOWN"`, `"CITY"`, `"CAPITAL"`, `"METROPOLIS"` or `"MEGALOPOLIS"` |
-| `cityScore` | The city score, 0–1000 |
+| `evaluation.cityClass` | `"VILLAGE"`, `"TOWN"`, `"CITY"`, `"CAPITAL"`, `"METROPOLIS"` or `"MEGALOPOLIS"` |
+| `evaluation.cityScore` | The city score, 0–1000 |
 | `evaluation.cityYes` | Voters approving of the mayor, out of 100 |
 | `evaluation.cityPop`, `evaluation.cityPopDelta` | The evaluated population and its last change |
 | `evaluation.cityAssessedValue` | The assessed value |
@@ -92,20 +94,20 @@ list, and the block map's width in blocks for a block map.
 
 | Key | Value |
 |-----|-------|
-| `resValve`, `comValve`, `indValve` | Residential, commercial and industrial demand |
+| `valves.resValve`, `valves.comValve`, `valves.indValve` | Residential, commercial and industrial demand |
 | `valves.resCap`, `valves.comCap`, `valves.indCap` | Whether the advisor has capped each demand |
 
 ### Budget
 
 | Key | Value |
 |-----|-------|
-| `totalFunds` | Funds |
-| `cityTax` | The tax rate, percent |
-| `autoBudget` | Whether the budget is set automatically |
-| `roadPercent`, `firePercent`, `policePercent` | The share of each service's need funded, a number from 0 to 1, not always an integer |
-| `roadSpend`, `fireSpend`, `policeSpend` | What each service is funded |
-| `roadMaintenanceBudget`, `fireMaintenanceBudget`, `policeMaintenanceBudget` | What each service needs |
-| `roadEffect`, `fireEffect`, `policeEffect` | Each service's effectiveness |
+| `budget.totalFunds` | Funds |
+| `budget.cityTax` | The tax rate, percent |
+| `budget.autoBudget` | Whether the budget is set automatically |
+| `budget.roadPercent`, `budget.firePercent`, `budget.policePercent` | The share of each service's need funded, a number from 0 to 1, not always an integer |
+| `budget.roadSpend`, `budget.fireSpend`, `budget.policeSpend` | What each service is funded |
+| `budget.roadMaintenanceBudget`, `budget.fireMaintenanceBudget`, `budget.policeMaintenanceBudget` | What each service needs |
+| `budget.roadEffect`, `budget.fireEffect`, `budget.policeEffect` | Each service's effectiveness |
 | `budget.cashFlow` | The last year's cash flow |
 | `budget.taxFund` | The last tax collected |
 | `budget.awaitingValues` | Whether the simulation waits for the player to set the budget |
@@ -114,19 +116,19 @@ list, and the block map's width in blocks for a block map.
 
 | Key | Value |
 |-----|-------|
-| `resPop`, `comPop`, `indPop` | Residential, commercial and industrial population |
-| `totalPop` | The normalised total population |
-| `crimeRamp`, `pollutionRamp` | Smoothed crime and pollution |
-| `landValueAverage`, `pollutionAverage`, `crimeAverage` | Map averages |
-| `resHist10`, `comHist10`, `indHist10`, `crimeHist10`, `moneyHist10`, `pollutionHist10` | 120 entries each, newest first, one per 10-cycle census |
-| `resHist120`, …, `pollutionHist120` | 120 entries each, newest first, one per 120-cycle census |
+| `census.resPop`, `census.comPop`, `census.indPop` | Residential, commercial and industrial population |
+| `census.totalPop` | The normalised total population |
+| `census.crimeRamp`, `census.pollutionRamp` | Smoothed crime and pollution |
+| `census.landValueAverage`, `census.pollutionAverage`, `census.crimeAverage` | Map averages |
+| `census.resHist10`, `census.comHist10`, `census.indHist10`, `census.crimeHist10`, `census.moneyHist10`, `census.pollutionHist10` | 120 entries each, newest first, one per 10-cycle census |
+| `census.resHist120`, …, `census.pollutionHist120` | 120 entries each, newest first, one per 120-cycle census |
 
 ### Sprites and disasters
 
 | Key | Value |
 |-----|-------|
 | `sprites.spriteCycle` | The sprite movement counter |
-| `sprites.list` | Every sprite in the order they move, each an object with `type` (1 train, 2 helicopter, 3 airplane, 4 ship, 5 monster, 6 tornado, 7 explosion), `frame` (0 for a sprite that has died this pass), `x`, `y` (pixels), `origX`, `origY`, `destX`, `destY`, `count`, `soundCount`, `dir`, `newDir`, `step`, `flag`, `turn`, `accel` and `speed`, and for a monster also `_seenLand` (boolean). A sprite's size and drawing offset are fixed by its type and not saved |
+| `sprites.list` | Every sprite in the order they move, each an object with `type` (1 train, 2 helicopter, 3 airplane, 4 ship, 5 monster, 6 tornado, 7 explosion), `frame` (0 for a sprite that has died this pass), `x`, `y` (pixels), `origX`, `origY`, `destX`, `destY`, `count`, `soundCount`, `dir`, `newDir`, `step` and `flag`, and for a monster also `_seenLand` (boolean). A sprite's size and drawing offset are fixed by its type and not saved |
 | `disasters.floodCount` | Passes left until a flood recedes |
 | `disasters.disastersEnabled` | Whether random disasters happen |
 

@@ -83,9 +83,6 @@ var init = function(type, map, spriteManager, random, x, y) {
   this.newDir = 0;
   this.step = 0;
   this.flag = 0;
-  this.turn = 0;
-  this.accel = 0;
-  this.speed = 100;
 };
 
 
@@ -104,7 +101,7 @@ var spriteNotInBounds = function() {
 
 // A sprite's saved state. Its size and offsets are its type's, on the prototype, so they aren't saved.
 var saveProps = ['type', 'frame', 'x', 'y', 'origX', 'origY', 'destX', 'destY', 'count', 'soundCount', 'dir',
-                 'newDir', 'step', 'flag', 'turn', 'accel', 'speed'];
+                 'newDir', 'step', 'flag'];
 
 
 var getSaveProps = function() {

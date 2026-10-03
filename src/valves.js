@@ -35,21 +35,20 @@ var taxTable = [
   -150, -200, -250, -300, -350, -400, -450, -500, -550, -600];
 var extMarketParamTable = [1.2, 1.1, 0.98];
 
+var saveProps = ['resValve', 'comValve', 'indValve', 'resCap', 'comCap', 'indCap'];
+
 Valves.prototype.save = function(saveData) {
-  saveData.resValve = this.resValve;
-  saveData.comValve = this.comValve;
-  saveData.indValve = this.indValve;
-  saveData.valves = {resCap: this.resCap, comCap: this.comCap, indCap: this.indCap};
+  var valves = {};
+  for (var i = 0, l = saveProps.length; i < l; i++)
+    valves[saveProps[i]] = this[saveProps[i]];
+
+  saveData.valves = valves;
 };
 
 
 Valves.prototype.load = function(saveData) {
-  this.resValve = saveData.resValve;
-  this.comValve = saveData.comValve;
-  this.indValve = saveData.indValve;
-  this.resCap = saveData.valves.resCap;
-  this.comCap = saveData.valves.comCap;
-  this.indCap = saveData.valves.indCap;
+  for (var i = 0, l = saveProps.length; i < l; i++)
+    this[saveProps[i]] = saveData.valves[saveProps[i]];
 
   this._emitEvent(VALVES_UPDATED);
 };

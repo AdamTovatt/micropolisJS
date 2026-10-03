@@ -16,9 +16,9 @@ import { Random } from "../src/random";
 
 // Every tile's raw value, flags included
 function rawTiles(seed: number): number[] {
-    const saveData: {map?: {value: number}[]} = {};
+    const saveData: {map?: {tiles: number[]}} = {};
     MapGenerator(Random.mapStream(seed)).save(saveData);
-    return saveData.map!.map((tile) => tile.value);
+    return saveData.map!.tiles;
 }
 
 describe("the map generator", () => {
