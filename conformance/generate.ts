@@ -506,9 +506,11 @@ function repairVectors(): object[] {
 const FIRE_FIXTURES = ["suburbBroke", "town"];
 
 // Each zone centre set on fire: its block's rate of growth after, and the seven by seven tiles from its upper left
-// neighbour, which hold the furthest the sweep reaches
+// neighbour, which hold the furthest the sweep reaches; then a zone laid where the sweep runs off the map
 function fireZoneVectors(): object[] {
-  const fires = FIRE_FIXTURES.flatMap((fixture) => {
+  type FireVector = {fixture: string, x: number, y: number, value: number, laid: number | null, rateOfGrowth: number,
+                     areaSize: number, area: number[]};
+  const fires: FireVector[] = FIRE_FIXTURES.flatMap((fixture) => {
     const save = writtenSave(fixture, "built");
     const map = helperCity(save)._map;
     const centres: {fixture: string, x: number, y: number, value: number}[] = [];
@@ -524,10 +526,20 @@ function fireZoneVectors(): object[] {
     return centres.map((centre) => {
       const city = helperCity(save);
       ZoneUtils.fireZone(city._map, centre.x, centre.y, city.blockMaps);
-      return {...centre, rateOfGrowth: city.blockMaps.rateOfGrowthMap.worldGet(centre.x, centre.y),
-              area: areaFrom(city._map, centre.x - 1, centre.y - 1, 7)};
+      return {...centre, laid: null, rateOfGrowth: city.blockMaps.rateOfGrowthMap.worldGet(centre.x, centre.y),
+              areaSize: 7, area: areaFrom(city._map, centre.x - 1, centre.y - 1, 7)};
     });
   });
+
+  // A power plant laid in the map's lower right corner, whose sweep, a row and a column past the plant, is off the map
+  const fixture = FIRE_FIXTURES[0];
+  const city = helperCity(writtenSave(fixture, "built"));
+  const corner = {x: city._map.width - 3, y: city._map.height - 3};
+  city._map.putZone(corner.x, corner.y, TileValues.POWERPLANT, 4);
+  ZoneUtils.fireZone(city._map, corner.x, corner.y, city.blockMaps);
+  fires.push({fixture, ...corner, value: TileValues.POWERPLANT, laid: 4,
+              rateOfGrowth: city.blockMaps.rateOfGrowthMap.worldGet(corner.x, corner.y),
+              areaSize: 4, area: areaFrom(city._map, corner.x - 1, corner.y - 1, 4)});
 
   ensureCovers(fires.some((fire) => fire.value === TileValues.AIRPORT), "the airport on fire");
   ensureCovers(fires.some((fire) => ZoneUtils.checkZoneSize(fire.value) === 4), "a 4×4 zone on fire");

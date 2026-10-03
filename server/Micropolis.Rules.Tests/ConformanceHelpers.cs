@@ -88,10 +88,12 @@ namespace Micropolis.Rules.Tests
     public sealed record HelperPosition(int X, int Y);
 
     /// <summary>
-    /// A zone centre of a fixture's built save set on fire: its block's rate of growth after, and the seven by seven
-    /// tiles from its upper left neighbour after, as raw values row by row.
+    /// A zone centre of a fixture's built save set on fire, or a zone of <see cref="Laid"/> tiles a side laid there
+    /// first: its block's rate of growth after, and the <see cref="AreaSize"/> by <see cref="AreaSize"/> tiles from
+    /// its upper left neighbour after, as raw values row by row.
     /// </summary>
-    public sealed record HelperFireZone(string Fixture, int X, int Y, int Value, int RateOfGrowth, IReadOnlyList<int> Area);
+    public sealed record HelperFireZone(
+        string Fixture, int X, int Y, int Value, int? Laid, int RateOfGrowth, int AreaSize, IReadOnlyList<int> Area);
 
     /// <summary>
     /// A block's rate of growth before and after a change of it.

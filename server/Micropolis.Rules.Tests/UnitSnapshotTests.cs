@@ -66,8 +66,9 @@ namespace Micropolis.Rules.Tests
             }
         }
 
-        // The scanner's core alone, with no handler registered: power to the conductive tiles, the zone counts and the
-        // repairs, which are ported
+        // The scanner's core alone, with no handler registered: power to the conductive tiles and the zone counts. No
+        // repair is registered either, so the scan's calls to the repair manager are proven by the records of the
+        // families that register repairs, and RepairManager.CheckTile itself by helpers.json's repairs.
         [TestMethod]
         public void MapScan_WithNoHandlers_MatchesTypeScript()
         {

@@ -162,12 +162,16 @@ namespace Micropolis.Rules.Tests
             foreach (HelperFireZone fire in Helpers.FireZones)
             {
                 Simulation city = City(fire.Fixture, "built");
+                if (fire.Laid is int size)
+                {
+                    city.Map.PutZone(fire.X, fire.Y, fire.Value, size);
+                }
 
                 ZoneUtils.FireZone(city.Map, fire.X, fire.Y, city.BlockMaps);
 
                 string zone = $"{fire.Fixture}: the zone at ({fire.X}, {fire.Y})";
                 Assert.AreEqual(fire.RateOfGrowth, city.BlockMaps.RateOfGrowthMap.WorldGet(fire.X, fire.Y), zone);
-                CollectionAssert.AreEqual(fire.Area.ToList(), Area(city.Map, fire.X - 1, fire.Y - 1, 7), zone);
+                CollectionAssert.AreEqual(fire.Area.ToList(), Area(city.Map, fire.X - 1, fire.Y - 1, fire.AreaSize), zone);
             }
         }
 

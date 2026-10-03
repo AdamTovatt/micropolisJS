@@ -64,13 +64,14 @@ function isPowerLine(id: number): boolean {
 }
 
 // Advances a unit of city time at a time, the time a scan of the map takes, until the city holds what is tested, and
-// answers the city then. It fails naming what it waited for when that never holds within the units given.
-async function advanceUntil(player: Player, holds: (save: GameSave) => boolean, what: string,
-                            limit: number): Promise<GameSave> {
+// returns the save it holds in. When that never comes within the units given, it fails naming what it waited for,
+// and the city as `describe` tells it, if given.
+async function advanceUntil(player: Player, holds: (save: GameSave) => boolean, what: string, limit: number,
+                            describe?: (save: GameSave) => string): Promise<GameSave> {
   let save = await player.save();
   for (let time = 0; !holds(save); time++) {
     if (time === limit) {
-      throw new Error(`Waited ${limit} units of city time for ${what}`);
+      throw new Error(`Waited ${limit} units of city time for ${what}${describe ? `: ${describe(save)}` : ""}`);
     }
 
     await player.advance(stepsPerCityTime(Simulation.SPEED_MED));
@@ -221,7 +222,7 @@ export const STAGES: Stage[] = [
     async play(player) {
       // The fire lands where the stream puts it, so the stage reads where from the city, then builds a fire station
       // whose cover reaches it, with a road beside it and a power line to the grid, all chosen from the city around
-      // the fire. Building takes no steps, so the station answers the fire from its first scan.
+      // the fire. Building takes no steps, so the station stands before the fire's first scan.
       await player.triggerDisaster("Fire");
       const lit = await player.save();
       const fires = tilesWhere(lit, TileUtils.isFire);
@@ -237,20 +238,23 @@ export const STAGES: Stage[] = [
       expect(line.every(isPowerLine), `the power line's tiles ${line}`).toBe(true);
 
       // Even under the strongest cover a burning tile goes out on only one scan in eight, so a fire can last a year
-      const out = await advanceUntil(player, (save) => tilesWhere(save, TileUtils.isFire).length === 0,
-                                     "the fire to go out", 2 * CITY_TIME_PER_YEAR);
+      const burning = (save: GameSave) => tilesWhere(save, TileUtils.isFire);
+      const out = await advanceUntil(player, (save) => burning(save).length === 0, "the fire to go out",
+                                     2 * CITY_TIME_PER_YEAR, (save) => `burning at ${JSON.stringify(burning(save))}`);
       const burnt = tileAt(out, fire);
       expect(burnt >= RUBBLE && burnt <= LASTRUBBLE, `the burnt tile, ${burnt}, is rubble`).toBe(true);
 
       // The fire may go out before the power scan, which runs on some cycles only, reaches the station, and before
       // the fire analysis, which runs on fewer, spreads the station's cover
+      const where = `the station at (${plan.centre.x}, ${plan.centre.y}) for the fire at (${fire.x}, ${fire.y})`;
       await advanceUntil(player, (save) => (rawTileAt(save, plan.centre) & POWERBIT) !== 0,
-                         "the fire station's power", CITY_TIME_PER_YEAR);
+                         `the power of ${where}`, CITY_TIME_PER_YEAR);
       await advanceUntil(player, (save) => savedFireCover(save, fire) > STRONGEST_COVER,
-                         "the fire department's strongest cover where the fire was", CITY_TIME_PER_YEAR);
+                         `the strongest cover where the fire was, from ${where}`, CITY_TIME_PER_YEAR,
+                         (save) => `the cover there is ${savedFireCover(save, fire)}`);
       await player.showTiles([fire]);
       expect(await player.queryDebugFigure(fire, "queryFireStationEffectRaw"),
-             "the fire department's cover where the fire was").toBeGreaterThan(STRONGEST_COVER);
+             "the query window's figure for the cover where the fire was").toBeGreaterThan(STRONGEST_COVER);
     },
   },
   {

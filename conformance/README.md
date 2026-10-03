@@ -106,9 +106,11 @@ What the helpers the tile handlers share answered in the TypeScript:
   (`landPollutionValue`). The generator fails unless they cover an empty residential zone, a commercial and an
   industrial zone, a zone with no road on its perimeter, and each land pollution value from 0 to 3.
 - `fireZones`: each zone centre of the built saves of the fixtures `generate.ts` names, set on fire by
-  `ZoneUtils.fireZone` (`fixture`, `x`, `y`, `value`): the `rateOfGrowth` of its block after, and the seven by seven
-  tiles from the centre's upper left neighbour after (`area`), as raw values row by row. The generator fails unless
-  they cover the airport, a 4×4 zone and a 3×3 zone.
+  `ZoneUtils.fireZone` (`fixture`, `x`, `y`, `value`), then a power plant laid in the map's lower right corner first
+  (`laid`, the size of the zone laid, or `null`), whose sweep runs off the map: the `rateOfGrowth` of its block after,
+  and the `areaSize` by `areaSize` tiles from the centre's upper left neighbour after (`area`), as raw values row by
+  row, seven by seven but for the corner's. The generator fails unless they cover the airport, a 4×4 zone and a 3×3
+  zone.
 - `rateOfGrowth`: `ZoneUtils.incRateOfGrowth` by `delta` on a block whose rate of growth was `start`, and the
   `result`, from either end of the map's range to its middle.
 - `putZones`: `ZoneUtils.putZone` on a `fixture`'s built map, at the centre (`x`, `y`) of its first three by three

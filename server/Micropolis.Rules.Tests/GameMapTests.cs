@@ -112,20 +112,25 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
-        public void PutZone_OnTheMap_CountsTheValuesUpFromTheUpperLeftWithTheCentreAZone()
+        [DataRow(FREEZ, 3)]
+        [DataRow(POWERPLANT, 4)]
+        public void PutZone_OnTheMap_CountsTheValuesUpFromTheUpperLeftWithTheCentreAZone(int centreTile, int size)
         {
-            GameMap map = new GameMap(5, 5);
+            GameMap map = new GameMap(6, 6);
 
-            map.PutZone(2, 2, FREEZ, 3);
+            map.PutZone(2, 2, centreTile, size);
 
-            for (int i = 0; i < 9; i++)
+            for (int i = 0; i < size * size; i++)
             {
-                int x = 1 + (i % 3);
-                int y = 1 + (i / 3);
+                int x = 1 + (i % size);
+                int y = 1 + (i / size);
                 int flags = x == 2 && y == 2 ? BNCNBIT | ZONEBIT : BNCNBIT;
-                Assert.AreEqual(FREEZ - 4 + i, map.GetTileValue(x, y), $"({x}, {y})");
+                Assert.AreEqual(centreTile - 1 - size + i, map.GetTileValue(x, y), $"({x}, {y})");
                 Assert.AreEqual(flags, map.GetTileFlags(x, y), $"({x}, {y})");
             }
+
+            int laid = Enumerable.Range(0, 36).Count(i => map.GetTileValue(i % 6, i / 6) != DIRT);
+            Assert.AreEqual(size * size, laid);
         }
 
         [TestMethod]

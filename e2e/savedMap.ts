@@ -11,6 +11,7 @@
  *
  */
 
+import { BlockMap } from "../src/blockMap";
 import { BIT_MASK } from "../src/tileFlags";
 import type { GameSave, Tile } from "./player";
 
@@ -58,6 +59,15 @@ export function tilesIn(rect: Rect): Tile[] {
 // The tiles at most reach from the centre either way, row by row
 export function tilesAround(centre: Tile, reach: number): Tile[] {
   return tilesIn({left: centre.x - reach, top: centre.y - reach, right: centre.x + reach, bottom: centre.y + reach});
+}
+
+// A block map's value at a tile, as the save holds the map under its scanned state, by its name in the simulation's
+// block maps and its block size there
+export function savedBlockMapAt(save: GameSave, name: string, blockSize: number, tile: Tile): number {
+  const blockMaps = (save.scannedState as {blockMaps: Record<string, number[]>}).blockMaps;
+  const map = new BlockMap(save.map.width, save.map.height, blockSize);
+  map.load(blockMaps[name]);
+  return map.worldGet(tile.x, tile.y);
 }
 
 // How many tiles apart two tiles are, counting a diagonal step as one

@@ -17,7 +17,7 @@ import { CONDBIT } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import { DIRT, NUCLEAR, POWERPLANT, ROADS, ROADS2, TREEBASE, WOODS5 } from "../src/tileValues";
 import type { GameSave, Player, Tile } from "./player";
-import { chebyshev, inBounds, rawTileAt, tileAt, tilesAround, tilesIn, tilesWhere } from "./savedMap";
+import { chebyshev, inBounds, rawTileAt, savedBlockMapAt, tileAt, tilesAround, tilesIn, tilesWhere } from "./savedMap";
 
 // Where the playthrough's fire stage builds its fire station, chosen from the city as the fire left it, so the stage
 // holds wherever the random stream lands the fire: a site whose cover reaches the fire, a road beside it, and a power
@@ -35,6 +35,11 @@ export interface StationPlan {
 // The fire department's cover above which a fire goes out on half the scans that test it, against one in eleven
 // uncovered: the strongest there is
 export const STRONGEST_COVER = 100;
+
+// How far from a burning tile the plan keeps everything it builds and every tile it counts on the grid: a fire sets
+// its burnable neighbours alight, and those spread again on later scans, at the weakest cover until the station's
+// arrives, so a fire reaches two tiles out before the station answers it
+const FIRE_MARGIN = 2;
 
 // The block size of the fire station maps, as the Simulation constructor makes them
 const FIRE_BLOCK_SIZE = 8;
@@ -75,9 +80,9 @@ class FireSite {
     return tile.x + tile.y * this.save.map.width;
   }
 
-  // Not beside a burning tile, which the fire may spread to
+  // Further than FIRE_MARGIN from every burning tile
   clearOfFire(tile: Tile): boolean {
-    return this.fires.every((fire) => chebyshev(fire, tile) > 1);
+    return this.fires.every((fire) => chebyshev(fire, tile) > FIRE_MARGIN);
   }
 
   // Clear land or trees, which a building or a line clears with auto-bulldoze, clear of the fire
@@ -171,7 +176,8 @@ export function planStation(save: GameSave, fire: Tile): StationPlan {
 function lineToTheGrid(site: FireSite, grid: Set<number>, centre: Tile, road: Tile): Tile[] | null {
   const station = tilesAround(centre, 1);
   const stationTiles = new Set(station.map((tile) => site.index(tile)));
-  const touchesTheGrid = (tile: Tile) => NEIGHBOURS.some((by) => grid.has(site.index(step(tile, by))));
+  const touchesTheGrid = (tile: Tile) => NEIGHBOURS.some((by) => inBounds(site.save, step(tile, by)) &&
+                                                                 grid.has(site.index(step(tile, by))));
 
   if (station.some(touchesTheGrid)) {
     return [];
@@ -250,9 +256,7 @@ function lineToTheGrid(site: FireSite, grid: Set<number>, centre: Tile, road: Ti
 
 // The fire department's cover at the tile as the save holds it, from the last fire analysis
 export function savedFireCover(save: GameSave, tile: Tile): number {
-  const cover = (save.scannedState as {blockMaps: {fireStationEffectMap: number[]}}).blockMaps.fireStationEffectMap;
-  const blocksAcross = Math.ceil(save.map.width / FIRE_BLOCK_SIZE);
-  return cover[blocksAcross * Math.floor(tile.y / FIRE_BLOCK_SIZE) + Math.floor(tile.x / FIRE_BLOCK_SIZE)];
+  return savedBlockMapAt(save, "fireStationEffectMap", FIRE_BLOCK_SIZE, tile);
 }
 
 // A line as straight runs of at most longest tiles, each from its first tile to its last, in order: each a drag of the

@@ -17,23 +17,29 @@ import { planStation, runsOf, savedFireCover, StationPlan, STRONGEST_COVER } fro
 import { BlockMap } from "../src/blockMap";
 import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { CONDBIT, ZONEBIT } from "../src/tileFlags";
-import { DIRT, FIRE, LHPOWER, POWERPLANT, RIVER, ROADS2, TREEBASE, WOODS, WOODS5 } from "../src/tileValues";
+import { TileUtils } from "../src/tileUtils.js";
+import { DIRT, FIRE, LHPOWER, POWERPLANT, RIVER, ROADS, ROADS2, TREEBASE, WOODS, WOODS5 } from "../src/tileValues";
 
 const WIDTH = 48;
 const HEIGHT = 32;
 const PLANT = {x: 5, y: 5};
 const FULL_FUNDING = 1000;
 
-// The coal plant's four by four tiles, the grid the tests start from
-const plantTiles = tilesIn({left: PLANT.x - 1, top: PLANT.y - 1, right: PLANT.x + 2, bottom: PLANT.y + 2});
+// A coal plant's four by four tiles, from the one above and left of its centre
+function plantTilesOf(centre: Tile): Tile[] {
+  return tilesIn({left: centre.x - 1, top: centre.y - 1, right: centre.x + 2, bottom: centre.y + 2});
+}
 
-// A map of clear land with a coal plant whose centre is PLANT, then the tiles given, as raw values
-function saveWith(tiles: [Tile, number][]): GameSave {
+// The plant's tiles, the grid the tests start from
+const plantTiles = plantTilesOf(PLANT);
+
+// A map of clear land with a coal plant whose centre is the one given, then the tiles given, as raw values
+function saveWith(tiles: [Tile, number][], plant: Tile = PLANT): GameSave {
   const values = new Array<number>(WIDTH * HEIGHT).fill(DIRT);
-  plantTiles.forEach((tile, i) => {
+  plantTilesOf(plant).forEach((tile, i) => {
     values[tile.x + tile.y * WIDTH] = (POWERPLANT - 5 + i) | CONDBIT;
   });
-  values[PLANT.x + PLANT.y * WIDTH] = POWERPLANT | CONDBIT | ZONEBIT;
+  values[plant.x + plant.y * WIDTH] = POWERPLANT | CONDBIT | ZONEBIT;
   for (const [tile, value] of tiles) {
     values[tile.x + tile.y * WIDTH] = value;
   }
@@ -68,14 +74,31 @@ function coverAt(save: GameSave, centre: Tile, fire: Tile): number {
   return fireStationEffectMap.worldGet(fire.x, fire.y);
 }
 
+// The tiles a fire may reach before the station answers it, either way
+const FIRE_REACH = 2;
+
+// A line tile the wire tool lays on: clear land or trees, or a straight road the line crosses at right angles, so
+// with its neighbours in the line above and below a road running across, or beside one running down
+function laysOn(save: GameSave, line: Tile[], i: number): boolean {
+  const id = tileAt(save, line[i]);
+  if (id === DIRT || (id >= TREEBASE && id <= WOODS5)) {
+    return true;
+  }
+
+  const road = TileUtils.normalizeRoad(id);
+  const neighbours = [line[i - 1], line[i + 1]];
+  return i < line.length - 1 && (road === ROADS || road === ROADS2) &&
+    neighbours.every((tile) => tile === undefined || (road === ROADS ? tile.x === line[i].x : tile.y === line[i].y));
+}
+
 // What a plan must hold wherever the fire is: a station clear of the fire whose cover reaches it at the strongest,
 // a road where the station looks for one, and a line that runs unbroken from beside the station to beside the grid,
-// never beside the fire, or none when the station touches the grid
+// over tiles the wire tool lays on and out of the fire's reach, or none when the station touches the grid
 function expectAWorkingPlan(save: GameSave, plan: StationPlan, fire: Tile, grid: Tile[] = plantTiles): void {
   const station = tilesAround(plan.centre, 1);
   const besideTheGrid = (tile: Tile) => grid.some((powered) => adjacent(tile, powered));
 
-  expect(station.filter((tile) => chebyshev(tile, fire) <= 1)).toEqual([]);
+  expect(station.filter((tile) => chebyshev(tile, fire) <= FIRE_REACH)).toEqual([]);
   expect(coverAt(save, plan.centre, fire)).toBeGreaterThan(STRONGEST_COVER);
   expect(chebyshev(plan.road, plan.centre)).toBe(2);
   expect(station.filter((tile) => adjacent(tile, plan.road))).not.toEqual([]);
@@ -89,7 +112,8 @@ function expectAWorkingPlan(save: GameSave, plan: StationPlan, fire: Tile, grid:
   expect(besideTheGrid(plan.line[plan.line.length - 1])).toBe(true);
   expect(plan.line.slice(1).flatMap((tile, i) => adjacent(tile, plan.line[i]) ? [] : [[plan.line[i], tile]]))
     .toEqual([]);
-  expect(plan.line.filter((tile) => chebyshev(tile, fire) <= 1)).toEqual([]);
+  expect(plan.line.filter((tile) => chebyshev(tile, fire) <= FIRE_REACH)).toEqual([]);
+  expect(plan.line.filter((_, i) => !laysOn(save, plan.line, i))).toEqual([]);
   expect(plan.line.filter((tile) => tile.x === plan.road.x && tile.y === plan.road.y)).toEqual([]);
 }
 
@@ -144,11 +168,11 @@ describe("the fire stage's station plan", () => {
         const save = saveWith([...cityLine.map((tile): [Tile, number] => [tile, LHPOWER | CONDBIT]), [fire, FIRE]]);
         const plan = planStation(save, fire);
 
-        expectAWorkingPlan(save, plan, fire, [...plantTiles, ...cityLine.filter((tile) => tile.x < fire.x - 1)]);
+        expectAWorkingPlan(save, plan, fire, [...plantTiles, ...cityLine.filter((tile) => tile.x < fire.x - FIRE_REACH)]);
     });
 
     // The fire beside the city's line, with water keeping the station to the side of the fire away from the plant: the
-    // line tiles beside the fire may burn, so the line runs round to the plant's side of them
+    // line tiles within the fire's reach may burn, so the line runs round to the plant's side of them
     it("counts the city's line beyond the tiles beside the fire as cut off", () => {
         const fire = {x: 20, y: 5};
         const cityLine = tilesIn({left: PLANT.x + 3, top: 6, right: 30, bottom: 6});
@@ -156,17 +180,33 @@ describe("the fire stage's station plan", () => {
                                ...filled({left: 12, top: 0, right: 19, bottom: 5}, RIVER), [fire, FIRE]]);
         const plan = planStation(save, fire);
 
-        expectAWorkingPlan(save, plan, fire, [...plantTiles, ...cityLine.filter((tile) => tile.x < fire.x - 1)]);
+        expectAWorkingPlan(save, plan, fire, [...plantTiles, ...cityLine.filter((tile) => tile.x < fire.x - FIRE_REACH)]);
     });
 
     it("ends the line where the station touches the grid", () => {
-        const fire = {x: 12, y: 5};
+        const fire = {x: 13, y: 5};
         const save = saveWith([...filled({left: 8, top: 0, right: WIDTH - 1, bottom: HEIGHT - 1}, RIVER),
                                ...filled({left: 8, top: 3, right: 10, bottom: 7}, DIRT), [fire, FIRE]]);
         const plan = planStation(save, fire);
 
         expectAWorkingPlan(save, plan, fire);
         expect(plan.line).toEqual([]);
+    });
+
+    // A plant at the map's right edge, in the rows of the only site, at the left edge: the tile left of the site's left
+    // column is no tile, though its index is the plant's in the row above
+    it("never counts a tile past the map's side edge as beside the grid", () => {
+        const fire = {x: 6, y: 2};
+        const plant = {x: WIDTH - 3, y: 1};
+        const water = [
+            {left: 3, top: 0, right: WIDTH - 6, bottom: 7},
+            {left: WIDTH - 4, top: 4, right: WIDTH - 1, bottom: 7},
+        ].flatMap((rect) => filled(rect, RIVER));
+        const save = saveWith([...water, [fire, FIRE]], plant);
+        const plan = planStation(save, fire);
+
+        expect(plan.centre).toEqual({x: 1, y: 1});
+        expectAWorkingPlan(save, plan, fire, plantTilesOf(plant));
     });
 
     // A line of trees between the fire and the plant, with a gap in it that a shortest line can pass through
@@ -192,6 +232,17 @@ describe("the fire stage's station plan", () => {
             .toEqual(new Array(3).fill(plan.line[crossing].y));
     });
 
+    // A band of trees between the station and the plant, with a road across it that a line running along it would
+    // take for the cheapest way through, which the wire tool can't lay
+    it("never runs a line along a road", () => {
+        const fire = {x: 30, y: 20};
+        const save = saveWith([...filled({left: 12, top: 0, right: 18, bottom: HEIGHT - 1}, WOODS),
+                               ...filled({left: 12, top: 15, right: 18, bottom: 15}, ROADS), [fire, FIRE]]);
+        const plan = planStation(save, fire);
+
+        expectAWorkingPlan(save, plan, fire);
+    });
+
     it("fails, naming the fire, when no site near it has room", () => {
         const fire = {x: 30, y: 20};
 
@@ -203,14 +254,18 @@ describe("the fire stage's station plan", () => {
 
 describe("the fire department's cover in a save", () => {
 
-    // Blocks of eight tiles a side, row by row: the 48 by 32 map is 6 blocks across
+    // Blocks of eight tiles a side, held row by row
     it("is the fire analysis's figure for the tile's block", () => {
-        const cover = new Array<number>(6 * 4).fill(0);
-        cover[6 * 2 + 3] = 218;
+        const blocksAcross = WIDTH / 8;
+        const covered = {x: 3, y: 2};
+        const strongest = 218;
+        const cover = new Array<number>(blocksAcross * (HEIGHT / 8)).fill(0);
+        cover[blocksAcross * covered.y + covered.x] = strongest;
         const save = {...saveWith([]), scannedState: {blockMaps: {fireStationEffectMap: cover}}};
 
-        expect([savedFireCover(save, {x: 24, y: 16}), savedFireCover(save, {x: 31, y: 23}),
-                savedFireCover(save, {x: 32, y: 23}), savedFireCover(save, {x: 31, y: 24})]).toEqual([218, 218, 0, 0]);
+        // The covered block's first and last tiles, then the tiles just past it to the right and below
+        const tiles = [{x: 24, y: 16}, {x: 31, y: 23}, {x: 32, y: 23}, {x: 31, y: 24}];
+        expect(tiles.map((tile) => savedFireCover(save, tile))).toEqual([strongest, strongest, 0, 0]);
     });
 });
 
