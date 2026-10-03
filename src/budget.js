@@ -134,6 +134,17 @@ Budget.prototype.forecast = function(percents) {
 };
 
 
+// Sets the funding percentages (0 to 1) of the services given, and leaves the others as they are
+Budget.prototype.setFunding = function(percents) {
+  if (percents.road !== undefined)
+    this.roadPercent = percents.road;
+  if (percents.fire !== undefined)
+    this.firePercent = percents.fire;
+  if (percents.police !== undefined)
+    this.policePercent = percents.police;
+};
+
+
 // User initiated budget
 Budget.prototype.doBudgetWindow = function() {
   return this.doBudgetNow(true);

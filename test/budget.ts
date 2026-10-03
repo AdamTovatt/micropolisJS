@@ -12,6 +12,7 @@
  */
 
 import { Budget } from "../src/budget.js";
+import { FundingChoice } from "../src/fundingChoice";
 
 type BudgetInstance = InstanceType<typeof Budget>;
 
@@ -27,9 +28,7 @@ function budgetWith(funds: number, taxes: number, maintenance = { road: 100, fir
     budget.roadMaintenanceBudget = maintenance.road;
     budget.fireMaintenanceBudget = maintenance.fire;
     budget.policeMaintenanceBudget = maintenance.police;
-    budget.roadPercent = held.road;
-    budget.firePercent = held.fire;
-    budget.policePercent = held.police;
+    budget.setFunding(held);
     return budget;
 }
 
@@ -37,10 +36,35 @@ function percentsOf(budget: BudgetInstance) {
     return { road: budget.roadPercent, fire: budget.firePercent, police: budget.policePercent };
 }
 
-describe("A year-end budget with cash for every service", () => {
+describe("Budget.setFunding", () => {
 
-    it("should keep every percentage", () => {
+    it("should set only the percentages given", () => {
+        const budget = budgetWith(0, 0);
+        budget.setFunding({ fire: 0.8 });
+
+        expect(percentsOf(budget)).toEqual({ ...held, fire: 0.8 });
+    });
+});
+
+// What Game.handleBudgetWindowClosure applies when the player presses OK without moving a slider. This covers the
+// budget's side; the window's own wiring, which sends FundingChoice.changes(), has no DOM to run in under these tests.
+describe("A budget given the funding of a window the player moved no slider in", () => {
+
+    const untouched = () => new FundingChoice(held).changes();
+
+    it("should keep every percentage during the year", () => {
         const budget = budgetWith(20000, 500);
+
+        budget.setFunding(untouched());
+        budget.updateFundEffects();
+
+        expect(percentsOf(budget)).toEqual(held);
+    });
+
+    it("should keep every percentage at a year-end budget with cash for every service", () => {
+        const budget = budgetWith(20000, 500);
+
+        budget.setFunding(untouched());
         budget.doBudgetWindow();
 
         expect(percentsOf(budget)).toEqual(held);

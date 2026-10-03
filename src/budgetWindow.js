@@ -13,6 +13,7 @@
 
 import $ from "jquery";
 
+import { FundingChoice, wholePercent } from './fundingChoice.ts';
 import { BUDGET_WINDOW_CLOSED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import { ModalWindow } from './modalWindow.js';
@@ -24,17 +25,17 @@ var BudgetWindow = ModalWindow(function() {
   $(budgetFormID).on('submit', submit.bind(this));
 
   for (var i = 0; i < services.length; i++)
-    $(MiscUtils.normaliseDOMid(services[i].rateKey)).on('input', updateFunding.bind(this));
+    $(MiscUtils.normaliseDOMid(services[i].sliderID)).on('input', onSliderMoved.bind(this, services[i]));
   $('#taxRate').on('input', onTaxUpdate);
 });
 
 
-// The funded services. rateKey names both the service's slider and its funding percentage in the
-// budget data, and maintenanceKey its full maintenance cost.
+// The funded services: each one's slider, and the budget data's keys for its funding percentage (0 to 1) and its full
+// maintenance cost
 var services = [
-  {name: 'road', rateKey: 'roadRate', maintenanceKey: 'roadMaintenanceBudget'},
-  {name: 'fire', rateKey: 'fireRate', maintenanceKey: 'fireMaintenanceBudget'},
-  {name: 'police', rateKey: 'policeRate', maintenanceKey: 'policeMaintenanceBudget'}
+  {name: 'road', sliderID: 'roadRate', percentKey: 'roadPercent', maintenanceKey: 'roadMaintenanceBudget'},
+  {name: 'fire', sliderID: 'fireRate', percentKey: 'firePercent', maintenanceKey: 'fireMaintenanceBudget'},
+  {name: 'police', sliderID: 'policeRate', percentKey: 'policePercent', maintenanceKey: 'policeMaintenanceBudget'}
 ];
 
 var budgetResetID = '#budgetReset';
@@ -47,24 +48,37 @@ var sliderPercentage = function(elementID) {
 };
 
 
-// Shows each service's cost at its slider's funding level, and the cash flow and year-end
-// balance the budget forecasts for those levels.
+// Shows each service's cost at its funding level, and the cash flow and year-end balance the budget forecasts for
+// those levels.
 var updateFunding = function() {
-  var fractions = {};
-  for (var i = 0; i < services.length; i++)
-    fractions[services[i].name] = sliderPercentage(services[i].rateKey) / 100;
+  var forecast = this.forecast(this.funding.percents());
 
-  var forecast = this.forecast(fractions);
-
-  for (i = 0; i < services.length; i++) {
+  for (var i = 0; i < services.length; i++) {
     var service = services[i];
-    var text = [sliderPercentage(service.rateKey), '% of ', formatMoney(this.maintenance[service.name]),
+    var text = [sliderPercentage(service.sliderID), '% of ', formatMoney(this.maintenance[service.name]),
                 ' = ', formatMoney(forecast.wanted[service.name])].join('');
-    $(MiscUtils.normaliseDOMid(service.rateKey + 'Label')).text(text);
+    $(MiscUtils.normaliseDOMid(service.sliderID + 'Label')).text(text);
   }
 
   $('#cashFlow').text(formatMoney(forecast.fundsChange));
   $('#fundsAfterYear').text(formatMoney(forecast.fundsAfterYear));
+};
+
+
+// Starts the window's funding from the percentages the budget has, with each slider at its whole percent
+var startFunding = function() {
+  this.funding = new FundingChoice(this.originalPercents);
+  for (var i = 0; i < services.length; i++) {
+    var service = services[i];
+    $(MiscUtils.normaliseDOMid(service.sliderID))[0].value = wholePercent(this.originalPercents[service.name]);
+  }
+  updateFunding.call(this);
+};
+
+
+var onSliderMoved = function(service) {
+  this.funding.choose(service.name, sliderPercentage(service.sliderID));
+  updateFunding.call(this);
 };
 
 
@@ -74,9 +88,7 @@ var onTaxUpdate = function() {
 
 
 var resetItems = function(e) {
-  for (var i = 0; i < services.length; i++)
-    $(MiscUtils.normaliseDOMid(services[i].rateKey))[0].value = this.originalRates[services[i].name];
-  updateFunding.call(this);
+  startFunding.call(this);
   $('#taxRate')[0].value = this.originalTaxRate;
   onTaxUpdate();
 
@@ -100,11 +112,8 @@ var cancel = function(e) {
 var submit = function(e) {
   e.preventDefault();
 
-  var data = {cancelled: false, taxPercent: sliderPercentage('taxRate'), e: e, original: e.type};
-  for (var i = 0; i < services.length; i++)
-    data[services[i].name + 'Percent'] = sliderPercentage(services[i].rateKey);
-
-  this.close(data);
+  this.close({cancelled: false, funding: this.funding.changes(), taxPercent: sliderPercentage('taxRate'), e: e,
+              original: e.type});
 };
 
 
@@ -118,13 +127,12 @@ var requireBudgetData = function(budgetData, key) {
 BudgetWindow.prototype.open = function(budgetData) {
   this.forecast = requireBudgetData(budgetData, 'forecast');
   this.maintenance = {};
-  this.originalRates = {};
+  this.originalPercents = {};
 
   for (var i = 0; i < services.length; i++) {
     var service = services[i];
     this.maintenance[service.name] = requireBudgetData(budgetData, service.maintenanceKey);
-    this.originalRates[service.name] = requireBudgetData(budgetData, service.rateKey);
-    $(MiscUtils.normaliseDOMid(service.rateKey))[0].value = this.originalRates[service.name];
+    this.originalPercents[service.name] = requireBudgetData(budgetData, service.percentKey);
   }
 
   this.originalTaxRate = requireBudgetData(budgetData, 'taxRate');
@@ -133,7 +141,7 @@ BudgetWindow.prototype.open = function(budgetData) {
 
   $('#taxesCollected').text(formatMoney(requireBudgetData(budgetData, 'taxesCollected')));
   $('#fundsNow').text(formatMoney(requireBudgetData(budgetData, 'totalFunds')));
-  updateFunding.call(this);
+  startFunding.call(this);
 
   this._toggleDisplay();
 };

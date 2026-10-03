@@ -332,9 +332,7 @@ Game.prototype.handleBudgetWindowClosure = function(data) {
   var budget = this.simulation.budget;
 
   if (!data.cancelled) {
-    budget.roadPercent = data.roadPercent / 100;
-    budget.firePercent = data.firePercent / 100;
-    budget.policePercent = data.policePercent / 100;
+    budget.setFunding(data.funding);
     budget.setTax(data.taxPercent - 0);
   }
 
@@ -347,17 +345,17 @@ Game.prototype.handleBudgetWindowClosure = function(data) {
 };
 
 
-// The values the budget window opens with
+// The values the budget window opens with. Each service's funding percentage is a fraction (0 to 1).
 Game.prototype.budgetWindowValues = function() {
   var budget = this.simulation.budget;
 
   return [{
     roadMaintenanceBudget: budget.roadMaintenanceBudget,
-    roadRate: Math.floor(budget.roadPercent * 100),
+    roadPercent: budget.roadPercent,
     fireMaintenanceBudget: budget.fireMaintenanceBudget,
-    fireRate: Math.floor(budget.firePercent * 100),
+    firePercent: budget.firePercent,
     policeMaintenanceBudget: budget.policeMaintenanceBudget,
-    policeRate: Math.floor(budget.policePercent * 100),
+    policePercent: budget.policePercent,
     taxRate: budget.cityTax,
     totalFunds: budget.totalFunds,
     taxesCollected: budget.taxFund,
