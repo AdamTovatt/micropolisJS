@@ -317,6 +317,7 @@ var Residential = {
     mapScanner.addAction(TileValues.HOSPITAL, hospitalFound);
     repairManager.addAction(TileValues.HOSPITAL, 15, 3);
   },
+  evalLot: evalLot,
   getZonePopulation: getZonePopulation
 };
 

@@ -32,6 +32,7 @@ import {
 import {
   Internals, SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES,
 } from "./unitSnapshots";
+import { zonePoint } from "./zoneBranches";
 
 // How many of each unit's first calls are recorded in each fixture
 const FIRST_CALLS = 2;
@@ -389,6 +390,37 @@ export const SNAPSHOT_POINTS: SnapshotPoint[] = [
   ...infrastructurePoints(),
 
   ...cityRulesPoints(),
+
+  // mapScanner.mapScan: every branch of the zone handlers and their drives, several in one call where a call reaches
+  // them together, since each point records the whole city, in the calls whose points record the fewest families
+  zonePoint("suburb", "industrial", ["an empty industrial zone left as it is when it declines",
+                                     "an unpowered industrial zone assessed"]),
+
+  zonePoint("suburbBroke", "residential", ["a drive arriving to its east"]),
+  zonePoint("suburbBroke", "residential", [
+    "a block grown", "a drive giving up at a dead end", "a drive with no route", "a house removed",
+    "a residential zone with no road declined",
+  ]),
+
+  zonePoint("suburbUnderfunded", "industrial", ["an industrial zone declined from the second level or above"]),
+
+  zonePoint("hospitalTown", "commercial", ["an empty commercial zone left as it is when it declines"]),
+  zonePoint("hospitalTown", "residential", ["a house built on a lot that won a tie", "houses built into a block"]),
+  zonePoint("hospitalTown", "commercial", ["a commercial zone declined from the second level or above"]),
+  zonePoint("hospitalTown", "industrial", ["an industrial zone grown", "traffic at its cap"]),
+  zonePoint("hospitalTown", "residential", ["the sparsest block declined to houses"]),
+  zonePoint("hospitalTown", "commercial", ["a commercial zone grown", "commercial growth held back by land value"]),
+  zonePoint("hospitalTown", "residential", ["a hospital built"]),
+  zonePoint("hospitalTown", "residential", ["a hospital emptied"]),
+  zonePoint("hospitalTown", "residential", ["a block declined to a sparser block", "a drive arriving to its west"]),
+
+  zonePoint("roadlessTown", "industrial", ["an industrial zone emptied", "an industrial zone with no road declined"]),
+  zonePoint("roadlessTown", "commercial", ["a commercial zone emptied", "a commercial zone with no road declined"]),
+  zonePoint("roadlessTown", "residential", [
+    "a drive backing up from a dead end, then going its whole distance without arriving",
+  ]),
+
+  zonePoint("smokyWoods", "residential", ["residential growth held back by pollution"]),
 ];
 
 // --- The city-level rules' rarer branches: the census, the valves, the year end, the evaluation and the advisor

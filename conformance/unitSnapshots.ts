@@ -15,8 +15,9 @@
 // the events the simulation emitted, so the C# port can prove each unit on its own. conformance/README.md specifies the
 // records; snapshotPoints.ts says which calls are recorded.
 
-import { cityFromSave, SaveData, Speed } from "../headless/city";
+import { cityFromSave, GameMapInstance, SaveData, Speed } from "../headless/city";
 import { startFromSave } from "../headless/runner";
+import { BlockMap } from "../src/blockMap";
 import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { canonicalJson } from "../src/canonicalJson";
 import { Commercial } from "../src/commercial.js";
@@ -50,7 +51,7 @@ export interface Internals {
   _speed: number;
   _initialEvaluationPending: boolean;
   _gameLevel: number;
-  _map: unknown;
+  _map: GameMapInstance;
   _mapScanner: Registry & {mapScan(startX: number, maxX: number, simData: unknown): void};
   _repairManager: Registry;
   _census: {
@@ -63,14 +64,17 @@ export interface Internals {
   evaluation: {cityEvaluation(simData: unknown): void};
   disasterManager: {doDisasters(gameLevel: number, census: unknown): void, doMeltdown(x: number, y: number): void};
   spriteManager: {makeExplosion(x: number, y: number): void, spriteList: unknown[]};
-  blockMaps: unknown;
+  // The block maps, by name, as the Simulation constructor makes them
+  blockMaps: Record<string, BlockMap>;
   random: unknown;
+  _traffic: {_stack: unknown[]};
   _simulate(simData: unknown): void;
   _sendMessages(): void;
   _publishCityStatus(): void;
   _constructSimData(): unknown;
   _emitEvent(name: string, payload?: unknown): void;
   save(saveData: object): void;
+  load(saveData: object): void;
   step(): void;
 }
 
@@ -213,7 +217,7 @@ function functionName(action: Method): string {
 
 // Replaces the simulation's handlers with those of the families named, in the order given, each wrapped to note that
 // it was reached under its name unless told not to
-function registerFamilies(simulation: Internals, families: string[], wrapHandlers = true): void {
+export function registerFamilies(simulation: Internals, families: string[], wrapHandlers = true): void {
   const scanner = simulation._mapScanner;
   scanner._actions = [];
   simulation._repairManager._actions = [];

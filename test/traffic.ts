@@ -66,6 +66,34 @@ describe("traffic", () => {
         expect(blockMaps.trafficDensityMap.worldGet(14, ROAD_Y)).toBe(TRIP_DENSITY);
     });
 
+    // A drive that takes a block to its heaviest traffic draws 0 to 5, and a 0 points the helicopter at the block. The
+    // block of (14, 10) is the one of the drive's that starts near its heaviest, so the drive draws once.
+    describe("at the heaviest traffic", () => {
+        const HEAVY = 200;
+        const HELICOPTER_DRAW = 0;
+        const NO_HELICOPTER_DRAW = 1;
+
+        function driveWithHelicopter(draw: number) {
+            const helicopter = {destX: 0, destY: 0};
+            const traffic = new Traffic(makeRoadMap(COMBASE), {getSprite: () => helicopter}, streamDrawing([draw]));
+            const blockMaps = makeBlockMaps();
+            blockMaps.trafficDensityMap.worldSet(14, ROAD_Y, HEAVY);
+
+            traffic.makeTraffic(ZONE_X, ZONE_Y, blockMaps, Results.COMMERCIAL);
+
+            expect(blockMaps.trafficDensityMap.worldGet(14, ROAD_Y)).toBe(240);
+            return helicopter;
+        }
+
+        it("should point the helicopter at the block on a draw of 0", () => {
+            expect(driveWithHelicopter(HELICOPTER_DRAW)).toEqual({destX: 14 * 16, destY: ROAD_Y * 16});
+        });
+
+        it("should leave the helicopter alone on any other draw", () => {
+            expect(driveWithHelicopter(NO_HELICOPTER_DRAW)).toEqual({destX: 0, destY: 0});
+        });
+    });
+
     it("should report no route when the road leads nowhere", () => {
         const traffic = new Traffic(makeRoadMap(DIRT), null, streamDrawing([]));
 

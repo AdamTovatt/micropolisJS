@@ -203,8 +203,12 @@ evaluation, each when its city time falls due; phase 10 easing the rate of growt
 and to fast. The `"branch"` fixture `disasters` lays out a scene for each rare branch of the infrastructure handlers
 that `snapshotPoints.ts` names, each in a strip of the map of its own. Each branch's point is a map scan of that strip
 with `"each"`, and names the family whose record must reach the branch. The fixture also records its first disaster
-phase, which counts its flood down. A point for a rare branch names the branch in `reaches`, so a change that stops the
-point reaching it fails the generator rather than leaving the branch unproven.
+phase, which counts its flood down. Then each branch of the zone handlers and the drives they make, as
+`zoneBranches.ts` tells them from a trace of the call run with the family alone, from the suburbs and from the
+`"branch"` fixtures `hospitalTown`, `roadlessTown` and `smokyWoods`: a point names every branch its call must reach,
+several where one call reaches them together, since each point records the whole city. A point for a rare branch names
+the branch in `reaches`, so a change that stops the point reaching it fails the generator rather than leaving the
+branch unproven.
 
 The generator watches a fixture's city for sprites only until its last point; `test/goldenHashes.ts` checks that every
 sprite-free fixture, a `"branch"` fixture included, creates none over its whole golden run. A test fails on a point

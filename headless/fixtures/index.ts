@@ -17,6 +17,9 @@ import { Simulation } from "../city";
 import { forestFire, overloaded, twinPlants, wilderness } from "./branches";
 import { broke, underfunded } from "./budgets";
 import { disasters } from "./disasters";
+import { hospitalTown } from "./hospitalTown";
+import { roadlessTown } from "./roadlessTown";
+import { smokyWoods } from "./smokyWoods";
 import { suburb, suburbBroke, suburbFast, suburbSlow, suburbUnderfunded } from "./suburb";
 import { town } from "./town";
 
@@ -47,7 +50,10 @@ const fixtures: Record<string, {fixture: Fixture, kind: FixtureKind}> = {
   broke: {fixture: broke, kind: "sprites"},
   disasters: {fixture: disasters, kind: "branch"},
   forestFire: {fixture: forestFire, kind: "branch"},
+  hospitalTown: {fixture: hospitalTown, kind: "branch"},
   overloaded: {fixture: overloaded, kind: "branch"},
+  roadlessTown: {fixture: roadlessTown, kind: "branch"},
+  smokyWoods: {fixture: smokyWoods, kind: "branch"},
   suburb: {fixture: suburb, kind: "snapshots"},
   suburbBroke: {fixture: suburbBroke, kind: "snapshots"},
   suburbFast: {fixture: suburbFast, kind: "branch"},
