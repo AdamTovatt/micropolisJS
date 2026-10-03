@@ -102,28 +102,18 @@ describe("the animation manager", () => {
             expect(paintOne(newManager(), TILE_INVALID)).toBe(TILE_INVALID);
         });
 
-        it("leaves tiles off the map's west edge as they are", () => {
+        // A view of two tiles, one on the map and one off it past the edge, given as the view's origin and size
+        it.each([
+            ["west", -1, 0, 2, 1, [FIRE | ANIMBIT, FIRE + 1]],
+            ["east", MAP_WIDTH - 1, 0, 2, 1, [FIRE + 1, FIRE | ANIMBIT]],
+            ["north", 0, -1, 1, 2, [FIRE | ANIMBIT, FIRE + 1]],
+            ["south", 0, MAP_HEIGHT - 1, 1, 2, [FIRE + 1, FIRE | ANIMBIT]],
+        ])("leaves tiles off the map's %s edge as they are", (_, originX, originY, width, height, expected) => {
             const tileValues = [FIRE | ANIMBIT, FIRE | ANIMBIT];
 
-            newManager().getTiles(tileValues, -1, 0, 2, 1);
+            newManager().getTiles(tileValues, originX, originY, width, height);
 
-            expect(tileValues).toEqual([FIRE | ANIMBIT, FIRE + 1]);
-        });
-
-        it("leaves tiles off the map's east edge as they are", () => {
-            const tileValues = [FIRE | ANIMBIT, FIRE | ANIMBIT];
-
-            newManager().getTiles(tileValues, MAP_WIDTH - 1, 0, 2, 1);
-
-            expect(tileValues).toEqual([FIRE + 1, FIRE | ANIMBIT]);
-        });
-
-        it("leaves tiles off the map's south edge as they are", () => {
-            const tileValues = [FIRE | ANIMBIT, FIRE | ANIMBIT];
-
-            newManager().getTiles(tileValues, 0, MAP_HEIGHT - 1, 1, 2);
-
-            expect(tileValues).toEqual([FIRE + 1, FIRE | ANIMBIT]);
+            expect(tileValues).toEqual(expected);
         });
 
         it("paints each tile of a view in rows, and carries on each one's animation", () => {

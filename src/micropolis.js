@@ -16,6 +16,7 @@ import $ from "jquery";
 import { browserCityEnvironment } from './browserCityEnvironment.ts';
 import { CityClient } from './cityClient.ts';
 import { Config } from './config.js';
+import { requiredElement } from './domElements.ts';
 import { showOnlineList } from './onlineList.ts';
 import { signInIfServerAnswers } from './signInForm.ts';
 import { SplashScreen } from './splashScreen.js';
@@ -37,7 +38,7 @@ var fallbackImage, tileSet, snowTileSet;
 
 
 var onTilesLoaded = function() {
-  var snowTiles = $('#snowtiles')[0];
+  var snowTiles = requiredElement('snowtiles', HTMLImageElement);
   snowTileSet = new TileSet(snowTiles, onAllTilesLoaded, onFallbackTilesLoaded);
 };
 
@@ -117,5 +118,5 @@ if (Config.debug)
   installTestHook();
 
 
-var tiles = $('#tiles')[0];
+var tiles = requiredElement('tiles', HTMLImageElement);
 tileSet = new TileSet(tiles, onTilesLoaded, tileSetError);

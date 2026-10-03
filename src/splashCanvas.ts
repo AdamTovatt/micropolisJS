@@ -12,8 +12,8 @@
  */
 
 import { placeNewCanvas, requiredElement } from "./domElements";
-import type { PixelPoint } from "./gameCanvas";
 import type { TileSet } from "./tileSet";
+import type { PixelPoint } from "./viewPosition";
 
 // What the preview reads of the map
 interface PreviewMap {

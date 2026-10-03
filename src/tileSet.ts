@@ -38,11 +38,11 @@ class TileSet {
   private loaded = false;
   private readonly images: HTMLImageElement[] = [];
 
-  // The image may be absent, as when its element can't be found, in which case the error callback is called
-  constructor(image: unknown, callback: () => void, errorCallback: () => void) {
-    if (!(image instanceof Image) || !isAcceptableTileImage(image.width, image.height)) {
+  // An image of the wrong size, such as one still loading, calls the error callback
+  constructor(image: HTMLImageElement, callback: () => void, errorCallback: () => void) {
+    if (!isAcceptableTileImage(image.width, image.height)) {
       // Spin the event loop
-      window.setTimeout(errorCallback, 0);
+      setTimeout(errorCallback, 0);
       return;
     }
 
@@ -78,7 +78,7 @@ class TileSet {
       if (notifications === TILE_COUNT) {
         this.loaded = true;
         // Spin the event loop
-        window.setTimeout(callback, 0);
+        setTimeout(callback, 0);
       }
     };
 

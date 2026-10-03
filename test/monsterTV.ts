@@ -13,8 +13,8 @@
 
 import { EventEmitter } from "../src/eventEmitter.js";
 import { SPRITE_DYING, SPRITE_MOVED } from "../src/messages";
-import { SpriteFollower, ViewState, isOutOfView } from "../src/monsterTV";
-import type { TrackableSprite } from "../src/monsterTV";
+import { SpriteFollower, ViewState, isOutOfView, renderView } from "../src/monsterTV";
+import type { TrackableSprite, ViewElement } from "../src/monsterTV";
 
 // A sprite as the simulation's sprites are: decorated by the event emitter, which they move and die through
 interface EmittingSprite extends TrackableSprite {
@@ -119,7 +119,7 @@ describe("monsterTV", () => {
             const render = jest.fn();
             const state = new ViewState(render);
             const calls = render.mock.calls;
-            return {state, showing: () => calls.length > 0 && calls[calls.length - 1][0] === true};
+            return {state, render, showing: () => calls.length > 0 && calls[calls.length - 1][0] === true};
         }
 
         beforeEach(() => {
@@ -190,6 +190,18 @@ describe("monsterTV", () => {
             expect(showing()).toBe(false);
         });
 
+        it("forgets closing later once closed", () => {
+            const {state, render} = newState();
+            state.show();
+            state.closeLater();
+            state.close();
+            const rendered = render.mock.calls.length;
+
+            jest.advanceTimersByTime(10000);
+
+            expect(render).toHaveBeenCalledTimes(rendered);
+        });
+
         it("stays open when shown again before it closes", () => {
             const {state, showing} = newState();
             state.show();
@@ -201,6 +213,58 @@ describe("monsterTV", () => {
 
             expect(state.isOpen).toBe(true);
             expect(showing()).toBe(true);
+        });
+    });
+
+    describe("rendering the view", () => {
+
+        // The view's element: its display, and its classes
+        function newElement() {
+            const classes = new Set<string>();
+            const element: ViewElement = {
+                style: {display: ""},
+                classList: {
+                    toggle(token: string, force: boolean) {
+                        if (force) {
+                            classes.add(token);
+                        } else {
+                            classes.delete(token);
+                        }
+                        return force;
+                    },
+                },
+            };
+            return {element, classes};
+        }
+
+        it("shows an open view, marked as showing", () => {
+            const {element, classes} = newElement();
+
+            renderView(element, true);
+
+            expect(element.style.display).toBe("block");
+            expect(Array.from(classes)).toEqual(["showing"]);
+        });
+
+        it("hides a closed view, no longer marked as showing", () => {
+            const {element, classes} = newElement();
+            renderView(element, true);
+
+            renderView(element, false);
+
+            expect(element.style.display).toBe("none");
+            expect(classes.size).toBe(0);
+        });
+
+        it("stays hidden when closed again", () => {
+            const {element, classes} = newElement();
+            renderView(element, true);
+            renderView(element, false);
+
+            renderView(element, false);
+
+            expect(element.style.display).toBe("none");
+            expect(classes.size).toBe(0);
         });
     });
 });

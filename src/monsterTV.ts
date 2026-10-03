@@ -13,9 +13,10 @@
 
 import { requiredElement } from "./domElements";
 import { GameCanvas } from "./gameCanvas";
-import type { PaintableMap, PaintableSprite, TilePoint } from "./gameCanvas";
+import type { PaintableMap, PaintableSprite } from "./gameCanvas";
 import { SPRITE_DYING, SPRITE_MOVED } from "./messages";
 import type { TileSet } from "./tileSet";
+import type { TilePoint } from "./viewPosition";
 
 // A sprite the view can follow: it reports each move, as the map tile it is over, and its death
 interface TrackableSprite {
@@ -35,6 +36,23 @@ const CANVAS_ID = "tvCanvas";
 
 // Marks the view as open, so the stylesheet can clear its slot: the status panel shares it.
 const SHOWING_CLASS = "showing";
+
+// What rendering the view writes to its element
+interface ViewElement {
+  readonly style: {display: string};
+  readonly classList: {toggle(token: string, force: boolean): boolean};
+}
+
+// The stylesheet hides the view until it first opens
+function setVisible(element: ViewElement, visible: boolean): void {
+  element.style.display = visible ? "block" : "none";
+}
+
+// Shows or hides the view, and marks it open or not
+function renderView(element: ViewElement, open: boolean): void {
+  setVisible(element, open);
+  element.classList.toggle(SHOWING_CLASS, open);
+}
 
 // Whether a sprite at the position has left the view whose first and last tiles are min and max, so the view should
 // centre on it again. The last row and column count as out: they may be only partly in view.
@@ -84,10 +102,7 @@ class ViewState {
 
   // Opens the view, if it isn't open, and keeps it open
   show(): void {
-    if (this.closeTimer !== null) {
-      clearTimeout(this.closeTimer);
-      this.closeTimer = null;
-    }
+    this.cancelCloseLater();
 
     if (!this.open) {
       this.open = true;
@@ -96,16 +111,24 @@ class ViewState {
   }
 
   close(): void {
+    this.cancelCloseLater();
     this.open = false;
     this.render(false);
   }
 
-  // Closes the view a while from now, unless it shows again first
+  // Closes the view a while from now, unless it shows or closes again first
   closeLater(): void {
     this.closeTimer = setTimeout(() => {
       this.closeTimer = null;
       this.close();
     }, TIMEOUT_SECS * 1000);
+  }
+
+  private cancelCloseLater(): void {
+    if (this.closeTimer !== null) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = null;
+    }
   }
 }
 
@@ -121,18 +144,15 @@ class MonsterTV {
 
     // Need to quickly flick on the canvas container so the canvas picks up the correct dimensions (this is a bit of a
     // hack as we're reusing the same GameCanvas that paints the main map, but it avoids a lot of duplication)
-    this.setVisible(true);
+    setVisible(this.element, true);
 
     this.canvas = new GameCanvas(CONTAINER_ID, CANVAS_ID);
     this.canvas.init(map, tileSet, spriteSheet);
     this.canvas.disallowOffMap();
 
-    this.setVisible(false);
+    setVisible(this.element, false);
 
-    this.state = new ViewState((open) => {
-      this.setVisible(open);
-      this.element.classList.toggle(SHOWING_CLASS, open);
-    });
+    this.state = new ViewState((open) => renderView(this.element, open));
     this.follower = new SpriteFollower((position) => this.onMove(position), () => this.state.closeLater());
     requiredElement(FORM_ID).addEventListener("submit", (e) => {
       e.preventDefault();
@@ -160,11 +180,6 @@ class MonsterTV {
     this.state.show();
   }
 
-  // The stylesheet hides the view until it first opens
-  private setVisible(visible: boolean): void {
-    this.element.style.display = visible ? "block" : "none";
-  }
-
   private onMove(position: TilePoint): void {
     if (isOutOfView(position, this.canvas.getTileOrigin(), this.canvas.getMaxTile())) {
       this.canvas.centreOn(position.x, position.y);
@@ -172,5 +187,5 @@ class MonsterTV {
   }
 }
 
-export { MonsterTV, SpriteFollower, ViewState, isOutOfView };
-export type { TrackableSprite };
+export { MonsterTV, SpriteFollower, ViewState, isOutOfView, renderView };
+export type { TrackableSprite, ViewElement };

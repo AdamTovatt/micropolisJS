@@ -133,8 +133,9 @@ class AnimationManager {
   private lastBlink = Number.NEGATIVE_INFINITY;
   private shouldBlink = false;
 
-  // When painting we keep track of what frames have been painted at which map coordinates so we can consistently
-  // display the correct frame even as the canvas moves
+  // The frames painted at each place in the view, by tile offset from its origin, so an animation carries on from the
+  // frame painted there last. A tile that scrolls to another place starts its sequence again unless the frame there
+  // belongs to the same sequence.
   private lastPainted: TileHistory | null = null;
   private currentPainted: TileHistory | null = null;
 

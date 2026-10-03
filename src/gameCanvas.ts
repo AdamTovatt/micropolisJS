@@ -16,19 +16,12 @@ import { placeNewCanvas, requiredElement } from "./domElements";
 import { drawMouseBox } from "./mouseBox";
 import { CanvasOverlay } from "./overlayRenderer";
 import type { OverlayView } from "./overlayRenderer";
+import { PaintRecord } from "./paintRecord";
+import type { TileRect } from "./paintRecord";
 import type { TileSet } from "./tileSet";
 import { TILE_INVALID } from "./tileValues";
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-// A position in tiles, on the map or from the view's origin
-type TilePoint = Point;
-
-// A position in canvas pixels
-type PixelPoint = Point;
+import { ViewPosition, canvasPointToTile, viewport } from "./viewPosition";
+import type { PixelPoint, TilePoint } from "./viewPosition";
 
 // What the canvas reads of the map
 interface PaintableMap {
@@ -62,35 +55,11 @@ interface MouseOutline {
   colour: string;
 }
 
-// An area of the view in tile offsets from its origin: x and y inclusive, xBound and yBound exclusive
-interface TileRect {
-  x: number;
-  xBound: number;
-  y: number;
-  yBound: number;
-}
-
-// How many tiles the canvas shows, and how far its origin may move
-interface Viewport {
-  wholeTilesInViewX: number;
-  wholeTilesInViewY: number;
-  totalTilesInViewX: number;
-  totalTilesInViewY: number;
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
-
 // Where a tool's outline is drawn, or null if it is off the map, and the tiles it covers
 interface MouseOutlineLayout {
   box: {pos: PixelPoint, width: number, height: number} | null;
   damage: TileRect;
 }
-
-// A value no tile has, written over the tiles last painted to force their repaint. TILE_INVALID would not do: it is
-// the black void.
-const REPAINT = -2;
 
 // The pixels each sprite takes on the sprite sheet, in each direction: a sheet row per type, a column per frame
 const SPRITE_CELL = 48;
@@ -98,111 +67,11 @@ const SPRITE_CELL = 48;
 // Sprites are positioned in map pixels, at 16 a tile whatever the tileset's width
 const SPRITE_PIXELS_PER_TILE = 16;
 
-function viewport(canvasWidth: number, canvasHeight: number, tileWidth: number, mapWidth: number, mapHeight: number,
-                  allowOffMap: boolean): Viewport {
-  // How many tiles fit?
-  const wholeTilesInViewX = Math.floor(canvasWidth / tileWidth);
-  const wholeTilesInViewY = Math.floor(canvasHeight / tileWidth);
-  const totalTilesInViewX = Math.ceil(canvasWidth / tileWidth);
-  const totalTilesInViewY = Math.ceil(canvasHeight / tileWidth);
-  const tiles = {wholeTilesInViewX, wholeTilesInViewY, totalTilesInViewX, totalTilesInViewY};
-
-  if (allowOffMap) {
-    // The map should be visible in at least half the canvas
-    return {
-      ...tiles,
-      minX: 0 - Math.ceil(wholeTilesInViewX / 2),
-      maxX: (mapWidth - 1) - Math.ceil(wholeTilesInViewX / 2),
-      minY: 0 - Math.ceil(wholeTilesInViewY / 2),
-      maxY: (mapHeight - 1) - Math.ceil(wholeTilesInViewY / 2),
-    };
-  }
-
-  return {
-    ...tiles,
-    minX: 0,
-    maxX: mapWidth - totalTilesInViewX,
-    minY: 0,
-    maxY: mapHeight - totalTilesInViewY,
-  };
-}
-
-// The origin that puts the tile at (x, y) in the middle of the view, held within the origin's limits. Where the limits
-// cross, as on a view wider than the map that can't scroll off it, the minimum wins.
-function centredOrigin(x: number, y: number, view: Viewport): TilePoint {
-  let originX = Math.floor(x) - Math.ceil(view.wholeTilesInViewX / 2);
-  let originY = Math.floor(y) - Math.ceil(view.wholeTilesInViewY / 2);
-
-  if (originX > view.maxX) {
-    originX = view.maxX;
-  }
-  if (originX < view.minX) {
-    originX = view.minX;
-  }
-  if (originY > view.maxY) {
-    originY = view.maxY;
-  }
-  if (originY < view.minY) {
-    originY = view.minY;
-  }
-
-  return {x: originX, y: originY};
-}
-
-// The map tile under a point of the canvas, or null past the canvas' right or bottom edge
-function canvasPointToTile(x: number, y: number, origin: TilePoint, tileWidth: number, canvasWidth: number,
-                           canvasHeight: number): TilePoint | null {
-  if (x >= canvasWidth || y >= canvasHeight) {
-    return null;
-  }
-
-  return {x: origin.x + Math.floor(x / tileWidth), y: origin.y + Math.floor(y / tileWidth)};
-}
-
-// Calls paint for each tile of a width by height view that differs from what was painted there last, given the tiles
-// last painted, lastWidth by lastHeight, or for every tile on a first paint
-function forEachTileToPaint(lastPainted: ReadonlyArray<number> | null, lastWidth: number, lastHeight: number,
-                            tiles: ReadonlyArray<number>, width: number, height: number,
-                            paint: (tileValue: number, x: number, y: number) => void): void {
-  if (lastPainted === null) {
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        paint(tiles[y * width + x], x, y);
-      }
-    }
-    return;
-  }
-
-  // The canvas may be the same size as last time, or have grown or shrunk. Compare the area painted both times
-  // against what was there last time.
-  const xBound = Math.min(lastWidth, width);
-  const yBound = Math.min(lastHeight, height);
-
-  for (let y = 0; y < yBound; y++) {
-    for (let x = 0; x < xBound; x++) {
-      const tile = tiles[y * width + x];
-      if (lastPainted[y * lastWidth + x] !== tile) {
-        paint(tile, x, y);
-      }
-    }
-  }
-
-  // Paint any extra width and height
-  if (width > lastWidth) {
-    for (let y = 0; y < height; y++) {
-      for (let x = lastWidth; x < width; x++) {
-        paint(tiles[y * width + x], x, y);
-      }
-    }
-  }
-
-  if (height > lastHeight) {
-    for (let y = lastHeight; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        paint(tiles[y * width + x], x, y);
-      }
-    }
-  }
+// Whether a paint must clear the canvas and repaint every tile: the tileset changed, or the canvas changed size since
+// the last paint
+function mustRepaintAll(tileSetChanged: boolean, width: number, height: number, lastWidth: number,
+                        lastHeight: number): boolean {
+  return tileSetChanged || width !== lastWidth || height !== lastHeight;
 }
 
 // The tiles a sprite drawn with the view's origin at (originX, originY) covers, so they are repainted next time
@@ -248,117 +117,6 @@ function mouseOutlineLayout(mouse: MouseOutline, originX: number, originY: numbe
   };
 }
 
-// Marks the area's tiles in a width by height view's last painted tiles for repaint, clipped to the view
-function markForRepaint(lastPainted: number[], area: TileRect, width: number, height: number): void {
-  for (let y = Math.max(0, area.y), yBound = Math.min(height, area.yBound); y < yBound; y++) {
-    for (let x = Math.max(0, area.x), xBound = Math.min(width, area.xBound); x < xBound; x++) {
-      lastPainted[y * width + x] = REPAINT;
-    }
-  }
-}
-
-// What a view painted last, so the next paint repaints only the tiles that changed, or that something drew over
-class PaintRecord {
-  // The tiles last painted, by tile offset, and the array the next paint's tiles are written into: the two are
-  // swapped each paint
-  private lastPainted: number[] | null = null;
-  private spare: number[] = [];
-  private lastWidth = -1;
-  private lastHeight = -1;
-
-  // The array to write the next paint's tiles into
-  get buffer(): number[] {
-    return this.spare;
-  }
-
-  // Calls paintTile for each of the width by height tiles that differs from what was painted last, then records the
-  // tiles as painted
-  paint(tiles: number[], width: number, height: number,
-        paintTile: (tileValue: number, x: number, y: number) => void): void {
-    forEachTileToPaint(this.lastPainted, this.lastWidth, this.lastHeight, tiles, width, height, paintTile);
-
-    this.spare = this.lastPainted ?? [];
-    this.lastPainted = tiles;
-    this.lastWidth = width;
-    this.lastHeight = height;
-  }
-
-  // The area was drawn over since it was painted, so its tiles are repainted next time
-  markForRepaint(area: TileRect): void {
-    if (this.lastPainted !== null) {
-      markForRepaint(this.lastPainted, area, this.lastWidth, this.lastHeight);
-    }
-  }
-
-  // Every tile is repainted next time
-  repaintAll(): void {
-    if (this.lastPainted !== null) {
-      this.lastPainted.fill(REPAINT);
-    }
-  }
-
-  // The next paint paints every tile, as the first did
-  forget(): void {
-    this.lastPainted = null;
-  }
-}
-
-// Where the view's origin is, which moves within the viewport's limits
-class ViewPosition {
-  private originX = 0;
-  private originY = 0;
-
-  constructor(private view: Viewport) {}
-
-  get origin(): TilePoint {
-    return {x: this.originX, y: this.originY};
-  }
-
-  // The last tile in view, partly or whole
-  get maxTile(): TilePoint {
-    return {x: this.originX + this.view.totalTilesInViewX - 1, y: this.originY + this.view.totalTilesInViewY - 1};
-  }
-
-  get viewport(): Viewport {
-    return this.view;
-  }
-
-  // The canvas changed size. The origin stays where it is until it next moves.
-  set viewport(view: Viewport) {
-    this.view = view;
-  }
-
-  moveNorth(): void {
-    if (this.originY > this.view.minY) {
-      this.originY--;
-    }
-  }
-
-  moveEast(): void {
-    if (this.originX < this.view.maxX) {
-      this.originX++;
-    }
-  }
-
-  moveSouth(): void {
-    if (this.originY < this.view.maxY) {
-      this.originY++;
-    }
-  }
-
-  moveWest(): void {
-    if (this.originX > this.view.minX) {
-      this.originX--;
-    }
-  }
-
-  centreOn(x: number, y: number): void {
-    const origin = centredOrigin(x, y, this.view);
-    this.originX = origin.x;
-    this.originY = origin.y;
-  }
-}
-
 // Paints the map's tiles, the sprites and a tool's outline on a canvas that fills its container. It repaints only the
 // tiles that changed since the last paint, or that a sprite or the outline drew over.
 class GameCanvas {
@@ -389,7 +147,7 @@ class GameCanvas {
   private lastCanvasWidth = -1;
   private lastCanvasHeight = -1;
 
-  // Have the dimensions changed since the last paint?
+  // Has the window been resized since the last paint?
   private pendingDimensionChange = false;
 
   // Creates the canvas in the container with the given id, replacing an element of the canvas' id there
@@ -431,7 +189,6 @@ class GameCanvas {
     }
 
     this.calculateDimensions();
-    this.pendingDimensionChange = false;
 
     // Recompute canvas dimensions on resize
     window.addEventListener("resize", () => {
@@ -520,7 +277,7 @@ class GameCanvas {
 
     for (let x = 0; x < this.map.width; x++) {
       for (let y = 0; y < this.map.height; y++) {
-        this.paintOne(ctx, this.map.getTileValue(x, y), x, y);
+        this.paintOne(ctx, this.map.getTileValue(x, y), x, y, x, y);
       }
     }
     return tempCanvas.toDataURL();
@@ -535,23 +292,21 @@ class GameCanvas {
 
     const ctx = this.canvas.getContext("2d")!;
 
-    // Recompute our dimensions if there has been a resize since last paint
-    if (this.pendingDimensionChange || this.pendingTileSet) {
+    // Recompute our dimensions if there has been a resize since last paint, and change the tileset if asked to
+    const tileSetChanged = this.pendingTileSet !== null;
+    if (this.pendingDimensionChange || this.pendingTileSet !== null) {
       this.calculateDimensions();
       this.pendingDimensionChange = false;
 
-      // Change tileSet if necessary
       if (this.pendingTileSet !== null) {
         this.tileSet = this.pendingTileSet;
+        this.pendingTileSet = null;
       }
+    }
 
-      // If the dimensions or tileset has changed, force a repaint of every tile
-      if (this.pendingTileSet || this.width !== this.lastCanvasWidth || this.height !== this.lastCanvasHeight) {
-        ctx.clearRect(0, 0, this.width, this.height);
-        this.record.repaintAll();
-      }
-
-      this.pendingTileSet = null;
+    if (mustRepaintAll(tileSetChanged, this.width, this.height, this.lastCanvasWidth, this.lastCanvasHeight)) {
+      ctx.clearRect(0, 0, this.width, this.height);
+      this.record.repaintAll();
     }
 
     const origin = this.position.origin;
@@ -618,8 +373,6 @@ class GameCanvas {
     } else {
       this.position.viewport = view;
     }
-
-    this.pendingDimensionChange = true;
   }
 
   private paintSprite(ctx: CanvasRenderingContext2D, sprite: PaintableSprite, origin: TilePoint): void {
@@ -642,15 +395,19 @@ class GameCanvas {
   // A tile of the view, at (x, y) from the view's origin, with the overlay's tint
   private paintViewTile(ctx: CanvasRenderingContext2D, tileValue: number, x: number, y: number,
                         origin: TilePoint): void {
-    this.paintOne(ctx, tileValue, x, y);
+    const mapX = origin.x + x;
+    const mapY = origin.y + y;
+    this.paintOne(ctx, tileValue, x, y, mapX, mapY);
 
     if (tileValue !== TILE_INVALID) {
       const w = this.tileSet.tileWidth;
-      this.overlay.paintTile(ctx, origin.x + x, origin.y + y, x * w, y * w, w);
+      this.overlay.paintTile(ctx, mapX, mapY, x * w, y * w, w);
     }
   }
 
-  private paintOne(ctx: CanvasRenderingContext2D, tileValue: number, x: number, y: number): void {
+  // Paints the tile at (x, y) in tiles on the canvas, from the map's tile at (mapX, mapY), which a failure names
+  private paintOne(ctx: CanvasRenderingContext2D, tileValue: number, x: number, y: number, mapX: number,
+                   mapY: number): void {
     const w = this.tileSet.tileWidth;
 
     if (tileValue === TILE_INVALID) {
@@ -662,9 +419,6 @@ class GameCanvas {
     try {
       ctx.drawImage(this.tileSet.tile(tileValue), x * w, y * w);
     } catch (e) {
-      const origin = this.position.origin;
-      const mapX = origin.x + x;
-      const mapY = origin.y + y;
       const mapTile = this.map.testBounds(mapX, mapY) ? this.map.getTileValue(mapX, mapY) : "?? (Out of bounds)";
       throw new Error(`Failed to draw tile ${tileValue} at ${x}, ${y} (map ${mapX}, ${mapY} tile ${mapTile})`,
                       {cause: e});
@@ -672,6 +426,5 @@ class GameCanvas {
   }
 }
 
-export { GameCanvas, PaintRecord, REPAINT, ViewPosition, canvasPointToTile, centredOrigin, forEachTileToPaint,
-         markForRepaint, mouseOutlineLayout, spriteDamage, viewport };
-export type { MouseOutline, PaintableMap, PaintableSprite, PixelPoint, TilePoint, TileRect, Viewport };
+export { GameCanvas, mouseOutlineLayout, mustRepaintAll, spriteDamage };
+export type { MouseOutline, PaintableMap, PaintableSprite };
