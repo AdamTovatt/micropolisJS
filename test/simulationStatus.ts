@@ -62,8 +62,8 @@ describe("the city status record the simulation publishes", () => {
         expect(records.length).toBe(3);
     });
 
-    // At medium speed the power scan runs only every fourth cycle, and not in the first. The scan the simulation
-    // runs as it is constructed, for a new city or a loaded one, gives the first record its figures.
+    // At medium speed the power scan runs only every fourth cycle, and not in the first. The scan a new city runs
+    // as it is constructed gives the first record its figures; a loaded city restores the figures it saved.
     it("carries the power figures from the first cycle", () => {
         const {records, runPhases, simulation} = cityWithAPlant();
 

@@ -105,5 +105,22 @@ describe("storage", () => {
             expect(outsideScannedState(keyPaths(savedGame)).sort())
                 .toEqual(outsideScannedState([...keyPaths(plainSavedState(newCity())), ".version"]).sort());
         });
+
+        it("loads it by scanning for what it lacks, then restoring the save over what the scan changed", async () => {
+            const Storage = await loadStorage();
+            const savedGame = version4Save();
+            const {map, randomState} = JSON.parse(JSON.stringify(savedGame));
+            Storage.transitionOldSave(savedGame);
+
+            const restored = plainSavedState(new Simulation(new GameMap(120, 100), null, null, null, savedGame)) as {
+                map: unknown, randomState: number[], scannedState: {census: {coalPowerPop: number}},
+                sprites: {list: unknown[]}};
+
+            expect(restored.map).toEqual(map);
+            expect(restored.randomState).toEqual(randomState);
+            // The scan counted the one coal plant
+            expect(restored.scannedState.census.coalPowerPop).toBe(1);
+            expect(restored.sprites.list).toEqual([]);
+        });
     });
 });

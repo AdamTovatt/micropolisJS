@@ -67,7 +67,7 @@ var transitionOldSave = function(savedGame) {
       // Saves before version 5 hold only part of the state. The rest starts as it did when such a save was loaded:
       // no sprites, disasters off, the counters and the evaluation's working values reset, and the evaluation due
       // again. The scanned state can only be derived by a scan: a null scannedState, which only a migrated save
-      // holds, leaves it to the scan the Simulation runs on load.
+      // holds, makes the Simulation scan for it on load.
       savedGame._phaseCycle = 0;
       savedGame._simCycle = 0;
       savedGame._cityPopLast = 0;

@@ -231,11 +231,11 @@ Game.prototype.save = function() {
 };
 
 
+// The simulation loads its own state when it is constructed
 Game.prototype.load = function(saveData) {
   this.name = saveData.name;
   this.everClicked = saveData.everClicked;
   BaseTool.load(saveData);
-  this.simulation.load(saveData);
 };
 
 

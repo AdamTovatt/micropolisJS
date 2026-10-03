@@ -14,6 +14,7 @@
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
 import { Simulation } from "../src/simulation.js";
+import { plainSavedState } from "../src/stateHash";
 import { ANIMBIT } from "../src/tileFlags";
 import { FIRE } from "../src/tileValues";
 import { SimulationInstance, YEAR, buildCity, simulationFromSeed } from "./helpers/simulations";
@@ -56,7 +57,7 @@ describe("a simulation", () => {
             const original = simulationFromSeed(SEED);
             original.random.next();
 
-            // A burning tile makes the restored simulation's construction scan draw from its stream
+            // A burning tile makes any scan draw from the stream, so the stream shows whether construction scanned
             original._map.setTile(60, 50, FIRE, ANIMBIT);
 
             return {original, restored: restore(original)};
@@ -101,6 +102,20 @@ describe("a simulation", () => {
             // At medium speed the 6th step runs a phase
             expect(phasesRun(original) - originalBefore).toBe(1);
             expect(phasesRun(restored) - restoredBefore).toBe(1);
+        });
+
+        it("holds exactly the saved state: loading runs no scan", () => {
+            const {original, restored} = saveAndRestore();
+
+            expect(plainSavedState(restored)).toEqual(plainSavedState(original));
+        });
+
+        it("must be migrated first if it predates version 5", () => {
+            const saveData = plainSavedState(simulationFromSeed(SEED)) as {scannedState?: object};
+            delete saveData.scannedState;
+
+            expect(() => new Simulation(new GameMap(120, 100), null, null, null, saveData))
+                .toThrow("A save from before version 5 must be migrated before it is loaded");
         });
     });
 

@@ -125,20 +125,16 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGa
   };
 
   this._clearCensus();
+  this.init();
 
-  if (savedGame) {
-    this.load(savedGame);
-  } else {
+  if (!savedGame) {
     this.budget.setFunds(20000);
     this._census.totalPop = 1;
+    this._scan();
+    return;
   }
 
-  this.init();
-  this._scan();
-
-  // The scans draw from the stream: a saved game continues from the state it was saved with
-  if (savedGame)
-    this.random.setState(savedGame.randomState);
+  this.load(savedGame);
 });
 
 
@@ -203,15 +199,24 @@ Simulation.prototype.save = function(saveData) {
 };
 
 
-// Restores everything a save holds, and its scanned state unless a migrated save has none (see storage.js)
+// Restores a saved game over this city: the save holds the complete state, the seed and stream's included
 Simulation.prototype.load = function(saveData) {
   if (saveData.scannedState === undefined)
     throw new Error('A save from before version 5 must be migrated before it is loaded');
 
   this._loadSaved(saveData);
 
-  if (saveData.scannedState !== null)
+  if (saveData.scannedState !== null) {
     this._loadScanned(saveData.scannedState);
+  } else {
+    // A browser save migrated from an older version holds no scanned state (see storage.js), so derive it by
+    // scanning, as the original does on every load. The scan's handlers change the map and draw from the stream:
+    // the rest of the saved state is then restored over them. The scan adds to the census and the station maps, so
+    // it starts from them cleared.
+    this._clearCensus();
+    this._scan();
+    this._loadSaved(saveData);
+  }
 };
 
 
@@ -342,7 +347,7 @@ Simulation.prototype.init = function() {
 };
 
 
-// The scans a city runs as it is constructed
+// A new city's first scans, which a saved game holds the results of
 Simulation.prototype._scan = function() {
   var simData = this._constructSimData();
   this._mapScanner.mapScan(0, this._map.width, simData);
