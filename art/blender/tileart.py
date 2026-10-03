@@ -85,9 +85,11 @@ def mottled(name, hex_a, hex_b, scale=12, rough=0.9):
     return m
 
 
-def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff'):
-    # an image from art/textures spanning width x height world units, repeating beyond;
-    # it is multiplied by tint, then by shade, so a grey texture can be coloured and darkened
+def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue=0.0):
+    # an image from art/textures spanning width x height world units, repeating beyond.
+    # Its hue turns by `hue`, a fraction of the colour wheel, so blue glass can become green
+    # without losing its brightness; then it is multiplied by tint and by shade, so a grey
+    # texture can be coloured and darkened
     m = plain(name, '808080', rough)
     nt = m.node_tree
     uv = nt.nodes.new('ShaderNodeTexCoord')
@@ -97,12 +99,18 @@ def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff'):
     img = nt.nodes.new('ShaderNodeTexImage')
     img.image = bpy.data.images.load(os.path.join(TEXTURES, file), check_existing=True)
     nt.links.new(span.outputs[0], img.inputs['Vector'])
+    colour = img.outputs['Color']
+    if hue:
+        turn = nt.nodes.new('ShaderNodeHueSaturation')
+        turn.inputs['Hue'].default_value = (0.5 + hue) % 1.0
+        nt.links.new(colour, turn.inputs['Color'])
+        colour = turn.outputs['Color']
     dim = nt.nodes.new('ShaderNodeMix')
     dim.data_type = 'RGBA'
     dim.blend_type = 'MULTIPLY'
     dim.inputs['Factor'].default_value = 1
     dim.inputs['B'].default_value = (*(c * shade for c in srgb(tint)), 1)
-    nt.links.new(img.outputs['Color'], dim.inputs['A'])
+    nt.links.new(colour, dim.inputs['A'])
     nt.links.new(dim.outputs['Result'], _bsdf(m).inputs['Base Color'])
     return m
 
@@ -363,6 +371,17 @@ def building(points, height, walls, roof, rim):
     # a flat-roofed building with a parapet
     prism(points, 0, height, walls, roof, name='building')
     parapet(points, height, rim)
+
+
+def circle(cx, cy, r, sides=40):
+    # the outline of a circle as a polygon, for round buildings and their roofs
+    return [(cx + r * math.cos(2 * math.pi * i / sides), cy + r * math.sin(2 * math.pi * i / sides))
+            for i in range(sides)]
+
+
+def round_building(cx, cy, r, height, walls, roof, rim):
+    # a flat-roofed round tower with a parapet; its walls' texture wraps round it
+    building(circle(cx, cy, r), height, walls, roof, rim)
 
 
 def roof_clutter(areas, z, rng, unit, fan, count=6, avoid=()):
