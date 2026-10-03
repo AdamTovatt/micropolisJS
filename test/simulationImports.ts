@@ -22,10 +22,11 @@ import ts from "typescript";
 
 const SRC = path.resolve(__dirname, "../src");
 
-// Every tool but the query tool edits the map; the query tool only reads it to fill the query window. cityTools.ts
-// holds the map-editing tools and their costs, which the browser and the headless fixtures share.
+// Every *Tool.js edits the map. The query tool, which only asks the simulation about a tile, is client code in
+// queryTool.ts. cityTools.ts holds the map-editing tools and their costs, which the browser and the headless fixtures
+// share.
 const ROOTS = ["simulation.js", "mapGenerator.js", "cityTools.ts",
-               ...fs.readdirSync(SRC).filter((file) => file.endsWith("Tool.js") && file !== "queryTool.js")];
+               ...fs.readdirSync(SRC).filter((file) => file.endsWith("Tool.js"))];
 
 // The globals a simulation module may use. Any other global, whether the environment defines it or not, is a finding.
 const PURE_GLOBALS = new Set([

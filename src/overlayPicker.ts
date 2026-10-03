@@ -14,32 +14,30 @@
 import { appendElement } from "./domElements";
 import { OVERLAY_UPDATED } from "./messages";
 import { layerName, legendView, OverlayView } from "./overlayRenderer";
-import { OVERLAY_LAYERS, OverlayLayer, Query, QueryAnswer } from "./protocol";
+import { OVERLAY_LAYERS, OverlayLayer, QueryAnswer } from "./protocol";
+import { AnsweringSimulation, pageQuerySource, QuerySource } from "./querySource";
 import { Text } from "./text.js";
 
 // The player's choice of map overlay: asks the simulation for the chosen layer, asks again each time the simulation
 // announces it recomputed, and shows each answer.
 
 // Where the overlay's data comes from: the simulation in the page, or a server
-export interface OverlaySource {
+export interface OverlaySource extends QuerySource {
   // Calls the listener with a layer's name each time the simulation has recomputed that layer
   onLayerUpdated(listener: (layer: OverlayLayer) => void): void;
-  // Sends a query, and hands its answer to reply when it comes, which may be at once
-  ask(query: Query, reply: (answer: QueryAnswer) => void): void;
 }
 
 // The parts of the simulation in the page that answer an overlay
-export interface PageSimulation {
+export interface PageSimulation extends AnsweringSimulation {
   addEventListener(event: string, listener: (data: {layer: OverlayLayer}) => void): void;
-  answerQuery(query: unknown): QueryAnswer;
 }
 
 // The simulation in the page as an overlay source: it announces a recomputed layer with OVERLAY_UPDATED, and answers
 // a query at once
 export function pageOverlaySource(simulation: PageSimulation): OverlaySource {
   return {
+    ...pageQuerySource(simulation),
     onLayerUpdated: (listener) => simulation.addEventListener(OVERLAY_UPDATED, ({layer}) => listener(layer)),
-    ask: (query, reply) => reply(simulation.answerQuery(query)),
   };
 }
 
@@ -77,10 +75,14 @@ export class OverlaySelection {
   }
 
   // An answer for a layer no longer chosen arrives after the player chose another, and is dropped. The picker only
-  // asks for the layers the simulation answers, so a rejection is a defect.
+  // asks for the layers the simulation answers, so a rejection, or any other answer, is a defect.
   private receive(answer: QueryAnswer): void {
     if (answer.type === "rejected") {
       throw new Error(`The simulation rejected an overlay query: ${answer.reason}`);
+    }
+
+    if (answer.type !== "overlay") {
+      throw new Error(`The simulation answered an overlay query with an answer of type ${answer.type}`);
     }
 
     if (answer.layer === this.layer) {

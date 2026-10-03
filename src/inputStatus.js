@@ -17,13 +17,8 @@ import { EventEmitter } from './eventEmitter.js';
 import { GameCanvas } from './gameCanvas.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { QueryTool } from './queryTool.js';
 
-var InputStatus = EventEmitter(function(map, tileWidth) {
-  // The query tool only reads the city; every other tool is a command the simulation applies
-  this.queryTool = new QueryTool(map);
-  this.queryTool.addEventListener(Messages.QUERY_WINDOW_NEEDED, MiscUtils.reflectEvent.bind(this, Messages.QUERY_WINDOW_NEEDED));
-
+var InputStatus = EventEmitter(function(tileWidth) {
   this.canvasID = MiscUtils.normaliseDOMid(canvasID);
 
   this._tileWidth = tileWidth;

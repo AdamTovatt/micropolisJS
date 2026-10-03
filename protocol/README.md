@@ -62,6 +62,17 @@ command, since replaying it would change nothing.
   `low` and `high`, the ends of the layer's range; and `values`, row by row, top row first. A block in the last
   column or row may reach past the map's edge. A value may pass an end of the range where the original's rules let
   it, such as the police or fire coverage of several stations in one block.
+- `tileReport` names a tile by `x` and `y`, which must be on the map, and is answered with what the query tool reports
+  about it, as raw values: `x` and `y`; `tile`, the tile's value without its flags; `category`, what the query tool
+  calls the tile, one of the codes `src/protocol.ts` lists; `populationDensity`, `landValue`, `crime`, `pollution`
+  and `rateOfGrowth`, read from the blocks covering the tile; and the values the query tool shows in debug mode: the
+  tile's flags, `burnable`, `bulldozable`, `conductive`, `animated`, `powered` and `zoneCentre`, and from the blocks
+  covering the tile, `fireStationMap`, `fireCoverage`, `policeStationMap`, `policeCoverage`, `terrainDensity`,
+  `trafficDensity` and `cityCentreScore`. A station map is the simulation's working map of a service: cleared as each
+  cycle starts, then added to by the map scan, which adds the funded effect of each station it finds, halved for a
+  station without power and again for one without a road beside it. When the service's analysis runs, it smooths the
+  station map into the coverage and leaves its middle step of smoothing in the station map. The answer carries no
+  display text: the client sorts the values into the bands it shows.
 
 The protocol has no message announcing that a layer was recomputed. In the page, the simulation announces it with the
 `OVERLAY_UPDATED` event (`src/messages.ts`), which is not part of the wire format.

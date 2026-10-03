@@ -17,18 +17,21 @@ import { Simulation } from './simulation.js';
 
 // TODO Some kind of rudimentary L20N based on navigator.language?
 
-// Query tool strings
+// Query tool strings: each band's label, lowest band first, and the name of each zone category in protocol.ts
 var densityStrings = ['Low', 'Medium', 'High', 'Very High'];
 var landValueStrings = ['Slum', 'Lower Class', 'Middle Class', 'High'];
 var crimeStrings = ['Safe', 'Light', 'Moderate', 'Dangerous'];
 var pollutionStrings = ['None', 'Moderate', 'Heavy', 'Very Heavy'];
 var rateStrings = ['Declining', 'Stable', 'Slow Growth', 'Fast Growth'];
-var zoneTypes = ['Clear', 'Water', 'Trees', 'Rubble', 'Flood', 'Radioactive Waste',
-                 'Fire', 'Road', 'Power', 'Rail', 'Residential', 'Commercial',
-                 'Industrial', 'Seaport', 'Airport', 'Coal Power', 'Fire Department',
-                 'Police Department', 'Stadium', 'Nuclear Power', 'Draw Bridge',
-                 'Radar Dish', 'Fountain', 'Industrial', 'Steelers 38  Bears 3',
-                 'Draw Bridge', 'Ur 238'];
+var zoneCategories = {
+  CLEAR: 'Clear', WATER: 'Water', TREES: 'Trees', RUBBLE: 'Rubble', FLOOD: 'Flood',
+  RADIOACTIVE_WASTE: 'Radioactive Waste', FIRE: 'Fire', ROAD: 'Road', POWER: 'Power', RAIL: 'Rail',
+  RESIDENTIAL: 'Residential', COMMERCIAL: 'Commercial', INDUSTRIAL: 'Industrial', SEAPORT: 'Seaport',
+  AIRPORT: 'Airport', COAL_POWER: 'Coal Power', FIRE_STATION: 'Fire Department',
+  POLICE_STATION: 'Police Department', STADIUM: 'Stadium', NUCLEAR_POWER: 'Nuclear Power',
+  DRAWBRIDGE: 'Draw Bridge', RADAR: 'Radar Dish', FOUNTAIN: 'Fountain', FOOTBALL_GAME: 'Steelers 38  Bears 3',
+  URANIUM: 'Ur 238'
+};
 
 // Evaluation window
 var gameLevel = {};
@@ -224,7 +227,7 @@ var Text = {
   scoreBreakdown: scoreBreakdown,
   statusPanel: statusPanel,
   toolMessages: toolMessages,
-  zoneTypes: zoneTypes
+  zoneCategories: zoneCategories
 };
 
 export { Text };

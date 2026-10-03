@@ -84,7 +84,7 @@ describe("the overlay selection", () => {
         source.announce("pollution");
         source.announce("crime");
 
-        expect(source.asked.map((query) => query.layer)).toEqual(["crime", "crime"]);
+        expect(source.asked).toEqual([{type: "overlay", layer: "crime"}, {type: "overlay", layer: "crime"}]);
     });
 
     it("asks nothing on an announcement while no overlay shows", () => {
@@ -124,6 +124,19 @@ describe("the overlay selection", () => {
 
         expect(() => source.answer({type: "rejected", reason: "the layer is one of …"}))
             .toThrow("The simulation rejected an overlay query: the layer is one of …");
+    });
+
+    it("fails on an answer to another query, and shows nothing", () => {
+        const {source, shown, overlays} = selection();
+        overlays.select("crime");
+
+        expect(() => source.answer({
+            type: "tileReport", x: 0, y: 0, tile: 0, category: "CLEAR", populationDensity: 0, landValue: 0, crime: 0,
+            pollution: 0, rateOfGrowth: 0, burnable: false, bulldozable: false, conductive: false, animated: false,
+            powered: false, zoneCentre: false, fireStationMap: 0, fireCoverage: 0, policeStationMap: 0, policeCoverage: 0,
+            terrainDensity: 0, trafficDensity: 0, cityCentreScore: 0,
+        })).toThrow("The simulation answered an overlay query with an answer of type tileReport");
+        expect(shown).toEqual([]);
     });
 });
 
