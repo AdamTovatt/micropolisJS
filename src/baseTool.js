@@ -81,8 +81,8 @@ var TOOLRESULT_NEEDS_BULLDOZE = 3;
 
 // Each tool adds doTool(x, y, random, autoBulldoze), which stages the tool's edits at tile (x, y) and sets result. random
 // is the simulation's stream, which the tools that make a random choice draw from, and autoBulldoze is the player's
-// setting, which the building, road, rail and wire tools read; a tool that needs neither leaves them off. modifyIfEnoughFunding then applies
-// the staged edits if the budget can pay for them.
+// setting, which the building, road, rail and wire tools read; a tool that needs neither leaves them off.
+// modifyIfEnoughFunding then applies the staged edits if the budget can pay for them.
 var BaseToolConstructor = {
   addCost: addCost,
   bulldozerCost: 1,
@@ -97,19 +97,6 @@ var BaseToolConstructor = {
 };
 
 
-// The player's auto-bulldoze setting, which each tool command carries
-var autoBulldoze = true;
-
-var save = function(saveData) {
-  saveData.autoBulldoze = autoBulldoze;
-};
-
-
-var load = function(saveData) {
-  autoBulldoze = saveData.autoBulldoze;
-};
-
-
 var makeTool = function(toolConstructor) {
   toolConstructor.prototype = Object.create(BaseToolConstructor);
   return toolConstructor;
@@ -117,15 +104,7 @@ var makeTool = function(toolConstructor) {
 
 
 var BaseTool = {
-  makeTool: makeTool,
-  setAutoBulldoze: function(value) {
-    autoBulldoze = value;
-  },
-  getAutoBulldoze: function() {
-    return autoBulldoze;
-  },
-  save: save,
-  load: load
+  makeTool: makeTool
 };
 
 export { BaseTool };

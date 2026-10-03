@@ -13,7 +13,7 @@
 
 import $ from "jquery";
 
-import { BaseTool } from './baseTool.js';
+import { AutoBulldozePreference } from './autoBulldozePreference.ts';
 import { BudgetWindow } from './budgetWindow.js';
 import { CommandQueue } from './commandQueue.ts';
 import { LOCAL_PLAYER } from './commands.ts';
@@ -52,6 +52,7 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
   this.name = name;
+  this.autoBulldoze = new AutoBulldozePreference(Storage.canStore ? window.localStorage : null);
   this.simulation = simulation;
   this.gameMap = simulation.getMap();
 
@@ -192,7 +193,6 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
 
 Game.prototype.save = function() {
   var saveData = {name: this.name};
-  BaseTool.save(saveData);
   this.simulation.save(saveData);
 
   Storage.saveGame(saveData);
@@ -208,7 +208,6 @@ Game.newGame = function(map, seed, tileSet, snowTileSet, spriteSheet, difficulty
 
 // A game restored from what Game.save wrote
 Game.fromSave = function(savedGame, tileSet, snowTileSet, spriteSheet) {
-  BaseTool.load(savedGame);
   return new Game(Simulation.fromSave(savedGame), tileSet, snowTileSet, spriteSheet, savedGame.name);
 };
 
@@ -261,7 +260,7 @@ Game.prototype.handleSettingsWindowClosure = function(actions) {
         break;
 
       case SettingsWindow.AUTOBULLDOZE:
-        BaseTool.setAutoBulldoze(a.data);
+        this.autoBulldoze.set(a.data);
         break;
 
       case SettingsWindow.SPEED:
@@ -356,7 +355,7 @@ Game.prototype.handleSettingsRequest = function() {
                disasters: this.simulation.disasterManager.disastersEnabled};
 
   if (this.windows.open(this.settingsWindow, {
-    autoBudget: shown.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(),
+    autoBudget: shown.autoBudget, autoBulldoze: this.autoBulldoze.isOn(),
     speed: this.speedControl.getRunningSpeed(), disasters: shown.disasters, seed: this.simulation.seed
   }))
     this.settingsShown = shown;
@@ -400,7 +399,7 @@ Game.prototype.handleTool = function(data) {
   }
 
   this.commandQueue.send(LOCAL_PLAYER, {type: 'tool', tool: toolName, path: [{x: tileCoords.x, y: tileCoords.y}],
-                                        autoBulldoze: BaseTool.getAutoBulldoze()});
+                                        autoBulldoze: this.autoBulldoze.isOn()});
 };
 
 

@@ -165,8 +165,14 @@ var transitionOldSave = function(savedGame) {
 
       /* falls through */
     case 7:
-      // The year-end budget no longer waits for the player: a save made while it waited pays it on load, with the
-      // values it holds, as the city now pays it at the year end.
+      // Auto-bulldoze is the player's preference, kept apart from the city under its own key, so a save no longer holds
+      // it. The setting the save held is dropped rather than copied into the preference: the save is read on every
+      // page load, so a copy would overwrite whatever the player had since chosen.
+      delete savedGame.autoBulldoze;
+
+      // Nor does the year-end budget wait for the player any more: a save made while it waited pays it on load, with
+      // the values it holds, as the city now pays it at the year end. This is the one migration step that runs a game
+      // rule, because no rewriting of the fields can stand in for a year end that never happened.
       if (savedGame.budget.awaitingValues) {
         var budget = new Budget();
         budget.load(savedGame);

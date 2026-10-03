@@ -13,6 +13,7 @@
 
 import { fixtureSave } from "../headless/fixtures/index";
 import { advance, startCity } from "../headless/runner";
+import { AUTO_BULLDOZE_KEY } from "../src/autoBulldozePreference";
 import { Budget } from "../src/budget.js";
 import { GameMap } from "../src/gameMap.js";
 import { Random } from "../src/random";
@@ -33,10 +34,10 @@ async function loadStorage() {
 const SEED = 2026;
 
 // The keys the game itself saves beside the simulation, and the version storage.js adds
-const GAME_KEYS = ["version", "name", "autoBulldoze"];
+const GAME_KEYS = ["version", "name"];
 
 // The keys version 4 saved that no save holds any more
-const DROPPED_KEYS = ["everClicked"];
+const DROPPED_KEYS = ["everClicked", "autoBulldoze"];
 
 // An empty map with one coal plant tile, which a scan counts, and one burning tile, which makes a scan draw from the
 // stream and change the map
@@ -221,7 +222,8 @@ describe("storage", () => {
 
     describe("when migrating a version 5 save", () => {
 
-        it("drops the donation flag, and keeps every other key and value", async () => {
+        // Version 8 then drops the auto-bulldoze setting
+        it("drops the donation flag, and keeps every other key and value but auto-bulldoze", async () => {
             const Storage = await loadStorage();
             const version5 = {...simulationSave(), version: 5, name: "Newtown", autoBulldoze: false, everClicked: true};
             const savedGame = JSON.parse(JSON.stringify(version5)) as Save;
@@ -229,6 +231,7 @@ describe("storage", () => {
             Storage.transitionOldSave(savedGame);
 
             delete (version5 as Save).everClicked;
+            delete (version5 as Save).autoBulldoze;
             expect(savedGame).toEqual(version5);
         });
     });
@@ -277,14 +280,30 @@ describe("storage", () => {
 
         type Version7Save = Record<string, unknown> & {budget: Record<string, unknown>};
 
-        // The town as version 7 saved it, whose budget also held whether it waited for the player, with the budget
-        // fields given
+        // The town as version 7 saved it, with the game's auto-bulldoze setting, and a budget that also held whether it
+        // waited for the player, with the budget fields given
         function version7Save(budget: Record<string, unknown>): Version7Save {
             const saved = fixtureSave("town") as unknown as Version7Save;
-            return {...saved, version: 7, budget: {...saved.budget, awaitingValues: false, ...budget}};
+            return {...saved, version: 7, autoBulldoze: false,
+                    budget: {...saved.budget, awaitingValues: false, ...budget}};
         }
 
-        it("leaves it as a save of the current version holds it", async () => {
+        // The save is migrated on every page load, so a setting it held must never overwrite the one the player chose
+        it.each([true, false])("leaves the player's auto-bulldoze preference as it is, the save holding %s",
+                               async (on) => {
+            const Storage = await loadStorage();
+            const kept: Record<string, string> = {[AUTO_BULLDOZE_KEY]: String(!on)};
+            (globalThis as {window: {localStorage: object}}).window.localStorage = {
+                getItem: (key: string) => kept[key] ?? null,
+                setItem: (key: string, value: string) => { kept[key] = value; },
+            };
+
+            Storage.transitionOldSave({...version7Save({}), autoBulldoze: on});
+
+            expect(kept).toEqual({[AUTO_BULLDOZE_KEY]: String(!on)});
+        });
+
+        it("leaves it as a save of the current version holds it, without the auto-bulldoze setting", async () => {
             const Storage = await loadStorage();
             const savedGame = version7Save({});
 
