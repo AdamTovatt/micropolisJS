@@ -46,7 +46,11 @@ npm run build            # production bundle into dist/
 npm test                 # Jest
 npx jest test/tile.ts    # one test file
 npm run lint             # ESLint over src/, test/ and the build config
+npm run simulate -- --fixture town --steps 3000   # headless run: prints the state hash, year, population, funds
+npm run fixtures         # export each fixture's saved state to headless/fixtures/export/ (ignored by git)
 ```
+
+The headless runner takes `--seed <n>` (a generated map) or `--fixture <name>`, `--reseed <n>` to replace a fixture's stream, `--speed slow|medium|fast` to override the saved speed, and `--steps <n>`.
 
 Node 24 or later (`engines` in `package.json`). CI (`.github/workflows/ci.yml`) runs `npm ci`, then build, test and lint, on Node 24 on every push and pull request.
 
@@ -60,6 +64,7 @@ Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an und
 
 - **Simulation** — DOM-free. `simulation.js` orchestrates; the subsystems are `mapScanner.js`, `residential.js`, `commercial.js`, `industrial.js`, `road.js`, `transport.js`, `powerManager.js`, `traffic.js`, `stadia.js`, `miscTiles.js`, `emergencyServices.js`, `valves.js` (residential/commercial/industrial demand), `census.js`, `budget.js`, `evaluation.js`, `disasterManager.js`, `blockMapUtils.js`, `cityStatus.ts` (the advisor conditions and the city status record).
 - **Game and UI** — `game.js` owns the `Simulation`, the canvas, the tools and the windows (`*Window.js`). It runs two loops: `tick` (`setTimeout(0)`: input, then the simulation steps due) and `animate` (`requestAnimationFrame`: painting). `stepDriver.ts` turns real time into steps at a fixed 60 per second. It catches up after a slow frame, up to a second's worth of steps at a time, and drops the rest of a longer gap. It owes nothing while the city is not stepping: paused, behind the budget window, in a hidden tab, or under the screen-too-small overlay. `windowManager.ts` shows the windows one at a time. A window showing holds the keyboard and mouse, but only the budget window holds the city. A year-end budget that falls due while another window shows opens when that window closes, and the simulation holds its phases until it has the player's values. Milestones are good-news notifications, not windows.
+- **Headless** — `headless/` runs the simulation in Node through `tsx`, without a browser: `runner.ts` starts a city from a seed or a fixture and steps it, failing rather than stalling silently, and `cli.ts` is its command line. A fixture is a seed plus a build script in `headless/fixtures/` that drives the tool objects. The runner and the tests build a fixture from its script each time they use it, then load its saved state; no saved copy is committed. The state hash (`stateHash.ts`, specified in `docs/state-hash.md`) is SHA-256 over the canonical text of the saved state.
 - **Rendering** — `gameCanvas.js` draws 16×16 tiles from `images/tiles.png` through `tileSet.js` (with a snow variant), and sprites from `images/sprites.png`. `animationManager.js` animates tiles from their value and the client's clock, and never writes the map: an explosion holds its last frame until the simulation's scan turns the tile to rubble. `monsterTV.js` is the small disaster-follow view.
 
 ### The simulation cycle

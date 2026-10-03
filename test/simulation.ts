@@ -11,10 +11,14 @@
  *
  */
 
+import { cityFromSave, cityFromSeed, Simulation as HeadlessSimulation, Level, SaveData, Speed } from "../headless/city";
+import { buildFixture } from "../headless/fixtures/builder";
+import { town } from "../headless/fixtures/town";
+import { canonicalJson } from "../src/canonicalJson";
+import { plainSavedState } from "../src/stateHash";
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
 import { Simulation } from "../src/simulation.js";
-import { plainSavedState } from "../src/stateHash";
 import { ANIMBIT } from "../src/tileFlags";
 import { FIRE } from "../src/tileValues";
 import { SimulationInstance, YEAR, buildCity, simulationFromSeed } from "./helpers/simulations";
@@ -103,18 +107,68 @@ describe("a simulation", () => {
             expect(phasesRun(original) - originalBefore).toBe(1);
             expect(phasesRun(restored) - restoredBefore).toBe(1);
         });
+    });
+
+    describe("restored from a version 5 save", () => {
+
+        interface Phases {
+            _constructSimData(): object;
+            _simulate(simData: object): void;
+            spriteManager: {moveObjects(simData: object): void};
+        }
+
+        // Each phase, then the sprites, as the simulation's step runs them
+        function runPhases(city: HeadlessSimulation, count: number) {
+            const phases = city as unknown as Phases;
+
+            for (let i = 0; i < count; i++) {
+                const simData = phases._constructSimData();
+                phases._simulate(simData);
+                phases.spriteManager.moveObjects(simData);
+            }
+        }
+
+        // A grown town, with sprites in flight, mid-cycle
+        let grownTownSave: SaveData & {_phaseCycle: number, sprites: {list: unknown[]}};
+
+        beforeAll(() => {
+            const city = buildFixture(town);
+            runPhases(city, 3001);
+            grownTownSave = plainSavedState(city) as typeof grownTownSave;
+        });
 
         it("holds exactly the saved state: loading runs no scan", () => {
-            const {original, restored} = saveAndRestore();
+            expect(grownTownSave._phaseCycle).not.toBe(0);
+            expect(grownTownSave.sprites.list.length).toBeGreaterThan(0);
 
-            expect(plainSavedState(restored)).toEqual(plainSavedState(original));
+            expect(plainSavedState(cityFromSave(grownTownSave))).toEqual(grownTownSave);
+        });
+
+        it("never shares the saved object with the city it restores", () => {
+            const before = canonicalJson(grownTownSave);
+
+            // Long enough for a yearly evaluation, so every array the load copies has been written since
+            runPhases(cityFromSave(grownTownSave), 800);
+
+            expect(canonicalJson(grownTownSave)).toBe(before);
+        });
+
+        // The constructor is called directly: what it is given for level and speed must be ignored
+        it("gives its own level and speed to the city and its managers, whatever the constructor is given", () => {
+            const original = cityFromSeed(SEED, Level.hard, Speed.fast);
+
+            const restored = new Simulation(new GameMap(120, 100), Level.easy, Speed.medium, null,
+                                            plainSavedState(original));
+
+            expect([restored._gameLevel, restored._speed]).toEqual([Level.hard, Speed.fast]);
+            expect(restored.disasterManager._gameLevel).toBe(Level.hard);
         });
 
         it("must be migrated first if it predates version 5", () => {
-            const saveData = plainSavedState(simulationFromSeed(SEED)) as {scannedState?: object};
+            const saveData = plainSavedState(simulationFromSeed(SEED)) as SaveData & {scannedState?: object};
             delete saveData.scannedState;
 
-            expect(() => new Simulation(new GameMap(120, 100), null, null, null, saveData))
+            expect(() => cityFromSave(saveData))
                 .toThrow("A save from before version 5 must be migrated before it is loaded");
         });
     });
