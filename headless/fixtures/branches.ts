@@ -50,8 +50,9 @@ export const wilderness = builtFixture(
     {step: RUN_STEPS, hash: "817d4860b30fd2d2bc3f476a0fba5abc38023c0bfc14473c5dcca4c8b31d25f9"},
   ]);
 
-// Two coal plants side by side, the second's west side against the first's east side: the power scan walks the second
-// as a load of the first, which reaches it first, rather than as a source
+// Two coal plants side by side, the second's west side against the first's east side. The power scan takes the last
+// source stacked first, the second plant, and its walk reaches the first, which it then walks as a load of the second
+// rather than as a source
 export const twinPlants = builtFixture(
   "Two coal plants side by side, with nothing else built", [
     buildingAt("coal", PLANT_LEFT + 1, PLANT_TOP + 1),

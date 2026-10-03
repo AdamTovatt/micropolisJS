@@ -15,12 +15,13 @@
 // made for a branch, and the points a unit's rarer branches need, which name the branch they reach so the generator
 // fails when a point stops reaching it.
 
+import { SaveData } from "../headless/city";
 import { fixtureNamesOf } from "../headless/fixtures/index";
 import { FRONT_END_MESSAGE, NOT_ENOUGH_POWER } from "../src/messages";
 import { savedState } from "../src/stateHash";
 import { BIT_MASK, ZONEBIT } from "../src/tileFlags";
-import { FIRE, HTRFBASE, LASTFIRE, LASTIND, LTRFBASE, PORTBASE, POWERBASE } from "../src/tileValues";
-import { SnapshotPoint, SnapshotRecord, UNIT_NAMES } from "./unitSnapshots";
+import { FIRE, HTRFBASE, LASTFIRE, LASTIND, LTRFBASE, PORTBASE, POWERBASE, ROADBASE } from "../src/tileValues";
+import { SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES } from "./unitSnapshots";
 
 // How many of each unit's first calls are recorded in each fixture
 const FIRST_CALLS = 2;
@@ -55,23 +56,24 @@ function reaching(branch: string, units: string[], others: string[] = []): Snaps
                                     !others.some((unit) => record.reached.includes(unit))};
 }
 
-// The parts of a saved state the branches below are told by
-interface SavedState {
-  simulation: {randomState: number[], lastPowerMessage: number | null};
-  map: {tiles: number[]};
+// The parts of a saved state the branches below are told by, beyond those the headless code reads
+interface SavedState extends SaveData {
+  simulation: SaveData["simulation"] & {lastPowerMessage: number | null};
+  map: SaveData["map"] & {tiles: number[]};
   census: {landValueAverage: number, pollutionAverage: number};
   scannedState: {
-    blockMaps: {crimeRateMap: number[], landValueMap: number[], trafficDensityMap: number[]},
+    blockMaps: {crimeRateMap: number[], landValueMap: number[], policeStationMap: number[],
+                populationDensityMap: number[], trafficDensityMap: number[]},
     power: {powerCapacity: number, powerLoad: number, powerStack: {x: number, y: number}[]},
   };
 }
 
 function before(record: SnapshotRecord): SavedState {
-  return record.before as SavedState;
+  return stateBefore<SavedState>(record);
 }
 
 function after(record: SnapshotRecord): SavedState {
-  return record.after as SavedState;
+  return stateAfter<SavedState>(record);
 }
 
 // A branch the state a call starts from decides: the point takes the first call whose city is in that state, and a
@@ -99,11 +101,41 @@ function trafficAndIndustry(state: SavedState): boolean {
          hasTile(state, (value) => value > LASTIND && value < PORTBASE);
 }
 
-// A block valued as developed by the last scan whose crime is high enough to take from its value. The crime and land
-// value maps have the same blocks.
+// A block of the land value scan, two tiles a side, with a developed tile among its four
+function developedBlock(state: SavedState, blockX: number, blockY: number): boolean {
+  const {width, tiles} = state.map;
+  return [0, 1].some((dx) => [0, 1].some((dy) =>
+    (tiles[(blockX * 2 + dx) + (blockY * 2 + dy) * width] & BIT_MASK) >= ROADBASE));
+}
+
+// A developed block whose crime is high enough to take from its value. The crime map's blocks are the land value
+// scan's.
 function crimeOnDevelopedLand(state: SavedState): boolean {
-  const {crimeRateMap, landValueMap} = state.scannedState.blockMaps;
-  return crimeRateMap.some((crime, i) => crime > 190 && landValueMap[i] > 0);
+  const blocksWide = Math.ceil(state.map.width / 2);
+  return state.scannedState.blockMaps.crimeRateMap.some((crime, i) =>
+    crime > 190 && developedBlock(state, i % blocksWide, Math.floor(i / blocksWide)));
+}
+
+// The blocks of land with a value whose crime before the police passes the crime scan's cap of 300, by index in the
+// land value map. The scan only reads the land value and population density maps.
+function crimePastItsCap(state: SavedState): number[] {
+  const {landValueMap, populationDensityMap} = state.scannedState.blockMaps;
+  return landValueMap.flatMap((landValue, i) => (landValue > 0 && 128 - landValue + populationDensityMap[i] > 300 ?
+    [i] : []));
+}
+
+// A block whose crime passes the cap of 300 and, less the police, still passes the most a block holds, 250: the crime
+// scan's two upper limits. The police cover is the station map as the scan smoothed it, which the state after it holds.
+function crimeAtItsCaps(state: SavedState): boolean {
+  const policeStationMap = state.scannedState.blockMaps.policeStationMap;
+  const blocksWide = Math.ceil(state.map.width / 2);
+  const policeBlocksWide = Math.ceil(state.map.width / 8);
+
+  return crimePastItsCap(state).some((i) => {
+    const police = policeStationMap[Math.floor((i % blocksWide) / 4) +
+                                    Math.floor(Math.floor(i / blocksWide) / 4) * policeBlocksWide];
+    return 300 - police > 250;
+  });
 }
 
 // Traffic in each of the bands that ease differently: light traffic, which clears, moderate, and heavy, above 200
@@ -222,6 +254,13 @@ export const SNAPSHOT_POINTS: SnapshotPoint[] = [
   {
     fixture: "suburbBroke", unit: "blockMapUtils.neutraliseTrafficMap", call: 0,
     ...startingFrom("traffic in every band", trafficInEveryBand),
+  },
+
+  // blockMapUtils.crimeScan: crime past its cap of 300, and past the most a block holds even less the police
+  {
+    fixture: "suburbBroke", unit: "blockMapUtils.crimeScan", call: 0,
+    where: (simulation) => crimePastItsCap(savedState(simulation) as SavedState).length > 0,
+    reaches: {branch: "crime at its caps", test: (record) => crimeAtItsCaps(after(record))},
   },
 
   // blockMapUtils.pollutionTerrainLandValueScan: burning tiles, and a tile of FIRE itself, which scores as radiation

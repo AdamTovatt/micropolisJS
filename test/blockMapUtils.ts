@@ -64,5 +64,25 @@ describe("the block map utilities", () => {
 
             expect(census.crimeAverage).toBe((CRIME_RATE + (128 - otherLandValue)) / 2);
         });
+
+        // The cap of 300 on crime before the police shows only where the police then take it below 250. The C#
+        // CrimeScan pins the same input to the same rate (BlockMapUtilsTests), since no fixture's city reaches it.
+        it("should cap crime at 300 before the police take from it", () => {
+            const blockMaps = makeBlockMaps();
+            blockMaps.landValueMap.worldSet(60, 48, 10);
+            blockMaps.populationDensityMap.worldSet(60, 48, 250);
+
+            // Police cover of 100 everywhere, which smoothing leaves at 100 away from the map's edges
+            for (let x = 0; x < MAP_WIDTH; x += 8) {
+                for (let y = 0; y < MAP_HEIGHT; y += 8) {
+                    blockMaps.policeStationMap.worldSet(x, y, 100);
+                }
+            }
+
+            BlockMapUtils.crimeScan({crimeAverage: 0}, blockMaps);
+
+            // 128 - 10 + 250 = 368, capped at 300, less the police
+            expect(blockMaps.crimeRateMap.worldGet(60, 48)).toBe(200);
+        });
     });
 });

@@ -232,5 +232,8 @@ or the block's position. A record passes when nothing differs. It is inconclusiv
 TypeScript's call reached, the unit itself or one in `reached`, and fails when it stops at any other stub: the C#
 called what the TypeScript did not.
 
-Two tests hold what is ported to passing, and fail rather than report inconclusive: every phase 0 record that reaches
-no other unit, the counters and the census clearing, and every map scan record with no handlers, the scanner's core.
+What is ported is held to passing. `UnitSnapshotTests` lists the units, handlers and sprite or disaster functions not
+yet ported, and fails unless the list names exactly the stubs in `server/Micropolis.Rules`, each of which names its
+unit in a string literal, `new NotPortedException("census.take10Census")`: a port removes its units from it, and a
+stub that comes back fails rather than turning its records inconclusive. Every record whose call reaches no listed
+unit, the unit itself included, must pass.

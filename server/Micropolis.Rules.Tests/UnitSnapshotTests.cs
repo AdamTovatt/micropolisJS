@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace Micropolis.Rules.Tests
 {
@@ -23,6 +24,41 @@ namespace Micropolis.Rules.Tests
     public sealed class UnitSnapshotTests
     {
         private static readonly IReadOnlyList<UnitSnapshot> Snapshots = UnitSnapshots.Load();
+
+        // The units, handlers and sprite or disaster functions the C# has a stub for: a record whose call reaches one may
+        // be inconclusive, and every other record must pass. A port removes its units from the list.
+        private static readonly IReadOnlySet<string> NotYetPorted = new HashSet<string>
+        {
+            "budget.collectTax",
+            "census.take10Census",
+            "census.take120Census",
+            "commercial.commercialFound",
+            "disasterManager.doDisasters",
+            "disasterManager.doMeltdown",
+            "emergencyServices.fireStationFound",
+            "emergencyServices.policeStationFound",
+            "evaluation.cityEvaluation",
+            "industrial.industrialFound",
+            "miscTiles.explosionFound",
+            "miscTiles.fireFound",
+            "miscTiles.floodFound",
+            "miscTiles.radiationFound",
+            "powerManager.coalPowerFound",
+            "powerManager.nuclearPowerFound",
+            "residential.hospitalFound",
+            "residential.residentialFound",
+            "road.roadFound",
+            "simulation._publishCityStatus",
+            "simulation._sendMessages",
+            "spriteManager.makeExplosion",
+            "spriteManager.moveObjects",
+            "stadia.emptyStadiumFound",
+            "stadia.fullStadiumFound",
+            "transport.airportFound",
+            "transport.portFound",
+            "transport.railFound",
+            "valves.setValves",
+        };
 
         public static IEnumerable<object[]> AllSnapshots => Snapshots.Select(snapshot => new object[] { snapshot });
 
@@ -38,18 +74,39 @@ namespace Micropolis.Rules.Tests
             AssertMatches(UnitSnapshots.ReadRecord(snapshot));
         }
 
-        // Phase 0 on a cycle that sets no valves, after the city's first evaluation: the counters and the census
-        // clearing, which are ported, so these match rather than stopping at a stub
+        // Every record whose call reaches no unit in NotYetPorted, the unit itself included, must pass: an inconclusive
+        // result there would hide a ported unit that stopped at a stub. The map scan's records with no handler prove the
+        // scanner's core this way; no repair is registered in them, so the scan's calls to the repair manager are proven
+        // by the records of the families that register repairs, and RepairManager.CheckTile itself by helpers.json's
+        // repairs.
         [TestMethod]
-        public void Simulate_PhaseZeroWithoutValves_CountersAndCensusClearingMatchTypeScript()
+        public void Run_RecordReachingNoUnitNotYetPorted_MatchesTypeScript()
         {
-            List<(UnitSnapshot Snapshot, JsonObject Record)> records = PhaseZeroRecords().ToList();
+            List<UnitSnapshot> held = Snapshots
+                .Where(snapshot => !NotYetPorted.Contains(snapshot.Unit) && !snapshot.Reached.Any(NotYetPorted.Contains))
+                .ToList();
 
-            Assert.IsNotEmpty(records);
-            foreach ((UnitSnapshot snapshot, JsonObject record) in records)
+            Assert.IsNotEmpty(held);
+            foreach (UnitSnapshot snapshot in held)
             {
-                Assert.AreEqual(new UnitRun(null, null), UnitSnapshotRunner.Run(record), snapshot.ToString());
+                Assert.AreEqual(new UnitRun(null, null), UnitSnapshotRunner.Run(UnitSnapshots.ReadRecord(snapshot)), snapshot.ToString());
             }
+        }
+
+        // The list is the stubs, no more and no less: a port removes its unit from it, and a stub that comes back, as a
+        // merge that takes a stub's side would bring it, fails here rather than turning its records inconclusive
+        [TestMethod]
+        public void NotYetPorted_ComparedWithTheStubsInTheSource_NamesEachStub()
+        {
+            Regex stub = new Regex("new NotPortedException\\(\"([^\"]+)\"\\)");
+            List<string> stubs = Directory.GetFiles(RepositoryFiles.GetPath("server/Micropolis.Rules"), "*.cs")
+                .SelectMany(file => stub.Matches(File.ReadAllText(file)).Select(match => match.Groups[1].Value))
+                .ToList();
+            string unlisted = string.Join(", ", stubs.Except(NotYetPorted).Order(StringComparer.Ordinal));
+            string ported = string.Join(", ", NotYetPorted.Except(stubs).Order(StringComparer.Ordinal));
+
+            Assert.AreEqual("", unlisted, "A stub for a unit NotYetPorted doesn't list");
+            Assert.AreEqual("", ported, "A unit NotYetPorted lists that has no stub, so is ported");
         }
 
         // The records name the families as the TypeScript registered them, which the generator checks against
@@ -63,21 +120,6 @@ namespace Micropolis.Rules.Tests
             foreach (UnitSnapshot snapshot in registeringAll)
             {
                 CollectionAssert.AreEqual(snapshot.Handlers.ToList(), Simulation.HandlerFamilies.ToList(), snapshot.ToString());
-            }
-        }
-
-        // The scanner's core alone, with no handler registered: power to the conductive tiles and the zone counts. No
-        // repair is registered either, so the scan's calls to the repair manager are proven by the records of the
-        // families that register repairs, and RepairManager.CheckTile itself by helpers.json's repairs.
-        [TestMethod]
-        public void MapScan_WithNoHandlers_MatchesTypeScript()
-        {
-            List<UnitSnapshot> coreOnly = Snapshots.Where(snapshot => snapshot.Unit == "mapScanner.mapScan" && snapshot.Handlers.Count == 0).ToList();
-
-            Assert.IsNotEmpty(coreOnly);
-            foreach (UnitSnapshot snapshot in coreOnly)
-            {
-                Assert.AreEqual(new UnitRun(null, null), UnitSnapshotRunner.Run(UnitSnapshots.ReadRecord(snapshot)), snapshot.ToString());
             }
         }
 

@@ -18,8 +18,9 @@ namespace Micropolis.Rules
     /// </summary>
     public static class BlockMapUtils
     {
-        // A map a scan works in: each scan makes its own, writes every entry before it reads it, and never saves it,
-        // so its range is never checked and no state passes through it from one scan to the next
+        // A map a scan works in, all zeros, which the scans rely on: some add to entries or write only some of them
+        // before they read the whole map. Each scan makes its own and never saves it, so no state passes through it
+        // from one scan to the next, and its range is never checked.
         private static BlockMap WorkingMap(GameMap map, int blockSize)
         {
             return new BlockMap(map.Width, map.Height, blockSize, int.MinValue, int.MaxValue);
@@ -82,6 +83,16 @@ namespace Micropolis.Rules
                     }
                 }
             }
+        }
+
+        // Spreads the stations a map notes into the blocks around them: three passes of smoothing, from the station map
+        // to the effect map, back, and to the effect map again. The station map keeps the second pass, which the crime
+        // scan reads for the police.
+        private static void SpreadStationCover(BlockMap stationMap, BlockMap effectMap)
+        {
+            SmoothMap(stationMap, effectMap, SmoothStyle.NeighboursThenBlock);
+            SmoothMap(effectMap, stationMap, SmoothStyle.NeighboursThenBlock);
+            SmoothMap(stationMap, effectMap, SmoothStyle.NeighboursThenBlock);
         }
 
         /// <summary>
@@ -205,10 +216,7 @@ namespace Micropolis.Rules
         // The Manhattan distance of (x, y) from the city centre, at most 64
         private static int GetCityCentreDistance(GameMap map, int x, int y)
         {
-            int xDis = x > map.CityCentreX ? x - map.CityCentreX : map.CityCentreX - x;
-            int yDis = y > map.CityCentreY ? y - map.CityCentreY : map.CityCentreY - y;
-
-            return Math.Min(xDis + yDis, 64);
+            return Math.Min(Math.Abs(x - map.CityCentreX) + Math.Abs(y - map.CityCentreY), 64);
         }
 
         /// <summary>
@@ -347,9 +355,7 @@ namespace Micropolis.Rules
             BlockMap landValueMap = blockMaps.LandValueMap;
             BlockMap populationDensityMap = blockMaps.PopulationDensityMap;
 
-            SmoothMap(policeStationMap, policeStationEffectMap, SmoothStyle.NeighboursThenBlock);
-            SmoothMap(policeStationEffectMap, policeStationMap, SmoothStyle.NeighboursThenBlock);
-            SmoothMap(policeStationMap, policeStationEffectMap, SmoothStyle.NeighboursThenBlock);
+            SpreadStationCover(policeStationMap, policeStationEffectMap);
 
             long totalCrime = 0;
             long crimeZoneCount = 0;
@@ -494,9 +500,7 @@ namespace Micropolis.Rules
             BlockMap fireStationMap = blockMaps.FireStationMap;
             BlockMap fireStationEffectMap = blockMaps.FireStationEffectMap;
 
-            SmoothMap(fireStationMap, fireStationEffectMap, SmoothStyle.NeighboursThenBlock);
-            SmoothMap(fireStationEffectMap, fireStationMap, SmoothStyle.NeighboursThenBlock);
-            SmoothMap(fireStationMap, fireStationEffectMap, SmoothStyle.NeighboursThenBlock);
+            SpreadStationCover(fireStationMap, fireStationEffectMap);
         }
     }
 }

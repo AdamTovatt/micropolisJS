@@ -24,6 +24,7 @@ namespace Micropolis.Rules
         // The tiles a coal and a nuclear plant can power
         private const long CoalPowerStrength = 700;
         private const long NuclearPowerStrength = 2000;
+
         private readonly GameMap _map;
 
         public PowerManager(GameMap map)
@@ -132,7 +133,8 @@ namespace Micropolis.Rules
             while (_powerStack.Count > 0)
             {
                 Position position = _powerStack[^1];
-                _powerStack.RemoveAt(_powerStack.Count - 1);                Direction? anyDir = null;
+                _powerStack.RemoveAt(_powerStack.Count - 1);
+                Direction? anyDir = null;
                 int conNum;
 
                 do
@@ -154,12 +156,10 @@ namespace Micropolis.Rules
                     // counted, and a tile with two is stacked to walk from again.
                     conNum = 0;
 
-                    foreach (Direction dir in Direction.CardinalDirections)
+                    // By index, so the walk's innermost loop takes no enumerator
+                    for (int i = 0; i < Direction.CardinalDirections.Count && conNum < 2; i++)
                     {
-                        if (conNum >= 2)
-                        {
-                            break;
-                        }
+                        Direction dir = Direction.CardinalDirections[i];
 
                         if (TestForConductive(visitedMap, position, dir))
                         {
