@@ -223,18 +223,18 @@ describe("the city score breakdown", () => {
             Math.round(unpowered.scoreBefore * year.poweredZones / totalZones) - unpowered.scoreBefore);
     });
 
-    it("scales a shrinking city's score by -0.05", () => {
+    it("scales a shrinking city's score by 0.95 less the share of people who left", () => {
         const city = makeCity();
         for (const state of TROUBLED_CITY.slice(0, -1))
             evaluateYear(city, state);
         const lastScore = city.evaluation.cityScore;
         evaluateYear(city, TROUBLED_CITY[TROUBLED_CITY.length - 1]);
 
-        // Pins the Math.floor defect noted in getScore: any decline gives a scale of -0.05, not
-        // 0.95 less the share of people who left. Its rule change turns this red deliberately.
+        // The city had (1000 + 270 * 8) * 20 = 63200 people, and now has (800 + 250 * 8) * 20 = 56000:
+        // 7200 left
         const migration = stepOf(city.evaluation.cityScoreBreakdown, lastScore, Evaluation.SCORE_MIGRATION);
-        expect(city.evaluation.cityPopDelta).toBeLessThan(0);
-        expect(migration.entry.points).toBe(Math.round(migration.scoreBefore * -0.05) - migration.scoreBefore);
+        expect(migration.entry.points).toBe(
+            Math.round(migration.scoreBefore * (0.95 - 7200 / 63200)) - migration.scoreBefore);
     });
 
     it("leaves out adjustments that didn't move the score", () => {
@@ -285,18 +285,20 @@ describe("the city score breakdown", () => {
         ]);
     });
 
-    it("records the clamp to the 0-1000 range when it moves the score", () => {
+    it.each([
+        // The second year's growth scales the score past 1000
+        ["above 1000", THRIVING_TOWN.slice(0, 2), 1000],
+        // Problems leave no base score, and fires and taxes take it below 0
+        ["below 0", [{...TROUBLED_CITY[0], crime: 255, pollution: 255, firePop: 50}], 0],
+    ])("records the clamp to the 0-1000 range for a score %s", (_, years, limit) => {
         const city = makeCity();
-        for (const state of TROUBLED_CITY.slice(0, -1))
+        for (const state of years.slice(0, -1))
             evaluateYear(city, state);
         const lastScore = city.evaluation.cityScore;
-        evaluateYear(city, TROUBLED_CITY[TROUBLED_CITY.length - 1]);
+        evaluateYear(city, years[years.length - 1]);
 
-        // The final year's decline scales the score below zero (the Math.floor defect above), and
-        // the clamp brings it back to 0
         const range = stepOf(city.evaluation.cityScoreBreakdown, lastScore, Evaluation.SCORE_RANGE);
-        expect(range.scoreBefore).toBeLessThan(0);
-        expect(range.entry.points).toBe(-range.scoreBefore);
+        expect(range.entry.points).toBe(limit - range.scoreBefore);
     });
 
     // One city's lifecycle, so the two empty states share a test
@@ -355,6 +357,6 @@ describe("the city score", () => {
     });
 
     it("is unchanged for a troubled city", () => {
-        expect(scoresOver(TROUBLED_CITY)).toEqual([644, 460, 459, 230]);
+        expect(scoresOver(TROUBLED_CITY)).toEqual([644, 460, 459, 528]);
     });
 });

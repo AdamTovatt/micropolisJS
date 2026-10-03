@@ -347,10 +347,8 @@ Evaluation.prototype.getScore = function(simData) {
     // If the city is growing, scale score by percentage growth in population
     scale = (this.cityPopDelta / this.cityPop) + 1.0;
   } else if (this.cityPopDelta < 0) {
-    // If the city is shrinking, scale down by up to 5% based on level of outward migration.
-    // Known port defect, left for a separate rule change: evaluate.cpp has no Math.floor here.
-    // The floor turns any decline into -1, so the scale becomes -0.05.
-    scale = 0.95 + Math.floor(this.cityPopDelta / (this.cityPop - this.cityPopDelta));
+    // If the city is shrinking, scale by 0.95 less the share of last year's population that left
+    scale = 0.95 + (this.cityPopDelta / (this.cityPop - this.cityPopDelta));
   }
 
   score = Math.round(score * scale);
