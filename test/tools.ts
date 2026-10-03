@@ -36,6 +36,18 @@ describe("the park tool", () => {
 
         expect(map.getTileValue(10, 10)).toBe(tileValue);
     });
+
+    // As putDownPark in the original, which picks what to plant before it looks at the tile
+    it("should draw once where the tile isn't clear, and plant nothing", () => {
+        const map = new GameMap(120, 100);
+        map.setTile(10, 10, WOODS2, BULLBIT);
+        const tool = new ParkTool(map);
+
+        expect(() => tool.doTool(10, 10, streamDrawing([]))).toThrow("The test stream ran out after 0 draws");
+
+        tool.doTool(10, 10, streamDrawing([2]));
+        expect(tool.result).toBe(tool.TOOLRESULT_NEEDS_BULLDOZE);
+    });
 });
 
 describe("the bulldozer", () => {
