@@ -11,7 +11,7 @@
  *
  */
 
-import { CITY_PROBLEMS, type CityClass, MAX_RANKED_PROBLEMS, type EvaluationRecord, type ScoreEntry } from "./protocol";
+import { type CityClass, MAX_RANKED_PROBLEMS, type EvaluationRecord, type ScoreEntry } from "./protocol";
 
 // The evaluation as evaluation.js keeps it. It is JavaScript, so its reader declares the shape, as cityStatus.ts does
 // for the census and budget.
@@ -24,17 +24,17 @@ export interface EvaluationSource {
   cityScore: number;
   cityScoreDelta: number;
   cityScoreBreakdown: ScoreEntry[];
-  // The problem in each place the public ranks, or null where too few problems got a vote
+  // The problem in each place the public ranks, or null where too few problems got a vote, as before the first
+  // evaluation
   getProblemNumber(place: number): number | null;
 }
 
 // Builds the record field by field in the protocol's order, sharing nothing with the evaluation
 export function evaluationRecord(evaluation: EvaluationSource, level: number): EvaluationRecord {
-  // Before the first evaluation every place holds the number of problems, which names none
   const problems: number[] = [];
   for (let place = 0; place < MAX_RANKED_PROBLEMS; place++) {
     const problem = evaluation.getProblemNumber(place);
-    if (problem !== null && problem < CITY_PROBLEMS.length) {
+    if (problem !== null) {
       problems.push(problem);
     }
   }

@@ -267,11 +267,9 @@ Evaluation.prototype.doProblems = function(census, budget, blockMaps) {
     return b.voteCount - a.voteCount;
   });
 
-  this.problemOrder = this.problemVotes.map(function(pv, i) {
-    if (i >= NUM_COMPLAINTS || pv.voteCount === 0)
-      return null;
-
-    return pv.index;
+  // The worst problems, worst first, with NUMPROBLEMS for none, as the original keeps them
+  this.problemOrder = this.problemVotes.slice(0, NUM_COMPLAINTS).map(function(pv) {
+    return pv.voteCount === 0 ? NUMPROBLEMS : pv.index;
   });
 };
 
@@ -427,7 +425,7 @@ Evaluation.prototype.doVotes = function() {
 
 
 Evaluation.prototype.getProblemNumber = function(i) {
-  if (i < 0 || i >= NUM_COMPLAINTS)
+  if (i < 0 || i >= NUM_COMPLAINTS || this.problemOrder[i] === NUMPROBLEMS)
     return null;
 
   return this.problemOrder[i];

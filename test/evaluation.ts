@@ -317,6 +317,21 @@ describe("the problems", () => {
         expect(housing.voteCount).toBe(3);
     });
 
+    // As evaluate.cpp keeps them: the worst four, worst first, with 7 for none. Only housing draws votes here.
+    it("rank the worst four, with 7 for each slot no problem fills", () => {
+        const city = makeCity();
+        evaluateYear(city, problemFreeYear(200, developedLand(15, 0)));
+
+        expect(city.evaluation.problemOrder).toEqual([Evaluation.HOUSING, 7, 7, 7]);
+        expect([0, 1, 2, 3].map((i) => city.evaluation.getProblemNumber(i))).toEqual([Evaluation.HOUSING, null, null, null]);
+    });
+
+    it("name none for a city not yet evaluated", () => {
+        const evaluation = newEvaluation();
+
+        expect([0, 1, 2, 3].map((i) => evaluation.getProblemNumber(i))).toEqual([null, null, null, null]);
+    });
+
     // Half the 64 blocks carry traffic of 12, and the count starts at 1: 384 / 33 = 11.6, which
     // drops its fraction, and 11 * 2.4 = 26.4 drops its own, as evaluate.cpp's ints do
     it("drop the fractions of the traffic average", () => {
