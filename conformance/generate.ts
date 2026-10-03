@@ -12,7 +12,7 @@
  */
 
 // Writes the conformance files the TypeScript reference computes: `npm run conformance`. conformance/README.md
-// describes each file. CI runs this and fails unless the committed files are what it writes, byte for byte.
+// describes each file.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -20,6 +20,8 @@ import { fixtureLog, fixtureNames } from "../headless/fixtures/index";
 import { replay } from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
 import { MapGenerator } from "../src/mapGenerator.js";
+import * as Messages from "../src/messages";
+import { CITY_CLASSES, SCORE_REASONS } from "../src/protocol";
 import { Random } from "../src/random";
 import { hashSavedState, savedState } from "../src/stateHash";
 import * as TileFlags from "../src/tileFlags";
@@ -310,7 +312,23 @@ async function mapLines(): Promise<string[]> {
   ];
 }
 
-// --- saves/: each fixture's saved state as built and after its golden run, and their hashes
+// --- saveStrings.json: the strings a save may hold, which the C# save model's names are checked against
+
+// The announcements of a new city class that checkGrowth in simulation.js sends, smallest class first
+const CITY_CLASS_MESSAGES = [Messages.REACHED_TOWN, Messages.REACHED_CITY, Messages.REACHED_CAPITAL,
+                             Messages.REACHED_METROPOLIS, Messages.REACHED_MEGALOPOLIS];
+
+function saveStringLines(): string[] {
+  return [
+    "{",
+    ...listLines("cityClasses", [...CITY_CLASSES], false),
+    ...listLines("scoreReasons", [...SCORE_REASONS], false),
+    ...listLines("cityClassMessages", CITY_CLASS_MESSAGES, true),
+    "}",
+  ];
+}
+
+// --- saves/: each fixture's saved state as built and after its golden run, and the steps they are taken at
 
 const SAVES_DIRECTORY = "saves";
 
@@ -318,49 +336,58 @@ const SAVES_DIRECTORY = "saves";
 const SAVE_POINTS = {built: (steps: number[]) => steps[0], run: (steps: number[]) => steps[steps.length - 1]};
 
 async function writeSaves(): Promise<void> {
-  // Written afresh, so a fixture that is gone leaves no save behind
-  const directory = path.join(CONFORMANCE_DIRECTORY, SAVES_DIRECTORY);
-  fs.rmSync(directory, {recursive: true, force: true});
-  fs.mkdirSync(directory);
+  fs.mkdirSync(path.join(CONFORMANCE_DIRECTORY, SAVES_DIRECTORY));
 
-  const hashes: Record<string, Record<string, {step: number, hash: string}>> = {};
+  const checkpoints: Record<string, Record<string, number>> = {};
 
   for (const name of fixtureNames()) {
     const log = fixtureLog(name);
     const steps = log.checkpoints.map((checkpoint) => checkpoint.step);
-    hashes[name] = {};
+    checkpoints[name] = {};
 
     for (const [point, stepOf] of Object.entries(SAVE_POINTS)) {
       const step = stepOf(steps);
-      const saveData = savedState(replay(log, {to: step, verify: false}).city);
-      const hash = await hashSavedState(saveData);
 
-      // The fixture's own golden hash, which the save has to be the state of
-      const golden = log.checkpoints.find((checkpoint) => checkpoint.step === step)!.hash;
-      if (hash !== golden) {
-        throw new Error(`The ${name} fixture's state at step ${step} hashes to ${hash}, not its golden ${golden}`);
-      }
+      // Fails unless the state matches each of the fixture's golden hashes up to the step, its own included
+      const replayed = replay(log, {to: step});
+      await replayed.verified;
 
       // The canonical text alone, so the file's SHA-256 is the state hash
-      writeText(path.join(SAVES_DIRECTORY, `${name}.${point}.json`), canonicalJson(saveData));
-      hashes[name][point] = {step, hash};
+      writeText(path.join(SAVES_DIRECTORY, `${name}.${point}.json`), canonicalJson(savedState(replayed.city)));
+      checkpoints[name][point] = step;
     }
   }
 
-  ensureCovers(Object.keys(hashes).length > 0, "a fixture's save");
+  ensureCovers(Object.keys(checkpoints).length > 0, "a fixture's save");
 
-  writeFile(path.join(SAVES_DIRECTORY, "hashes.json"), [
+  writeFile(path.join(SAVES_DIRECTORY, "checkpoints.json"), [
     "{",
-    ...Object.entries(hashes).map(([name, points], i, all) =>
+    ...Object.entries(checkpoints).map(([name, points], i, all) =>
       `  ${JSON.stringify(name)}: ${JSON.stringify(points)}${i < all.length - 1 ? "," : ""}`),
     "}",
   ]);
 }
 
+// The files in conformance/ another program writes: random.c writes random.json
+const WRITTEN_ELSEWHERE = new Set(["random.json"]);
+
+// Removes what an earlier run wrote, so a file the generator no longer writes is gone rather than left committed
+function clearWritten(): void {
+  for (const entry of fs.readdirSync(CONFORMANCE_DIRECTORY)) {
+    if (entry.endsWith(".json") && !WRITTEN_ELSEWHERE.has(entry)) {
+      fs.rmSync(path.join(CONFORMANCE_DIRECTORY, entry));
+    }
+  }
+
+  fs.rmSync(path.join(CONFORMANCE_DIRECTORY, SAVES_DIRECTORY), {recursive: true, force: true});
+}
+
 async function main() {
+  clearWritten();
   writeFile("tiles.json", tileLines());
   writeFile("canonicalJson.json", canonicalJsonLines());
   writeFile("maps.json", await mapLines());
+  writeFile("saveStrings.json", saveStringLines());
   await writeSaves();
 }
 

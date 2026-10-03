@@ -11,7 +11,6 @@
  *
  */
 
-using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Micropolis.Rules.Tests
@@ -47,10 +46,7 @@ namespace Micropolis.Rules.Tests
             JsonObject file = JsonNode.Parse(FileText)!.AsObject();
             Break(file, change);
 
-            Exception exception = Assert.Throws<Exception>(() => RandomVectors.Parse(file.ToJsonString()), description);
-
-            Assert.IsTrue(exception is InvalidDataException or JsonException, $"Unexpected {exception.GetType().Name}.");
-            StringAssert.Contains(exception.Message, message);
+            ConformanceAssert.Broken(() => RandomVectors.Parse(file.ToJsonString()), description, message);
         }
 
         private static void Break(JsonObject file, string change)

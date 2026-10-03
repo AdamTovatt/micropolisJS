@@ -27,11 +27,6 @@ namespace Micropolis.Rules.Tests
             return File.ReadAllText(RepositoryFiles.GetPath($"conformance/{name}"));
         }
 
-        public static T Load<T>(string name)
-        {
-            return Parse<T>(Read(name));
-        }
-
         public static T Parse<T>(string json, params JsonConverter[] converters)
         {
             JsonSerializerOptions options = new JsonSerializerOptions

@@ -26,96 +26,96 @@ namespace Micropolis.Rules
         /// </summary>
         public const int HistoryLength = 120;
 
-        public long ResPop { get; set; }
+        public long ResPop { get; internal set; }
 
-        public long ComPop { get; set; }
+        public long ComPop { get; internal set; }
 
-        public long IndPop { get; set; }
+        public long IndPop { get; internal set; }
 
-        public long TotalPop { get; set; }
+        public long TotalPop { get; internal set; }
 
-        public long CrimeRamp { get; set; }
+        public long CrimeRamp { get; internal set; }
 
-        public long PollutionRamp { get; set; }
+        public long PollutionRamp { get; internal set; }
 
-        public long LandValueAverage { get; set; }
+        public long LandValueAverage { get; internal set; }
 
-        public long PollutionAverage { get; set; }
+        public long PollutionAverage { get; internal set; }
 
-        public long CrimeAverage { get; set; }
+        public long CrimeAverage { get; internal set; }
 
         // One per 10-cycle census
-        public long[] ResHist10 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>ResHist10 { get; internal set; } = new long[HistoryLength];
 
-        public long[] ComHist10 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>ComHist10 { get; internal set; } = new long[HistoryLength];
 
-        public long[] IndHist10 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>IndHist10 { get; internal set; } = new long[HistoryLength];
 
-        public long[] CrimeHist10 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>CrimeHist10 { get; internal set; } = new long[HistoryLength];
 
-        public long[] MoneyHist10 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>MoneyHist10 { get; internal set; } = new long[HistoryLength];
 
-        public long[] PollutionHist10 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>PollutionHist10 { get; internal set; } = new long[HistoryLength];
 
         // One per 120-cycle census
-        public long[] ResHist120 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>ResHist120 { get; internal set; } = new long[HistoryLength];
 
-        public long[] ComHist120 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>ComHist120 { get; internal set; } = new long[HistoryLength];
 
-        public long[] IndHist120 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>IndHist120 { get; internal set; } = new long[HistoryLength];
 
-        public long[] CrimeHist120 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>CrimeHist120 { get; internal set; } = new long[HistoryLength];
 
-        public long[] MoneyHist120 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>MoneyHist120 { get; internal set; } = new long[HistoryLength];
 
-        public long[] PollutionHist120 { get; set; } = new long[HistoryLength];
+        public IReadOnlyList<long>PollutionHist120 { get; internal set; } = new long[HistoryLength];
 
         // The map scan's counts
-        public long PoweredZoneCount { get; set; }
+        public long PoweredZoneCount { get; internal set; }
 
-        public long UnpoweredZoneCount { get; set; }
+        public long UnpoweredZoneCount { get; internal set; }
 
-        public long FirePop { get; set; }
+        public long FirePop { get; internal set; }
 
-        public long RoadTotal { get; set; }
+        public long RoadTotal { get; internal set; }
 
-        public long RailTotal { get; set; }
+        public long RailTotal { get; internal set; }
 
-        public long ResZonePop { get; set; }
+        public long ResZonePop { get; internal set; }
 
-        public long ComZonePop { get; set; }
+        public long ComZonePop { get; internal set; }
 
-        public long IndZonePop { get; set; }
+        public long IndZonePop { get; internal set; }
 
-        public long HospitalPop { get; set; }
+        public long HospitalPop { get; internal set; }
 
-        public long ChurchPop { get; set; }
+        public long ChurchPop { get; internal set; }
 
-        public long PoliceStationPop { get; set; }
+        public long PoliceStationPop { get; internal set; }
 
-        public long FireStationPop { get; set; }
+        public long FireStationPop { get; internal set; }
 
-        public long StadiumPop { get; set; }
+        public long StadiumPop { get; internal set; }
 
-        public long CoalPowerPop { get; set; }
+        public long CoalPowerPop { get; internal set; }
 
-        public long NuclearPowerPop { get; set; }
+        public long NuclearPowerPop { get; internal set; }
 
-        public long SeaportPop { get; set; }
+        public long SeaportPop { get; internal set; }
 
-        public long AirportPop { get; set; }
+        public long AirportPop { get; internal set; }
 
         /// <summary>
         /// -1, 0 or 1: whether the city has a hospital too many, the right number, or needs one.
         /// </summary>
-        public int NeedHospital { get; set; }
+        public int NeedHospital { get; internal set; }
 
         /// <summary>
         /// The traffic average, which is not always an integer.
         /// </summary>
-        public double TrafficAverage { get; set; }
+        public double TrafficAverage { get; internal set; }
 
-        public void Save(JsonObject saveData)
+        internal void Save(JsonObject saveData)
         {
             saveData["census"] = new JsonObject
             {
@@ -143,7 +143,7 @@ namespace Micropolis.Rules
             };
         }
 
-        public void Load(SavedObject saveData)
+        internal void Load(SavedObject saveData)
         {
             saveData.ReadObject("census", census =>
             {
@@ -171,7 +171,7 @@ namespace Micropolis.Rules
             });
         }
 
-        public void SaveScan(JsonObject scanData)
+        internal void SaveScan(JsonObject scanData)
         {
             scanData["poweredZoneCount"] = PoweredZoneCount;
             scanData["unpoweredZoneCount"] = UnpoweredZoneCount;
@@ -197,7 +197,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// Reads the scan's counts from <c>scannedState.census</c>, given as <paramref name="scanData"/>.
         /// </summary>
-        public void LoadScan(SavedObject scanData)
+        internal void LoadScan(SavedObject scanData)
         {
             PoweredZoneCount = scanData.ReadSafeInteger("poweredZoneCount");
             UnpoweredZoneCount = scanData.ReadSafeInteger("unpoweredZoneCount");

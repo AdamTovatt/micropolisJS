@@ -18,55 +18,47 @@ namespace Micropolis.Rules
     /// <summary>
     /// The city's funds, tax rate and services' funding.
     /// </summary>
+    /// <remarks>
+    /// Each percent is the share of a service's upkeep funded, from 0 to 1: the double a single-precision value
+    /// equals, or any double in a save written before the budget kept it in single precision.
+    /// </remarks>
     public sealed class Budget
     {
-        public long TotalFunds { get; set; }
+        public long TotalFunds { get; internal set; }
 
-        public long CityTax { get; set; }
+        public long CityTax { get; internal set; }
 
-        public bool AutoBudget { get; set; }
+        public bool AutoBudget { get; internal set; }
 
-        /// <summary>
-        /// The share of road upkeep funded, from 0 to 1: the double a single-precision value equals, or any double in
-        /// a save written before the budget kept it in single precision.
-        /// </summary>
-        public double RoadPercent { get; set; }
+        public double RoadPercent { get; internal set; }
 
-        /// <summary>
-        /// The share of the fire service's upkeep funded, from 0 to 1: the double a single-precision value equals, or
-        /// any double in a save written before the budget kept it in single precision.
-        /// </summary>
-        public double FirePercent { get; set; }
+        public double FirePercent { get; internal set; }
 
-        /// <summary>
-        /// The share of the police's upkeep funded, from 0 to 1: the double a single-precision value equals, or any
-        /// double in a save written before the budget kept it in single precision.
-        /// </summary>
-        public double PolicePercent { get; set; }
+        public double PolicePercent { get; internal set; }
 
-        public long RoadSpend { get; set; }
+        public long RoadSpend { get; internal set; }
 
-        public long FireSpend { get; set; }
+        public long FireSpend { get; internal set; }
 
-        public long PoliceSpend { get; set; }
+        public long PoliceSpend { get; internal set; }
 
-        public long RoadMaintenanceBudget { get; set; }
+        public long RoadMaintenanceBudget { get; internal set; }
 
-        public long FireMaintenanceBudget { get; set; }
+        public long FireMaintenanceBudget { get; internal set; }
 
-        public long PoliceMaintenanceBudget { get; set; }
+        public long PoliceMaintenanceBudget { get; internal set; }
 
-        public long RoadEffect { get; set; }
+        public long RoadEffect { get; internal set; }
 
-        public long FireEffect { get; set; }
+        public long FireEffect { get; internal set; }
 
-        public long PoliceEffect { get; set; }
+        public long PoliceEffect { get; internal set; }
 
-        public long CashFlow { get; set; }
+        public long CashFlow { get; internal set; }
 
-        public long TaxFund { get; set; }
+        public long TaxFund { get; internal set; }
 
-        public void Save(JsonObject saveData)
+        internal void Save(JsonObject saveData)
         {
             saveData["budget"] = new JsonObject
             {
@@ -90,7 +82,7 @@ namespace Micropolis.Rules
             };
         }
 
-        public void Load(SavedObject saveData)
+        internal void Load(SavedObject saveData)
         {
             saveData.ReadObject("budget", budget =>
             {

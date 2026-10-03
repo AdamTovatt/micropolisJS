@@ -17,8 +17,7 @@ import { town } from "./town";
 
 // Every fixture, by name. A fixture is a command log: a city built afresh by replaying its commands whenever it is
 // used, so no stored state can go stale when a rule changes. `npm run fixtures` exports each one's log, which is never
-// read back. The copies of its state in conformance/saves/ are for the C# tests, and CI fails unless they are what
-// replaying it writes.
+// read back. The copies of its state in conformance/saves/ are for the C# tests.
 const fixtures: Record<string, CommandLog> = {broke, town, underfunded};
 
 export function fixtureNames(): string[] {

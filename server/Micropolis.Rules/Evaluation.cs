@@ -16,6 +16,43 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
+    /// The city's class, as <c>CITY_CLASSES</c> in <c>src/protocol.ts</c> lists them, smallest first.
+    /// </summary>
+    public enum CityClass
+    {
+        Village,
+        Town,
+        City,
+        Capital,
+        Metropolis,
+        Megalopolis,
+    }
+
+    /// <summary>
+    /// A step of the score calculation, as <c>SCORE_REASONS</c> in <c>src/protocol.ts</c> lists them, in calculation
+    /// order.
+    /// </summary>
+    public enum ScoreReason
+    {
+        Problems,
+        ResCap,
+        ComCap,
+        IndCap,
+        RoadFunding,
+        PoliceFunding,
+        FireFunding,
+        ResOversupply,
+        ComOversupply,
+        IndOversupply,
+        Migration,
+        Fires,
+        Taxes,
+        UnpoweredZones,
+        Range,
+        Averaging,
+    }
+
+    /// <summary>
     /// The city evaluation: its class, score, the voters' verdict and problems, and why the score last moved.
     /// </summary>
     public sealed class Evaluation
@@ -30,56 +67,50 @@ namespace Micropolis.Rules
         /// </summary>
         public const int NumComplaints = 4;
 
-        public static readonly IReadOnlyList<string> CityClasses = ["VILLAGE", "TOWN", "CITY", "CAPITAL", "METROPOLIS", "MEGALOPOLIS"];
-
         /// <summary>
-        /// The steps of the score calculation, in calculation order.
+        /// The votes a poll stops at (<c>voteProblems</c> in <c>src/evaluation.js</c>), so the most one problem draws.
         /// </summary>
-        public static readonly IReadOnlyList<string> ScoreReasons =
-        [
-            "PROBLEMS", "RES_CAP", "COM_CAP", "IND_CAP", "ROAD_FUNDING", "POLICE_FUNDING", "FIRE_FUNDING", "RES_OVERSUPPLY",
-            "COM_OVERSUPPLY", "IND_OVERSUPPLY", "MIGRATION", "FIRES", "TAXES", "UNPOWERED_ZONES", "RANGE", "AVERAGING",
-        ];
+        public const int MaxVotes = 100;
 
-        public string CityClass { get; set; } = CityClasses[0];
+        public CityClass CityClass { get; internal set; }
 
-        public int CityScore { get; set; }
+        public int CityScore { get; internal set; }
 
-        public int CityYes { get; set; }
+        public int CityYes { get; internal set; }
 
-        public long CityPop { get; set; }
+        public long CityPop { get; internal set; }
 
-        public long CityPopDelta { get; set; }
+        public long CityPopDelta { get; internal set; }
 
-        public long CityAssessedValue { get; set; }
+        public long CityAssessedValue { get; internal set; }
 
-        public string CityClassLast { get; set; } = CityClasses[0];
+        public CityClass CityClassLast { get; internal set; }
 
-        public long CityScoreDelta { get; set; }
+        public long CityScoreDelta { get; internal set; }
 
         /// <summary>
         /// The last poll's votes, in the poll's sorted order.
         /// </summary>
-        public List<ProblemVote> ProblemVotes { get; set; } = [];
+        public IReadOnlyList<ProblemVote> ProblemVotes { get; internal set; } = [];
 
         /// <summary>
         /// The worst problems' indices, worst first, <see cref="NumProblems"/> for none.
         /// </summary>
-        public int[] ProblemOrder { get; set; } = new int[NumComplaints];
+        public IReadOnlyList<int> ProblemOrder { get; internal set; } = new int[NumComplaints];
 
-        public List<ScoreStep> CityScoreBreakdown { get; set; } = [];
+        public IReadOnlyList<ScoreStep> CityScoreBreakdown { get; internal set; } = [];
 
-        public void Save(JsonObject saveData)
+        internal void Save(JsonObject saveData)
         {
             saveData["evaluation"] = new JsonObject
             {
-                ["cityClass"] = CityClass,
+                ["cityClass"] = SavedName.Of(CityClass),
                 ["cityScore"] = CityScore,
                 ["cityYes"] = CityYes,
                 ["cityPop"] = CityPop,
                 ["cityPopDelta"] = CityPopDelta,
                 ["cityAssessedValue"] = CityAssessedValue,
-                ["cityClassLast"] = CityClassLast,
+                ["cityClassLast"] = SavedName.Of(CityClassLast),
                 ["cityScoreDelta"] = CityScoreDelta,
                 ["problemVotes"] = new JsonArray(ProblemVotes.Select(vote => (JsonNode?)new JsonObject
                 {
@@ -89,32 +120,32 @@ namespace Micropolis.Rules
                 ["problemOrder"] = SavedList.Of(ProblemOrder),
                 ["cityScoreBreakdown"] = new JsonArray(CityScoreBreakdown.Select(step => (JsonNode?)new JsonObject
                 {
-                    ["reason"] = step.Reason,
+                    ["reason"] = SavedName.Of(step.Reason),
                     ["points"] = step.Points,
                 }).ToArray()),
             };
         }
 
-        public void Load(SavedObject saveData)
+        internal void Load(SavedObject saveData)
         {
             saveData.ReadObject("evaluation", evaluation =>
             {
-                CityClass = evaluation.ReadString("cityClass", CityClasses);
+                CityClass = evaluation.ReadName<CityClass>("cityClass");
                 CityScore = evaluation.ReadInt("cityScore", 0, 1000);
                 CityYes = evaluation.ReadInt("cityYes", 0, 100);
                 CityPop = evaluation.ReadSafeInteger("cityPop");
                 CityPopDelta = evaluation.ReadSafeInteger("cityPopDelta");
                 CityAssessedValue = evaluation.ReadSafeInteger("cityAssessedValue");
-                CityClassLast = evaluation.ReadString("cityClassLast", CityClasses);
+                CityClassLast = evaluation.ReadName<CityClass>("cityClassLast");
                 CityScoreDelta = evaluation.ReadSafeInteger("cityScoreDelta");
 
                 ProblemVotes = evaluation.ReadObjectList("problemVotes", NumProblems,
-                    vote => new ProblemVote(vote.ReadSafeInteger("index"), vote.ReadSafeInteger("voteCount")));
+                    vote => new ProblemVote(vote.ReadInt("index", 0, NumProblems - 1), vote.ReadInt("voteCount", 0, MaxVotes)));
 
                 ProblemOrder = evaluation.ReadIntList("problemOrder", NumComplaints, 0, NumProblems);
 
                 CityScoreBreakdown = evaluation.ReadObjectList("cityScoreBreakdown",
-                    step => new ScoreStep(step.ReadString("reason", ScoreReasons), step.ReadSafeInteger("points")));
+                    step => new ScoreStep(step.ReadName<ScoreReason>("reason"), step.ReadSafeInteger("points")));
             });
         }
     }
@@ -122,10 +153,10 @@ namespace Micropolis.Rules
     /// <summary>
     /// The votes one problem drew in a poll.
     /// </summary>
-    public readonly record struct ProblemVote(long Index, long VoteCount);
+    public readonly record struct ProblemVote(int Index, int VoteCount);
 
     /// <summary>
     /// The points one step of the score calculation moved the score.
     /// </summary>
-    public readonly record struct ScoreStep(string Reason, long Points);
+    public readonly record struct ScoreStep(ScoreReason Reason, long Points);
 }

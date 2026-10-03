@@ -69,14 +69,20 @@ namespace Micropolis.Rules.Tests
             ("budget.roadPercent", "-5e-324", "0", "1", "1.0000000000000002"),
             ("budget.firePercent", "-5e-324", "0", "1", "1.0000000000000002"),
             ("budget.policePercent", "-5e-324", "0", "1", "1.0000000000000002"),
+            ("map.cityCentreX", "-1", "0", "119", "120"),
+            ("map.cityCentreY", "-1", "0", "99", "100"),
+            ("map.pollutionMaxX", "-1", "0", "119", "120"),
+            ("map.pollutionMaxY", "-1", "0", "99", "100"),
+            ("evaluation.problemVotes[0].index", "-1", "0", "6", "7"),
+            ("evaluation.problemVotes[0].voteCount", "-1", "0", "100", "101"),
             ("sprites.list[0].type", "0", "1", "7", "8"),
             ("scannedState.blockMaps.cityCentreDistScoreMap[0]", "-65", "-64", "64", "65"),
             ("scannedState.blockMaps.crimeRateMap[0]", "-1", "0", "250", "251"),
-            ("scannedState.blockMaps.fireStationMap[0]", "-1", "0", "1000", "1001"),
-            ("scannedState.blockMaps.fireStationEffectMap[0]", "-1", "0", "1000", "1001"),
+            ("scannedState.blockMaps.fireStationMap[0]", "-1", "0", "9000", "9001"),
+            ("scannedState.blockMaps.fireStationEffectMap[0]", "-1", "0", "9000", "9001"),
             ("scannedState.blockMaps.landValueMap[0]", "-1", "0", "250", "251"),
-            ("scannedState.blockMaps.policeStationMap[0]", "-1", "0", "1000", "1001"),
-            ("scannedState.blockMaps.policeStationEffectMap[0]", "-1", "0", "1000", "1001"),
+            ("scannedState.blockMaps.policeStationMap[0]", "-1", "0", "9000", "9001"),
+            ("scannedState.blockMaps.policeStationEffectMap[0]", "-1", "0", "9000", "9001"),
             ("scannedState.blockMaps.pollutionDensityMap[0]", "-1", "0", "255", "256"),
             ("scannedState.blockMaps.populationDensityMap[0]", "-1", "0", "510", "511"),
             ("scannedState.blockMaps.rateOfGrowthMap[0]", "-201", "-200", "200", "201"),
@@ -84,6 +90,8 @@ namespace Micropolis.Rules.Tests
             ("scannedState.blockMaps.trafficDensityMap[0]", "-1", "0", "240", "241"),
             ("scannedState.census.needHospital", "-2", "-1", "1", "2"),
             ("scannedState.power.powerGrid[0]", "-1", "0", "1", "2"),
+            ("scannedState.power.powerStack[0].x", "-1", "0", "119", "120"),
+            ("scannedState.power.powerStack[0].y", "-1", "0", "99", "100"),
         ];
 
         /// <summary>
@@ -94,8 +102,8 @@ namespace Micropolis.Rules.Tests
         private static readonly IReadOnlyDictionary<string, (string? Value, Func<Simulation, JsonNode?> Property)> Fields =
             new Dictionary<string, (string? Value, Func<Simulation, JsonNode?> Property)>
             {
-                ["simulation.gameLevel"] = ("1", city => city.GameLevel),
-                ["simulation.speed"] = ("3", city => city.Speed),
+                ["simulation.gameLevel"] = ("1", city => (int)city.GameLevel),
+                ["simulation.speed"] = ("3", city => (int)city.Speed),
                 ["simulation.seed"] = ("77", city => city.Seed),
                 ["simulation.randomState[0]"] = ("12345", city => city.Random.GetState()[0]),
                 ["simulation.cityTime"] = ("20000", city => city.CityTime),
@@ -113,18 +121,18 @@ namespace Micropolis.Rules.Tests
                 ["map.cityCentreY"] = ("41", city => city.Map.CityCentreY),
                 ["map.pollutionMaxX"] = ("42", city => city.Map.PollutionMaxX),
                 ["map.pollutionMaxY"] = ("43", city => city.Map.PollutionMaxY),
-                ["evaluation.cityClass"] = ("\"CITY\"", city => city.Evaluation.CityClass),
+                ["evaluation.cityClass"] = ("\"CITY\"", city => SavedName.Of(city.Evaluation.CityClass)),
                 ["evaluation.cityScore"] = ("500", city => city.Evaluation.CityScore),
                 ["evaluation.cityYes"] = ("55", city => city.Evaluation.CityYes),
                 ["evaluation.cityPop"] = ("4000", city => city.Evaluation.CityPop),
                 ["evaluation.cityPopDelta"] = ("12", city => city.Evaluation.CityPopDelta),
                 ["evaluation.cityAssessedValue"] = ("999", city => city.Evaluation.CityAssessedValue),
-                ["evaluation.cityClassLast"] = ("\"CAPITAL\"", city => city.Evaluation.CityClassLast),
+                ["evaluation.cityClassLast"] = ("\"CAPITAL\"", city => SavedName.Of(city.Evaluation.CityClassLast)),
                 ["evaluation.cityScoreDelta"] = ("-5", city => city.Evaluation.CityScoreDelta),
                 ["evaluation.problemVotes[0].index"] = ("3", city => city.Evaluation.ProblemVotes[0].Index),
                 ["evaluation.problemVotes[0].voteCount"] = ("30", city => city.Evaluation.ProblemVotes[0].VoteCount),
                 ["evaluation.problemOrder[0]"] = ("6", city => city.Evaluation.ProblemOrder[0]),
-                ["evaluation.cityScoreBreakdown[0].reason"] = ("\"TAXES\"", city => city.Evaluation.CityScoreBreakdown[0].Reason),
+                ["evaluation.cityScoreBreakdown[0].reason"] = ("\"TAXES\"", city => SavedName.Of(city.Evaluation.CityScoreBreakdown[0].Reason)),
                 ["evaluation.cityScoreBreakdown[0].points"] = ("-9", city => city.Evaluation.CityScoreBreakdown[0].Points),
                 ["valves.resValve"] = ("111", city => city.Valves.ResValve),
                 ["valves.comValve"] = ("222", city => city.Valves.ComValve),
@@ -171,7 +179,7 @@ namespace Micropolis.Rules.Tests
                 ["census.moneyHist120[0]"] = ("211", city => city.Census.MoneyHist120[0]),
                 ["census.pollutionHist120[0]"] = ("212", city => city.Census.PollutionHist120[0]),
                 ["sprites.spriteCycle"] = ("99", city => city.SpriteManager.SpriteCycle),
-                ["sprites.list[0].type"] = ("3", city => city.SpriteManager.SpriteList[0].Type),
+                ["sprites.list[0].type"] = ("3", city => (int)city.SpriteManager.SpriteList[0].Type),
                 ["sprites.list[0].frame"] = ("301", city => city.SpriteManager.SpriteList[0].Frame),
                 ["sprites.list[0].x"] = ("302", city => city.SpriteManager.SpriteList[0].X),
                 ["sprites.list[0].y"] = ("303", city => city.SpriteManager.SpriteList[0].Y),
@@ -234,25 +242,21 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(text, CanonicalJson.Write(Resave(text)));
         }
 
-        [TestMethod]
-        [DynamicData(nameof(AllSaves))]
-        public void ConformanceSave_File_IsTheStateItsHashNames(ConformanceSave save)
-        {
-            Assert.AreEqual(save.Hash, Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(save.ReadText()))));
-        }
-
+        // The file's SHA-256 is the TypeScript's state hash, which the generator checks against the golden hash
         [TestMethod]
         [DynamicData(nameof(AllSaves))]
         public void Save_LoadedConformanceSave_HashesAsTypeScript(ConformanceSave save)
         {
-            Assert.AreEqual(save.Hash, StateHash.HashSavedState(Resave(save.ReadText())));
+            string text = save.ReadText();
+
+            Assert.AreEqual(Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text))), StateHash.HashSavedState(Resave(text)));
         }
 
         // The round trip can't tell a key read into the wrong property and written back from it, so each key is set to a
-        // value its object's other keys don't hold, and read back from its property
+        // value its object's other keys don't hold, read back from its property, and saved back to its key
         [TestMethod]
         [DynamicData(nameof(FieldPaths))]
-        public void FromSave_DistinctValueAtKey_LoadsIntoItsProperty(string path)
+        public void FromSave_DistinctValueAtKey_LoadsIntoItsPropertyAndSavesFromIt(string path)
         {
             (string? value, Func<Simulation, JsonNode?> property) = Fields[path];
             string expected = value ?? CanonicalJson.Write(NodeAt(Run, path));
@@ -265,9 +269,11 @@ namespace Micropolis.Rules.Tests
                 Assert.AreNotEqual(expected, CanonicalJson.Write(NodeAt(Run, sibling)), $"{sibling} holds the value too.");
             }
 
-            Simulation city = Simulation.FromSave(value == null ? Run.DeepClone() : SetAt(path, value));
+            JsonNode save = value == null ? Run.DeepClone() : SetAt(path, value);
+            Simulation city = Simulation.FromSave(save.ToJsonString());
 
             Assert.AreEqual(expected, CanonicalJson.Write(property(city)));
+            Assert.AreEqual(CanonicalJson.Write(save), CanonicalJson.Write(city.Save()));
         }
 
         [TestMethod]
@@ -336,10 +342,38 @@ namespace Micropolis.Rules.Tests
         [DataRow("budget.roadPercent", "0.53")]
         public void FromSave_AllowedValueTheSavesDontHold_LoadsAndSavesIt(string path, string value)
         {
-            JsonObject saveData = new JsonObject();
-            Simulation.FromSave(SetAt(path, value)).Save(saveData);
+            JsonObject saveData = Simulation.FromSave(SetAt(path, value).ToJsonString()).Save();
 
             Assert.AreEqual(value, CanonicalJson.Write(NodeAt(saveData, path)));
+        }
+
+        [TestMethod]
+        [DataRow("the budget's tax rate", "\"budget\":{", "\"budget\":{\"cityTax\":9,", "budget.cityTax")]
+        [DataRow("a sprite's type", "\"list\":[{", "\"list\":[{\"type\":1,", "sprites.list[0].type")]
+        public void FromSave_KeyWrittenTwice_ThrowsNamingTheKey(string description, string before, string after, string path)
+        {
+            Assert.Contains(before, RunText, description);
+
+            AssertRejected(RunText.Replace(before, after), path);
+        }
+
+        [TestMethod]
+        [DataRow("{")]
+        [DataRow("")]
+        [DataRow("[]")]
+        public void FromSave_NotAnObject_ThrowsNamingTheSave(string text)
+        {
+            AssertRejected(text, "state");
+        }
+
+        [TestMethod]
+        public void FromSave_StringThatIsALoneSurrogate_ThrowsNamingTheKey()
+        {
+            // Edited as text: System.Text.Json writes no lone surrogate
+            const string cityClass = "\"cityClass\":\"TOWN\"";
+            Assert.Contains(cityClass, RunText);
+
+            AssertRejected(RunText.Replace(cityClass, "\"cityClass\":\"\\ud800\""), "evaluation.cityClass");
         }
 
         [TestMethod]
@@ -367,6 +401,8 @@ namespace Micropolis.Rules.Tests
         [DataRow("simulation.cityTime", "9007199254740992")]
         [DataRow("simulation.initialEvaluationPending", "0")]
         [DataRow("simulation.lastPowerMessage", "true")]
+        [DataRow("simulation.messageLast", "5")]
+        [DataRow("evaluation.cityClass", "5")]
         [DataRow("simulation.randomState", "{}")]
         [DataRow("map", "[]")]
         [DataRow("budget.totalFunds", "1e400")]
@@ -415,35 +451,32 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
-        public void Save_Monster_WritesWhetherItHasSeenLand()
+        [DataRow(true)]
+        [DataRow(false)]
+        public void Save_Monster_WritesWhetherItHasSeenLand(bool seenLand)
         {
             JsonNode save = SetAt("sprites.list[0].type", "5");
-            ObjectAt(save, "sprites.list[0]")["_seenLand"] = true;
+            ObjectAt(save, "sprites.list[0]")["_seenLand"] = seenLand;
 
             Assert.AreEqual(CanonicalJson.Write(save), CanonicalJson.Write(Resave(save.ToJsonString())));
         }
 
-        [TestMethod]
-        public void FromSave_NotAnObject_Throws()
-        {
-            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => Simulation.FromSave(new JsonArray()));
-
-            Assert.AreEqual("state", exception.Key);
-        }
-
         private static JsonObject Resave(string text)
         {
-            JsonObject saveData = new JsonObject();
-            Simulation.FromSave(JsonNode.Parse(text)).Save(saveData);
-            return saveData;
+            return Simulation.FromSave(text).Save();
         }
 
-        private static void AssertRejected(JsonNode save, string key)
+        private static void AssertRejected(JsonNode save, string path)
         {
-            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => Simulation.FromSave(save));
+            AssertRejected(save.ToJsonString(), path);
+        }
 
-            Assert.AreEqual(key, exception.Key, exception.Message);
-            StringAssert.Contains(exception.Message, key);
+        private static void AssertRejected(string saveText, string path)
+        {
+            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => Simulation.FromSave(saveText));
+
+            Assert.AreEqual(path, exception.Path, exception.Message);
+            StringAssert.Contains(exception.Message, path);
         }
 
         // The run save with the value at a path replaced by the given JSON

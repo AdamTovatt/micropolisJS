@@ -24,17 +24,30 @@ namespace Micropolis.Rules
         private int[] _data;
 
         /// <summary>
-        /// A map of zeros over a game map of the given size in tiles.
+        /// A map of zeros over a game map of the given size in tiles, whose entries the simulation keeps from
+        /// <paramref name="min"/> to <paramref name="max"/>.
         /// </summary>
-        public BlockMap(int gameMapWidth, int gameMapHeight, int blockSize)
+        public BlockMap(int gameMapWidth, int gameMapHeight, int blockSize, int min, int max)
         {
             BlockSize = blockSize;
+            Min = min;
+            Max = max;
             Width = (gameMapWidth + blockSize - 1) / blockSize;
             Height = (gameMapHeight + blockSize - 1) / blockSize;
             _data = new int[Width * Height];
         }
 
         public int BlockSize { get; }
+
+        /// <summary>
+        /// The least value an entry can hold.
+        /// </summary>
+        public int Min { get; }
+
+        /// <summary>
+        /// The greatest value an entry can hold.
+        /// </summary>
+        public int Max { get; }
 
         /// <summary>
         /// The width in blocks.
@@ -51,18 +64,18 @@ namespace Micropolis.Rules
             return _data[Width * blockY + blockX];
         }
 
-        public JsonArray Save()
+        internal JsonArray Save()
         {
             return SavedList.Of(_data);
         }
 
         /// <summary>
         /// Reads the entries under <paramref name="key"/> of <paramref name="parent"/>: one per block, each from
-        /// <paramref name="min"/> to <paramref name="max"/>.
+        /// <see cref="Min"/> to <see cref="Max"/>.
         /// </summary>
-        public void Load(SavedObject parent, string key, int min, int max)
+        internal void Load(SavedObject parent, string key)
         {
-            _data = parent.ReadIntList(key, Width * Height, min, max);
+            _data = parent.ReadIntList(key, Width * Height, Min, Max);
         }
     }
 }

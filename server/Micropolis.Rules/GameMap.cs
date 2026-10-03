@@ -58,29 +58,29 @@ namespace Micropolis.Rules
         public Bounds Bounds { get; }
 
         /// <summary>
-        /// The population centre's x, which the save gives no range.
+        /// The population centre's x, a column of the map.
         /// </summary>
-        public long CityCentreX { get; set; }
+        public int CityCentreX { get; internal set; }
 
         /// <summary>
-        /// The population centre's y, which the save gives no range.
+        /// The population centre's y, a row of the map.
         /// </summary>
-        public long CityCentreY { get; set; }
+        public int CityCentreY { get; internal set; }
 
         /// <summary>
-        /// The most polluted tile's x, which the save gives no range.
+        /// The most polluted tile's x, a column of the map.
         /// </summary>
-        public long PollutionMaxX { get; set; }
+        public int PollutionMaxX { get; internal set; }
 
         /// <summary>
-        /// The most polluted tile's y, which the save gives no range.
+        /// The most polluted tile's y, a row of the map.
         /// </summary>
-        public long PollutionMaxY { get; set; }
+        public int PollutionMaxY { get; internal set; }
 
         /// <summary>
         /// Writes the map under <c>map</c>: its size, its positions, and each tile's raw value row by row.
         /// </summary>
-        public void Save(JsonObject saveData)
+        internal void Save(JsonObject saveData)
         {
             saveData["map"] = new JsonObject
             {
@@ -97,7 +97,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// The map a save holds under <c>map</c>: each tile takes its saved value and flags exactly.
         /// </summary>
-        public static GameMap FromSave(SavedObject saveData)
+        internal static GameMap FromSave(SavedObject saveData)
         {
             return saveData.ReadObject("map", saved =>
             {
@@ -120,10 +120,10 @@ namespace Micropolis.Rules
                     map._data[i].Set(tiles[i] & TileFlags.BIT_MASK, tiles[i] & TileFlags.ALLBITS);
                 }
 
-                map.CityCentreX = saved.ReadSafeInteger("cityCentreX");
-                map.CityCentreY = saved.ReadSafeInteger("cityCentreY");
-                map.PollutionMaxX = saved.ReadSafeInteger("pollutionMaxX");
-                map.PollutionMaxY = saved.ReadSafeInteger("pollutionMaxY");
+                map.CityCentreX = saved.ReadInt("cityCentreX", 0, width - 1);
+                map.CityCentreY = saved.ReadInt("cityCentreY", 0, height - 1);
+                map.PollutionMaxX = saved.ReadInt("pollutionMaxX", 0, width - 1);
+                map.PollutionMaxY = saved.ReadInt("pollutionMaxY", 0, height - 1);
 
                 return map;
             });

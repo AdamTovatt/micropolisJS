@@ -15,39 +15,37 @@ namespace Micropolis.Rules.Tests
 {
     /// <summary>
     /// The saved states the TypeScript reference writes under <c>conformance/saves/</c>: each fixture's as built and
-    /// after its golden run, as canonical text, with their hashes from <c>hashes.json</c>.
+    /// after its golden run, as canonical text, at the steps <c>checkpoints.json</c> lists.
     /// </summary>
     public static class ConformanceSaves
     {
         public static IReadOnlyList<ConformanceSave> Load()
         {
-            return Parse(ConformanceFile.Read("saves/hashes.json"));
+            return Parse(ConformanceFile.Read("saves/checkpoints.json"));
         }
 
         public static IReadOnlyList<ConformanceSave> Parse(string json)
         {
-            Dictionary<string, SavePoints> hashes = ConformanceFile.Parse<Dictionary<string, SavePoints>>(json);
-            ConformanceFile.NonEmpty("saves", hashes);
+            Dictionary<string, SavePoints> checkpoints = ConformanceFile.Parse<Dictionary<string, SavePoints>>(json);
+            ConformanceFile.NonEmpty("saves", checkpoints);
 
-            return hashes.SelectMany(fixture => new[]
+            return checkpoints.SelectMany(fixture => new[]
             {
-                new ConformanceSave(fixture.Key, "built", fixture.Value.Built.Step, fixture.Value.Built.Hash),
-                new ConformanceSave(fixture.Key, "run", fixture.Value.Run.Step, fixture.Value.Run.Hash),
+                new ConformanceSave(fixture.Key, "built", fixture.Value.Built),
+                new ConformanceSave(fixture.Key, "run", fixture.Value.Run),
             }).ToList();
         }
 
-        private sealed record SavePoints(SavePoint Built, SavePoint Run);
-
-        private sealed record SavePoint(int Step, string Hash);
+        private sealed record SavePoints(int Built, int Run);
     }
 
     /// <summary>
     /// One fixture's saved state at one checkpoint.
     /// </summary>
-    public sealed record ConformanceSave(string Fixture, string Point, int Step, string Hash)
+    public sealed record ConformanceSave(string Fixture, string Point, int Step)
     {
         /// <summary>
-        /// The canonical text of the saved state, exactly as the file holds it.
+        /// The canonical text of the saved state, exactly as the file holds it, whose SHA-256 is the state hash.
         /// </summary>
         public string ReadText()
         {

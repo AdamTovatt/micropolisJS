@@ -68,12 +68,40 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void SetValue_ValueWithFlagBits_TakesThoseFlags()
         {
+            // A river edge, which river smoothing writes with its flag
+            const int riverEdge = FIRSTRIVEDGE + 8;
             Tile tile = new Tile(REDGE, BURNBIT);
 
-            tile.SetValue(13 | BULLBIT);
+            tile.SetValue(riverEdge | BULLBIT);
 
-            Assert.AreEqual(13, tile.GetValue());
+            Assert.AreEqual(riverEdge, tile.GetValue());
             Assert.AreEqual(BULLBIT, tile.GetFlags());
+        }
+
+        [TestMethod]
+        [DataRow(ANIMBIT, nameof(Tile.IsAnimated))]
+        [DataRow(BULLBIT, nameof(Tile.IsBulldozable))]
+        [DataRow(CONDBIT, nameof(Tile.IsConductive))]
+        [DataRow(BURNBIT, nameof(Tile.IsCombustible))]
+        [DataRow(POWERBIT, nameof(Tile.IsPowered))]
+        [DataRow(ZONEBIT, nameof(Tile.IsZone))]
+        public void FlagChecks_OneFlagSet_OnlyItsOwnCheckIsTrue(int flag, string check)
+        {
+            Tile tile = new Tile(DIRT, flag);
+            Dictionary<string, bool> checks = new Dictionary<string, bool>
+            {
+                [nameof(Tile.IsAnimated)] = tile.IsAnimated(),
+                [nameof(Tile.IsBulldozable)] = tile.IsBulldozable(),
+                [nameof(Tile.IsConductive)] = tile.IsConductive(),
+                [nameof(Tile.IsCombustible)] = tile.IsCombustible(),
+                [nameof(Tile.IsPowered)] = tile.IsPowered(),
+                [nameof(Tile.IsZone)] = tile.IsZone(),
+            };
+
+            foreach ((string name, bool isSet) in checks)
+            {
+                Assert.AreEqual(name == check, isSet, $"{name} with only {check}'s flag set.");
+            }
         }
 
         [TestMethod]

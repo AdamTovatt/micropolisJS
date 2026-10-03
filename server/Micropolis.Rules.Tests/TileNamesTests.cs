@@ -22,7 +22,7 @@ namespace Micropolis.Rules.Tests
     [TestClass]
     public sealed class TileNamesTests
     {
-        private static readonly TileNames Names = ConformanceFile.Load<TileNames>("tiles.json");
+        private static readonly ConformanceTiles Names = ConformanceTiles.Load();
 
         [TestMethod]
         public void TileValues_ComparedWithTypeScript_HoldTheSameNamesAndValues()
@@ -49,7 +49,5 @@ namespace Micropolis.Rules.Tests
                 Assert.AreEqual(value, actual[name], $"{type.Name}.{name} differs.");
             }
         }
-
-        private sealed record TileNames(IReadOnlyDictionary<string, int> Values, IReadOnlyDictionary<string, int> Flags);
     }
 }

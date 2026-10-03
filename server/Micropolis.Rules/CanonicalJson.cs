@@ -182,7 +182,7 @@ namespace Micropolis.Rules
                     break;
 
                 case JsonValueKind.String:
-                    WriteString(value.GetValue<string>(), output);
+                    WriteString(JsonString.Get(value), output);
                     break;
 
                 case JsonValueKind.Number:

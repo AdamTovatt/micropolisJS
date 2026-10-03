@@ -25,12 +25,9 @@ namespace Micropolis.Rules
     /// </summary>
     /// <remarks>
     /// A JavaScript number is a double, so an integer the save holds is exact only within ±2^53, and is read as a
-    /// <see langword="long"/> where the specification gives it no narrower range. Code that computes with these
-    /// fields mirrors the JavaScript operations rather than C#'s integer semantics: <c>Math.floor</c> rounds down
-    /// where C# division truncates, <c>| 0</c> and <c>&gt;&gt;</c> narrow to int32, and <c>Math.round</c> sends
-    /// halves up.
+    /// <see langword="long"/> where the specification gives it no narrower range.
     /// </remarks>
-    public sealed class SavedObject
+    internal sealed class SavedObject
     {
         private const long MaxSafeInteger = 9007199254740991;
 
@@ -45,11 +42,29 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Reads the save itself, which has to be an object.
+        /// Reads the save itself from its text, which has to be JSON, an object, and hold no object with a key twice:
+        /// <c>JSON.parse</c> would keep the last of a key written twice, which a save never holds.
         /// </summary>
-        public static T ReadRoot<T>(JsonNode? saveData, Func<SavedObject, T> read)
+        public static T ReadRoot<T>(string saveText, Func<SavedObject, T> read)
         {
-            return ReadComplete(saveData, "state", read);
+            try
+            {
+                using (JsonDocument document = JsonDocument.Parse(saveText))
+                {
+                    RejectRepeatedKeys(document.RootElement, "state");
+                }
+            }
+            catch (JsonException exception)
+            {
+                throw new SaveFormatException("state", $"is not JSON: {exception.Message}");
+            }
+            catch (InvalidOperationException)
+            {
+                // A key that is a lone surrogate, which no key of a save is
+                throw new SaveFormatException("state", "holds a key that is not text");
+            }
+
+            return ReadComplete(JsonNode.Parse(saveText), "state", read);
         }
 
         public T ReadObject<T>(string key, Func<SavedObject, T> read)
@@ -108,6 +123,31 @@ namespace Micropolis.Rules
         public int ReadInt(string key, int min, int max)
         {
             return (int)AsInteger(Get(key), PathOf(key), min, max);
+        }
+
+        /// <summary>
+        /// An integer that numbers a member of <typeparamref name="T"/>.
+        /// </summary>
+        public T ReadEnum<T>(string key) where T : struct, Enum
+        {
+            string path = PathOf(key);
+            long number = AsInteger(Get(key), path, -MaxSafeInteger, MaxSafeInteger);
+            T[] members = Enum.GetValues<T>();
+
+            if (!members.Any(member => Convert.ToInt64(member, CultureInfo.InvariantCulture) == number))
+            {
+                throw new SaveFormatException(path, $"must be one of {string.Join(", ", members.Select(member => Convert.ToInt64(member, CultureInfo.InvariantCulture)))}, got {number}");
+            }
+
+            return (T)Enum.ToObject(typeof(T), number);
+        }
+
+        /// <summary>
+        /// A string that names a member of <typeparamref name="T"/>, as <see cref="SavedName"/> writes it.
+        /// </summary>
+        public T ReadName<T>(string key) where T : struct, Enum
+        {
+            return SavedName.Parse<T>(ReadString(key, SavedName.All<T>()));
         }
 
         public uint ReadUInt32(string key)
@@ -198,7 +238,42 @@ namespace Micropolis.Rules
 
         private string PathOf(string key)
         {
-            return _path == "state" ? key : $"{_path}.{key}";
+            return Join(_path, key);
+        }
+
+        private static string Join(string path, string key)
+        {
+            return path == "state" ? key : $"{path}.{key}";
+        }
+
+        private static void RejectRepeatedKeys(JsonElement element, string path)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                HashSet<string> keys = new HashSet<string>(StringComparer.Ordinal);
+
+                foreach (JsonProperty property in element.EnumerateObject())
+                {
+                    string propertyPath = Join(path, property.Name);
+
+                    if (!keys.Add(property.Name))
+                    {
+                        throw new SaveFormatException(propertyPath, "is written more than once");
+                    }
+
+                    RejectRepeatedKeys(property.Value, propertyPath);
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+            {
+                int i = 0;
+
+                foreach (JsonElement entry in element.EnumerateArray())
+                {
+                    RejectRepeatedKeys(entry, $"{path}[{i}]");
+                    i++;
+                }
+            }
         }
 
         private List<T> ReadList<T>(string key, int? count, Func<JsonNode?, string, T> read)
@@ -266,7 +341,7 @@ namespace Micropolis.Rules
                 throw new SaveFormatException(path, "must be a string");
             }
 
-            string text = value.GetValue<string>();
+            string text = JsonString.Get(value);
 
             if (!allowed.Contains(text))
             {

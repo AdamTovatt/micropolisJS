@@ -16,110 +16,114 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The block maps the scans write and later phases read, saved under <c>scannedState.blockMaps</c>, each with its
-    /// block size and the range of its values.
+    /// The block maps the scans write and later phases read, saved under <c>scannedState.blockMaps</c>, each with the
+    /// block size and range the <c>Simulation</c> constructor in <c>src/simulation.js</c> gives it.
     /// </summary>
     public sealed class BlockMaps
     {
-        private readonly IReadOnlyList<(string Key, BlockMap Map, int Min, int Max)> _saved;
+        // The most a station map's block holds: each station in the block adds up to 1000, its funded effect
+        // (emergencyServices.js), and at most nine stations, three tiles a side, have their centres in one block of 8
+        private const int MaxStationMap = 9 * 1000;
+
+        private readonly IReadOnlyList<(string Key, BlockMap Map)> _saved;
 
         public BlockMaps(int gameMapWidth, int gameMapHeight)
         {
-            BlockMap Of(int blockSize) => new BlockMap(gameMapWidth, gameMapHeight, blockSize);
+            BlockMap Of(int blockSize, int min, int max) => new BlockMap(gameMapWidth, gameMapHeight, blockSize, min, max);
 
-            CityCentreDistScoreMap = Of(8);
-            CrimeRateMap = Of(2);
-            FireStationMap = Of(8);
-            FireStationEffectMap = Of(8);
-            LandValueMap = Of(2);
-            PoliceStationMap = Of(8);
-            PoliceStationEffectMap = Of(8);
-            PollutionDensityMap = Of(2);
-            PopulationDensityMap = Of(2);
-            RateOfGrowthMap = Of(8);
-            TerrainDensityMap = Of(4);
-            TrafficDensityMap = Of(2);
+            CityCentreDistScoreMap = Of(8, -64, 64);
+            CrimeRateMap = Of(2, 0, 250);
+            FireStationMap = Of(8, 0, MaxStationMap);
+            FireStationEffectMap = Of(8, 0, MaxStationMap);
+            LandValueMap = Of(2, 0, 250);
+            PoliceStationMap = Of(8, 0, MaxStationMap);
+            PoliceStationEffectMap = Of(8, 0, MaxStationMap);
+            PollutionDensityMap = Of(2, 0, 255);
+            PopulationDensityMap = Of(2, 0, 510);
+            RateOfGrowthMap = Of(8, -200, 200);
+            TerrainDensityMap = Of(4, 0, 240);
+            TrafficDensityMap = Of(2, 0, 240);
 
             _saved =
             [
-                ("cityCentreDistScoreMap", CityCentreDistScoreMap, -64, 64),
-                ("crimeRateMap", CrimeRateMap, 0, 250),
-                ("fireStationMap", FireStationMap, 0, 1000),
-                ("fireStationEffectMap", FireStationEffectMap, 0, 1000),
-                ("landValueMap", LandValueMap, 0, 250),
-                ("policeStationMap", PoliceStationMap, 0, 1000),
-                ("policeStationEffectMap", PoliceStationEffectMap, 0, 1000),
-                ("pollutionDensityMap", PollutionDensityMap, 0, 255),
-                ("populationDensityMap", PopulationDensityMap, 0, 510),
-                ("rateOfGrowthMap", RateOfGrowthMap, -200, 200),
-                ("terrainDensityMap", TerrainDensityMap, 0, 240),
-                ("trafficDensityMap", TrafficDensityMap, 0, 240),
+                ("cityCentreDistScoreMap", CityCentreDistScoreMap),
+                ("crimeRateMap", CrimeRateMap),
+                ("fireStationMap", FireStationMap),
+                ("fireStationEffectMap", FireStationEffectMap),
+                ("landValueMap", LandValueMap),
+                ("policeStationMap", PoliceStationMap),
+                ("policeStationEffectMap", PoliceStationEffectMap),
+                ("pollutionDensityMap", PollutionDensityMap),
+                ("populationDensityMap", PopulationDensityMap),
+                ("rateOfGrowthMap", RateOfGrowthMap),
+                ("terrainDensityMap", TerrainDensityMap),
+                ("trafficDensityMap", TrafficDensityMap),
             ];
         }
 
         /// <summary>
-        /// Each block's distance score from the city centre, -64 to 64.
+        /// Each block's distance score from the city centre.
         /// </summary>
         public BlockMap CityCentreDistScoreMap { get; }
 
         /// <summary>
-        /// How dangerous each block is, 0 to 250, larger worse.
+        /// How dangerous each block is, larger worse.
         /// </summary>
         public BlockMap CrimeRateMap { get; }
 
         /// <summary>
-        /// The fire stations the map scan noted, 0 to 1000.
+        /// The fire stations the map scan noted.
         /// </summary>
         public BlockMap FireStationMap { get; }
 
         /// <summary>
-        /// The fire cover of each block, 0 to 1000.
+        /// The fire cover of each block.
         /// </summary>
         public BlockMap FireStationEffectMap { get; }
 
         /// <summary>
-        /// Each block's land value, 0 to 250.
+        /// Each block's land value.
         /// </summary>
         public BlockMap LandValueMap { get; }
 
         /// <summary>
-        /// The police stations the map scan noted, 0 to 1000.
+        /// The police stations the map scan noted.
         /// </summary>
         public BlockMap PoliceStationMap { get; }
 
         /// <summary>
-        /// How much crime is dampened in each block, 0 to 1000.
+        /// How much crime is dampened in each block.
         /// </summary>
         public BlockMap PoliceStationEffectMap { get; }
 
         /// <summary>
-        /// Each block's pollution, 0 to 255.
+        /// Each block's pollution.
         /// </summary>
         public BlockMap PollutionDensityMap { get; }
 
         /// <summary>
-        /// Each block's population density, 0 to 510.
+        /// Each block's population density.
         /// </summary>
         public BlockMap PopulationDensityMap { get; }
 
         /// <summary>
-        /// Each block's rate of growth, -200 to 200.
+        /// Each block's rate of growth.
         /// </summary>
         public BlockMap RateOfGrowthMap { get; }
 
         /// <summary>
-        /// How undeveloped each block is, 0 to 240.
+        /// How undeveloped each block is.
         /// </summary>
         public BlockMap TerrainDensityMap { get; }
 
         /// <summary>
-        /// Each block's traffic, 0 to 240.
+        /// Each block's traffic.
         /// </summary>
         public BlockMap TrafficDensityMap { get; }
 
-        public void SaveScan(JsonObject scanData)
+        internal void SaveScan(JsonObject scanData)
         {
-            foreach ((string key, BlockMap map, _, _) in _saved)
+            foreach ((string key, BlockMap map) in _saved)
             {
                 scanData[key] = map.Save();
             }
@@ -128,11 +132,11 @@ namespace Micropolis.Rules
         /// <summary>
         /// Reads every map from <c>scannedState.blockMaps</c>, given as <paramref name="scanData"/>.
         /// </summary>
-        public void LoadScan(SavedObject scanData)
+        internal void LoadScan(SavedObject scanData)
         {
-            foreach ((string key, BlockMap map, int min, int max) in _saved)
+            foreach ((string key, BlockMap map) in _saved)
             {
-                map.Load(scanData, key, min, max);
+                map.Load(scanData, key);
             }
         }
     }

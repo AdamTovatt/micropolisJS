@@ -30,16 +30,15 @@ Seeds and 32-bit words are hex strings, as the C reference prints them.
 
 ## Files the TypeScript reference writes
 
-`generate.ts` writes `tiles.json`, `canonicalJson.json`, `maps.json` and `saves/` from the TypeScript game rules, which are
-the reference until the C# port replaces them. Regenerate them in the commit that changes what they are computed
-from:
+`generate.ts` writes `tiles.json`, `canonicalJson.json`, `maps.json`, `saveStrings.json` and `saves/` from the
+TypeScript game rules. Regenerate them in the commit that changes what they are computed from:
 
 ```bash
 npm run conformance
 ```
 
-CI runs it too, and fails unless the committed files are what it writes, byte for byte. The server's tests only read
-them.
+It first removes every file it wrote before, so a file it no longer writes is gone. CI runs it too, and fails unless
+the committed files are what it writes, byte for byte. The server's tests only read them.
 
 ### tiles.json
 
@@ -72,11 +71,16 @@ What `src/mapGenerator.js` generates from the map stream of each seed (`src/rand
 - `maps`: the whole `map` object of the first seed of the island, naked island and land kinds, with its tiles one row
   per line, so a mismatch can be located.
 
+### saveStrings.json
+
+The strings a save may hold, in order, which the C# save model's names are checked against: `cityClasses` and
+`scoreReasons`, `CITY_CLASSES` and `SCORE_REASONS` in `src/protocol.ts`, and `cityClassMessages`, the `REACHED_`
+messages of `src/messages.ts` that announce a new city class, smallest class first.
+
 ### saves/
 
 Each fixture's saved state (`docs/state-hash.md`), as the TypeScript simulation writes it when the fixture's command
 log (`headless/fixtures/`) is replayed: `<fixture>.built.json` at its first checkpoint, as its commands build it, and
 `<fixture>.run.json` at its last, after its golden run. Each file is the canonical text alone, with no final newline,
-so its SHA-256 is the state hash, and the generator fails unless that is the fixture's golden hash at that checkpoint.
-`hashes.json` lists each fixture's built and run checkpoints, their steps and hashes. The directory is written afresh, so a fixture
-that is gone leaves no save behind.
+so its SHA-256 is the state hash, and the generator fails unless the replay matches the fixture's golden hashes up to
+that checkpoint. `checkpoints.json` lists the step of each fixture's built and run checkpoints.

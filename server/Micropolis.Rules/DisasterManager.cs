@@ -20,11 +20,11 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed class DisasterManager
     {
-        public long FloodCount { get; set; }
+        public long FloodCount { get; internal set; }
 
-        public bool DisastersEnabled { get; set; }
+        public bool DisastersEnabled { get; internal set; }
 
-        public void Save(JsonObject saveData)
+        internal void Save(JsonObject saveData)
         {
             saveData["disasters"] = new JsonObject
             {
@@ -33,7 +33,7 @@ namespace Micropolis.Rules
             };
         }
 
-        public void Load(SavedObject saveData)
+        internal void Load(SavedObject saveData)
         {
             saveData.ReadObject("disasters", disasters =>
             {

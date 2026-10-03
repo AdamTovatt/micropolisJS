@@ -53,10 +53,8 @@ is the list's own width: the map's width in tiles for a per-tile list, and the b
 block map.
 
 The C# port's `Simulation.FromSave` (`server/Micropolis.Rules`) reads a saved state against this specification: a key
-missing or unknown, or a value of the wrong type or outside the range given here or in the block-map comments of the
-`Simulation` constructor in `src/simulation.js`, fails with an error naming the key. It reads the current format only,
-with its scanned state. It reads no older save: `storage.js` migrates one from a version without the scanned state to a
-save whose `scannedState` is `null`, which only the TypeScript `Simulation.load` fills, by scanning.
+written twice, missing or unknown, or a value of the wrong type or outside the range given here or in the block-map
+comments of the `Simulation` constructor in `src/simulation.js`, fails with an error naming the key.
 
 ### Simulation
 
@@ -81,8 +79,8 @@ save whose `scannedState` is `null`, which only the TypeScript `Simulation.load`
 |-----|-------|
 | `map.width`, `map.height` | The map's size in tiles |
 | `map.tiles` | One raw value per tile, row by row: the tile value (bits 0–9) combined with its flags (bits 10–15, `src/tileFlags.ts`) |
-| `map.cityCentreX`, `map.cityCentreY` | The population centre |
-| `map.pollutionMaxX`, `map.pollutionMaxY` | The most polluted tile |
+| `map.cityCentreX`, `map.cityCentreY` | The population centre, a tile of the map: the average position of the zones the last population scan found, or the map's centre when it found none (`populationDensityScan` in `src/blockMapUtils.js`) |
+| `map.pollutionMaxX`, `map.pollutionMaxY` | The most polluted tile, a tile of the map: one the pollution scan visits (`pollutionTerrainLandValueScan` in `src/blockMapUtils.js`), or the map's centre before any scan |
 
 ### Evaluation
 
@@ -95,7 +93,7 @@ save whose `scannedState` is `null`, which only the TypeScript `Simulation.load`
 | `evaluation.cityAssessedValue` | The assessed value |
 | `evaluation.cityClassLast` | The class last reported |
 | `evaluation.cityScoreDelta` | The score's last change |
-| `evaluation.problemVotes` | Seven `{"index", "voteCount"}` objects from the last poll, in the poll's sorted order |
+| `evaluation.problemVotes` | Seven `{"index", "voteCount"}` objects from the last poll, in the poll's sorted order: `index` is a problem, 0–6, and `voteCount` its votes, 0–100, since the poll stops at 100 votes (`voteProblems` in `src/evaluation.js`) |
 | `evaluation.problemOrder` | The four top problems' indices, 7 for none |
 | `evaluation.cityScoreBreakdown` | The last score calculation's steps, in order, as `{"reason", "points"}` objects: the points each step moved the score. The reasons, in calculation order, are `"PROBLEMS"`, `"RES_CAP"`, `"COM_CAP"`, `"IND_CAP"`, `"ROAD_FUNDING"`, `"POLICE_FUNDING"`, `"FIRE_FUNDING"`, `"RES_OVERSUPPLY"`, `"COM_OVERSUPPLY"`, `"IND_OVERSUPPLY"`, `"MIGRATION"`, `"FIRES"`, `"TAXES"`, `"UNPOWERED_ZONES"`, `"RANGE"` and `"AVERAGING"`. `"PROBLEMS"` and `"AVERAGING"` are always listed, and each other step only when it moved the score. The first is measured from last year's score, and the points sum to `cityScoreDelta`. Empty until the first evaluation, and after an evaluation that finds the city empty |
 
@@ -148,7 +146,7 @@ save whose `scannedState` is `null`, which only the TypeScript `Simulation.load`
 |-----|-------|
 | `scannedState.blockMaps` | One list per block map, row by row: `cityCentreDistScoreMap`, `crimeRateMap`, `fireStationMap`, `fireStationEffectMap`, `landValueMap`, `policeStationMap`, `policeStationEffectMap`, `pollutionDensityMap`, `populationDensityMap`, `rateOfGrowthMap`, `terrainDensityMap` and `trafficDensityMap`. A block map of block size `b` over the 120×100 map is `ceil(120 / b)` blocks wide and `ceil(100 / b)` high: 195 entries at size 8, 750 at size 4, 3000 at size 2. The `Simulation` constructor in `src/simulation.js` gives each map's block size and range. The temporary maps are scratch space and are not saved |
 | `scannedState.power.powerGrid` | One entry per tile, row by row: 1 where the last power scan delivered power |
-| `scannedState.power.powerStack` | The `{"x", "y"}` power sources the map scan has found for the next power scan, in push order |
+| `scannedState.power.powerStack` | The `{"x", "y"}` power sources the map scan has found for the next power scan, in push order: each a tile of the map, a power plant's or one the power scan reached (`src/powerManager.js`) |
 | `scannedState.power.powerCapacity`, `scannedState.power.powerLoad` | The last power scan's capacity and load |
 | `scannedState.census` | The census's scan counts: `poweredZoneCount`, `unpoweredZoneCount`, `firePop`, `roadTotal`, `railTotal`, `resZonePop`, `comZonePop`, `indZonePop`, `hospitalPop`, `churchPop`, `policeStationPop`, `fireStationPop`, `stadiumPop`, `coalPowerPop`, `nuclearPowerPop`, `seaportPop`, `airportPop` and `needHospital` (−1, 0 or 1), and `trafficAverage`, which is not always an integer |
 
@@ -157,10 +155,9 @@ save whose `scannedState` is `null`, which only the TypeScript `Simulation.load`
 Each fixture is a command log (`docs/command-log.md`) whose checkpoints are its golden hashes: the **built** hash at
 step 0, of the state its commands build, and the **run** hash after a fixed run at the medium speed a new city starts
 at. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtures` exports each fixture's log to
-`headless/fixtures/export/<name>.log.json`. `conformance/saves/` holds each fixture's state at both checkpoints, whose
-SHA-256 is the checkpoint's hash, which the C# tests load and save back to the same canonical text. The C# port
-replays the log, or takes the built state as its starting state and steps it at medium speed to the run checkpoint's
-step, and must produce the run hash.
+`headless/fixtures/export/<name>.log.json`, and `conformance/README.md` describes the copies of each fixture's state
+at both checkpoints. The C# port replays the log, or takes the built state as its starting state and steps it at
+medium speed to the run checkpoint's step, and must produce the run hash.
 
 `e2e/goldenPlaythrough.json` pins the hash of the city at each stage of the end-to-end playthrough: the hash of the
 keys `Simulation.save` writes, taken from the browser's save (`src/gameSaveHash.ts`), which leaves out what the next

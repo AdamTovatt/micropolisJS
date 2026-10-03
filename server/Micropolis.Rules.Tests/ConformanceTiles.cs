@@ -11,23 +11,25 @@
  *
  */
 
-namespace Micropolis.Rules
+namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// A save that <c>docs/state-hash.md</c> does not allow: a key missing or unknown, or a value of the wrong type or
-    /// outside its documented range.
+    /// <c>conformance/tiles.json</c>: every name <c>src/tileValues.ts</c> and <c>src/tileFlags.ts</c> export, with its
+    /// value.
     /// </summary>
-    public sealed class SaveFormatException : Exception
+    public sealed record ConformanceTiles(IReadOnlyDictionary<string, int> Values, IReadOnlyDictionary<string, int> Flags)
     {
-        public SaveFormatException(string path, string problem)
-            : base($"The save's {path} {problem}.")
+        public static ConformanceTiles Load()
         {
-            Path = path;
+            return Parse(ConformanceFile.Read("tiles.json"));
         }
 
-        /// <summary>
-        /// Where in the save the problem is, such as <c>sprites.list[2].type</c>, or <c>state</c> for the save itself.
-        /// </summary>
-        public string Path { get; }
+        public static ConformanceTiles Parse(string json)
+        {
+            ConformanceTiles tiles = ConformanceFile.Parse<ConformanceTiles>(json);
+            ConformanceFile.NonEmpty("values", tiles.Values);
+            ConformanceFile.NonEmpty("flags", tiles.Flags);
+            return tiles;
+        }
     }
 }

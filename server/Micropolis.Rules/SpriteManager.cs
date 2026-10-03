@@ -20,11 +20,11 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed class SpriteManager
     {
-        public long SpriteCycle { get; set; }
+        public long SpriteCycle { get; internal set; }
 
-        public List<Sprite> SpriteList { get; set; } = [];
+        public IReadOnlyList<Sprite> SpriteList { get; internal set; } = [];
 
-        public void Save(JsonObject saveData)
+        internal void Save(JsonObject saveData)
         {
             saveData["sprites"] = new JsonObject
             {
@@ -33,7 +33,7 @@ namespace Micropolis.Rules
             };
         }
 
-        public void Load(SavedObject saveData)
+        internal void Load(SavedObject saveData)
         {
             saveData.ReadObject("sprites", sprites =>
             {

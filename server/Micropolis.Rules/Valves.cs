@@ -20,19 +20,19 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed class Valves
     {
-        public long ResValve { get; set; }
+        public long ResValve { get; internal set; }
 
-        public long ComValve { get; set; }
+        public long ComValve { get; internal set; }
 
-        public long IndValve { get; set; }
+        public long IndValve { get; internal set; }
 
-        public bool ResCap { get; set; }
+        public bool ResCap { get; internal set; }
 
-        public bool ComCap { get; set; }
+        public bool ComCap { get; internal set; }
 
-        public bool IndCap { get; set; }
+        public bool IndCap { get; internal set; }
 
-        public void Save(JsonObject saveData)
+        internal void Save(JsonObject saveData)
         {
             saveData["valves"] = new JsonObject
             {
@@ -45,7 +45,7 @@ namespace Micropolis.Rules
             };
         }
 
-        public void Load(SavedObject saveData)
+        internal void Load(SavedObject saveData)
         {
             saveData.ReadObject("valves", valves =>
             {

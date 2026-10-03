@@ -21,9 +21,14 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed class PowerManager
     {
+        private readonly int _gameMapWidth;
+        private readonly int _gameMapHeight;
+
         public PowerManager(int gameMapWidth, int gameMapHeight)
         {
-            PowerGridMap = new BlockMap(gameMapWidth, gameMapHeight, 1);
+            _gameMapWidth = gameMapWidth;
+            _gameMapHeight = gameMapHeight;
+            PowerGridMap = new BlockMap(gameMapWidth, gameMapHeight, 1, 0, 1);
         }
 
         /// <summary>
@@ -32,15 +37,15 @@ namespace Micropolis.Rules
         public BlockMap PowerGridMap { get; }
 
         /// <summary>
-        /// The power sources the map scan has found for the next power scan, in push order.
+        /// The power sources the map scan has found for the next power scan, in push order: each a tile of the map.
         /// </summary>
-        public List<(long X, long Y)> PowerStack { get; set; } = [];
+        public IReadOnlyList<Position> PowerStack { get; internal set; } = [];
 
-        public long PowerCapacity { get; set; }
+        public long PowerCapacity { get; internal set; }
 
-        public long PowerLoad { get; set; }
+        public long PowerLoad { get; internal set; }
 
-        public void SaveScan(JsonObject scanData)
+        internal void SaveScan(JsonObject scanData)
         {
             scanData["powerGrid"] = PowerGridMap.Save();
             scanData["powerStack"] = new JsonArray(PowerStack.Select(source => (JsonNode?)new JsonObject
@@ -55,10 +60,11 @@ namespace Micropolis.Rules
         /// <summary>
         /// Reads <c>scannedState.power</c>, given as <paramref name="scanData"/>.
         /// </summary>
-        public void LoadScan(SavedObject scanData)
+        internal void LoadScan(SavedObject scanData)
         {
-            PowerGridMap.Load(scanData, "powerGrid", 0, 1);
-            PowerStack = scanData.ReadObjectList("powerStack", source => (source.ReadSafeInteger("x"), source.ReadSafeInteger("y")));
+            PowerGridMap.Load(scanData, "powerGrid");
+            PowerStack = scanData.ReadObjectList("powerStack",
+                source => new Position(source.ReadInt("x", 0, _gameMapWidth - 1), source.ReadInt("y", 0, _gameMapHeight - 1)));
             PowerCapacity = scanData.ReadSafeInteger("powerCapacity");
             PowerLoad = scanData.ReadSafeInteger("powerLoad");
         }

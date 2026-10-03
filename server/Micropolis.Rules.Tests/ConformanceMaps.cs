@@ -70,5 +70,5 @@ namespace Micropolis.Rules.Tests
     /// <summary>
     /// A map object as <c>GameMap.save</c> writes it.
     /// </summary>
-    public sealed record SavedMap(long CityCentreX, long CityCentreY, long PollutionMaxX, long PollutionMaxY, int Width, int Height, int[] Tiles);
+    public sealed record SavedMap(int CityCentreX, int CityCentreY, int PollutionMaxX, int PollutionMaxY, int Width, int Height, int[] Tiles);
 }

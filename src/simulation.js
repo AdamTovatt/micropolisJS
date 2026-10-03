@@ -92,19 +92,22 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed) {
     // Holds a score representing how dangerous an area is, in range 0-250 (larger is worse)
     crimeRateMap: new BlockMap(this._map.width, this._map.height, 2),
 
-    // A map used to note positions of fire stations during the map scan, range 0-1000
+    // A map used to note positions of fire stations during the map scan, range 0-9000: each station adds its effect,
+    // up to 1000 (emergencyServices.js), and at most nine 3x3 stations have their centres in one block of 8
     fireStationMap: new BlockMap(this._map.width, this._map.height, 8),
 
-    // Holds a value containing a score representing the effect of fire cover in this neighborhood, range 0-1000
+    // Holds a value containing a score representing the effect of fire cover in this neighborhood, range 0-9000:
+    // fireStationMap smoothed, which never exceeds its greatest entry
     fireStationEffectMap: new BlockMap(this._map.width, this._map.height, 8),
 
     // Holds scores representing the land value in the range 0-250
     landValueMap: new BlockMap(this._map.width, this._map.height, 2),
 
-    // A map used to note positions of police stations during the map scan, range 0-1000
+    // A map used to note positions of police stations during the map scan, range 0-9000, as fireStationMap
     policeStationMap: new BlockMap(this._map.width, this._map.height, 8),
 
-    // Holds a value containing a score representing how much crime is dampened in this block, range 0-1000
+    // Holds a value containing a score representing how much crime is dampened in this block, range 0-9000:
+    // policeStationMap smoothed, which never exceeds its greatest entry
     policeStationEffectMap: new BlockMap(this._map.width, this._map.height, 8),
 
     // Holds a value representing the amount of pollution in a neighbourhood, in the range 0-255

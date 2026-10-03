@@ -11,23 +11,21 @@
  *
  */
 
-namespace Micropolis.Rules
+using System.Text.Json;
+
+namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// A save that <c>docs/state-hash.md</c> does not allow: a key missing or unknown, or a value of the wrong type or
-    /// outside its documented range.
+    /// What the readers of the conformance files do with a file that lost data: fail, saying what is wrong.
     /// </summary>
-    public sealed class SaveFormatException : Exception
+    internal static class ConformanceAssert
     {
-        public SaveFormatException(string path, string problem)
-            : base($"The save's {path} {problem}.")
+        public static void Broken(Action parse, string description, string message)
         {
-            Path = path;
-        }
+            Exception exception = Assert.Throws<Exception>(parse, description);
 
-        /// <summary>
-        /// Where in the save the problem is, such as <c>sprites.list[2].type</c>, or <c>state</c> for the save itself.
-        /// </summary>
-        public string Path { get; }
+            Assert.IsTrue(exception is InvalidDataException or JsonException, $"Unexpected {exception.GetType().Name}.");
+            StringAssert.Contains(exception.Message, message);
+        }
     }
 }

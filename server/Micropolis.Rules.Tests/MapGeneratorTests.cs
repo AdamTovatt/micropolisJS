@@ -54,10 +54,10 @@ namespace Micropolis.Rules.Tests
                 }
             }
 
-            Assert.AreEqual(listed.Map.CityCentreX, map["cityCentreX"]!.GetValue<long>());
-            Assert.AreEqual(listed.Map.CityCentreY, map["cityCentreY"]!.GetValue<long>());
-            Assert.AreEqual(listed.Map.PollutionMaxX, map["pollutionMaxX"]!.GetValue<long>());
-            Assert.AreEqual(listed.Map.PollutionMaxY, map["pollutionMaxY"]!.GetValue<long>());
+            Assert.AreEqual(listed.Map.CityCentreX, map["cityCentreX"]!.GetValue<int>());
+            Assert.AreEqual(listed.Map.CityCentreY, map["cityCentreY"]!.GetValue<int>());
+            Assert.AreEqual(listed.Map.PollutionMaxX, map["pollutionMaxX"]!.GetValue<int>());
+            Assert.AreEqual(listed.Map.PollutionMaxY, map["pollutionMaxY"]!.GetValue<int>());
         }
 
         [TestMethod]

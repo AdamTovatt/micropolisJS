@@ -16,60 +16,70 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
+    /// A sprite's kind, as <c>src/spriteConstants.ts</c> numbers them.
+    /// </summary>
+    public enum SpriteType
+    {
+        Train = 1,
+        Helicopter = 2,
+        Airplane = 3,
+        Ship = 4,
+        Monster = 5,
+        Tornado = 6,
+        Explosion = 7,
+    }
+
+    /// <summary>
     /// A sprite's saved state. Its size and drawing offset are fixed by its type, and not saved.
     /// </summary>
+    /// <remarks>
+    /// The positions and counters have no range the simulation keeps them within, such as a sprite's pixels while it
+    /// flies off the map, so they are <see langword="long"/>.
+    /// </remarks>
     public sealed class Sprite
     {
-        public const int Train = 1;
-        public const int Helicopter = 2;
-        public const int Airplane = 3;
-        public const int Ship = 4;
-        public const int Monster = 5;
-        public const int Tornado = 6;
-        public const int Explosion = 7;
-
-        public int Type { get; set; }
+        public SpriteType Type { get; internal set; }
 
         /// <summary>
         /// The frame drawn, 0 for a sprite that has died this pass.
         /// </summary>
-        public long Frame { get; set; }
+        public long Frame { get; internal set; }
 
         // Pixels
-        public long X { get; set; }
+        public long X { get; internal set; }
 
-        public long Y { get; set; }
+        public long Y { get; internal set; }
 
-        public long OrigX { get; set; }
+        public long OrigX { get; internal set; }
 
-        public long OrigY { get; set; }
+        public long OrigY { get; internal set; }
 
-        public long DestX { get; set; }
+        public long DestX { get; internal set; }
 
-        public long DestY { get; set; }
+        public long DestY { get; internal set; }
 
-        public long Count { get; set; }
+        public long Count { get; internal set; }
 
-        public long SoundCount { get; set; }
+        public long SoundCount { get; internal set; }
 
-        public long Dir { get; set; }
+        public long Dir { get; internal set; }
 
-        public long NewDir { get; set; }
+        public long NewDir { get; internal set; }
 
-        public long Step { get; set; }
+        public long Step { get; internal set; }
 
-        public long Flag { get; set; }
+        public long Flag { get; internal set; }
 
         /// <summary>
         /// For a monster only: whether it has reached land. Saved only for a monster.
         /// </summary>
-        public bool SeenLand { get; set; }
+        public bool SeenLand { get; internal set; }
 
-        public JsonObject Save()
+        internal JsonObject Save()
         {
             JsonObject sprite = new JsonObject
             {
-                ["type"] = Type,
+                ["type"] = (int)Type,
                 ["frame"] = Frame,
                 ["x"] = X,
                 ["y"] = Y,
@@ -85,7 +95,7 @@ namespace Micropolis.Rules
                 ["flag"] = Flag,
             };
 
-            if (Type == Monster)
+            if (Type == SpriteType.Monster)
             {
                 sprite["_seenLand"] = SeenLand;
             }
@@ -93,11 +103,11 @@ namespace Micropolis.Rules
             return sprite;
         }
 
-        public static Sprite Load(SavedObject data)
+        internal static Sprite Load(SavedObject data)
         {
             Sprite sprite = new Sprite
             {
-                Type = data.ReadInt("type", Train, Explosion),
+                Type = data.ReadEnum<SpriteType>("type"),
                 Frame = data.ReadSafeInteger("frame"),
                 X = data.ReadSafeInteger("x"),
                 Y = data.ReadSafeInteger("y"),
@@ -114,7 +124,7 @@ namespace Micropolis.Rules
             };
 
             // Read only for a monster, so another sprite holding it fails as an unknown key
-            if (sprite.Type == Monster)
+            if (sprite.Type == SpriteType.Monster)
             {
                 sprite.SeenLand = data.ReadBool("_seenLand");
             }

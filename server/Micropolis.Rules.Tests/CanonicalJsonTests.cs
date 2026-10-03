@@ -40,6 +40,16 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(vector.Text, CanonicalJson.Write(JsonValue.Create(vector.Value)));
         }
 
+        // Each code unit escaped in the text, so a lone surrogate reaches the parser as JSON.parse would read it
+        [TestMethod]
+        [DynamicData(nameof(StringVectors))]
+        public void Write_ParsedReferenceString_EscapesAsJsonStringify(StringVector vector)
+        {
+            string json = "\"" + string.Concat(vector.Value.Select(c => $"\\u{(int)c:x4}")) + "\"";
+
+            Assert.AreEqual(vector.Text, CanonicalJson.Write(JsonNode.Parse(json)));
+        }
+
         [TestMethod]
         [DynamicData(nameof(DocumentVectors))]
         public void Write_ParsedReferenceDocument_WritesItsCanonicalText(DocumentVector vector)

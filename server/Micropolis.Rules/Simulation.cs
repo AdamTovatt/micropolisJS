@@ -16,22 +16,38 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
+    /// The game speed, as <c>Simulation.SPEED_PAUSED</c> and its siblings in <c>src/simulation.js</c> number it.
+    /// </summary>
+    public enum Speed
+    {
+        Paused = 0,
+        Slow = 1,
+        Medium = 2,
+        Fast = 3,
+    }
+
+    /// <summary>
+    /// The difficulty, as <c>Simulation.LEVEL_EASY</c> and its siblings in <c>src/simulation.js</c> number it.
+    /// </summary>
+    public enum Level
+    {
+        Easy = 0,
+        Medium = 1,
+        Hard = 2,
+    }
+
+    /// <summary>
     /// A city's complete simulation state, as <c>docs/state-hash.md</c> specifies its save: everything that decides
     /// how the city evolves, the random stream included, so a city restored from a save continues exactly as it would
-    /// have without it. A save is the current format, with its scanned state. An older save isn't read: one that
-    /// <c>storage.js</c> migrated from a version without the scanned state holds <c>null</c> for it.
+    /// have without it.
     /// </summary>
+    /// <remarks>
+    /// A JavaScript number is a double, so code that computes with the city's integers mirrors the JavaScript
+    /// operations rather than C#'s integer semantics: <c>Math.floor</c> rounds down where C# division truncates,
+    /// <c>| 0</c> and <c>&gt;&gt;</c> narrow to int32, and <c>Math.round</c> sends halves up.
+    /// </remarks>
     public sealed class Simulation
     {
-        public const int SpeedPaused = 0;
-        public const int SpeedSlow = 1;
-        public const int SpeedMedium = 2;
-        public const int SpeedFast = 3;
-
-        public const int LevelEasy = 0;
-        public const int LevelMedium = 1;
-        public const int LevelHard = 2;
-
         /// <summary>
         /// The city-class announcements a city may have sent last.
         /// </summary>
@@ -59,9 +75,9 @@ namespace Micropolis.Rules
         // The simulation's own fields change only as it loads and steps; its components' fields are set by the
         // simulation that holds them
 
-        public int GameLevel { get; private set; }
+        public Level GameLevel { get; private set; }
 
-        public int Speed { get; private set; }
+        public Speed Speed { get; private set; }
 
         /// <summary>
         /// City time: four per month, 48 per year, counted from 1900.
@@ -114,12 +130,16 @@ namespace Micropolis.Rules
         public PowerManager PowerManager { get; }
 
         /// <summary>
-        /// The city a save holds. A key missing or unknown, or a value of the wrong type or outside its documented
-        /// range, fails with a <see cref="SaveFormatException"/> naming the key.
+        /// The city a save's text holds. Text that isn't JSON, a key written twice, missing or unknown, or a value of
+        /// the wrong type or outside its documented range fails with a <see cref="SaveFormatException"/> naming where.
         /// </summary>
-        public static Simulation FromSave(JsonNode? saveData)
+        /// <remarks>
+        /// A save is read in the current format only, with its scanned state. A browser save that <c>storage.js</c>
+        /// migrated from a version without the scanned state holds <c>null</c> for it, which only a scan can fill.
+        /// </remarks>
+        public static Simulation FromSave(string saveText)
         {
-            return SavedObject.ReadRoot(saveData, saved =>
+            return SavedObject.ReadRoot(saveText, saved =>
             {
                 GameMap map = GameMap.FromSave(saved);
 
@@ -148,12 +168,17 @@ namespace Micropolis.Rules
             });
         }
 
-        public void Save(JsonObject saveData)
+        /// <summary>
+        /// The city's save, as <c>Simulation.save</c> in <c>src/simulation.js</c> writes it.
+        /// </summary>
+        public JsonObject Save()
         {
+            JsonObject saveData = new JsonObject();
+
             saveData["simulation"] = new JsonObject
             {
-                ["gameLevel"] = GameLevel,
-                ["speed"] = Speed,
+                ["gameLevel"] = (int)GameLevel,
+                ["speed"] = (int)Speed,
                 ["seed"] = Seed,
                 ["randomState"] = SavedList.Of(Random.GetState()),
                 ["cityTime"] = CityTime,
@@ -187,12 +212,14 @@ namespace Micropolis.Rules
                 ["census"] = census,
                 ["power"] = power,
             };
+
+            return saveData;
         }
 
         private void LoadCounters(SavedObject simulation)
         {
-            GameLevel = simulation.ReadInt("gameLevel", LevelEasy, LevelHard);
-            Speed = simulation.ReadInt("speed", SpeedPaused, SpeedFast);
+            GameLevel = simulation.ReadEnum<Level>("gameLevel");
+            Speed = simulation.ReadEnum<Speed>("speed");
             CityTime = simulation.ReadSafeInteger("cityTime");
             SpeedCycle = simulation.ReadInt("speedCycle", 0, 1023);
             PhaseCycle = simulation.ReadInt("phaseCycle", 0, 15);
