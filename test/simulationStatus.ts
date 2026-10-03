@@ -14,9 +14,9 @@
 import { CityStatus } from "../src/cityStatus";
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
-import { Simulation } from "../src/simulation.js";
 import { CONDBIT } from "../src/tileFlags";
 import { POWERPLANT } from "../src/tileValues";
+import { newSimulation } from "./helpers/simulations";
 
 const PHASES_PER_CYCLE = 16;
 const SEED = 1;
@@ -26,7 +26,7 @@ function cityWithAPlant() {
     const map = new GameMap(120, 100);
     map.setTile(60, 50, POWERPLANT, CONDBIT);
 
-    const simulation = new Simulation(map, Simulation.LEVEL_EASY, Simulation.SPEED_MED, SEED, null);
+    const simulation = newSimulation(map, SEED);
     const records: CityStatus[] = [];
     const messages: Array<{cycle: number, subject: string}> = [];
     let cycle = 0;

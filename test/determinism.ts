@@ -17,27 +17,13 @@ import { Random } from "../src/random";
 import { RoadTool } from "../src/roadTool.js";
 import { Simulation } from "../src/simulation.js";
 import { COMCLR, DIRT, FREEZ, INDCLR, POWERPLANT } from "../src/tileValues";
+import { SimulationInstance, newSimulation, useTool } from "./helpers/simulations";
 
 const SEED = 2026;
 const OTHER_SEED = 2027;
 
 // A city year at fast speed, where every step runs a phase: 16 phases advance the city time by 1, and 48 make a year
 const YEAR = 16 * 48;
-
-type SimulationInstance = InstanceType<typeof Simulation>;
-
-interface Tool {
-    result: number;
-    doTool(x: number, y: number, blockMaps: unknown, random: Random): void;
-    modifyIfEnoughFunding(budget: unknown): boolean;
-}
-
-function use(simulation: SimulationInstance, tool: Tool, x: number, y: number) {
-    tool.doTool(x, y, simulation.blockMaps, simulation.random);
-    if (!tool.modifyIfEnoughFunding(simulation.budget)) {
-        throw new Error(`The tool failed at (${x}, ${y}) with result ${tool.result}`);
-    }
-}
 
 // A city on the map of mapSeed, simulated from simulationSeed: a coal plant powering a row of zones along a road,
 // built on ground cleared to dirt so the same tools build it on any map
@@ -49,22 +35,22 @@ function buildCity(mapSeed: number, simulationSeed: number) {
         }
     }
 
-    const simulation = new Simulation(map, Simulation.LEVEL_EASY, Simulation.SPEED_FAST, simulationSeed, null);
+    const simulation = newSimulation(map, simulationSeed, Simulation.SPEED_FAST);
 
     // A building tool's coordinates are its footprint's second column and row: the centre of a 3x3 zone
-    use(simulation, new BuildingTool(3000, POWERPLANT, map, 4, false), 41, 42);
+    useTool(simulation,new BuildingTool(3000, POWERPLANT, map, 4, false), 41, 42);
     for (const x of [45, 48, 51, 54]) {
-        use(simulation, new BuildingTool(100, FREEZ, map, 3, false), x, 43);
+        useTool(simulation,new BuildingTool(100, FREEZ, map, 3, false), x, 43);
     }
     for (const x of [57, 60]) {
-        use(simulation, new BuildingTool(100, COMCLR, map, 3, false), x, 43);
+        useTool(simulation,new BuildingTool(100, COMCLR, map, 3, false), x, 43);
     }
     for (const x of [63, 66]) {
-        use(simulation, new BuildingTool(100, INDCLR, map, 3, false), x, 43);
+        useTool(simulation,new BuildingTool(100, INDCLR, map, 3, false), x, 43);
     }
     const road = new RoadTool(map);
     for (let x = 40; x <= 68; x++) {
-        use(simulation, road, x, 45);
+        useTool(simulation,road, x, 45);
     }
 
     return simulation;

@@ -12,20 +12,13 @@
  */
 
 import { GameMap } from "../src/gameMap.js";
-import { MapGenerator } from "../src/mapGenerator.js";
 import * as Messages from "../src/messages";
-import { Random } from "../src/random";
 import { Simulation } from "../src/simulation.js";
 import { ANIMBIT } from "../src/tileFlags";
 import { FIRE } from "../src/tileValues";
+import { SimulationInstance, simulationFromSeed } from "./helpers/simulations";
 
 const SEED = 2026;
-
-type SimulationInstance = InstanceType<typeof Simulation>;
-
-function newSimulation(seed: number, speed = Simulation.SPEED_MED) {
-    return new Simulation(MapGenerator(Random.mapStream(seed)), Simulation.LEVEL_EASY, speed, seed, null);
-}
 
 function restore(simulation: SimulationInstance) {
     const saveData = {};
@@ -49,7 +42,7 @@ describe("a simulation", () => {
 
     it("starts from either a seed or a saved game, not both or neither", () => {
         const savedGame = {};
-        newSimulation(SEED).save(savedGame);
+        simulationFromSeed(SEED).save(savedGame);
 
         expect(() => new Simulation(new GameMap(120, 100), Simulation.LEVEL_EASY, Simulation.SPEED_MED, SEED, savedGame))
             .toThrow("either a seed or a saved game");
@@ -60,7 +53,7 @@ describe("a simulation", () => {
     describe("restored from a save", () => {
 
         function saveAndRestore() {
-            const original = newSimulation(SEED);
+            const original = simulationFromSeed(SEED);
             original.random.next();
 
             // A burning tile makes the restored simulation's construction scan draw from its stream
@@ -82,8 +75,21 @@ describe("a simulation", () => {
             expect(restored.random.next()).toBe(original.random.next());
         });
 
+        it("takes the seed and the stream's state from a save loaded into a running simulation", () => {
+            const original = simulationFromSeed(SEED);
+            original.random.next();
+            const saveData = {};
+            original.save(saveData);
+            const other = simulationFromSeed(SEED + 1);
+
+            other.load(JSON.parse(JSON.stringify(saveData)));
+
+            expect(other.seed).toBe(original.seed);
+            expect(other.random.getState()).toEqual(original.random.getState());
+        });
+
         it("runs its next phase at the same step as the original, as the speed cycle is saved", () => {
-            const original = newSimulation(SEED);
+            const original = simulationFromSeed(SEED);
             steps(original, 4);
             const restored = restore(original);
             const originalBefore = phasesRun(original);
@@ -105,7 +111,7 @@ describe("a simulation", () => {
             ["medium", Simulation.SPEED_MED, 5],
             ["fast", Simulation.SPEED_FAST, 15],
         ])("runs a phase on every step the %s speed lets through", (_, speed, phases) => {
-            const simulation = newSimulation(SEED, speed);
+            const simulation = simulationFromSeed(SEED, speed);
 
             steps(simulation, 15);
 
@@ -116,7 +122,7 @@ describe("a simulation", () => {
             ["slow", Simulation.SPEED_SLOW],
             ["fast", Simulation.SPEED_FAST],
         ])("moves the sprites on every step at %s speed", (_, speed) => {
-            const simulation = newSimulation(SEED, speed);
+            const simulation = simulationFromSeed(SEED, speed);
 
             steps(simulation, 15);
 
@@ -124,7 +130,7 @@ describe("a simulation", () => {
         });
 
         it("wraps its speed cycle from 1023 to 0, which runs a phase at slow speed", () => {
-            const simulation = newSimulation(SEED, Simulation.SPEED_SLOW);
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_SLOW);
             const simulate = jest.spyOn(simulation, "_simulate").mockImplementation(() => {});
             simulation._speedCycle = 1022;
 
@@ -135,7 +141,7 @@ describe("a simulation", () => {
         });
 
         it("moves the sprites but holds its speed cycle while awaiting budget values", () => {
-            const simulation = newSimulation(SEED, Simulation.SPEED_FAST);
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_FAST);
             const simulate = jest.spyOn(simulation, "_simulate");
             simulation.budget.awaitingValues = true;
 
@@ -147,7 +153,7 @@ describe("a simulation", () => {
         });
 
         it("does nothing while paused", () => {
-            const simulation = newSimulation(SEED, Simulation.SPEED_PAUSED);
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_PAUSED);
 
             steps(simulation, 15);
 
@@ -174,7 +180,7 @@ describe("a simulation", () => {
         }
 
         it("sends NOT_ENOUGH_POWER again only once the interval of city time has passed", () => {
-            const simulation = newSimulation(SEED);
+            const simulation = simulationFromSeed(SEED);
             const subjects = listen(simulation);
 
             reportNotEnoughPower(simulation, 100);
@@ -185,7 +191,7 @@ describe("a simulation", () => {
         });
 
         it("holds back BLACKOUTS_REPORTED for the interval after NOT_ENOUGH_POWER", () => {
-            const simulation = newSimulation(SEED);
+            const simulation = simulationFromSeed(SEED);
             const subjects = listen(simulation);
 
             // Most zones unpowered while a plant runs: the blackouts condition holds
