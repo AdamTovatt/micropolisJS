@@ -372,7 +372,7 @@ namespace Micropolis.Rules
         // every handler family
         private void Init()
         {
-            foreach (string evaluationEvent in new[] { Messages.CLASSIFICATION_UPDATED, Messages.POPULATION_UPDATED, Messages.SCORE_UPDATED })
+            foreach (string evaluationEvent in new[] { Messages.CLASSIFICATION_UPDATED, Messages.SCORE_UPDATED })
             {
                 Evaluation.Events.AddEventListener(evaluationEvent, payload => ReflectEvent(evaluationEvent, payload));
             }

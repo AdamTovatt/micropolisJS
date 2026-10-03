@@ -76,5 +76,5 @@ export const stations: Command[] = [
 export const town = builtFixture(
   "A small powered town of twenty zones, with a coal plant, an airport and a railway", townCommands, [
     {step: 0, hash: "5cdc1d34c620776358d898cce347f5f9695eb9c60c3ea43f219f93ff355390f1"},
-    {step: RUN_STEPS, hash: "04f53001ca41744cf5ea2ea4fd086e59177a01a9cedf56e3cc415a8931794753"},
+    {step: RUN_STEPS, hash: "e0dd6bc72138fec739fc93db7a0714277b6adafa1fa17515a50110a5929611f5"},
   ]);

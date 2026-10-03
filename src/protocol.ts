@@ -468,8 +468,8 @@ export function recordTypes(): string[] {
 // own copy of the map, from the full map the source sends when a city starts, kept up to date by the tile changes
 // after it, and renders nothing but these messages. A source sends what changed in batches: one after each turn of its
 // loop that applied commands or took steps, however many steps that turn took, and one after each call of the
-// end-to-end runner's driver that applies commands or takes steps. The sprites, the date and the records go only when
-// they differ from what it sent last.
+// end-to-end runner's driver that applies commands or takes steps. The sprites, the date, the population and the
+// records go only when they differ from what it sent last.
 
 // The whole map: width tiles across and height down, each tile's raw value, with its flags, row by row, top row first
 export interface MapMessage {
@@ -514,6 +514,13 @@ export interface DateMessage {
   type: "date";
   month: number;
   year: number;
+}
+
+// The city's population as the last monthly growth check counted it. The evaluation record's population is the yearly
+// evaluation's.
+export interface PopulationMessage {
+  type: "population";
+  population: number;
 }
 
 // The conditions that limit the city's growth, as the simulation publishes them each cycle: the power the plants can
@@ -583,8 +590,8 @@ export interface OverlayUpdatedMessage {
   layer: OverlayLayer;
 }
 
-export type StateMessage = MapMessage | TilesMessage | SpritesMessage | DateMessage | EvaluationRecord |
-  BudgetRecord | SettingsRecord | StatusRecord | DemandMessage | NewsMessage | CommandResultMessage |
+export type StateMessage = MapMessage | TilesMessage | SpritesMessage | DateMessage | PopulationMessage |
+  EvaluationRecord | BudgetRecord | SettingsRecord | StatusRecord | DemandMessage | NewsMessage | CommandResultMessage |
   BudgetReviewDueMessage | OverlayUpdatedMessage;
 
 export type StateMessageType = StateMessage["type"];
@@ -592,8 +599,8 @@ export type StateMessageType = StateMessage["type"];
 // Every state message type, as the compiler checks against the union: a type added to StateMessage and not here fails
 // to compile, and the tests fail on a type with no example.
 const STATE_MESSAGE_TYPES: Record<StateMessageType, true> = {
-  map: true, tiles: true, sprites: true, date: true, evaluation: true, budget: true, settings: true, status: true,
-  demand: true, news: true, commandResult: true, budgetReviewDue: true, overlayUpdated: true,
+  map: true, tiles: true, sprites: true, date: true, population: true, evaluation: true, budget: true, settings: true,
+  status: true, demand: true, news: true, commandResult: true, budgetReviewDue: true, overlayUpdated: true,
 };
 
 export function stateMessageTypes(): string[] {

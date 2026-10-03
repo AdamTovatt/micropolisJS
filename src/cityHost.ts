@@ -39,6 +39,7 @@ interface HostedSimulation extends CommandTarget, ClockedSimulation, Saveable {
   readonly spriteManager: {getSpriteList(): HostedSprite[]};
   getMap(): HostedMap;
   getDate(): {month: number, year: number};
+  getPopulation(): number;
   isPaused(): boolean;
   answerQuery(query: unknown): QueryAnswer;
   evaluationRecord(): EvaluationRecord;
@@ -89,7 +90,7 @@ export function newsMessage(news: SimulationNews): NewsMessage {
 }
 
 // The state the host sent last, of the messages it sends only when they change, as JSON text
-type Sent = Partial<Record<"sprites" | "date" | "evaluation" | "budget" | "settings", string>>;
+type Sent = Partial<Record<"sprites" | "date" | "population" | "evaluation" | "budget" | "settings", string>>;
 
 // A city the host runs, and what it has sent of it
 class HostedCity {
@@ -138,8 +139,8 @@ class HostedCity {
   }
 
   // The state messages since the last call: the whole map the first time, then the tiles that changed; the sprites,
-  // date and records that differ from those sent last; then the status and demand published since, and the events in
-  // the order they came
+  // date, population and records that differ from those sent last; then the status and demand published since, and
+  // the events in the order they came
   messages(): StateMessage[] {
     const simulation = this.simulation;
     const messages: StateMessage[] = [];
@@ -157,6 +158,7 @@ class HostedCity {
     const changing: StateMessage[] = [
       {type: "sprites", sprites},
       {type: "date", month: date.month, year: date.year},
+      {type: "population", population: simulation.getPopulation()},
       simulation.evaluationRecord(),
       simulation.budgetRecord(),
       simulation.settingsRecord(),

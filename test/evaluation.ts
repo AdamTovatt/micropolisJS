@@ -12,6 +12,7 @@
  */
 
 import { Evaluation } from "../src/evaluation.js";
+import * as Messages from "../src/messages";
 import { CITY_PROBLEMS, type ScoreEntry } from "../src/protocol";
 import { developedLand, evaluateYear, makeCity, newEvaluation, problemFreeYear, type Year } from "./helpers/evaluationCity";
 
@@ -355,6 +356,32 @@ describe("the problems", () => {
         evaluateYear(city, problemFreeYear(200, developedLand(1, 12)));
 
         expect(city.census.trafficAverage).toBe(26);
+    });
+});
+
+describe("the population and class", () => {
+
+    // A problem-free year has resPop * 40 people: 1920 is a village, 2240 and 2560 a town
+    it("are worked out each year, announcing a new class once, and never sending the population", () => {
+        const city = makeCity();
+        const events: {name: string, payload: unknown}[] = [];
+        for (const name of [Messages.CLASSIFICATION_UPDATED, Messages.POPULATION_UPDATED]) {
+            city.evaluation.addEventListener(name, (payload: unknown) => events.push({name, payload}));
+        }
+        const yearly: unknown[] = [];
+
+        for (const resPop of [48, 56, 64]) {
+            evaluateYear(city, problemFreeYear(resPop));
+            const {cityPop, cityPopDelta, cityClass} = city.evaluation;
+            yearly.push({cityPop, cityPopDelta, cityClass, events: events.splice(0)});
+        }
+
+        expect(yearly).toEqual([
+            {cityPop: 1920, cityPopDelta: 1920, cityClass: Evaluation.CC_VILLAGE, events: []},
+            {cityPop: 2240, cityPopDelta: 320, cityClass: Evaluation.CC_TOWN,
+             events: [{name: Messages.CLASSIFICATION_UPDATED, payload: Evaluation.CC_TOWN}]},
+            {cityPop: 2560, cityPopDelta: 320, cityClass: Evaluation.CC_TOWN, events: []},
+        ]);
     });
 });
 

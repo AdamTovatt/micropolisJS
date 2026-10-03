@@ -12,7 +12,7 @@
  */
 
 import { requiredElement } from "./domElements";
-import type { BudgetRecord, DateMessage, EvaluationRecord } from "./protocol";
+import type { BudgetRecord, DateMessage, EvaluationRecord, PopulationMessage } from "./protocol";
 import { Text } from "./text";
 
 // TODO L20N
@@ -39,7 +39,7 @@ export function dateText(date: CityDate): string {
   return [Text.months[date.month], date.year].join(" ");
 }
 
-// Shows the city's name, and the date, evaluation and funds the city source sends
+// Shows the city's name, and the date, population, evaluation and funds the city source sends
 export class InfoBar {
   constructor(private readonly elements: InfoBarElements, name: string) {
     elements.name.textContent = name;
@@ -49,10 +49,14 @@ export class InfoBar {
     this.elements.date.textContent = dateText(date);
   }
 
-  showEvaluation(evaluation: Pick<EvaluationRecord, "cityClass" | "population" | "score">): void {
+  // The population comes a month at a time, from the population message: the evaluation's is a year old
+  showEvaluation(evaluation: Pick<EvaluationRecord, "cityClass" | "score">): void {
     this.elements.classification.textContent = evaluation.cityClass;
-    this.elements.population.textContent = String(evaluation.population);
     this.elements.score.textContent = String(evaluation.score);
+  }
+
+  showPopulation({population}: Pick<PopulationMessage, "population">): void {
+    this.elements.population.textContent = String(population);
   }
 
   showBudget(budget: Pick<BudgetRecord, "funds">): void {

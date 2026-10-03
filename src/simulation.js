@@ -512,7 +512,7 @@ Simulation.prototype._constructSimData = function() {
 
 Simulation.prototype.init = function() {
   // Add various listeners that we will in turn transmit upwards
-  var evaluationEvents = ['CLASSIFICATION_UPDATED', 'POPULATION_UPDATED', 'SCORE_UPDATED'].map(function(m) {
+  var evaluationEvents = ['CLASSIFICATION_UPDATED', 'SCORE_UPDATED'].map(function(m) {
     return Messages[m];
   });
   for (var i = 0, l = evaluationEvents.length; i < l; i++)
@@ -827,10 +827,19 @@ Simulation.prototype._checkGrowth = function() {
   if ((this._cityTime & 3) !== 0)
     return;
 
+  // As checkGrowth in the original, this reads the population and the classes without changing the evaluation, which
+  // works them out a year at a time. The population the info bar shows comes from here, a month at a time.
   var message = '';
   var cityPop = this.evaluation.getPopulation(this._census);
 
-  if (cityPop !== this._cityPopLast) {
+  // A population that hasn't changed has nothing to send or announce
+  if (cityPop === this._cityPopLast)
+    return;
+
+  this._emitEvent(Messages.POPULATION_UPDATED, cityPop);
+
+  // The original compares classes only once the city has had people at a growth check
+  if (this._cityPopLast > 0) {
     var lastClass = this.evaluation.getCityClass(this._cityPopLast);
     var newClass = this.evaluation.getCityClass(cityPop);
 
@@ -886,6 +895,13 @@ Simulation.prototype.getDate = function() {
   var year = Math.floor(this._cityTime / 48) + this._startingYear;
   var month = Math.floor(this._cityTime % 48) >> 2;
   return {month: month, year: year};
+};
+
+
+// The population the last growth check found, which it sends a month at a time as it changes. The census as it stands
+// is no answer: phase 0 clears it and phases 1 to 8 count it back up, so between them it is part counted.
+Simulation.prototype.getPopulation = function() {
+  return this._cityPopLast;
 };
 
 

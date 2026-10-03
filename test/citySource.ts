@@ -120,12 +120,12 @@ describe.each(SOURCES)("$name", (factory) => {
 
     describe("starting a city", () => {
 
-        it("delivers the whole map, the date and the records before the start resolves", async () => {
+        it("delivers the whole map, the date, the population and the records before the start resolves", async () => {
             const started = await tested.source.start({name: "Town", seed: SEED, level: 0});
 
             expect(started).toEqual({name: "Town", seed: SEED});
-            expect(messages.map(({type}) => type)).toEqual(["map", "sprites", "date", "evaluation", "budget",
-                                                            "settings"]);
+            expect(messages.map(({type}) => type)).toEqual(["map", "sprites", "date", "population", "evaluation",
+                                                            "budget", "settings"]);
             expect(clientTiles()).toEqual(await savedTiles());
         });
 
@@ -179,8 +179,8 @@ describe.each(SOURCES)("$name", (factory) => {
             expect(await tested.source.start({save: other})).toEqual({name: "Other", seed: SEED + 1});
 
             // The whole map again, and every record, though some are as the city before last sent them
-            expect(messages.map(({type}) => type)).toEqual(["map", "sprites", "date", "evaluation", "budget",
-                                                            "settings"]);
+            expect(messages.map(({type}) => type)).toEqual(["map", "sprites", "date", "population", "evaluation",
+                                                            "budget", "settings"]);
             expect(clientTiles()).toEqual(await savedTiles());
             expect(state.latest("commandResult")).toBeNull();
 

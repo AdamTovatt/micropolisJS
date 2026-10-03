@@ -34,11 +34,12 @@ describe("the info bar", () => {
         return {bar, shown};
     }
 
-    it("shows the city's name, and the date, evaluation and funds it is given, each in its own element", () => {
+    it("shows the city's name, and the date, population, evaluation and funds it is given, each in its own element", () => {
         const {bar, shown} = infoBar();
 
         bar.showDate({month: 3, year: 1901});
-        bar.showEvaluation({cityClass: "TOWN", population: 2400, score: 612});
+        bar.showPopulation({population: 2400});
+        bar.showEvaluation({cityClass: "TOWN", score: 612});
         bar.showBudget({funds: 18750});
 
         expect(shown()).toEqual({classification: "TOWN", population: "2400", score: "612", funds: "18750",
@@ -49,10 +50,12 @@ describe("the info bar", () => {
         const {bar, shown} = infoBar();
 
         bar.showDate({month: 0, year: 1900});
-        bar.showEvaluation({cityClass: "VILLAGE", population: 0, score: 500});
+        bar.showPopulation({population: 0});
+        bar.showEvaluation({cityClass: "VILLAGE", score: 500});
         bar.showBudget({funds: 20000});
         bar.showDate({month: 1, year: 1900});
-        bar.showEvaluation({cityClass: "VILLAGE", population: 120, score: 510});
+        bar.showPopulation({population: 120});
+        bar.showEvaluation({cityClass: "VILLAGE", score: 510});
         bar.showBudget({funds: 19500});
 
         expect(shown()).toMatchObject({population: "120", score: "510", funds: "19500", date: "Feb 1900"});
