@@ -15,6 +15,7 @@ import $ from "jquery";
 
 import { ModalWindow } from './modalWindow.js';
 import { EVAL_WINDOW_CLOSED } from './messages.ts';
+import { scoreBreakdownRows, signedPoints } from './scoreBreakdownView.ts';
 import { Text } from './text.js';
 
 var EvaluationWindow = ModalWindow(function() {
@@ -57,7 +58,24 @@ EvaluationWindow.prototype._populateWindow = function(evaluation, gameLevel) {
   $('#evalLevel').text(Text.gameLevel['' + gameLevel]);
   $('#evalClass').text(Text.cityClass[evaluation.cityClass]);
   $('#evalScore').text(evaluation.cityScore);
-  $('#evalScoreDelta').text(evaluation.cityScoreDelta);
+  $('#evalScoreDelta').text(signedPoints(evaluation.cityScoreDelta));
+  populateScoreBreakdown(evaluation);
+};
+
+
+// Writes the rows scoreBreakdownRows decides on into the list
+var populateScoreBreakdown = function(evaluation) {
+  var rows = scoreBreakdownRows(evaluation.cityScoreBreakdown, evaluation.cityScore);
+  var list = $('#evalScoreBreakdown');
+  list.empty();
+
+  $('#evalScoreBreakdownHeader').toggle(rows.length > 0);
+  list.toggle(rows.length > 0);
+
+  for (var i = 0; i < rows.length; i++) {
+    list.append($('<dt class="evalItem statisticsItem"></dt>').text(rows[i].label + ':'));
+    list.append($('<dd class="elided statisticsRight evalItem evalRight"></dd>').text(rows[i].value));
+  }
 };
 
 

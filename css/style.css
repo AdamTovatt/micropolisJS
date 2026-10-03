@@ -331,6 +331,14 @@ main {
 
 #evalContainer {
   font-size: 14px;
+  /* The score breakdown can make the window taller than the screen; keep OK reachable */
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+
+/* The scrolling container clips markers drawn outside it */
+#problemList {
+  list-style-position: inside;
 }
 
 #flagsTable {
@@ -459,7 +467,7 @@ main {
   font-size: 18px;
 }
 
-#statisticsList, .queryList {
+#statisticsList, #evalScoreBreakdown, .queryList {
   width: 400px;
   margin: 0 auto;
   padding: 0 110px;

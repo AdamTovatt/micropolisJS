@@ -231,4 +231,44 @@ describe("storage", () => {
             expect(savedGame).toEqual(version5);
         });
     });
+
+    // A version 5 or 6 save stands in as a current save without the breakdown, which version 7 added, and for
+    // version 5 with the donation flag
+    function saveBeforeBreakdown(version: number): Save {
+        if (version <= 4) {
+            return oldSave(version);
+        }
+
+        const saveData = simulationSave();
+        delete (saveData.evaluation as Save).cityScoreBreakdown;
+        saveData.version = version;
+        if (version === 5) {
+            saveData.everClicked = true;
+        }
+        return saveData;
+    }
+
+    describe.each([1, 2, 3, 4, 5, 6])("when migrating a version %i save", (version) => {
+
+        it("gives it an empty score breakdown", async () => {
+            const Storage = await loadStorage();
+            const savedGame = saveBeforeBreakdown(version);
+
+            Storage.transitionOldSave(savedGame);
+
+            expect((savedGame.evaluation as Save).cityScoreBreakdown).toEqual([]);
+        });
+    });
+
+    // getSavedGame migrates only a save whose version differs from the current one
+    it("migrates a stored version 6 save when it reads it", async () => {
+        const Storage = await loadStorage();
+        const stored = JSON.stringify(saveBeforeBreakdown(6));
+        const stubbed = (globalThis as Window).window as {localStorage: {getItem?: (key: string) => string}};
+        stubbed.localStorage.getItem = () => stored;
+
+        const savedGame = Storage.getSavedGame() as unknown as Save;
+
+        expect((savedGame.evaluation as Save).cityScoreBreakdown).toEqual([]);
+    });
 });

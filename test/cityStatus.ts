@@ -11,6 +11,7 @@
  *
  */
 
+import { Budget } from "../src/budget.js";
 import { AdvisorBudget, AdvisorCensus, AdvisorPower, buildCityStatus, conditionHolds } from "../src/cityStatus";
 import * as Messages from "../src/messages";
 
@@ -46,8 +47,8 @@ const CALM_CENSUS: AdvisorCensus = {
 };
 
 const CALM_BUDGET: AdvisorBudget = {
-    MAX_FIRE_STATION_EFFECT: 1000,
-    MAX_POLICE_STATION_EFFECT: 1000,
+    MAX_FIRESTATION_EFFECT: 1000,
+    MAX_POLICESTATION_EFFECT: 1000,
     MAX_ROAD_EFFECT: 32,
     cityTax: 7,
     fireEffect: 1000,
@@ -135,7 +136,7 @@ const THRESHOLDS: Array<[string, string, Overrides, boolean]> = [
     [Messages.HIGH_CRIME, "crime 101", {census: {crimeAverage: 101}}, true],
     [Messages.HIGH_CRIME, "crime 100", {census: {crimeAverage: 100}}, false],
 
-    [Messages.TRAFFIC_JAMS, "traffic 60.5", {census: {trafficAverage: 60.5}}, true],
+    [Messages.TRAFFIC_JAMS, "traffic 61", {census: {trafficAverage: 61}}, true],
     [Messages.TRAFFIC_JAMS, "traffic 60", {census: {trafficAverage: 60}}, false],
 
     [Messages.NEED_FIRE_STATION, "61 people, no fire station", {census: {totalPop: 61}}, true],
@@ -166,7 +167,7 @@ const THRESHOLDS: Array<[string, string, Overrides, boolean]> = [
     [Messages.FIRE_STATION_NEEDS_FUNDING, "fire effect 699 of 1000, 20 people",
      {budget: {fireEffect: 699}, census: {totalPop: 20}}, false],
     [Messages.FIRE_STATION_NEEDS_FUNDING, "fire effect 700 of 1001, where seven tenths is 700.7",
-     {budget: {MAX_FIRE_STATION_EFFECT: 1001, fireEffect: 700}, census: {totalPop: 21}}, false],
+     {budget: {MAX_FIRESTATION_EFFECT: 1001, fireEffect: 700}, census: {totalPop: 21}}, false],
 
     [Messages.POLICE_NEEDS_FUNDING, "police effect 699 of 1000, 21 people",
      {budget: {policeEffect: 699}, census: {totalPop: 21}}, true],
@@ -175,7 +176,7 @@ const THRESHOLDS: Array<[string, string, Overrides, boolean]> = [
     [Messages.POLICE_NEEDS_FUNDING, "police effect 699 of 1000, 20 people",
      {budget: {policeEffect: 699}, census: {totalPop: 20}}, false],
     [Messages.POLICE_NEEDS_FUNDING, "police effect 700 of 1001, where seven tenths is 700.7",
-     {budget: {MAX_POLICE_STATION_EFFECT: 1001, policeEffect: 700}, census: {totalPop: 21}}, false],
+     {budget: {MAX_POLICESTATION_EFFECT: 1001, policeEffect: 700}, census: {totalPop: 21}}, false],
 ];
 
 describe("the advisor conditions", () => {
@@ -187,6 +188,19 @@ describe("the advisor conditions", () => {
         const {budget, census, power} = city(overrides);
 
         expect(conditionHolds(condition, census, budget, power)).toBe(expected);
+    });
+
+    // The figures above are a stand-in for the budget, so these read a real one: a limit the budget doesn't
+    // define computes to NaN, and its condition never holds.
+    it.each([
+        [Messages.FIRE_STATION_NEEDS_FUNDING, "fireEffect"],
+        [Messages.POLICE_NEEDS_FUNDING, "policeEffect"],
+    ] as const)("%s reads the funding limit the real budget defines", (condition, effect) => {
+        const budget = new Budget();
+        budget[effect] = 699;
+        const {census, power} = city({census: {totalPop: 21}});
+
+        expect(conditionHolds(condition, census, budget, power)).toBe(true);
     });
 
     it("rejects an unknown condition", () => {

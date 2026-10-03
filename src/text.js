@@ -53,6 +53,30 @@ problems[Evaluation.TRAFFIC] = 'Traffic';
 problems[Evaluation.UNEMPLOYMENT] = 'Unemployment';
 problems[Evaluation.FIRE] = 'Fire';
 
+// Steps of the yearly score calculation, as listed in the evaluation window
+var scoreReasons = {};
+scoreReasons[Evaluation.SCORE_PROBLEMS] = 'Base score from problems';
+scoreReasons[Evaluation.SCORE_RES_CAP] = 'No stadium';
+scoreReasons[Evaluation.SCORE_COM_CAP] = 'No airport';
+scoreReasons[Evaluation.SCORE_IND_CAP] = 'No seaport';
+scoreReasons[Evaluation.SCORE_ROAD_FUNDING] = 'Roads underfunded';
+scoreReasons[Evaluation.SCORE_POLICE_FUNDING] = 'Police underfunded';
+scoreReasons[Evaluation.SCORE_FIRE_FUNDING] = 'Fire service underfunded';
+scoreReasons[Evaluation.SCORE_RES_OVERSUPPLY] = 'Too much residential';
+scoreReasons[Evaluation.SCORE_COM_OVERSUPPLY] = 'Too much commercial';
+scoreReasons[Evaluation.SCORE_IND_OVERSUPPLY] = 'Too much industrial';
+scoreReasons[Evaluation.SCORE_MIGRATION] = 'Population change';
+scoreReasons[Evaluation.SCORE_FIRES] = 'Fires';
+scoreReasons[Evaluation.SCORE_TAXES] = 'Tax rate';
+scoreReasons[Evaluation.SCORE_UNPOWERED_ZONES] = 'Unpowered zones';
+scoreReasons[Evaluation.SCORE_RANGE] = 'Limit of 0 to 1000';
+scoreReasons[Evaluation.SCORE_AVERAGING] = 'Averaged with last year';
+
+var scoreBreakdown = {
+  lastYear: 'Last year\'s score',
+  reasons: scoreReasons
+};
+
 // months
 var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
               'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -177,6 +201,7 @@ var Text = {
   problems: problems,
   pollutionStrings: pollutionStrings,
   rateStrings: rateStrings,
+  scoreBreakdown: scoreBreakdown,
   statusPanel: statusPanel,
   toolMessages: toolMessages,
   zoneTypes: zoneTypes
