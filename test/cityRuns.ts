@@ -11,11 +11,12 @@
  *
  */
 
-import { recordRun } from "../conformance/cityRuns";
+import { RANDOM_DISASTER_NAMES, recordRun } from "../conformance/cityRuns";
 import { cityFromSeed, Level, SaveData, Speed } from "../headless/city";
 import { RUN_STEPS } from "../headless/fixtures/fixture";
 import { builtSave } from "../headless/runner";
 import * as Messages from "../src/messages";
+import * as SpriteConstants from "../src/spriteConstants";
 import { stateHash } from "../src/stateHash";
 
 describe("a city run", () => {
@@ -59,21 +60,39 @@ describe("a city run", () => {
         expect(paid.yearEnds).toBeGreaterThan(1);
     });
 
-    // The town sends out trains and aircraft over its run; the suburb, without rail or an airport, sends out nothing
-    it("notes whether the city had sprites moving", async () => {
+    // The town sends out trains and aircraft over its run; the suburb, without rail or an airport, sends out nothing. A
+    // tornado set loose in the suburb moves, and an explosion set off there burns out where it is.
+    it("notes whether a live sprite moved", async () => {
         const town = await recordRun({fixture: "town", built: await builtSave("town")}, "medium", RUN_STEPS, RUN_STEPS);
         const suburb = await recordRun({fixture: "suburb", built: await builtSave("suburb")}, "fast", 40, 40);
+        const withSprite = async (type: number) => {
+            const save = await builtSave("suburb") as SaveData & {sprites: {list: object[]}};
+            save.sprites.list = [{
+                count: 0, destX: 0, destY: 0, dir: 0, flag: 0, frame: 1, newDir: 0, origX: 0, origY: 0, soundCount: 0,
+                step: 0, type, x: 400, y: 400,
+            }];
+            return (await recordRun({fixture: "suburb", built: save}, "fast", 40, 40)).sprites;
+        };
 
         expect([town.sprites, suburb.sprites]).toEqual([true, false]);
+        expect([await withSprite(SpriteConstants.SPRITE_TORNADO), await withSprite(SpriteConstants.SPRITE_EXPLOSION)])
+            .toEqual([true, false]);
     });
 
-    it("notes whether random disasters could strike the city", async () => {
+    // The harbour at the hard level, disasters on, is struck at fast speed; the suburb, disasters on at the easy level,
+    // is not struck in its first steps, and with them off is never struck
+    it("notes each random disaster that struck the city", async () => {
         const save = await builtSave("suburb") as SaveData & {disasters: {disastersEnabled: boolean}};
         save.disasters.disastersEnabled = true;
 
-        const enabled = await recordRun({fixture: "suburb", built: save}, "fast", 1, 1);
-        const disabled = await recordRun({fixture: "suburb", built: await builtSave("suburb")}, "fast", 1, 1);
+        const harbour = await builtSave("harbourWithDisasters");
+        const struck = await recordRun({fixture: "harbourWithDisasters", built: harbour}, "fast", RUN_STEPS, RUN_STEPS);
+        const enabled = await recordRun({fixture: "suburb", built: save}, "fast", 40, 40);
+        const disabled = await recordRun({fixture: "suburb", built: await builtSave("suburb")}, "fast", RUN_STEPS,
+                                         RUN_STEPS);
 
-        expect([enabled.disasters, disabled.disasters]).toEqual([true, false]);
+        expect(struck.disasters).not.toEqual([]);
+        expect(struck.disasters.every((disaster) => RANDOM_DISASTER_NAMES.includes(disaster))).toBe(true);
+        expect([enabled.disasters, disabled.disasters]).toEqual([[], []]);
     });
 });

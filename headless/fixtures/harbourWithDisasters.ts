@@ -11,10 +11,9 @@
  *
  */
 
-import { Command, LOCAL_PLAYER } from "../../src/protocol";
 import { plainSavedState } from "../../src/stateHash";
 import { Level, Simulation } from "../city";
-import { RUN_STEPS } from "./fixture";
+import { atStart, RUN_STEPS } from "./fixture";
 import { harbour } from "./harbour";
 import type { DerivedFixture } from "./index";
 
@@ -28,9 +27,7 @@ export const harbourWithDisasters: DerivedFixture = {
     return saved;
   },
   description: "The harbour at the hard level, with random disasters on",
-  entries: [
-    {type: "setDisasters", on: true},
-  ].map((command) => ({step: 0, player: LOCAL_PLAYER, command: command as Command})),
+  entries: atStart([{type: "setDisasters", on: true}]),
   checkpoints: [
     {step: 0, hash: "d76115e83efc6cdb023598121cacf7259ca262dd288a7ba4b965b05b035cf23a"},
     {step: RUN_STEPS, hash: "feb5361037ef6cdc088edcbde89cf7a8caafb89947d064c0648fdd171c10c380"},

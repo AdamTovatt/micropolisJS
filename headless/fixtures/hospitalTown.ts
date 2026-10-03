@@ -15,9 +15,8 @@ import { SPEEDS } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
 import { buildingAt, lineOf, zoneRow } from "./toolCommands";
 
-// A sprite-free city made to reach branches of the zone handlers that the suburbs never reach, whose unit snapshots
-// are recorded from it alone (conformance/snapshotPoints.ts). Seed 8's map has open land and woods from (10, 10) to
-// (53, 33).
+// A city made to reach branches of the zone handlers that the suburbs never reach, whose unit snapshots are recorded
+// from it alone (conformance/snapshotPoints.ts). Seed 8's map has open land and woods from (10, 10) to (53, 33).
 
 const LEFT = 14;
 const TOP = 10;

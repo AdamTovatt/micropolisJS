@@ -12,24 +12,17 @@
  */
 
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
     /// Every unit snapshot run in C#, and the harness that runs them: a snapshot passes when the C# unit leaves the
-    /// state and emits the events the TypeScript did, and is inconclusive while the call reaches a unit not yet ported.
+    /// state and emits the events the TypeScript did.
     /// </summary>
     [TestClass]
     public sealed class UnitSnapshotTests
     {
         private static readonly IReadOnlyList<UnitSnapshot> Snapshots = UnitSnapshots.Load();
-
-        // The units, handlers and sprite or disaster functions the C# has a stub for: a record whose call reaches one may
-        // be inconclusive, and every other record must pass. A port removes its units from the list.
-        private static readonly IReadOnlySet<string> NotYetPorted = new HashSet<string>
-        {
-        };
 
         public static IEnumerable<object[]> AllSnapshots => Snapshots.Select(snapshot => new object[] { snapshot });
 
@@ -38,46 +31,17 @@ namespace Micropolis.Rules.Tests
             return data[0].ToString()!;
         }
 
+        // The map scan's records with no handler prove the scanner's core; no repair is registered in them, so the scan's
+        // calls to the repair manager are proven by the records of the families that register repairs, and
+        // RepairManager.CheckTile itself by helpers.json's repairs
         [TestMethod]
         [DynamicData(nameof(AllSnapshots), DynamicDataDisplayName = nameof(DisplayName))]
         public void Run_EverySnapshot_MatchesTypeScript(UnitSnapshot snapshot)
         {
-            AssertMatches(UnitSnapshots.ReadRecord(snapshot));
-        }
-
-        // Every record whose call reaches no unit in NotYetPorted, the unit itself included, must pass: an inconclusive
-        // result there would hide a ported unit that stopped at a stub. The map scan's records with no handler prove the
-        // scanner's core this way; no repair is registered in them, so the scan's calls to the repair manager are proven
-        // by the records of the families that register repairs, and RepairManager.CheckTile itself by helpers.json's
-        // repairs.
-        [TestMethod]
-        public void Run_RecordReachingNoUnitNotYetPorted_MatchesTypeScript()
-        {
-            List<UnitSnapshot> held = Snapshots
-                .Where(snapshot => !NotYetPorted.Contains(snapshot.Unit) && !snapshot.Reached.Any(NotYetPorted.Contains))
-                .ToList();
-
-            Assert.IsNotEmpty(held);
-            foreach (UnitSnapshot snapshot in held)
+            if (UnitSnapshotRunner.Run(UnitSnapshots.ReadRecord(snapshot)) is string difference)
             {
-                Assert.AreEqual(new UnitRun(null, null), UnitSnapshotRunner.Run(UnitSnapshots.ReadRecord(snapshot)), snapshot.ToString());
+                Assert.Fail(difference);
             }
-        }
-
-        // The list is the stubs, no more and no less: a port removes its unit from it, and a stub that comes back, as a
-        // merge that takes a stub's side would bring it, fails here rather than turning its records inconclusive
-        [TestMethod]
-        public void NotYetPorted_ComparedWithTheStubsInTheSource_NamesEachStub()
-        {
-            Regex stub = new Regex("new NotPortedException\\(\"([^\"]+)\"\\)");
-            List<string> stubs = Directory.GetFiles(RepositoryFiles.GetPath("server/Micropolis.Rules"), "*.cs")
-                .SelectMany(file => stub.Matches(File.ReadAllText(file)).Select(match => match.Groups[1].Value))
-                .ToList();
-            string unlisted = string.Join(", ", stubs.Except(NotYetPorted).Order(StringComparer.Ordinal));
-            string ported = string.Join(", ", NotYetPorted.Except(stubs).Order(StringComparer.Ordinal));
-
-            Assert.AreEqual("", unlisted, "A stub for a unit NotYetPorted doesn't list");
-            Assert.AreEqual("", ported, "A unit NotYetPorted lists that has no stub, so is ported");
         }
 
         // The records name the families as the TypeScript registered them, which the generator checks against
@@ -104,10 +68,7 @@ namespace Micropolis.Rules.Tests
             JsonObject record = PhaseZeroRecord();
             Tamper(record["after"]!, path);
 
-            UnitRun run = UnitSnapshotRunner.Run(record);
-
-            Assert.IsNull(run.NotPorted, description);
-            StringAssert.Contains(run.Difference, message, description);
+            StringAssert.Contains(UnitSnapshotRunner.Run(record), message, description);
         }
 
         [TestMethod]
@@ -116,7 +77,7 @@ namespace Micropolis.Rules.Tests
             JsonObject record = PhaseZeroRecord();
             record["after"]!["valves"]!.AsObject().Remove("resCap");
 
-            StringAssert.Contains(UnitSnapshotRunner.Run(record).Difference, "valves.resCap: expected no such key, was false");
+            StringAssert.Contains(UnitSnapshotRunner.Run(record), "valves.resCap: expected no such key, was false");
         }
 
         [TestMethod]
@@ -125,7 +86,7 @@ namespace Micropolis.Rules.Tests
             JsonObject record = PhaseZeroRecord();
             record["events"]!.AsArray().Add(new JsonObject { ["name"] = Messages.VALVES_UPDATED });
 
-            StringAssert.Contains(UnitSnapshotRunner.Run(record).Difference, "Event 0 differs: expected {\"name\":\"Valves updated\"}, was no event");
+            StringAssert.Contains(UnitSnapshotRunner.Run(record), "Event 0 differs: expected {\"name\":\"Valves updated\"}, was no event");
         }
 
         [TestMethod]
@@ -175,33 +136,6 @@ namespace Micropolis.Rules.Tests
 
             UnitSnapshots.ReadRecord(snapshot);
             Assert.Throws<InvalidDataException>(() => UnitSnapshots.ReadRecord(snapshot with { Args = other.Args }));
-        }
-
-        /// <summary>
-        /// The snapshot's rule: the C# run matches the record, or stops at a stub of a unit the TypeScript's call
-        /// reached, which is inconclusive until that unit is ported.
-        /// </summary>
-        private static void AssertMatches(JsonObject record)
-        {
-            UnitRun run = UnitSnapshotRunner.Run(record);
-
-            if (run.NotPorted is string unit)
-            {
-                IReadOnlyList<string> reached = UnitSnapshotRunner.Strings(record["reached"]);
-
-                if (unit == (string)record["unit"]! || reached.Contains(unit))
-                {
-                    Assert.Inconclusive($"{unit} is not ported yet.");
-                }
-
-                string reachedText = reached.Count == 0 ? "no other unit" : string.Join(", ", reached);
-                Assert.Fail($"The C# reached {unit}, which the TypeScript's call did not: it reached {reachedText}.");
-            }
-
-            if (run.Difference is string difference)
-            {
-                Assert.Fail(difference);
-            }
         }
 
         // Each fixture's records of phase 0 that reach no other unit

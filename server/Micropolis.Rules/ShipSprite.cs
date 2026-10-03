@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The ship's move, as <c>src/boatSprite.js</c> brings the original's doShipSprite.
+    /// The ship's start and move, as <c>src/boatSprite.js</c> brings the original's doShipSprite.
     /// </summary>
     internal static class ShipSprite
     {
@@ -31,6 +31,37 @@ namespace Micropolis.Rules
         ];
 
         private const long CantMove = 10;
+
+        // A new ship faces away from the edge it starts by, and looks for a way on at its first move
+        public static void Init(SpriteManager manager, Sprite sprite)
+        {
+            GameMap map = manager.Map;
+
+            if (sprite.X < SpriteUtils.WorldToPix(4))
+            {
+                sprite.Frame = 3;
+            }
+            else if (sprite.X >= SpriteUtils.WorldToPix(map.Width - 4))
+            {
+                sprite.Frame = 7;
+            }
+            else if (sprite.Y < SpriteUtils.WorldToPix(4))
+            {
+                sprite.Frame = 5;
+            }
+            else if (sprite.Y >= SpriteUtils.WorldToPix(map.Height - 4))
+            {
+                sprite.Frame = 1;
+            }
+            else
+            {
+                sprite.Frame = 3;
+            }
+
+            sprite.NewDir = sprite.Frame;
+            sprite.Dir = CantMove;
+            sprite.Count = 1;
+        }
 
         public static void Move(SpriteManager manager, Sprite sprite, BlockMaps blockMaps)
         {
@@ -61,7 +92,7 @@ namespace Micropolis.Rules
 
                 if (sprite.Frame != sprite.NewDir)
                 {
-                    sprite.Frame = SpriteManager.TurnTo(sprite.Frame, sprite.NewDir);
+                    sprite.Frame = SpriteUtils.TurnTo(sprite.Frame, sprite.NewDir);
                     return;
                 }
 
@@ -78,8 +109,8 @@ namespace Micropolis.Rules
                         continue;
                     }
 
-                    int x = (int)((sprite.X + 47) >> 4) + TileDeltaX[frame];
-                    int y = (int)(sprite.Y >> 4) + TileDeltaY[frame];
+                    int x = (int)SpriteUtils.PixToWorld(sprite.X + 47) + TileDeltaX[frame];
+                    int y = (int)SpriteUtils.PixToWorld(sprite.Y) + TileDeltaY[frame];
 
                     if (map.TestBounds(x, y))
                     {
@@ -89,7 +120,7 @@ namespace Micropolis.Rules
                             OppositeAndUnderwater(tile, sprite.Dir, frame))
                         {
                             sprite.NewDir = frame;
-                            sprite.Frame = SpriteManager.TurnTo(sprite.Frame, sprite.NewDir);
+                            sprite.Frame = SpriteUtils.TurnTo(sprite.Frame, sprite.NewDir);
                             sprite.Dir = frame + 4;
 
                             if (sprite.Dir > 8)
@@ -124,7 +155,7 @@ namespace Micropolis.Rules
             if (!Waters.Contains(tile))
             {
                 manager.ExplodeSprite(sprite);
-                manager.DestroyMapTile(blockMaps, sprite.X + 48, sprite.Y);
+                SpriteUtils.DestroyMapTile(manager, map, blockMaps, sprite.X + 48, sprite.Y);
             }
         }
 

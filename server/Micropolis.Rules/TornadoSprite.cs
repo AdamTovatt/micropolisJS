@@ -14,12 +14,19 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The tornado's move, as <c>src/tornadoSprite.js</c> brings the original's doTornadoSprite.
+    /// The tornado's start and move, as <c>src/tornadoSprite.js</c> brings the original's doTornadoSprite.
     /// </summary>
     internal static class TornadoSprite
     {
         private static readonly long[] DeltaX = [2, 3, 2, 0, -2, -3];
         private static readonly long[] DeltaY = [-2, 0, 2, 3, 2, 0];
+
+        // A new tornado blows for 200 passes
+        public static void Init(Sprite sprite)
+        {
+            sprite.Frame = 1;
+            sprite.Count = 200;
+        }
 
         public static void Move(SpriteManager manager, Sprite sprite, BlockMaps blockMaps)
         {
@@ -59,7 +66,7 @@ namespace Micropolis.Rules
                 sprite.Frame = 0;
             }
 
-            manager.DestroyMapTile(blockMaps, sprite.X + 48, sprite.Y + 40);
+            SpriteUtils.DestroyMapTile(manager, manager.Map, blockMaps, sprite.X + 48, sprite.Y + 40);
         }
     }
 }

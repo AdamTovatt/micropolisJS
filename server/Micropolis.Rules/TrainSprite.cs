@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The train's move, as <c>src/trainSprite.js</c> brings the original's doTrainSprite.
+    /// The train's start and move, as <c>src/trainSprite.js</c> brings the original's doTrainSprite.
     /// </summary>
     internal static class TrainSprite
     {
@@ -26,7 +26,15 @@ namespace Micropolis.Rules
         // The frame for each direction of travel: north, east, south, west, and none
         private static readonly long[] Pic2 = [1, 2, 1, 2, 5];
 
-        private const long CantMove = 4;
+        // The last direction, none
+        internal const int CantMove = 4;
+
+        // A new train stands still
+        public static void Init(Sprite sprite)
+        {
+            sprite.Frame = 1;
+            sprite.Dir = CantMove;
+        }
 
         // Over 4 passes a train moves through a tile, so every fourth it looks for track to go on, from a random
         // direction but not back where it came from. Finding none, it may go back next time; finding none twice, it dies.
@@ -56,7 +64,7 @@ namespace Micropolis.Rules
                     continue;
                 }
 
-                int tileValue = manager.GetChar(sprite.X + TileDeltaX[dir2] + 48, sprite.Y + TileDeltaY[dir2]);
+                int tileValue = SpriteUtils.GetTileValue(manager.Map, sprite.X + TileDeltaX[dir2] + 48, sprite.Y + TileDeltaY[dir2]);
 
                 if ((tileValue >= TileValues.RAILBASE && tileValue <= TileValues.LASTRAIL) ||
                     tileValue == TileValues.RAILVPOWERH || tileValue == TileValues.RAILHPOWERV)

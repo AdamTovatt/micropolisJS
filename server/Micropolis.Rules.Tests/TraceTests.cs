@@ -86,5 +86,17 @@ namespace Micropolis.Rules.Tests
 
             StringAssert.StartsWith(exception.Message, "Call 37 of the trace tornado keeps a hash of 0 digits");
         }
+
+        // A trace with no calls would compare nothing and pass
+        [TestMethod]
+        public void Run_NoCalls_Throws()
+        {
+            JsonObject trace = TraceRunner.Read("tornado");
+            trace["calls"] = new JsonArray();
+
+            InvalidDataException exception = Assert.Throws<InvalidDataException>(() => TraceRunner.Run(trace));
+
+            Assert.AreEqual("The trace tornado makes no call, so proves nothing.", exception.Message);
+        }
     }
 }

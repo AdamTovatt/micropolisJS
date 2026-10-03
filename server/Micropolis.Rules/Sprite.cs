@@ -31,10 +31,11 @@ namespace Micropolis.Rules
 
     /// <summary>
     /// What a type fixes for every sprite of it: its hot spot, where it collides, crashes and leaves the map, in pixels
-    /// from the sprite's position, as the original's initSprite gives it, and the message that reports its crash, for a
-    /// type that can crash. The size and drawing offset the original also gives are the client's, which draws it.
+    /// from the sprite's position, as the original's initSprite gives it; the message that reports its crash, for a
+    /// type that can crash; and its last frame, the frames counting from 1. The size and drawing offset the original
+    /// also gives are the client's, which draws it.
     /// </summary>
-    public readonly record struct SpriteTraits(int XHot, int YHot, string? CrashMessage);
+    public readonly record struct SpriteTraits(int XHot, int YHot, string? CrashMessage, int LastFrame);
 
     /// <summary>
     /// A sprite's saved state, at its position in the original's frame. Its traits are its type's, and not saved.
@@ -50,7 +51,7 @@ namespace Micropolis.Rules
             Type = type;
         }
 
-        public SpriteType Type { get; internal set; }
+        public SpriteType Type { get; }
 
         /// <summary>
         /// The frame drawn, 0 for a sprite that has died this pass.
@@ -94,17 +95,17 @@ namespace Micropolis.Rules
         /// </summary>
         public long YHot => Traits.YHot;
 
-        public static SpriteTraits TraitsOf(SpriteType type)
+        private static SpriteTraits TraitsOf(SpriteType type)
         {
             return type switch
             {
-                SpriteType.Train => new SpriteTraits(40, -8, Messages.TRAIN_CRASHED),
-                SpriteType.Helicopter => new SpriteTraits(40, -8, Messages.HELICOPTER_CRASHED),
-                SpriteType.Airplane => new SpriteTraits(48, 16, Messages.PLANE_CRASHED),
-                SpriteType.Ship => new SpriteTraits(48, 0, Messages.SHIP_CRASHED),
-                SpriteType.Monster => new SpriteTraits(40, 16, null),
-                SpriteType.Tornado => new SpriteTraits(40, 36, null),
-                SpriteType.Explosion => new SpriteTraits(40, 16, null),
+                SpriteType.Train => new SpriteTraits(40, -8, Messages.TRAIN_CRASHED, 5),
+                SpriteType.Helicopter => new SpriteTraits(40, -8, Messages.HELICOPTER_CRASHED, 8),
+                SpriteType.Airplane => new SpriteTraits(48, 16, Messages.PLANE_CRASHED, 11),
+                SpriteType.Ship => new SpriteTraits(48, 0, Messages.SHIP_CRASHED, 8),
+                SpriteType.Monster => new SpriteTraits(40, 16, null, 16),
+                SpriteType.Tornado => new SpriteTraits(40, 36, null, 3),
+                SpriteType.Explosion => new SpriteTraits(40, 16, null, 6),
                 _ => throw new ArgumentOutOfRangeException(nameof(type), type, "No such sprite type."),
             };
         }
@@ -130,11 +131,15 @@ namespace Micropolis.Rules
             };
         }
 
+        // The frame, 0 for a sprite that died, and a train's direction index the tables its moves read, so a value
+        // outside them is refused here rather than failing the step that moves the sprite
         internal static Sprite Load(SavedObject data)
         {
-            return new Sprite(data.ReadEnum<SpriteType>("type"))
+            SpriteType type = data.ReadEnum<SpriteType>("type");
+
+            return new Sprite(type)
             {
-                Frame = data.ReadSafeInteger("frame"),
+                Frame = data.ReadInt("frame", 0, TraitsOf(type).LastFrame),
                 X = data.ReadSafeInteger("x"),
                 Y = data.ReadSafeInteger("y"),
                 OrigX = data.ReadSafeInteger("origX"),
@@ -143,7 +148,7 @@ namespace Micropolis.Rules
                 DestY = data.ReadSafeInteger("destY"),
                 Count = data.ReadSafeInteger("count"),
                 SoundCount = data.ReadSafeInteger("soundCount"),
-                Dir = data.ReadSafeInteger("dir"),
+                Dir = type == SpriteType.Train ? data.ReadInt("dir", 0, TrainSprite.CantMove) : data.ReadSafeInteger("dir"),
                 NewDir = data.ReadSafeInteger("newDir"),
                 Step = data.ReadSafeInteger("step"),
                 Flag = data.ReadSafeInteger("flag"),

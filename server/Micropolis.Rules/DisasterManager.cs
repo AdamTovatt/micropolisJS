@@ -120,7 +120,7 @@ namespace Micropolis.Rules
                 if (tileValue > TileValues.LHTHR && tileValue < TileValues.LASTZONE)
                 {
                     _map.SetTo(x, y, TileUtils.RandomFire(_random));
-                    Events.Emit(Messages.FIRE_REPORTED, new JsonObject { ["showable"] = true, ["x"] = x, ["y"] = y });
+                    Events.Emit(Messages.FIRE_REPORTED, NewsPlaces.Showable(x, y));
                 }
             }
         }
@@ -193,8 +193,7 @@ namespace Micropolis.Rules
         {
             int strength = _random.GetRandom(700) + 300;
 
-            Events.Emit(Messages.EARTHQUAKE,
-                        new JsonObject { ["showable"] = true, ["x"] = _map.CityCentreX, ["y"] = _map.CityCentreY });
+            Events.Emit(Messages.EARTHQUAKE, NewsPlaces.Showable(_map.CityCentreX, _map.CityCentreY));
 
             for (int i = 0; i < strength; i++)
             {
@@ -239,7 +238,7 @@ namespace Micropolis.Rules
                         {
                             _map.SetTile(xx, yy, TileValues.FLOOD, TileFlags.NOFLAGS);
                             FloodCount = 30;
-                            Events.Emit(Messages.FLOODING_REPORTED, new JsonObject { ["showable"] = true, ["x"] = xx, ["y"] = yy });
+                            Events.Emit(Messages.FLOODING_REPORTED, NewsPlaces.Showable(xx, yy));
                             return;
                         }
                     }
@@ -343,7 +342,7 @@ namespace Micropolis.Rules
                 }
             }
 
-            Events.Emit(Messages.NUCLEAR_MELTDOWN, new JsonObject { ["showable"] = true, ["x"] = x, ["y"] = y });
+            Events.Emit(Messages.NUCLEAR_MELTDOWN, NewsPlaces.Showable(x, y));
         }
 
         internal void Save(JsonObject saveData)

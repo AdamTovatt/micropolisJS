@@ -57,8 +57,8 @@ namespace Micropolis.Rules.Tests
         private const int FloodCycles = 30;
 
         // Every map scan the TypeScript recorded with one of the family's modules alone registered matches, in every
-        // fixture whose map scans are recorded a family at a time, the rare branches' points included, and none stops at
-        // a stub. Between them they reach every handler the families register.
+        // fixture whose map scans are recorded a family at a time, the rare branches' points included. Between them they
+        // reach every handler the families register.
         [TestMethod]
         public void MapScan_InfrastructureFamilyAlone_MatchesTypeScript()
         {
@@ -76,7 +76,7 @@ namespace Micropolis.Rules.Tests
 
             foreach (UnitSnapshot snapshot in records)
             {
-                Assert.AreEqual(new UnitRun(null, null), UnitSnapshotRunner.Run(UnitSnapshots.ReadRecord(snapshot)), snapshot.ToString());
+                Assert.IsNull(UnitSnapshotRunner.Run(UnitSnapshots.ReadRecord(snapshot)), snapshot.ToString());
             }
         }
 

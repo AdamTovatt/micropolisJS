@@ -19,28 +19,16 @@ namespace Micropolis.Benchmarks
 {
     /// <summary>
     /// The cities the benchmark runs, the one list both measurements take: each fixture <c>conformance/saves/</c>
-    /// holds but those <see cref="NotRun"/> names, from its city after its golden run at the speed it is saved at, then
-    /// a new city at each running speed.
+    /// holds, from its city after its golden run at the speed it is saved at, then a new city at each running speed.
     /// </summary>
     internal static class BenchmarkCases
     {
         /// <summary>
         /// The fixtures made for the disasters, whose cities run with random disasters on, as issue #61 decides. Every
-        /// save holds them off, since the conformance runs are made with disasters off.
+        /// other fixture runs with them off, as its golden run does.
         /// </summary>
-        public static readonly IReadOnlySet<string> DisasterFixtures = new HashSet<string> { "disasters", "forestFire" };
-
-        /// <summary>
-        /// The fixtures the C# simulation can't run, each with the reason, which the report gives.
-        /// </summary>
-        public static readonly IReadOnlyDictionary<string, string> NotRun = new Dictionary<string, string>
-        {
-            ["broke"] = SpritesNotPorted,
-            ["town"] = SpritesNotPorted,
-            ["underfunded"] = SpritesNotPorted,
-            ["disasters"] = DisastersNotPorted,
-            ["forestFire"] = DisastersNotPorted,
-        };
+        public static readonly IReadOnlySet<string> DisasterFixtures =
+            new HashSet<string> { "disasters", "forestFire", "harbourWithDisasters" };
 
         /// <summary>
         /// The seed the new cities are generated from: any generated map would do, as long as both measurements take
@@ -48,31 +36,19 @@ namespace Micropolis.Benchmarks
         /// </summary>
         public const uint NewCitySeed = 0;
 
-        private const string SpritesNotPorted = "its city has sprites, which the C# simulation doesn't move (#27)";
-
-        private const string DisastersNotPorted =
-            "it runs with random disasters on, which the C# simulation doesn't strike (#27)";
-
         public static IReadOnlyList<BenchmarkCase> All()
         {
-            return Of(FixtureNames(File.ReadAllText(RepositoryFiles.GetPath("conformance/saves/checkpoints.json"))), NotRun);
+            return Of(FixtureNames(File.ReadAllText(RepositoryFiles.GetPath("conformance/saves/checkpoints.json"))));
         }
 
         /// <summary>
-        /// The cases of the fixtures given but those not run, then the new cities. A fixture not run that isn't among
-        /// the fixtures fails, since a fixture renamed or removed would otherwise leave its entry to exclude nothing.
+        /// The cases of the fixtures given, then the new cities.
         /// </summary>
-        internal static IReadOnlyList<BenchmarkCase> Of(IReadOnlyList<string> fixtures, IReadOnlyDictionary<string, string> notRun)
+        internal static IReadOnlyList<BenchmarkCase> Of(IReadOnlyList<string> fixtures)
         {
-            string? unknown = notRun.Keys.FirstOrDefault(name => !fixtures.Contains(name));
-            if (unknown is not null)
-            {
-                throw new InvalidDataException($"The fixture {unknown} isn't run, but conformance/saves/ holds no such fixture.");
-            }
-
             List<BenchmarkCase> cases = new List<BenchmarkCase>();
 
-            foreach (string fixture in fixtures.Where(name => !notRun.ContainsKey(name)))
+            foreach (string fixture in fixtures)
             {
                 cases.Add(new FixtureCase(fixture, SavedSpeed(fixture), DisasterFixtures.Contains(fixture)));
             }

@@ -23,12 +23,13 @@ import { Commercial } from "../src/commercial.js";
 import { Industrial } from "../src/industrial.js";
 import { Residential } from "../src/residential.js";
 import { savedState } from "../src/stateHash";
-import { BIT_MASK, POWERBIT } from "../src/tileFlags";
+import { POWERBIT } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import { Traffic } from "../src/traffic.js";
 import { FREEZ, HHTHR, HOSPITAL, LHTHR } from "../src/tileValues";
 import { ZoneUtils } from "../src/zoneUtils.js";
 import { Internals, replaceMethod } from "./instrumentation";
+import { savedMap, SavedMap } from "./savedMap";
 import { registerFamilies, SnapshotPoint, SnapshotRecord, unrecorded } from "./unitSnapshots";
 
 export type ZoneFamily = "residential" | "commercial" | "industrial";
@@ -57,22 +58,6 @@ type ZoneEvent =
   // The drive found no way on: it backs up when it has a position to forget, and gives up when it has none
   | {kind: "deadEnd", backingUp: boolean}
   | {kind: "arrived", side: Side};
-
-// A map as a save holds its tiles, read as the zone modules read a map
-function savedMap({width, height, tiles}: {width: number, height: number, tiles: number[]}) {
-  const getRawValue = (x: number, y: number) => tiles[y * width + x];
-  const getTileValue = (x: number, y: number) => getRawValue(x, y) & BIT_MASK;
-  return {
-    width,
-    height,
-    testBounds: (x: number, y: number) => x >= 0 && x < width && y >= 0 && y < height,
-    getRawValue,
-    getTileValue,
-    getTile: (x: number, y: number) => ({getRawValue: () => getRawValue(x, y), getValue: () => getTileValue(x, y)}),
-  };
-}
-
-type SavedMap = ReturnType<typeof savedMap>;
 
 // A zone a handler visited: its centre's tile value and population before the call and after it, where its module
 // counts one, and what the handler did

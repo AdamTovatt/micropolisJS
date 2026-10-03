@@ -14,10 +14,15 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The explosion's move, as <c>src/explosionSprite.js</c> brings the original's doExplosionSprite.
+    /// The explosion's start and move, as <c>src/explosionSprite.js</c> brings the original's doExplosionSprite.
     /// </summary>
     internal static class ExplosionSprite
     {
+        public static void Init(Sprite sprite)
+        {
+            sprite.Frame = 1;
+        }
+
         public static void Move(SpriteManager manager, Sprite sprite)
         {
             if ((manager.SpriteCycle & 1) == 0)
@@ -30,12 +35,39 @@ namespace Micropolis.Rules
             {
                 sprite.Frame = 0;
 
-                manager.StartFire(sprite.X + 48 - 8, sprite.Y + 16);
-                manager.StartFire(sprite.X + 48 - 24, sprite.Y);
-                manager.StartFire(sprite.X + 48 + 8, sprite.Y);
-                manager.StartFire(sprite.X + 48 - 24, sprite.Y + 32);
-                manager.StartFire(sprite.X + 48 + 8, sprite.Y + 32);
+                StartFire(manager, sprite.X + 48 - 8, sprite.Y + 16);
+                StartFire(manager, sprite.X + 48 - 24, sprite.Y);
+                StartFire(manager, sprite.X + 48 + 8, sprite.Y);
+                StartFire(manager, sprite.X + 48 - 24, sprite.Y + 32);
+                StartFire(manager, sprite.X + 48 + 8, sprite.Y + 32);
             }
+        }
+
+        // Fire on the tile under the pixel, if it burns or is bare dirt, and isn't a zone's centre
+        private static void StartFire(SpriteManager manager, long px, long py)
+        {
+            GameMap map = manager.Map;
+            int x = (int)SpriteUtils.PixToWorld(px);
+            int y = (int)SpriteUtils.PixToWorld(py);
+
+            if (!map.TestBounds(x, y))
+            {
+                return;
+            }
+
+            Tile tile = map.GetTile(x, y);
+
+            if (!tile.IsCombustible() && tile.GetValue() != TileValues.DIRT)
+            {
+                return;
+            }
+
+            if (tile.IsZone())
+            {
+                return;
+            }
+
+            map.SetTo(x, y, TileUtils.RandomFire(manager.Random));
         }
     }
 }

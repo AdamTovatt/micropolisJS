@@ -96,7 +96,7 @@ namespace Micropolis.Rules.Tests
             string sprites = CanonicalJson.Write(city.Save()["sprites"]!["list"]!);
 
             Assert.IsNotEmpty(city.SpriteManager.SpriteList);
-            Assert.IsFalse(gate.TakeSpeedCycle(), "The step runs a phase, which may stop at a unit not yet ported.");
+            Assert.IsFalse(gate.TakeSpeedCycle(), "The step runs a phase, so more than the sprites may move.");
 
             city.Step();
 

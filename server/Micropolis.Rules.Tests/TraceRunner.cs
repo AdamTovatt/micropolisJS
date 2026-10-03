@@ -11,7 +11,6 @@
  *
  */
 
-using System.IO.Compression;
 using System.Text.Json.Nodes;
 
 namespace Micropolis.Rules.Tests
@@ -23,7 +22,7 @@ namespace Micropolis.Rules.Tests
     /// </summary>
     internal static class TraceRunner
     {
-        private const string Directory = "conformance/traces";
+        private const string TraceDirectory = "traces";
 
         // The hex digits of the state hash a call keeps, TRACE_HASH_DIGITS in conformance/traces.ts
         private const int HashDigits = 12;
@@ -33,7 +32,7 @@ namespace Micropolis.Rules.Tests
         /// </summary>
         public static IReadOnlyList<string> Names()
         {
-            return System.IO.Directory.GetFiles(RepositoryFiles.GetPath(Directory), "*.json.gz")
+            return Directory.GetFiles(RepositoryFiles.GetPath($"conformance/{TraceDirectory}"), "*.json.gz")
                 .Select(file => Path.GetFileName(file)[..^".json.gz".Length])
                 .Order(StringComparer.Ordinal)
                 .ToList();
@@ -41,10 +40,7 @@ namespace Micropolis.Rules.Tests
 
         public static JsonObject Read(string name)
         {
-            using FileStream stream = File.OpenRead(RepositoryFiles.GetPath($"{Directory}/{name}.json.gz"));
-            using GZipStream gzip = new GZipStream(stream, CompressionMode.Decompress);
-
-            return JsonNode.Parse(gzip)?.AsObject() ?? throw new InvalidDataException($"The trace {name} is empty.");
+            return ConformanceFile.ReadGzipped($"{TraceDirectory}/{name}.json.gz").AsObject();
         }
 
         /// <summary>
@@ -54,6 +50,13 @@ namespace Micropolis.Rules.Tests
         /// </summary>
         public static string? Run(JsonObject trace)
         {
+            JsonArray calls = trace["calls"]!.AsArray();
+
+            if (calls.Count == 0)
+            {
+                throw new InvalidDataException($"The trace {trace["name"]} makes no call, so proves nothing.");
+            }
+
             JsonObject changes = trace["changes"]!.AsObject();
             JsonArray tiles = trace["tiles"]!.AsArray();
             Simulation city = FixtureCities.City((string)trace["fixture"]!, (string)trace["point"]!, save =>
@@ -61,7 +64,6 @@ namespace Micropolis.Rules.Tests
                 Change(save, changes);
                 SetTiles(save, tiles);
             });
-            JsonArray calls = trace["calls"]!.AsArray();
             JsonArray events = new JsonArray();
             city.Events.Observer = (name, payload) => events.Add(RecordedEvents.Of(name, payload));
 
@@ -100,15 +102,14 @@ namespace Micropolis.Rules.Tests
         {
             foreach ((string path, JsonNode? value) in changes)
             {
-                string[] names = path.Split('.');
-                JsonObject owner = names[..^1].Aggregate(save, (node, name) => node[name]!.AsObject());
+                (JsonObject owner, string key) = SavePaths.Locate(save, path);
 
-                if (!owner.ContainsKey(names[^1]))
+                if (!owner.ContainsKey(key))
                 {
                     throw new InvalidDataException($"A trace changes {path}, which the save doesn't hold.");
                 }
 
-                owner[names[^1]] = value?.DeepClone();
+                owner[key] = value?.DeepClone();
             }
         }
 
@@ -134,7 +135,7 @@ namespace Micropolis.Rules.Tests
             }
         }
 
-        // The calls a trace may make, as conformance/traces.ts names them
+        // The calls a trace may make, as UNITS in conformance/traces.ts names them
         private static void Invoke(Simulation city, string unit, IReadOnlyList<int> args)
         {
             switch (unit)

@@ -14,7 +14,7 @@
 import { builtFixture, RUN_STEPS } from "./fixture";
 import { buildingAt } from "./toolCommands";
 
-// A sprite-free city made for one branch of the residential zones, whose unit snapshots are recorded from it alone
+// A city made for one branch of the residential zones, whose unit snapshots are recorded from it alone
 // (conformance/snapshotPoints.ts): growth held back by pollution. Land value counts against a block the pollution the
 // scan before worked out, so a zone is polluted past the 128 at which growZone builds nothing, and yet passes the test
 // for growth, only between a scan that finds the pollution new and the next.

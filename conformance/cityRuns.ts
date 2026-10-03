@@ -51,11 +51,42 @@ export interface CityRun {
   checkpoints: Checkpoint[];
   events: RunEvent[];
   // Not written: what the generator checks the runs cover. Each year end the run reaches, each year's budget, whether
-  // the city had sprites moving, and whether random disasters could strike it.
+  // a live sprite moved, and each random disaster that struck, by the method that made it.
   yearEnds: number;
   budgets: YearBudget[];
   sprites: boolean;
-  disasters: boolean;
+  disasters: string[];
+}
+
+// What a random disaster calls to strike, on the disaster manager or the sprite manager
+const RANDOM_DISASTERS = {
+  disasterManager: ["setFire", "makeFlood", "makeEarthquake"],
+  spriteManager: ["makeTornado", "makeMonster"],
+} as const;
+
+export const RANDOM_DISASTER_NAMES: string[] = Object.values(RANDOM_DISASTERS).flat();
+
+// Notes each random disaster that strikes the city: a run applies no commands, so no player triggers one
+function watchRandomDisasters(city: Internals, struck: string[]): void {
+  for (const owner of Object.keys(RANDOM_DISASTERS) as (keyof typeof RANDOM_DISASTERS)[]) {
+    for (const method of RANDOM_DISASTERS[owner]) {
+      replaceMethod(city[owner], method, (original) => function(this: unknown, ...args: unknown[]) {
+        struck.push(method);
+        return original.apply(this, args);
+      });
+    }
+  }
+}
+
+// Whether a sprite live before the step is live after it, somewhere else
+function liveSpriteMoved(city: Internals, step: () => void): boolean {
+  const before = new Map(city.spriteManager.getLiveSprites().map((sprite) => [sprite, {x: sprite.x, y: sprite.y}]));
+  step();
+
+  return city.spriteManager.getLiveSprites().some((sprite) => {
+    const was = before.get(sprite);
+    return was !== undefined && (was.x !== sprite.x || was.y !== sprite.y);
+  });
 }
 
 function startCity(start: RunStart, speed: RunningSpeed): Internals {
@@ -73,7 +104,8 @@ export function describeStart(start: {seed?: number | null, fixture?: string | n
 export async function recordRun(start: RunStart, speed: RunningSpeed, steps: number,
                                 interval: number): Promise<CityRun> {
   const city = startCity(start, speed);
-  const disasters = city.disasterManager.disastersEnabled;
+  const disasters: string[] = [];
+  watchRandomDisasters(city, disasters);
   let sprites = false;
 
   const capturing = captureEvents(city);
@@ -96,11 +128,9 @@ export async function recordRun(start: RunStart, speed: RunningSpeed, steps: num
   for (let step = 0; step < steps; step++) {
     const stepEvents: RecordedEvent[] = [];
     capturing.push(stepEvents);
-    city.step();
+    sprites = liveSpriteMoved(city, () => city.step()) || sprites;
     capturing.pop();
     events.push(...stepEvents.map((event) => ({step, ...event})));
-
-    sprites = sprites || city.spriteManager.spriteList.length > 0;
 
     if ((step + 1) % interval === 0 || step + 1 === steps) {
       checkpoints.push({step: step + 1, hash: await stateHash(city)});

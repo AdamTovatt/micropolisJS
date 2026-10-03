@@ -14,12 +14,30 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The plane's move, as <c>src/airplaneSprite.js</c> brings the original's doAirplaneSprite.
+    /// The plane's start and move, as <c>src/airplaneSprite.js</c> brings the original's doAirplaneSprite.
     /// </summary>
     internal static class AirplaneSprite
     {
         private static readonly long[] DeltaX = [0, 0, 6, 8, 6, 0, -6, -8, -6, 8, 8, 8];
         private static readonly long[] DeltaY = [0, -8, -6, 0, 6, 8, 6, 0, -6, 0, 0, 0];
+
+        // A new plane takes off east, or west from an airport near the map's east edge, for 200 pixels
+        public static void Init(SpriteManager manager, Sprite sprite)
+        {
+            if (sprite.X > SpriteUtils.WorldToPix(manager.Map.Width - 20))
+            {
+                sprite.X -= 100 + 48;
+                sprite.DestX = sprite.X - 200;
+                sprite.Frame = 7;
+            }
+            else
+            {
+                sprite.DestX = sprite.X + 200;
+                sprite.Frame = 11;
+            }
+
+            sprite.DestY = sprite.Y;
+        }
 
         public static void Move(SpriteManager manager, Sprite sprite, bool disastersEnabled)
         {
@@ -41,7 +59,7 @@ namespace Micropolis.Rules
                 else
                 {
                     int dir = manager.GetDir(sprite.X, sprite.Y, sprite.DestX, sprite.DestY);
-                    frame = SpriteManager.TurnTo(frame, dir);
+                    frame = SpriteUtils.TurnTo(frame, dir);
                     sprite.Frame = frame;
                 }
             }
@@ -50,8 +68,8 @@ namespace Micropolis.Rules
             if (manager.AbsDist < 50)
             {
                 // At the destination: pick another, anywhere up to 50 pixels off the map
-                sprite.DestX = manager.Random.GetRandom((int)SpriteManager.WorldToPix(manager.Map.Width) + 100) - 50;
-                sprite.DestY = manager.Random.GetRandom((int)SpriteManager.WorldToPix(manager.Map.Height) + 100) - 50;
+                sprite.DestX = manager.Random.GetRandom((int)SpriteUtils.WorldToPix(manager.Map.Width) + 100) - 50;
+                sprite.DestY = manager.Random.GetRandom((int)SpriteUtils.WorldToPix(manager.Map.Height) + 100) - 50;
             }
 
             if (disastersEnabled)
@@ -66,7 +84,7 @@ namespace Micropolis.Rules
                     }
 
                     if ((s.Type == SpriteType.Helicopter || s.Type == SpriteType.Airplane) &&
-                        SpriteManager.CheckSpriteCollision(sprite, s))
+                        SpriteUtils.CheckSpriteCollision(sprite, s))
                     {
                         manager.ExplodeSprite(s);
                         explode = true;

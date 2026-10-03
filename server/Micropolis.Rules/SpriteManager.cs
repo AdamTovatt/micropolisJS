@@ -84,8 +84,8 @@ namespace Micropolis.Rules
         public long GetBoatDistance(int x, int y)
         {
             long dist = 99999;
-            long pixelX = WorldToPix(x) + 8;
-            long pixelY = WorldToPix(y) + 8;
+            long pixelX = SpriteUtils.WorldToPix(x) + 8;
+            long pixelY = SpriteUtils.WorldToPix(y) + 8;
 
             foreach (Sprite sprite in _spriteList)
             {
@@ -189,11 +189,12 @@ namespace Micropolis.Rules
                 return;
             }
 
-            long x = Random.GetRandom((int)WorldToPix(Map.Width) - 800) + 400;
-            long y = Random.GetRandom((int)WorldToPix(Map.Height) - 200) + 100;
+            long x = Random.GetRandom((int)SpriteUtils.WorldToPix(Map.Width) - 800) + 400;
+            long y = Random.GetRandom((int)SpriteUtils.WorldToPix(Map.Height) - 200) + 100;
 
             MakeSprite(SpriteType.Tornado, x, y);
-            Events.Emit(Messages.TORNADO_SIGHTED, Sighting((x >> 4) + 3, (y >> 4) + 2, SpriteType.Tornado));
+            Events.Emit(Messages.TORNADO_SIGHTED,
+                        NewsPlaces.Trackable(SpriteUtils.PixToWorld(x) + 3, SpriteUtils.PixToWorld(y) + 2, SpriteType.Tornado));
         }
 
         /// <summary>
@@ -203,7 +204,7 @@ namespace Micropolis.Rules
         {
             if (Map.TestBounds(x, y))
             {
-                MakeExplosionAt(WorldToPix(x) + 8, WorldToPix(y) + 8);
+                MakeExplosionAt(SpriteUtils.WorldToPix(x) + 8, SpriteUtils.WorldToPix(y) + 8);
             }
         }
 
@@ -222,14 +223,14 @@ namespace Micropolis.Rules
                 return;
             }
 
-            MakeSprite(SpriteType.Airplane, WorldToPix(x) + 48, WorldToPix(y) + 12);
+            MakeSprite(SpriteType.Airplane, SpriteUtils.WorldToPix(x) + 48, SpriteUtils.WorldToPix(y) + 12);
         }
 
         public void GenerateTrain(Census census, int x, int y)
         {
             if (census.TotalPop > 20 && GetSprite(SpriteType.Train) is null && Random.GetRandom(25) == 0)
             {
-                MakeSprite(SpriteType.Train, WorldToPix(x) - 39, WorldToPix(y) + 6);
+                MakeSprite(SpriteType.Train, SpriteUtils.WorldToPix(x) - 39, SpriteUtils.WorldToPix(y) + 6);
             }
         }
 
@@ -289,7 +290,7 @@ namespace Micropolis.Rules
 
         public void MakeShipHere(int x, int y)
         {
-            MakeSprite(SpriteType.Ship, WorldToPix(x) - 47, WorldToPix(y));
+            MakeSprite(SpriteType.Ship, SpriteUtils.WorldToPix(x) - 47, SpriteUtils.WorldToPix(y));
         }
 
         public void GenerateCopter(int x, int y)
@@ -299,7 +300,7 @@ namespace Micropolis.Rules
                 return;
             }
 
-            MakeSprite(SpriteType.Helicopter, WorldToPix(x), WorldToPix(y) + 30);
+            MakeSprite(SpriteType.Helicopter, SpriteUtils.WorldToPix(x), SpriteUtils.WorldToPix(y) + 30);
         }
 
         /// <summary>
@@ -308,8 +309,8 @@ namespace Micropolis.Rules
         /// </summary>
         public void MakeMonsterAt(int x, int y)
         {
-            MakeSprite(SpriteType.Monster, WorldToPix(x) + 48, WorldToPix(y));
-            Events.Emit(Messages.MONSTER_SIGHTED, Sighting(x + 5, y, SpriteType.Monster));
+            MakeSprite(SpriteType.Monster, SpriteUtils.WorldToPix(x) + 48, SpriteUtils.WorldToPix(y));
+            Events.Emit(Messages.MONSTER_SIGHTED, NewsPlaces.Trackable(x + 5, y, SpriteType.Monster));
         }
 
         /// <summary>
@@ -323,8 +324,8 @@ namespace Micropolis.Rules
             {
                 sprite.SoundCount = 1;
                 sprite.Count = 1000;
-                sprite.DestX = WorldToPix(Map.PollutionMaxX);
-                sprite.DestY = WorldToPix(Map.PollutionMaxY);
+                sprite.DestX = SpriteUtils.WorldToPix(Map.PollutionMaxX);
+                sprite.DestY = SpriteUtils.WorldToPix(Map.PollutionMaxY);
                 return;
             }
 
@@ -359,54 +360,8 @@ namespace Micropolis.Rules
 
             if (crash is not null)
             {
-                Events.Emit(crash, new JsonObject { ["showable"] = true, ["x"] = x >> 4, ["y"] = y >> 4 });
+                Events.Emit(crash, NewsPlaces.Showable(SpriteUtils.PixToWorld(x), SpriteUtils.PixToWorld(y)));
             }
-        }
-
-        /// <summary>
-        /// The pixel coordinate of a tile coordinate, as <c>SpriteUtils.worldToPix</c>.
-        /// </summary>
-        internal static long WorldToPix(int w)
-        {
-            // JavaScript's << on an int32
-            return w << 4;
-        }
-
-        // The tile of a pixel by C's integer division, which truncates toward zero, as the original's p / 16: the
-        // pixels from -15 to -1 fall in tile 0
-        internal static long TruncatingPixToWorld(long p)
-        {
-            return p < 0 ? -(-p >> 4) : p >> 4;
-        }
-
-        // Attempts to turn 45° towards the desired direction, either way, whichever gets there sooner
-        internal static long TurnTo(long presentDir, long desiredDir)
-        {
-            if (presentDir == desiredDir)
-            {
-                return presentDir;
-            }
-
-            if (presentDir < desiredDir)
-            {
-                presentDir += desiredDir - presentDir < 4 ? 1 : -1;
-            }
-            else
-            {
-                presentDir += presentDir - desiredDir < 4 ? -1 : 1;
-            }
-
-            if (presentDir > 8)
-            {
-                presentDir = 1;
-            }
-
-            if (presentDir < 1)
-            {
-                presentDir = 8;
-            }
-
-            return presentDir;
         }
 
         // A monster or a tornado blows up the aircraft, ships and trains it touches
@@ -417,18 +372,11 @@ namespace Micropolis.Rules
                 if (s.Frame != 0 &&
                     (s.Type == SpriteType.Airplane || s.Type == SpriteType.Helicopter || s.Type == SpriteType.Ship ||
                      s.Type == SpriteType.Train) &&
-                    CheckSpriteCollision(sprite, s))
+                    SpriteUtils.CheckSpriteCollision(sprite, s))
                 {
                     ExplodeSprite(s);
                 }
             }
-        }
-
-        // Whether two live sprites' hot spots are close enough to collide
-        internal static bool CheckSpriteCollision(Sprite s1, Sprite s2)
-        {
-            return s1.Frame != 0 && s2.Frame != 0 &&
-                   Math.Abs(s1.X + s1.XHot - (s2.X + s2.XHot)) + Math.Abs(s1.Y + s1.YHot - (s2.Y + s2.YHot)) < 30;
         }
 
         // Whether the hot spot is off the map
@@ -437,109 +385,7 @@ namespace Micropolis.Rules
             long x = sprite.X + sprite.XHot;
             long y = sprite.Y + sprite.YHot;
 
-            return x < 0 || y < 0 || x >= WorldToPix(Map.Width) || y >= WorldToPix(Map.Height);
-        }
-
-        // The value of the tile under the pixel, or -1 off the map
-        internal int GetChar(long x, long y)
-        {
-            long worldX = x >> 4;
-            long worldY = y >> 4;
-
-            if (worldX < 0 || worldX >= Map.Width || worldY < 0 || worldY >= Map.Height)
-            {
-                return -1;
-            }
-
-            return Map.GetTileValue((int)worldX, (int)worldY);
-        }
-
-        // Fire on the tile under the pixel, if it burns or is bare dirt, and isn't a zone's centre
-        internal void StartFire(long px, long py)
-        {
-            int x = (int)(px >> 4);
-            int y = (int)(py >> 4);
-
-            if (!Map.TestBounds(x, y))
-            {
-                return;
-            }
-
-            Tile tile = Map.GetTile(x, y);
-
-            if (!tile.IsCombustible() && tile.GetValue() != TileValues.DIRT)
-            {
-                return;
-            }
-
-            if (tile.IsZone())
-            {
-                return;
-            }
-
-            Map.SetTo(x, y, TileUtils.RandomFire(Random));
-        }
-
-        // What a monster, a tornado or a wreck does to the tile under the pixel: a road becomes the river, a flammable
-        // tile an explosion or, if it is wet, the river, setting a zone on fire, and blowing up any but a residential one
-        internal void DestroyMapTile(BlockMaps blockMaps, long ox, long oy)
-        {
-            int x = (int)(ox >> 4);
-            int y = (int)(oy >> 4);
-
-            if (!Map.TestBounds(x, y))
-            {
-                return;
-            }
-
-            Tile tile = Map.GetTile(x, y);
-            int tileValue = tile.GetValue();
-
-            if (tileValue < TileValues.TREEBASE)
-            {
-                return;
-            }
-
-            if (!tile.IsCombustible())
-            {
-                if (tileValue >= TileValues.ROADBASE && tileValue <= TileValues.LASTROAD)
-                {
-                    Map.SetTile(x, y, TileValues.RIVER, TileFlags.NOFLAGS);
-                }
-
-                return;
-            }
-
-            if (tile.IsZone())
-            {
-                ZoneUtils.FireZone(Map, x, y, blockMaps);
-
-                if (tileValue > TileValues.RZB)
-                {
-                    MakeExplosionAt(ox, oy);
-                }
-            }
-
-            if (CheckWet(tileValue))
-            {
-                Map.SetTile(x, y, TileValues.RIVER, TileFlags.NOFLAGS);
-            }
-            else
-            {
-                Map.SetTile(x, y, TileValues.TINYEXP, TileFlags.BULLBIT | TileFlags.ANIMBIT);
-            }
-        }
-
-        // Whether the tile is a wire or rail over water, or an open drawbridge
-        private static bool CheckWet(int tileValue)
-        {
-            return tileValue == TileValues.HPOWER || tileValue == TileValues.VPOWER || tileValue == TileValues.HRAIL ||
-                   tileValue == TileValues.VRAIL || tileValue == TileValues.BRWH || tileValue == TileValues.BRWV;
-        }
-
-        private static JsonObject Sighting(long x, long y, SpriteType type)
-        {
-            return new JsonObject { ["trackable"] = true, ["x"] = x, ["y"] = y, ["sprite"] = (int)type };
+            return x < 0 || y < 0 || x >= SpriteUtils.WorldToPix(Map.Width) || y >= SpriteUtils.WorldToPix(Map.Height);
         }
 
         // The sprite of the type the list holds, alive or not: the original's globalSprites entry
@@ -576,89 +422,31 @@ namespace Micropolis.Rules
             switch (sprite.Type)
             {
                 case SpriteType.Train:
-                    sprite.Frame = 1;
-                    sprite.Dir = 4;
-                    break;
-
-                case SpriteType.Ship:
-                    if (x < WorldToPix(4))
-                    {
-                        sprite.Frame = 3;
-                    }
-                    else if (x >= WorldToPix(Map.Width - 4))
-                    {
-                        sprite.Frame = 7;
-                    }
-                    else if (y < WorldToPix(4))
-                    {
-                        sprite.Frame = 5;
-                    }
-                    else if (y >= WorldToPix(Map.Height - 4))
-                    {
-                        sprite.Frame = 1;
-                    }
-                    else
-                    {
-                        sprite.Frame = 3;
-                    }
-
-                    sprite.NewDir = sprite.Frame;
-                    sprite.Dir = 10;
-                    sprite.Count = 1;
-                    break;
-
-                case SpriteType.Monster:
-                    long middleX = WorldToPix(Map.Width) / 2;
-                    long middleY = WorldToPix(Map.Height) / 2;
-
-                    if (x > middleX)
-                    {
-                        sprite.Frame = y > middleY ? 10 : 7;
-                    }
-                    else
-                    {
-                        sprite.Frame = y > middleY ? 1 : 4;
-                    }
-
-                    sprite.Count = 1000;
-                    sprite.DestX = WorldToPix(Map.PollutionMaxX);
-                    sprite.DestY = WorldToPix(Map.PollutionMaxY);
-                    sprite.OrigX = x;
-                    sprite.OrigY = y;
+                    TrainSprite.Init(sprite);
                     break;
 
                 case SpriteType.Helicopter:
-                    sprite.Frame = 5;
-                    sprite.Count = 1500;
-                    sprite.DestX = Random.GetRandom((int)WorldToPix(Map.Width) - 1);
-                    sprite.DestY = Random.GetRandom((int)WorldToPix(Map.Height) - 1);
-                    sprite.OrigX = x - 30;
-                    sprite.OrigY = y;
+                    CopterSprite.Init(this, sprite);
                     break;
 
                 case SpriteType.Airplane:
-                    if (x > WorldToPix(Map.Width - 20))
-                    {
-                        sprite.X -= 100 + 48;
-                        sprite.DestX = sprite.X - 200;
-                        sprite.Frame = 7;
-                    }
-                    else
-                    {
-                        sprite.DestX = sprite.X + 200;
-                        sprite.Frame = 11;
-                    }
+                    AirplaneSprite.Init(this, sprite);
+                    break;
 
-                    sprite.DestY = sprite.Y;
+                case SpriteType.Ship:
+                    ShipSprite.Init(this, sprite);
+                    break;
+
+                case SpriteType.Monster:
+                    MonsterSprite.Init(this, sprite);
                     break;
 
                 case SpriteType.Tornado:
-                    sprite.Frame = 1;
-                    sprite.Count = 200;
+                    TornadoSprite.Init(sprite);
                     break;
 
                 case SpriteType.Explosion:
-                    sprite.Frame = 1;
+                    ExplosionSprite.Init(sprite);
                     break;
             }
         }

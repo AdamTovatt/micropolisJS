@@ -45,8 +45,7 @@ function run(first: SimulationInstance, second: SimulationInstance) {
     const unleashed = sprites(first).length;
 
     stepBoth(first, second, YEAR / 16);
-    const inFlight = sprites(first).filter((sprite: {frame: number}) => sprite.frame !== 0)
-        .map((sprite: {type: number}) => sprite.type);
+    const inFlight = first.spriteManager.getLiveSprites().map((sprite: {type: number}) => sprite.type);
 
     stepBoth(first, second, YEAR / 2 - YEAR / 16);
     return {grown, unleashed, inFlight};

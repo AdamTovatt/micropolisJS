@@ -15,7 +15,7 @@ import { SNAPSHOT_POINTS } from "../conformance/snapshotPoints";
 import { replaceMethod } from "../conformance/instrumentation";
 import { recordSnapshots, SnapshotPoint, SnapshotRecord, unrecorded } from "../conformance/unitSnapshots";
 import { cityFromSave, SaveData } from "../headless/city";
-import { fixtureNamesOf, spriteFreeFixtureNames } from "../headless/fixtures/index";
+import { fixtureNamesOf, snapshotFixtureNames } from "../headless/fixtures/index";
 import { builtSave } from "../headless/runner";
 import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { plainSavedState } from "../src/stateHash";
@@ -135,22 +135,16 @@ describe("the fixtures every unit's first calls are recorded from", () => {
 
         expect(swept([...SNAPSHOT_POINTS, branchPoint])).toEqual(fixtureNamesOf("snapshots"));
     });
-
-    it("are sprite-free, as are those made for a branch", () => {
-        expect(spriteFreeFixtureNames()).toEqual(fixtureNamesOf("snapshots", "branch"));
-        expect(fixtureNamesOf("snapshots").filter((name) => fixtureNamesOf("branch").includes(name))).toEqual([]);
-    });
 });
 
 describe("the snapshot points", () => {
 
-    // A point's fixture is named by a string, so a point could name a fixture of the kind sprites, which the golden
-    // run's check that it creates no sprite leaves out
-    it("name only sprite-free fixtures", () => {
-        const spriteFree = spriteFreeFixtureNames();
+    // A point's fixture is named by a string, so a point could name a fixture of the kind runs, which records none
+    it("name only the fixtures snapshots are recorded from", () => {
+        const recorded = snapshotFixtureNames();
         const named = Array.from(new Set(SNAPSHOT_POINTS.map((point) => point.fixture)));
 
-        expect(named.filter((fixture) => !spriteFree.includes(fixture))).toEqual([]);
+        expect(named.filter((fixture) => !recorded.includes(fixture))).toEqual([]);
     });
 });
 

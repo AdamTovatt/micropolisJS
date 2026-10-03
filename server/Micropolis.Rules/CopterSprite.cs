@@ -11,17 +11,26 @@
  *
  */
 
-using System.Text.Json.Nodes;
-
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The helicopter's move, as <c>src/copterSprite.js</c> brings the original's doCopterSprite.
+    /// The helicopter's start and move, as <c>src/copterSprite.js</c> brings the original's doCopterSprite.
     /// </summary>
     internal static class CopterSprite
     {
         private static readonly long[] DeltaX = [0, 0, 3, 5, 3, 0, -3, -5, -3];
         private static readonly long[] DeltaY = [0, -5, -3, 0, 3, 5, 3, 0, -3];
+
+        // A new helicopter heads for a random pixel of the map, and will come home to just west of where it started
+        public static void Init(SpriteManager manager, Sprite sprite)
+        {
+            sprite.Frame = 5;
+            sprite.Count = 1500;
+            sprite.DestX = manager.Random.GetRandom((int)SpriteUtils.WorldToPix(manager.Map.Width) - 1);
+            sprite.DestY = manager.Random.GetRandom((int)SpriteUtils.WorldToPix(manager.Map.Height) - 1);
+            sprite.OrigX = sprite.X - 30;
+            sprite.OrigY = sprite.Y;
+        }
 
         public static void Move(SpriteManager manager, Sprite sprite, BlockMaps blockMaps)
         {
@@ -62,14 +71,14 @@ namespace Micropolis.Rules
 
             if (sprite.SoundCount == 0)
             {
-                long x = SpriteManager.TruncatingPixToWorld(sprite.X + 48);
-                long y = SpriteManager.TruncatingPixToWorld(sprite.Y);
+                long x = SpriteUtils.TruncatingPixToWorld(sprite.X + 48);
+                long y = SpriteUtils.TruncatingPixToWorld(sprite.Y);
 
                 if (x >= 0 && x < manager.Map.Width && y >= 0 && y < manager.Map.Height)
                 {
                     if (blockMaps.TrafficDensityMap.WorldGet((int)x, (int)y) > 170 && (manager.Random.GetRandom16() & 7) == 0)
                     {
-                        manager.Events.Emit(Messages.HEAVY_TRAFFIC, new JsonObject { ["showable"] = true, ["x"] = x + 1, ["y"] = y + 1 });
+                        manager.Events.Emit(Messages.HEAVY_TRAFFIC, NewsPlaces.Showable(x + 1, y + 1));
                         sprite.SoundCount = 200;
                     }
                 }
@@ -80,7 +89,7 @@ namespace Micropolis.Rules
             if ((manager.SpriteCycle & 3) == 0)
             {
                 int dir = manager.GetDir(sprite.X, sprite.Y, sprite.DestX, sprite.DestY);
-                frame = SpriteManager.TurnTo(frame, dir);
+                frame = SpriteUtils.TurnTo(frame, dir);
                 sprite.Frame = frame;
             }
 

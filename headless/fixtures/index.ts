@@ -38,22 +38,22 @@ export interface DerivedFixture {
 
 export type Fixture = CommandLog | DerivedFixture;
 
-// What a fixture is for in the unit snapshots, which are recorded only from cities that create no sprites:
-// - "sprites": its run creates sprites, so no snapshot is recorded from it
-// - "snapshots": sprite-free, and every unit's first calls are recorded from it, with the points that name it
-// - "branch": sprite-free, made for a branch of a unit, and records only the points that name it
-export type FixtureKind = "sprites" | "snapshots" | "branch";
+// What a fixture is for in the conformance files, beside its city runs, which every fixture has:
+// - "runs": records no snapshot, so its runs prove its city, with any traces that start from it
+// - "snapshots": every unit's first calls are recorded from it, with the points that name it
+// - "branch": made for a branch of a unit, and records only the points that name it
+export type FixtureKind = "runs" | "snapshots" | "branch";
 
 // Every fixture, by name, with its kind. A fixture is a command log, or for a derived fixture what the runner builds
 // one from: a city built afresh by replaying commands whenever it is used, so no stored state can go stale when a rule
 // changes. `npm run fixtures` exports each one's log, which is never read back. The copies of its state in
 // conformance/saves/, and of its log in conformance/logs/, are for the C# tests.
 const fixtures: Record<string, {fixture: Fixture, kind: FixtureKind}> = {
-  broke: {fixture: broke, kind: "sprites"},
+  broke: {fixture: broke, kind: "runs"},
   disasters: {fixture: disasters, kind: "branch"},
   forestFire: {fixture: forestFire, kind: "branch"},
-  harbour: {fixture: harbour, kind: "sprites"},
-  harbourWithDisasters: {fixture: harbourWithDisasters, kind: "sprites"},
+  harbour: {fixture: harbour, kind: "runs"},
+  harbourWithDisasters: {fixture: harbourWithDisasters, kind: "runs"},
   hospitalTown: {fixture: hospitalTown, kind: "branch"},
   overloaded: {fixture: overloaded, kind: "branch"},
   roadlessTown: {fixture: roadlessTown, kind: "branch"},
@@ -63,9 +63,9 @@ const fixtures: Record<string, {fixture: Fixture, kind: FixtureKind}> = {
   suburbFast: {fixture: suburbFast, kind: "branch"},
   suburbSlow: {fixture: suburbSlow, kind: "branch"},
   suburbUnderfunded: {fixture: suburbUnderfunded, kind: "snapshots"},
-  town: {fixture: town, kind: "sprites"},
+  town: {fixture: town, kind: "runs"},
   twinPlants: {fixture: twinPlants, kind: "branch"},
-  underfunded: {fixture: underfunded, kind: "sprites"},
+  underfunded: {fixture: underfunded, kind: "runs"},
   wilderness: {fixture: wilderness, kind: "branch"},
 };
 
@@ -78,8 +78,8 @@ export function fixtureNamesOf(...kinds: FixtureKind[]): string[] {
   return fixtureNames().filter((name) => kinds.includes(fixtures[name].kind));
 }
 
-// The fixtures that create no sprites in their runs, which the unit snapshots are recorded from
-export function spriteFreeFixtureNames(): string[] {
+// The fixtures the unit snapshots are recorded from
+export function snapshotFixtureNames(): string[] {
   return fixtureNamesOf("snapshots", "branch");
 }
 

@@ -11,25 +11,30 @@
  *
  */
 
+using System.Text.Json.Nodes;
+
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// A unit of work the C# port does not have yet, reached by a run. A unit that skipped its work instead would let
-    /// the city diverge from the TypeScript reference silently; this stops the run and names the unit.
+    /// Where a piece of news happened, in map tiles, as the payload of the event that reports it carries it:
+    /// <c>ShowablePlace</c> and <c>TrackablePlace</c> in <c>src/protocol.ts</c>.
     /// </summary>
-    public sealed class NotPortedException : Exception
+    internal static class NewsPlaces
     {
-        public NotPortedException(string unit)
-            : base($"{unit} is not ported yet.")
+        /// <summary>
+        /// A place the monster TV shows.
+        /// </summary>
+        public static JsonObject Showable(long x, long y)
         {
-            Unit = unit;
+            return new JsonObject { ["showable"] = true, ["x"] = x, ["y"] = y };
         }
 
         /// <summary>
-        /// The unit's TypeScript name, its module and function as <c>src/</c> names them, such as
-        /// <c>census.take10Census</c> or <c>residential.residentialFound</c>: the name a unit snapshot records it under,
-        /// for every unit a snapshot can reach.
+        /// A place the monster TV shows, following the sprite of the type there as it moves.
         /// </summary>
-        public string Unit { get; }
+        public static JsonObject Trackable(long x, long y, SpriteType sprite)
+        {
+            return new JsonObject { ["trackable"] = true, ["x"] = x, ["y"] = y, ["sprite"] = (int)sprite };
+        }
     }
 }

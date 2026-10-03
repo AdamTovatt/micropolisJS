@@ -21,7 +21,10 @@ namespace Micropolis.Rules.Tests
     /// </summary>
     internal static class UnitSnapshotRunner
     {
-        public static UnitRun Run(JsonObject record)
+        /// <summary>
+        /// Where the C# run first differs from the TypeScript's record, or null when it matches.
+        /// </summary>
+        public static string? Run(JsonObject record)
         {
             Simulation city = Simulation.FromSave(CanonicalJson.Write(record["before"]));
             IReadOnlyList<string> handlers = Strings(record["handlers"]);
@@ -39,19 +42,13 @@ namespace Micropolis.Rules.Tests
             {
                 Invoke(city, (string)record["unit"]!, record["args"]!.AsArray());
             }
-            catch (NotPortedException exception)
-            {
-                return new UnitRun(exception.Unit, null);
-            }
             finally
             {
                 city.Events.Observer = null;
             }
 
-            string? difference = SnapshotComparison.StateDifference(record["after"]!, city.Save(), city) ??
-                                 SnapshotComparison.EventDifference(record["events"]!, events);
-
-            return new UnitRun(null, difference);
+            return SnapshotComparison.StateDifference(record["after"]!, city.Save(), city) ??
+                   SnapshotComparison.EventDifference(record["events"]!, events);
         }
 
         public static IReadOnlyList<string> Strings(JsonNode? list)
@@ -146,10 +143,4 @@ namespace Micropolis.Rules.Tests
             }
         }
     }
-
-    /// <summary>
-    /// How a unit's run went: <see cref="NotPorted"/> names the stub it reached, or <see cref="Difference"/> says where
-    /// it first differed from the TypeScript, and with neither it matched.
-    /// </summary>
-    internal sealed record UnitRun(string? NotPorted, string? Difference);
 }

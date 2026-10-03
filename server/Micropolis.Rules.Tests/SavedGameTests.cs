@@ -127,14 +127,7 @@ namespace Micropolis.Rules.Tests
             {
                 string text = Edited("version7.json", savedGame => editBudget(savedGame["budget"]!.AsObject()));
 
-                try
-                {
-                    return CanonicalJson.Write(SavedGame.Load(text, out _).Save());
-                }
-                catch (NotPortedException exception)
-                {
-                    return $"stopped at {exception.Unit}";
-                }
+                return CanonicalJson.Write(SavedGame.Load(text, out _).Save());
             }
 
             string expected = paid

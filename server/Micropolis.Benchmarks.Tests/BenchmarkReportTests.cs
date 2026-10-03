@@ -53,16 +53,6 @@ namespace Micropolis.Benchmarks.Tests
         }
 
         [TestMethod]
-        public void Write_FixturesNotRun_NamesEachWithItsReason()
-        {
-            string report = BenchmarkReport.Write(Environment, new BenchmarkSettings(48, 96, 5), [], bytesMeasured: false);
-
-            StringAssert.Contains(report, "\n- Fixtures not run:\n" + string.Join("", BenchmarkCases.NotRun
-                .OrderBy(fixture => fixture.Key, StringComparer.Ordinal)
-                .Select(fixture => $"  - {fixture.Key}: {fixture.Value}\n")) + "\n| Fixture |");
-        }
-
-        [TestMethod]
         public void Write_Rows_TableARowEachInOrder()
         {
             BenchmarkRow[] rows =

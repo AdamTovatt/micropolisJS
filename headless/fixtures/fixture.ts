@@ -12,6 +12,7 @@
  */
 
 import { Checkpoint, CommandLog, LOG_FORMAT_VERSION } from "../../src/commandLog";
+import { StampedCommand } from "../../src/commandQueue";
 import { Command, LOCAL_PLAYER } from "../../src/protocol";
 import { Level } from "../city";
 
@@ -26,7 +27,12 @@ export function builtFixture(description: string, commands: Command[], checkpoin
     description,
     seed: 8,
     level: Level.easy,
-    entries: commands.map((command) => ({step: 0, player: LOCAL_PLAYER, command})),
+    entries: atStart(commands),
     checkpoints,
   };
+}
+
+// The commands as the one player sends them, all before the first step
+export function atStart(commands: Command[]): StampedCommand[] {
+  return commands.map((command) => ({step: 0, player: LOCAL_PLAYER, command}));
 }

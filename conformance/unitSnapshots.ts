@@ -129,7 +129,8 @@ export const COMMAND_UNIT = "simulation.applyCommands";
 // The units of BlockMapUtils, a module's object rather than a simulation's, which are wrapped once for every simulation
 const MODULE_UNITS = UNIT_NAMES.filter((name) => name.startsWith("blockMapUtils."));
 
-// The calls into the sprites and the disasters a unit may reach, which the C# stubs: noted as reached, never recorded
+// The calls into the sprites and the disasters a unit may reach, noted as reached but never recorded: the traces prove
+// them
 const SEAM: Record<string, {owner(simulation: Internals): object, method: string}> = {
   "spriteManager.makeExplosion": {owner: (simulation) => simulation.spriteManager, method: "makeExplosion"},
   "disasterManager.doMeltdown": {owner: (simulation) => simulation.disasterManager, method: "doMeltdown"},
@@ -471,7 +472,7 @@ function checkReaches(point: SnapshotPoint, records: SnapshotRecord[]): void {
 // How far a point's city runs to reach its call before the recorder gives up on it
 const MAX_STEPS = 20000;
 
-function recordRun(fixture: string, built: SaveData, points: SnapshotPoint[]): SnapshotRecord[] {
+function recordRun(built: SaveData, points: SnapshotPoint[]): SnapshotRecord[] {
   const simulation = startFromSave(built, {}) as unknown as Internals;
   checkFamilies(simulation);
   wrapUnits(simulation);
@@ -484,11 +485,6 @@ function recordRun(fixture: string, built: SaveData, points: SnapshotPoint[]): S
     }
 
     within(live, () => simulation.step());
-
-    // Each step of the city a snapshot comes from is one the C# can run before it ports the sprites
-    if (simulation.spriteManager.spriteList.length > 0) {
-      throw new Error(`${fixture} created a sprite at step ${live.step}: snapshots are recorded from sprite-free cities`);
-    }
   }
 
   return live.records;
@@ -516,7 +512,7 @@ export function recordSnapshots(points: SnapshotPoint[], built: Map<string, Save
     }
 
     return ordered(Array.from(runs.entries()).flatMap(([fixture, runPoints]) =>
-      recordRun(fixture, builtSave(built, fixture), runPoints)));
+      recordRun(builtSave(built, fixture), runPoints)));
   } finally {
     restores.forEach((restore) => restore());
   }
@@ -551,11 +547,6 @@ export function recordCommandSnapshots(points: CommandPoint[], built: Map<string
     const simulation = startFromSave(builtSave(built, point.fixture), {}) as unknown as Internals;
     for (let step = 0; step < point.step; step++) {
       simulation.step();
-    }
-
-    if (simulation.spriteManager.spriteList.length > 0) {
-      throw new Error(`${point.fixture} created a sprite by step ${point.step}: snapshots are recorded from sprite-free ` +
-                      "cities");
     }
 
     const before = plainSavedState(simulation);

@@ -15,9 +15,8 @@ import { Command } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
 import { buildingAt, lineOf } from "./toolCommands";
 
-// Sprite-free cities, each made to reach branches of the scans that the suburbs never reach, whose unit snapshots are
-// recorded from them alone (conformance/snapshotPoints.ts). Seed 8's map has open land and woods from (10, 10) to
-// (53, 33).
+// Cities, each made to reach branches of the scans that the suburbs never reach, whose unit snapshots are recorded
+// from them alone (conformance/snapshotPoints.ts). Seed 8's map has open land and woods from (10, 10) to (53, 33).
 
 // The coal plant's top left corner, and a block of wire filling the land east of it, which the plant's east side
 // touches

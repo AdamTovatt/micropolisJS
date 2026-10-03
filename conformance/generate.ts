@@ -45,10 +45,11 @@ import { TileUtils } from "../src/tileUtils.js";
 import * as TileValues from "../src/tileValues";
 import { Traffic } from "../src/traffic.js";
 import { ZoneUtils } from "../src/zoneUtils.js";
-import { CityRun, describeStart, recordRun, RunStart } from "./cityRuns";
+import { CityRun, describeStart, RANDOM_DISASTER_NAMES, recordRun, RunStart } from "./cityRuns";
 import { COMMAND_CASES } from "./commandCases";
 import { Internals } from "./instrumentation";
 import { COMMAND_POINTS, SNAPSHOT_POINTS } from "./snapshotPoints";
+import { TRACES } from "./tracePoints";
 import { recordTraces } from "./traces";
 import {
   COMMAND_UNIT, recordCommandSnapshots, recordSnapshots, recordSpeed, SnapshotRecord, UNIT_NAMES,
@@ -1054,8 +1055,10 @@ function ensureRunsCover(runs: CityRun[]): void {
   ensureCovers(budgets.some((budget) => budget.autoBudget && !budget.shortfall), "a year's budget auto-budget paid");
   ensureCovers(budgets.some((budget) => budget.shortfall), "a year's budget auto-budget ran short of");
   ensureCovers(budgets.some((budget) => !budget.autoBudget), "a year's budget with auto-budget off");
-  ensureCovers(runs.some((run) => run.sprites), "a run with sprites moving");
-  ensureCovers(runs.some((run) => run.disasters), "a run with random disasters on");
+  ensureCovers(runs.some((run) => run.sprites), "a run with a live sprite moving");
+  for (const disaster of RANDOM_DISASTER_NAMES) {
+    ensureCovers(runs.some((run) => run.disasters.includes(disaster)), `a run a random disaster strikes by ${disaster}`);
+  }
 }
 
 async function writeRuns(seeds: number[]): Promise<void> {
@@ -1092,7 +1095,7 @@ async function writeTraces(): Promise<void> {
   const directory = path.join(CONFORMANCE_DIRECTORY, TRACES_DIRECTORY);
   fs.mkdirSync(directory, {recursive: true});
 
-  const traces = await recordTraces(writtenSave);
+  const traces = await recordTraces(TRACES, writtenSave);
   const files = new Set(traces.map((trace) => `${trace.name}.json.gz`));
 
   let size = 0;
@@ -1101,13 +1104,7 @@ async function writeTraces(): Promise<void> {
   }
 
   ensureCovers(size <= TRACE_LIMIT, `its traces in ${TRACE_LIMIT} bytes: they take ${size}`);
-
-  // A file no trace writes any more is gone
-  for (const entry of fs.readdirSync(directory)) {
-    if (!files.has(entry)) {
-      fs.rmSync(path.join(directory, entry));
-    }
-  }
+  removeUnwritten(directory, files);
 }
 
 // The files in conformance/ another program writes: random.c writes random.json

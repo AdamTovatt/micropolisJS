@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using static Micropolis.Rules.Tests.SavePaths;
 
 namespace Micropolis.Rules.Tests
 {
@@ -72,6 +73,11 @@ namespace Micropolis.Rules.Tests
             ("evaluation.problemVotes[0].index", "-1", "0", "6", "7"),
             ("evaluation.problemVotes[0].voteCount", "-1", "0", "100", "101"),
             ("sprites.list[0].type", "0", "1", "7", "8"),
+            // The run save's sprites are a helicopter, a train and an airplane, in that order
+            ("sprites.list[0].frame", "-1", "0", "8", "9"),
+            ("sprites.list[1].frame", "-1", "0", "5", "6"),
+            ("sprites.list[1].dir", "-1", "0", "4", "5"),
+            ("sprites.list[2].frame", "-1", "0", "11", "12"),
             ("scannedState.blockMaps.cityCentreDistScoreMap[0]", "-65", "-64", "64", "65"),
             ("scannedState.blockMaps.crimeRateMap[0]", "-1", "0", "250", "251"),
             ("scannedState.blockMaps.fireStationMap[0]", "-1", "0", "16000", "16001"),
@@ -177,7 +183,7 @@ namespace Micropolis.Rules.Tests
                 ["sprites.spriteCycle"] = ("99", city => city.SpriteManager.SpriteCycle),
                 ["sprites.absDist"] = ("98", city => city.SpriteManager.AbsDist),
                 ["sprites.list[0].type"] = ("3", city => (int)city.SpriteManager.SpriteList[0].Type),
-                ["sprites.list[0].frame"] = ("301", city => city.SpriteManager.SpriteList[0].Frame),
+                ["sprites.list[0].frame"] = ("7",city => city.SpriteManager.SpriteList[0].Frame),
                 ["sprites.list[0].x"] = ("302", city => city.SpriteManager.SpriteList[0].X),
                 ["sprites.list[0].y"] = ("303", city => city.SpriteManager.SpriteList[0].Y),
                 ["sprites.list[0].origX"] = ("304", city => city.SpriteManager.SpriteList[0].OrigX),
@@ -482,30 +488,6 @@ namespace Micropolis.Rules.Tests
             }
 
             return save;
-        }
-
-        private static (JsonObject Parent, string Key) Locate(JsonNode save, string path)
-        {
-            int dot = path.LastIndexOf('.');
-            return dot < 0 ? (save.AsObject(), path) : (ObjectAt(save, path[..dot]), path[(dot + 1)..]);
-        }
-
-        private static JsonObject ObjectAt(JsonNode save, string path)
-        {
-            return NodeAt(save, path)!.AsObject();
-        }
-
-        private static JsonNode? NodeAt(JsonNode save, string path)
-        {
-            JsonNode? node = save;
-
-            foreach (string part in path.Split('.', StringSplitOptions.RemoveEmptyEntries))
-            {
-                int bracket = part.IndexOf('[');
-                node = bracket < 0 ? node![part] : node![part[..bracket]]![int.Parse(part[(bracket + 1)..^1])];
-            }
-
-            return node;
         }
 
         private static IEnumerable<string> ObjectPaths(JsonNode node, string path)

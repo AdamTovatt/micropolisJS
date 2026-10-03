@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The monster's move, as <c>src/monsterSprite.js</c> brings the original's doMonsterSprite.
+    /// The monster's start and move, as <c>src/monsterSprite.js</c> brings the original's doMonsterSprite.
     /// </summary>
     internal static class MonsterSprite
     {
@@ -24,6 +24,30 @@ namespace Micropolis.Rules
         private static readonly long[] Cardinals2 = [1, 2, 3, 0];
         private static readonly long[] Diagonals1 = [2, 5, 8, 11];
         private static readonly long[] Diagonals2 = [11, 2, 5, 8];
+
+        // A new monster faces the middle of the map from its quarter, and heads for the most polluted tile, to turn back
+        // to where it started once it gets there
+        public static void Init(SpriteManager manager, Sprite sprite)
+        {
+            GameMap map = manager.Map;
+            long middleX = SpriteUtils.WorldToPix(map.Width) / 2;
+            long middleY = SpriteUtils.WorldToPix(map.Height) / 2;
+
+            if (sprite.X > middleX)
+            {
+                sprite.Frame = sprite.Y > middleY ? 10 : 7;
+            }
+            else
+            {
+                sprite.Frame = sprite.Y > middleY ? 1 : 4;
+            }
+
+            sprite.Count = 1000;
+            sprite.DestX = SpriteUtils.WorldToPix(map.PollutionMaxX);
+            sprite.DestY = SpriteUtils.WorldToPix(map.PollutionMaxY);
+            sprite.OrigX = sprite.X;
+            sprite.OrigY = sprite.Y;
+        }
 
         // Frames 1 to 12 are the diagonals, three for each direction, and 13 to 16 the cardinal directions
         public static void Move(SpriteManager manager, Sprite sprite, BlockMaps blockMaps)
@@ -118,7 +142,7 @@ namespace Micropolis.Rules
             }
 
             // Off the map, or back in the river before its time is up, it dies
-            int tileValue = manager.GetChar(sprite.X + sprite.XHot, sprite.Y + sprite.YHot);
+            int tileValue = SpriteUtils.GetTileValue(manager.Map, sprite.X + sprite.XHot, sprite.Y + sprite.YHot);
 
             if (tileValue == -1 || (tileValue == TileValues.RIVER && sprite.Count != 0))
             {
@@ -126,7 +150,7 @@ namespace Micropolis.Rules
             }
 
             manager.ExplodeVulnerableSprites(sprite);
-            manager.DestroyMapTile(blockMaps, sprite.X + 48, sprite.Y + 16);
+            SpriteUtils.DestroyMapTile(manager, manager.Map, blockMaps, sprite.X + 48, sprite.Y + 16);
         }
     }
 }

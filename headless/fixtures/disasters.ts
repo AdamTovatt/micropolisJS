@@ -11,7 +11,6 @@
  *
  */
 
-import { Command, LOCAL_PLAYER } from "../../src/protocol";
 import { plainSavedState } from "../../src/stateHash";
 import { ANIMBIT, BLBNBIT, BULLBIT, BURNBIT } from "../../src/tileFlags";
 import {
@@ -19,7 +18,7 @@ import {
     RIVER, ROADS, STADIUM, TINYEXP, WOODS,
 } from "../../src/tileValues";
 import { GameMapInstance, Simulation } from "../city";
-import { RUN_STEPS } from "./fixture";
+import { atStart, RUN_STEPS } from "./fixture";
 import type { DerivedFixture } from "./index";
 import { suburb } from "./suburb";
 
@@ -124,10 +123,10 @@ export const disasters: DerivedFixture = {
   },
   description: "The suburb with fires, a flood, radiation, explosions, a stadium, a fire station and bridges written in",
   // From the first year end, the fire station works at a share of its effect, and the roads wear away
-  entries: [
+  entries: atStart([
     {type: "setAutoBudget", on: false},
     {type: "setBudget", road: 50, fire: 50, police: 100, tax: 7},
-  ].map((command) => ({step: 0, player: LOCAL_PLAYER, command: command as Command})),
+  ]),
   checkpoints: [
     {step: 0, hash: "c63d60148ab5029939942e97b00e4c65455f322816b677134ecca5e0b25b3850"},
     {step: RUN_STEPS, hash: "2fa749d784dcf20eb78022cf357b5182d59548f681d0ce1a1cb5fca5826c0ac4"},
