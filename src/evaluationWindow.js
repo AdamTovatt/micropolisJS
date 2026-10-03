@@ -15,6 +15,7 @@ import $ from "jquery";
 
 import { ModalWindow } from './modalWindow.js';
 import { EVAL_WINDOW_CLOSED } from './messages.ts';
+import { scoreBreakdownRows, signedPoints } from './scoreBreakdownView.ts';
 import { Text } from './text.js';
 
 var EvaluationWindow = ModalWindow(function() {
@@ -62,26 +63,18 @@ EvaluationWindow.prototype._populateWindow = function(evaluation, gameLevel) {
 };
 
 
-var signedPoints = function(points) {
-  return points > 0 ? '+' + points : '' + points;
-};
-
-
-// Lists each step of the score calculation with the points it moved the score and the score it
-// left. The steps sum to the annual change.
+// Writes the rows scoreBreakdownRows decides on into the list
 var populateScoreBreakdown = function(evaluation) {
-  var breakdown = evaluation.cityScoreBreakdown;
+  var rows = scoreBreakdownRows(evaluation.cityScoreBreakdown, evaluation.cityScore);
   var list = $('#evalScoreBreakdown');
   list.empty();
 
-  $('#evalScoreBreakdownHeader').toggle(breakdown.length > 0);
-  list.toggle(breakdown.length > 0);
+  $('#evalScoreBreakdownHeader').toggle(rows.length > 0);
+  list.toggle(rows.length > 0);
 
-  for (var i = 0; i < breakdown.length; i++) {
-    var entry = breakdown[i];
-    list.append($('<dt class="evalItem statisticsItem"></dt>').text(Text.scoreReasons[entry.reason] + ':'));
-    list.append($('<dd class="elided statisticsRight evalItem evalRight"></dd>')
-      .text(signedPoints(entry.points) + ' → ' + entry.score));
+  for (var i = 0; i < rows.length; i++) {
+    list.append($('<dt class="evalItem statisticsItem"></dt>').text(rows[i].label + ':'));
+    list.append($('<dd class="elided statisticsRight evalItem evalRight"></dd>').text(rows[i].value));
   }
 };
 

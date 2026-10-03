@@ -78,7 +78,7 @@ var copyVotes = function(votes) {
 
 var copyBreakdown = function(breakdown) {
   return breakdown.map(function(entry) {
-    return {reason: entry.reason, points: entry.points, score: entry.score};
+    return {reason: entry.reason, points: entry.points};
   });
 };
 
@@ -260,19 +260,19 @@ Evaluation.prototype.getScore = function(simData) {
   var cityScoreLast = this.cityScore;
   var score = 0;
 
-  // Records why the score moved. Each entry holds the points one step moved the score and the
-  // score it left. The problems entry is measured from last year's score, and the problems and
-  // averaging entries are always listed; an adjustment is listed only when it moved the score.
-  // So the entries sum to cityScoreDelta.
+  // Records why the score moved. Each entry holds the points one step moved the score; each
+  // helper is given the score after its step. The problems entry is measured from last year's
+  // score, and the problems and averaging entries are always listed; an adjustment is listed
+  // only when it moved the score. So the entries sum to cityScoreDelta.
   var breakdown = [];
   var scoreBefore = cityScoreLast;
-  var addEntry = function(reason) {
-    breakdown.push({reason: reason, points: score - scoreBefore, score: score});
-    scoreBefore = score;
+  var addEntry = function(reason, scoreAfter) {
+    breakdown.push({reason: reason, points: scoreAfter - scoreBefore});
+    scoreBefore = scoreAfter;
   };
-  var recordAdjustment = function(reason) {
-    if (score !== scoreBefore)
-      addEntry(reason);
+  var recordAdjustment = function(reason, scoreAfter) {
+    if (scoreAfter !== scoreBefore)
+      addEntry(reason, scoreAfter);
   };
 
   for (var i = 0; i < NUMPROBLEMS; i++)
@@ -280,7 +280,7 @@ Evaluation.prototype.getScore = function(simData) {
 
   score = Math.floor(score / 3);
   score = (250 - Math.min(score, 250)) * 4;
-  addEntry(Evaluation.SCORE_PROBLEMS);
+  addEntry(Evaluation.SCORE_PROBLEMS, score);
 
   // The adjustments below mirror evaluate.cpp step by step, so the repeated blocks are kept
   // rather than extracted into a loop.
@@ -291,23 +291,23 @@ Evaluation.prototype.getScore = function(simData) {
 
   if (valves.resCap) {
     score = Math.round(score * demandPenalty);
-    recordAdjustment(Evaluation.SCORE_RES_CAP);
+    recordAdjustment(Evaluation.SCORE_RES_CAP, score);
   }
 
   if (valves.comCap) {
     score = Math.round(score * demandPenalty);
-    recordAdjustment(Evaluation.SCORE_COM_CAP);
+    recordAdjustment(Evaluation.SCORE_COM_CAP, score);
   }
 
   if (valves.indCap) {
     score = Math.round(score * demandPenalty);
-    recordAdjustment(Evaluation.SCORE_IND_CAP);
+    recordAdjustment(Evaluation.SCORE_IND_CAP, score);
   }
 
   // Penalize if roads/rail underfunded
   if (budget.roadEffect < budget.MAX_ROAD_EFFECT) {
     score -= budget.MAX_ROAD_EFFECT - budget.roadEffect;
-    recordAdjustment(Evaluation.SCORE_ROAD_FUNDING);
+    recordAdjustment(Evaluation.SCORE_ROAD_FUNDING, score);
   }
 
   // Penalize player by up to 10% for underfunded police and fire services.
@@ -316,29 +316,29 @@ Evaluation.prototype.getScore = function(simData) {
   // undefined and these cuts never apply.
   if (budget.policeEffect < budget.MAX_POLICE_STATION_EFFECT) {
     score = Math.round(score * (0.9 + (budget.policeEffect / (10 * budget.MAX_POLICE_STATION_EFFECT))));
-    recordAdjustment(Evaluation.SCORE_POLICE_FUNDING);
+    recordAdjustment(Evaluation.SCORE_POLICE_FUNDING, score);
   }
 
   if (budget.fireEffect < budget.MAX_FIRE_STATION_EFFECT) {
     score = Math.round(score * (0.9 + (budget.fireEffect / (10 * budget.MAX_FIRE_STATION_EFFECT))));
-    recordAdjustment(Evaluation.SCORE_FIRE_FUNDING);
+    recordAdjustment(Evaluation.SCORE_FIRE_FUNDING, score);
   }
 
   // Penalise the player by 15% if demand for any type of zone has collapsed due
   // to overprovision
   if (valves.resValve < -1000) {
     score = Math.round(score * 0.85);
-    recordAdjustment(Evaluation.SCORE_RES_OVERSUPPLY);
+    recordAdjustment(Evaluation.SCORE_RES_OVERSUPPLY, score);
   }
 
   if (valves.comValve < -1000) {
     score = Math.round(score * 0.85);
-    recordAdjustment(Evaluation.SCORE_COM_OVERSUPPLY);
+    recordAdjustment(Evaluation.SCORE_COM_OVERSUPPLY, score);
   }
 
   if (valves.indValve < -1000) {
     score = Math.round(score * 0.85);
-    recordAdjustment(Evaluation.SCORE_IND_OVERSUPPLY);
+    recordAdjustment(Evaluation.SCORE_IND_OVERSUPPLY, score);
   }
 
   var scale = 1.0;
@@ -357,29 +357,28 @@ Evaluation.prototype.getScore = function(simData) {
   }
 
   score = Math.round(score * scale);
-  recordAdjustment(Evaluation.SCORE_MIGRATION);
+  recordAdjustment(Evaluation.SCORE_MIGRATION, score);
 
   // Penalize player for having fires and a burdensome tax rate. The two subtractions are
-  // recorded separately; on integers they are the same arithmetic as one expression.
+  // recorded separately; a - b - c is (a - b) - c, so this is the same arithmetic.
   score = score - getFireSeverity(census);
-  recordAdjustment(Evaluation.SCORE_FIRES);
+  recordAdjustment(Evaluation.SCORE_FIRES, score);
 
   score = score - budget.cityTax;
-  recordAdjustment(Evaluation.SCORE_TAXES);
+  recordAdjustment(Evaluation.SCORE_TAXES, score);
 
   // Penalize player based on ratio of unpowered zones to total zones
   scale = census.unpoweredZoneCount + census.poweredZoneCount;
   if (scale > 0)
     score = Math.round(score * (census.poweredZoneCount / scale));
-  recordAdjustment(Evaluation.SCORE_UNPOWERED_ZONES);
+  recordAdjustment(Evaluation.SCORE_UNPOWERED_ZONES, score);
 
   // Force in to range 0-1000. New score is average of last score and new computed value
   score = MiscUtils.clamp(score, 0, 1000);
-  recordAdjustment(Evaluation.SCORE_RANGE);
+  recordAdjustment(Evaluation.SCORE_RANGE, score);
 
   this.cityScore = Math.round((this.cityScore + score) / 2);
-  score = this.cityScore;
-  addEntry(Evaluation.SCORE_AVERAGING);
+  addEntry(Evaluation.SCORE_AVERAGING, this.cityScore);
   this.cityScoreBreakdown = breakdown;
 
   this.cityScoreDelta = this.cityScore - cityScoreLast;

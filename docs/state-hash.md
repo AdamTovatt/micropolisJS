@@ -89,7 +89,7 @@ block map.
 | `evaluation.cityScoreDelta` | The score's last change |
 | `evaluation.problemVotes` | Seven `{"index", "voteCount"}` objects from the last poll, in the poll's sorted order |
 | `evaluation.problemOrder` | The four top problems' indices, 7 for none |
-| `evaluation.cityScoreBreakdown` | The last score calculation's steps, in order, as `{"reason", "points", "score"}` objects: the points each step moved the score and the score it left. The first is measured from last year's score, and the points sum to `cityScoreDelta`. Empty until the first evaluation |
+| `evaluation.cityScoreBreakdown` | The last score calculation's steps, in order, as `{"reason", "points"}` objects: the points each step moved the score. The first is measured from last year's score, and the points sum to `cityScoreDelta`. Empty until the first evaluation |
 
 ### Valves
 

@@ -17,6 +17,7 @@ import { Budget } from "../src/budget.js";
 import { Census } from "../src/census.js";
 import { Evaluation } from "../src/evaluation.js";
 import { Random } from "../src/random";
+import type { ScoreEntry } from "../src/scoreBreakdownView";
 import { Valves } from "../src/valves.js";
 
 // The stream only drives the opinion poll and the problem votes, never the score
@@ -136,12 +137,6 @@ function scoresOver(years: YearState[]): number[] {
     });
 }
 
-interface ScoreEntry {
-    reason: string;
-    points: number;
-    score: number;
-}
-
 function sumOfPoints(breakdown: ScoreEntry[]): number {
     return breakdown.reduce((total, entry) => total + entry.points, 0);
 }
@@ -150,11 +145,11 @@ function reasonsOf(breakdown: ScoreEntry[]): string[] {
     return breakdown.map((entry) => entry.reason);
 }
 
-// The entry for a step, and the score the step started from
-function stepOf(breakdown: ScoreEntry[], reason: string): {entry: ScoreEntry, scoreBefore: number} {
+// The entry for a step, and the score the step started from, given last year's score
+function stepOf(breakdown: ScoreEntry[], lastScore: number, reason: string): {entry: ScoreEntry, scoreBefore: number} {
     const index = breakdown.findIndex((entry) => entry.reason === reason);
     expect(index).toBeGreaterThan(0);
-    return {entry: breakdown[index], scoreBefore: breakdown[index - 1].score};
+    return {entry: breakdown[index], scoreBefore: lastScore + sumOfPoints(breakdown.slice(0, index))};
 }
 
 describe("the city score breakdown", () => {
@@ -170,14 +165,6 @@ describe("the city score breakdown", () => {
                 const breakdown: ScoreEntry[] = city.evaluation.cityScoreBreakdown;
                 expect(cityScoreDelta).toBe(cityScore - lastScore);
                 expect(sumOfPoints(breakdown)).toBe(cityScoreDelta);
-
-                // Each entry's score is the previous one's moved by its points
-                let score = lastScore;
-                for (const entry of breakdown) {
-                    score += entry.points;
-                    expect(entry.score).toBe(score);
-                }
-                expect(score).toBe(cityScore);
             }
         }
     });
@@ -194,7 +181,6 @@ describe("the city score breakdown", () => {
             [Evaluation.SCORE_PROBLEMS, Evaluation.SCORE_RES_CAP, Evaluation.SCORE_TAXES, Evaluation.SCORE_AVERAGING]);
 
         const base = lastScore + breakdown[0].points;
-        expect(breakdown[0].score).toBe(base);
         expect(breakdown[1].points).toBe(Math.round(base * 0.85) - base);
         expect(breakdown[1].points).toBeLessThan(0);
         expect(capped.evaluation.cityScore).toBeLessThan(uncapped.evaluation.cityScore);
@@ -204,34 +190,51 @@ describe("the city score breakdown", () => {
     it("credits each step with exactly the points it moved the score", () => {
         const city = makeCity();
         evaluateYear(city, TROUBLED_CITY[0]);
+        const lastScore = city.evaluation.cityScore;
         evaluateYear(city, TROUBLED_CITY[1]);
         const {cityPop, cityPopDelta} = city.evaluation;
         const breakdown: ScoreEntry[] = city.evaluation.cityScoreBreakdown;
         const year = TROUBLED_CITY[1];
+        const step = (reason: string) => stepOf(breakdown, lastScore, reason);
 
-        expect(stepOf(breakdown, Evaluation.SCORE_ROAD_FUNDING).entry.points).toBe(-(32 - year.roadEffect!));
-        expect(stepOf(breakdown, Evaluation.SCORE_FIRES).entry.points).toBe(-year.firePop * 5);
-        expect(stepOf(breakdown, Evaluation.SCORE_TAXES).entry.points).toBe(-year.tax);
+        expect(step(Evaluation.SCORE_ROAD_FUNDING).entry.points).toBe(-(32 - year.roadEffect!));
+        expect(step(Evaluation.SCORE_FIRES).entry.points).toBe(-year.firePop * 5);
+        expect(step(Evaluation.SCORE_TAXES).entry.points).toBe(-year.tax);
 
         // Growing: scaled by the fraction of new population
-        const migration = stepOf(breakdown, Evaluation.SCORE_MIGRATION);
+        const migration = step(Evaluation.SCORE_MIGRATION);
         expect(cityPopDelta).toBeGreaterThan(0);
         expect(migration.entry.points).toBe(
             Math.round(migration.scoreBefore * (cityPopDelta / cityPop + 1)) - migration.scoreBefore);
 
-        const unpowered = stepOf(breakdown, Evaluation.SCORE_UNPOWERED_ZONES);
+        const unpowered = step(Evaluation.SCORE_UNPOWERED_ZONES);
         const totalZones = year.poweredZones + year.unpoweredZones;
         expect(unpowered.entry.points).toBe(
             Math.round(unpowered.scoreBefore * year.poweredZones / totalZones) - unpowered.scoreBefore);
     });
 
+    it("scales a shrinking city's score by -0.05", () => {
+        const city = makeCity();
+        for (const state of TROUBLED_CITY.slice(0, -1))
+            evaluateYear(city, state);
+        const lastScore = city.evaluation.cityScore;
+        evaluateYear(city, TROUBLED_CITY[TROUBLED_CITY.length - 1]);
+
+        // Pins the Math.floor defect noted in getScore: any decline gives a scale of -0.05, not
+        // 0.95 less the share of people who left. Its rule change turns this red deliberately.
+        const migration = stepOf(city.evaluation.cityScoreBreakdown, lastScore, Evaluation.SCORE_MIGRATION);
+        expect(city.evaluation.cityPopDelta).toBeLessThan(0);
+        expect(migration.entry.points).toBe(Math.round(migration.scoreBefore * -0.05) - migration.scoreBefore);
+    });
+
     it("leaves out adjustments that didn't move the score", () => {
         const city = makeCity();
+        const lastScore = city.evaluation.cityScore;
         evaluateYear(city, {...TROUBLED_CITY[0], tax: 0, firePop: 0});
 
         // No tax, no fires, no migration yet, every zone powered and the score within range
         const breakdown: ScoreEntry[] = city.evaluation.cityScoreBreakdown;
-        expect(breakdown[0].score).toBeLessThan(1000);
+        expect(stepOf(breakdown, lastScore, Evaluation.SCORE_AVERAGING).scoreBefore).toBeLessThan(1000);
         expect(reasonsOf(breakdown)).toEqual([Evaluation.SCORE_PROBLEMS, Evaluation.SCORE_AVERAGING]);
     });
 
@@ -273,14 +276,15 @@ describe("the city score breakdown", () => {
 
     it("records the clamp to the 0-1000 range when it moves the score", () => {
         const city = makeCity();
-        for (const state of TROUBLED_CITY)
+        for (const state of TROUBLED_CITY.slice(0, -1))
             evaluateYear(city, state);
+        const lastScore = city.evaluation.cityScore;
+        evaluateYear(city, TROUBLED_CITY[TROUBLED_CITY.length - 1]);
 
-        // The final year's decline scales the score below zero. That is the Math.floor defect
-        // noted in getScore, pinned here until its rule change.
-        const range = stepOf(city.evaluation.cityScoreBreakdown, Evaluation.SCORE_RANGE);
+        // The final year's decline scales the score below zero (the Math.floor defect above), and
+        // the clamp brings it back to 0
+        const range = stepOf(city.evaluation.cityScoreBreakdown, lastScore, Evaluation.SCORE_RANGE);
         expect(range.scoreBefore).toBeLessThan(0);
-        expect(range.entry.score).toBe(0);
         expect(range.entry.points).toBe(-range.scoreBefore);
     });
 
@@ -312,43 +316,29 @@ describe("the city score breakdown", () => {
         expect(loaded.cityScoreDelta).not.toBe(0);
     });
 
-    describe("in a save made before it was recorded", () => {
-        const savedGames: Record<string, string> = {};
-        const nodeGlobal = globalThis as unknown as {window?: unknown};
-        let Storage: {KEY: string, getSavedGame(): Record<string, unknown>};
+    // An old save is migrated to an empty breakdown (test/storage.ts); loading one replaces the
+    // running city's breakdown and annual change
+    it("loads empty into a running city from a save without one", () => {
+        const city = makeCity();
+        evaluateYear(city, THRIVING_TOWN[0]);
+        expect(city.evaluation.cityScoreDelta).not.toBe(0);
 
-        // storage.js reads window.localStorage when it is imported
-        beforeAll(async () => {
-            nodeGlobal.window = {localStorage: {getItem: (key: string) => savedGames[key] ?? null}};
-            Storage = (await import("../src/storage.js")).Storage as unknown as typeof Storage;
-        });
+        // A save of a city not yet evaluated, as a migrated one is
+        const saveData: {evaluation?: Record<string, unknown>} = {};
+        newEvaluation().save(saveData);
+        saveData.evaluation!.cityScore = 640;
+        city.evaluation.load(saveData);
 
-        afterAll(() => {
-            delete nodeGlobal.window;
-        });
-
-        // Version 6, the last without it; test/storage.ts follows the chain from older versions
-        it("loads empty from version 6", () => {
-            const saveData: {version?: number, evaluation?: Record<string, unknown>} = {};
-            newEvaluation().save(saveData);
-            delete saveData.evaluation!.cityScoreBreakdown;
-            saveData.evaluation!.cityScore = 640;
-            saveData.version = 6;
-            savedGames[Storage.KEY] = JSON.stringify(saveData);
-
-            const loaded = newEvaluation();
-            loaded.load(Storage.getSavedGame());
-            expect(loaded.cityScore).toBe(640);
-            expect(loaded.cityScoreBreakdown).toEqual([]);
-            expect(loaded.cityScoreDelta).toBe(0);
-        });
+        expect(city.evaluation.cityScore).toBe(640);
+        expect(city.evaluation.cityScoreBreakdown).toEqual([]);
+        expect(city.evaluation.cityScoreDelta).toBe(0);
     });
 });
 
 describe("the city score", () => {
 
-    // Pinned against the scoring code as it was before the breakdown was recorded: recording
-    // why the score changed must not change the score
+    // Pinned scores: recording why the score changed must not change it. A rule change updates
+    // these deliberately.
     it("is unchanged for a thriving town", () => {
         expect(scoresOver(THRIVING_TOWN)).toEqual([707, 854, 868]);
     });

@@ -231,4 +231,39 @@ describe("storage", () => {
             expect(savedGame).toEqual(version5);
         });
     });
+
+    // Versions 5 and 6 are today's save less the breakdown, which version 7 added, and version 5 also kept the
+    // donation flag
+    function saveBeforeBreakdown(version: number): Save {
+        if (version <= 4) {
+            return oldSave(version);
+        }
+
+        const saveData = simulationSave();
+        delete (saveData.evaluation as Save).cityScoreBreakdown;
+        saveData.version = version;
+        if (version === 5) {
+            saveData.everClicked = true;
+        }
+        return saveData;
+    }
+
+    describe.each([1, 2, 3, 4, 5, 6])("when migrating a version %i save", (version) => {
+
+        it("gives it an empty score breakdown", async () => {
+            const Storage = await loadStorage();
+            const savedGame = saveBeforeBreakdown(version);
+
+            Storage.transitionOldSave(savedGame);
+
+            expect((savedGame.evaluation as Save).cityScoreBreakdown).toEqual([]);
+        });
+    });
+
+    it("is past every version it migrates", async () => {
+        const Storage = await loadStorage();
+
+        // getSavedGame migrates only a save whose version differs from the current one
+        expect((Storage as unknown as {CURRENT_VERSION: number}).CURRENT_VERSION).toBeGreaterThan(6);
+    });
 });

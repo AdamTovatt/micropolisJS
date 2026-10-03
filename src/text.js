@@ -55,7 +55,7 @@ problems[Evaluation.FIRE] = 'Fire';
 
 // Steps of the yearly score calculation, as listed in the evaluation window
 var scoreReasons = {};
-scoreReasons[Evaluation.SCORE_PROBLEMS] = 'Problems';
+scoreReasons[Evaluation.SCORE_PROBLEMS] = 'Base score from problems';
 scoreReasons[Evaluation.SCORE_RES_CAP] = 'No stadium';
 scoreReasons[Evaluation.SCORE_COM_CAP] = 'No airport';
 scoreReasons[Evaluation.SCORE_IND_CAP] = 'No seaport';
@@ -71,6 +71,11 @@ scoreReasons[Evaluation.SCORE_TAXES] = 'Tax rate';
 scoreReasons[Evaluation.SCORE_UNPOWERED_ZONES] = 'Unpowered zones';
 scoreReasons[Evaluation.SCORE_RANGE] = 'Limit of 0 to 1000';
 scoreReasons[Evaluation.SCORE_AVERAGING] = 'Averaged with last year';
+
+var scoreBreakdown = {
+  lastYear: 'Last year\'s score',
+  reasons: scoreReasons
+};
 
 // months
 var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -196,7 +201,7 @@ var Text = {
   problems: problems,
   pollutionStrings: pollutionStrings,
   rateStrings: rateStrings,
-  scoreReasons: scoreReasons,
+  scoreBreakdown: scoreBreakdown,
   statusPanel: statusPanel,
   toolMessages: toolMessages,
   zoneTypes: zoneTypes
