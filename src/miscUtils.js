@@ -27,11 +27,6 @@ var makeConstantDescriptor = function(value) {
 };
 
 
-var normaliseDOMid = function(id) {
-  return (id[0] !== '#' ? '#' : '') + id;
-};
-
-
 var reflectEvent = function(message, value) {
   this._emitEvent(message, value);
 };
@@ -40,7 +35,6 @@ var reflectEvent = function(message, value) {
 var MiscUtils = {
   clamp: clamp,
   makeConstantDescriptor: makeConstantDescriptor,
-  normaliseDOMid: normaliseDOMid,
   reflectEvent: reflectEvent
 };
 
