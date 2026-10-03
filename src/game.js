@@ -35,7 +35,7 @@ import { pageQuerySource } from './querySource.ts';
 import { QueryTool } from './queryTool.ts';
 import { QueryWindow } from './queryWindow.ts';
 import { RCI } from './rci.js';
-import { SaveWindow } from './saveWindow.js';
+import { SaveWindow } from './saveWindow.ts';
 import { ScreenshotLinkWindow } from './screenshotLinkWindow.ts';
 import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.ts';
