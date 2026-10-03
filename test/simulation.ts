@@ -21,22 +21,17 @@ import { FIRE } from "../src/tileValues";
 
 const SEED = 2026;
 
-// Simulation.js defines its constants with Object.defineProperties, so the type inferred from it lacks them
-const Constants = Simulation as unknown as {
-    LEVEL_EASY: number, SPEED_PAUSED: number, SPEED_SLOW: number, SPEED_MED: number, SPEED_FAST: number,
-};
-
 type SimulationInstance = InstanceType<typeof Simulation>;
 
-function newSimulation(seed: number, speed = Constants.SPEED_MED) {
-    return new Simulation(MapGenerator(Random.mapStream(seed)), Constants.LEVEL_EASY, speed, seed, null);
+function newSimulation(seed: number, speed = Simulation.SPEED_MED) {
+    return new Simulation(MapGenerator(Random.mapStream(seed)), Simulation.LEVEL_EASY, speed, seed, null);
 }
 
 function restore(simulation: SimulationInstance) {
     const saveData = {};
     simulation.save(saveData);
     const savedGame = JSON.parse(JSON.stringify(saveData));
-    return new Simulation(new GameMap(120, 100), Constants.LEVEL_EASY, Constants.SPEED_MED, null, savedGame);
+    return new Simulation(new GameMap(120, 100), Simulation.LEVEL_EASY, Simulation.SPEED_MED, null, savedGame);
 }
 
 function steps(simulation: SimulationInstance, count: number) {
@@ -56,9 +51,9 @@ describe("a simulation", () => {
         const savedGame = {};
         newSimulation(SEED).save(savedGame);
 
-        expect(() => new Simulation(new GameMap(120, 100), Constants.LEVEL_EASY, Constants.SPEED_MED, SEED, savedGame))
+        expect(() => new Simulation(new GameMap(120, 100), Simulation.LEVEL_EASY, Simulation.SPEED_MED, SEED, savedGame))
             .toThrow("either a seed or a saved game");
-        expect(() => new Simulation(new GameMap(120, 100), Constants.LEVEL_EASY, Constants.SPEED_MED, null, null))
+        expect(() => new Simulation(new GameMap(120, 100), Simulation.LEVEL_EASY, Simulation.SPEED_MED, null, null))
             .toThrow("either a seed or a saved game");
     });
 
@@ -106,9 +101,9 @@ describe("a simulation", () => {
     describe("stepping", () => {
 
         it.each([
-            ["slow", Constants.SPEED_SLOW, 3],
-            ["medium", Constants.SPEED_MED, 5],
-            ["fast", Constants.SPEED_FAST, 15],
+            ["slow", Simulation.SPEED_SLOW, 3],
+            ["medium", Simulation.SPEED_MED, 5],
+            ["fast", Simulation.SPEED_FAST, 15],
         ])("runs a phase on every step the %s speed lets through", (_, speed, phases) => {
             const simulation = newSimulation(SEED, speed);
 
@@ -118,8 +113,8 @@ describe("a simulation", () => {
         });
 
         it.each([
-            ["slow", Constants.SPEED_SLOW],
-            ["fast", Constants.SPEED_FAST],
+            ["slow", Simulation.SPEED_SLOW],
+            ["fast", Simulation.SPEED_FAST],
         ])("moves the sprites on every step at %s speed", (_, speed) => {
             const simulation = newSimulation(SEED, speed);
 
@@ -129,7 +124,7 @@ describe("a simulation", () => {
         });
 
         it("wraps its speed cycle from 1023 to 0, which runs a phase at slow speed", () => {
-            const simulation = newSimulation(SEED, Constants.SPEED_SLOW);
+            const simulation = newSimulation(SEED, Simulation.SPEED_SLOW);
             const simulate = jest.spyOn(simulation, "_simulate").mockImplementation(() => {});
             simulation._speedCycle = 1022;
 
@@ -140,7 +135,7 @@ describe("a simulation", () => {
         });
 
         it("moves the sprites but holds its speed cycle while awaiting budget values", () => {
-            const simulation = newSimulation(SEED, Constants.SPEED_FAST);
+            const simulation = newSimulation(SEED, Simulation.SPEED_FAST);
             const simulate = jest.spyOn(simulation, "_simulate");
             simulation.budget.awaitingValues = true;
 
@@ -152,7 +147,7 @@ describe("a simulation", () => {
         });
 
         it("does nothing while paused", () => {
-            const simulation = newSimulation(SEED, Constants.SPEED_PAUSED);
+            const simulation = newSimulation(SEED, Simulation.SPEED_PAUSED);
 
             steps(simulation, 15);
 
