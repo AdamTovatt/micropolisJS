@@ -235,6 +235,21 @@ describe("a simulation", () => {
         });
     });
 
+    describe("setting its speed", () => {
+
+        it("announces a change of speed, and not a speed it already has", () => {
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_MED);
+            const changes: number[] = [];
+            simulation.addEventListener(Messages.SPEED_CHANGED, (speed: number) => changes.push(speed));
+
+            simulation.setSpeed(Simulation.SPEED_MED);
+            simulation.setSpeed(Simulation.SPEED_PAUSED);
+            simulation.setSpeed(Simulation.SPEED_PAUSED);
+
+            expect(changes).toEqual([Simulation.SPEED_PAUSED]);
+        });
+    });
+
     describe("throttling its power messages", () => {
 
         const POWER_MESSAGE_INTERVAL = 3 * 48;

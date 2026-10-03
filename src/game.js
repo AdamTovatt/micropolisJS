@@ -67,7 +67,9 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
   this.lastCoord = null;
   this.lastBadMessageTime = null;
 
-  this.speedControl = new SpeedControl(this.simulation, this.inputStatus.showPaused.bind(this.inputStatus));
+  this.speedControl = new SpeedControl(this.simulation, function(speed) {
+    this.commandQueue.send(LOCAL_PLAYER, {type: 'setSpeed', speed: speed});
+  }.bind(this), this.inputStatus.showPaused.bind(this.inputStatus));
 
   // Initialise monsterTV
   this.monsterTV = new MonsterTV(this.gameMap, tileSet, spriteSheet);
@@ -137,7 +139,7 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
   this.simulation.addEventListener(Messages.COMMAND_RESULT, this.handleCommandResult.bind(this));
 
   // And pauses
-  this.inputStatus.addEventListener(Messages.SPEED_CHANGE, this.handlePause.bind(this));
+  this.inputStatus.addEventListener(Messages.PAUSE_REQUESTED, this.handlePause.bind(this));
 
   // And date changes
   // XXX Not yet activated

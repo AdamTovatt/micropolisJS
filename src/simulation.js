@@ -159,7 +159,11 @@ Simulation.prototype.setSpeed = function(s) {
       s !== Simulation.SPEED_FAST)
     throw new Error('Invalid speed!');
 
+  if (s === this._speed)
+    return;
+
   this._speed = s;
+  this._emitEvent(Messages.SPEED_CHANGED, s);
 };
 
 

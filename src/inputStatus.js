@@ -274,7 +274,7 @@ var toolButtonHandler = function(e) {
 
 
 InputStatus.prototype.speedChangeHandler = function() {
-  this._emitEvent(Messages.SPEED_CHANGE);
+  this._emitEvent(Messages.PAUSE_REQUESTED);
 };
 
 
