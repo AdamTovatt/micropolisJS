@@ -32,8 +32,8 @@ describe("the query window's view", () => {
             populationDensityBand: "High",
             landValueBand: "Lower Class",
             crimeBand: "Light",
-            pollutionBand: "None",
-            rateOfGrowthBand: "Slow Growth",
+            pollutionBand: "Moderate",
+            rateOfGrowthBand: "Fast Growth",
             position: "27, 13",
             tile: "301",
             fireStationMap: "31",
@@ -70,8 +70,9 @@ describe("the query window's view", () => {
     });
 });
 
-// The label the window shows for each value: each band's ends, and the ends of each map's range
-describe("the query window's bands", () => {
+// The label the original shows for each value, as getDensity in MicropolisCore's tool.cpp sorts the values and
+// stri.202 names the bands: each band's ends, and the ends of each map's range
+describe("the query window's bands, as the original's getDensity sorts them", () => {
 
     it.each([
         [0, "Low"], [63, "Low"], [64, "Medium"], [127, "Medium"], [128, "High"], [191, "High"], [192, "Very High"],
@@ -95,15 +96,15 @@ describe("the query window's bands", () => {
     });
 
     it.each([
-        [0, "None"], [1, "None"], [63, "None"], [64, "Moderate"], [127, "Moderate"], [128, "Heavy"],
+        [0, "None"], [1, "Moderate"], [63, "Moderate"], [64, "Moderate"], [127, "Moderate"], [128, "Heavy"],
         [191, "Heavy"], [192, "Very Heavy"], [255, "Very Heavy"],
     ])("shows a pollution of %i as %s", (pollution, label) => {
         expect(queryView({...REPORT, pollution}).pollutionBand).toBe(label);
     });
 
     it.each([
-        [-200, "Declining"], [-1, "Fast Growth"], [0, "Declining"], [1, "Declining"], [100, "Stable"],
-        [101, "Stable"], [200, "Fast Growth"],
+        [-200, "Declining"], [-1, "Declining"], [0, "Stable"], [1, "Slow Growth"], [100, "Slow Growth"],
+        [101, "Fast Growth"], [200, "Fast Growth"],
     ])("shows a rate of growth of %i as %s", (rateOfGrowth, label) => {
         expect(queryView({...REPORT, rateOfGrowth}).rateOfGrowthBand).toBe(label);
     });

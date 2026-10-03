@@ -18,7 +18,8 @@ import { type TileReportAnswer } from "./protocol";
 import { Text } from "./text.js";
 import { ClosableWindow } from "./windowBase";
 
-// The band each value the query tool reports falls in, as an index into its labels in text.js, lowest first
+// The band each value the query tool reports falls in, as an index into its labels in text.js, lowest first, as
+// getDensity in the original's tool.cpp sorts them
 
 // The band of a value taken in steps of 64, which wraps past 255 as the original's does
 function bandOf64(value: number): number {
@@ -45,12 +46,22 @@ function crimeBand(crime: number): number {
   return bandOf64(crime);
 }
 
+// Any pollution at all is at least moderate
 function pollutionBand(pollution: number): number {
-  return bandOf64(pollution);
+  return pollution > 0 && pollution < 64 ? 1 : bandOf64(pollution);
 }
 
+// Declining below zero, stable at zero, and growing fast above 100
 function rateOfGrowthBand(rateOfGrowth: number): number {
-  return bandOf64(rateOfGrowth);
+  if (rateOfGrowth < 0) {
+    return 0;
+  }
+
+  if (rateOfGrowth === 0) {
+    return 1;
+  }
+
+  return rateOfGrowth > 100 ? 3 : 2;
 }
 
 // What the window shows for one tile report: its text, field by field. A field named after one of the report's shows
