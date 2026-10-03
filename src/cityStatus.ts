@@ -80,9 +80,12 @@ function powerPop(census: AdvisorCensus) {
   return census.nuclearPowerPop + census.coalPowerPop;
 }
 
+// Under 70% of the zones powered. sendMessages in the original's message.cpp divides by the zone count as a float, and
+// compares the float share with the double 0.7, so 7 zones of 10, whose share is the float just below 0.7, hold.
+// Math.fround rounds to the nearest float, as a C# (float) cast does.
 function blackouts(census: AdvisorCensus) {
   const zoneCount = census.unpoweredZoneCount + census.poweredZoneCount;
-  return zoneCount > 0 && census.poweredZoneCount / zoneCount < 0.7 && powerPop(census) > 0;
+  return zoneCount > 0 && Math.fround(census.poweredZoneCount / zoneCount) < 0.7 && powerPop(census) > 0;
 }
 
 // Each advisor condition and the test for it. This is the single home of the tests: Simulation._sendMessages

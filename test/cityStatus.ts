@@ -83,7 +83,10 @@ const THRESHOLDS: Array<[string, string, Overrides, boolean]> = [
 
     [Messages.BLACKOUTS_REPORTED, "60% of zones powered", {census: {poweredZoneCount: 6, unpoweredZoneCount: 4}},
      true],
+    // As a float, 7 / 10 is just below the double 0.7 the original compares it with
     [Messages.BLACKOUTS_REPORTED, "70% of zones powered", {census: {poweredZoneCount: 7, unpoweredZoneCount: 3}},
+     true],
+    [Messages.BLACKOUTS_REPORTED, "71% of zones powered", {census: {poweredZoneCount: 71, unpoweredZoneCount: 29}},
      false],
     [Messages.BLACKOUTS_REPORTED, "60% powered, no plant", {census: {coalPowerPop: 0, poweredZoneCount: 6,
                                                                      unpoweredZoneCount: 4}}, false],
