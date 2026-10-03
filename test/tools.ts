@@ -12,10 +12,13 @@
  */
 
 import { BulldozerTool } from "../src/bulldozerTool.js";
+import { cityTools } from "../src/cityTools";
 import { GameMap } from "../src/gameMap.js";
 import { ParkTool } from "../src/parkTool.js";
 import { BULLBIT, BNCNBIT, ZONEBIT } from "../src/tileFlags";
-import { FOUNTAIN, RZB, TINYEXP, WOODS2 } from "../src/tileValues";
+import {
+    FOUNTAIN, FREEZ, LHPOWER, LVPOWER, LVPOWER2, LVPOWER4, LVPOWER5, RZB, TINYEXP, WOODS2,
+} from "../src/tileValues";
 import { streamDrawing } from "./helpers/streams";
 
 // A tool's random choices change the city, so they come from the simulation's stream, passed to doTool
@@ -83,4 +86,49 @@ describe("the bulldozer", () => {
         }
         expect(frames).toEqual([0, 1, 2, 2, 1, 0, 1, 1, 1]);
     });
+});
+
+describe("the building tools", () => {
+
+    // Lays wire along the path given, one tile at a time, as a drag does
+    function layWire(map: InstanceType<typeof GameMap>, path: [number, number][]): void {
+        const tool = cityTools(map).wire;
+        for (const [x, y] of path) {
+            tool.doTool(x, y, streamDrawing([]), false);
+            tool.modifyIfEnoughFunding(budget);
+        }
+    }
+
+    // As checkBorder in the original, which fixes the connections around every tile bordering the building: a wire
+    // that ends beside the residential zone on (51, 49) to (53, 51) turns into it, since a building conducts. Each
+    // side is checked, not each tile of it: a border tile also fixes its neighbours.
+    it.each([
+        ["above", [[49, 48], [50, 48], [51, 48]], [51, 48], LHPOWER, LVPOWER4],
+        ["left of", [[50, 47], [50, 48], [50, 49]], [50, 49], LVPOWER, LVPOWER2],
+        ["below", [[49, 52], [50, 52], [51, 52]], [51, 52], LHPOWER, LVPOWER5],
+        ["right of", [[54, 47], [54, 48], [54, 49]], [54, 49], LVPOWER, LVPOWER5],
+    ])("should fix the connections of a wire that ends %s the building", (_, wire, [endX, endY], before, after) => {
+        const map = new GameMap(120, 100);
+        layWire(map, wire as [number, number][]);
+        expect(map.getTileValue(endX, endY)).toBe(before);
+
+        const tool = cityTools(map).residential;
+        tool.doTool(52, 50, streamDrawing([]), false);
+        tool.modifyIfEnoughFunding(budget);
+
+        expect(tool.result).toBe(tool.TOOLRESULT_OK);
+        expect(map.getTileValue(endX, endY)).toBe(after);
+    });
+
+    it.each([[1, 1], [118, 1], [1, 98], [118, 98]])(
+        "should build in the corner at (%i, %i), whose border runs off the map", (x, y) => {
+            const map = new GameMap(120, 100);
+            const tool = cityTools(map).residential;
+
+            tool.doTool(x, y, streamDrawing([]), false);
+            tool.modifyIfEnoughFunding(budget);
+
+            expect(tool.result).toBe(tool.TOOLRESULT_OK);
+            expect(map.getTileValue(x, y)).toBe(FREEZ);
+        });
 });
