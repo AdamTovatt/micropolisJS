@@ -45,7 +45,7 @@ Ask before writing code that settles an open decision; record the decision under
 ```bash
 npm install
 (cd server/Micropolis.Server && dotnet run)   # server and client together: open http://localhost:5180
-npm run dev              # webpack-dev-server on http://localhost:8080, the client alone
+npm run dev              # webpack-dev-server on http://localhost:44903, the client alone
 npm run build            # production bundle into dist/
 npm test                 # Jest
 npx jest test/tile.ts    # one test file
@@ -60,7 +60,7 @@ dotnet build server/Micropolis.slnx   # the C# solution
 dotnet test server/Micropolis.slnx    # MSTest
 ```
 
-`dotnet run` in `server/Micropolis.Server` is the dev command, and `remote-claude.json` binds the dev-server button to it. The server listens on :5180, and SpaProxy starts `npm run dev` unless something already answers on :8080, then sends the browser there; whatever answers on :8080 is the client it uses. webpack-dev-server proxies `/api` and `/ws/city` to the server. The server will not start without two settings, which development takes from `Properties/launchSettings.json`: `JWT_SECRET`, at least 32 bytes, and `TRUSTED_PROXIES`, the addresses of the reverse proxies in front of the server, separated by commas, or `none`. Behind a proxy it does not trust, the server sees every player at the proxy's address, and they share one sign-in rate limit. `dotnet publish` runs `npm ci` in the repository root, which deletes and reinstalls `node_modules`, then `npm run build`, which overwrites `dist/`, and copies `dist/` into the published `wwwroot`, which the server serves.
+`dotnet run` in `server/Micropolis.Server` is the dev command, and `remote-claude.json` binds the dev-server button to it. The server listens on :5180, and SpaProxy starts `npm run dev` unless something already answers on :44903, then sends the browser there; whatever answers on :44903 is the client it uses. webpack-dev-server proxies `/api` and `/ws/city` to the server, and accepts any Host header, so a reverse proxy can front it under another name. The server will not start without two settings, which development takes from `Properties/launchSettings.json`: `JWT_SECRET`, at least 32 bytes, and `TRUSTED_PROXIES`, the addresses of the reverse proxies in front of the server, separated by commas, or `none`. Behind a proxy it does not trust, the server sees every player at the proxy's address, and they share one sign-in rate limit. `dotnet publish` runs `npm ci` in the repository root, which deletes and reinstalls `node_modules`, then `npm run build`, which overwrites `dist/`, and copies `dist/` into the published `wwwroot`, which the server serves.
 
 The headless runner takes `--seed <n>` (a generated map) or `--fixture <name>`, `--reseed <n>` to replace a fixture's stream, `--speed slow|medium|fast` to override the saved speed, and `--steps <n>`; or `--log <file>` alone, a command log (`docs/command-log.md`), such as one the debug window downloads.
 

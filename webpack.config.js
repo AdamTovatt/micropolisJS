@@ -113,8 +113,10 @@ export default {
     chunkFilename: 'src/[name].[contenthash].js',
   },
   // Sign-in and the city's WebSocket go to the server. With no server running they fail, and the game starts
-  // single-player.
+  // single-player. Any Host header is allowed, so a reverse proxy under another name can front the dev server.
   devServer: {
+    port: 44903,
+    allowedHosts: 'all',
     proxy: [
       {context: ['/api', '/ws/city'], target: SERVER_URL, ws: true},
     ],

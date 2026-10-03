@@ -7,7 +7,7 @@
   <PropertyGroup>
     <SpaRoot>..\..\</SpaRoot>
     <SpaProxyLaunchCommand>npm run dev</SpaProxyLaunchCommand>
-    <SpaProxyServerUrl>http://localhost:8080</SpaProxyServerUrl>
+    <SpaProxyServerUrl>http://localhost:44903</SpaProxyServerUrl>
   </PropertyGroup>
 
   <ItemGroup>
