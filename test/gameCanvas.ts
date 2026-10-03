@@ -178,6 +178,15 @@ describe("the game canvas", () => {
         it("paints the extra height of a view that grew taller", () => {
             expect(painted([1, 2], 2, 1, [1, 2, 3, 4], 2, 2)).toEqual([[3, 0, 1], [4, 1, 1]]);
         });
+
+        it("compares each tile with the one last painted in its place in a view that grew wider", () => {
+            // The tiles in view before and after are the same, so only the new column is painted
+            expect(painted([1, 2, 4, 5], 2, 2, [1, 2, 3, 4, 5, 6], 3, 2)).toEqual([[3, 2, 0], [6, 2, 1]]);
+        });
+
+        it("compares each tile with the one last painted in its place in a view that grew narrower", () => {
+            expect(painted([1, 2, 3, 4, 5, 6], 3, 2, [1, 2, 4, 9], 2, 2)).toEqual([[9, 1, 1]]);
+        });
     });
 
     describe("its record of what it painted", () => {

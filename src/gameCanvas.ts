@@ -174,16 +174,15 @@ function forEachTileToPaint(lastPainted: ReadonlyArray<number> | null, lastWidth
   }
 
   // The canvas may be the same size as last time, or have grown or shrunk. Compare the area painted both times
-  // against what was there last time. Both arrays are read xBound wide, which places the tiles right unless the view
-  // grew wider.
+  // against what was there last time.
   const xBound = Math.min(lastWidth, width);
   const yBound = Math.min(lastHeight, height);
 
   for (let y = 0; y < yBound; y++) {
     for (let x = 0; x < xBound; x++) {
-      const index = y * xBound + x;
-      if (lastPainted[index] !== tiles[index]) {
-        paint(tiles[index], x, y);
+      const tile = tiles[y * width + x];
+      if (lastPainted[y * lastWidth + x] !== tile) {
+        paint(tile, x, y);
       }
     }
   }
