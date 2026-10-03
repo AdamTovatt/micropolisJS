@@ -182,12 +182,19 @@ A point names a call to record: a `fixture` of the sprite-free ones, whose city 
 which of its calls (`call`, counting from 0 among the calls `where` accepts, given the city as the call finds it).
 `handlers` is every family when left out, or `"each"` for `mapScanner.mapScan`: one record with no handlers, and one
 with each family alone whose handlers the call reaches with every family registered. `reaches` names a branch, and
-tests that each record of the point reaches it.
+tests that a record of the point reaches it, so a point with `"each"` reaches a family's branch in that family's
+record, though not in the record with no handlers. On a point with `"each"`, `reaches` may name a `family`, and then
+that family's record alone must reach the branch: the generator fails when the call makes no record of that family.
+A point's `where` that tries a unit on a copy of the city runs it in `unrecorded`, which `unitSnapshots.ts` exports;
+otherwise the copy's call of the unit counts among the city's own calls.
 
 The points seeded are, in each sprite-free fixture, the map scan's first sweep, its eight calls, with `"each"`, and
 every other unit's first two calls; every phase of the suburb's first cycle; and phase 0 alone in each fixture: a
 cycle that sets no valves, after the first evaluation. A point for a rare branch names the branch in `reaches`, so a change that stops the point
 reaching it fails the generator rather than leaving the branch unproven.
+
+A fixture made for a branch is listed in `branch` in `headless/fixtures/index.ts`: it is sprite-free, but records
+only the points that name it, neither the first calls nor phase 0 alone.
 
 The generator fails when:
 
@@ -199,7 +206,7 @@ The generator fails when:
   object;
 - a call replayed from the state before it, with every family registered, does not leave the state and the events the
   city's own call did;
-- a point's call is not found within 20000 steps, or a point does not reach its branch;
+- a point's call is not found within 20000 steps, or no record of a point reaches its branch, or the record of the family it names does not;
 - a unit has no record, or the gzipped files take more than 5 MB, past which fewer points are recorded rather than
   fewer units.
 

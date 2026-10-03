@@ -282,6 +282,12 @@ function within<T>(context: Context, run: () => T): T {
 // Runs what it is given and notes nothing: a city being built or saved
 const NEUTRAL: Context = {enter: (_name, _args, run) => run()};
 
+// Runs what it is given without noting its calls of a unit as the running city's: a point's `where` that tries a unit
+// on a copy of the city, say
+export function unrecorded<T>(run: () => T): T {
+  return within(NEUTRAL, run);
+}
+
 function wrap(name: string, original: Method): Method {
   return function(this: unknown, ...args: unknown[]): unknown {
     const run = () => original.apply(this, args);
@@ -430,8 +436,9 @@ export interface SnapshotPoint {
   // The handler families registered: every family when left out, and with "each", one record with none and one for each
   // family whose handlers the call reaches with every family registered (mapScan only)
   handlers?: "each";
-  // A branch the record must reach, checked on each record the point makes
-  reaches?: {branch: string, test(record: SnapshotRecord): boolean};
+  // A branch some record the point makes must reach: with "each", the record with no handlers need not, and when it
+  // names a family, that family's record alone must, which fails when the call makes none
+  reaches?: {branch: string, test(record: SnapshotRecord): boolean, family?: string};
 }
 
 export function describePoint(point: SnapshotPoint): string {
@@ -490,11 +497,7 @@ class LiveContext implements Context {
 
     for (const point of wanted) {
       const made = this.recordsOf(point, full, before, args);
-      for (const record of made) {
-        if (point.reaches && !point.reaches.test(record)) {
-          throw new Error(`The point ${describePoint(point)} does not reach ${point.reaches.branch}`);
-        }
-      }
+      checkReaches(point, made);
 
       records.push(...made);
     }
@@ -528,6 +531,31 @@ class LiveContext implements Context {
 
     return [[], ...reachedFamilies.map((family) => [family.name])].map((handlers) =>
       replay(point.fixture, this.step, before, point.unit, args, handlers));
+  }
+}
+
+// A point's branch, reached by a record of the point, or by the record of the family it names alone
+function checkReaches(point: SnapshotPoint, records: SnapshotRecord[]): void {
+  if (point.reaches === undefined) {
+    return;
+  }
+
+  const {branch, test, family} = point.reaches;
+  if (family === undefined) {
+    if (!records.some((record) => test(record))) {
+      throw new Error(`No record of the point ${describePoint(point)} reaches ${branch}`);
+    }
+
+    return;
+  }
+
+  const own = records.find((record) => record.handlers.length === 1 && record.handlers[0] === family);
+  if (own === undefined) {
+    throw new Error(`The point ${describePoint(point)} has no record of the ${family} family alone`);
+  }
+
+  if (!test(own)) {
+    throw new Error(`The ${family} family's record of the point ${describePoint(point)} does not reach ${branch}`);
   }
 }
 
@@ -567,6 +595,12 @@ export function recordSnapshots(points: SnapshotPoint[], built: Map<string, Save
     for (const point of points) {
       if (!(point.unit in UNITS)) {
         throw new Error(`No unit named ${point.unit}`);
+      }
+
+      const family = point.reaches?.family;
+      if (family !== undefined && (point.handlers !== "each" || !FAMILY_NAMES.includes(family))) {
+        throw new Error(`The point ${describePoint(point)} names the family ${family}, which needs "each" and a family ` +
+                        `of ${FAMILY_NAMES.join(", ")}`);
       }
 
       runs.set(point.fixture, [...(runs.get(point.fixture) ?? []), point]);

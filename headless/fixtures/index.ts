@@ -21,8 +21,11 @@ import { town } from "./town";
 // read back. The copies of its state in conformance/saves/ are for the C# tests.
 const fixtures: Record<string, CommandLog> = {broke, suburb, suburbBroke, suburbUnderfunded, town, underfunded};
 
+// The fixtures made for a branch of a unit, which create no sprites and record only the snapshot points that name them
+const branch: CommandLog[] = [];
+
 // The fixtures that create no sprites in their runs, which the unit snapshots are recorded from
-const spriteFree: CommandLog[] = [suburb, suburbBroke, suburbUnderfunded];
+const spriteFree: CommandLog[] = [suburb, suburbBroke, suburbUnderfunded, ...branch];
 
 export function fixtureNames(): string[] {
   return Object.keys(fixtures).sort();
@@ -30,6 +33,10 @@ export function fixtureNames(): string[] {
 
 export function spriteFreeFixtureNames(): string[] {
   return fixtureNames().filter((name) => spriteFree.includes(fixtures[name]));
+}
+
+export function branchFixtureNames(): string[] {
+  return fixtureNames().filter((name) => branch.includes(fixtures[name]));
 }
 
 export function fixtureLog(name: string): CommandLog {

@@ -11,11 +11,11 @@
  *
  */
 
-// The calls the unit snapshots record (conformance/README.md): each unit's first calls in each sprite-free fixture,
-// and the points a unit's rarer branches need, which name the branch they reach so the generator fails when a point
-// stops reaching it.
+// The calls the unit snapshots record (conformance/README.md): each unit's first calls in each sprite-free fixture not
+// made for a branch, and the points a unit's rarer branches need, which name the branch they reach so the generator
+// fails when a point stops reaching it.
 
-import { spriteFreeFixtureNames } from "../headless/fixtures/index";
+import { branchFixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index";
 import { SnapshotPoint, UNIT_NAMES } from "./unitSnapshots";
 
 // How many of each unit's first calls are recorded in each fixture
@@ -27,8 +27,14 @@ const PHASES = 16;
 // The columns of the map one sweep of the map scan covers, an eighth each
 const STRIPS = 8;
 
+// The sprite-free fixtures every unit's first calls are recorded from: all but those made for a branch, which record
+// only the points that name them
+export function townFixtureNames(spriteFree = spriteFreeFixtureNames(), branches = branchFixtureNames()): string[] {
+  return spriteFree.filter((name) => !branches.includes(name));
+}
+
 function firstCalls(): SnapshotPoint[] {
-  return spriteFreeFixtureNames().flatMap((fixture) => UNIT_NAMES.flatMap((unit) => {
+  return townFixtureNames().flatMap((fixture) => UNIT_NAMES.flatMap((unit) => {
     // The map scan's first sweep, with no handlers and with each family that has tiles in the strip alone
     const calls = unit === "mapScanner.mapScan" ? STRIPS : FIRST_CALLS;
     return Array.from({length: calls}, (_, call): SnapshotPoint =>
@@ -45,7 +51,7 @@ export const SNAPSHOT_POINTS: SnapshotPoint[] = [
 
   // simulation._simulate: phase 0 on a cycle whose demand valves are not set, with the first evaluation done, which
   // runs nothing but the counters and the census clearing
-  ...spriteFreeFixtureNames().map((fixture): SnapshotPoint => ({
+  ...townFixtureNames().map((fixture): SnapshotPoint => ({
     fixture, unit: "simulation._simulate", call: 0,
     where: (simulation) => simulation._phaseCycle === 0 && simulation._simCycle % 2 === 0 &&
                            !simulation._initialEvaluationPending,
