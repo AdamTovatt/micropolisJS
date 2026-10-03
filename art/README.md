@@ -2,6 +2,7 @@
 
 Sources for rendering the game's tile art in Blender, one zone at a time. Every image here ships with the game's source, so its generator's or author's terms must allow distribution under GPLv3 (`LICENSE`).
 
+- `references/`: concept sheets of whole zones that the scenes are modelled on, described in `references/README.md`.
 - `textures/`: seamless surface textures (roofs, paving, glass, grass). Their rules and provenance are in `textures/README.md`.
 - `sheets/`: sprite sheets of whole objects drawn on black, seen from above.
 - `cutouts/`: each object cut from a sheet into its own transparent PNG by `tools/cutout.py`.
@@ -9,7 +10,7 @@ Sources for rendering the game's tile art in Blender, one zone at a time. Every 
 - `blender/tileart.py`: the shared module: materials, shapes, cutout cards, and the render.
 - `blender/zones/`: one script per zone.
 - `blender/out/`: rendered zones, one directory of layers each. Ignored by git: a render is rebuilt from its script.
-- `tools/`: cutting sheets into cutouts, and previewing rendered zones side by side.
+- `tools/`: cropping a reference zone, cutting sheets into cutouts, and previewing rendered zones side by side.
 
 ## Rendering a zone
 
