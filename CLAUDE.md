@@ -29,9 +29,11 @@ Work that pulls against this needs Adam's go before it starts.
 
 ### Open decisions
 
-Ask before writing code that settles one of these; record the decision here when it is made.
+Ask before writing code that settles an open decision; record the decision under Decided when it is made.
 
-- **Multiplayer shape.** One shared city run by several mayors, or neighbouring cities on one map. Either way every player has the same powers; a shared city still has to settle how pause and game speed work with more than one player.
+#### Decided
+
+- **Multiplayer shape.** One shared city, run in real time by several mayors, each with every power a single player has: any player can build, bulldoze, set taxes and the budget, trigger disasters, pause and change the speed. Pause and speed are commands like any other and apply to everyone. The simulation never branches on who sent a command.
 
 ## Git
 
