@@ -11,7 +11,7 @@
  *
  */
 
-import { Command, CommandType, DISASTER_KINDS, SERVICES, TilePosition, TOOL_NAMES } from "./protocol";
+import { Command, CommandType, DISASTER_KINDS, SERVICES, SPEEDS, TilePosition, TOOL_NAMES } from "./protocol";
 import {
   FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumber, isWholeNumberIn, oneOf,
 } from "./validation";
@@ -23,8 +23,7 @@ import {
 export const MAX_FUNDING_PERCENT = 100;
 export const MAX_TAX_PERCENT = 20;
 
-// The speeds, as Simulation numbers them: 0 is paused
-export const MAX_SPEED = 3;
+export const MAX_SPEED = SPEEDS.fast;
 
 // A player's id. Single player has the one player.
 export type PlayerId = string;

@@ -19,9 +19,10 @@ import { commandRejection } from "../src/commands";
 import { evaluationRecord, type EvaluationSource } from "../src/evaluationRecord";
 import {
     type BudgetRecord, commandTypes, type EvaluationRecord, parseErrorResponse, parsePlayerResponse, parseServerMessage,
-    parseSessionResponse, queryTypes, recordTypes, serverMessageTypes, signInRequest,
+    parseSessionResponse, queryTypes, recordTypes, serverMessageTypes, type SettingsRecord, signInRequest,
 } from "../src/protocol";
 import { queryRejection } from "../src/queries";
+import { settingsRecord, type SettingsSource } from "../src/settingsRecord";
 import { repositoryPath } from "./helpers/repository";
 
 // The examples and reader cases are shared with the server's tests: protocol/README.md describes them
@@ -177,6 +178,15 @@ const RECORD_WRITERS: Record<string, (wire: string) => string> = {
             percents: () => example.funding,
         };
         return JSON.stringify(budgetRecord(budget));
+    },
+    settings: (wire) => {
+        const example: SettingsRecord = JSON.parse(wire);
+        const simulation: SettingsSource = {
+            budget: {autoBudget: example.autoBudget},
+            disasterManager: {disastersEnabled: example.disasters},
+            getSpeed: () => example.speed,
+        };
+        return JSON.stringify(settingsRecord(simulation));
     },
 };
 

@@ -102,6 +102,9 @@ codes it uses.
   what each service needs a year, and its funding, 0 to 1 of what it needs. The year end may scale a funding back to
   the cash there was, which leaves it a fraction of a percent; a player only sets whole percents. A funding is a
   single-precision float, as the original keeps it, written as the double it widens to.
+- `settings` is the city's settings, as the settings window shows them: `autoBudget` and `disasters`, whether each is
+  on, and `speed`, the speed the city runs at as `setSpeed` sets it, 0 when paused. The settings a client keeps for
+  itself, such as auto-bulldoze, are not part of it.
 
 ## Examples
 

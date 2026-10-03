@@ -11,7 +11,7 @@
  *
  */
 
-import { requiredElement } from "./domElements";
+import { isChecked, requiredElement } from "./domElements";
 import { DEBUG_WINDOW_CLOSED } from "./messages";
 import { ClosableWindow } from "./windowBase";
 
@@ -62,8 +62,4 @@ export class DebugWindow extends ClosableWindow {
   close(actions: DebugAction[] = []): void {
     super.close(actions);
   }
-}
-
-function isChecked(id: string): boolean {
-  return requiredElement(id, HTMLInputElement).checked;
 }

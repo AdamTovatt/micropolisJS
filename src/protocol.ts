@@ -179,6 +179,9 @@ export const DISASTER_KINDS = ["monster", "fire", "flood", "crash", "meltdown", 
 
 export type DisasterKind = typeof DISASTER_KINDS[number];
 
+// The speeds a setSpeed command sets, as the simulation numbers them
+export const SPEEDS = {paused: 0, slow: 1, medium: 2, fast: 3} as const;
+
 export interface TilePosition {
   x: number;
   y: number;
@@ -401,11 +404,20 @@ export interface BudgetRecord {
   funding: ServiceAmounts;
 }
 
-export type SimulationRecord = EvaluationRecord | BudgetRecord;
+// The city's settings, as the settings window shows them: whether auto-budget and disasters are on, and the speed the
+// city runs at, one of SPEEDS, paused included
+export interface SettingsRecord {
+  type: "settings";
+  autoBudget: boolean;
+  disasters: boolean;
+  speed: number;
+}
+
+export type SimulationRecord = EvaluationRecord | BudgetRecord | SettingsRecord;
 
 // Every record type, as the compiler checks against the union: a type added to SimulationRecord and not here fails to
 // compile, and the tests fail on a type with no example.
-const RECORD_TYPES: Record<SimulationRecord["type"], true> = {evaluation: true, budget: true};
+const RECORD_TYPES: Record<SimulationRecord["type"], true> = {evaluation: true, budget: true, settings: true};
 
 export function recordTypes(): string[] {
   return Object.keys(RECORD_TYPES);

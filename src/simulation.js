@@ -32,11 +32,13 @@ import * as Messages from './messages.ts';
 import { MiscTiles } from './miscTiles.js';
 import { MiscUtils } from './miscUtils.js';
 import { PowerManager } from './powerManager.js';
+import { SPEEDS } from './protocol.ts';
 import { answerQuery, layersOfPhase } from './queries.ts';
 import { Random } from './random.ts';
 import { RepairManager } from './repairManager.js';
 import { Residential } from './residential.js';
 import { Road } from './road.js';
+import { settingsRecord } from './settingsRecord.ts';
 import { SpriteManager } from './spriteManager.js';
 import { Stadia } from './stadia.js';
 import { Traffic } from './traffic.js';
@@ -159,6 +161,12 @@ Simulation.prototype.evaluationRecord = function() {
 // The budget, as the budget window shows it
 Simulation.prototype.budgetRecord = function() {
   return budgetRecord(this.budget);
+};
+
+
+// The city's settings, as the settings window shows them
+Simulation.prototype.settingsRecord = function() {
+  return settingsRecord(this);
 };
 
 
@@ -908,10 +916,10 @@ Object.defineProperties(Simulation,
   {LEVEL_EASY: MiscUtils.makeConstantDescriptor(0),
   LEVEL_MED:  MiscUtils.makeConstantDescriptor(1),
   LEVEL_HARD: MiscUtils.makeConstantDescriptor(2),
-  SPEED_PAUSED: MiscUtils.makeConstantDescriptor(0),
-  SPEED_SLOW:  MiscUtils.makeConstantDescriptor(1),
-  SPEED_MED: MiscUtils.makeConstantDescriptor(2),
-  SPEED_FAST: MiscUtils.makeConstantDescriptor(3),
+  SPEED_PAUSED: MiscUtils.makeConstantDescriptor(SPEEDS.paused),
+  SPEED_SLOW:  MiscUtils.makeConstantDescriptor(SPEEDS.slow),
+  SPEED_MED: MiscUtils.makeConstantDescriptor(SPEEDS.medium),
+  SPEED_FAST: MiscUtils.makeConstantDescriptor(SPEEDS.fast),
 });
 
 

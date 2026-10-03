@@ -30,6 +30,7 @@ import * as Messages from './messages.ts';
 import { MonsterTV } from './monsterTV.js';
 import { Notification } from './notification.js';
 import { OverlayPicker, pageOverlaySource } from './overlayPicker.ts';
+import { SPEEDS } from './protocol.ts';
 import { pageQuerySource } from './querySource.ts';
 import { QueryTool } from './queryTool.ts';
 import { QueryWindow } from './queryWindow.ts';
@@ -37,7 +38,7 @@ import { RCI } from './rci.js';
 import { SaveWindow } from './saveWindow.js';
 import { ScreenshotLinkWindow } from './screenshotLinkWindow.ts';
 import { ScreenshotWindow } from './screenshotWindow.js';
-import { SettingsWindow } from './settingsWindow.js';
+import { SettingsWindow } from './settingsWindow.ts';
 import { Simulation } from './simulation.js';
 import { SpeedControl } from './speedControl.ts';
 import { plainSavedState } from './stateHash.ts';
@@ -220,7 +221,7 @@ Game.prototype.save = function() {
 // A new game on the map generated from the game seed, at the chosen level
 Game.newGame = function(map, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   var level = difficulty || 0;
-  var simulation = new Simulation(map, level, Simulation.SPEED_MED, seed);
+  var simulation = new Simulation(map, level, SPEEDS.medium, seed);
   return new Game(simulation, {seed: seed, level: level}, tileSet, snowTileSet, spriteSheet, name || 'MyTown');
 };
 
@@ -265,37 +266,15 @@ Game.prototype.handleDisasterWindowClosure = function(kind) {
 };
 
 
-Game.prototype.handleSettingsWindowClosure = function(actions) {
+Game.prototype.handleSettingsWindowClosure = function(choice) {
   this.windows.closed();
 
-  var chosen = {autoBudget: this.settingsShown.autoBudget, disasters: this.settingsShown.disasters};
+  if (choice === null)
+    return;
 
-  for (var i = 0, l = actions.length; i < l; i++) {
-    var a = actions[i];
-
-    switch (a.action) {
-      case SettingsWindow.AUTOBUDGET:
-        chosen.autoBudget = a.data;
-        break;
-
-      case SettingsWindow.AUTOBULLDOZE:
-        this.autoBulldoze.set(a.data);
-        break;
-
-      case SettingsWindow.SPEED:
-        this.speedControl.setRunningSpeed(a.data);
-        break;
-
-      case SettingsWindow.DISASTERS_CHANGED:
-        chosen.disasters = a.data;
-        break;
-
-      default:
-        console.warn('Unexpected action', a);
-    }
-  }
-
-  settingsCommands(this.settingsShown, chosen).forEach(function(command) {
+  this.autoBulldoze.set(choice.autoBulldoze);
+  this.speedControl.setRunningSpeed(choice.speed);
+  settingsCommands(this.settingsShown, choice).forEach(function(command) {
     this.commandQueue.send(LOCAL_PLAYER, command);
   }, this);
 };
@@ -381,13 +360,11 @@ Game.prototype.handleEvalRequest = function() {
 
 Game.prototype.handleSettingsRequest = function() {
   // The city settings as the window shows them, which its choices are compared with when it closes
-  var shown = {autoBudget: this.simulation.budget.autoBudget,
-               disasters: this.simulation.disasterManager.disastersEnabled};
+  var shown = this.simulation.settingsRecord();
+  var client = {autoBulldoze: this.autoBulldoze.isOn(), seed: this.simulation.seed,
+                resumeSpeed: this.speedControl.getRunningSpeed()};
 
-  if (this.windows.open(this.settingsWindow, {
-    autoBudget: shown.autoBudget, autoBulldoze: this.autoBulldoze.isOn(),
-    speed: this.speedControl.getRunningSpeed(), disasters: shown.disasters, seed: this.simulation.seed
-  }))
+  if (this.windows.open(this.settingsWindow, shown, client))
     this.settingsShown = shown;
 };
 
