@@ -203,6 +203,10 @@ evaluation, each when its city time falls due; phase 10 easing the rate of growt
 and to fast. A point for a rare branch names the branch in `reaches`, so a change that stops the point reaching it fails
 the generator rather than leaving the branch unproven.
 
+The generator watches a fixture's city for sprites only until its last point; `test/goldenHashes.ts` checks that every
+sprite-free fixture, a `"branch"` fixture included, creates none over its whole golden run. A test fails on a point
+naming a fixture that is not sprite-free.
+
 The generator fails when:
 
 - a fixture's city as built does not match the golden hash its log pins at step 0, or the log pins none there;

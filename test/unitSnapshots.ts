@@ -133,3 +133,15 @@ describe("the fixtures every unit's first calls are recorded from", () => {
         expect(fixtureNamesOf("snapshots").filter((name) => fixtureNamesOf("branch").includes(name))).toEqual([]);
     });
 });
+
+describe("the snapshot points", () => {
+
+    // A point's fixture is named by a string, so a point could name a fixture of the kind sprites, which the golden
+    // run's check that it creates no sprite leaves out
+    it("name only sprite-free fixtures", () => {
+        const spriteFree = spriteFreeFixtureNames();
+        const named = Array.from(new Set(SNAPSHOT_POINTS.map((point) => point.fixture)));
+
+        expect(named.filter((fixture) => !spriteFree.includes(fixture))).toEqual([]);
+    });
+});

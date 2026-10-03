@@ -74,7 +74,7 @@ function after(record: SnapshotRecord): SavedState {
   return record.after as SavedState;
 }
 
-// A branch the state a call starts from decides: the point takes the first call whose city is in that state, and each
+// A branch the state a call starts from decides: the point takes the first call whose city is in that state, and a
 // record it makes must start from it
 function startingFrom(branch: string, test: (state: SavedState) => boolean): Pick<SnapshotPoint, "where" | "reaches"> {
   return {
