@@ -48,17 +48,6 @@ function cityWithAPlant() {
 
 describe("the city status record the simulation publishes", () => {
 
-    // Phase 9 passes an undeclared `budget` to Census.take10Census (simulation.js). In the browser that name
-    // resolves to the #budget element; under node it throws. This stub stands in for that global and covers only
-    // that bug: remove it together with the fix.
-    const globals = globalThis as {budget?: unknown};
-    beforeAll(() => {
-        globals.budget = {cashFlow: 0};
-    });
-    afterAll(() => {
-        delete globals.budget;
-    });
-
     it("is published once per cycle, at the cycle's last phase", () => {
         const {records, runPhases} = cityWithAPlant();
 
