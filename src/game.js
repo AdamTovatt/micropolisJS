@@ -21,6 +21,7 @@ import { LOCAL_PLAYER } from './commands.ts';
 import { Config } from './config.js';
 import { DebugWindow } from './debugWindow.js';
 import { DisasterWindow } from './disasterWindow.js';
+import { ToolPaths } from './dragPath.ts';
 import { EvaluationWindow } from './evaluationWindow.js';
 import { GameCanvas } from './gameCanvas.js';
 import { InfoBar } from './infoBar.js';
@@ -68,6 +69,8 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
 
   this.mouse = null;
   this.lastCoord = null;
+
+  this.toolPaths = new ToolPaths();
   this.lastBadMessageTime = null;
 
   this.speedControl = new SpeedControl(this.simulation, function(speed) {
@@ -414,24 +417,32 @@ Game.prototype.handleScreenshotRequest = function() {
 };
 
 
+// The tiles the player's tool reaches gather into paths (see ToolPaths), sent each tick by sendToolPaths
 Game.prototype.handleTool = function(data) {
-  var x = data.x;
-  var y = data.y;
-
   // Were was the tool clicked?
-  var tileCoords = this.gameCanvas.canvasCoordinateToTileCoordinate(x, y);
+  var tileCoords = this.gameCanvas.canvasCoordinateToTileCoordinate(data.x, data.y);
 
   var toolName = this.inputStatus.toolName;
-  if (tileCoords === null || toolName === null)
+  if (tileCoords === null || toolName === null) {
+    this.toolPaths.lost();
     return;
+  }
 
   if (toolName === 'query') {
     this.inputStatus.queryTool.doTool(tileCoords.x, tileCoords.y, this.simulation.blockMaps);
     return;
   }
 
-  this.commandQueue.send(LOCAL_PLAYER, {type: 'tool', tool: toolName, path: [{x: tileCoords.x, y: tileCoords.y}],
-                                        autoBulldoze: this.autoBulldoze.isOn()});
+  this.toolPaths.reached(toolName, {x: tileCoords.x, y: tileCoords.y}, data.start);
+};
+
+
+// Sends each path gathered since the last tick as one tool command: a click, or a drag's latest tiles
+Game.prototype.sendToolPaths = function() {
+  this.toolPaths.take().forEach(function(toolPath) {
+    this.commandQueue.send(LOCAL_PLAYER, {type: 'tool', tool: toolPath.tool, path: toolPath.path,
+                                          autoBulldoze: this.autoBulldoze.isOn()});
+  }, this);
 };
 
 
@@ -586,7 +597,9 @@ var isStepping = function() {
 var tick = function() {
   this.handleInput();
 
-  // The commands sent since the last tick apply first, whether or not the city is stepping: you can build when paused
+  // The tiles clicked or dragged over since the last tick go as tool commands, one per path. The commands sent since the
+  // last tick apply first, whether or not the city is stepping: you can build when paused.
+  this.sendToolPaths();
   this.commandQueue.applyCommands();
 
   // Run the sim: as many steps as the time since the last tick is due

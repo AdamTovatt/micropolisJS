@@ -12,6 +12,7 @@
  */
 
 import { ToolCommand, ToolName } from "../../src/commands";
+import { dragPath } from "../../src/dragPath";
 
 // Tool commands as scripts write them, with auto-bulldoze on as the player has it by default
 
@@ -26,14 +27,7 @@ export function lineOf(tool: ToolName, x1: number, y1: number, x2: number, y2: n
     throw new Error(`A ${tool} line must be horizontal or vertical, got (${x1}, ${y1}) to (${x2}, ${y2})`);
   }
 
-  const length = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
-  const dx = Math.sign(x2 - x1);
-  const dy = Math.sign(y2 - y1);
-
-  const path = [];
-  for (let i = 0; i <= length; i++) {
-    path.push({x: x1 + i * dx, y: y1 + i * dy});
-  }
-
-  return {type: "tool", tool, path, autoBulldoze: true};
+  // As the player's drag along the line sends it
+  const from = {x: x1, y: y1};
+  return {type: "tool", tool, path: [from, ...dragPath(from, {x: x2, y: y2})], autoBulldoze: true};
 }
