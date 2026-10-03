@@ -11,6 +11,7 @@
  *
  */
 
+import { requiredElement } from "./domElements";
 import { GameCanvas } from "./gameCanvas";
 import type { PaintableMap, PaintableSprite, TilePoint } from "./gameCanvas";
 import { SPRITE_DYING, SPRITE_MOVED } from "./messages";
@@ -108,14 +109,6 @@ class ViewState {
   }
 }
 
-function requireElement(id: string): HTMLElement {
-  const element = document.getElementById(id);
-  if (element === null) {
-    throw new Error(`Node ${id} not found`);
-  }
-  return element;
-}
-
 // The small view that shows a disaster, and follows a monster or tornado around the map
 class MonsterTV {
   readonly canvas: GameCanvas;
@@ -124,7 +117,7 @@ class MonsterTV {
   private readonly state: ViewState;
 
   constructor(map: PaintableMap, tileSet: TileSet, spriteSheet: HTMLImageElement) {
-    this.element = requireElement(MONSTER_TV_ID);
+    this.element = requiredElement(MONSTER_TV_ID);
 
     // Need to quickly flick on the canvas container so the canvas picks up the correct dimensions (this is a bit of a
     // hack as we're reusing the same GameCanvas that paints the main map, but it avoids a lot of duplication)
@@ -141,7 +134,7 @@ class MonsterTV {
       this.element.classList.toggle(SHOWING_CLASS, open);
     });
     this.follower = new SpriteFollower((position) => this.onMove(position), () => this.state.closeLater());
-    requireElement(FORM_ID).addEventListener("submit", (e) => {
+    requiredElement(FORM_ID).addEventListener("submit", (e) => {
       e.preventDefault();
       this.state.close();
     });

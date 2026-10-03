@@ -12,7 +12,7 @@
  */
 
 import { AnimationManager } from "./animationManager";
-import { placeCanvas } from "./canvasPlacement";
+import { placeNewCanvas, requiredElement } from "./domElements";
 import { drawMouseBox } from "./mouseBox";
 import { CanvasOverlay } from "./overlayRenderer";
 import type { OverlayView } from "./overlayRenderer";
@@ -394,22 +394,16 @@ class GameCanvas {
 
   // Creates the canvas in the container with the given id, replacing an element of the canvas' id there
   constructor(parentId: string, id: string = GameCanvas.DEFAULT_ID) {
-    const parentNode = document.getElementById(parentId);
-    if (parentNode === null) {
-      throw new Error(`Node ${parentId} not found`);
-    }
+    const parentNode = requiredElement(parentId);
 
-    this.canvas = document.createElement("canvas");
-    this.canvas.id = id;
-
-    // The canvas is assumed to fill its container on-screen
+    // The canvas is assumed to fill its container on-screen. The container is measured before the canvas joins it, as
+    // the canvas could change its size.
     const rect = parentNode.getBoundingClientRect();
+    this.canvas = placeNewCanvas(parentNode, id);
     this.canvas.width = rect.width;
     this.canvas.height = rect.height;
     this.canvas.style.margin = "0";
     this.canvas.style.padding = "0";
-
-    placeCanvas(parentNode, this.canvas);
   }
 
   get canvasWidth(): number {

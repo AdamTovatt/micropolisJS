@@ -11,7 +11,7 @@
  *
  */
 
-import { placeCanvas } from "./canvasPlacement";
+import { placeNewCanvas, requiredElement } from "./domElements";
 import type { PixelPoint } from "./gameCanvas";
 import type { TileSet } from "./tileSet";
 
@@ -47,17 +47,9 @@ class SplashCanvas {
       throw new Error("Tileset is not valid!");
     }
 
-    const parentNode = document.getElementById(parentId);
-    if (parentNode === null) {
-      throw new Error(`SplashCanvas container ID ${parentId} not found`);
-    }
-
-    this.canvas = document.createElement("canvas");
-    this.canvas.id = CANVAS_ID;
+    this.canvas = placeNewCanvas(requiredElement(parentId), CANVAS_ID);
     this.canvas.width = SplashCanvas.DEFAULT_WIDTH;
     this.canvas.height = SplashCanvas.DEFAULT_HEIGHT;
-
-    placeCanvas(parentNode, this.canvas);
   }
 
   paint(map: PreviewMap): void {

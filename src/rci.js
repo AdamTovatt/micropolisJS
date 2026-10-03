@@ -13,7 +13,7 @@
 
 import $ from "jquery";
 
-import { placeCanvas } from './canvasPlacement.ts';
+import { placeNewCanvas } from './domElements.ts';
 import { VALVES_UPDATED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 
@@ -44,8 +44,7 @@ function RCI(parentNode, eventSource, id) {
   this._rectSize = 5; // Each rect is 5px
   this._scale = Math.floor(2000 / this._buckets);
 
-  this._canvas = $('<canvas></canvas>', {id: id})[0];
-  placeCanvas(parentNode, this._canvas);
+  this._canvas = placeNewCanvas(parentNode, id);
 
   // We might be created before our container has appeared on screen
   this._initialisedBounds = false;
