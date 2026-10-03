@@ -14,9 +14,7 @@
 import { BaseSprite } from './baseSprite.js';
 import { EXPLOSION_REPORTED, SOUND_EXPLOSIONHIGH } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { Random } from './random.ts';
 import { SPRITE_EXPLOSION } from './spriteConstants.ts';
-import { SpriteUtils } from './spriteUtils.js';
 import { TileUtils } from './tileUtils.js';
 import { DIRT } from "./tileValues.ts";
 
@@ -53,7 +51,7 @@ ExplosionSprite.prototype.startFire = function(x, y) {
 };
 
 
-ExplosionSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) {
+ExplosionSprite.prototype.move = function(spriteCycle) {
   if ((spriteCycle & 1) === 0) {
     if (this.frame === 1) {
       // Convert sprite coordinates to tile coordinates.

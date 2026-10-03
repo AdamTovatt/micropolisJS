@@ -19,7 +19,6 @@ import { ModalWindow } from './modalWindow.js';
 
 var disasterSelectID = '#disasterSelect';
 var disasterCancelID = '#disasterCancel';
-var disasterOKID = '#disasterOK';
 var disasterFormID = '#disasterForm';
 
 
@@ -52,8 +51,6 @@ var submit = function(e) {
 
 
 DisasterWindow.prototype.open = function() {
-  var i;
-
   // Ensure options have right values
   $('#disasterNone').attr('value', DisasterWindow.DISASTER_NONE);
   $('#disasterMonster').attr('value', DisasterWindow.DISASTER_MONSTER);

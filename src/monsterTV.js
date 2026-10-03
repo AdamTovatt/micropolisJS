@@ -13,14 +13,13 @@
 
 import $ from "jquery";
 
-import { EventEmitter } from './eventEmitter.js';
 import { GameCanvas } from './gameCanvas.js';
 import { SPRITE_DYING, SPRITE_MOVED } from './messages.ts';
 
 var TIMEOUT_SECS = 10;
 
 
-var MonsterTV = function(map, tileSet, spriteSheet, animationManager) {
+var MonsterTV = function(map, tileSet, spriteSheet) {
   this.isOpen = false;
   this._tracking = null;
 
@@ -29,7 +28,7 @@ var MonsterTV = function(map, tileSet, spriteSheet, animationManager) {
   $(monsterTVID).toggle();
 
   this.canvas = new GameCanvas(monsterTVCanvasID, monsterTVContainerID);
-  this.canvas.init(map, tileSet, spriteSheet, animationManager);
+  this.canvas.init(map, tileSet, spriteSheet);
   this.canvas.disallowOffMap();
 
   this._onMove = onMove.bind(this);
@@ -74,7 +73,7 @@ var onMove = function(event) {
 };
 
 
-var onDie = function(event) {
+var onDie = function() {
   this._tracking.removeEventListener(SPRITE_MOVED, this._onMove);
   this._tracking.removeEventListener(SPRITE_DYING, this._onDie);
   this._tracking = null;
@@ -121,7 +120,7 @@ MonsterTV.prototype.show = function(x, y) {
 };
 
 
-MonsterTV.prototype.open = function(message) {
+MonsterTV.prototype.open = function() {
   this.isOpen = true;
   $(monsterTVID).toggle();
 };

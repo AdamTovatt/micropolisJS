@@ -13,8 +13,7 @@
 
 import { BaseTool } from './baseTool.js';
 import { Random } from './random.ts';
-import { ANIMBIT, BULLBIT, BURNBIT, CONDBIT } from "./tileFlags.ts";
-import { TileUtils } from './tileUtils.js';
+import { ANIMBIT, BULLBIT, BURNBIT } from "./tileFlags.ts";
 import { DIRT, FOUNTAIN, WOODS2 } from "./tileValues.ts";
 
 var makeTool = BaseTool.makeTool;
@@ -23,7 +22,7 @@ var ParkTool = makeTool(function(map) {
 });
 
 
-ParkTool.prototype.doTool = function(x, y, blockMaps) {
+ParkTool.prototype.doTool = function(x, y) {
   if (this._worldEffects.getTileValue(x, y) !== DIRT) {
     this.result = this.TOOLRESULT_NEEDS_BULLDOZE;
     return;

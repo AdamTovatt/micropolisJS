@@ -151,7 +151,7 @@ var getRelativeCoordinates = function(e) {
 };
 
 
-var mouseEnterHandler = function(e) {
+var mouseEnterHandler = function() {
   if (this.currentTool === null)
     return;
 
@@ -192,7 +192,7 @@ var mouseUpHandler = function(e) {
 };
 
 
-var mouseLeaveHandler = function(e) {
+var mouseLeaveHandler = function() {
   $(this.canvasID).off('mousedown');
   $(this.canvasID).off('mousemove');
   $(this.canvasID).off('mouseup');
@@ -272,7 +272,7 @@ var toolButtonHandler = function(e) {
 };
 
 
-InputStatus.prototype.speedChangeHandler = function(e) {
+InputStatus.prototype.speedChangeHandler = function() {
   var requestedSpeed = $('#pauseRequest').text();
   var newRequest = requestedSpeed === 'Pause' ? 'Play' : 'Pause';
   $('#pauseRequest').text(newRequest);
@@ -296,7 +296,7 @@ InputStatus.prototype.clearTool = function() {
 var makeHandler = function(message) {
   var m = Messages[message];
 
-  return function(e) {
+  return function() {
     this._emitEvent(m);
   };
 };

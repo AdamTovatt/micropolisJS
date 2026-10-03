@@ -41,7 +41,7 @@ var onAllTilesLoaded = function() {
   var sprites = $('#sprites')[0];
   if (sprites.complete) {
     $('#loadingBanner').css('display', 'none');
-    var s = new SplashScreen(tileSet, snowTileSet, sprites);
+    new SplashScreen(tileSet, snowTileSet, sprites);
   } else {
      window.setTimeout(onAllTilesLoaded, 0);
   }
@@ -94,4 +94,3 @@ Config.debug = window.location.search.slice(1).split('&').some(function(param) {
 
 var tiles = $('#tiles')[0];
 tileSet = new TileSet(tiles, onTilesLoaded, tileSetError);
-var snowtiles = $('#snowtiles')[1];

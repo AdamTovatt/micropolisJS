@@ -21,7 +21,6 @@ type UpperBoundedRNG = (maxValue: number) => number;
 type SixteenBitRNG = () => number;
 
 function getChance(chance: number, rng: SixteenBitRNG = getRandom16): boolean {
-  // tslint:disable-next-line:no-bitwise
   return (rng() & chance) === 0;
 }
 

@@ -11,9 +11,7 @@
  *
  */
 
-import { Config } from './config.js';
 import { Random } from './random.ts';
-import { Tile } from './tile.ts';
 import { BLBNCNBIT, ZONEBIT } from "./tileFlags.ts";
 import { TileUtils } from './tileUtils.js';
 import * as TileValues from "./tileValues.ts";
@@ -45,9 +43,6 @@ var getFreeZonePopulation = function(map, x, y, tileValue) {
 
 
 var getZonePopulation = function(map, x, y, tileValue) {
-  if (tileValue instanceof Tile)
-    tileValue = tile.getValue();
-
   if (tileValue === TileValues.FREEZ)
     return getFreeZonePopulation(map, x, y, tileValue);
 

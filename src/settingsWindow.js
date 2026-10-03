@@ -26,7 +26,6 @@ var SettingsWindow = ModalWindow(function() {
 
 var settingsCancelID = '#settingsCancel';
 var settingsFormID = '#settingsForm';
-var settingsOKID = '#settingsOK';
 var autoBudgetYesID = '#autoBudgetYes';
 var autoBudgetNoID = '#autoBudgetNo';
 var autoBulldozeYesID = '#autoBulldozeYes';

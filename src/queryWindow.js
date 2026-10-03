@@ -16,7 +16,6 @@ import $ from "jquery";
 import { Config } from './config.js';
 import { QUERY_WINDOW_CLOSED } from './messages.ts';
 import { ModalWindow } from './modalWindow.js';
-import { MiscUtils } from './miscUtils.js';
 
 var QueryWindow = ModalWindow(function() {
   this._debugToggled = false;

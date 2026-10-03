@@ -125,8 +125,6 @@ var roadFound = function(map, x, y, simData) {
       // Don't degrade tiles with power lines
       if (!currentTile.isConductive()) {
         if (simData.budget.roadEffect < (Random.getRandom16() & 31)) {
-          var mapValue = currentTile.getValue();
-
           // Replace bridge tiles with water, otherwise rubble
           if ((tileValue & 15) < 2 || (tileValue & 15) === 15)
             map.setTile(x, y, TileValues.RIVER, 0);
@@ -150,7 +148,7 @@ var roadFound = function(map, x, y, simData) {
 
   // Examine traffic density, and modify tile to represent last scanned traffic
   // density
-  var density = 0;
+  var density;
   if (tileValue < TileValues.LTRFBASE) {
     density = 0;
   } else if (tileValue < TileValues.HTRFBASE) {
@@ -182,7 +180,7 @@ var roadFound = function(map, x, y, simData) {
 
 
 var Road = {
-  registerHandlers: function(mapScanner, repairManager) {
+  registerHandlers: function(mapScanner) {
     mapScanner.addAction(TileUtils.isRoad, roadFound);
   }
 };

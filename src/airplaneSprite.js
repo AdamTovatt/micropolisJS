@@ -41,7 +41,7 @@ BaseSprite(AirplaneSprite);
 var xDelta = [0, 0, 6, 8, 6, 0, -6, -8, -6, 8, 8, 8];
 var yDelta = [0, -8, -6, 0, 6, 8,  6, 0, -6, 0, 0, 0];
 
-AirplaneSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) {
+AirplaneSprite.prototype.move = function(spriteCycle, disasterManager) {
   var frame = this.frame;
 
   if ((spriteCycle % 5) === 0) {

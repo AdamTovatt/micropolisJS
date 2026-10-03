@@ -34,13 +34,11 @@ describe("the Direction module", () => {
 
         it("each direction constant should be immutable", () => {
             const prop = "foo";
+            const north = Direction.NORTH as unknown as Record<string, unknown>;
 
-            try {
-                (Direction.NORTH as any)[prop] = 1;
-            // tslint:disable-next-line:no-empty variable-name
-            } catch (_expectedError) {}
-
-            expect((Direction.NORTH as any)[prop]).toBeUndefined();
+            // Writing to a frozen object throws in strict mode
+            expect(() => { north[prop] = 1; }).toThrow(TypeError);
+            expect(north[prop]).toBeUndefined();
         });
 
         describe("when rotating clockwise", () => {
@@ -189,8 +187,7 @@ describe("the Direction module", () => {
                 const randomValues = [3, 7, 1, 5, 0, 4, 6, 2];
                 (Random.getRandom as jest.Mock).mockImplementation(() => randomValues[i++]);
 
-                // tslint:disable-next-line:variable-name
-                const directions = randomValues.map((_unused_) => Direction.getRandomDirection());
+                const directions = randomValues.map(() => Direction.getRandomDirection());
 
                 expect(allUnique(directions)).toBe(true);
             });
@@ -203,8 +200,7 @@ describe("the Direction module", () => {
                 const randomValues = [3, 1, 2, 0];
                 (Random.getRandom as jest.Mock).mockImplementation(() => randomValues[i++]);
 
-                // tslint:disable-next-line:variable-name
-                const directions = randomValues.map((_unused_) => Direction.getRandomCardinalDirection());
+                const directions = randomValues.map(() => Direction.getRandomCardinalDirection());
 
                 expect(allUnique(directions)).toBe(true);
             });

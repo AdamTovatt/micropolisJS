@@ -32,20 +32,20 @@ var fireFound = function(map, x, y, simData) {
       var yTem = y + yDelta[i];
 
       if (map.testBounds(xTem, yTem)) {
-        var tile = map.getTile(x, y);
+        var tile = map.getTile(xTem, yTem);
         if (!tile.isCombustible())
             continue;
 
         if (tile.isZone()) {
-          // Neighbour is a ione and burnable
-          ZoneUtils.fireZone(map, x, y, simData.blockMaps);
+          // Neighbour is a zone and burnable
+          ZoneUtils.fireZone(map, xTem, yTem, simData.blockMaps);
 
           // Industrial zones etc really go boom
           if (tile.getValue() > IZB)
-            simData.spriteManager.makeExplosionAt(x, y);
+            simData.spriteManager.makeExplosion(xTem, yTem);
         }
 
-        map.setTo(tileUtils.randomFire());
+        map.setTo(xTem, yTem, TileUtils.randomFire());
       }
     }
   }
@@ -67,7 +67,7 @@ var fireFound = function(map, x, y, simData) {
 };
 
 
-var radiationFound = function(map, x, y, simData) {
+var radiationFound = function(map, x, y) {
   if (Random.getChance(4095))
     map.setTile(x, y, DIRT, 0);
 };
@@ -79,7 +79,7 @@ var floodFound = function(map, x, y, simData) {
 
 
 var MiscTiles = {
-  registerHandlers: function(mapScanner, repairManager) {
+  registerHandlers: function(mapScanner) {
     mapScanner.addAction(TileUtils.isFire, fireFound, true);
     mapScanner.addAction(RADTILE, radiationFound, true);
     mapScanner.addAction(TileUtils.isFlood, floodFound, true);

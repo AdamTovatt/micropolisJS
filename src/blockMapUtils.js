@@ -11,7 +11,6 @@
  *
  */
 
-import { BlockMap } from './blockMap.ts';
 import { Commercial } from './commercial.js';
 import { Industrial } from './industrial.js';
 import { MiscUtils } from './miscUtils.js';
@@ -333,8 +332,8 @@ var crimeScan = function(census, blockMaps) {
   var crimeZoneCount = 0;
 
   // Scan the map, looking for developed land, as it can attract crime.
-  for (var x = 0, width = crimeRateMap.mapWidth, blockSize = crimeRateMap.blockSize; x < width; x += blockSize) {
-    for (var y = 0, height = crimeRateMap.mapHeight, b; y < height; y += blockSize) {
+  for (var x = 0, width = crimeRateMap.gameMapWidth, blockSize = crimeRateMap.blockSize; x < width; x += blockSize) {
+    for (var y = 0, height = crimeRateMap.gameMapHeight; y < height; y += blockSize) {
       // Remember: landValueMap values are in the range 0-250
       var value = landValueMap.worldGet(x, y);
 
@@ -448,7 +447,7 @@ var populationDensityScan = function(map, blockMaps) {
   smoothMap(tempMap1, tempMap2, SMOOTH_ALL_THEN_CLAMP);
   smoothMap(tempMap2, tempMap1, SMOOTH_ALL_THEN_CLAMP);
   smoothMap(tempMap1, tempMap2, SMOOTH_ALL_THEN_CLAMP);
-  blockMaps.populationDensityMap.copyFrom(tempMap2, function(x) {return x * 2;});
+  populationDensityMap.copyFrom(tempMap2, function(x) {return x * 2;});
 
   // XXX This follows the original Micropolis source, but it feels weird to me that we score the entire map
   // based on city centre proximity, and then potentially move the city centre. I think these should be

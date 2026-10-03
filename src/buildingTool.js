@@ -111,7 +111,7 @@ BuildingTool.prototype.buildBuilding = function(x, y) {
 };
 
 
-BuildingTool.prototype.doTool = function(x, y, blockMaps) {
+BuildingTool.prototype.doTool = function(x, y) {
   this.result = this.buildBuilding(x, y);
 };
 

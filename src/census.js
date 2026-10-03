@@ -116,16 +116,17 @@ Census.prototype.take10Census = function(budget) {
   this.pollutionRamp += Math.floor((this.pollutionAverage - this.pollutionRamp) / 4);
   this.pollutionHist10[0] = Math.min(this.pollutionRamp, 255);
 
-  var x = Math.floor(budget.cashFlow / 20) + 128;
+  // The original's integer division truncates toward zero
+  var x = Math.trunc(budget.cashFlow / 20) + 128;
   this.moneyHist10[0] = MiscUtils.clamp(x, 0, 255);
 
   var resPopScaled = this.resPop >> 8;
 
-  if (this.hospitalPop < this.resPopScaled)
+  if (this.hospitalPop < resPopScaled)
     this.needHospital = 1;
-  else if (this.hospitalPop > this.resPopScaled)
+  else if (this.hospitalPop > resPopScaled)
     this.needHospital = -1;
-  else if (this.hospitalPop === this.resPopScaled)
+  else
     this.needHospital = 0;
 
   this.changed = true;

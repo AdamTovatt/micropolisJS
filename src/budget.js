@@ -113,9 +113,9 @@ Budget.prototype._calculateBestPercentages = function() {
   }
 
   // How much are we actually going to spend?
-  var roadCost = 0;
-  var fireCost = 0;
-  var policeCost = 0;
+  var roadCost;
+  var fireCost;
+  var policeCost;
 
   var cashRemaining = this.totalFunds + this.taxFund;
 
@@ -136,7 +136,6 @@ Budget.prototype._calculateBestPercentages = function() {
     policeCost = this.policeSpend;
   else
     policeCost = cashRemaining;
-  cashRemaining -= policeCost;
 
   if (this.roadMaintenanceBudget > 0)
     this.roadPercent = (roadCost / this.roadMaintenanceBudget).toPrecision(2) - 0;

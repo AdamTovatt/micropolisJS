@@ -1,33 +1,16 @@
 import { assert } from "../src/debugAssert";
 
-declare var global: any;
+describe("the debug asserter", () => {
 
-describe("the debug asserter", () => {
-
-    let globalAlert: any;
-
-    beforeEach(() => {
-        globalAlert = global.alert;
-        global.alert = jest.fn().mockName("alert");
-    });
-
-    afterEach(() => {
-        global.alert = globalAlert;
-    });
-
-    it("should alert when the assertion fails", () => {
+    it("should throw when the assertion fails", () => {
         const message = "foo";
 
-        assert(false, message);
-
-        expect(global.alert).toHaveBeenCalledWith(expect.stringContaining(message));
+        expect(() => assert(false, message)).toThrow(message);
     });
 
-    it("should not alert when the assertion succeeds", () => {
+    it("should not throw when the assertion succeeds", () => {
         const message = "foo";
 
-        assert(true, message);
-
-        expect(global.alert).not.toHaveBeenCalled();
+        expect(() => assert(true, message)).not.toThrow();
     });
 });

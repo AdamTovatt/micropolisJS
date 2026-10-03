@@ -30,10 +30,10 @@ function Traffic(map, spriteManager) {
 Traffic.prototype.makeTraffic = function(x, y, blockMaps, destFn) {
   this._stack = [];
 
-  var pos = new Position(x, y);
+  var roadPos = this.findPerimeterRoad(new Position(x, y));
 
-  if (this.findPerimeterRoad(pos)) {
-    if (this.tryDrive(pos, destFn)) {
+  if (roadPos !== null) {
+    if (this.tryDrive(roadPos, destFn)) {
       this.addToTrafficDensityMap(blockMaps);
       return Traffic.ROUTE_FOUND;
     }
@@ -80,21 +80,19 @@ Traffic.prototype.addToTrafficDensityMap = function(blockMaps) {
 var perimX = [-1, 0, 1, 2, 2, 2, 1, 0,-1,-2,-2,-2];
 var perimY = [-2,-2,-2,-1, 0, 1, 2, 2, 2, 1, 0,-1];
 
+// Returns the position of a road on the perimeter of the zone centred at pos, or null if there is none
 Traffic.prototype.findPerimeterRoad = function(pos) {
   for (var i = 0; i < 12; i++) {
     var xx = pos.x + perimX[i];
     var yy = pos.y + perimY[i];
 
     if (this._map.testBounds(xx, yy)) {
-      if (TileUtils.isDriveable(this._map.getTileValue(xx, yy))) {
-        pos.x = xx;
-        pos.y = yy;
-        return true;
-      }
+      if (TileUtils.isDriveable(this._map.getTileValue(xx, yy)))
+        return new Position(xx, yy);
     }
   }
 
-  return false;
+  return null;
 };
 
 
@@ -102,17 +100,17 @@ var MAX_TRAFFIC_DISTANCE = 30;
 
 Traffic.prototype.tryDrive = function(startPos, destFn) {
   var dirLast;
-  var drivePos = new Position(startPos);
+  var drivePos = startPos;
 
   /* Maximum distance to try */
   for (var dist = 0; dist < MAX_TRAFFIC_DISTANCE; dist++) {
     var  dir = this.tryGo(drivePos, dirLast);
     if (dir) {
-      drivePos = Position.move(pos, dir);
+      drivePos = Position.move(drivePos, dir);
       dirLast = dir.oppositeDirection();
 
       if (dist & 1)
-        this._stack.push(new Position(drivePos));
+        this._stack.push(drivePos);
 
       if (this.driveDone(drivePos, destFn))
         return true;

@@ -11,12 +11,12 @@
  *
  */
 
-import { forEachCardinalDirection, getRandomCardinalDirection, getRandomDirection } from './direction.ts';
+import { getRandomCardinalDirection, getRandomDirection } from './direction.ts';
 import { GameMap } from './gameMap.js';
 import { Position } from './position.ts';
 import { Random } from './random.ts';
 import { BLBNBIT, BULLBIT } from "./tileFlags.ts";
-import { CHANNEL, DIRT, REDGE, RIVER, WATER_LOW, WATER_HIGH, WOODS, WOODS_LOW, WOODS_HIGH } from "./tileValues.ts";
+import { CHANNEL, DIRT, REDGE, RIVER, WOODS, WOODS_LOW, WOODS_HIGH } from "./tileValues.ts";
 
 var TERRAIN_CREATE_ISLAND;
 var TERRAIN_TREE_LEVEL = -1;
@@ -71,17 +71,6 @@ var clearMap = function(map) {
   for (var x = 0; x < map.width; x++) {
     for (var y = 0; y < map.height; y++) {
       map.setTile(x, y, DIRT, 0);
-    }
-  }
-};
-
-
-var clearUnnatural = function(map) {
-  for (var x = 0; x < map.width; x++) {
-    for (var y = 0; y < map.height; y++) {
-      var tileValue = map.getTileValue(x, y);
-      if (tileValue > WOODS)
-        map.setTile(x, y, DIRT, 0);
     }
   }
 };
@@ -422,87 +411,6 @@ var plopSRiver = function(map, pos) {
   for (var x = 0; x < 6; x++) {
     for (var y = 0; y < 6; y++) {
       putOnMap(map, SRMatrix[y][x], pos.x + x, pos.y + y);
-    }
-  }
-};
-
-
-var smoothWater = function(map) {
-  var x, y, tile, pos, dir;
-
-  for (x = 0; x < map.width; x++) {
-    for (y = 0; y < map.height; y++) {
-      tile = map.getTileValue(x, y);
-
-      if (tile >= WATER_LOW && tile <= WATER_HIGH) {
-        pos = new Position(x, y);
-        let stop = false;
-
-        forEachCardinalDirection(dir => {
-          if (stop) {
-            return;
-          }
-
-          tile = map.getTileFromMap(pos, dir, WATER_LOW);
-
-          /* If nearest object is not water: */
-          if (tile < WATER_LOW || tile > WATER_HIGH) {
-            map.setTileValue(x, y, REDGE, 0); /* set river edge */
-            stop = true; // Continue with next tile
-          }
-        });
-      }
-    }
-  }
-
-  for (x = 0; x < map.width; x++) {
-    for (y = 0; y < map.height; y++) {
-      tile = map.getTileValue(x, y);
-
-      if (tile !== CHANNEL && tile >= WATER_LOW && tile <= WATER_HIGH) {
-        var makeRiver = true;
-
-        pos = new Position(x, y);
-
-        forEachCardinalDirection(dir => {
-          if (!makeRiver) {
-            return;
-          }
-
-          tile = map.getTileFromMapOrDefault(pos, dir, WATER_LOW);
-
-          if (tile < WATER_LOW || tile > WATER_HIGH) {
-            makeRiver = false;
-          }
-        });
-
-        if (makeRiver)
-          map.setTileValue(x, y, RIVER, 0);
-      }
-    }
-  }
-
-  for (x = 0; x < map.width; x++) {
-    for (y = 0; y < map.height; y++) {
-      tile = map.getTileValue(x, y);
-
-      if (tile >= WOODS_LOW && tile <= WOODS_HIGH) {
-        pos = new Position(x, y);
-        let stop = false;
-
-        forEachCardinalDirection(dir => {
-          if (stop) {
-            return;
-          }
-
-          tile = map.getTileFromMapOrDefault(pos, dir, TILE_INVALID);
-
-          if (tile === RIVER || tile === CHANNEL) {
-            map.setTileValue(x, y, REDGE, 0); /* make it water's edge */
-            stop = true;
-          }
-        });
-      }
     }
   }
 };

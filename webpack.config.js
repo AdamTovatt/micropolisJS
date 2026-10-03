@@ -1,6 +1,6 @@
+import { execSync } from 'child_process';
 import { CleanWebpackPlugin } from 'clean-webpack-plugin';
 import CopyPlugin from 'copy-webpack-plugin';
-import { GitRevisionPlugin } from 'git-revision-webpack-plugin';
 import HtmlWebpackPlugin  from 'html-webpack-plugin';
 import path from 'path';
 
@@ -9,8 +9,6 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// const StripAssertionCode = require('ts-transformer-unassert').default;
 
 const ADD_TS_EXTENSIONS_TO_WEPACK = [".ts", ".tsx", ".js"];
 const SUPPORT_FULLY_QUALIFIED_TS_ESM_IMPORTS = {
@@ -42,9 +40,9 @@ function copyStaticAssets() {
   });
 }
 
-function injectBundleIntoHTML(gitHash) {
+function injectBundleIntoHTML(buildId) {
   return new HtmlWebpackPlugin({
-    gitHash,
+    buildId,
     inject: true,
     hash: true,
     template: './index.html',
@@ -52,9 +50,9 @@ function injectBundleIntoHTML(gitHash) {
   });
 }
 
-function injectBuildIdIntoAbout(gitHash) {
+function injectBuildIdIntoAbout(buildId) {
   return new HtmlWebpackPlugin({
-    gitHash,
+    buildId,
     inject: false,
     hash: true,
     template: './about.html',
@@ -62,9 +60,9 @@ function injectBuildIdIntoAbout(gitHash) {
   });
 }
 
-function injectBuildIdIntoNameLicense(gitHash) {
+function injectBuildIdIntoNameLicense(buildId) {
   return new HtmlWebpackPlugin({
-    gitHash,
+    buildId,
     inject: false,
     hash: true,
     template: './name_license.html',
@@ -72,76 +70,39 @@ function injectBuildIdIntoNameLicense(gitHash) {
   });
 }
 
-function addDevelopmentConfigTo(options) {
-  options.devServer = {
-    contentBase: `./${OUTPUT_DIRECTORY}`
-  };
-
-  options.devtool = 'source-maps';
-  options.mode = 'development';
-}
-
-function addProductionConfigTo(options) {
-  /*
-  const assertionStrippingConfig = {
-    options: {
-      getCustomTransformers: () => {
-        return ({before: [StripAssertionCode]});
-      }
-    }
-  };
-  stripTSAssertionsRule = Object.assign(assertionStrippingConfig, HANDLE_TYPESCRIPT_WITH_ATL);
-  options.module.rules.push(stripTSAssertionsRule);
-  */
-}
-
+// The build ID is cosmetic, and a GPL source tarball has no git history, so a build outside a git checkout is
+// still a valid build.
 function getBuildId() {
-  // Technically don't need to use the webpack plugin, as not passing it to Webpack...
-  const gitPlugin = new GitRevisionPlugin({
-    commitHashCommand: `log -1 --pretty=format:'%h' main`
-  });
-
-  return gitPlugin.commithash().slice(0, 12);
-}
-
-function commonOptions() {
-  const buildId = getBuildId();
-
-  const options = {
-    entry: './src/micropolis.js',
-    resolve: {
-      extensions: ADD_TS_EXTENSIONS_TO_WEPACK,
-      extensionAlias: SUPPORT_FULLY_QUALIFIED_TS_ESM_IMPORTS,
-    },
-    module: {
-      rules: [
-        HANDLE_TYPESCRIPT_WITH_TS_LOADER,
-      ],
-    },
-    output: {
-      path: path.resolve(__dirname, OUTPUT_DIRECTORY),
-      filename: 'src/micropolis.js'
-    },
-    plugins: [
-      cleanUpLeftovers(),
-      copyStaticAssets(),
-      injectBundleIntoHTML(buildId),
-      injectBuildIdIntoAbout(buildId),
-      injectBuildIdIntoNameLicense(buildId),
-    ],
-  };
-
-  return options;
-}
-
-export default function(env, argv) {
-  let options = commonOptions();
-
-  if (env.development) {
-    addDevelopmentConfigTo(options);
-  } else {
-    addProductionConfigTo(options);
+  try {
+    return execSync('git rev-parse --short=12 HEAD', {cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore']})
+      .toString().trim();
+  } catch {
+    return 'unknown';
   }
+}
 
-  return options;
+const buildId = getBuildId();
+
+export default {
+  entry: './src/micropolis.js',
+  resolve: {
+    extensions: ADD_TS_EXTENSIONS_TO_WEPACK,
+    extensionAlias: SUPPORT_FULLY_QUALIFIED_TS_ESM_IMPORTS,
+  },
+  module: {
+    rules: [
+      HANDLE_TYPESCRIPT_WITH_TS_LOADER,
+    ],
+  },
+  output: {
+    path: path.resolve(__dirname, OUTPUT_DIRECTORY),
+    filename: 'src/micropolis.js'
+  },
+  plugins: [
+    cleanUpLeftovers(),
+    copyStaticAssets(),
+    injectBundleIntoHTML(buildId),
+    injectBuildIdIntoAbout(buildId),
+    injectBuildIdIntoNameLicense(buildId),
+  ],
 };

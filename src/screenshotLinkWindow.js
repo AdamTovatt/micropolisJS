@@ -15,7 +15,6 @@ import $ from "jquery";
 
 import { SCREENSHOT_LINK_CLOSED } from './messages.ts';
 import { ModalWindow } from './modalWindow.js';
-import { MiscUtils } from './miscUtils.js';
 
 var ScreenshotLinkWindow = ModalWindow(function() {
   $(screenshotLinkFormID).on('submit', submit.bind(this));
@@ -23,19 +22,12 @@ var ScreenshotLinkWindow = ModalWindow(function() {
 
 
 var screenshotLinkFormID = '#screenshotLinkForm';
-var screenshotLinkOKID = '#screenshotLinkOK';
 var screenshotLinkID = '#screenshotLink';
 
 
 ScreenshotLinkWindow.prototype.close = function() {
   this._toggleDisplay();
   this._emitEvent(SCREENSHOT_LINK_CLOSED);
-};
-
-
-var cancel = function(e) {
-  e.preventDefault();
-  this.close();
 };
 
 

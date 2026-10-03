@@ -78,14 +78,14 @@ BulldozerTool.prototype.layDoze = function(x, y) {
 };
 
 
-BulldozerTool.prototype.doTool = function(x, y, blockMaps) {
+BulldozerTool.prototype.doTool = function(x, y) {
   if (!this._map.testBounds(x, y))
     this.result = this.TOOLRESULT_FAILED;
 
   var tile = this._worldEffects.getTile(x, y);
   var tileValue = tile.getValue();
 
-  var zoneSize = 0;
+  var zoneSize;
   var deltaX;
   var deltaY;
 
@@ -103,8 +103,6 @@ BulldozerTool.prototype.doTool = function(x, y, blockMaps) {
   if (zoneSize > 0) {
     this.addCost(this.bulldozerCost);
 
-    var dozeX = x;
-    var dozeY = y;
     var centerX = x + deltaX;
     var centerY = y + deltaY;
 

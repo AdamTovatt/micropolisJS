@@ -157,7 +157,7 @@ var industrialFound = function(map, x, y, simData) {
 
 
 var Industrial = {
-  registerHandlers: function(mapScanner, repairManager) {
+  registerHandlers: function(mapScanner) {
     mapScanner.addAction(TileUtils.isIndustrialZone, industrialFound);
   },
   getZonePopulation: getZonePopulation

@@ -90,7 +90,7 @@ function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
     }, 30 * 60 * 1000);
 
     $('.nag').each(function() {
-      $(this).click(function(e) {
+      $(this).click(function() {
         if (self.nagger !== null) {
           window.clearTimeout(self.nagger);
         self.nagger = null;
@@ -103,7 +103,7 @@ function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   }
 
   // Initialise monsterTV
-  this.monsterTV = new MonsterTV(this.gameMap, tileSet, spriteSheet, this.gameCanvas.animationManager);
+  this.monsterTV = new MonsterTV(this.gameMap, tileSet, spriteSheet);
 
   var opacityLayerID = 'opaque';
 
@@ -214,7 +214,7 @@ function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   };
   this.infoBar(this.simulation, initialValues);
 
-  this._notificationBar = new Notification('#notifications', this.gameCanvas, Text.messageText[Messages.WELCOME]);
+  this._notificationBar = new Notification('#notifications', this.gameCanvas);
 
   // Track when various milestones are first reached
   this._reachedTown = this._reachedCity = this._reachedCapital = this._reachedMetropolis = this._reacedMegalopolis = false;
@@ -271,7 +271,7 @@ var nextFrame =
 
 
 Game.prototype.revealControls = function() {
- $('.initialHidden').each(function(e) {
+ $('.initialHidden').each(function() {
    $(this).removeClass('initialHidden');
  });
 
@@ -459,7 +459,6 @@ Game.prototype.handleTool = function(data) {
   var tool = this.inputStatus.currentTool;
 
   var budget = this.simulation.budget;
-  var evaluation = this.simulation.evaluation;
 
   // do it!
   tool.doTool(tileCoords.x, tileCoords.y, this.simulation.blockMaps);
@@ -528,7 +527,7 @@ Game.prototype.handleInput = function() {
 
 
 // Will be bound on construction
-var touchListener = function(e) {
+var touchListener = function() {
   window.removeEventListener('touchstart', this.touchListener, false);
   this._openWindow = 'touchWindow';
   this.dialogOpen = true;

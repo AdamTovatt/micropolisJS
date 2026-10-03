@@ -13,7 +13,6 @@
 
 import { EventEmitter } from './eventEmitter.js';
 import * as Messages from './messages.ts';
-import { MiscUtils } from './miscUtils.js';
 import { Random } from './random.ts';
 import { SPRITE_AIRPLANE } from './spriteConstants.ts';
 import { TileUtils } from './tileUtils.js';
@@ -196,9 +195,9 @@ DisasterManager.prototype.makeFlood = function() {
           continue;
 
         var tile = this._map.getTile(xx, yy);
-        tileValue = tile.getValue();
 
-        if (tile === TileValues.DIRT || (tile.isBulldozable() && tile.isCombustible)) {
+        // As in the original, only dirt without flags counts as dirt
+        if (tile.getRawValue() === TileValues.DIRT || (tile.isBulldozable() && tile.isCombustible())) {
           this._map.setTile(xx, yy, TileValues.FLOOD, 0);
           this._floodCount = 30;
           this._emitEvent(Messages.FLOODING_REPORTED, {showable: true, x: xx, y: yy});

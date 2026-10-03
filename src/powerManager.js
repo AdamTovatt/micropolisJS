@@ -113,22 +113,21 @@ PowerManager.prototype.doPowerScan = function(census) {
 };
 
 
+// The coal plant's smokestacks, relative to its centre
+var dX = [1, 2, 1, 2];
+var dY = [-1, -1, 0, 0];
+
 PowerManager.prototype.coalPowerFound = function(map, x, y, simData) {
   simData.census.coalPowerPop += 1;
 
   this._powerStack.push(new Position(x, y));
 
   // Ensure animation runs
-  var dX = [-1, 2, 1, 2];
-  var dY = [-1, -1, 0, 0];
-
   for (var i = 0; i < 4; i++)
     map.addTileFlags(x + dX[i], y + dY[i], ANIMBIT);
 };
 
 
-var dX = [1, 2, 1, 2];
-var dY = [-1, -1, 0, 0];
 var meltdownTable = [30000, 20000, 10000];
 
 PowerManager.prototype.nuclearPowerFound = function(map, x, y, simData) {
