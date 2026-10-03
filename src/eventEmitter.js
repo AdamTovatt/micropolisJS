@@ -13,26 +13,35 @@
 
 import { Config } from './config.js';
 
+// Every emitter's listeners, keyed by the emitter itself, so each instance of a decorated constructor keeps its own
+var registries = new WeakMap();
+
+
+var listenersFor = function(emitter, event) {
+  var events = registries.get(emitter);
+  if (events === undefined) {
+    events = {};
+    registries.set(emitter, events);
+  }
+
+  if (!(event in events))
+    events[event] = [];
+
+  return events[event];
+};
+
+
 // Decorate the given object, by adding {add|remove}EventListener methods, and an internal '_emitEvent' method
 var EventEmitter = function(obj) {
-  var events = {};
-
-
   var addListener = function(event, listener) {
-    if (!(event in events))
-      events[event] = [];
-
-    var listeners = events[event];
+    var listeners = listenersFor(this, event);
     if (listeners.indexOf(listener) === -1)
       listeners.push(listener);
   };
 
 
   var removeListener = function(event, listener) {
-    if (!(event in events))
-      events[event] = [];
-
-    var listeners = events[event];
+    var listeners = listenersFor(this, event);
     var index = listeners.indexOf(listener);
     if (index !== -1)
       listeners.splice(index, 1);
@@ -47,10 +56,7 @@ var EventEmitter = function(obj) {
         throw new Error('Sending undefined event!');
     }
 
-    if (!(event in events))
-      events[event] = [];
-
-    var listeners = events[event];
+    var listeners = listenersFor(this, event);
     for (var i = 0, l = listeners.length; i < l; i++)
       listeners[i](value);
   };

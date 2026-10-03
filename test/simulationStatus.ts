@@ -14,18 +14,19 @@
 import { CityStatus } from "../src/cityStatus";
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
-import { Simulation } from "../src/simulation.js";
 import { CONDBIT } from "../src/tileFlags";
 import { POWERPLANT } from "../src/tileValues";
+import { newSimulation } from "./helpers/simulations";
 
 const PHASES_PER_CYCLE = 16;
+const SEED = 1;
 
 // An empty map with one coal plant tile, which the map scan finds and counts.
 function cityWithAPlant() {
     const map = new GameMap(120, 100);
     map.setTile(60, 50, POWERPLANT, CONDBIT);
 
-    const simulation = new Simulation(map, Simulation.LEVEL_EASY, Simulation.SPEED_MED);
+    const simulation = newSimulation(map, SEED);
     const records: CityStatus[] = [];
     const messages: Array<{cycle: number, subject: string}> = [];
     let cycle = 0;
@@ -69,7 +70,8 @@ describe("the city status record the simulation publishes", () => {
         runPhases(PHASES_PER_CYCLE);
 
         expect(simulation._simCycle % 4).not.toBe(0);
-        expect([records[0].powerCapacity, records[0].powerLoad]).toEqual([700, 1]);
+        // The walk reaches the plant tile and its four smoke tiles, and counts the branch point it returns to twice
+        expect([records[0].powerCapacity, records[0].powerLoad]).toEqual([700, 6]);
     });
 
     it("carries the cap flags the advisor has set on the valves", () => {

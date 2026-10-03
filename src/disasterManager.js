@@ -13,16 +13,16 @@
 
 import { EventEmitter } from './eventEmitter.js';
 import * as Messages from './messages.ts';
-import { Random } from './random.ts';
 import { SPRITE_AIRPLANE } from './spriteConstants.ts';
 import { TileUtils } from './tileUtils.js';
 import * as TileValues from "./tileValues.ts";
 import { ZoneUtils } from './zoneUtils.js';
 
-var DisasterManager = EventEmitter(function(map, spriteManager, gameLevel) {
+var DisasterManager = EventEmitter(function(map, spriteManager, gameLevel, random) {
   this._map = map;
   this._spriteManager = spriteManager;
   this._gameLevel = gameLevel;
+  this._random = random;
 
   this._floodCount = 0;
   this.disastersEnabled = false;
@@ -40,8 +40,8 @@ DisasterManager.prototype.doDisasters = function(census) {
   if (!this.disastersEnabled)
       return;
 
-  if (!Random.getRandom(DisChance[this._gameLevel])) {
-    switch (Random.getRandom(8)) {
+  if (!this._random.getRandom(DisChance[this._gameLevel])) {
+    switch (this._random.getRandom(8)) {
       case 0:
       case 1:
         this.setFire();
@@ -104,23 +104,23 @@ var vulnerable = function(tile) {
 
 // User initiated earthquake
 DisasterManager.prototype.makeEarthquake = function() {
-  var strength = Random.getRandom(700) + 300;
+  var strength = this._random.getRandom(700) + 300;
   this.doEarthquake(strength);
 
   this._emitEvent(Messages.EARTHQUAKE, {x: this._map.cityCenterX, y: this._map.cityCenterY});
 
   for (var i = 0; i < strength; i++)  {
-    var x = Random.getRandom(this._map.width - 1);
-    var y = Random.getRandom(this._map.height - 1);
+    var x = this._random.getRandom(this._map.width - 1);
+    var y = this._random.getRandom(this._map.height - 1);
 
     if (!this._map.testBounds(x, y))
       continue;
 
     if (vulnerable(this._map.getTile(x, y))) {
       if ((i & 0x3) !== 0)
-        this._map.setTo(x, y, TileUtils.randomRubble());
+        this._map.setTo(x, y, TileUtils.randomRubble(this._random));
       else
-        this._map.setTo(x, y, TileUtils.randomFire());
+        this._map.setTo(x, y, TileUtils.randomFire(this._random));
     }
   }
 };
@@ -131,8 +131,8 @@ DisasterManager.prototype.setFire = function(times, zonesOnly) {
   zonesOnly = zonesOnly || false;
 
   for (var i = 0; i < times; i++) {
-    var x = Random.getRandom(this._map.width - 1);
-    var y = Random.getRandom(this._map.height - 1);
+    var x = this._random.getRandom(this._map.width - 1);
+    var y = this._random.getRandom(this._map.height - 1);
 
     if (!this._map.testBounds(x, y))
       continue;
@@ -143,7 +143,7 @@ DisasterManager.prototype.setFire = function(times, zonesOnly) {
       tile = tile.getValue();
       var lowerLimit = zonesOnly ? TileValues.LHTHR : TileValues.TREEBASE;
       if (tile > lowerLimit && tile < TileValues.LASTZONE) {
-        this._map.setTo(x, y, TileUtils.randomFire());
+        this._map.setTo(x, y, TileUtils.randomFire(this._random));
         this._emitEvent(Messages.FIRE_REPORTED, {showable: true, x: x, y: y});
         return;
       }
@@ -160,8 +160,8 @@ DisasterManager.prototype.makeCrash = function() {
     return;
   }
 
-  var x = Random.getRandom(this._map.width - 1);
-  var y = Random.getRandom(this._map.height - 1);
+  var x = this._random.getRandom(this._map.width - 1);
+  var y = this._random.getRandom(this._map.height - 1);
   this._spriteManager.generatePlane(x, y);
   s = this._spriteManager.getSprite(SPRITE_AIRPLANE);
   s.explodeSprite();
@@ -179,8 +179,8 @@ var Dy = [-1, 0, 1, 0];
 
 DisasterManager.prototype.makeFlood = function() {
   for (var i = 0; i < 300; i++) {
-    var x = Random.getRandom(this._map.width - 1);
-    var y = Random.getRandom(this._map.height - 1);
+    var x = this._random.getRandom(this._map.width - 1);
+    var y = this._random.getRandom(this._map.height - 1);
     if (!this._map.testBounds(x, y))
       continue;
 
@@ -213,7 +213,7 @@ DisasterManager.prototype.doFlood = function(x, y, blockMaps) {
   if (this._floodCount > 0) {
     // Flood is not over yet
     for (var i = 0; i < 4; i++) {
-      if (Random.getChance(7)) {
+      if (this._random.getChance(7)) {
         var xx = x + Dx[i];
         var yy = y + Dy[i];
 
@@ -226,13 +226,13 @@ DisasterManager.prototype.doFlood = function(x, y, blockMaps) {
             if (tile.isZone())
               ZoneUtils.fireZone(this._map, xx, yy, blockMaps);
 
-            this._map.setTile(xx, yy, TileValues.FLOOD + Random.getRandom(2), 0);
+            this._map.setTile(xx, yy, TileValues.FLOOD + this._random.getRandom(2), 0);
           }
         }
       }
     }
   } else {
-    if (Random.getChance(15))
+    if (this._random.getChance(15))
       this._map.setTile(x, y, TileValues.DIRT, 0);
   }
 };
@@ -249,14 +249,14 @@ DisasterManager.prototype.doMeltdown = function(x, y) {
   // Whole power plant is on fire
   for (dX = x - 1; dX < x + 3; dX++) {
     for (dY = y - 1; dY < y + 3; dY++) {
-      this._map.setTo(dX, dY, TileUtils.randomFire());
+      this._map.setTo(dX, dY, TileUtils.randomFire(this._random));
     }
   }
 
   // Add lots of radiation tiles around the plant
   for (var i = 0; i < 200; i++)  {
-    dX = x - 20 + Random.getRandom(40);
-    dY = y - 15 + Random.getRandom(30);
+    dX = x - 20 + this._random.getRandom(40);
+    dY = y - 15 + this._random.getRandom(30);
 
     if (!this._map.testBounds(dX, dY))
       continue;

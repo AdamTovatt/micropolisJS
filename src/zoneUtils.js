@@ -150,12 +150,11 @@ var fireZone = function(map, x, y, blockMaps) {
   value = MiscUtils.clamp(value - 20, -200, 200);
   blockMaps.rateOfGrowthMap.worldSet(x, y, value);
 
+  // As in the original, every zone from the seaport up but the airport is swept as far as a 5x5 zone would be
   if (tileValue === TileValues.AIRPORT)
     zoneSize = 5;
   else if (tileValue >= TileValues.PORTBASE)
-    zoneSize = 3;
-  else if (tileValue < TileValues.PORTBASE)
-      zoneSize = 2;
+    zoneSize = 4;
 
   // Make remaining tiles of the zone bulldozable
   for (var xDelta = -1; xDelta < zoneSize; xDelta++) {
@@ -166,7 +165,7 @@ var fireZone = function(map, x, y, blockMaps) {
       if (!map.testBounds(xTem, yTem))
         continue;
 
-      if (map.getTileValue(xTem, yTem >= TileValues.ROADBASE))
+      if (map.getTileValue(xTem, yTem) >= TileValues.ROADBASE)
         map.addTileFlags(xTem, yTem, BULLBIT);
     }
   }

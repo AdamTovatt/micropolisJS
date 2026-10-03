@@ -29,7 +29,6 @@ import { MonsterTV } from './monsterTV.js';
 import { NagWindow } from './nagWindow.js';
 import { Notification } from './notification.js';
 import { QueryWindow } from './queryWindow.js';
-import { Random } from './random.ts';
 import { RCI } from './rci.js';
 import { SaveWindow } from './saveWindow.js';
 import { ScreenshotLinkWindow } from './screenshotLinkWindow.js';
@@ -37,14 +36,18 @@ import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.js';
 import { Simulation } from './simulation.js';
 import { StatusPanel } from './statusPanel.ts';
+import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
 import { Text } from './text.js';
 import { TouchWarnWindow } from './touchWarnWindow.js';
+import { UiRandom } from './uiRandom.ts';
 
 var disasterTimeout = 20 * 1000;
 
 
-function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
+// gameMap is either a generated map, with seed the game seed it was generated from, or a saved game, with a null
+// seed: the save holds its own
+function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   difficulty = difficulty || 0;
   var savedGame;
 
@@ -59,7 +62,7 @@ function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
   this.defaultSpeed = Simulation.SPEED_MED;
-  this.simulation = new Simulation(this.gameMap, difficulty, this.defaultSpeed, savedGame);
+  this.simulation = new Simulation(this.gameMap, difficulty, this.defaultSpeed, seed, savedGame);
 
   this.name = name || 'MyTown';
   this.everClicked = false;
@@ -154,7 +157,8 @@ function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   // ... the settings window
   this.handleSettingsRequest = makeWindowOpenHandler('settings', function() {
     return [{autoBudget: this.simulation.budget.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(),
-             speed: this.defaultSpeed, disasters: this.simulation.disasterManager.disastersEnabled}];
+             speed: this.defaultSpeed, disasters: this.simulation.disasterManager.disastersEnabled,
+             seed: this.simulation.seed}];
   }.bind(this));
   this.settingsWindow = new SettingsWindow(opacityLayerID, 'settingsWindow');
   this.settingsWindow.addEventListener(Messages.SETTINGS_WINDOW_CLOSED, this.handleSettingsWindowClosure.bind(this));
@@ -231,6 +235,9 @@ function Game(gameMap, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   this.revealControls();
 
   // Run the sim
+  this.stepDriver = new StepDriver();
+  this.isStepping = isStepping.bind(this);
+  this.stepSimulation = this.simulation.step.bind(this.simulation);
   this.tick = tick.bind(this);
   this.tick();
 
@@ -289,7 +296,7 @@ var genericDialogClosure = function() {
 
 
 Game.prototype.onDateChange = function(date) {
-  if (date.month === 10 && Random.getChance(10))
+  if (date.month === 10 && UiRandom.stream.getChance(10))
     this.gameCanvas.changeTileSet(this.snowTileSet);
   else if (date.month === 1)
     this.gameCanvas.changeTileSet(this.tileSet);
@@ -463,7 +470,7 @@ Game.prototype.handleTool = function(data) {
   var budget = this.simulation.budget;
 
   // do it!
-  tool.doTool(tileCoords.x, tileCoords.y, this.simulation.blockMaps);
+  tool.doTool(tileCoords.x, tileCoords.y, this.simulation.blockMaps, this.simulation.random);
 
   tool.modifyIfEnoughFunding(budget);
   switch (tool.result) {
@@ -658,21 +665,22 @@ Game.prototype.calculateSpritesForPaint = function(canvas) {
 };
 
 
+// The city steps unless it is paused, a dialog is open, the screen is too small to play, or the tab is hidden: a
+// hidden tab is not watched, so the city waits rather than running on unseen
+var isStepping = function() {
+  return !this.simulation.isPaused() && !this.dialogOpen && !$('#tooSmall').is(':visible') && !document.hidden;
+};
+
+
 var tick = function() {
   this.handleInput();
 
-  if (this.dialogOpen) {
-    window.setTimeout(this.tick, 0);
-    return;
-  }
-
-  if (!this.simulation.isPaused() && !$('#tooSmall').is(':visible')) {
-    // Run the sim
-    this.simulation.simTick();
-  }
+  // Run the sim: as many steps as the time since the last tick is due
+  this.stepDriver.run(performance.now(), this.isStepping, this.stepSimulation);
 
   // Run this even when paused: you can still build when paused
-  this.mouse = this.calculateMouseForPaint();
+  if (!this.dialogOpen)
+    this.mouse = this.calculateMouseForPaint();
 
   window.setTimeout(this.tick, 0);
 };
@@ -683,9 +691,6 @@ var commonAnimate = function() {
     nextFrame(this.animate);
     return;
   }
-
-  if (!this.isPaused)
-    this.simulation.spriteManager.moveObjects(this.simulation._constructSimData());
 
   var sprites = this.calculateSpritesForPaint(this.gameCanvas);
   this.gameCanvas.paint(this.mouse, sprites, this.isPaused);

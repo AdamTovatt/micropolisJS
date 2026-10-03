@@ -16,9 +16,11 @@ import $ from "jquery";
 import { Config } from './config.js';
 import { Game } from './game.js';
 import { MapGenerator } from './mapGenerator.js';
+import { Random } from './random.ts';
 import { Simulation } from './simulation.js';
 import { SplashCanvas } from './splashCanvas.js';
 import { Storage } from './storage.js';
+import { UiRandom } from './uiRandom.ts';
 
 /*
  *
@@ -52,7 +54,7 @@ function SplashScreen(tileSet, snowTileSet, spriteSheet) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
   this.spriteSheet = spriteSheet;
-  this.map = MapGenerator();
+  generateMap.call(this);
 
   // Set up listeners on buttons. When play is clicked, we will move on to get the player's desired
   // difficulty level and city name before launching the game properly
@@ -74,11 +76,19 @@ function SplashScreen(tileSet, snowTileSet, spriteSheet) {
 }
 
 
+// Pick a new game seed and generate its map
+var generateMap = function() {
+  this.seed = UiRandom.newSeed();
+  this.map = MapGenerator(Random.mapStream(this.seed));
+  $('#splashSeed').text(this.seed);
+};
+
+
 // Generate a new map at the user's request, and paint it
 var regenerateMap = function(e) {
   e.preventDefault();
 
-  this.map = MapGenerator();
+  generateMap.call(this);
   this.splashCanvas.paint(this.map);
 };
 
@@ -101,7 +111,7 @@ var handleLoad = function(e) {
   $('#splash').toggle();
 
   // Launch
-  new Game(savedGame, this.tileSet, this.snowTileSet, this.spriteSheet, Simulation.LEVEL_EASY, name);
+  new Game(savedGame, null, this.tileSet, this.snowTileSet, this.spriteSheet, Simulation.LEVEL_EASY, name);
 };
 
 
@@ -145,7 +155,7 @@ var play = function(e) {
   var name = $('#nameForm').val();
 
   // Launch a new game
-  new Game(this.map, this.tileSet, this.snowTileSet, this.spriteSheet, difficulty, name);
+  new Game(this.map, this.seed, this.tileSet, this.snowTileSet, this.spriteSheet, difficulty, name);
 };
 
 

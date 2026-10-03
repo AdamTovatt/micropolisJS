@@ -11,7 +11,7 @@
  *
  */
 
-import { Random } from "./random";
+import type { Random } from "./random";
 
 export type DirectionFn = (direction: Direction) => void;
 
@@ -83,16 +83,16 @@ export function forEachCardinalDirection(callback: DirectionFn) {
   cardinalDirections.forEach((dir) => callback(dir));
 }
 
-export function getRandomCardinalDirection(): Direction {
-  return getRandomDirectionFrom(cardinalDirections);
+export function getRandomCardinalDirection(random: Random): Direction {
+  return getRandomDirectionFrom(cardinalDirections, random);
 }
 
-export function getRandomDirection(): Direction {
-  return getRandomDirectionFrom(allDirections);
+export function getRandomDirection(random: Random): Direction {
+  return getRandomDirectionFrom(allDirections, random);
 }
 
-function getRandomDirectionFrom(directionArray: Direction[]): Direction {
+function getRandomDirectionFrom(directionArray: Direction[], random: Random): Direction {
   const maxIndex = directionArray.length - 1;
-  const index = Random.getRandom(maxIndex);
+  const index = random.getRandom(maxIndex);
   return directionArray[index];
 }

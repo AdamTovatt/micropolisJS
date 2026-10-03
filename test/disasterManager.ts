@@ -13,11 +13,10 @@
 
 import { DisasterManager } from "../src/disasterManager.js";
 import { GameMap } from "../src/gameMap.js";
-import { Random } from "../src/random";
 import { BLBNBIT, BULLBIT } from "../src/tileFlags";
 import { DIRT, FIRSTRIVEDGE, FLOOD, RUBBLE, WOODS } from "../src/tileValues";
+import { streamAlwaysDrawing } from "./helpers/streams";
 
-jest.mock("../src/random");
 
 describe("the disaster manager", () => {
 
@@ -28,9 +27,9 @@ describe("the disaster manager", () => {
         const RIVER_EDGE_Y = 10;
         const NEIGHBOURS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
-        beforeEach(() => {
-            (Random.getRandom as jest.Mock).mockReturnValue(RIVER_EDGE_X);
-        });
+        function makeDisasterManager(map: InstanceType<typeof GameMap>) {
+            return new DisasterManager(map, null, 0, streamAlwaysDrawing(RIVER_EDGE_X));
+        }
 
         function makeMap(neighbourValue: number, neighbourFlags: number) {
             const map = new GameMap(120, 100);
@@ -44,7 +43,7 @@ describe("the disaster manager", () => {
         it("should flood dirt next to water", () => {
             const map = makeMap(DIRT, 0);
 
-            new DisasterManager(map, null, 0).makeFlood();
+            makeDisasterManager(map).makeFlood();
 
             expect(map.getTileValue(RIVER_EDGE_X, RIVER_EDGE_Y - 1)).toBe(FLOOD);
         });
@@ -52,7 +51,7 @@ describe("the disaster manager", () => {
         it("should flood bulldozable land that can burn", () => {
             const map = makeMap(WOODS, BLBNBIT);
 
-            new DisasterManager(map, null, 0).makeFlood();
+            makeDisasterManager(map).makeFlood();
 
             expect(map.getTileValue(RIVER_EDGE_X, RIVER_EDGE_Y - 1)).toBe(FLOOD);
         });
@@ -60,7 +59,7 @@ describe("the disaster manager", () => {
         it("should not flood bulldozable land that cannot burn", () => {
             const map = makeMap(RUBBLE, BULLBIT);
 
-            new DisasterManager(map, null, 0).makeFlood();
+            makeDisasterManager(map).makeFlood();
 
             for (const [dx, dy] of NEIGHBOURS) {
                 expect(map.getTileValue(RIVER_EDGE_X + dx, RIVER_EDGE_Y + dy)).toBe(RUBBLE);
@@ -70,7 +69,7 @@ describe("the disaster manager", () => {
         it("should not flood dirt that carries flags", () => {
             const map = makeMap(DIRT, BULLBIT);
 
-            new DisasterManager(map, null, 0).makeFlood();
+            makeDisasterManager(map).makeFlood();
 
             for (const [dx, dy] of NEIGHBOURS) {
                 expect(map.getTileValue(RIVER_EDGE_X + dx, RIVER_EDGE_Y + dy)).toBe(DIRT);

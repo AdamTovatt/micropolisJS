@@ -14,13 +14,12 @@
 import { BaseSprite } from './baseSprite.js';
 import { SPRITE_DYING, SPRITE_MOVED, SOUND_MONSTER } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { Random } from './random.ts';
 import * as SpriteConstants  from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
 import { DIRT, RIVER, WATER_HIGH } from "./tileValues.ts";
 
-function MonsterSprite(map, spriteManager, x, y) {
-  this.init(SpriteConstants.SPRITE_MONSTER, map, spriteManager, x, y);
+function MonsterSprite(map, spriteManager, random, x, y) {
+  this.init(SpriteConstants.SPRITE_MONSTER, map, spriteManager, random, x, y);
   this.width = 48;
   this.height = 48;
   this.xOffset = -24;
@@ -100,8 +99,8 @@ MonsterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
     dir = SpriteUtils.getDir(this.x, this.y, this.destX, this.destY);
     dir = Math.floor((dir - 1) / 2);
 
-    if (dir !== currentDir && Random.getChance(10)) {
-      if (Random.getRandom16() & 1)
+    if (dir !== currentDir && this.random.getChance(10)) {
+      if (this.random.getRandom16() & 1)
         frame = cardinals1[currentDir];
       else
         frame = cardinals2[currentDir];
@@ -110,7 +109,7 @@ MonsterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
 
       if (!this.soundCount) {
         this._emitEvent(SOUND_MONSTER);
-        this.soundCount = 50 + Random.getRandom(100);
+        this.soundCount = 50 + this.random.getRandom(100);
       }
     }
   } else {
@@ -119,8 +118,8 @@ MonsterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
     dir = this.frame;
     frame = (dir - 13) & 3;
 
-    if (!(Random.getRandom16() & 3)) {
-      if (Random.getRandom16() & 1)
+    if (!(this.random.getRandom16() & 3)) {
+      if (this.random.getRandom16() & 1)
         frame = diagonals1[frame];
       else
         frame = diagonals2[frame];

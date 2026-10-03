@@ -19,16 +19,16 @@ import { ExplosionSprite } from './explosionSprite.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import { MonsterSprite } from './monsterSprite.js';
-import { Random } from './random.ts';
 import * as SpriteConstants from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
 import { CHANNEL, RIVER } from "./tileValues.ts";
 import { TornadoSprite } from './tornadoSprite.js';
 import { TrainSprite } from './trainSprite.js';
 
-var SpriteManager = EventEmitter(function(map) {
+var SpriteManager = EventEmitter(function(map, random) {
   this.spriteList = [];
   this.map = map;
+  this.random = random;
   this.spriteCycle = 0;
 });
 
@@ -94,7 +94,7 @@ SpriteManager.prototype.moveObjects = function(simData) {
 
 
 SpriteManager.prototype.makeSprite = function(type, x, y) {
-  var newSprite = new constructors[type](this.map, this, x, y);
+  var newSprite = new constructors[type](this.map, this, this.random, x, y);
 
   // Listen for crashes
   for (var i = 0, l = Messages.CRASHES.length; i < l; i++)
@@ -116,8 +116,8 @@ SpriteManager.prototype.makeTornado = function() {
     return;
   }
 
-  var x = Random.getRandom(SpriteUtils.worldToPix(this.map.width) - 800) + 400;
-  var y = Random.getRandom(SpriteUtils.worldToPix(this.map.height) - 200) + 100;
+  var x = this.random.getRandom(SpriteUtils.worldToPix(this.map.width) - 800) + 400;
+  var y = this.random.getRandom(SpriteUtils.worldToPix(this.map.height) - 200) + 100;
 
   sprite = this.makeSprite(SpriteConstants.SPRITE_TORNADO, x, y);
   this._emitEvent(Messages.TORNADO_SIGHTED, {trackable: true, x: sprite.worldX, y: sprite.worldY, sprite: sprite});
@@ -148,7 +148,7 @@ SpriteManager.prototype.generatePlane = function(x, y) {
 SpriteManager.prototype.generateTrain = function(census, x, y) {
   if (census.totalPop > 10 &&
       this.getSprite(SpriteConstants.SPRITE_TRAIN) === null &&
-      Random.getRandom(25) === 0)
+      this.random.getRandom(25) === 0)
     this.makeSprite(SpriteConstants.SPRITE_TRAIN,
                     SpriteUtils.worldToPix(x) + 8,
                     SpriteUtils.worldToPix(y) + 8);
@@ -160,7 +160,7 @@ SpriteManager.prototype.generateShip = function() {
   // place a channel tile on the edges of the map
   var x,y;
 
-  if (Random.getChance(3)) {
+  if (this.random.getChance(3)) {
     for (x = 4; x < this.map.width - 2; x++) {
       if (this.map.getTileValue(x, 0) === CHANNEL)  {
         this.makeShipHere(x, 0);
@@ -169,7 +169,7 @@ SpriteManager.prototype.generateShip = function() {
     }
   }
 
-  if (Random.getChance(3)) {
+  if (this.random.getChance(3)) {
     for (y = 1; y < this.map.height - 2; y++) {
       if (this.map.getTileValue(0, y) === CHANNEL)  {
         this.makeShipHere(0, y);
@@ -178,7 +178,7 @@ SpriteManager.prototype.generateShip = function() {
     }
   }
 
-  if (Random.getChance(3)) {
+  if (this.random.getChance(3)) {
     for (x = 4; x < this.map.width - 2; x++) {
       if (this.map.getTileValue(x, this.map.height - 1) === CHANNEL)  {
         this.makeShipHere(x, this.map.height - 1);
@@ -187,7 +187,7 @@ SpriteManager.prototype.generateShip = function() {
     }
   }
 
-  if (Random.getChance(3)) {
+  if (this.random.getChance(3)) {
     for (y = 1; y < this.map.height - 2; y++) {
       if (this.map.getTileValue(this.map.width - 1, y) === CHANNEL)  {
         this.makeShipHere(this.map.width - 1, y);
@@ -252,8 +252,8 @@ SpriteManager.prototype.makeMonster = function() {
 
   var done = 0;
   for (var i = 0; i < 300; i++)  {
-    var x = Random.getRandom(this.map.width - 20) + 10;
-    var y = Random.getRandom(this.map.height - 10) + 5;
+    var x = this.random.getRandom(this.map.width - 20) + 10;
+    var y = this.random.getRandom(this.map.height - 10) + 5;
 
     var tile = this.map.getTile(x, y);
     if (tile.getValue() === RIVER) {

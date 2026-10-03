@@ -11,7 +11,6 @@
  *
  */
 
-import { Random } from './random.ts';
 import { Tile } from "./tile.ts";
 import { ANIMBIT, BIT_MASK, BULLBIT } from "./tileFlags.ts";
 import * as TileValues from "./tileValues.ts";
@@ -71,7 +70,7 @@ var closeHorizontal = [
 var doBridge = function(map, x, y, currentTile, simData) {
   if (currentTile === TileValues.BRWV) {
     // We have an open vertical bridge. Possibly close it.
-    if (Random.getChance(3) && simData.spriteManager.getBoatDistance(x, y) > 340)
+    if (simData.random.getChance(3) && simData.spriteManager.getBoatDistance(x, y) > 340)
       closeBridge(map, x, y, verticalDeltaX, verticalDeltaY, openVertical, closeVertical);
 
     return true;
@@ -79,13 +78,13 @@ var doBridge = function(map, x, y, currentTile, simData) {
 
   if (currentTile == TileValues.BRWH) {
     // We have an open horizontal bridge. Possibly close it.
-    if (Random.getChance(3) && simData.spriteManager.getBoatDistance(x, y) > 340)
+    if (simData.random.getChance(3) && simData.spriteManager.getBoatDistance(x, y) > 340)
       closeBridge(map, x, y, horizontalDeltaX, horizontalDeltaY, openHorizontal, closeHorizontal);
 
     return true;
   }
 
-  if (simData.spriteManager.getBoatDistance(x, y) < 300 || Random.getChance(7)) {
+  if (simData.spriteManager.getBoatDistance(x, y) < 300 || simData.random.getChance(7)) {
     if (currentTile & 1) {
       if (x < map.width - 1) {
         if (map.getTileValue(x + 1, y) === TileValues.CHANNEL) {
@@ -119,17 +118,17 @@ var roadFound = function(map, x, y, simData) {
   var tileValue = currentTile.getValue();
 
   if (simData.budget.shouldDegradeRoad()) {
-    if (Random.getChance(511)) {
+    if (simData.random.getChance(511)) {
       currentTile = map.getTile(x, y);
 
       // Don't degrade tiles with power lines
       if (!currentTile.isConductive()) {
-        if (simData.budget.roadEffect < (Random.getRandom16() & 31)) {
+        if (simData.budget.roadEffect < (simData.random.getRandom16() & 31)) {
           // Replace bridge tiles with water, otherwise rubble
           if ((tileValue & 15) < 2 || (tileValue & 15) === 15)
             map.setTile(x, y, TileValues.RIVER, 0);
           else
-            map.setTo(x, y, TileUtils.randomRubble());
+            map.setTo(x, y, TileUtils.randomRubble(simData.random));
 
           return;
         }

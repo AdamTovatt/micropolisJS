@@ -11,7 +11,6 @@
  *
  */
 
-import { Random } from './random.ts';
 import { ANIMBIT, ASCBIT, BNCNBIT } from "./tileFlags.ts";
 import { TileUtils } from './tileUtils.js';
 import { INDCLR, IZB } from "./tileValues.ts";
@@ -110,20 +109,20 @@ var industrialFound = function(map, x, y, simData) {
   // increases as the population increases). Growth naturally stalls if workers cannot reach the factories.
   // Note in particular, we will never take this branch if the zone is empty.
   var trafficOK = Traffic.ROUTE_FOUND;
-  if (population > Random.getRandom(5)) {
+  if (population > simData.random.getRandom(5)) {
     // Try to find a route from here to a residential zone
     trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, TileUtils.isResidential);
 
     // Trigger outward migration if not connected to road network (unless the zone is already empty)
     if (trafficOK === Traffic.NO_ROAD_FOUND) {
-      var newValue = Random.getRandom16() & 1;
+      var newValue = simData.random.getRandom16() & 1;
       degradeZone(map, x, y, simData.blockMaps, population, newValue, zonePower);
       return;
     }
   }
 
   // Occasionally assess and perhaps modify the tile
-  if (Random.getChance(7)) {
+  if (simData.random.getChance(7)) {
     var zoneScore = simData.valves.indValve + (trafficOK === Traffic.NO_ROAD_FOUND ? -1000 : 0);
 
     // Unpowered zones should of course be penalized
@@ -141,8 +140,8 @@ var industrialFound = function(map, x, y, simData) {
     // Thus, there's approximately a 2.9% chance that the value will be in the range, and we *might* grow.
     // This has the nice effect of not preventing an individual unit from growing even if overall demand has collapsed
     // (the business itself might still be growing.
-    if (zoneScore > -350 && (zoneScore - 26380) > Random.getRandom16Signed()) {
-      growZone(map, x, y, simData.blockMaps, population, Random.getRandom16() & 1, zonePower);
+    if (zoneScore > -350 && (zoneScore - 26380) > simData.random.getRandom16Signed()) {
+      growZone(map, x, y, simData.blockMaps, population, simData.random.getRandom16() & 1, zonePower);
       return;
     }
 
@@ -150,8 +149,8 @@ var industrialFound = function(map, x, y, simData) {
     // There is a 7.4% chance of getRandom16() always yielding a number > 27880 which would take this branch.
     // There is a 85.6% chance of the number being below 23380 thus never triggering this branch, which leaves a
     // 9% chance of this branch being conditional on zoneScore.
-    if (zoneScore < 350 && (zoneScore + 26380) < Random.getRandom16Signed())
-      degradeZone(map, x, y, simData.blockMaps, population, Random.getRandom16() & 1, zonePower);
+    if (zoneScore < 350 && (zoneScore + 26380) < simData.random.getRandom16Signed())
+      degradeZone(map, x, y, simData.blockMaps, population, simData.random.getRandom16() & 1, zonePower);
   }
 };
 

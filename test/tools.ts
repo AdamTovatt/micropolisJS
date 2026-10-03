@@ -1,0 +1,65 @@
+/* micropolisJS. Adapted by Graeme McCutcheon from Micropolis.
+ *
+ * This code is released under the GNU GPL v3, with some additional terms.
+ * Please see the files LICENSE and COPYING for details. Alternatively,
+ * consult http://micropolisjs.graememcc.co.uk/LICENSE and
+ * http://micropolisjs.graememcc.co.uk/COPYING
+ *
+ * The name/term "MICROPOLIS" is a registered trademark of Micropolis (https://www.micropolis.com) GmbH
+ * (Micropolis Corporation, the "licensor") and is licensed here to the authors/publishers of the "Micropolis"
+ * city simulation game and its source code (the project or "licensee(s)") as a courtesy of the owner.
+ *
+ */
+
+import { BulldozerTool } from "../src/bulldozerTool.js";
+import { GameMap } from "../src/gameMap.js";
+import { ParkTool } from "../src/parkTool.js";
+import { BULLBIT, BNCNBIT, ZONEBIT } from "../src/tileFlags";
+import { FOUNTAIN, RZB, TINYEXP, WOODS2 } from "../src/tileValues";
+import { streamDrawing } from "./helpers/streams";
+
+// A tool's random choices change the city, so they come from the simulation's stream, passed to doTool
+
+const budget = {totalFunds: 20000, spend: () => {}};
+
+describe("the park tool", () => {
+
+    it.each([
+        ["woods", 2, WOODS2 + 2],
+        ["a fountain", 4, FOUNTAIN],
+    ])("should plant %s as the stream's one draw picks", (_, draw, tileValue) => {
+        const map = new GameMap(120, 100);
+        const tool = new ParkTool(map);
+
+        tool.doTool(10, 10, null, streamDrawing([draw]));
+        tool.modifyIfEnoughFunding(budget);
+
+        expect(map.getTileValue(10, 10)).toBe(tileValue);
+    });
+});
+
+describe("the bulldozer", () => {
+
+    it("should blow up each tile of a zone with the explosion frame the stream draws for it", () => {
+        const map = new GameMap(120, 100);
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const isCentre = dx === 0 && dy === 0;
+                map.setTile(50 + dx, 50 + dy, RZB + dx + 3 * dy, BNCNBIT | BULLBIT | (isCentre ? ZONEBIT : 0));
+            }
+        }
+        const tool = new BulldozerTool(map);
+
+        // Column by column, top to bottom
+        tool.doTool(50, 50, null, streamDrawing([0, 1, 2, 2, 1, 0, 1, 1, 1]));
+        tool.modifyIfEnoughFunding(budget);
+
+        const frames = [];
+        for (let x = 49; x <= 51; x++) {
+            for (let y = 49; y <= 51; y++) {
+                frames.push(map.getTileValue(x, y) - TINYEXP);
+            }
+        }
+        expect(frames).toEqual([0, 1, 2, 2, 1, 0, 1, 1, 1]);
+    });
+});

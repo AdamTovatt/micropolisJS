@@ -11,7 +11,6 @@
  *
  */
 
-import { Random } from './random.ts';
 import { TileUtils } from './tileUtils.js';
 import { DIRT, IZB, RADTILE } from "./tileValues.ts";
 import { ZoneUtils } from './zoneUtils.js';
@@ -22,12 +21,12 @@ var yDelta = [ 0, -1,  0,  1 ];
 var fireFound = function(map, x, y, simData) {
   simData.census.firePop += 1;
 
-  if ((Random.getRandom16() & 3) !== 0)
+  if ((simData.random.getRandom16() & 3) !== 0)
     return;
 
   // Try to set neighbouring tiles on fire as well
   for (var i = 0; i < 4; i++) {
-    if (Random.getChance(7)) {
+    if (simData.random.getChance(7)) {
       var xTem = x + xDelta[i];
       var yTem = y + yDelta[i];
 
@@ -45,7 +44,7 @@ var fireFound = function(map, x, y, simData) {
             simData.spriteManager.makeExplosion(xTem, yTem);
         }
 
-        map.setTo(xTem, yTem, TileUtils.randomFire());
+        map.setTo(xTem, yTem, TileUtils.randomFire(simData.random));
       }
     }
   }
@@ -62,13 +61,13 @@ var fireFound = function(map, x, y, simData) {
     rate = 3;
 
   // Decide whether to put out the fire.
-  if (Random.getRandom(rate) === 0)
-    map.setTo(x, y, TileUtils.randomRubble());
+  if (simData.random.getRandom(rate) === 0)
+    map.setTo(x, y, TileUtils.randomRubble(simData.random));
 };
 
 
-var radiationFound = function(map, x, y) {
-  if (Random.getChance(4095))
+var radiationFound = function(map, x, y, simData) {
+  if (simData.random.getChance(4095))
     map.setTile(x, y, DIRT, 0);
 };
 
@@ -78,11 +77,20 @@ var floodFound = function(map, x, y, simData) {
 };
 
 
+// The original's scan clears explosions from their middle frames on, as its map tiles step through the animation.
+// Here the map keeps the frame an explosion was placed with and only the renderer animates it, so the whole range is
+// cleared. An explosion lasts until its column's next scan, which at fast speed can come before its animation ends
+var explosionFound = function(map, x, y, simData) {
+  map.setTo(x, y, TileUtils.randomRubble(simData.random));
+};
+
+
 var MiscTiles = {
   registerHandlers: function(mapScanner) {
-    mapScanner.addAction(TileUtils.isFire, fireFound, true);
-    mapScanner.addAction(RADTILE, radiationFound, true);
-    mapScanner.addAction(TileUtils.isFlood, floodFound, true);
+    mapScanner.addAction(TileUtils.isFire, fireFound);
+    mapScanner.addAction(RADTILE, radiationFound);
+    mapScanner.addAction(TileUtils.isFlood, floodFound);
+    mapScanner.addAction(TileUtils.isManualExplosion, explosionFound);
   }
 };
 

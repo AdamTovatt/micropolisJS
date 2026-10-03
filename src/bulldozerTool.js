@@ -14,7 +14,6 @@
 import { ConnectingTool } from './connectingTool.js';
 import { EventEmitter } from './eventEmitter.js';
 import { SOUND_EXPLOSIONLOW, SOUND_EXPLOSIONHIGH } from './messages.ts';
-import { Random } from './random.ts';
 import { ANIMBIT, BULLBIT } from "./tileFlags.ts";
 import { TileUtils } from './tileUtils.js';
 import * as TileValues from "./tileValues.ts";
@@ -25,13 +24,13 @@ var BulldozerTool = EventEmitter(ConnectingTool(function(map) {
 }));
 
 
-BulldozerTool.prototype.putRubble = function(x, y, size) {
+BulldozerTool.prototype.putRubble = function(x, y, size, random) {
   for (var xx = x; xx < x + size; xx++) {
     for (var yy = y; yy < y + size; yy++)  {
       if (this._map.testBounds(xx, yy)) {
         var tile = this._worldEffects.getTileValue(xx, yy);
         if (tile != TileValues.RADTILE && tile != TileValues.DIRT)
-          this._worldEffects.setTile(xx, yy, TileValues.TINYEXP + Random.getRandom(2), ANIMBIT | BULLBIT);
+          this._worldEffects.setTile(xx, yy, TileValues.TINYEXP + random.getRandom(2), ANIMBIT | BULLBIT);
       }
     }
   }
@@ -78,7 +77,7 @@ BulldozerTool.prototype.layDoze = function(x, y) {
 };
 
 
-BulldozerTool.prototype.doTool = function(x, y) {
+BulldozerTool.prototype.doTool = function(x, y, blockMaps, random) {
   if (!this._map.testBounds(x, y))
     this.result = this.TOOLRESULT_FAILED;
 
@@ -109,18 +108,18 @@ BulldozerTool.prototype.doTool = function(x, y) {
     switch (zoneSize) {
       case 3:
         this._emitEvent(SOUND_EXPLOSIONHIGH);
-        this.putRubble(centerX - 1, centerY - 1, 3);
+        this.putRubble(centerX - 1, centerY - 1, 3, random);
         break;
 
       case 4:
         this._emitEvent(SOUND_EXPLOSIONLOW);
-        this.putRubble(centerX - 1, centerY - 1, 4);
+        this.putRubble(centerX - 1, centerY - 1, 4, random);
         break;
 
       case 6:
         this._emitEvent(SOUND_EXPLOSIONHIGH);
         this._emitEvent(SOUND_EXPLOSIONLOW);
-        this.putRubble(centerX - 1, centerY - 1, 6);
+        this.putRubble(centerX - 1, centerY - 1, 6, random);
         break;
     }
 

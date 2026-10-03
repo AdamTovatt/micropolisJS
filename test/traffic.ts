@@ -13,12 +13,11 @@
 
 import { BlockMap } from "../src/blockMap";
 import { GameMap } from "../src/gameMap.js";
-import { Random } from "../src/random";
+import { streamDrawing } from "./helpers/streams";
 import { TileUtils } from "../src/tileUtils.js";
 import { COMBASE, DIRT, ROADS } from "../src/tileValues";
 import { Traffic } from "../src/traffic.js";
 
-jest.mock("../src/random");
 
 // traffic.js defines its results with Object.defineProperties, so the type inferred from it lacks them
 const Results = Traffic as unknown as {ROUTE_FOUND: number, NO_ROUTE_FOUND: number};
@@ -49,7 +48,7 @@ describe("traffic", () => {
     }
 
     it("should find a route along a road to a destination", () => {
-        const traffic = new Traffic(makeMap(COMBASE), null);
+        const traffic = new Traffic(makeMap(COMBASE), null, streamDrawing([]));
 
         const result = traffic.makeTraffic(ZONE_X, ZONE_Y, makeBlockMaps(), TileUtils.isCommercial);
 
@@ -57,7 +56,7 @@ describe("traffic", () => {
     });
 
     it("should add the route to the traffic density map", () => {
-        const traffic = new Traffic(makeMap(COMBASE), null);
+        const traffic = new Traffic(makeMap(COMBASE), null, streamDrawing([]));
         const blockMaps = makeBlockMaps();
 
         traffic.makeTraffic(ZONE_X, ZONE_Y, blockMaps, TileUtils.isCommercial);
@@ -68,7 +67,7 @@ describe("traffic", () => {
     });
 
     it("should report no route when the road leads nowhere", () => {
-        const traffic = new Traffic(makeMap(DIRT), null);
+        const traffic = new Traffic(makeMap(DIRT), null, streamDrawing([]));
 
         const result = traffic.makeTraffic(ZONE_X, ZONE_Y, makeBlockMaps(), TileUtils.isCommercial);
 
@@ -90,8 +89,7 @@ describe("traffic", () => {
 
         // At the junction the open roads are east, then south, in clockwise order from north
         it("should reach the destination when it picks the road leading there", () => {
-            (Random.getRandom as jest.Mock).mockReturnValue(0);
-            const traffic = new Traffic(makeJunctionMap(), null);
+            const traffic = new Traffic(makeJunctionMap(), null, streamDrawing([0]));
 
             const result = traffic.makeTraffic(ZONE_X, ZONE_Y, makeBlockMaps(), TileUtils.isCommercial);
 
@@ -99,8 +97,7 @@ describe("traffic", () => {
         });
 
         it("should give up when it picks the dead end", () => {
-            (Random.getRandom as jest.Mock).mockReturnValue(1);
-            const traffic = new Traffic(makeJunctionMap(), null);
+            const traffic = new Traffic(makeJunctionMap(), null, streamDrawing([1]));
 
             const result = traffic.makeTraffic(ZONE_X, ZONE_Y, makeBlockMaps(), TileUtils.isCommercial);
 

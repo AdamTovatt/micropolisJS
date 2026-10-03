@@ -18,7 +18,7 @@ This repository is Adam's private continuation. The aim is to grow it from a fai
 
 Work that pulls against this needs Adam's go before it starts.
 
-1. **A deterministic, headless simulation.** The simulation runs without a DOM (in Node, and in C# after the port), advances by explicit ticks rather than wall-clock time, and produces the same city from the same seed and the same sequence of player commands. Everything below builds on this.
+1. **A deterministic, headless simulation.** The simulation runs without a DOM (in Node, and in C# after the port), advances by explicit steps rather than wall-clock time, and produces the same city from the same seed and the same sequence of player commands. Everything below builds on this.
 2. **Server-authoritative multiplayer on a C# server.** The server owns the simulation. Browsers send commands ("road from A to B", "set tax to 9%") and render the state the server sends back. A player edit is a command the simulation applies, never a direct write to the map from UI code. Every player has the same powers: any player can issue any command, and the simulation never branches on who sent one.
 3. **The TypeScript simulation is the reference until the C# port replaces it.** Everything that changes or computes city state moves to C#: the simulation, sprite behaviour, map generation and the random stream, applying and validating commands, save and load. The port is correct when it reproduces the TypeScript simulation's state hash from the same seed, starting state and command log. Once it does, the TypeScript simulation is deleted and the C# code is the only home of the game rules. Command logs are both the end-to-end suite and the conformance suite: replayed headless and in the browser while the TypeScript simulation exists, and on the server after. Anything in the simulation that another language can't reproduce bit for bit is a defect.
 4. **The browser is the client.** It draws tiles and sprites, animates tiles, captures input (tool choice, the hover box, turning drags into tile paths) and shows the windows. It changes city state only by sending commands. Map overlays and query-tool data come from the server on request.
@@ -59,12 +59,12 @@ Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an und
 ### Layers
 
 - **Simulation** — DOM-free. `simulation.js` orchestrates; the subsystems are `mapScanner.js`, `residential.js`, `commercial.js`, `industrial.js`, `road.js`, `transport.js`, `powerManager.js`, `traffic.js`, `stadia.js`, `miscTiles.js`, `emergencyServices.js`, `valves.js` (residential/commercial/industrial demand), `census.js`, `budget.js`, `evaluation.js`, `disasterManager.js`, `blockMapUtils.js`, `cityStatus.ts` (the advisor conditions and the city status record).
-- **Game and UI** — `game.js` owns the `Simulation`, the canvas, the tools and the windows (`*Window.js`). It runs two loops: `tick` (`setTimeout(0)`: input, then one simulation tick) and `animate` (`requestAnimationFrame`: sprite movement, then painting).
-- **Rendering** — `gameCanvas.js` draws 16×16 tiles from `images/tiles.png` through `tileSet.js` (with a snow variant), and sprites from `images/sprites.png`. `monsterTV.js` is the small disaster-follow view.
+- **Game and UI** — `game.js` owns the `Simulation`, the canvas, the tools and the windows (`*Window.js`). It runs two loops: `tick` (`setTimeout(0)`: input, then the simulation steps due) and `animate` (`requestAnimationFrame`: painting). `stepDriver.ts` turns real time into steps at a fixed 60 per second. It catches up after a slow frame, up to a second's worth of steps at a time, and drops the rest of a longer gap. It owes nothing while the city is not stepping: paused, behind a dialog, in a hidden tab, or under the screen-too-small overlay.
+- **Rendering** — `gameCanvas.js` draws 16×16 tiles from `images/tiles.png` through `tileSet.js` (with a snow variant), and sprites from `images/sprites.png`. `animationManager.js` animates tiles from their value and the client's clock, and never writes the map: an explosion holds its last frame until the simulation's scan turns the tile to rubble. `monsterTV.js` is the small disaster-follow view.
 
 ### The simulation cycle
 
-`Simulation.simTick()` → `_simFrame()` gates on the game speed → `simulate()` advances one phase of a 16-phase cycle:
+`Simulation.step()` is one loop, as `simLoop` in the original: `_simFrame()` gates on the game speed, then every sprite moves. The gate is the saved `_speedCycle` counter, which lets a phase through on every 5th step at slow speed, every 3rd at medium and every step at fast. A paused simulation's step does nothing. While the budget awaits the player's values (`budget.awaitingValues`), the gate lets no phase through and holds `_speedCycle`, but sprites keep moving. The step count, never wall time, advances the city. Each step that passes the gate runs `simulate()`, which advances one phase of a 16-phase cycle:
 
 | Phase | Work |
 |-------|------|
@@ -78,13 +78,14 @@ How often phases 11–15 run depends on the game speed (`speedPowerScan` and its
 
 ### Tile handlers
 
-Subsystems register handlers with `mapScanner.addAction(tileValueOrPredicate, handler)` from `registerHandlers`, all called in `Simulation.init`. During phases 1–8 the scanner calls the handler for every matching tile with `(map, x, y, simData)`; `simData` (from `_constructSimData`) carries the census, budget, block maps, sprite manager and the other managers.
+Subsystems register handlers with `mapScanner.addAction(tileValueOrPredicate, handler)` from `registerHandlers`, all called in `Simulation.init`. During phases 1–8 the scanner calls the handler for every matching tile with `(map, x, y, simData)`; `simData` (from `_constructSimData`) carries the census, budget, block maps, the random stream, the sprite manager and the other managers.
 
 ### State
 
 - `gameMap.js` holds the tile grid. `tile.ts` is a tile's value plus flags (`tileFlags.ts`: powered, conductive, burnable, bulldozable, zone centre…). `tileValues.ts` names every tile id (`RIVER`, `CHANNEL`, `PORT`…).
 - `simulation.blockMaps` holds coarse overlays at block sizes 2, 4 or 8 (`blockMap.ts`): land value, pollution, crime, traffic density, population density, police and fire coverage, rate of growth. Each map's comment in the `Simulation` constructor states its range.
-- Every stateful component has `save(saveData)` and `load(saveData)`. `storage.js` writes the combined object, versions it (`Storage.CURRENT_VERSION`) and migrates old saves (`transitionOldSave`). A change to saved state bumps the version and adds a migration step.
+- `simulation.random` is the simulation's random stream (`random.ts`), seeded from the game seed. The map generator draws from the same seed's map stream, so one seed reproduces map and city. The `random.ts` header specifies the stream, which the C# port reproduces bit for bit, and `test/random.ts` holds reference vectors computed by the reference C implementation.
+- A save holds the map, the evaluation, the valves, the budget, the census, the simulation's speed, level, city time and `_speedCycle`, the game seed and the stream's state, each written by its component's `save(saveData)` and read back by its `load(saveData)`. Everything else is rebuilt or starts afresh on load: construction's scans recompute the block maps and the power grid, the 16-phase cycle starts again at phase 0, as the original's `doSimInit` does, and a loaded city has no sprites in flight. `storage.js` writes the combined object, versions it (`Storage.CURRENT_VERSION`) and migrates old saves (`transitionOldSave`). A change to saved state bumps the version and adds a migration step.
 
 ### Events
 
@@ -94,7 +95,7 @@ A condition that holds over time (power load against capacity, a demand cap, an 
 
 ### Sprites
 
-`spriteManager.js` and the `*Sprite.js` files: train, ship, plane, helicopter, monster, tornado and explosion. Sprites move in the **render loop** (`commonAnimate` in `game.js` → `spriteManager.moveObjects`), not in the simulation tick, so their behaviour — including the map damage a crash, monster or tornado causes — runs at the display's frame rate.
+`spriteManager.js` and the `*Sprite.js` files: train, ship, plane, helicopter, monster, tornado and explosion. Sprites move once per simulation step (`Simulation.step` → `spriteManager.moveObjects`), at the same rate whatever the game speed, and draw from the simulation's stream, so their behaviour, including the map damage a crash, monster or tornado causes, is part of the deterministic simulation.
 
 ### Tools
 
@@ -102,8 +103,9 @@ A condition that holds over time (power load against capacity, a demand cap, an 
 
 ## Rules for simulation code
 
-- **Deterministic.** Randomness comes only from `random.ts`; time comes only from the simulation's own counters (`_cityTime`, `_simCycle`, `_phaseCycle`). A `Math.random`, `Date` or `performance.now` read inside simulation code is a defect to fix, not a pattern to copy. UI code never draws from the simulation's random stream.
+- **Deterministic.** Randomness comes only from `random.ts`; time comes only from counters the simulation advances as it steps. A `Math.random`, `Date` or `performance.now` read inside simulation code is a defect to fix, not a pattern to copy. Only what changes city state draws from the simulation's stream, tools and disasters included; the UI's own randomness, such as picking a new seed, comes from `uiRandom.ts`.
 - **No DOM.** No `window`, `document` or jQuery in simulation modules.
+- **Simulation modules** are every file the simulation (`simulation.js`), the map generator (`mapGenerator.js`) or a map-editing tool (every `*Tool.js` but the query tool) imports, directly or not. `test/simulationImports.ts` walks that graph with the TypeScript checker and fails on any global but a short list of pure built-ins, on any `Math` function outside the portable ones, and on `**`, a package import or a dynamic import.
 - **Portable arithmetic.** No transcendental `Math` functions (`sqrt`, `pow`, `sin`, `log`…) in simulation code: their results can differ between runtimes. Arithmetic, `Math.floor` and `Math.round` are fine, provided the C# port mirrors JavaScript's `Math.round`, where halves round toward +∞ rather than to even.
 - **Rule changes are deliberate.** The original's numbers are tuned against each other. A change to how the city behaves is named as such in its commit, never folded into a refactor.
 

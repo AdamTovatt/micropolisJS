@@ -1,7 +1,5 @@
 import * as Direction from "../src/direction";
-import { Random } from "../src/random";
-
-jest.mock("../src/random");
+import { streamDrawing } from "./helpers/streams";
 
 function allDirections() {
     return [
@@ -183,11 +181,10 @@ describe("the Direction module", () => {
         describe("when getting a random direction", () => {
 
             it("should return a different direction when the random number generator returns a different value", () => {
-                let i = 0;
                 const randomValues = [3, 7, 1, 5, 0, 4, 6, 2];
-                (Random.getRandom as jest.Mock).mockImplementation(() => randomValues[i++]);
+                const random = streamDrawing(randomValues);
 
-                const directions = randomValues.map(() => Direction.getRandomDirection());
+                const directions = randomValues.map(() => Direction.getRandomDirection(random));
 
                 expect(allUnique(directions)).toBe(true);
             });
@@ -196,11 +193,10 @@ describe("the Direction module", () => {
         describe("when getting a random cardinal direction", () => {
 
             it("should return a different direction when the random number generator returns a different value", () => {
-                let i = 0;
                 const randomValues = [3, 1, 2, 0];
-                (Random.getRandom as jest.Mock).mockImplementation(() => randomValues[i++]);
+                const random = streamDrawing(randomValues);
 
-                const directions = randomValues.map(() => Direction.getRandomCardinalDirection());
+                const directions = randomValues.map(() => Direction.getRandomCardinalDirection(random));
 
                 expect(allUnique(directions)).toBe(true);
             });

@@ -11,7 +11,6 @@
  *
  */
 
-import { Random } from './random.ts';
 import { TileUtils } from './tileUtils.js';
 import { COMCLR, CZB } from "./tileValues.ts";
 import { Traffic } from './traffic.js';
@@ -89,7 +88,7 @@ var commercialFound = function(map, x, y, simData) {
   // increases as the population increases). Growth naturally stalls if consumers cannot reach the shops.
   // Note in particular, we will never take this branch if the zone is empty.
   var trafficOK = Traffic.ROUTE_FOUND;
-  if (population > Random.getRandom(5)) {
+  if (population > simData.random.getRandom(5)) {
     // Try to find a route from here to an industrial zone
     trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, TileUtils.isIndustrial);
 
@@ -102,7 +101,7 @@ var commercialFound = function(map, x, y, simData) {
   }
 
   // Occasionally assess and perhaps modify the tile
-  if (Random.getChance(7)) {
+  if (simData.random.getChance(7)) {
     var locationScore = trafficOK === Traffic.NO_ROAD_FOUND ? -3000 :
                         simData.blockMaps.cityCentreDistScoreMap.worldGet(x, y);
     var zoneScore = simData.valves.comValve + locationScore;
@@ -123,7 +122,7 @@ var commercialFound = function(map, x, y, simData) {
     // Thus, there's approximately a 3% chance that the value will be in the range, and we *might* grow.
     // This has the nice effect of not preventing an individual unit from growing even if overall demand has collapsed
     // (the business itself might still be growing.
-    if (zonePower && zoneScore > -350 && (zoneScore - 26380) > Random.getRandom16Signed()) {
+    if (zonePower && zoneScore > -350 && (zoneScore - 26380) > simData.random.getRandom16Signed()) {
       lpValue = ZoneUtils.getLandPollutionValue(simData.blockMaps, x, y);
       growZone(map, x, y, simData.blockMaps, population, lpValue, zonePower);
       return;
@@ -133,7 +132,7 @@ var commercialFound = function(map, x, y, simData) {
     // There is a 7.3% chance of getRandom16() always yielding a number > 27994 which would take this branch.
     // There is a 82.5% chance of the number being below 21316 thus never triggering this branch, which leaves a
     // 10.1% chance of this branch being conditional on zoneScore.
-    if (zoneScore < 350 && (zoneScore + 26380) < Random.getRandom16Signed()) {
+    if (zoneScore < 350 && (zoneScore + 26380) < simData.random.getRandom16Signed()) {
       lpValue = ZoneUtils.getLandPollutionValue(simData.blockMaps, x, y);
       degradeZone(map, x, y, simData.blockMaps, population, lpValue, zonePower);
     }

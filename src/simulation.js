@@ -27,6 +27,7 @@ import * as Messages from './messages.ts';
 import { MiscTiles } from './miscTiles.js';
 import { MiscUtils } from './miscUtils.js';
 import { PowerManager } from './powerManager.js';
+import { Random } from './random.ts';
 import { RepairManager } from './repairManager.js';
 import { Residential } from './residential.js';
 import { Road } from './road.js';
@@ -36,11 +37,21 @@ import { Traffic } from './traffic.js';
 import { Transport } from './transport.js';
 import { Valves } from './valves.js';
 
-var Simulation = EventEmitter(function (gameMap, gameLevel, speed, savedGame) {
+// A new game passes the game seed its map was generated from, and a null savedGame. A saved game passes a null seed:
+// the save holds the seed and the stream's state.
+var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGame) {
+  if ((seed === null) === (savedGame === null))
+    throw new Error('A simulation starts from either a seed or a saved game');
+
   this._map = gameMap;
   this.setLevel(gameLevel);
   this.setSpeed(speed);
 
+  // Every random draw that changes the city comes from this stream
+  this.seed = savedGame ? savedGame.seed : seed;
+  this.random = Random.simulationStream(this.seed);
+
+  this._speedCycle = 0;
   this._phaseCycle = 0;
   this._simCycle = 0;
   this._cityTime = 0;
@@ -52,20 +63,20 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, savedGame) {
   this._cityYearLast = -1;
   this._cityMonthLast = -1;
 
-  // Last time we relayed a message from PowerManager to the front-end
+  // The city time we last sent a power message to the front end
   this._lastPowerMessage = null;
 
   // And now, the main cast of characters
-  this.evaluation = new Evaluation(this._gameLevel);
+  this.evaluation = new Evaluation(this._gameLevel, this.random);
   this._valves = new Valves();
   this.budget = new Budget();
   this._census = new Census();
   this._powerManager = new PowerManager(this._map);
-  this.spriteManager = new SpriteManager(this._map);
+  this.spriteManager = new SpriteManager(this._map, this.random);
   this._mapScanner = new MapScanner(this._map);
   this._repairManager = new RepairManager(this._map);
-  this._traffic = new Traffic(this._map, this.spriteManager);
-  this.disasterManager = new DisasterManager(this._map, this.spriteManager, this._gameLevel);
+  this._traffic = new Traffic(this._map, this.spriteManager, this.random);
+  this.disasterManager = new DisasterManager(this._map, this.spriteManager, this._gameLevel, this.random);
 
   this.blockMaps = {
     // Holds a "distance score" for the block from the city centre, range  -64 to 64
@@ -120,6 +131,10 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, savedGame) {
   }
 
   this.init();
+
+  // init's scans draw from the stream: a saved game continues from the state it was saved with
+  if (savedGame)
+    this.random.setState(savedGame.randomState);
 });
 
 
@@ -149,11 +164,14 @@ Simulation.prototype.isPaused = function() {
 };
 
 
-var saveProps = ['_cityTime', '_speed', '_gameLevel'];
+var saveProps = ['_cityTime', '_speed', '_speedCycle', '_gameLevel'];
 
 Simulation.prototype.save = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
     saveData[saveProps[i]] = this[saveProps[i]];
+
+  saveData.seed = this.seed;
+  saveData.randomState = this.random.getState();
 
   this._map.save(saveData);
   this.evaluation.save(saveData);
@@ -167,6 +185,9 @@ Simulation.prototype.load = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
     this[saveProps[i]] = saveData[saveProps[i]];
 
+  this.seed = saveData.seed;
+  this.random.setState(saveData.randomState);
+
   this._map.load(saveData);
   this.evaluation.load(saveData);
   this._valves.load(saveData);
@@ -175,47 +196,37 @@ Simulation.prototype.load = function(saveData) {
 };
 
 
-Simulation.prototype.simTick = function() {
+// One loop of the simulation, as simLoop in the original: a phase of the city cycle when the game speed lets one
+// through, then one move of every sprite, so sprites move at the same rate whatever the speed. The number of steps,
+// never wall time, is what advances the city: the same seed and the same steps give the same city. A paused
+// simulation's step does nothing, as the original's simFrame and moveObjects do nothing at speed 0.
+Simulation.prototype.step = function() {
+  if (this.isPaused())
+    return;
+
   this._simFrame();
+  this.spriteManager.moveObjects(this._constructSimData());
   this._updateTime();
   // TODO Graphs
 };
 
 
+// As simFrame in the original: speedCycle lets a phase through on every 5th step at slow speed, every 3rd at medium,
+// and every step at fast
 Simulation.prototype._simFrame = function() {
   if (this.budget.awaitingValues)
     return;
 
-  // Default to slow speed
-  var threshold = 100;
+  if (++this._speedCycle > 1023)
+    this._speedCycle = 0;
 
-  switch (this._speed) {
-    case Simulation.SPEED_PAUSED:
-      return;
-
-    case Simulation.SPEED_SLOW:
-      // We've already set the threshold correctly
-      break;
-
-    case Simulation.SPEED_MED:
-      threshold = 50;
-      break;
-
-    case Simulation.SPEED_FAST:
-      threshold = 10;
-      break;
-
-    default:
-      console.warn('Unexpected speed ('  + this._speed + '): defaulting to slow');
-  }
-
-  var d = new Date();
-  if (d - this._lastTickTime < threshold)
+  if (this._speed === Simulation.SPEED_SLOW && (this._speedCycle % 5) !== 0)
     return;
 
-  var simData = this._constructSimData();
-  this._simulate(simData);
-  this._lastTickTime = new Date();
+  if (this._speed === Simulation.SPEED_MED && (this._speedCycle % 3) !== 0)
+    return;
+
+  this._simulate(this._constructSimData());
 };
 
 
@@ -237,6 +248,7 @@ Simulation.prototype._constructSimData = function() {
     gameLevel: this._gameLevel,
     repairManager: this._repairManager,
     powerManager: this._powerManager,
+    random: this.random,
     simulator: this,
     spriteManager: this.spriteManager,
     trafficManager: this._traffic,
@@ -246,8 +258,6 @@ Simulation.prototype._constructSimData = function() {
 
 
 Simulation.prototype.init = function() {
-  this._lastTickTime = -1;
-
   // Add various listeners that we will in turn transmit upwards
   var evaluationEvents = ['CLASSIFICATION_UPDATED', 'POPULATION_UPDATED', 'SCORE_UPDATED'].map(function(m) {
     return Messages[m];
@@ -255,14 +265,8 @@ Simulation.prototype.init = function() {
   for (var i = 0, l = evaluationEvents.length; i < l; i++)
     this.evaluation.addEventListener(evaluationEvents[i], MiscUtils.reflectEvent.bind(this, evaluationEvents[i]));
 
-  this._powerManager.addEventListener(Messages.NOT_ENOUGH_POWER, function() {
-    var d = new Date();
-
-    if (this._lastPowerMessage === null || d - this._lastPowerMessage > 1000 * 60 * 2) {
-      this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.NOT_ENOUGH_POWER});
-      this._lastPowerMessage = d;
-    }
-  }.bind(this));
+  this._powerManager.addEventListener(Messages.NOT_ENOUGH_POWER,
+                                      this._sendPowerMessage.bind(this, Messages.NOT_ENOUGH_POWER));
 
   this.budget.addEventListener(Messages.FUNDS_CHANGED, MiscUtils.reflectEvent.bind(this, Messages.FUNDS_CHANGED));
   this.budget.addEventListener(Messages.BUDGET_NEEDED, MiscUtils.reflectEvent.bind(this, Messages.BUDGET_NEEDED));
@@ -293,7 +297,7 @@ Simulation.prototype.init = function() {
   var simData = this._constructSimData();
   this._mapScanner.mapScan(0, this._map.width, simData);
   this._powerManager.doPowerScan(this._census);
-  BlockMapUtils.pollutionTerrainLandValueScan(this._map, this._census, this.blockMaps);
+  BlockMapUtils.pollutionTerrainLandValueScan(this._map, this._census, this.blockMaps, this.random);
   BlockMapUtils.crimeScan(this._census, this.blockMaps);
   BlockMapUtils.populationDensityScan(this._map, this.blockMaps);
   BlockMapUtils.fireAnalysis(this.blockMaps);
@@ -368,7 +372,7 @@ var simulate = function(simData) {
 
     case 12:
       if ((this._simCycle % speedPollutionTerrainLandValueScan[speedIndex]) === 0)
-        BlockMapUtils.pollutionTerrainLandValueScan(this._map, this._census, this.blockMaps);
+        BlockMapUtils.pollutionTerrainLandValueScan(this._map, this._census, this.blockMaps, this.random);
       break;
 
     case 13:
@@ -402,6 +406,19 @@ Simulation.prototype._simulate = function(simData) {
   this.evaluation.cityEvaluation(simData);
   this._simulate = simulate;
   this._simulate(simData);
+};
+
+
+// The power messages, NOT_ENOUGH_POWER and BLACKOUTS_REPORTED, share one throttle: after either is sent, neither is
+// sent again until this much city time has passed, three city years
+var POWER_MESSAGE_INTERVAL = 3 * 48;
+
+Simulation.prototype._sendPowerMessage = function(subject) {
+  if (this._lastPowerMessage !== null && this._cityTime - this._lastPowerMessage <= POWER_MESSAGE_INTERVAL)
+    return;
+
+  this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: subject});
+  this._lastPowerMessage = this._cityTime;
 };
 
 
@@ -475,18 +492,8 @@ Simulation.prototype._sendMessages = function() {
       break;
 
     case 32:
-      // The zoneCount guard repeats part of BLACKOUTS_REPORTED's test. It is left for the rewrite of this case's
-      // wall-clock throttle (#2), so this case's lines stay as they are until then.
-      var zoneCount = this._census.unpoweredZoneCount + this._census.poweredZoneCount;
-      if (zoneCount > 0) {
-        if (holds(Messages.BLACKOUTS_REPORTED)) {
-          var d = new Date();
-          if (this._lastPowerMessage === null || d - this._lastPowerMessage > 1000 * 60 * 2) {
-            this._emitEvent(Messages.FRONT_END_MESSAGE, {subject: Messages.BLACKOUTS_REPORTED});
-            this._lastPowerMessage = d;
-          }
-        }
-      }
+      if (holds(Messages.BLACKOUTS_REPORTED))
+        this._sendPowerMessage(Messages.BLACKOUTS_REPORTED);
       break;
 
     case 35:

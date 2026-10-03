@@ -14,13 +14,12 @@
 import { BaseSprite } from './baseSprite.js';
 import { SHIP_CRASHED, SOUND_HONKHONK } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { Random } from './random.ts';
 import { SPRITE_SHIP } from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
 import * as TileValues from "./tileValues.ts";
 
-function BoatSprite(map, spriteManager, x, y) {
-  this.init(SPRITE_SHIP, map, spriteManager, x, y);
+function BoatSprite(map, spriteManager, random, x, y) {
+  this.init(SPRITE_SHIP, map, spriteManager, random, x, y);
   this.width = 48;
   this.height = 48;
   this.xOffset = -24;
@@ -84,7 +83,7 @@ BoatSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) {
     this.soundCount--;
 
   if (this.soundCount === 0) {
-    if ((Random.getRandom16() & 3) === 1) {
+    if ((this.random.getRandom16() & 3) === 1) {
       // TODO Scenarios
       // TODO Sound
       this._emitEvent(SOUND_HONKHONK);
@@ -110,7 +109,7 @@ BoatSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) {
     // Otherwise pick a new direction
     // Choose a random starting direction to search from
     // 0 = N, 1 = NE, ... 7 = NW
-    var startDir = Random.getRandom16() & 7;
+    var startDir = this.random.getRandom16() & 7;
 
     for (var dir = startDir; dir < (startDir + 8); dir++) {
       frame = (dir & 7) + 1;
@@ -140,7 +139,7 @@ BoatSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) {
 
     if (dir === (startDir + 8)) {
       this.dir = CANTMOVE;
-      this.newDir = (Random.getRandom16() & 7) + 1;
+      this.newDir = (this.random.getRandom16() & 7) + 1;
     }
   } else {
     frame = this.frame;
