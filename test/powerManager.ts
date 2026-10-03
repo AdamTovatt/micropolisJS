@@ -18,7 +18,7 @@ import { NOT_ENOUGH_POWER } from "../src/messages";
 import { Position } from "../src/position";
 import { PowerManager } from "../src/powerManager.js";
 import { ANIMBIT, BURNBIT, CONDBIT, POWERBIT } from "../src/tileFlags";
-import { COALSMOKE1, COALSMOKE2, COALSMOKE3, COALSMOKE4 } from "../src/tileValues";
+import { COALSMOKE1, COALSMOKE2, COALSMOKE3, COALSMOKE4, NUCLEAR } from "../src/tileValues";
 
 const WIDTH = 120;
 const HEIGHT = 100;
@@ -431,6 +431,49 @@ describe("the power manager", () => {
             const map = scanPlant();
 
             expect(map.getTileFlags(CENTRE_X - 1, CENTRE_Y - 1) & ANIMBIT).toBe(0);
+        });
+    });
+
+    // As doSpecialZone in the original's simulate.cpp handles NUCLEAR: with disasters off, it counts the plant and
+    // pushes it as a power source, and changes none of its tiles
+    describe("when scanning a nuclear power plant", () => {
+
+        const CENTRE_X = 50;
+        const CENTRE_Y = 50;
+
+        // The plant's 4 by 4 tiles, from the centre's upper left neighbour, value and flags
+        function plantTiles(map: GameMapInstance): number[] {
+            return Array.from({length: 16}, (_, i) =>
+                map.getTile(CENTRE_X - 1 + (i % 4), CENTRE_Y - 1 + Math.floor(i / 4)).getRawValue());
+        }
+
+        function scanPlant() {
+            const map = new GameMap(WIDTH, HEIGHT);
+            map.putZone(CENTRE_X, CENTRE_Y, NUCLEAR, 4);
+            const tilesBefore = plantTiles(map);
+            const powerManager = new PowerManager(map);
+            const census = {nuclearPowerPop: 0};
+
+            powerManager.nuclearPowerFound(map, CENTRE_X, CENTRE_Y,
+                                           {census, disasterManager: {disastersEnabled: false}});
+
+            const scanData: {powerStack?: unknown} = {};
+            powerManager.saveScan(scanData);
+            return {census, powerStack: scanData.powerStack, tilesBefore, tilesAfter: plantTiles(map)};
+        }
+
+        it("should count the plant", () => {
+            expect(scanPlant().census.nuclearPowerPop).toBe(1);
+        });
+
+        it("should push the plant as a power source", () => {
+            expect(scanPlant().powerStack).toEqual([{x: CENTRE_X, y: CENTRE_Y}]);
+        });
+
+        it("should leave the plant's tiles as they are", () => {
+            const {tilesBefore, tilesAfter} = scanPlant();
+
+            expect(tilesAfter).toEqual(tilesBefore);
         });
     });
 });
