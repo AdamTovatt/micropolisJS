@@ -74,6 +74,24 @@ describe("the census", () => {
             expect(history(census, "moneyHist10")[0]).toBe(NO_CASH_FLOW - 1);
         });
 
+        // A quarter of the way to the average, by the original's integer division, which truncates toward zero
+        it("should move the crime and pollution ramps toward their averages, truncating as the original does", () => {
+            const rising = new Census();
+            const falling = new Census();
+            rising.crimeAverage = 5;
+            rising.pollutionAverage = 7;
+            falling.crimeRamp = 5;
+            falling.pollutionRamp = 7;
+
+            rising.take10Census({cashFlow: 0});
+            falling.take10Census({cashFlow: 0});
+
+            // 5 / 4 and 7 / 4 are 1, and -5 / 4 and -7 / 4 are -1
+            expect([rising.crimeRamp, rising.pollutionRamp]).toEqual([1, 1]);
+            expect([falling.crimeRamp, falling.pollutionRamp]).toEqual([4, 6]);
+            expect([history(falling, "crimeHist10")[0], history(falling, "pollutionHist10")[0]]).toEqual([4, 6]);
+        });
+
         it("should clamp the cash flow to 0-255", () => {
             const rich = new Census();
             const broke = new Census();
