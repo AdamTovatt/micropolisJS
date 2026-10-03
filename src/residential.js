@@ -155,13 +155,13 @@ var degradeZone = function(map, x, y, blockMaps, population, lpValue, zonePower,
   }
 
   if (population === 16) {
-    // Already at lowest density: degrade to 8 individual houses
+    // Already at lowest density: degrade to 8 individual houses, column by column as doResidentialOut in the original
     map.setTile(x, y, TileValues.FREEZ, BLBNCNBIT | ZONEBIT);
 
-    for (yy = y - 1; yy <= y + 1; yy++) {
-      for (xx = x - 1; xx <= x + 1; xx++) {
+    for (xx = x - 1; xx <= x + 1; xx++) {
+      for (yy = y - 1; yy <= y + 1; yy++) {
         if (xx === x && yy === y) continue;
-        map.setTile(x, y, TileValues.LHTHR + lpValue + random.getRandom(2), BLBNCNBIT);
+        map.setTile(xx, yy, TileValues.LHTHR + lpValue + random.getRandom(2), BLBNCNBIT);
       }
     }
 

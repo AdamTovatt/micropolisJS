@@ -15,10 +15,10 @@ import { BlockMap } from "../src/blockMap";
 import { GameMap } from "../src/gameMap.js";
 import { Random } from "../src/random";
 import { Residential } from "../src/residential.js";
-import { POWERBIT } from "../src/tileFlags";
+import { BLBNCNBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import { Traffic } from "../src/traffic.js";
-import { RZB } from "../src/tileValues";
+import { FREEZ, LHTHR, RZB } from "../src/tileValues";
 import { streamAlwaysDrawing, streamDrawing } from "./helpers/streams";
 
 type TileHandler = (map: unknown, x: number, y: number, simData: unknown) => void;
@@ -89,5 +89,18 @@ describe("a built residential zone", () => {
     it.each([[1, 16], [2, 24], [3, 32]])("at density %i with no road declines to a population of %i",
                                          (density, expected) => {
         expect(population(scanZone(density, streamAlwaysDrawing(0), Results.NO_ROAD_FOUND))).toBe(expected);
+    });
+
+    // As doResidentialOut in the original, the eight houses are built column by column, each drawing which of the
+    // land value's three houses it is
+    it("at the lowest density with no road declines to an empty zone of eight houses", () => {
+        const houses = [0, 1, 2, 0, 1, 2, 0, 1];
+        const map = scanZone(0, streamDrawing([0, ...houses]), Results.NO_ROAD_FOUND);
+
+        const around = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+        expect({value: map.getTileValue(X, Y), flags: map.getTileFlags(X, Y)})
+            .toEqual({value: FREEZ, flags: BLBNCNBIT | ZONEBIT});
+        expect(around.map(([dx, dy]) => [map.getTileValue(X + dx, Y + dy), map.getTileFlags(X + dx, Y + dy)]))
+            .toEqual(houses.map((house) => [LHTHR + LAND_VALUE + house, BLBNCNBIT]));
     });
 });
