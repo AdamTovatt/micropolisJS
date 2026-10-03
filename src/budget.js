@@ -14,6 +14,7 @@
 import { EventEmitter } from './eventEmitter.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
+import { forecastYear, nothingWanted, payServices, serviceSpend } from './yearEndBudget.ts';
 
 // Cost of maintaining 1 police station
 var policeMaintenanceCost = 100;
@@ -52,7 +53,7 @@ var Budget = EventEmitter(function() {
   this.firePercent = 1;
   this.policePercent = 1;
 
-  // Cash value of spending. Should equal Math.round(_MaintenanceBudget * _Percent)
+  // Cash value of spending. Should equal serviceSpend(_MaintenanceBudget, _Percent)
   this.roadSpend = 0;
   this.fireSpend = 0;
   this.policeSpend = 0;
@@ -103,60 +104,47 @@ var FLevels = [1.4, 1.2, 0.8];
 Budget.prototype._calculateBestPercentages = function() {
   // How much would we be spending based on current percentages?
   // Note: the *Budget items are updated every January by collectTax
-  this.roadSpend = Math.round(this.roadMaintenanceBudget * this.roadPercent);
-  this.fireSpend = Math.round(this.fireMaintenanceBudget * this.firePercent);
-  this.policeSpend = Math.round(this.policeMaintenanceBudget * this.policePercent);
-  var total = this.roadSpend + this.fireSpend + this.policeSpend;
+  this.roadSpend = serviceSpend(this.roadMaintenanceBudget, this.roadPercent);
+  this.fireSpend = serviceSpend(this.fireMaintenanceBudget, this.firePercent);
+  this.policeSpend = serviceSpend(this.policeMaintenanceBudget, this.policePercent);
+
+  // How much are we actually going to spend?
+  var wanted = {road: this.roadSpend, fire: this.fireSpend, police: this.policeSpend};
+  var costs = payServices(this.totalFunds + this.taxFund, wanted);
 
   // If we don't have any services on the map, we can bail early
-  if (total === 0) {
+  if (nothingWanted(wanted)) {
     this.roadPercent = 1;
     this.firePercent = 1;
     this.policePercent = 1;
-    return {road: 1, fire: 1, police: 1};
+    return costs;
   }
 
-  // How much are we actually going to spend?
-  var roadCost;
-  var fireCost;
-  var policeCost;
-
-  var cashRemaining = this.totalFunds + this.taxFund;
-
-  // Spending priorities: road, fire, police
-  if (cashRemaining >= this.roadSpend)
-    roadCost = this.roadSpend;
-  else
-    roadCost = cashRemaining;
-  cashRemaining -= roadCost;
-
-  if (cashRemaining >= this.fireSpend)
-    fireCost = this.fireSpend;
-  else
-    fireCost = cashRemaining;
-  cashRemaining -= fireCost;
-
-  if (cashRemaining >= this.policeSpend)
-    policeCost = this.policeSpend;
-  else
-    policeCost = cashRemaining;
-
   if (this.roadMaintenanceBudget > 0)
-    this.roadPercent = (roadCost / this.roadMaintenanceBudget).toPrecision(2) - 0;
+    this.roadPercent = (costs.road / this.roadMaintenanceBudget).toPrecision(2) - 0;
   else
     this.roadPercent = 1;
 
   if (this.fireMaintenanceBudget > 0)
-    this.firePercent = (fireCost / this.fireMaintenanceBudget).toPrecision(2) - 0;
+    this.firePercent = (costs.fire / this.fireMaintenanceBudget).toPrecision(2) - 0;
   else
     this.firePercent = 1;
 
   if (this.policeMaintenanceBudget > 0)
-    this.policePercent = (policeCost / this.policeMaintenanceBudget).toPrecision(2) - 0;
+    this.policePercent = (costs.police / this.policeMaintenanceBudget).toPrecision(2) - 0;
   else
     this.policePercent = 1;
 
-  return {road: roadCost, police: policeCost, fire: fireCost};
+  return costs;
+};
+
+
+// What the year-end budget would leave if it ran now, with each service funded at the given
+// fraction, from the current funds and the most recent tax collection and maintenance costs.
+Budget.prototype.forecast = function(fractions) {
+  var maintenance = {road: this.roadMaintenanceBudget, fire: this.fireMaintenanceBudget,
+                     police: this.policeMaintenanceBudget};
+  return forecastYear(this.totalFunds, this.taxFund, maintenance, fractions);
 };
 
 
@@ -212,9 +200,9 @@ Budget.prototype.doBudgetSpend = function(roadValue, fireValue, policeValue) {
 
 Budget.prototype.updateFundEffects = function() {
   // The caller is assumed to have correctly set the percentage spend
-  this.roadSpend = Math.round(this.roadMaintenanceBudget * this.roadPercent);
-  this.fireSpend = Math.round(this.fireMaintenanceBudget * this.firePercent);
-  this.policeSpend = Math.round(this.policeMaintenanceBudget * this.policePercent);
+  this.roadSpend = serviceSpend(this.roadMaintenanceBudget, this.roadPercent);
+  this.fireSpend = serviceSpend(this.fireMaintenanceBudget, this.firePercent);
+  this.policeSpend = serviceSpend(this.policeMaintenanceBudget, this.policePercent);
 
   // Update the effect this level of spending will have on infrastructure deterioration
   this.roadEffect = this.MAX_ROAD_EFFECT;
