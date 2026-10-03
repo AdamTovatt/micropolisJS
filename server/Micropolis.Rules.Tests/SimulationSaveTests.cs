@@ -26,8 +26,8 @@ namespace Micropolis.Rules.Tests
     {
         private static readonly IReadOnlyList<ConformanceSave> Saves = ConformanceSaves.Load();
 
-        // A save with sprites, a non-null announcement and a power source waiting: the town after its run
-        private static readonly string RunText = Saves.Single(save => save.Fixture == "town" && save.Point == "run").ReadText();
+        // A save with sprites, a non-null announcement and a power source waiting: the underfunded town after its run
+        private static readonly string RunText = Saves.Single(save => save.Fixture == "underfunded" && save.Point == "run").ReadText();
 
         // Read only: a test that changes the save parses its own copy of RunText
         private static readonly JsonNode Run = JsonNode.Parse(RunText)!;
@@ -142,10 +142,10 @@ namespace Micropolis.Rules.Tests
                 ["valves.indCap"] = ("true", city => city.Valves.IndCap),
                 ["budget.totalFunds"] = ("5000", city => city.Budget.TotalFunds),
                 ["budget.cityTax"] = ("9", city => city.Budget.CityTax),
-                ["budget.autoBudget"] = ("false", city => city.Budget.AutoBudget),
+                ["budget.autoBudget"] = ("true", city => city.Budget.AutoBudget),
                 ["budget.roadPercent"] = ("0.5", city => city.Budget.RoadPercent),
                 ["budget.firePercent"] = ("0.25", city => city.Budget.FirePercent),
-                ["budget.policePercent"] = ("0.75", city => city.Budget.PolicePercent),
+                ["budget.policePercent"] = ("0.875", city => city.Budget.PolicePercent),
                 ["budget.roadSpend"] = ("11", city => city.Budget.RoadSpend),
                 ["budget.fireSpend"] = ("12", city => city.Budget.FireSpend),
                 ["budget.policeSpend"] = ("13", city => city.Budget.PoliceSpend),

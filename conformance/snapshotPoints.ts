@@ -229,8 +229,8 @@ function infrastructurePoints(): SnapshotPoint[] {
            (simulation) => fireEffect(simulation.budget) < 1000),
     scanOf(BRIDGE_STRIP, 3, "road", "a drawbridge opening", drawbridgeOpened),
     scanOf(BRIDGE_STRIP, 1, "road", "a drawbridge closing", (record) => tileChanged(record, is(BRWH), is(HBRIDGE))),
-    scanOf(BRIDGE_STRIP, 49, "road", "a road wearing away", (record) => tileChanged(record, isRoad, isRubble)),
-    scanOf(BRIDGE_STRIP, 119, "road", "a bridge wearing away to water",
+    scanOf(BRIDGE_STRIP, 129, "road", "a road wearing away", (record) => tileChanged(record, isRoad, isRubble)),
+    scanOf(BRIDGE_STRIP, 68, "road", "a bridge wearing away to water",
            (record) => tileChanged(record, isBridge, is(RIVER)) && !drawbridgeOpened(record)),
     scanOf(STADIUM_STRIP, 17, "stadia", "a stadium's game starting",
            (record) => tileChanged(record, is(STADIUM), is(FULLSTADIUM))),
@@ -464,7 +464,7 @@ function cityRulesPoints(): SnapshotPoint[] {
     atCityTime("suburb", "evaluation.cityEvaluation", 144, {
       branch: "a new class", test: (record) => eventNames(record).includes(CLASSIFICATION_UPDATED),
     }),
-    atCityTime("suburb", "evaluation.cityEvaluation", 192, {
+    atCityTime("suburbFast", "evaluation.cityEvaluation", 336, {
       branch: "a shrinking population",
       test: (record) => stateAfter<CityRulesState>(record).evaluation.cityPopDelta < 0,
     }),
@@ -477,7 +477,7 @@ function cityRulesPoints(): SnapshotPoint[] {
       branch: "a growth check of an unchanged population, and no blackouts",
       test: (record) => record.events.length === 0,
     }),
-    adviceAt("suburb", 144, REACHED_TOWN),
+    adviceAt("suburb", 136, REACHED_TOWN),
     adviceAt("suburb", 26, null),
     adviceAt("suburbBroke", 118, ROAD_NEEDS_FUNDING),
     adviceAt("suburbBroke", 185, FIRE_STATION_NEEDS_FUNDING),

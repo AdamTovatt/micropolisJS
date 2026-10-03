@@ -51,16 +51,15 @@ var getZonePopulation = function(map, x, y, tileValue) {
 };
 
 
-// Assess a tile for suitability for a house. Prefers tiles near roads
+// Assess a lot, in bounds, for suitability for a house, as evalLot in the original: -1 unless it is an empty lot of
+// the zone or dirt, whatever its flags, and otherwise one more for each neighbour that is road or lower, not counting
+// dirt without flags. Prefers lots near roads.
 var evalLot = function(map, x, y) {
   var xDelta = [0, 1, 0, -1];
   var yDelta = [-1, 0, 1, 0];
 
-  if (!map.testBounds(x, y))
-    return -1;
-
   var tileValue = map.getTileValue(x, y);
-  if (tileValue < TileValues.RESBASE || tileValue > TileValues.RESBASE + 8)
+  if (tileValue !== TileValues.DIRT && (tileValue < TileValues.RESBASE || tileValue > TileValues.RESBASE + 8))
     return -1;
 
   var score = 1;
@@ -68,11 +67,12 @@ var evalLot = function(map, x, y) {
     var edgeX = x + xDelta[i];
     var edgeY = y + yDelta[i];
 
-    if (edgeX < 0 || edgeX >= map.width || edgeY < 0 || edgeY >= map.height)
+    if (!map.testBounds(edgeX, edgeY))
       continue;
 
-    tileValue = map.getTileValue(edgeX, edgeY);
-    if (tileValue !== TileValues.DIRT && tileValue <= TileValues.LASTROAD)
+    // The original compares the whole map word, flags included, with DIRT, so only dirt without flags is bare
+    var edge = map.getTile(edgeX, edgeY);
+    if (edge.getRawValue() !== TileValues.DIRT && edge.getValue() <= TileValues.LASTROAD)
       score += 1;
   }
 
@@ -80,27 +80,33 @@ var evalLot = function(map, x, y) {
 };
 
 
+// As buildHouse in the original: picks one of the 8 lots around the centre, the best scoring, and among those that
+// tie, more likely a later one
 var buildHouse = function(map, x, y, lpValue, random) {
   var best = 0;
   var bestScore = 0;
 
-  //  Deliberately ordered so that the centre tile is at index 0
+  // The centre is at index 0, and never a lot
   var xDelta = [0, -1, 0, 1, -1, 1, -1, 0, 1];
   var yDelta = [0, -1, -1, -1, 0, 0, 1, 1, 1];
 
-  for (var i = 0; i < 9; i++) {
+  for (var i = 1; i < 9; i++) {
     var xx = x + xDelta[i];
     var yy = y + yDelta[i];
+
+    if (!map.testBounds(xx, yy))
+      continue;
 
     var score = evalLot(map, xx, yy);
     if (score > bestScore) {
       bestScore = score;
       best = i;
-    } else if (score === bestScore && random.getChance(7)) {
-      // Ensures we don't always select the same position when we
-      // have a choice
-      best = i;
     }
+
+    // Not an else: a lot that has just become the best ties with itself, and draws as any tie does. Ensures we don't
+    // always select the same position when we have a choice.
+    if (score === bestScore && random.getChance(7))
+      best = i;
   }
 
   if (best > 0 && map.testBounds(x + xDelta[best], y + yDelta[best]))

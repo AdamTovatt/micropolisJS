@@ -130,6 +130,6 @@ export const disasters: DerivedFixture = {
   ].map((command) => ({step: 0, player: LOCAL_PLAYER, command: command as Command})),
   checkpoints: [
     {step: 0, hash: "5db15b9cb829a11f4679b315e90506ae6c5bc00f170476c9339f6345954664c7"},
-    {step: RUN_STEPS, hash: "266ca56e306ae77044aa8d32ffcb1afbdb52584ca63a627ae5b2ba0c349c8d7e"},
+    {step: RUN_STEPS, hash: "9897749bb1447df7d64b00f0853acace1097dae1e5593ea3f44a2e64a52c9837"},
   ],
 };
