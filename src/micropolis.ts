@@ -20,7 +20,6 @@ import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
 import { installTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
-import { TileSetURI } from "./tileSetURI";
 import { debugOption, seedOption } from "./urlOptions";
 
 // The page's entry point: it loads the tile set, waits for the sprites, signs in where a server answers, and shows the
@@ -37,20 +36,10 @@ function pageSeed(): number | null {
   }
 }
 
-// The tile set the image splits into, or null when the image is not a whole tile set, such as one still loading
+// The tile set the image splits into, or null when the image is not a whole tile set
 function tileSetFrom(image: HTMLImageElement): Promise<TileSet | null> {
   return new Promise((resolve) => {
     const tileSet = new TileSet(image, () => resolve(tileSet), () => resolve(null));
-  });
-}
-
-// The image at the URI, or null when it fails to load
-function imageFrom(uri: string): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-    image.src = uri;
   });
 }
 
@@ -66,17 +55,13 @@ function settled(image: HTMLImageElement): Promise<void> {
   });
 }
 
-// The tile set from the page's tile image, or null when there is none. We might be running locally in Chrome, which
-// handles the security context of file URIs differently, which makes things go awry when we try to create an image from
-// a "tainted" canvas (one we've painted on), so where the image makes no tile set we try the copy of it in TileSetURI.
+// The tile set from the page's tile image once it has loaded, or null when the image is not one, such as one that
+// failed to load
 async function loadTileSet(): Promise<TileSet | null> {
-  const tileSet = await tileSetFrom(requiredElement("tiles", HTMLImageElement));
-  if (tileSet !== null) {
-    return tileSet;
-  }
+  const tiles = requiredElement("tiles", HTMLImageElement);
+  await settled(tiles);
 
-  const fallbackImage = await imageFrom(TileSetURI);
-  return fallbackImage === null ? null : tileSetFrom(fallbackImage);
+  return tileSetFrom(tiles);
 }
 
 async function start(seed: number | null): Promise<void> {

@@ -43,6 +43,31 @@ test("a screen too small to play waits for a resize, then offers the URL's seed"
   expect(problems).toEqual([]);
 });
 
+test("the page waits for a slow tile image before it starts", async ({page}) => {
+  await blockNetwork(page);
+  const problems = collectPageProblems(page);
+  await page.route("**/images/tiles.png", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await route.continue();
+  });
+
+  await page.goto("/");
+
+  await expect(page.locator("#splash")).toBeVisible({timeout: 30 * 1000});
+  expect(problems).toEqual([]);
+});
+
+test("a tile image that fails to load is reported, and the page goes no further", async ({page}) => {
+  await blockNetwork(page);
+  const problems = collectPageProblems(page);
+  await page.route("**/images/tiles.png", (route) => route.abort());
+
+  await page.goto("/");
+
+  await expect.poll(() => problems).toEqual(["Alert: Failed to load tileset!"]);
+  await expect(page.locator("#splash")).toBeHidden();
+});
+
 test("a seed that isn't a uint32 is refused out loud, and the map is picked at random", async ({page}) => {
   await blockNetwork(page);
   const problems = collectPageProblems(page);
