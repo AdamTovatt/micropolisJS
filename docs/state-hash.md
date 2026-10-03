@@ -1,11 +1,10 @@
 # The state hash
 
 The state hash identifies a city's complete simulation state. Two simulations whose hashes match evolve identically
-as long as they are given the same commands under the same player settings. The auto-bulldoze setting, which decides
-whether the building tools clear trees and rubble first, is not city state and is not hashed (see the last section).
-The headless runner prints the hash, and the C# port is correct when it produces the same hash from the same seed,
-starting state and command log (`CLAUDE.md`, Direction 3). This document specifies it so the port can produce identical bytes. `src/canonicalJson.ts` and
-`src/stateHash.ts` are the reference implementation.
+as long as they are given the same commands (`src/protocol.ts`), each of which carries whatever setting of its
+sender's it depends on. The headless runner prints the hash, and the C# port is correct when it produces the same
+hash from the same seed, starting state and command log (`CLAUDE.md`, Direction 3). This document specifies it so the
+port can produce identical bytes. `src/canonicalJson.ts` and `src/stateHash.ts` are the reference implementation.
 
 ## The hash
 
@@ -111,7 +110,6 @@ block map.
 | `budget.roadEffect`, `budget.fireEffect`, `budget.policeEffect` | Each service's effectiveness |
 | `budget.cashFlow` | The last year's cash flow |
 | `budget.taxFund` | The last tax collected |
-| `budget.awaitingValues` | Whether the simulation waits for the player to set the budget |
 
 ### Census
 
@@ -147,15 +145,18 @@ block map.
 
 ## Golden hashes
 
-`test/goldenHashes.ts` pins two hashes per fixture: the **built** hash of the state its script builds, and the
-**run** hash after the number of steps given there (`STEPS`) at medium speed. `npm run fixtures` exports each
-fixture's built state to `headless/fixtures/export/<name>.json`, whose SHA-256 is the built hash. The C# port takes
-that file as its starting state, sets the speed to medium, steps it `STEPS` times and must produce the run hash.
+Each fixture is a command log (`docs/command-log.md`) whose checkpoints are its golden hashes: the **built** hash at
+step 0, of the state its commands build, and the **run** hash after a fixed run at the medium speed a new city starts
+at. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtures` exports each fixture's log to
+`headless/fixtures/export/<name>.log.json`, and its built state to `<name>.json`, whose SHA-256 is the built hash. The
+C# port replays the log, or takes the built state as its starting state and steps it at medium speed to the run
+checkpoint's step, and must produce the run hash.
 
 ## What the hash leaves out
 
-The browser's own settings and UI state are not simulation state and are not hashed: the city's name, the auto-bulldoze
-setting, and the save version, which `storage.js` adds when it writes to `localStorage`.
+The browser's own state is not simulation state and is not hashed: the city's name and the save version, which
+`storage.js` adds when it writes to `localStorage`. A player's own settings, such as auto-bulldoze, are not saved with
+the city at all: each command carries the ones it depends on.
 
 The simulation decides when to send the advisor's notifications, so the counters it decides that with are city
 state and are hashed. What is left out is what only remembers what one display was last told, such as the last

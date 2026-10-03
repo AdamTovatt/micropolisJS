@@ -17,12 +17,14 @@ import { TileUtils } from './tileUtils.js';
 import * as TileValues from "./tileValues.ts";
 
 var WireTool = ConnectingTool(function(map) {
-  this.init(5, map, true, true);
+  this.init(5, map);
 });
 
 
-WireTool.prototype.layWire = function(x, y) {
-  this.doAutoBulldoze(x, y);
+WireTool.prototype.layWire = function(x, y, autoBulldoze) {
+  if (autoBulldoze)
+    this.doAutoBulldoze(x, y);
+
   var cost = this.toolCost;
 
   var tile = this._worldEffects.getTileValue(x, y);
@@ -114,8 +116,8 @@ WireTool.prototype.layWire = function(x, y) {
 };
 
 
-WireTool.prototype.doTool = function(x, y) {
-  this.result = this.layWire(x, y);
+WireTool.prototype.doTool = function(x, y, random, autoBulldoze) {
+  this.result = this.layWire(x, y, autoBulldoze);
 };
 
 

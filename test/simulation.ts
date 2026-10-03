@@ -76,7 +76,7 @@ describe("a simulation", () => {
             return {
                 ...s,
                 simulation: {...s.simulation, gameLevel: Level.hard, lastPowerMessage: 11},
-                budget: {...s.budget, autoBudget: false, awaitingValues: true, cityTax: 9, fireEffect: 900,
+                budget: {...s.budget, autoBudget: false, cityTax: 9, fireEffect: 900,
                          fireMaintenanceBudget: 50, firePercent: 0.9, fireSpend: 45, policeEffect: 800,
                          policeMaintenanceBudget: 60, policePercent: 0.8, policeSpend: 48, roadEffect: 30,
                          roadPercent: 0.9},
@@ -225,18 +225,6 @@ describe("a simulation", () => {
             expect(simulate).toHaveBeenCalledTimes(1);
         });
 
-        it("moves the sprites but holds its speed cycle while awaiting budget values", () => {
-            const simulation = simulationFromSeed(SEED, Simulation.SPEED_FAST);
-            const simulate = jest.spyOn(simulation, "_simulate");
-            simulation.budget.awaitingValues = true;
-
-            steps(simulation, 15);
-
-            expect(simulate).not.toHaveBeenCalled();
-            expect(simulation._speedCycle).toBe(0);
-            expect(simulation.spriteManager.spriteCycle).toBe(15);
-        });
-
         it("does nothing while paused", () => {
             const simulation = simulationFromSeed(SEED, Simulation.SPEED_PAUSED);
 
@@ -244,6 +232,21 @@ describe("a simulation", () => {
 
             expect(phasesRun(simulation)).toBe(0);
             expect(simulation.spriteManager.spriteCycle).toBe(0);
+        });
+    });
+
+    describe("setting its speed", () => {
+
+        it("announces a change of speed, and not a speed it already has", () => {
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_MED);
+            const changes: number[] = [];
+            simulation.addEventListener(Messages.SPEED_CHANGED, (speed: number) => changes.push(speed));
+
+            simulation.setSpeed(Simulation.SPEED_MED);
+            simulation.setSpeed(Simulation.SPEED_PAUSED);
+            simulation.setSpeed(Simulation.SPEED_PAUSED);
+
+            expect(changes).toEqual([Simulation.SPEED_PAUSED]);
         });
     });
 
@@ -299,57 +302,50 @@ describe("a simulation", () => {
         });
     });
 
-    // The year end is the one point where the city waits on the player: nothing else stops the year advancing while a
-    // window shows
-    describe("at a year end that needs the player's budget", () => {
+    // The year end never waits for the player, so a replay can't depend on when a window closed
+    describe("at a year end that takes the player's budget", () => {
 
-        // Steps the city until it asks for the budget, and returns how often it asked
-        function stepUntilBudgetNeeded(simulation: SimulationInstance) {
-            const needed = jest.fn();
-            simulation.addEventListener(Messages.BUDGET_NEEDED, needed);
+        // Two years at fast speed, where every 16 steps advance the city time by one: the city time those years
+        // advanced by, and the reviews and no-money notifications sent, in order
+        function stepTwoYears(simulation: SimulationInstance) {
+            const events: string[] = [];
+            simulation.addEventListener(Messages.BUDGET_REVIEW_DUE, () => events.push(Messages.BUDGET_REVIEW_DUE));
+            simulation.addEventListener(Messages.FRONT_END_MESSAGE, (message: {subject: string}) => {
+                if (message.subject === Messages.NO_MONEY) {
+                    events.push(Messages.NO_MONEY);
+                }
+            });
+            const startTime = simulation._cityTime;
 
-            for (let i = 0; i < 2 * YEAR && needed.mock.calls.length === 0; i++) {
-                simulation.step();
-            }
+            steps(simulation, 2 * YEAR);
 
-            return needed;
+            return {elapsed: simulation._cityTime - startTime, events};
         }
 
-        function expectHeldUntilBudgeted(simulation: SimulationInstance, needed: jest.Mock) {
-            expect(needed).toHaveBeenCalledTimes(1);
-            expect(simulation.budget.awaitingValues).toBe(true);
-
-            const heldAt = simulation._cityTime;
-            steps(simulation, YEAR);
-            expect(simulation._cityTime).toBe(heldAt);
-            expect(needed).toHaveBeenCalledTimes(1);
-
-            // The rest of the year-end cycle, then the next cycle's first phase
-            simulation.budget.doBudgetWindow();
-            expect(simulation.budget.awaitingValues).toBe(false);
-            steps(simulation, 16);
-            expect(simulation._cityTime).toBe(heldAt + 1);
-        }
-
-        it("asks once with auto-budget off, and holds the city time until it has the values", () => {
+        it("offers the budget for review each year with auto-budget off, and runs on", () => {
             const simulation = buildCity(SEED, SEED);
             simulation.budget.setAutoBudget(false);
 
-            const needed = stepUntilBudgetNeeded(simulation);
+            const {elapsed, events} = stepTwoYears(simulation);
 
-            expectHeldUntilBudgeted(simulation, needed);
+            expect(elapsed).toBe(2 * 48);
+            expect(events).toEqual([Messages.BUDGET_REVIEW_DUE, Messages.BUDGET_REVIEW_DUE]);
+            expect(simulation.budget.autoBudget).toBe(false);
         });
 
-        it("asks once when auto-budget can't pay for the services, turns auto-budget off, and holds the city time",
-           () => {
+        // Auto-budget turns off at the first year end, which sends the no-money notification before the review. The
+        // notification also comes whenever the funds fall to zero, so only the first year end's is pinned.
+        it("turns auto-budget off when it can't pay for the services, and runs on", () => {
             const simulation = buildCity(SEED, SEED);
             simulation.budget.setFunds(0);
             simulation.budget.setTax(0);
 
-            const needed = stepUntilBudgetNeeded(simulation);
+            const {elapsed, events} = stepTwoYears(simulation);
 
+            expect(elapsed).toBe(2 * 48);
+            expect(events.slice(0, 2)).toEqual([Messages.NO_MONEY, Messages.BUDGET_REVIEW_DUE]);
+            expect(events.filter((event) => event === Messages.BUDGET_REVIEW_DUE)).toHaveLength(2);
             expect(simulation.budget.autoBudget).toBe(false);
-            expectHeldUntilBudgeted(simulation, needed);
         });
     });
 });

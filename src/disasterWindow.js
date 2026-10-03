@@ -16,6 +16,7 @@ import $ from "jquery";
 import { DISASTER_WINDOW_CLOSED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import { ModalWindow } from './modalWindow.js';
+import { DISASTER_KINDS } from './protocol.ts';
 
 var disasterSelectID = '#disasterSelect';
 var disasterCancelID = '#disasterCancel';
@@ -50,28 +51,19 @@ var submit = function(e) {
 };
 
 
+// Each disaster's option, #disasterMonster and so on, takes its kind in a triggerDisaster command as its value
 DisasterWindow.prototype.open = function() {
-  // Ensure options have right values
   $('#disasterNone').attr('value', DisasterWindow.DISASTER_NONE);
-  $('#disasterMonster').attr('value', DisasterWindow.DISASTER_MONSTER);
-  $('#disasterFire').attr('value', DisasterWindow.DISASTER_FIRE);
-  $('#disasterFlood').attr('value', DisasterWindow.DISASTER_FLOOD);
-  $('#disasterCrash').attr('value', DisasterWindow.DISASTER_CRASH);
-  $('#disasterMeltdown').attr('value', DisasterWindow.DISASTER_MELTDOWN);
-  $('#disasterTornado').attr('value', DisasterWindow.DISASTER_TORNADO);
+  DISASTER_KINDS.forEach(function(kind) {
+    $('#disaster' + kind.charAt(0).toUpperCase() + kind.slice(1)).attr('value', kind);
+  });
 
   this._toggleDisplay();
 };
 
 
-Object.defineProperties(DisasterWindow,
-  {DISASTER_NONE: MiscUtils.makeConstantDescriptor('None'),
-   DISASTER_MONSTER: MiscUtils.makeConstantDescriptor('Monster'),
-   DISASTER_FIRE: MiscUtils.makeConstantDescriptor('Fire'),
-   DISASTER_FLOOD: MiscUtils.makeConstantDescriptor('Flood'),
-   DISASTER_CRASH: MiscUtils.makeConstantDescriptor('Crash'),
-   DISASTER_MELTDOWN: MiscUtils.makeConstantDescriptor('Meltdown'),
-   DISASTER_TORNADO: MiscUtils.makeConstantDescriptor('Tornado')});
+// The value of the option that triggers no disaster
+Object.defineProperty(DisasterWindow, 'DISASTER_NONE', MiscUtils.makeConstantDescriptor('none'));
 
 
 export { DisasterWindow };

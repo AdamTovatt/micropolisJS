@@ -17,6 +17,6 @@ import { SaveData } from "../../headless/city";
 // lists every key.
 export interface InspectedSave extends SaveData {
     simulation: SaveData["simulation"] & {phaseCycle: number, speedCycle: number};
-    budget: {autoBudget: boolean, awaitingValues: boolean};
+    budget: {autoBudget: boolean};
     sprites: {list: unknown[]};
 }

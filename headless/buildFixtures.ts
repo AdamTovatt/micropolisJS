@@ -11,14 +11,16 @@
  *
  */
 
-// Exports every fixture's saved state for inspection: `npm run fixtures`. Each file holds the canonical text, so its
-// SHA-256 is the fixture's state hash. The files are ignored by git and never read back: the runner and the tests
-// build fixtures from their scripts.
+// Exports every fixture for other runners, such as the C# port and the browser's: `npm run fixtures`. <name>.log.json
+// is its command log, and <name>.json its saved state as built, before the first step, in canonical text, so the
+// file's SHA-256 is the log's checkpoint at step 0. The files are ignored by git and never read back: the runner and
+// the tests replay each fixture's log.
 
 import * as fs from "fs";
 import * as path from "path";
 import { canonicalJson } from "../src/canonicalJson";
-import { fixtureNames, fixtureSave } from "./fixtures/index";
+import { fixtureLog, fixtureNames } from "./fixtures/index";
+import { fixtureSave } from "./runner";
 
 // Relative to the repository root, where npm runs scripts
 const EXPORT_DIRECTORY = path.join("headless", "fixtures", "export");
@@ -26,7 +28,11 @@ const EXPORT_DIRECTORY = path.join("headless", "fixtures", "export");
 fs.mkdirSync(EXPORT_DIRECTORY, {recursive: true});
 
 for (const name of fixtureNames()) {
-  const file = path.join(EXPORT_DIRECTORY, `${name}.json`);
-  fs.writeFileSync(file, canonicalJson(fixtureSave(name)));
-  console.log(`wrote ${file}`);
+  for (const [file, text] of [
+    [`${name}.log.json`, JSON.stringify(fixtureLog(name), null, 2)],
+    [`${name}.json`, canonicalJson(fixtureSave(name))],
+  ]) {
+    fs.writeFileSync(path.join(EXPORT_DIRECTORY, file), text);
+    console.log(`wrote ${path.join(EXPORT_DIRECTORY, file)}`);
+  }
 }

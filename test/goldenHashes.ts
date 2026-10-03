@@ -11,37 +11,69 @@
  *
  */
 
-import { fixtureNames } from "../headless/fixtures/index";
-import { advance, startCity, summarise } from "../headless/runner";
+import { fixtureLog, fixtureNames } from "../headless/fixtures/index";
+import { replay } from "../headless/runner";
+import { Simulation } from "../headless/city";
+import { savedState } from "../src/stateHash";
 
-// About three city years at medium speed
-const STEPS = 6912;
-
-// Each fixture's state hash as its script builds it, which is the hash of its exported state, and after STEPS steps
-// at medium speed
-const GOLDEN_HASHES: Record<string, {built: string, run: string}> = {
-    town: {
-        built: "706e2c074afa3ba19f658cf3fb5ed48c31a2eb31e1686e31576242d26689b918",
-        run: "c46811b076a46b353b1486701f1c6450891fcaa7dc5d602130fa2321ccb67afd",
-    },
-};
-
+// Each fixture's golden hashes are its log's checkpoints: the built hash at step 0, of the city once the log's
+// commands have built it, which is the hash of its exported state, and the run hash after a fixed run at the speed
+// the log's city starts at
 describe("the golden hashes", () => {
 
-    it("pin every fixture", () => {
-        expect(Object.keys(GOLDEN_HASHES).sort()).toEqual(fixtureNames().sort());
+    it.each(fixtureNames())("pin %s as built and after a run", (name) => {
+        const steps = fixtureLog(name).checkpoints.map((checkpoint) => checkpoint.step);
+
+        expect(steps[0]).toBe(0);
+        expect(steps.length).toBeGreaterThan(1);
     });
 
-    it.each(Object.keys(GOLDEN_HASHES))("hold for %s as built", async (name) => {
-        const city = startCity({fixture: name});
+    it.each(fixtureNames())("hold for %s", async (name) => {
+        await expect(replay(fixtureLog(name)).verified).resolves.toBe(fixtureLog(name).checkpoints.length);
+    });
+});
 
-        expect((await summarise(city)).hash).toBe(GOLDEN_HASHES[name].built);
+// What each budget fixture is there for, which its hashes can't show: a rule change that moves them could also stop
+// the fixture reaching the rule it pins
+describe("the budget fixtures", () => {
+
+    // A year at medium speed: 48 cycles of 16 phases, a phase every third step
+    const YEAR = 48 * 16 * 3;
+
+    interface SavedBudget {
+        autoBudget: boolean;
+        cityTax: number;
+        totalFunds: number;
+        roadPercent: number;
+        firePercent: number;
+        policePercent: number;
+        fireMaintenanceBudget: number;
+        policeMaintenanceBudget: number;
+    }
+
+    const budgetOf = (city: Simulation) => (savedState(city) as {budget: SavedBudget}).budget;
+
+    const shares = (budget: SavedBudget) => [budget.roadPercent, budget.firePercent, budget.policePercent];
+
+    it("keep underfunded's services at the shares the player chose through every year end", () => {
+        const {city} = replay(fixtureLog("underfunded"), {verify: false});
+        const budget = budgetOf(city);
+
+        expect(city.getDate().year).toBe(1903);
+        expect([budget.fireMaintenanceBudget, budget.policeMaintenanceBudget]).toEqual([100, 100]);
+        // Each share is kept in float, as the original's sliders keep it
+        expect([budget.autoBudget, ...shares(budget)])
+            .toEqual([false, Math.fround(0.6), Math.fround(0.4), Math.fround(0.75)]);
     });
 
-    it.each(Object.keys(GOLDEN_HASHES))("hold for %s after a run", async (name) => {
-        const city = startCity({fixture: name, speed: "medium"});
-        advance(city, STEPS);
+    it("leave broke short at its first year end, paying police with what is left, and turn auto-budget off", () => {
+        const log = fixtureLog("broke");
+        const built = budgetOf(replay(log, {to: 0, verify: false}).city);
+        const budget = budgetOf(replay(log, {to: YEAR, verify: false}).city);
 
-        expect((await summarise(city)).hash).toBe(GOLDEN_HASHES[name].run);
+        expect([built.autoBudget, built.cityTax]).toEqual([true, 0]);
+        expect([budget.autoBudget, budget.totalFunds, budget.roadPercent, budget.firePercent]).toEqual([false, 0, 1, 1]);
+        expect(budget.policePercent).toBeGreaterThan(0);
+        expect(budget.policePercent).toBeLessThan(1);
     });
 });

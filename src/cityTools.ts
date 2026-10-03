@@ -15,26 +15,29 @@ import { BuildingTool } from "./buildingTool.js";
 import { BulldozerTool } from "./bulldozerTool.js";
 import { GameMap } from "./gameMap.js";
 import { ParkTool } from "./parkTool.js";
+import { ToolName } from "./protocol";
 import { RailTool } from "./railTool.js";
 import { Random } from "./random";
 import { RoadTool } from "./roadTool.js";
 import * as TileValues from "./tileValues";
 import { WireTool } from "./wireTool.js";
 
-// A tool that changes the city. doTool stages its edits at a tile, drawing from the simulation's stream, and
-// modifyIfEnoughFunding applies them if the budget can pay, leaving the outcome in result.
+// A tool that changes the city. doTool stages its edits at a tile, drawing from the simulation's stream and reading
+// the player's auto-bulldoze setting, and modifyIfEnoughFunding applies them if the budget can pay, leaving the
+// outcome in result. TOOLRESULT_* name the outcomes.
 export interface CityTool {
   result: number;
-  doTool(x: number, y: number, blockMaps: object, random: Random): void;
+  doTool(x: number, y: number, random: Random, autoBulldoze: boolean): void;
   modifyIfEnoughFunding(budget: object): boolean;
+  TOOLRESULT_OK: number;
+  TOOLRESULT_FAILED: number;
+  TOOLRESULT_NO_MONEY: number;
+  TOOLRESULT_NEEDS_BULLDOZE: number;
 }
 
-export type CityToolName = "airport" | "bulldozer" | "coal" | "commercial" | "fire" | "industrial" | "nuclear" |
-  "park" | "police" | "port" | "rail" | "residential" | "road" | "stadium" | "wire";
-
-// The tools that change the city, with their costs: the player's, and the headless fixtures' too. They touch no DOM;
-// gameTools.js adds the query tool.
-export function cityTools(map: InstanceType<typeof GameMap>): Record<CityToolName, CityTool> {
+// The tools that change the city, with their costs, by the names tool commands give them. The simulation applies
+// them; the query tool, which only reads the city, belongs to the UI.
+export function cityTools(map: InstanceType<typeof GameMap>): Record<ToolName, CityTool> {
   const tools = {
     airport: new BuildingTool(10000, TileValues.AIRPORT, map, 6, false),
     bulldozer: new BulldozerTool(map),
@@ -51,8 +54,8 @@ export function cityTools(map: InstanceType<typeof GameMap>): Record<CityToolNam
     road: new RoadTool(map),
     stadium: new BuildingTool(5000, TileValues.STADIUM, map, 4, false),
     wire: new WireTool(map),
-  };
+  } satisfies Record<ToolName, object>;
 
   // The tools are legacy JavaScript, whose inferred types lack the members their prototypes add
-  return tools as unknown as Record<CityToolName, CityTool>;
+  return tools as unknown as Record<ToolName, CityTool>;
 }

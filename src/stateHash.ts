@@ -17,7 +17,7 @@ import { canonicalJson } from "./canonicalJson";
 // includes the random stream's state. docs/state-hash.md specifies it for the C# port. It uses Web Crypto, which
 // both Node and the browser provide.
 
-interface Saveable {
+export interface Saveable {
   save(saveData: object): void;
 }
 

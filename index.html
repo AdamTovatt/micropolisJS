@@ -263,13 +263,13 @@
             <div id="disasterSelectContainer" class="alignCenter">
               <label id="disasterLabel" for="disasterSelect">What disaster do you want to befall this unsuspecting world?</label>
               <select id="disasterSelect">
-                <option id="disasterNone" value="None">None</option>
-                <option id="disasterMonster" value="Monster">Monster</option>
-                <option id="disasterFire" value="None">Fire</option>
-                <option id="disasterFlood" value="Flood">Flood</option>
-                <option id="disasterCrash" value="Crash">Crash</option>
-                <option id="disasterMeltdown" value="Meltdown">Meltdown</option>
-                <option id="disasterTornado" value="Tornado">Tornado</option>
+                <option id="disasterNone">None</option>
+                <option id="disasterMonster">Monster</option>
+                <option id="disasterFire">Fire</option>
+                <option id="disasterFlood">Flood</option>
+                <option id="disasterCrash">Crash</option>
+                <option id="disasterMeltdown">Meltdown</option>
+                <option id="disasterTornado">Tornado</option>
               </select>
             </div>
             <div id="disasterButtons" class="alignCenter margin10">
@@ -431,6 +431,11 @@
               Add funds:
               <input type="radio" class="debugAdd" name="debugAdd" id="fundsYes" value="true" checked="checked"><label for="fundsYes">Yes</label>
               <input type="radio" class="debugAdd" name="debugAdd" id="fundsNo" value="false"><label for="fundsNo">No</label>
+            </div>
+            <div id="debugLogContainer">
+              Download command log:
+              <input type="radio" class="debugLog" name="debugLog" id="logYes" value="true"><label for="logYes">Yes</label>
+              <input type="radio" class="debugLog" name="debugLog" id="logNo" value="false" checked="checked"><label for="logNo">No</label>
             </div>
             <button id="debugCancel" class="cancel">Cancel</button>
             <input type="submit" id="debugOK" class="dialogOK" value="OK">

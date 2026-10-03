@@ -11,18 +11,28 @@
  *
  */
 
+import { SPEED_CHANGED } from "./messages";
 import { Simulation } from "./simulation.js";
 
-// The game speed as the player sets it, with Pause and Play or from Settings. The simulation's speed is the only
-// record of whether the game is paused, and the pause button is shown from it after every change. Play resumes at
-// the running speed: the speed a game was saved at, medium for a new game or one saved paused, or the speed Settings
-// last chose.
+// The simulation's speed as the speed control reads it: the speed now, and each change to it
+export interface SpeedSource {
+  getSpeed(): number;
+  isPaused(): boolean;
+  addEventListener(event: string, listener: (speed: number) => void): void;
+}
+
+// The game speed as the player sets it, with Pause and Play or from Settings. The player's choices are setSpeed
+// commands, sent with send. The simulation's speed is the only record of whether the game is paused, and the pause
+// button is shown from it whenever it changes, whoever changed it. Play resumes at the running speed: the speed a game
+// was saved at, medium for a new game or one saved paused, the speed Settings last chose, or the speed the city last
+// ran at.
 export class SpeedControl {
   private runningSpeed: number;
 
-  constructor(private readonly simulation: InstanceType<typeof Simulation>,
+  constructor(private readonly simulation: SpeedSource, private readonly send: (speed: number) => void,
               private readonly showPaused: (paused: boolean) => void) {
     this.runningSpeed = simulation.isPaused() ? Simulation.SPEED_MED : simulation.getSpeed();
+    simulation.addEventListener(SPEED_CHANGED, this.speedChanged.bind(this));
     showPaused(simulation.isPaused());
   }
 
@@ -31,20 +41,23 @@ export class SpeedControl {
   }
 
   togglePause(): void {
-    this.setSpeed(this.simulation.isPaused() ? this.runningSpeed : Simulation.SPEED_PAUSED);
+    this.send(this.simulation.isPaused() ? this.runningSpeed : Simulation.SPEED_PAUSED);
   }
 
   // Settings sets the speed the game runs at. A paused game stays paused, and Play resumes it at that speed: the
   // settings window sends its speed whenever it closes, changed or not.
   setRunningSpeed(speed: number): void {
     this.runningSpeed = speed;
-    if (!this.simulation.isPaused()) {
-      this.setSpeed(speed);
+    if (!this.simulation.isPaused() && this.simulation.getSpeed() !== speed) {
+      this.send(speed);
     }
   }
 
-  private setSpeed(speed: number): void {
-    this.simulation.setSpeed(speed);
-    this.showPaused(this.simulation.isPaused());
+  private speedChanged(speed: number): void {
+    if (speed !== Simulation.SPEED_PAUSED) {
+      this.runningSpeed = speed;
+    }
+
+    this.showPaused(speed === Simulation.SPEED_PAUSED);
   }
 }

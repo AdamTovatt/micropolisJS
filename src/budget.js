@@ -59,15 +59,13 @@ var Budget = EventEmitter(function() {
   this.fireSpend = 0;
   this.policeSpend = 0;
 
-  this.awaitingValues = false;
   this.autoBudget = true;
 });
 
 
 var saveProps = ['autoBudget', 'totalFunds', 'policePercent', 'roadPercent', 'firePercent', 'roadSpend',
                  'policeSpend', 'fireSpend', 'roadMaintenanceBudget', 'policeMaintenanceBudget',
-                 'fireMaintenanceBudget', 'cityTax', 'roadEffect', 'policeEffect', 'fireEffect', 'cashFlow', 'taxFund',
-                 'awaitingValues'];
+                 'fireMaintenanceBudget', 'cityTax', 'roadEffect', 'policeEffect', 'fireEffect', 'cashFlow', 'taxFund'];
 
 Budget.prototype.save = function(saveData) {
   var budget = {};
@@ -176,60 +174,43 @@ Budget.prototype.setFunding = function(wholePercents) {
 };
 
 
-// User initiated budget
-Budget.prototype.doBudgetWindow = function() {
-  return this.doBudgetNow(true);
-};
-
-
-Budget.prototype.doBudgetNow = function(fromWindow) {
+// The year-end budget, as doBudgetNow in the original, which never waits for the player: the city pays for its
+// services at the funding it can afford of what was asked for, and takes in the year's tax. With auto-budget on and
+// the funds to cover the services, that is all. With auto-budget off, or when auto-budget couldn't cover the services,
+// the player is offered the budget to review; auto-budget that couldn't cover them turns off, as the original forces it
+// off. Since the city never waits, a replay never depends on when a window closed.
+Budget.prototype.doBudgetNow = function() {
   var costs = this._calculateBestPercentages();
+  var totalCost = costs.road + costs.fire + costs.police;
+  var funded = this.autoBudget && this.totalFunds + this.taxFund - totalCost > 0;
 
-  if (!this.autoBudget && !fromWindow) {
-    this.autoBudget = false;
-    this.awaitingValues = true;
-    this._emitEvent(Messages.BUDGET_NEEDED);
+  this._collectTaxAndPayServices(totalCost);
+
+  // Autobudget with cash for every service. As in the original, each service's spend is booked as its full
+  // maintenance cost whatever its percentage, and the effects stay as they are.
+  if (funded) {
+    this._bookSpend(this.maintenance());
     return;
   }
 
-  var roadCost = costs.road;
-  var policeCost = costs.police;
-  var fireCost = costs.fire;
-  var totalCost = roadCost + policeCost + fireCost;
-  var cashRemaining = this.totalFunds + this.taxFund - totalCost;
-
-  // The player's values, which the city waits on. As in the original, what each service gets is booked as its spend.
-  // The effects are then set from those spends, standing in for the original's budget window. That window
+  // The player's values, or what auto-budget could pay. As in the original, what each service gets is booked as its
+  // spend, and the effects are set from those spends, standing in for the original's budget window. That window
   // (drawCurrPercents in micropolis-activity's w_budget.c, and the Tcl it calls), on drawing a percentage at a slider
   // position other than the slider's last one, sets the slider, which runs its handler (SimCmdRoadFund,
   // SimCmdFireFund or SimCmdPoliceFund in w_sim.c). The handler stores the whole percent back as the percentage, losing
   // any fraction, re-books the service's spend from it, and updates the effects. So there a fire department paid $94
   // of $300, drawn at 31%, is set to 31% and gets the effect of $93, and when no slider is drawn at a new position, no
-  // effect changes. Here opening a window never changes the city: the percentages keep their fractions, and the effects
-  // always follow what was paid, set as the player's values are applied.
-  if (fromWindow) {
-    this.awaitingValues = false;
-    this._collectTaxAndPayServices(totalCost);
-    this._bookSpend(costs);
-    this.updateFundEffects();
-    return;
+  // effect changes. Here the review never changes the city: the percentages keep their fractions, and the effects
+  // always follow what was paid.
+  this._bookSpend(costs);
+  this.updateFundEffects();
+
+  if (this.autoBudget) {
+    this.setAutoBudget(false);
+    this._emitEvent(Messages.NO_MONEY);
   }
 
-  // Autobudget with cash for every service. As in the original, each service's spend is booked as its full
-  // maintenance cost whatever its percentage, and the effects stay as they are.
-  if (cashRemaining > 0 && this.autoBudget) {
-    this.awaitingValues = false;
-    this._collectTaxAndPayServices(totalCost);
-    this._bookSpend(this.maintenance());
-    return;
-  }
-
-  // Uh-oh. Not enough money. Make this the user's problem.
-  // They don't know it yet, but they're about to get a budget window.
-  this.setAutoBudget(false);
-  this.awaitingValues = true;
-  this._emitEvent(Messages.BUDGET_NEEDED);
-  this._emitEvent(Messages.NO_MONEY);
+  this._emitEvent(Messages.BUDGET_REVIEW_DUE);
 };
 
 
@@ -280,7 +261,7 @@ Budget.prototype.collectTax = function(gameLevel, census) {
 
   if (census.totalPop > 0) {
     this.cashFlow = this.taxFund - (this.policeMaintenanceBudget + this.fireMaintenanceBudget + this.roadMaintenanceBudget);
-    this.doBudgetNow(false);
+    this.doBudgetNow();
   } else {
     // We don't want roads etc deteriorating when population hasn't yet been established
     // (particularly early game)

@@ -11,6 +11,7 @@
  *
  */
 
+import { Budget } from './budget.js';
 import { MiscUtils } from './miscUtils.js';
 import { Random } from './random.ts';
 import { UiRandom } from './uiRandom.ts';
@@ -161,6 +162,25 @@ var transitionOldSave = function(savedGame) {
     case 6:
       // The score breakdown wasn't recorded: show none until the next evaluation
       savedGame.evaluation.cityScoreBreakdown = [];
+
+      /* falls through */
+    case 7:
+      // Auto-bulldoze is the player's preference, kept apart from the city under its own key, so a save no longer holds
+      // it. The setting the save held is dropped rather than copied into the preference: the save is read on every
+      // page load, so a copy would overwrite whatever the player had since chosen.
+      delete savedGame.autoBulldoze;
+
+      // Nor does the year-end budget wait for the player any more: a save made while it waited pays it on load, with
+      // the values it holds, as the city now pays it at the year end. This is the one migration step that runs a game
+      // rule, because no rewriting of the fields can stand in for a year end that never happened.
+      if (savedGame.budget.awaitingValues) {
+        var budget = new Budget();
+        budget.load(savedGame);
+        budget.doBudgetNow();
+        budget.save(savedGame);
+      }
+
+      delete savedGame.budget.awaitingValues;
       break;
 
     default:
@@ -176,7 +196,7 @@ var Storage = {
 };
 
 
-Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(7));
+Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(8));
 Object.defineProperty(Storage, 'KEY', MiscUtils.makeConstantDescriptor('micropolisJSGame'));
 Object.defineProperty(Storage, 'canStore', MiscUtils.makeConstantDescriptor(window.localStorage !== undefined));
 

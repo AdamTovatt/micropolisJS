@@ -31,14 +31,35 @@ describe("the park tool", () => {
         const map = new GameMap(120, 100);
         const tool = new ParkTool(map);
 
-        tool.doTool(10, 10, null, streamDrawing([draw]));
+        tool.doTool(10, 10, streamDrawing([draw]));
         tool.modifyIfEnoughFunding(budget);
 
         expect(map.getTileValue(10, 10)).toBe(tileValue);
     });
+
+    // As putDownPark in the original, which picks what to plant before it looks at the tile
+    it("should draw once where the tile isn't clear, and plant nothing", () => {
+        const map = new GameMap(120, 100);
+        map.setTile(10, 10, WOODS2, BULLBIT);
+        const tool = new ParkTool(map);
+
+        expect(() => tool.doTool(10, 10, streamDrawing([]))).toThrow("The test stream ran out after 0 draws");
+
+        tool.doTool(10, 10, streamDrawing([2]));
+        expect(tool.result).toBe(tool.TOOLRESULT_NEEDS_BULLDOZE);
+    });
 });
 
 describe("the bulldozer", () => {
+
+    // As bulldozerTool in the original. Commands never reach it there, as the simulation rejects them first.
+    it.each([[-1, 50], [120, 50], [50, -1], [50, 100]])("should fail off the map, at (%i, %i)", (x, y) => {
+        const tool = new BulldozerTool(new GameMap(120, 100));
+
+        tool.doTool(x, y, streamDrawing([]));
+
+        expect(tool.result).toBe(tool.TOOLRESULT_FAILED);
+    });
 
     it("should blow up each tile of a zone with the explosion frame the stream draws for it", () => {
         const map = new GameMap(120, 100);
@@ -51,7 +72,7 @@ describe("the bulldozer", () => {
         const tool = new BulldozerTool(map);
 
         // Column by column, top to bottom
-        tool.doTool(50, 50, null, streamDrawing([0, 1, 2, 2, 1, 0, 1, 1, 1]));
+        tool.doTool(50, 50, streamDrawing([0, 1, 2, 2, 1, 0, 1, 1, 1]));
         tool.modifyIfEnoughFunding(budget);
 
         const frames = [];

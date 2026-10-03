@@ -50,11 +50,16 @@ var submit = function(e) {
   if (shouldAdd === 'true')
     actions.push({action: DebugWindow.ADD_FUNDS, data: {}});
 
+  if ($('.debugLog:checked').val() === 'true')
+    actions.push({action: DebugWindow.DOWNLOAD_LOG, data: {}});
+
   this.close(actions);
 };
 
 
+// The log downloads only when asked for each time, never because it was the last time
 DebugWindow.prototype.open = function() {
+  $('#logNo').prop('checked', true);
   this._toggleDisplay();
 };
 
@@ -70,6 +75,7 @@ var defineAction = (function() {
 
 
 defineAction('ADD_FUNDS');
+defineAction('DOWNLOAD_LOG');
 
 
 export { DebugWindow };

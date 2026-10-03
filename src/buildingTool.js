@@ -17,7 +17,7 @@ import { DIRT } from "./tileValues.ts";
 import { TileUtils } from './tileUtils.js';
 
 var BuildingTool = ConnectingTool(function(cost, centreTile, map, size, animated) {
-  this.init(cost, map, false);
+  this.init(cost, map);
   this.centreTile = centreTile;
   this.size = size;
   this.animated = animated;
@@ -51,7 +51,7 @@ BuildingTool.prototype.putBuilding = function(leftX, topY) {
 };
 
 
-BuildingTool.prototype.prepareBuildingSite = function(leftX, topY) {
+BuildingTool.prototype.prepareBuildingSite = function(leftX, topY, autoBulldoze) {
   // Check that the entire site is on the map
   if (leftX < 0 || leftX + this.size > this._map.width)
     return this.TOOLRESULT_FAILED;
@@ -73,7 +73,7 @@ BuildingTool.prototype.prepareBuildingSite = function(leftX, topY) {
       if (tileValue === DIRT)
         continue;
 
-      if (!this.autoBulldoze) {
+      if (!autoBulldoze) {
         // No TileValues.DIRT and no bull-dozer => not buildable
         return this.TOOLRESULT_NEEDS_BULLDOZE;
       }
@@ -92,12 +92,12 @@ BuildingTool.prototype.prepareBuildingSite = function(leftX, topY) {
 };
 
 
-BuildingTool.prototype.buildBuilding = function(x, y) {
+BuildingTool.prototype.buildBuilding = function(x, y, autoBulldoze) {
   // Correct to top left
   x--;
   y--;
 
-  var prepareResult = this.prepareBuildingSite(x, y);
+  var prepareResult = this.prepareBuildingSite(x, y, autoBulldoze);
   if (prepareResult !== this.TOOLRESULT_OK)
     return prepareResult;
 
@@ -111,8 +111,8 @@ BuildingTool.prototype.buildBuilding = function(x, y) {
 };
 
 
-BuildingTool.prototype.doTool = function(x, y) {
-  this.result = this.buildBuilding(x, y);
+BuildingTool.prototype.doTool = function(x, y, random, autoBulldoze) {
+  this.result = this.buildBuilding(x, y, autoBulldoze);
 };
 
 

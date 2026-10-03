@@ -1,8 +1,8 @@
 # Protocol
 
 The bodies and messages between the browser and the server, defined by hand on each side: `src/protocol.ts` for the
-client and `server/Micropolis.Rules/Protocol.cs` for the server. The examples and reader cases here pin the two
-together.
+client and `server/Micropolis.Rules/Protocol.cs` for the server, and the commands a player sends the simulation,
+defined in `src/protocol.ts`. The examples and reader cases here pin the sides together.
 
 ## Transport
 
@@ -42,15 +42,24 @@ once, comes online with the first connection and goes offline with the last.
 Readers are strict: an unknown field, a missing one, or a null or a value of the wrong kind where the protocol has
 none is an error. Fields may come in any order, `type` included, and writers put them in the protocol's order.
 
+## Commands
+
+A command is one change a player makes to the city: a JSON object whose `type` field names it. `src/protocol.ts`
+defines each command's fields, and `docs/command-log.md` says what they mean. The simulation validates each command as
+it receives it (`src/commands.ts`), and rejects one with a field missing, a field the command doesn't have, or a value
+of the wrong kind or outside the range the game offers. Fields may come in any order.
+
 ## Examples
 
-Each file in `examples/socket/` is one WebSocket message, and each file in `examples/session/` is one body of
-`/api/session`, named after the body. An example is its exact wire text on one line, then a newline, in UTF-8 without
-a byte order mark. The tests on both sides read every example, deserialize it into their own types and serialize it
-back, and fail unless the bytes are identical, so a field renamed, added or dropped on one side turns that side red.
-Each side reads back every example of a body or message it reads, and writes back every example of one it writes,
-building it from the example's fields where it has no reader for it. Each side's tests also fail when a message type
-or a session body has no example.
+Each file in `examples/socket/` is one WebSocket message, each file in `examples/session/` is one body of
+`/api/session`, named after the body, and each file in `examples/commands/` is one command. An example is its exact
+wire text on one line, then a newline, in UTF-8 without a byte order mark. Each side's tests read every example of
+what that side reads or writes, deserialize it into their own types and serialize it back, and fail unless the bytes
+are identical, so a field renamed, added or dropped on one side turns that side red. Each side reads back every
+example of a body, message or command it reads, and writes back every example of one it writes, building it from the
+example's fields where it has no reader for it. The simulation reads a command by validating it, so a command
+example must also be one it accepts. Each side's tests also fail when a message type, a session body or a command
+type that side reads or writes has no example.
 
 `reader-cases.json` holds the messages both readers must reject, messages they must accept and write back in the
 protocol's order, and session bodies a reader must reject, each tested by the sides that read that body.

@@ -15,14 +15,14 @@ import $ from "jquery";
 
 import { EventEmitter } from './eventEmitter.js';
 import { GameCanvas } from './gameCanvas.js';
-import { GameTools } from './gameTools.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
+import { QueryTool } from './queryTool.js';
 
 var InputStatus = EventEmitter(function(map, tileWidth) {
-  this.gameTools = new GameTools(map);
-
-  this.gameTools.addEventListener(Messages.QUERY_WINDOW_NEEDED, MiscUtils.reflectEvent.bind(this, Messages.QUERY_WINDOW_NEEDED));
+  // The query tool only reads the city; every other tool is a command the simulation applies
+  this.queryTool = new QueryTool(map);
+  this.queryTool.addEventListener(Messages.QUERY_WINDOW_NEEDED, MiscUtils.reflectEvent.bind(this, Messages.QUERY_WINDOW_NEEDED));
 
   this.canvasID = MiscUtils.normaliseDOMid(canvasID);
 
@@ -46,7 +46,6 @@ var InputStatus = EventEmitter(function(map, tileWidth) {
 
   // Tool buttons
   this.toolName = null;
-  this.currentTool = null;
   this.toolWidth = 0;
   this.toolColour = '';
 
@@ -77,6 +76,9 @@ var InputStatus = EventEmitter(function(map, tileWidth) {
 
 var canvasID = '#' + GameCanvas.DEFAULT_ID;
 var toolOutputID = '#toolOutput';
+
+// The tools that lay a line as the mouse drags; every other tool acts on a click
+var draggableTools = ['rail', 'road', 'wire'];
 
 
 var keyDownHandler = function(e) {
@@ -152,12 +154,12 @@ var getRelativeCoordinates = function(e) {
 
 
 var mouseEnterHandler = function() {
-  if (this.currentTool === null)
+  if (this.toolName === null)
     return;
 
   $(this.canvasID).on('mousemove', this.mouseMoveHandler);
 
-  if (this.currentTool.isDraggable)
+  if (draggableTools.indexOf(this.toolName) !== -1)
     $(this.canvasID).on('mousedown', this.mouseDownHandler);
   else
     $(this.canvasID).on('click', this.canvasClickHandler);
@@ -173,7 +175,7 @@ var mouseDownHandler = function(e) {
   this.mouseY = coords.y;
 
   this._dragging = true;
-  this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY});
+  this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true});
 
   this._lastDragX = Math.floor(this.mouseX / this._tileWidth);
   this._lastDragY = Math.floor(this.mouseY / this._tileWidth);
@@ -216,16 +218,15 @@ var mouseMoveHandler = function(e) {
   this.mouseX = coords.x;
   this.mouseY = coords.y;
 
+  // A drag continues from the tile last reported: the game fills in the tiles a fast move skips
   if (this._dragging) {
-    // XXX Work up how to patch up the path for fast mouse moves. My first attempt was too slow, and ended up missing
-    // mouseUp events
     var x = Math.floor(this.mouseX / this._tileWidth);
     var y = Math.floor(this.mouseY / this._tileWidth);
 
     var lastX = this._lastDragX;
     var lastY = this._lastDragY;
     if (x !== lastX || y !== lastY) {
-      this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY});
+      this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: false});
       this._lastDragX = x;
       this._lastDragY = y;
     }
@@ -235,10 +236,10 @@ var mouseMoveHandler = function(e) {
 
 var canvasClickHandler = function(e) {
   if (e.which !== 1 || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || this.mouseX === -1 ||
-     this._mouseY === -1 || this._dragging)
+     this.mouseY === -1 || this._dragging)
     return;
 
-  this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY});
+  this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true});
   e.preventDefault();
 };
 
@@ -256,7 +257,6 @@ var toolButtonHandler = function(e) {
 
   this.toolName = $(e.target).attr('data-tool');
   this.toolWidth = $(e.target).attr('data-size');
-  this.currentTool = this.gameTools[this.toolName];
   this.toolColour = $(e.target).attr('data-colour');
   $(toolOutputID).html('Tools');
 
@@ -273,7 +273,7 @@ var toolButtonHandler = function(e) {
 
 
 InputStatus.prototype.speedChangeHandler = function() {
-  this._emitEvent(Messages.SPEED_CHANGE);
+  this._emitEvent(Messages.PAUSE_REQUESTED);
 };
 
 
@@ -289,7 +289,7 @@ InputStatus.prototype.clearTool = function() {
     $(this.canvasID).addClass('pointer');
   }
 
-  this.currentTool = null;
+  this.toolName = null;
   this.toolWidth = 0;
   this.toolColour = '';
   $('.selected').removeClass('selected');

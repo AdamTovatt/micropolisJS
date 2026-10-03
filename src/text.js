@@ -173,6 +173,8 @@ messageText[Messages.REACHED_CITY] = 'Now a city! Population has reached 10,000'
 messageText[Messages.REACHED_MEGALOPOLIS] = 'Now a megalopolis! Population has reached 500,000';
 messageText[Messages.REACHED_METROPOLIS] = 'Now a metropolis! Population has reached 100,000';
 messageText[Messages.REACHED_TOWN] = 'Now a town! Population has reached 2,000';
+// The debug window's download, where the page can't work out state hashes
+messageText[Messages.LOG_UNCHECKED] = 'Command log saved without checkpoints: this page can\'t work out state hashes';
 
 // Status panel strings
 var statusPanel = {

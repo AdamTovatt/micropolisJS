@@ -17,12 +17,14 @@ import { TileUtils } from './tileUtils.js';
 import * as TileValues from "./tileValues.ts";
 
 var RailTool = ConnectingTool(function(map) {
-  this.init(20, map, true, true);
+  this.init(20, map);
 });
 
 
-RailTool.prototype.layRail = function(x, y) {
-  this.doAutoBulldoze(x, y);
+RailTool.prototype.layRail = function(x, y, autoBulldoze) {
+  if (autoBulldoze)
+    this.doAutoBulldoze(x, y);
+
   var tile = this._worldEffects.getTileValue(x, y);
   tile = TileUtils.normalizeRoad(tile);
   var cost = this.toolCost;
@@ -106,8 +108,8 @@ RailTool.prototype.layRail = function(x, y) {
 
 
 
-RailTool.prototype.doTool = function(x, y) {
-  this.result = this.layRail(x, y);
+RailTool.prototype.doTool = function(x, y, random, autoBulldoze) {
+  this.result = this.layRail(x, y, autoBulldoze);
 };
 
 

@@ -13,11 +13,15 @@
 
 import $ from "jquery";
 
-import { BaseTool } from './baseTool.js';
+import { AutoBulldozePreference } from './autoBulldozePreference.ts';
 import { BudgetWindow } from './budgetWindow.js';
+import { CommandRecorder } from './commandLog.ts';
+import { CommandQueue } from './commandQueue.ts';
+import { LOCAL_PLAYER } from './commands.ts';
 import { Config } from './config.js';
 import { DebugWindow } from './debugWindow.js';
 import { DisasterWindow } from './disasterWindow.js';
+import { ToolPaths } from './dragPath.ts';
 import { EvaluationWindow } from './evaluationWindow.js';
 import { GameCanvas } from './gameCanvas.js';
 import { InfoBar } from './infoBar.js';
@@ -33,22 +37,25 @@ import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.js';
 import { Simulation } from './simulation.js';
 import { SpeedControl } from './speedControl.ts';
+import { plainSavedState } from './stateHash.ts';
 import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
 import { Text } from './text.js';
 import { TouchWarnWindow } from './touchWarnWindow.js';
 import { UiRandom } from './uiRandom.ts';
+import { budgetCommand, settingsCommands, toolOutcome } from './windowCommands.ts';
 import { WindowManager } from './windowManager.ts';
 
 var disasterTimeout = 20 * 1000;
 
 
 // A game of the given simulation: Game.newGame and Game.fromSave build one
-function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
+function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
   this.name = name;
+  this.autoBulldoze = new AutoBulldozePreference(Storage.canStore ? window.localStorage : null);
   this.simulation = simulation;
   this.gameMap = simulation.getMap();
 
@@ -62,9 +69,13 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
 
   this.mouse = null;
   this.lastCoord = null;
+
+  this.toolPaths = new ToolPaths();
   this.lastBadMessageTime = null;
 
-  this.speedControl = new SpeedControl(this.simulation, this.inputStatus.showPaused.bind(this.inputStatus));
+  this.speedControl = new SpeedControl(this.simulation, function(speed) {
+    this.commandQueue.send(LOCAL_PLAYER, {type: 'setSpeed', speed: speed});
+  }.bind(this), this.inputStatus.showPaused.bind(this.inputStatus));
 
   // Initialise monsterTV
   this.monsterTV = new MonsterTV(this.gameMap, tileSet, spriteSheet);
@@ -72,9 +83,8 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
   var opacityLayerID = 'opaque';
 
   this.budgetWindow = new BudgetWindow(opacityLayerID, 'budget');
-  this.windows = new WindowManager(this.budgetWindow, function() {
-    return this.simulation.budget.awaitingValues;
-  }.bind(this), this.budgetWindowValues.bind(this));
+  this.windows = new WindowManager(this.budgetWindow, this.budgetWindowValues.bind(this));
+  this.simulation.addEventListener(Messages.BUDGET_REVIEW_DUE, this.windows.budgetReviewDue.bind(this.windows));
 
   this.handleWindowClosure = this.windows.closed.bind(this.windows);
 
@@ -130,11 +140,12 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
   // Listen for front end messages
   this.simulation.addEventListener(Messages.FRONT_END_MESSAGE, this.processFrontEndMessage.bind(this));
 
-  // Listen for tool clicks
+  // Listen for tool clicks, and how the commands they send went
   this.inputStatus.addEventListener(Messages.TOOL_CLICKED, this.handleTool.bind(this));
+  this.simulation.addEventListener(Messages.COMMAND_RESULT, this.handleCommandResult.bind(this));
 
   // And pauses
-  this.inputStatus.addEventListener(Messages.SPEED_CHANGE, this.handlePause.bind(this));
+  this.inputStatus.addEventListener(Messages.PAUSE_REQUESTED, this.handlePause.bind(this));
 
   // And date changes
   // XXX Not yet activated
@@ -160,10 +171,12 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
   // Unhide controls
   this.revealControls();
 
-  // Run the sim
+  // Run the sim. Every change the player makes to the city is a command, sent through the queue.
+  this.recorder = new CommandRecorder(this.simulation, logStart);
+  this.commandQueue = new CommandQueue(this.simulation, this.recorder);
   this.stepDriver = new StepDriver();
   this.isStepping = isStepping.bind(this);
-  this.stepSimulation = this.simulation.step.bind(this.simulation);
+  this.stepSimulation = this.commandQueue.step.bind(this.commandQueue);
   this.tick = tick.bind(this);
   this.tick();
 
@@ -184,7 +197,6 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
 
 Game.prototype.save = function() {
   var saveData = {name: this.name};
-  BaseTool.save(saveData);
   this.simulation.save(saveData);
 
   Storage.saveGame(saveData);
@@ -193,15 +205,17 @@ Game.prototype.save = function() {
 
 // A new game on the map generated from the game seed, at the chosen level
 Game.newGame = function(map, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
-  var simulation = new Simulation(map, difficulty || 0, Simulation.SPEED_MED, seed);
-  return new Game(simulation, tileSet, snowTileSet, spriteSheet, name || 'MyTown');
+  var level = difficulty || 0;
+  var simulation = new Simulation(map, level, Simulation.SPEED_MED, seed);
+  return new Game(simulation, {seed: seed, level: level}, tileSet, snowTileSet, spriteSheet, name || 'MyTown');
 };
 
 
 // A game restored from what Game.save wrote
 Game.fromSave = function(savedGame, tileSet, snowTileSet, spriteSheet) {
-  BaseTool.load(savedGame);
-  return new Game(Simulation.fromSave(savedGame), tileSet, snowTileSet, spriteSheet, savedGame.name);
+  // The session's log starts from the city as loaded
+  var simulation = Simulation.fromSave(savedGame);
+  return new Game(simulation, {save: plainSavedState(simulation)}, tileSet, snowTileSet, spriteSheet, savedGame.name);
 };
 
 
@@ -235,46 +249,25 @@ Game.prototype.handleDisasterWindowClosure = function(request) {
   if (request === DisasterWindow.DISASTER_NONE)
     return;
 
-  switch (request) {
-    case DisasterWindow.DISASTER_MONSTER:
-      this.simulation.spriteManager.makeMonster();
-      break;
-
-    case DisasterWindow.DISASTER_FIRE:
-      this.simulation.disasterManager.makeFire();
-      break;
-
-    case DisasterWindow.DISASTER_FLOOD:
-      this.simulation.disasterManager.makeFlood();
-      break;
-
-    case DisasterWindow.DISASTER_CRASH:
-      this.simulation.disasterManager.makeCrash();
-      break;
-
-    case DisasterWindow.DISASTER_MELTDOWN:
-      this.simulation.disasterManager.makeMeltdown();
-      break;
-
-    case DisasterWindow.DISASTER_TORNADO:
-      this.simulation.spriteManager.makeTornado();
-  }
+  this.commandQueue.send(LOCAL_PLAYER, {type: 'triggerDisaster', kind: request});
 };
 
 
 Game.prototype.handleSettingsWindowClosure = function(actions) {
   this.windows.closed();
 
+  var chosen = {autoBudget: this.settingsShown.autoBudget, disasters: this.settingsShown.disasters};
+
   for (var i = 0, l = actions.length; i < l; i++) {
     var a = actions[i];
 
     switch (a.action) {
       case SettingsWindow.AUTOBUDGET:
-        this.simulation.budget.setAutoBudget(a.data);
+        chosen.autoBudget = a.data;
         break;
 
       case SettingsWindow.AUTOBULLDOZE:
-        BaseTool.setAutoBulldoze(a.data);
+        this.autoBulldoze.set(a.data);
         break;
 
       case SettingsWindow.SPEED:
@@ -282,13 +275,17 @@ Game.prototype.handleSettingsWindowClosure = function(actions) {
         break;
 
       case SettingsWindow.DISASTERS_CHANGED:
-        this.simulation.disasterManager.disastersEnabled = a.data;
+        chosen.disasters = a.data;
         break;
 
       default:
         console.warn('Unexpected action', a);
     }
   }
+
+  settingsCommands(this.settingsShown, chosen).forEach(function(command) {
+    this.commandQueue.send(LOCAL_PLAYER, command);
+  }, this);
 };
 
 
@@ -300,13 +297,41 @@ Game.prototype.handleDebugWindowClosure = function(actions) {
 
     switch (a.action) {
       case DebugWindow.ADD_FUNDS:
-        this.simulation.budget.spend(-20000);
+        this.commandQueue.send(LOCAL_PLAYER, {type: 'addFunds'});
+        break;
+
+      case DebugWindow.DOWNLOAD_LOG:
+        this.downloadLog();
         break;
 
       default:
         console.warn('Unexpected action', a);
     }
   }
+};
+
+
+// Saves the session's command log as a file, for the headless runner to replay: `npm run simulate -- --log <file>`.
+// Where the page can't work out state hashes, the log has no checkpoints, and the player is told.
+Game.prototype.downloadLog = function() {
+  var step = this.commandQueue.stepIndex;
+
+  this.recorder.log().then(function(recorded) {
+    var url = URL.createObjectURL(new Blob([JSON.stringify(recorded.log)], {type: 'application/json'}));
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'micropolis-log-' + step + '.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Revoked once the download has had time to start: revoking at once can cancel it
+    window.setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+
+    if (recorded.unhashed !== null) {
+      console.error('The command log has no checkpoints: ' + recorded.unhashed.message);
+      this._notificationBar.badNews({subject: Messages.LOG_UNCHECKED});
+    }
+  }.bind(this));
 };
 
 
@@ -329,17 +354,8 @@ Game.prototype.handleScreenshotWindowClosure = function(action) {
 Game.prototype.handleBudgetWindowClosure = function(data) {
   this.windows.closed();
 
-  var budget = this.simulation.budget;
-
-  if (!data.cancelled) {
-    budget.setFunding(data.funding);
-    budget.setTax(data.taxPercent - 0);
-  }
-
-  // A year-end budget the city waits on takes the values it already has when the player cancels, rather than holding
-  // the city until the window opens again
-  if (budget.awaitingValues)
-    budget.doBudgetWindow();
+  if (!data.cancelled)
+    this.commandQueue.send(LOCAL_PLAYER, budgetCommand(data.funding, data.taxPercent));
 };
 
 
@@ -369,11 +385,15 @@ Game.prototype.handleEvalRequest = function() {
 
 
 Game.prototype.handleSettingsRequest = function() {
-  this.windows.open(this.settingsWindow, {
-    autoBudget: this.simulation.budget.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(),
-    speed: this.speedControl.getRunningSpeed(), disasters: this.simulation.disasterManager.disastersEnabled,
-    seed: this.simulation.seed
-  });
+  // The city settings as the window shows them, which its choices are compared with when it closes
+  var shown = {autoBudget: this.simulation.budget.autoBudget,
+               disasters: this.simulation.disasterManager.disastersEnabled};
+
+  if (this.windows.open(this.settingsWindow, {
+    autoBudget: shown.autoBudget, autoBulldoze: this.autoBulldoze.isOn(),
+    speed: this.speedControl.getRunningSpeed(), disasters: shown.disasters, seed: this.simulation.seed
+  }))
+    this.settingsShown = shown;
 };
 
 
@@ -397,33 +417,54 @@ Game.prototype.handleScreenshotRequest = function() {
 };
 
 
+// The tiles the player's tool reaches gather into paths (see ToolPaths), sent each tick by sendToolPaths
 Game.prototype.handleTool = function(data) {
-  var x = data.x;
-  var y = data.y;
-
   // Were was the tool clicked?
-  var tileCoords = this.gameCanvas.canvasCoordinateToTileCoordinate(x, y);
+  var tileCoords = this.gameCanvas.canvasCoordinateToTileCoordinate(data.x, data.y);
 
-  if (tileCoords === null)
+  var toolName = this.inputStatus.toolName;
+  if (tileCoords === null || toolName === null) {
+    this.toolPaths.lost();
+    return;
+  }
+
+  if (toolName === 'query') {
+    this.inputStatus.queryTool.doTool(tileCoords.x, tileCoords.y, this.simulation.blockMaps);
+    return;
+  }
+
+  this.toolPaths.reached(toolName, {x: tileCoords.x, y: tileCoords.y}, data.start);
+};
+
+
+// Sends each path gathered since the last tick as one tool command: a click, or a drag's latest tiles
+Game.prototype.sendToolPaths = function() {
+  this.toolPaths.take().forEach(function(toolPath) {
+    this.commandQueue.send(LOCAL_PLAYER, {type: 'tool', tool: toolPath.tool, path: toolPath.path,
+                                          autoBulldoze: this.autoBulldoze.isOn()});
+  }, this);
+};
+
+
+// The tool output shows how the player's last tool command went
+Game.prototype.handleCommandResult = function(result) {
+  var outcome = toolOutcome(result);
+  if (outcome === null)
     return;
 
-  var tool = this.inputStatus.currentTool;
-
-  var budget = this.simulation.budget;
-
-  // do it!
-  tool.doTool(tileCoords.x, tileCoords.y, this.simulation.blockMaps, this.simulation.random);
-
-  tool.modifyIfEnoughFunding(budget);
-  switch (tool.result) {
-    case tool.TOOLRESULT_NEEDS_BULLDOZE:
+  switch (outcome) {
+    case 'needsBulldoze':
       $('#toolOutput').text(Text.toolMessages.needsDoze);
       break;
 
-    case tool.TOOLRESULT_NO_MONEY:
+    case 'noMoney':
       $('#toolOutput').text(Text.toolMessages.noMoney);
       break;
 
+    case 'rejected':
+      console.warn('Tool command rejected: ' + result.reason);
+
+      /* falls through */
     default:
       $('#toolOutput').html('Tools');
   }
@@ -546,23 +587,27 @@ Game.prototype.calculateSpritesForPaint = function(canvas) {
 };
 
 
-// The city steps unless it is paused, the budget window holds it, the screen is too small to play, or the tab is hidden:
-// a hidden tab is not watched, so the city waits rather than running on unseen
+// The city steps unless it is paused, the screen is too small to play, or the tab is hidden: a hidden tab is not
+// watched, so the city waits rather than running on unseen
 var isStepping = function() {
-  return !this.simulation.isPaused() && !this.windows.holdsCity() && !$('#tooSmall').is(':visible') && !document.hidden;
+  return !this.simulation.isPaused() && !$('#tooSmall').is(':visible') && !document.hidden;
 };
 
 
 var tick = function() {
   this.handleInput();
 
+  // The tiles clicked or dragged over since the last tick go as tool commands, one per path. The commands sent since the
+  // last tick apply first, whether or not the city is stepping: you can build when paused.
+  this.sendToolPaths();
+  this.commandQueue.applyCommands();
+
   // Run the sim: as many steps as the time since the last tick is due
   this.stepDriver.run(performance.now(), this.isStepping, this.stepSimulation);
 
-  // A year-end budget that fell due during those steps, or while a window showed
+  // A year-end budget review that fell due during those steps, or while a window showed
   this.windows.openDue();
 
-  // Run this even when paused: you can still build when paused
   this.mouse = this.windows.holdsInput() ? null : this.calculateMouseForPaint();
 
   window.setTimeout(this.tick, 0);

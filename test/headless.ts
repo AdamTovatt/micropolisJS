@@ -11,21 +11,38 @@
  *
  */
 
-import { cityFromSave, cityFromSeed, Level, SaveData, Speed } from "../headless/city";
+import { cityFromSave, SaveData, Speed } from "../headless/city";
 import { parseCommandLine } from "../headless/commandLine";
-import { buildFixture, CityBuilder } from "../headless/fixtures/builder";
-import { fixtureNames, fixtures, fixtureSave } from "../headless/fixtures/index";
-import { advance, Start, startCity, startFromSave, summarise } from "../headless/runner";
-import { BaseTool } from "../src/baseTool.js";
+import { RUN_STEPS } from "../headless/fixtures/fixture";
+import { fixtureLog, fixtureNames } from "../headless/fixtures/index";
+import { lineOf } from "../headless/fixtures/toolCommands";
+import { run } from "../headless/run";
+import { advance, fixtureSave, replay, Start, startCity, startFromSave, summarise } from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
+import { parseLog } from "../src/commandLog";
+import { LOCAL_PLAYER } from "../src/commands";
 import { plainSavedState, savedState, stateHash } from "../src/stateHash";
 import { InspectedSave } from "./helpers/savedState";
 
 describe("a fixture", () => {
 
-    it.each(fixtureNames())("%s loads to exactly the state its script builds", (name) => {
+    it.each(fixtureNames())("%s is a command log as a file holds one", (name) => {
+        const log = fixtureLog(name);
+
+        expect(parseLog(JSON.parse(JSON.stringify(log)))).toEqual(log);
+    });
+
+    // A fixture whose build silently skipped an edit would pin a different city than its log describes
+    it.each(fixtureNames())("%s is built by commands that all succeed", (name) => {
+        const {results} = replay(fixtureLog(name), {verify: false});
+
+        expect(results).toHaveLength(fixtureLog(name).entries.length);
+        expect(results.filter((result) => result.outcome !== "ok")).toEqual([]);
+    });
+
+    it.each(fixtureNames())("%s loads to exactly the state its log builds", (name) => {
         expect(canonicalJson(savedState(startCity({fixture: name}))))
-            .toBe(canonicalJson(savedState(buildFixture(fixtures[name]))));
+            .toBe(canonicalJson(savedState(replay(fixtureLog(name), {to: 0, verify: false}).city)));
     });
 });
 
@@ -41,7 +58,7 @@ describe("the runner", () => {
     });
 
     it("names the fixtures when asked for one that doesn't exist", () => {
-        expect(() => startCity({fixture: "nowhere"})).toThrow("No fixture named nowhere: the fixtures are town");
+        expect(() => startCity({fixture: "nowhere"})).toThrow("No fixture named nowhere: the fixtures are broke, town, underfunded");
     });
 
     // The hash sees the stream's state: two streams over the same city differ before a single step
@@ -157,21 +174,19 @@ describe("a run", () => {
         expect(summary.funds).toBe(city.budget.totalFunds);
     });
 
-    // With auto-budget off, the year-end budget waits for the player
-    it("fails when the simulation stops for the player's budget", () => {
+    // With auto-budget off, the year-end budget takes the player's values without waiting for them
+    it("runs on through a year end with auto-budget off", () => {
         const saved = fixtureSave("town") as InspectedSave;
         const city = startFromSave({...saved, budget: {...saved.budget, autoBudget: false}} as SaveData,
                                    {speed: "fast"});
 
-        expect(() => advance(city, STEPS_PER_YEAR_AT_FAST))
-            .toThrow("The simulation stopped for the player's budget");
+        expect(() => advance(city, 2 * STEPS_PER_YEAR_AT_FAST)).not.toThrow();
     });
 
-    // Saved while waiting for the player's budget, so the city never sends BUDGET_NEEDED during the run
+    // A simulation whose steps do nothing, as one that stopped letting phases through would
     it("fails when city time doesn't advance as far as the steps imply", () => {
-        const saved = fixtureSave("town") as InspectedSave;
-        const city = startFromSave({...saved, budget: {...saved.budget, awaitingValues: true}} as SaveData,
-                                   {speed: "fast"});
+        const city = startCity({fixture: "town", speed: "fast"});
+        city.step = () => {};
 
         expect(() => advance(city, 64))
             .toThrow("The simulation stalled: 64 steps should advance city time from 0 to 4, but it reached 0");
@@ -196,28 +211,50 @@ describe("a run", () => {
     });
 });
 
-describe("the fixture builder", () => {
+describe("a fixture's tool commands", () => {
 
-    const builderOnSeed8 = () => new CityBuilder(cityFromSeed(8, Level.easy, Speed.medium));
+    it("lay only straight lines", () => {
+        expect(() => lineOf("road", 12, 12, 14, 14)).toThrow("A road line must be horizontal or vertical");
+    });
+});
 
-    it("lays only straight lines", () => {
-        expect(() => builderOnSeed8().road(12, 12, 14, 14)).toThrow("A road line must be horizontal or vertical");
+describe("the command line's replay of a log", () => {
+
+    // The town's log, with a road off the map that the town's replay rejects and that changes nothing
+    const townWithRejection = () => {
+        const town = fixtureLog("town");
+        const offMap = {step: 0, player: LOCAL_PLAYER, command: lineOf("road", -1, 0, -1, 0)};
+        return {...town, entries: [...town.entries, offMap]};
+    };
+    const replayLog = (log: object) => run(["--log", "session.json"], () => JSON.stringify(log));
+
+    it("counts its commands' outcomes and its checkpoints, and passes when they all match", async () => {
+        const log = townWithRejection();
+        const town = startCity({fixture: "town"});
+        advance(town, RUN_STEPS);
+        const summary = await summarise(town);
+
+        expect(await replayLog(log)).toEqual({
+            lines: [`${log.entries.length} commands: ${log.entries.length - 1} ok, 1 rejected`, "2 checkpoints match",
+                    summary.hash, `year ${summary.year}, population ${summary.population}, funds ${summary.funds}`],
+            failure: null,
+        });
     });
 
-    // A zone centred on the corner tile would hang off the map
-    it("fails when a tool does", () => {
-        expect(() => builderOnSeed8().residential(0, 0)).toThrow("The residential tool failed at (0, 0)");
+    // As a log the browser saved without Web Crypto has none
+    it("fails a log with no checkpoints, having verified nothing", async () => {
+        const report = await replayLog({...townWithRejection(), checkpoints: []});
+
+        expect(report.lines[0]).toMatch(/ 1 rejected$/);
+        expect(report.lines.filter((line) => line.includes("checkpoints match"))).toEqual([]);
+        expect(report.failure).toBe("The log has no checkpoints, so its replay verified nothing");
     });
 
-    it("needs auto-bulldoze on", () => {
-        const baseTool = BaseTool as unknown as {getAutoBulldoze(): boolean, setAutoBulldoze(value: boolean): void};
-        baseTool.setAutoBulldoze(false);
+    it("fails at a checkpoint that doesn't match", async () => {
+        const log = townWithRejection();
+        const checkpoints = [log.checkpoints[0], {...log.checkpoints[1], hash: "0".repeat(64)}];
 
-        try {
-            expect(() => buildFixture(fixtures.town)).toThrow("Fixtures are built with auto-bulldoze on");
-        } finally {
-            baseTool.setAutoBulldoze(true);
-        }
+        await expect(replayLog({...log, checkpoints})).rejects.toThrow(`At step ${RUN_STEPS} the replay's state hash`);
     });
 });
 
@@ -233,7 +270,14 @@ describe("the command line", () => {
             .toEqual({start: {seed: 42, fixture: undefined, reseed: undefined, speed: undefined}, steps: 0});
     });
 
+    it("reads a log to replay", () => {
+        expect(parseCommandLine(["--log", "session.json"])).toEqual({log: "session.json"});
+    });
+
     it.each([
+        [["--log", "session.json", "--steps", "10"], "--log replays a log as it stands, and takes no other option, got --steps"],
+        [["--log", "session.json", "--seed", "1", "--speed", "fast"],
+            "--log replays a log as it stands, and takes no other option, got --seed, --speed"],
         [["--seed", "1"], "--steps is required"],
         [["--seed", "1", "--steps", "3.5"], "--steps takes a whole number, got 3.5"],
         [["--seed", "x", "--steps", "1"], "--seed takes a whole number, got x"],

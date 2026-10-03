@@ -17,12 +17,14 @@ import { TileUtils } from './tileUtils.js';
 import * as TileValues from "./tileValues.ts";
 
 var RoadTool = ConnectingTool(function(map) {
-  this.init(10, map, true, true);
+  this.init(10, map);
 });
 
 
-RoadTool.prototype.layRoad = function(x, y) {
-  this.doAutoBulldoze(x, y);
+RoadTool.prototype.layRoad = function(x, y, autoBulldoze) {
+  if (autoBulldoze)
+    this.doAutoBulldoze(x, y);
+
   var tile = this._worldEffects.getTileValue(x, y);
   var cost = this.toolCost;
 
@@ -108,8 +110,8 @@ RoadTool.prototype.layRoad = function(x, y) {
 };
 
 
-RoadTool.prototype.doTool = function(x, y) {
-  this.result = this.layRoad(x, y);
+RoadTool.prototype.doTool = function(x, y, random, autoBulldoze) {
+  this.result = this.layRoad(x, y, autoBulldoze);
 };
 
 

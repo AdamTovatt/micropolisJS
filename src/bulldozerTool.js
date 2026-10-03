@@ -20,7 +20,7 @@ import * as TileValues from "./tileValues.ts";
 import { ZoneUtils } from './zoneUtils.js';
 
 var BulldozerTool = EventEmitter(ConnectingTool(function(map) {
-  this.init(10, map, true);
+  this.init(10, map);
 }));
 
 
@@ -77,9 +77,11 @@ BulldozerTool.prototype.layDoze = function(x, y) {
 };
 
 
-BulldozerTool.prototype.doTool = function(x, y, blockMaps, random) {
-  if (!this._map.testBounds(x, y))
+BulldozerTool.prototype.doTool = function(x, y, random) {
+  if (!this._map.testBounds(x, y)) {
     this.result = this.TOOLRESULT_FAILED;
+    return;
+  }
 
   var tile = this._worldEffects.getTile(x, y);
   var tileValue = tile.getValue();

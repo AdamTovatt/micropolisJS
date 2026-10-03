@@ -11,6 +11,7 @@
  *
  */
 
+import { CommandResult, ReceivedCommand } from "../src/commands";
 import { GameMap } from "../src/gameMap.js";
 import { MapGenerator } from "../src/mapGenerator.js";
 import { Random } from "../src/random";
@@ -21,7 +22,6 @@ import { Simulation as SimulationConstructor } from "../src/simulation.js";
 
 export interface Budget {
   totalFunds: number;
-  awaitingValues: boolean;
   spend(amount: number): void;
 }
 
@@ -29,11 +29,11 @@ export type GameMapInstance = InstanceType<typeof GameMap>;
 
 export interface Simulation {
   random: Random;
-  blockMaps: object;
   budget: Budget;
   evaluation: {cityPop: number};
   save(saveData: object): void;
   load(saveData: object): void;
+  applyCommands(received: ReceivedCommand[]): CommandResult[];
   step(): void;
   isPaused(): boolean;
   getLevel(): number;
