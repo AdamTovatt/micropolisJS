@@ -188,13 +188,14 @@ that family's record alone must reach the branch: the generator fails when the c
 A point's `where` that tries a unit on a copy of the city runs it in `unrecorded`, which `unitSnapshots.ts` exports;
 otherwise the copy's call of the unit counts among the city's own calls.
 
-The points seeded are, in each sprite-free fixture, the map scan's first sweep, its eight calls, with `"each"`, and
-every other unit's first two calls; every phase of the suburb's first cycle; and phase 0 alone in each fixture: a
+Each fixture in `headless/fixtures/index.ts` has a `kind`. A `"snapshots"` fixture is sprite-free and records the
+points seeded below; a `"branch"` fixture, made for a branch of a unit, is sprite-free but records only the points
+that name it; a `"sprites"` fixture creates sprites and records none.
+
+The points seeded are, in each `"snapshots"` fixture, the map scan's first sweep, its eight calls, with `"each"`, and
+every other unit's first two calls; every phase of the suburb's first cycle; and phase 0 alone in each such fixture: a
 cycle that sets no valves, after the first evaluation. A point for a rare branch names the branch in `reaches`, so a change that stops the point
 reaching it fails the generator rather than leaving the branch unproven.
-
-A fixture made for a branch is listed in `branch` in `headless/fixtures/index.ts`: it is sprite-free, but records
-only the points that name it, neither the first calls nor phase 0 alone.
 
 The generator fails when:
 

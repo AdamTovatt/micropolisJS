@@ -11,10 +11,10 @@
  *
  */
 
-import { townFixtureNames } from "../conformance/snapshotPoints";
+import { SNAPSHOT_POINTS } from "../conformance/snapshotPoints";
 import { recordSnapshots, SnapshotPoint, SnapshotRecord, unrecorded } from "../conformance/unitSnapshots";
 import { cityFromSave, SaveData } from "../headless/city";
-import { fixtureLog } from "../headless/fixtures/index";
+import { fixtureLog, fixtureNamesOf, spriteFreeFixtureNames } from "../headless/fixtures/index";
 import { replay } from "../headless/runner";
 import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { plainSavedState } from "../src/stateHash";
@@ -108,7 +108,15 @@ describe("a unit called on a copy of the city", () => {
 
 describe("the fixtures every unit's first calls are recorded from", () => {
 
-    it("are the sprite-free fixtures but those made for a branch", () => {
-        expect(townFixtureNames(["branchy", "suburb", "town"], ["branchy"])).toEqual(["suburb", "town"]);
+    it("are those of the kind snapshots", () => {
+        const swept = SNAPSHOT_POINTS.filter((point) => point.unit === "mapScanner.mapScan" && point.handlers === "each")
+            .map((point) => point.fixture);
+
+        expect(Array.from(new Set(swept)).sort()).toEqual(fixtureNamesOf("snapshots"));
+    });
+
+    it("are sprite-free, as are those made for a branch", () => {
+        expect(spriteFreeFixtureNames()).toEqual(fixtureNamesOf("snapshots", "branch"));
+        expect(fixtureNamesOf("snapshots").filter((name) => fixtureNamesOf("branch").includes(name))).toEqual([]);
     });
 });
