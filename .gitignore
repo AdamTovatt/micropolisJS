@@ -5,3 +5,5 @@ dist/
 node_modules/
 TODO
 headless/fixtures/export/
+server/**/bin/
+server/**/obj/

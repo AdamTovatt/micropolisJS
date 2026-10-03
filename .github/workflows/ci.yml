@@ -17,3 +17,12 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run lint
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build server/Micropolis.slnx
+      - run: dotnet test server/Micropolis.slnx --no-build
