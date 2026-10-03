@@ -12,7 +12,7 @@
  */
 
 import type { PageMessage, Port, WorkerMessage } from "../src/cityWorkerMessages";
-import { serveCity } from "../src/cityWorkerHost";
+import { raiseUnhandledRejections, serveCity } from "../src/cityWorkerHost";
 import { ManualTicker } from "./helpers/manualTicker";
 
 // The worker's side of the Worker source, over a port the test reads and writes by hand. The contract tests
@@ -51,5 +51,27 @@ describe("serving a city to the page", () => {
 
         expect(posted).toEqual([{type: "failed", id: 7,
                                  error: {name: "DataCloneError", message: "The answer could not be cloned"}}]);
+    });
+});
+
+describe("a promise rejected in the worker with no one to catch it", () => {
+
+    // The listener the worker's scope calls with such a rejection
+    function rejectionListener() {
+        let listener: ((event: {reason: unknown}) => void) | null = null;
+        raiseUnhandledRejections({addEventListener: (_type, added) => {
+            listener = added;
+        }});
+        return listener!;
+    }
+
+    it("is thrown, for the worker's error event to carry to the page", () => {
+        const error = new RangeError("out of range");
+
+        expect(() => rejectionListener()({reason: error})).toThrow(error);
+    });
+
+    it("is thrown as an error when it rejected with something else", () => {
+        expect(() => rejectionListener()({reason: "no reason"})).toThrow(new Error("no reason"));
     });
 });

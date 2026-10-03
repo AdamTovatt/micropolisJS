@@ -90,7 +90,7 @@ describe.each(SOURCES)("$name", (factory) => {
 
             expect(answer).toMatchObject({type: "mapPreview", seed: SEED, width: map.width, height: map.height});
             const tiles = (answer as {tiles: number[]}).tiles;
-            expect(tiles[map.width * 10 + 20]).toBe(map.getTileValue(20, 10));
+            expect(tiles[map.width * 10 + 20] & BIT_MASK).toBe(map.getTileValue(20, 10));
         });
 
         it.each([-1, 0.5, 2 ** 32])("rejects a map preview of a seed that isn't a uint32, %d", async (seed) => {
@@ -133,7 +133,7 @@ describe.each(SOURCES)("$name", (factory) => {
             const preview = await ask({type: "mapPreview", seed: SEED}) as {tiles: number[]};
             await tested.source.start({name: "Town", seed: SEED, level: 0});
 
-            expect(clientTiles().map((value) => value & BIT_MASK)).toEqual(preview.tiles);
+            expect(clientTiles()).toEqual(preview.tiles);
         });
 
         it("starts a saved game as it was saved, under the name it was saved under", async () => {

@@ -13,7 +13,7 @@
 
 import type { Ticker } from "./cityHost";
 import type { Port } from "./cityWorkerMessages";
-import { serveCity } from "./cityWorkerHost";
+import { raiseUnhandledRejections, serveCity } from "./cityWorkerHost";
 
 // The city's Web Worker, which the page starts (micropolis.ts): the simulation runs here, off the page's thread. The
 // compiler's DOM library types the worker's scope as a window, so it is named by the port it is.
@@ -21,10 +21,5 @@ import { serveCity } from "./cityWorkerHost";
 // The browser's ticker, which runs the host's loop
 const ticker: Ticker = {now: () => performance.now(), later: (callback) => setTimeout(callback, 0)};
 
-// A promise that rejects with no one to catch it is thrown, as an error thrown outside a call already is, so that the
-// worker's error event carries it to the page
-self.addEventListener("unhandledrejection", (event) => {
-  throw event.reason instanceof Error ? event.reason : new Error(String(event.reason));
-});
-
+raiseUnhandledRejections(self);
 serveCity(self as unknown as Port, ticker);

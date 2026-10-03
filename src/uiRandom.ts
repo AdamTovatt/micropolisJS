@@ -11,7 +11,9 @@
  *
  */
 
-// The UI's own randomness, unseeded, so it never touches a simulation's stream. Simulation code must not import it.
+// The UI's own randomness, unseeded, so it never touches a simulation's stream. No simulation module may import it
+// (CLAUDE.md). The one draw from it on the simulation's side is the seed a save from before seeds gets as it migrates
+// (savedGame.ts).
 
 const UINT32_RANGE = 2 ** 32;
 

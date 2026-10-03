@@ -15,7 +15,6 @@
 // simulation behaviour, which the C# port mirrors, and which the client doesn't read: it shows the date, the speed and
 // the city's figures from the state messages the city host sends.
 
-export const AUTOBUDGET_CHANGED = "Autobudget changed";
 export const BUDGET_REVIEW_DUE = "Year-end budget to review";
 export const BUDGET_REQUESTED = "Budget window requested";
 export const BUDGET_WINDOW_CLOSED = "Budget window closed";

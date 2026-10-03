@@ -12,11 +12,12 @@
  */
 
 import type { CityStart } from "./citySource";
+import { ClientMap } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { isChecked, isShown, requiredElement, setShown } from "./domElements";
 import { Game, GameParts } from "./game";
-import { GAME_LEVELS, GameLevel, MapPreviewAnswer } from "./protocol";
-import { PreviewMap, SplashCanvas } from "./splashCanvas";
+import { GAME_LEVELS, GameLevel } from "./protocol";
+import { SplashCanvas } from "./splashCanvas";
 import { Storage } from "./storage";
 import { UiRandom } from "./uiRandom";
 
@@ -40,15 +41,6 @@ function checkedLevel(): number {
   }
 
   return GAME_LEVELS.indexOf(radio.level);
-}
-
-// A preview's tiles as the splash canvas reads them
-function previewMap(answer: MapPreviewAnswer): PreviewMap {
-  return {
-    width: answer.width,
-    height: answer.height,
-    getTileValue: (x, y) => answer.tiles[y * answer.width + x],
-  };
 }
 
 // Shows the splash screen, first offering the map of the seed, or of a new one when given none. While the screen is too
@@ -195,7 +187,7 @@ class SplashScreen {
       }
 
       if (answer.seed === this.seed) {
-        this.splashCanvas.paint(previewMap(answer));
+        this.splashCanvas.paint(new ClientMap(answer));
       }
     });
   }

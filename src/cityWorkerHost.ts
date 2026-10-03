@@ -22,6 +22,19 @@ import { LOCAL_PLAYER } from "./protocol";
 // page has the state before the call resolves. What goes wrong outside a call, in the host's loop or in a command,
 // is thrown out of the worker (cityWorker.ts), which the page hears of.
 
+// The scope a promise rejects in with no one to catch it: the worker's own, or a test's stand-in
+export interface RejectionScope {
+  addEventListener(type: "unhandledrejection", listener: (event: {reason: unknown}) => void): void;
+}
+
+// A promise that rejects in the scope with no one to catch it is thrown, as an error thrown outside a call already is,
+// so that the worker's error event carries it to the page
+export function raiseUnhandledRejections(scope: RejectionScope): void {
+  scope.addEventListener("unhandledrejection", ({reason}) => {
+    throw reason instanceof Error ? reason : new Error(String(reason));
+  });
+}
+
 // Serves the city over the port, its loop run by the ticker
 export function serveCity(port: Port, ticker: Ticker): void {
   const post = (message: WorkerMessage) => port.postMessage(message);

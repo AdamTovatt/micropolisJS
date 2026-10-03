@@ -155,12 +155,7 @@ export function answerQuery(query: unknown, sources: QuerySources): QueryAnswer 
 // The map a new city on the seed starts on, which the generator draws from the seed's map stream alone
 function mapPreview(seed: number): MapPreviewAnswer {
   const map = MapGenerator(Random.mapStream(seed));
-  const tiles: number[] = [];
-  for (let y = 0; y < map.height; y++) {
-    for (let x = 0; x < map.width; x++) {
-      tiles.push(map.getTileValue(x, y));
-    }
-  }
+  const tiles = map.getTileValuesForPainting(0, 0, map.width, map.height, []);
 
   return {type: "mapPreview", seed, width: map.width, height: map.height, tiles};
 }

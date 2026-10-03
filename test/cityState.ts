@@ -68,4 +68,18 @@ describe("the client's copy of the city", () => {
         expect(state.latest("demand")).toBeNull();
         expect(state.map.width).toBe(1);
     });
+
+    // So a listener can read the copy, as the game reads the latest records when a message comes
+    it("calls a listener once it has taken the message in", () => {
+        const {state, deliver} = copyOf();
+        deliver(MAP);
+        const seen: unknown[] = [];
+        state.on("demand", (message) => seen.push(state.current("demand") === message));
+        state.on("tiles", () => seen.push(state.map.getTileValue(1, 0)));
+
+        deliver({type: "demand", residential: 1, commercial: 2, industrial: 3});
+        deliver({type: "tiles", changes: [{x: 1, y: 0, value: RIVER}]});
+
+        expect(seen).toEqual([true, RIVER]);
+    });
 });

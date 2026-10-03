@@ -13,7 +13,7 @@
 
 import { CityHost } from "../src/cityHost";
 import { stepsPerCityTime } from "../src/cityTimeModel";
-import { LOCAL_PLAYER, SPEEDS, StateMessage } from "../src/protocol";
+import { LOCAL_PLAYER, OVERLAY_LAYERS, SPEEDS, StateMessage } from "../src/protocol";
 import { ManualTicker } from "./helpers/manualTicker";
 
 // What the city host itself decides, beyond the contract every source keeps (test/citySource.ts): how it batches the
@@ -49,14 +49,93 @@ describe("a city host", () => {
         });
     });
 
+    it("sends the sprites, the date and the records only when they changed", () => {
+        const {host, batches} = heldCity();
+        host.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
+
+        host.flush();
+
+        expect(batches).toHaveLength(1);
+        expect(batches[0]!.map((message) => message.type)).toEqual(["settings", "commandResult"]);
+    });
+
+    // A worker's timers run at full rate in a hidden tab, so a loop with nothing to do would spin
+    describe("its loop", () => {
+
+        // A host on a new city, running, with the first turn of its loop taken
+        function runningCity() {
+            const ticker = new ManualTicker();
+            const host = new CityHost(() => {}, ticker);
+            host.start({name: "Town", seed: 2026, level: 0});
+            ticker.run();
+            return {host, ticker};
+        }
+
+        it("turns again and again while the city steps", () => {
+            const {ticker} = runningCity();
+
+            ticker.run(1000);
+
+            expect(ticker.hasCallback()).toBe(true);
+        });
+
+        it("waits while the city is paused, until a command comes", () => {
+            const {host, ticker} = runningCity();
+            host.send(LOCAL_PLAYER, {type: "setSpeed", speed: SPEEDS.paused});
+            ticker.run();
+            expect(ticker.hasCallback()).toBe(false);
+
+            host.send(LOCAL_PLAYER, {type: "setSpeed", speed: SPEEDS.medium});
+            expect(ticker.hasCallback()).toBe(true);
+            ticker.run();
+
+            expect(ticker.hasCallback()).toBe(true);
+        });
+
+        it("waits while the player can't see the city, until they can", () => {
+            const {host, ticker} = runningCity();
+            host.setViewerVisible(false);
+            ticker.run();
+            expect(ticker.hasCallback()).toBe(false);
+
+            host.setViewerVisible(true);
+
+            expect(ticker.hasCallback()).toBe(true);
+        });
+
+        it("waits while the driver is held, until it is released", () => {
+            const {host, ticker} = runningCity();
+            host.hold();
+            ticker.run();
+            expect(ticker.hasCallback()).toBe(false);
+
+            host.release();
+
+            expect(ticker.hasCallback()).toBe(true);
+        });
+
+        it("takes one turn at a time, however often it is woken", () => {
+            const {host, ticker} = runningCity();
+
+            host.setViewerVisible(true);
+            host.send(LOCAL_PLAYER, {type: "addFunds"});
+            const turns = jest.spyOn(ticker, "later");
+            ticker.run();
+
+            expect(turns).toHaveBeenCalledTimes(1);
+        });
+    });
+
     // A turn of several cycles publishes once: what holds at the end of it, and each event in the order it came
     describe("publishing several cycles at once", () => {
 
+        let onceBatches: StateMessage[][];
         let whole: StateMessage[];
         let halves: StateMessage[][];
         beforeAll(() => {
             const once = heldCity();
             expect(once.host.advance(10 * CYCLE).error).toBeNull();
+            onceBatches = once.batches;
             whole = once.batches[0]!;
 
             const twice = heldCity();
@@ -66,6 +145,7 @@ describe("a city host", () => {
         });
 
         it("publishes the turn as one batch", () => {
+            expect(onceBatches).toHaveLength(1);
             expect(halves).toHaveLength(2);
         });
 
@@ -80,7 +160,8 @@ describe("a city host", () => {
                 .map((message) => message.type === "overlayUpdated" && message.layer);
             const announced = layers(whole);
 
-            expect(new Set(announced).size).toBe(announced.length);
+            // Ten cycles run every phase that recomputes a layer, the slowest included
+            expect([...announced].sort()).toEqual([...OVERLAY_LAYERS].sort());
             const inHalves = [...layers(halves[0]!), ...layers(halves[1]!)];
             expect([...announced].sort()).toEqual(inHalves.filter((layer, i) => inHalves.indexOf(layer) === i).sort());
         });

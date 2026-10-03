@@ -26,6 +26,12 @@ interface Pending {
   reject(error: Error): void;
 }
 
+// The page's end of the channel: the Worker, which also fires an error event when something goes wrong in it, or a
+// test's stand-in
+export interface WorkerPort extends Port {
+  addEventListener(type: "error", listener: (event: Event) => void): void;
+}
+
 export class WorkerCitySource implements CitySource {
   readonly player = LOCAL_PLAYER;
   readonly driver: CityDriver;
@@ -33,11 +39,14 @@ export class WorkerCitySource implements CitySource {
   private readonly subscribers = new Subscribers();
   private readonly pending = new Map<number, Pending>();
   private nextId = 0;
+  // What the worker failed with, once it can never answer
+  private failure: Error | null = null;
 
   // The port is the worker, or a channel to the worker's side; debug is whether the client is in debug mode, which the
   // simulation in the worker takes on
-  constructor(private readonly port: Port, debug: boolean) {
+  constructor(private readonly port: WorkerPort, debug: boolean) {
     port.onmessage = ({data}) => this.receive(data as WorkerMessage);
+    port.addEventListener("error", this.workerFailed);
     this.post({type: "init", debug});
 
     this.driver = trackingHold({
@@ -91,6 +100,11 @@ export class WorkerCitySource implements CitySource {
   }
 
   private request(call: Call, pending: Pending): void {
+    if (this.failure !== null) {
+      pending.reject(this.failure);
+      return;
+    }
+
     const id = this.nextId++;
     this.pending.set(id, pending);
     this.post({type: "call", id, call});
@@ -115,6 +129,31 @@ export class WorkerCitySource implements CitySource {
         break;
     }
   }
+
+  // What goes wrong in the worker outside a call, such as in the loop that steps the city, goes wrong in the page too,
+  // so it is never silent. The page reports it only as this throw, which names the worker; the worker reports it in its
+  // own scope too. A worker whose script failed to load fires a plain event, with no message, and never answers: every
+  // call waiting on it fails, and every call after, so that nothing waits on it forever.
+  private readonly workerFailed = (event: Event): void => {
+    event.preventDefault();
+    const message = (event as Partial<ErrorEvent>).message;
+    if (message !== undefined) {
+      throw new Error(`The city's worker failed: ${message}`);
+    }
+
+    const failure = new Error("The city's worker failed: its script didn't load");
+    this.failure = failure;
+    const pending = Array.from(this.pending.values());
+    this.pending.clear();
+    pending.forEach(({reject}) => {
+      try {
+        reject(failure);
+      } catch {
+        // A query's reply throws what the query failed with, which is the failure thrown below, once
+      }
+    });
+    throw failure;
+  };
 
   // The call the answer is for, no longer pending
   private settle(id: number): Pending {

@@ -367,8 +367,8 @@ export interface QueryRejection {
   reason: string;
 }
 
-// The answer to a map preview query: the map the seed generates, width tiles across and height down, as the tiles'
-// values without their flags, row by row, top row first
+// The answer to a map preview query: the map the seed generates, width tiles across and height down, as each tile's
+// raw value, with its flags, row by row, top row first, as a map message holds them
 export interface MapPreviewAnswer {
   type: "mapPreview";
   seed: number;

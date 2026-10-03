@@ -16,7 +16,7 @@ import type { CitySource } from "../../src/citySource";
 import type { Port } from "../../src/cityWorkerMessages";
 import { serveCity } from "../../src/cityWorkerHost";
 import { PageCitySource } from "../../src/pageCitySource";
-import { WorkerCitySource } from "../../src/workerCitySource";
+import { WorkerCitySource, WorkerPort } from "../../src/workerCitySource";
 import { ManualTicker } from "./manualTicker";
 
 // A city source the contract tests drive, whatever runs the simulation behind it. run takes one turn of the source's
@@ -49,11 +49,11 @@ export const workerSource: SourceFactory = {
     name: "the Worker source",
     create: (debug = false) => {
         // Node types a port's onmessage with its own event, not the DOM's MessageEvent, though what it reads of it,
-        // the data, is the same
+        // the data, is the same. A port takes error listeners, as the Worker does, and fires no error event.
         const {port1, port2} = new MessageChannel();
         const ticker = new ManualTicker();
         serveCity(port1 as unknown as Port, ticker);
-        const source = new WorkerCitySource(port2 as unknown as Port, debug);
+        const source = new WorkerCitySource(port2 as unknown as WorkerPort, debug);
         // Each end reads what came before a call before it answers the call, so once a call is answered, the worker
         // has had everything the page sent before it, and the page everything the worker sent. Before a city starts,
         // the call fails, and that is its answer.

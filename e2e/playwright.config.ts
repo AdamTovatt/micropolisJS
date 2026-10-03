@@ -34,6 +34,10 @@ export default defineConfig({
     // panels
     viewport: {width: 1440, height: 900},
     trace: "retain-on-failure",
+    // Chromium re-rasters only the part of a tile a frame damaged, and which part that is depends on the frames' timing:
+    // an edge anti-aliased at a damaged area's border can come out a shade apart from a whole tile's raster. Rastering
+    // whole tiles keeps a stage's screenshot the same on every run.
+    launchOptions: {args: ["--disable-partial-raster"]},
   },
   webServer: {
     command: `npx webpack serve --mode production --port ${port} --no-hot --no-live-reload --no-client`,

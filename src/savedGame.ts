@@ -151,7 +151,9 @@ const UPGRADES: ReadonlyArray<(savedGame: SavedGame) => void> = [
 
   // From version 3
   (savedGame) => {
-    // Saves before the seeded stream have no seed: the city continues from a fresh one
+    // Saves before the seeded stream have no seed: the city continues from a fresh one. Nothing in the save could seed
+    // it, so it is drawn from the UI's own randomness: the one draw on the simulation's side outside a stream, made
+    // once as the save loads, before the city exists. A port of the migrations draws its own.
     const seed = UiRandom.newSeed();
     savedGame.seed = seed;
     savedGame.randomState = Random.simulationStream(seed).getState();

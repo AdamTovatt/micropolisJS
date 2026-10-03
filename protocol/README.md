@@ -81,7 +81,8 @@ command, since replaying it would change nothing.
   `{"road", "fire", "police"}`; `fundsChange`, the taxes less what the services would be paid; and `fundsAfterYear`,
   the funds it would leave. One answer holds everything a forecast is worked out from, taken at one moment.
 - `mapPreview` names a game `seed`, a uint32, and is answered with the map a new city on that seed starts on: `seed`;
-  `width` and `height`, in tiles; and `tiles`, each tile's value without its flags, row by row, top row first. It is
+  `width` and `height`, in tiles; and `tiles`, each tile's raw value with its flags, row by row, top row first, as the
+  `map` state message holds them (see State messages). It is
   the only query answered before any city has started, which the splash screen asks to show the maps a player chooses
   from; a query about a city asked before one has started is rejected.
 
@@ -117,7 +118,11 @@ shows the city from these and nothing else, through its city source (`src/citySo
 the map, built from the full map the city sends when it starts, and kept up to date by the tile changes after it. The
 city sends what changed in batches, after the steps: one after each turn of its loop that applied commands or took
 steps, however many steps the turn took, and one after each call of the end-to-end runner's driver that applies
-commands or takes steps. The sprites, the date and the records go only when they differ from what it sent last. A city
+commands or takes steps. The sprites, the date and the records go only when they differ from what it sent last. The
+simulation publishes `status` and `demand` each cycle, and a batch carries only the latest of each it published since
+the batch before. A batch announces each recomputed layer at most once in `overlayUpdated`, however often the turn
+recomputed it. The events, `news`, `commandResult`, `budgetReviewDue` and `overlayUpdated`, go in the order they came.
+A city
 that starts sends the whole map, the sprites, the date and the `evaluation`, `budget` and `settings` records (see
 Records), then the rest as they come.
 
@@ -129,11 +134,11 @@ Records), then the rest as they come.
   is its row of the sprite sheet, and its frame, its column, both counted from 1; and the square it is drawn in,
   `width` map pixels a side with its top-left corner at map pixel (`x`, `y`). A map pixel is a sixteenth of a tile.
 - `date` is the city's date: `month`, from 0, and `year`.
-- `status` is the conditions that limit the city's growth, sent each cycle: `powerCapacity` and `powerLoad`, as of the
+- `status` is the conditions that limit the city's growth: `powerCapacity` and `powerLoad`, as of the
   last power scan; `residentialCapped`, `commercialCapped` and `industrialCapped`, whether that demand is held at zero
   for want of a stadium, airport or seaport; and `conditions`, the advisor conditions that hold, each named by its
   message.
-- `demand` is the demand for each zone as the demand valves last set it, sent each cycle: `residential`, from -2000 to
+- `demand` is the demand for each zone as the demand valves last set it: `residential`, from -2000 to
   2000, and `commercial` and `industrial`, from -1500 to 1500.
 - `news` is a message for the player: `subject`, its message, and `data`, where it happened, when it happened
   somewhere: `{"x", "y"}` in tiles, with `"showable": true` for a place the monster TV shows, or `"trackable": true`

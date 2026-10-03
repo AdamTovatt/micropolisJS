@@ -26,6 +26,11 @@ export class ManualTicker implements Ticker {
         this.callbacks.push(callback);
     }
 
+    // Whether a callback waits for the next run
+    hasCallback(): boolean {
+        return this.callbacks.length > 0;
+    }
+
     run(milliseconds = 0): void {
         this.time += milliseconds;
         const callbacks = this.callbacks;

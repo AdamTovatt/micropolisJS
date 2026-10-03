@@ -22,21 +22,21 @@ import { TILE_INVALID } from "./tileValues";
 
 export type MessageOf<T extends StateMessageType> = Extract<StateMessage, {type: T}>;
 
+type MapTiles = Pick<MapMessage, "width" | "height" | "tiles">;
+
 // The client's copy of the map: each tile's raw value, with its flags, as the last map and tiles messages left it
 export class ClientMap {
-  private tiles: number[];
+  width = 0;
+  height = 0;
+  private tiles: number[] = [];
 
-  constructor(message: MapMessage) {
-    this.width = message.width;
-    this.height = message.height;
-    this.tiles = [...message.tiles];
+  // From a map message, or a map preview, which holds a map the same way
+  constructor(message: MapTiles) {
+    this.replace(message);
   }
 
-  width: number;
-  height: number;
-
   // The whole map again, as a city starts
-  replace(message: MapMessage): void {
+  replace(message: MapTiles): void {
     this.width = message.width;
     this.height = message.height;
     this.tiles = [...message.tiles];

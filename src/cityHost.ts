@@ -236,6 +236,8 @@ export class CityHost {
   private city: HostedCity | null = null;
   private readonly driver = new StepDriver();
   private viewerVisible = true;
+  // Whether a turn of the loop is due, rather than the loop waiting to be woken
+  private turnDue = false;
 
   // publish takes each non-empty list of state messages, in the order the host produced them. The ticker runs the
   // host's loop, from the first city's start on.
@@ -246,21 +248,18 @@ export class CityHost {
   start(start: CityStart): StartedCity {
     const {name, simulation, logStart} = startCity(start);
 
-    const first = this.city === null;
     this.city = new HostedCity(name, simulation, logStart);
     // A held driver stays held, so the end-to-end runner decides when the new city steps
     this.driver.idle();
     this.sendState();
-
-    if (first) {
-      this.ticker.later(this.loop);
-    }
+    this.wake();
 
     return {name, seed: simulation.seed};
   }
 
   send(player: PlayerId, command: unknown): void {
     this.requireCity().queue.send(player, command);
+    this.wake();
   }
 
   ask(query: unknown): QueryAnswer {
@@ -269,6 +268,9 @@ export class CityHost {
 
   setViewerVisible(visible: boolean): void {
     this.viewerVisible = visible;
+    if (this.city !== null) {
+      this.wake();
+    }
   }
 
   // The saved game's text: the city's name beside what the simulation saves, stamped with the save's version
@@ -288,11 +290,23 @@ export class CityHost {
 
   // One turn of the host's loop, which runs for as long as the ticker calls back: the commands sent since the last turn,
   // then the steps due by now, then the state they changed. A held driver leaves the commands and the steps to the
-  // end-to-end runner.
+  // end-to-end runner. While the city isn't stepping, the loop waits rather than turn for nothing: a worker's timers run
+  // at full rate in a hidden tab. A command, the player seeing the city again or the runner's release wakes it.
   private readonly loop = (): void => {
+    this.turnDue = false;
     this.turn(this.ticker.now());
-    this.ticker.later(this.loop);
+    if (!this.driver.isHeld() && this.notSteppingReason() === null) {
+      this.wake();
+    }
   };
+
+  // Has the loop take a turn soon, unless one is already due
+  private wake(): void {
+    if (!this.turnDue) {
+      this.turnDue = true;
+      this.ticker.later(this.loop);
+    }
+  }
 
   private turn(now: number): void {
     const city = this.requireCity();
@@ -319,6 +333,9 @@ export class CityHost {
 
   release(): void {
     this.driver.release();
+    if (this.city !== null) {
+      this.wake();
+    }
   }
 
   flush(): void {
