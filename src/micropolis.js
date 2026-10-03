@@ -37,7 +37,7 @@ var fallbackImage, tileSet, snowTileSet;
 
 
 var onTilesLoaded = function() {
-  var snowTiles = $('#snowtiles')[1];
+  var snowTiles = $('#snowtiles')[0];
   snowTileSet = new TileSet(snowTiles, onAllTilesLoaded, onFallbackTilesLoaded);
 };
 
