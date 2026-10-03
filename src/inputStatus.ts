@@ -59,6 +59,18 @@ export function isToolPress(e: {button: number, shiftKey: boolean, altKey: boole
   return e.button === 0 && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
 }
 
+const CURSOR_CLASSES = ["pointer", "helpPointer"];
+
+// The class that gives the canvas the cursor for the tool chosen: the question mark for the query tool, the hand for
+// the others, and none, the default cursor, while no tool is chosen
+export function cursorClass(toolName: string | null): string | null {
+  if (toolName === null) {
+    return null;
+  }
+
+  return toolName === "query" ? "helpPointer" : "pointer";
+}
+
 // Removes the highlight from the tool button chosen
 function deselectToolButtons(): void {
   document.querySelectorAll(".selected").forEach((element) => {
@@ -145,18 +157,20 @@ export class InputStatus {
   }
 
   clearTool(): void {
-    // Clearing the query tool gives the canvas the pointer cursor of the other tools, not the default cursor it has
-    // before any tool is chosen. Giving it the default would change what the player sees, which this module's
-    // conversion leaves alone.
-    if (this.toolName === "query") {
-      this.canvas.classList.remove("helpPointer");
-      this.canvas.classList.add("pointer");
-    }
-
     this.toolName = null;
     this.toolWidth = 0;
     this.toolColour = "";
     deselectToolButtons();
+    this.showCursor();
+  }
+
+  private showCursor(): void {
+    const cursor = cursorClass(this.toolName);
+
+    this.canvas.classList.remove(...CURSOR_CLASSES);
+    if (cursor !== null) {
+      this.canvas.classList.add(cursor);
+    }
   }
 
   private onKeyDown(e: KeyboardEvent): void {
@@ -277,13 +291,7 @@ export class InputStatus {
     this.toolColour = button.dataset.colour ?? "";
     requiredElement(TOOL_OUTPUT_ID).textContent = "Tools";
 
-    if (this.toolName !== "query") {
-      this.canvas.classList.remove("helpPointer");
-      this.canvas.classList.add("pointer");
-    } else {
-      this.canvas.classList.remove("pointer");
-      this.canvas.classList.add("helpPointer");
-    }
+    this.showCursor();
 
     e.preventDefault();
   }

@@ -11,7 +11,7 @@
  *
  */
 
-import { heldKey, isToolPress } from "../src/inputStatus";
+import { cursorClass, heldKey, isToolPress } from "../src/inputStatus";
 
 describe("the keys the game follows", () => {
 
@@ -42,5 +42,18 @@ describe("a press the tool takes", () => {
              ["shift", {shiftKey: true}], ["alt", {altKey: true}], ["control", {ctrlKey: true}],
              ["meta", {metaKey: true}]])("is not one with %s", (_, change) => {
         expect(isToolPress({...plain, ...change})).toBe(false);
+    });
+});
+
+describe("the canvas's cursor", () => {
+
+    it.each([["query", "helpPointer"], ["road", "pointer"], ["residential", "pointer"]])(
+        "is set by its class for the %s tool", (tool, cursor) => {
+        expect(cursorClass(tool)).toBe(cursor);
+    });
+
+    // Clearing a tool, the query tool's included, gives the canvas back the cursor it had before any was chosen
+    it("is the default while no tool is chosen", () => {
+        expect(cursorClass(null)).toBeNull();
     });
 });
