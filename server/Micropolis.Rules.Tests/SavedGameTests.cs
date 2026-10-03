@@ -11,6 +11,7 @@
  *
  */
 
+using System.Globalization;
 using System.Text.Json.Nodes;
 
 namespace Micropolis.Rules.Tests
@@ -43,7 +44,8 @@ namespace Micropolis.Rules.Tests
             }
             catch (NotPortedException exception) when (fileName == AwaitingBudgetSample && exception.Unit == "budget.doBudgetNow")
             {
-                // The one sample whose migration runs a game rule, the year end, which another lane ports
+                // The one sample whose migration runs a game rule, the year end, which another lane ports. The stand-in
+                // that throws here goes when that lane merges (PortStandInsTests), and the sample is held then.
                 Assert.Inconclusive($"{exception.Unit} is not ported yet.");
                 return;
             }
@@ -81,15 +83,80 @@ namespace Micropolis.Rules.Tests
         [DataRow("an older version", "4", "The save's version is 4, older than version 5")]
         [DataRow("the first version", "1", "The save's version is 1, older than version 5")]
         [DataRow("a newer version", "10", "The save's version is 10, newer than version 9")]
+        [DataRow("a negative version", "-3", "The save's version is -3, older than version 5")]
+        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 9")]
         [DataRow("a version that is not whole", "5.5", "The save's version must be a whole number, not 5.5")]
-        [DataRow("a version that is text", "\"5\"", "The save's version must be a whole number, not \"5\"")]
+        [DataRow("a version that is text", "\"5\"", "The save's version must be a whole number, not a string.")]
+        [DataRow("a version that is a list", "[5]", "The save's version must be a whole number, not a list.")]
+        [DataRow("a version that is null", "null", "The save's version must be a whole number, not null.")]
         public void Load_SaveOfAnotherVersion_IsRefusedNamingIt(string description, string version, string message)
         {
             string text = Edited("version5.json", savedGame => savedGame["version"] = JsonText.Parse(version));
+            CultureInfo culture = CultureInfo.CurrentCulture;
 
-            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _), description);
+            try
+            {
+                // A culture that writes numbers unlike JavaScript: a minus sign of its own, and a decimal comma
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("sv-SE");
 
-            StringAssert.StartsWith(exception.Message, message, description);
+                SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _), description);
+
+                StringAssert.StartsWith(exception.Message, message, description);
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = culture;
+            }
+        }
+
+        // JSON.parse reads a number too large for a double as infinite, which no save can hold, wherever it is
+        [TestMethod]
+        [DataRow(null, "version", "The save's state.version is a number too large for a double.")]
+        [DataRow("budget", "totalFunds", "The save's state.budget.totalFunds is a number too large for a double.")]
+        public void Load_SaveHoldingANumberTooLargeForADouble_IsRefusedNamingWhere(string? group, string key, string message)
+        {
+            const string Marker = "a number too large for a double";
+            string text = Edited("version7.json", savedGame => (group is null ? savedGame : savedGame[group]!.AsObject())[key] = Marker)
+                .Replace($"\"{Marker}\"", "1e400");
+
+            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _));
+
+            Assert.AreEqual(message, exception.Message);
+        }
+
+        // As the TypeScript's `if`: the year end is paid for a value JavaScript takes as true, as for true itself, and
+        // not for one it takes as false, as for a save that never waited. Each outcome is compared with true's or with
+        // the key's absence, whether the payment is ported yet or not.
+        [TestMethod]
+        [DataRow("1", true)]
+        [DataRow("\"yes\"", true)]
+        [DataRow("[]", true)]
+        [DataRow("{}", true)]
+        [DataRow("0", false)]
+        [DataRow("\"\"", false)]
+        [DataRow("null", false)]
+        [DataRow("false", false)]
+        public void Load_Version7AwaitingValueThatIsNotBoolean_IsReadAsJavaScriptReadsIt(string awaiting, bool paid)
+        {
+            string Outcome(Action<JsonObject> editBudget)
+            {
+                string text = Edited("version7.json", savedGame => editBudget(savedGame["budget"]!.AsObject()));
+
+                try
+                {
+                    return CanonicalJson.Write(SavedGame.Load(text, out _).Save());
+                }
+                catch (NotPortedException exception)
+                {
+                    return $"stopped at {exception.Unit}";
+                }
+            }
+
+            string expected = paid
+                ? Outcome(budget => budget["awaitingValues"] = true)
+                : Outcome(budget => budget.Remove("awaitingValues"));
+
+            Assert.AreEqual(expected, Outcome(budget => budget["awaitingValues"] = JsonText.Parse(awaiting)));
         }
 
         [TestMethod]

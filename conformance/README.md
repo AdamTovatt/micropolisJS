@@ -148,8 +148,8 @@ The cases reach every reason `commandRejection` gives and every outcome, and the
 small map's longest command, 3072 characters, is short enough to list one either side of it, with characters
 `JSON.stringify` escapes, in a type and in a key, and numbers it writes as `Number::toString` does. The commands are
 any JSON, a key that is a lone surrogate included, so the C# reads the file as `JSON.parse` does (`JsonText`).
-`triggerDisaster` is listed only as rejected: what an accepted one does is the disasters' rules, which their own unit
-snapshots hold.
+`triggerDisaster` is listed only as rejected: what an accepted one does is the disasters' rules rather than the
+command's, and no file here holds it.
 
 ### saveVersions/ and migrated/
 
@@ -282,12 +282,12 @@ The generator fails when:
 
 `UnitSnapshotTests` runs every record the index lists, through `UnitSnapshotRunner`: it loads `before` with
 `Simulation.FromSave`, which registers every family as the simulation does, and registers `handlers` instead with
-`Simulation.RegisterHandlers` when they are fewer. It calls the unit as the cycle does, from a table with a case per
-unit name, and compares `after` key by key in the canonical text's order, then the events in order. A difference names
-the first key that differs and both values, and for an entry of the tiles, a block map or the power grid, the tile's
-or the block's position. A record passes when nothing differs. It is inconclusive when the run stops at a stub the
-TypeScript's call reached, the unit itself or one in `reached`, and fails when it stops at any other stub: the C#
-called what the TypeScript did not.
+`Simulation.RegisterHandlers` when they are fewer. It calls the unit as the cycle does, or for
+`simulation.applyCommands` as a city source does, from a table with a case per unit name, and compares `after` key by
+key in the canonical text's order, then the events in order. A difference names the first key that differs and both
+values, and for an entry of the tiles, a block map or the power grid, the tile's or the block's position. A record
+passes when nothing differs. It is inconclusive when the run stops at a stub the TypeScript's call reached, the unit
+itself or one in `reached`, and fails when it stops at any other stub: the C# called what the TypeScript did not.
 
 What is ported is held to passing. `UnitSnapshotTests` lists the units, handlers and sprite or disaster functions not
 yet ported, and fails unless the list names exactly the stubs in `server/Micropolis.Rules`, each of which names its

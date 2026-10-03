@@ -25,7 +25,22 @@ namespace Micropolis.Rules
     /// What came of a command, and who sent it: the command as it arrived, which a rejected one may not be a command,
     /// and the reason it was rejected, or null when it wasn't.
     /// </summary>
-    public sealed record CommandResult(string Player, JsonNode? Command, Outcome Outcome, string? Reason);
+    public sealed record CommandResult(string Player, JsonNode? Command, Outcome Outcome, string? Reason)
+    {
+        /// <summary>
+        /// The result as <see cref="Messages.COMMAND_RESULT"/> carries it, with its own copy of the command.
+        /// </summary>
+        public JsonObject ToPayload()
+        {
+            return new JsonObject
+            {
+                ["player"] = Player,
+                ["command"] = Command?.DeepClone(),
+                ["outcome"] = ProtocolJson.Name(Outcome),
+                ["reason"] = Reason,
+            };
+        }
+    }
 
     public sealed partial class Simulation
     {
@@ -57,13 +72,7 @@ namespace Micropolis.Rules
                     _ => throw new InvalidOperationException("A command is read as accepted or rejected."),
                 };
 
-                Events.Emit(Messages.COMMAND_RESULT, new JsonObject
-                {
-                    ["player"] = result.Player,
-                    ["command"] = result.Command?.DeepClone(),
-                    ["outcome"] = ProtocolJson.Name(result.Outcome),
-                    ["reason"] = result.Reason,
-                });
+                Events.Emit(Messages.COMMAND_RESULT, result.ToPayload());
                 results.Add(result);
             }
 

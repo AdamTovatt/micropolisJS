@@ -53,7 +53,9 @@ with a field missing, a field the command doesn't have, or a value of the wrong 
 offers, giving the same reason on either side. Fields may come in any order, and writers put them in the protocol's
 order. A command is any JSON a player sends, read as `JSON.parse` reads it, so the C# reads one with `JsonText`, which
 takes a key or string holding a lone surrogate, and keeps the last value of a key written twice. A command nesting
-objects and lists more than 64 deep is rejected before anything else is read.
+objects and lists more than 64 deep is rejected before anything else is read. `JsonText` reads text nested at most
+1,000 deep and throws on deeper text, which `JSON.parse` reads, so the C# takes text nested deeper than that as no
+JSON at all rather than as a command to reject.
 
 ## Queries
 

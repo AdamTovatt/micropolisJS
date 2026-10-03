@@ -195,6 +195,19 @@ namespace Micropolis.Rules.Tests
             Assert.Throws<InvalidDataException>(() => UnitSnapshots.ReadRecord(wrong), description);
         }
 
+        // A command record's arguments are the commands, compared whole, so an entry naming another record's commands
+        // is not its record
+        [TestMethod]
+        public void ReadRecord_CommandEntryWithAnotherRecordsCommands_Throws()
+        {
+            List<UnitSnapshot> commands = Snapshots.Where(snapshot => snapshot.Unit == "simulation.applyCommands").ToList();
+            UnitSnapshot snapshot = commands[0];
+            UnitSnapshot other = commands.First(candidate => !JsonNode.DeepEquals(candidate.Args[0], snapshot.Args[0]));
+
+            UnitSnapshots.ReadRecord(snapshot);
+            Assert.Throws<InvalidDataException>(() => UnitSnapshots.ReadRecord(snapshot with { Args = other.Args }));
+        }
+
         /// <summary>
         /// The snapshot's rule: the C# run matches the record, or stops at a stub of a unit the TypeScript's call
         /// reached, which is inconclusive until that unit is ported.

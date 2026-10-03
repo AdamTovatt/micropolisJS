@@ -36,8 +36,14 @@ namespace Micropolis.Rules
         /// <summary>
         /// The tile staged at (x, y), or the map's own tile there, which the caller only reads.
         /// </summary>
+        // A tool reads only tiles on the map: the TypeScript's map warns of a read off it, which no tool makes
         public Tile GetTile(int x, int y)
         {
+            if (!_map.TestBounds(x, y))
+            {
+                throw new ArgumentOutOfRangeException(null, $"WorldEffects getTile called with invalid bounds {x}, {y}.");
+            }
+
             return _staged.TryGetValue(new Position(x, y), out Tile? tile) ? tile : _map.GetTile(x, y);
         }
 

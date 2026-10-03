@@ -29,25 +29,25 @@ namespace Micropolis.Rules.Tests
         }
 
         // As checkBorder in the original: a wire that ends beside the residential zone on (51, 49) to (53, 51) turns
-        // into it, since a building conducts
+        // into it, since a building conducts. The wire's tiles are laid in order, as a drag lays them, and it ends at
+        // the last.
         [TestMethod]
-        [DataRow("above", 49, 48, 51, 48, TileValues.LHPOWER, TileValues.LVPOWER4)]
-        [DataRow("left of", 50, 47, 50, 49, TileValues.LVPOWER, TileValues.LVPOWER2)]
-        [DataRow("below", 49, 52, 51, 52, TileValues.LHPOWER, TileValues.LVPOWER5)]
-        [DataRow("right of", 54, 47, 54, 49, TileValues.LVPOWER, TileValues.LVPOWER5)]
-        public void BuildingTool_WireEndingBesideTheSite_TurnsIntoTheBuilding(string side, int fromX, int fromY, int endX, int endY, int before, int after)
+        [DataRow("above", new[] { 49, 50, 51 }, new[] { 48, 48, 48 }, TileValues.LHPOWER, TileValues.LVPOWER4)]
+        [DataRow("left of", new[] { 50, 50, 50 }, new[] { 47, 48, 49 }, TileValues.LVPOWER, TileValues.LVPOWER2)]
+        [DataRow("below", new[] { 49, 50, 51 }, new[] { 52, 52, 52 }, TileValues.LHPOWER, TileValues.LVPOWER5)]
+        [DataRow("right of", new[] { 54, 54, 54 }, new[] { 47, 48, 49 }, TileValues.LVPOWER, TileValues.LVPOWER5)]
+        public void BuildingTool_WireEndingBesideTheSite_TurnsIntoTheBuilding(string side, int[] xs, int[] ys, int before, int after)
         {
             GameMap map = new GameMap(120, 100);
             IReadOnlyDictionary<ToolName, CityTool> tools = CityTools.Create(map);
 
-            // Three tiles along a row or a column, laid one at a time as a drag lays them
-            int dx = fromY == endY ? 1 : 0;
-
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < xs.Length; i++)
             {
-                Apply(tools[ToolName.Wire], fromX + i * dx, fromY + i * (1 - dx), false);
+                Apply(tools[ToolName.Wire], xs[i], ys[i], false);
             }
 
+            int endX = xs[^1];
+            int endY = ys[^1];
             Assert.AreEqual(before, map.GetTileValue(endX, endY), side);
 
             Assert.AreEqual(Outcome.Ok, Apply(tools[ToolName.Residential], 52, 50, false), side);
@@ -98,7 +98,7 @@ namespace Micropolis.Rules.Tests
         [DataRow(118, 1)]
         [DataRow(1, 98)]
         [DataRow(118, 98)]
-        public void BuildingTool_InTheCorner_BuildsThoughItsBorderRunsOffTheMap(int x, int y)
+        public void BuildingTool_InTheCorner_BuildsWithoutReadingOffTheMap(int x, int y)
         {
             GameMap map = new GameMap(120, 100);
 

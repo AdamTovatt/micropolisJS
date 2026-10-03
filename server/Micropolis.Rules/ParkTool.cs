@@ -38,11 +38,11 @@ namespace Micropolis.Rules
 
             if (value == 4)
             {
-                WorldEffects.SetTile(x, y, TileValues.FOUNTAIN, TileFlags.BURNBIT | TileFlags.BULLBIT | TileFlags.ANIMBIT);
+                WorldEffects.SetTile(x, y, TileValues.FOUNTAIN, TileFlags.BLBNBIT | TileFlags.ANIMBIT);
             }
             else
             {
-                WorldEffects.SetTile(x, y, value + TileValues.WOODS2, TileFlags.BURNBIT | TileFlags.BULLBIT);
+                WorldEffects.SetTile(x, y, value + TileValues.WOODS2, TileFlags.BLBNBIT);
             }
 
             AddCost(ToolCost);

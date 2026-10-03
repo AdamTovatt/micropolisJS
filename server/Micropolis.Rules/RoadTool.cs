@@ -17,123 +17,50 @@ namespace Micropolis.Rules
     /// The road tool, as <c>src/roadTool.js</c> and the original's <c>layRoad</c>: road on dirt, a bridge over water
     /// beside a road that leads onto it, and a crossing over a straight power line or rail.
     /// </summary>
-    internal sealed class RoadTool : ConnectingTool
+    internal sealed class RoadTool : LayingTool
     {
-        // What a bridge costs
-        private const long BridgeCost = 50;
-
         public RoadTool(GameMap map)
             : base(10, map)
         {
         }
 
-        public override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
+        // What a bridge costs
+        protected override long WaterCost => 50;
+
+        // The tile as it is, road and all
+        protected override Piece? PieceOn(int tileValue)
         {
-            Result = LayRoad(x, y, autoBulldoze);
+            return tileValue switch
+            {
+                TileValues.DIRT => new Piece(TileValues.ROADS, TileFlags.BLBNBIT),
+                TileValues.LHPOWER => new Piece(TileValues.VROADPOWER, TileFlags.BLBNCNBIT),
+                TileValues.LVPOWER => new Piece(TileValues.HROADPOWER, TileFlags.BLBNCNBIT),
+                TileValues.LHRAIL => new Piece(TileValues.HRAILROAD, TileFlags.BLBNBIT),
+                TileValues.LVRAIL => new Piece(TileValues.VRAILROAD, TileFlags.BLBNBIT),
+                _ => null,
+            };
         }
 
-        private Outcome LayRoad(int x, int y, bool autoBulldoze)
+        // A bridge, when a road leads onto the water from the right, the left, below or above, in that order of
+        // looking. The tests differ from side to side as the original's do.
+        protected override bool LayOverWater(int x, int y)
         {
-            if (autoBulldoze)
+            if (NeighbourIs(x + 1, y, tile => tile == TileValues.VRAILROAD || tile == TileValues.HBRIDGE ||
+                                              (tile >= TileValues.ROADS && tile <= TileValues.HROADPOWER)) ||
+                NeighbourIs(x - 1, y, tile => tile == TileValues.VRAILROAD || tile == TileValues.HBRIDGE ||
+                                              (tile >= TileValues.ROADS && tile <= TileValues.INTERSECTION)))
             {
-                DoAutoBulldoze(x, y);
+                WorldEffects.SetTile(x, y, TileValues.HBRIDGE, TileFlags.BULLBIT);
+                return true;
             }
 
-            long cost = ToolCost;
-
-            switch (WorldEffects.GetTileValue(x, y))
+            if (NeighbourIs(x, y + 1, tile => tile == TileValues.HRAILROAD || tile == TileValues.VROADPOWER ||
+                                              (tile >= TileValues.VBRIDGE && tile <= TileValues.INTERSECTION)) ||
+                NeighbourIs(x, y - 1, tile => tile == TileValues.HRAILROAD || tile == TileValues.VROADPOWER ||
+                                              (tile >= TileValues.VBRIDGE && tile <= TileValues.INTERSECTION)))
             {
-                case TileValues.DIRT:
-                    WorldEffects.SetTile(x, y, TileValues.ROADS, TileFlags.BULLBIT | TileFlags.BURNBIT);
-                    break;
-
-                case TileValues.RIVER:
-                case TileValues.REDGE:
-                case TileValues.CHANNEL:
-                    cost = BridgeCost;
-
-                    if (!LayBridge(x, y))
-                    {
-                        return Outcome.Failed;
-                    }
-
-                    break;
-
-                case TileValues.LHPOWER:
-                    WorldEffects.SetTile(x, y, TileValues.VROADPOWER, TileFlags.CONDBIT | TileFlags.BURNBIT | TileFlags.BULLBIT);
-                    break;
-
-                case TileValues.LVPOWER:
-                    WorldEffects.SetTile(x, y, TileValues.HROADPOWER, TileFlags.CONDBIT | TileFlags.BURNBIT | TileFlags.BULLBIT);
-                    break;
-
-                case TileValues.LHRAIL:
-                    WorldEffects.SetTile(x, y, TileValues.HRAILROAD, TileFlags.BURNBIT | TileFlags.BULLBIT);
-                    break;
-
-                case TileValues.LVRAIL:
-                    WorldEffects.SetTile(x, y, TileValues.VRAILROAD, TileFlags.BURNBIT | TileFlags.BULLBIT);
-                    break;
-
-                default:
-                    return Outcome.Failed;
-            }
-
-            AddCost(cost);
-            CheckZoneConnections(x, y);
-            return Outcome.Ok;
-        }
-
-        // Lays a bridge over the water at (x, y) when a road leads onto it from the right, the left, below or above, in
-        // that order of looking, and answers whether it did. The tests differ from side to side as the original's do.
-        private bool LayBridge(int x, int y)
-        {
-            if (x < Map.Width - 1)
-            {
-                int tile = TileUtils.NormalizeRoad(WorldEffects.GetTileValue(x + 1, y));
-
-                if (tile == TileValues.VRAILROAD || tile == TileValues.HBRIDGE ||
-                    (tile >= TileValues.ROADS && tile <= TileValues.HROADPOWER))
-                {
-                    WorldEffects.SetTile(x, y, TileValues.HBRIDGE, TileFlags.BULLBIT);
-                    return true;
-                }
-            }
-
-            if (x > 0)
-            {
-                int tile = TileUtils.NormalizeRoad(WorldEffects.GetTileValue(x - 1, y));
-
-                if (tile == TileValues.VRAILROAD || tile == TileValues.HBRIDGE ||
-                    (tile >= TileValues.ROADS && tile <= TileValues.INTERSECTION))
-                {
-                    WorldEffects.SetTile(x, y, TileValues.HBRIDGE, TileFlags.BULLBIT);
-                    return true;
-                }
-            }
-
-            if (y < Map.Height - 1)
-            {
-                int tile = TileUtils.NormalizeRoad(WorldEffects.GetTileValue(x, y + 1));
-
-                if (tile == TileValues.HRAILROAD || tile == TileValues.VROADPOWER ||
-                    (tile >= TileValues.VBRIDGE && tile <= TileValues.INTERSECTION))
-                {
-                    WorldEffects.SetTile(x, y, TileValues.VBRIDGE, TileFlags.BULLBIT);
-                    return true;
-                }
-            }
-
-            if (y > 0)
-            {
-                int tile = TileUtils.NormalizeRoad(WorldEffects.GetTileValue(x, y - 1));
-
-                if (tile == TileValues.HRAILROAD || tile == TileValues.VROADPOWER ||
-                    (tile >= TileValues.VBRIDGE && tile <= TileValues.INTERSECTION))
-                {
-                    WorldEffects.SetTile(x, y, TileValues.VBRIDGE, TileFlags.BULLBIT);
-                    return true;
-                }
+                WorldEffects.SetTile(x, y, TileValues.VBRIDGE, TileFlags.BULLBIT);
+                return true;
             }
 
             return false;

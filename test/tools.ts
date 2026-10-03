@@ -195,13 +195,23 @@ describe("the building tools", () => {
     });
 
     it.each([[1, 1], [118, 1], [1, 98], [118, 98]])(
-        "should build in the corner at (%i, %i), whose border runs off the map", (x, y) => {
+        "should build in the corner at (%i, %i) without reading off the map", (x, y) => {
+            // The map warns of a read off it, which fixing the border off the map would make
+            const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
             const map = new GameMap(120, 100);
             const tool = cityTools(map).residential;
+            let warnings: unknown[][];
 
-            tool.doTool(x, y, streamDrawing([]), false);
-            tool.modifyIfEnoughFunding(budget);
+            try {
+                tool.doTool(x, y, streamDrawing([]), false);
+                tool.modifyIfEnoughFunding(budget);
+            } finally {
+                // Restoring the spy clears its calls, so they are read first
+                warnings = [...warn.mock.calls];
+                warn.mockRestore();
+            }
 
+            expect(warnings).toEqual([]);
             expect(tool.result).toBe(tool.TOOLRESULT_OK);
             expect(map.getTileValue(x, y)).toBe(FREEZ);
         });

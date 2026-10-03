@@ -28,7 +28,7 @@ import { Industrial } from "../src/industrial.js";
 import { MapGenerator } from "../src/mapGenerator.js";
 import * as Messages from "../src/messages";
 import { Position } from "../src/position";
-import { CITY_CLASSES, DISASTER_KINDS, SCORE_REASONS, TOOL_NAMES } from "../src/protocol";
+import { CITY_CLASSES, DISASTER_KINDS, OUTCOMES, SCORE_REASONS, TOOL_NAMES } from "../src/protocol";
 import { Random } from "../src/random";
 import { Residential } from "../src/residential.js";
 import { SaveFormat } from "../src/savedGame";
@@ -850,7 +850,7 @@ async function commandLines(): Promise<string[]> {
     });
   }
 
-  for (const outcome of ["ok", "failed", "noMoney", "needsBulldoze", "rejected"]) {
+  for (const outcome of OUTCOMES) {
     ensureCovers(outcomes.has(outcome), `the outcome ${outcome}`);
   }
 

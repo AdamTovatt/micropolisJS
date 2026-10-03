@@ -267,37 +267,23 @@ namespace Micropolis.Rules
 
             if (road is int roadPercent)
             {
-                RoadSpend = FundingSpend(RoadMaintenanceBudget, roadPercent);
-                RoadPercent = FundingPercent(roadPercent);
+                RoadSpend = ServiceFunding.FundingSpend(RoadMaintenanceBudget, roadPercent);
+                RoadPercent = ServiceFunding.FundingPercent(roadPercent);
             }
 
             if (fire is int firePercent)
             {
-                FireSpend = FundingSpend(FireMaintenanceBudget, firePercent);
-                FirePercent = FundingPercent(firePercent);
+                FireSpend = ServiceFunding.FundingSpend(FireMaintenanceBudget, firePercent);
+                FirePercent = ServiceFunding.FundingPercent(firePercent);
             }
 
             if (police is int policePercent)
             {
-                PoliceSpend = FundingSpend(PoliceMaintenanceBudget, policePercent);
-                PolicePercent = FundingPercent(policePercent);
+                PoliceSpend = ServiceFunding.FundingSpend(PoliceMaintenanceBudget, policePercent);
+                PolicePercent = ServiceFunding.FundingPercent(policePercent);
             }
 
             UpdateFundEffects();
-        }
-
-        // The funding percentage (0 to 1) of a service funded at a whole percent, as the slider handlers store it:
-        // percent / 100.0, kept in a float, as fundingPercent in src/serviceFunding.ts
-        private static double FundingPercent(int wholePercent)
-        {
-            return (float)(wholePercent / 100.0);
-        }
-
-        // The spend booked on a service funded at a whole percent, as the slider handlers book it: (max * percent) /
-        // 100, in integers, as fundingSpend in src/serviceFunding.ts
-        private static long FundingSpend(long maintenance, int wholePercent)
-        {
-            return JsMath.FloorDiv(maintenance * wholePercent, 100);
         }
 
         internal void Save(JsonObject saveData)

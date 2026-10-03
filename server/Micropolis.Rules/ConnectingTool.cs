@@ -118,114 +118,85 @@ namespace Micropolis.Rules
         // Sets a road, rail or wire tile to the piece that joins the neighbours it connects to, as fixSingle does
         private void FixSingle(int x, int y)
         {
-            int adjTile = 0;
             int tile = TileUtils.NormalizeRoad(WorldEffects.GetTileValue(x, y));
 
             if (tile >= TileValues.ROADS && tile <= TileValues.INTERSECTION)
             {
-                if (y > 0 && RoadJoinsVertically(NeighbourValue(x, y - 1)))
-                {
-                    adjTile |= 1;
-                }
-
-                if (x < Map.Width - 1 && RoadJoinsHorizontally(NeighbourValue(x + 1, y)))
-                {
-                    adjTile |= 2;
-                }
-
-                if (y < Map.Height - 1 && RoadJoinsVertically(NeighbourValue(x, y + 1)))
-                {
-                    adjTile |= 4;
-                }
-
-                if (x > 0 && RoadJoinsHorizontally(NeighbourValue(x - 1, y)))
-                {
-                    adjTile |= 8;
-                }
-
-                WorldEffects.SetTile(x, y, RoadTable[adjTile], TileFlags.BULLBIT | TileFlags.BURNBIT);
-                return;
+                WorldEffects.SetTile(x, y, RoadTable[Connections(x, y, RoadJoinsVertically, RoadJoinsHorizontally)], TileFlags.BLBNBIT);
             }
-
-            if (tile >= TileValues.LHRAIL && tile <= TileValues.LVRAIL10)
+            else if (tile >= TileValues.LHRAIL && tile <= TileValues.LVRAIL10)
             {
-                if (y > 0 && RailJoinsVertically(NeighbourValue(x, y - 1)))
-                {
-                    adjTile |= 1;
-                }
-
-                if (x < Map.Width - 1 && RailJoinsHorizontally(NeighbourValue(x + 1, y)))
-                {
-                    adjTile |= 2;
-                }
-
-                if (y < Map.Height - 1 && RailJoinsVertically(NeighbourValue(x, y + 1)))
-                {
-                    adjTile |= 4;
-                }
-
-                if (x > 0 && RailJoinsHorizontally(NeighbourValue(x - 1, y)))
-                {
-                    adjTile |= 8;
-                }
-
-                WorldEffects.SetTile(x, y, RailTable[adjTile], TileFlags.BULLBIT | TileFlags.BURNBIT);
-                return;
+                WorldEffects.SetTile(x, y, RailTable[Connections(x, y, RailJoinsVertically, RailJoinsHorizontally)], TileFlags.BLBNBIT);
             }
-
-            if (tile >= TileValues.LHPOWER && tile <= TileValues.LVPOWER10)
+            else if (tile >= TileValues.LHPOWER && tile <= TileValues.LVPOWER10)
             {
-                if (y > 0 && WireJoinsVertically(WorldEffects.GetTile(x, y - 1)))
-                {
-                    adjTile |= 1;
-                }
-
-                if (x < Map.Width - 1 && WireJoinsHorizontally(WorldEffects.GetTile(x + 1, y)))
-                {
-                    adjTile |= 2;
-                }
-
-                if (y < Map.Height - 1 && WireJoinsVertically(WorldEffects.GetTile(x, y + 1)))
-                {
-                    adjTile |= 4;
-                }
-
-                if (x > 0 && WireJoinsHorizontally(WorldEffects.GetTile(x - 1, y)))
-                {
-                    adjTile |= 8;
-                }
-
-                WorldEffects.SetTile(x, y, WireTable[adjTile], TileFlags.BLBNCNBIT);
+                WorldEffects.SetTile(x, y, WireTable[Connections(x, y, WireJoinsVertically, WireJoinsHorizontally)], TileFlags.BLBNCNBIT);
             }
         }
 
-        private int NeighbourValue(int x, int y)
+        // The neighbours on the map a piece at (x, y) connects to, as the tables index them: 1 above, 2 right, 4 below
+        // and 8 left, each joined as the test for its side says
+        private int Connections(int x, int y, Func<Tile, bool> joinsVertically, Func<Tile, bool> joinsHorizontally)
+        {
+            int connections = 0;
+
+            if (y > 0 && joinsVertically(WorldEffects.GetTile(x, y - 1)))
+            {
+                connections |= 1;
+            }
+
+            if (x < Map.Width - 1 && joinsHorizontally(WorldEffects.GetTile(x + 1, y)))
+            {
+                connections |= 2;
+            }
+
+            if (y < Map.Height - 1 && joinsVertically(WorldEffects.GetTile(x, y + 1)))
+            {
+                connections |= 4;
+            }
+
+            if (x > 0 && joinsHorizontally(WorldEffects.GetTile(x - 1, y)))
+            {
+                connections |= 8;
+            }
+
+            return connections;
+        }
+
+        /// <summary>
+        /// The value of the tile at (x, y) with any road it carries taken out, as the original reads a neighbour.
+        /// </summary>
+        protected int NeighbourValue(int x, int y)
         {
             return TileUtils.NormalizeRoad(WorldEffects.GetTileValue(x, y));
         }
 
-        // Whether a road joins the tile above or below it, given that tile's value with its road normalized
-        private static bool RoadJoinsVertically(int tile)
+        // Whether a road joins the tile above or below it, read with any road it carries taken out
+        private static bool RoadJoinsVertically(Tile neighbour)
         {
+            int tile = TileUtils.NormalizeRoad(neighbour.GetValue());
             return (tile == TileValues.HRAILROAD || (tile >= TileValues.ROADBASE && tile <= TileValues.VROADPOWER)) &&
                    tile != TileValues.HROADPOWER && tile != TileValues.VRAILROAD && tile != TileValues.ROADBASE;
         }
 
-        // Whether a road joins the tile beside it, given that tile's value with its road normalized
-        private static bool RoadJoinsHorizontally(int tile)
+        // Whether a road joins the tile beside it, read with any road it carries taken out
+        private static bool RoadJoinsHorizontally(Tile neighbour)
         {
+            int tile = TileUtils.NormalizeRoad(neighbour.GetValue());
             return (tile == TileValues.VRAILROAD || (tile >= TileValues.ROADBASE && tile <= TileValues.VROADPOWER)) &&
                    tile != TileValues.VROADPOWER && tile != TileValues.HRAILROAD && tile != TileValues.VBRIDGE;
         }
 
-        private static bool RailJoinsVertically(int tile)
+        private static bool RailJoinsVertically(Tile neighbour)
         {
+            int tile = TileUtils.NormalizeRoad(neighbour.GetValue());
             return tile >= TileValues.RAILHPOWERV && tile <= TileValues.VRAILROAD &&
                    tile != TileValues.RAILHPOWERV && tile != TileValues.HRAILROAD && tile != TileValues.HRAIL;
         }
 
-        private static bool RailJoinsHorizontally(int tile)
+        private static bool RailJoinsHorizontally(Tile neighbour)
         {
+            int tile = TileUtils.NormalizeRoad(neighbour.GetValue());
             return tile >= TileValues.RAILHPOWERV && tile <= TileValues.VRAILROAD &&
                    tile != TileValues.RAILVPOWERH && tile != TileValues.VRAILROAD && tile != TileValues.VRAIL;
         }

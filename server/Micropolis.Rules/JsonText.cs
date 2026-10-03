@@ -26,8 +26,9 @@ namespace Micropolis.Rules
     /// </summary>
     public static class JsonText
     {
-        // As deep as a value may nest, which the reader needs a bound for. JSON.parse has none, and this one is far
-        // deeper than CommandReader.MaxCommandDepth, so a command too deep is read and rejected with the reason.
+        // As deep as a value may nest, which the reader needs a bound for. JSON.parse has none: text nested deeper is
+        // JSON to it but not to this reader, which throws. A command nested deeper than CommandReader.MaxCommandDepth
+        // and no deeper than this is read, and rejected with the reason.
         internal const int MaxDepth = 1000;
 
         /// <exception cref="JsonException">The text is not JSON.</exception>

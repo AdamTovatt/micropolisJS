@@ -81,6 +81,26 @@ namespace Micropolis.Rules
             return levels == 0 || children.Any(child => NestsDeeperThan(child, levels - 1));
         }
 
+        /// <summary>
+        /// Whether JavaScript takes the value as true, as an <c>if</c> does: anything but a missing value, null,
+        /// false, zero or the empty string. JSON holds no NaN.
+        /// </summary>
+        public static bool IsTruthy(JsonNode? value)
+        {
+            return value switch
+            {
+                null => false,
+                JsonValue jsonValue => jsonValue.GetValueKind() switch
+                {
+                    JsonValueKind.False => false,
+                    JsonValueKind.Number => JsonNumber.TryGetDouble(jsonValue, out double number) && number != 0,
+                    JsonValueKind.String => JsonString.Get(jsonValue).Length != 0,
+                    _ => true,
+                },
+                _ => true,
+            };
+        }
+
         public static bool TryGetString(JsonNode? value, out string? text)
         {
             if (value is JsonValue jsonValue && jsonValue.GetValueKind() == JsonValueKind.String)

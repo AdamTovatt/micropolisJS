@@ -46,6 +46,25 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// The funding percentage (0 to 1) of a service funded at a whole percent, as the original's budget slider
+        /// handlers (<c>SimCmdRoadFund</c> and its siblings in micropolis-activity's <c>w_sim.c</c>) store it:
+        /// percent / 100.0, kept in a float.
+        /// </summary>
+        public static double FundingPercent(int wholePercent)
+        {
+            return Fround(wholePercent / 100.0);
+        }
+
+        /// <summary>
+        /// The spend booked on a service funded at a whole percent, as those slider handlers book it:
+        /// (max * percent) / 100, in integers.
+        /// </summary>
+        public static long FundingSpend(long maintenance, int wholePercent)
+        {
+            return FloorDiv(maintenance * wholePercent, 100);
+        }
+
+        /// <summary>
         /// The effect a service has at a spend on it, out of its effect at full funding: (short)((float)maxEffect *
         /// (float)spend / (float)fund), in float. The maintenance cost must not be 0.
         /// </summary>

@@ -19,8 +19,9 @@ namespace Micropolis.Rules
     /// </summary>
     /// <remarks>
     /// Each is an extension method, so the owning lane's instance method of the same name takes its place without a
-    /// change at the call: delete each stand-in as its lane merges. No test pins which stand-in a disaster kind
-    /// reaches, since it would pin the throwing stand-ins themselves.
+    /// change at the call, and a test fails while a stand-in has such a method beside it: each is deleted as its lane
+    /// merges. No test pins which stand-in a disaster kind reaches, since it would pin the throwing stand-ins
+    /// themselves.
     /// </remarks>
     internal static class PortStandIns
     {

@@ -44,16 +44,17 @@ namespace Micropolis.Rules
         public const int MaxCommandDepth = 64;
 
         // Each command's fields but its type, required or optional, as FIELDS in src/commands.ts
-        private static readonly IReadOnlyList<(string Type, IReadOnlyDictionary<string, bool> Fields)> CommandFields =
-        [
-            ("tool", Fields(required: ["autoBulldoze", "path", "tool"])),
-            ("setBudget", Fields(required: ["tax"], optional: ["fire", "police", "road"])),
-            ("setSpeed", Fields(required: ["speed"])),
-            ("setAutoBudget", Fields(required: ["on"])),
-            ("setDisasters", Fields(required: ["on"])),
-            ("triggerDisaster", Fields(required: ["kind"])),
-            ("addFunds", Fields()),
-        ];
+        private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> CommandFields =
+            new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.Ordinal)
+            {
+                ["tool"] = Fields(required: ["autoBulldoze", "path", "tool"]),
+                ["setBudget"] = Fields(required: ["tax"], optional: ["fire", "police", "road"]),
+                ["setSpeed"] = Fields(required: ["speed"]),
+                ["setAutoBudget"] = Fields(required: ["on"]),
+                ["setDisasters"] = Fields(required: ["on"]),
+                ["triggerDisaster"] = Fields(required: ["kind"]),
+                ["addFunds"] = Fields(),
+            };
 
         // The services a setBudget command may fund, in the order the budget funds them
         private static readonly IReadOnlyList<string> Services = ["road", "fire", "police"];
@@ -88,12 +89,10 @@ namespace Micropolis.Rules
             }
 
             if (command is not JsonObject fields || !TryGetString(fields["type"], out string? type) ||
-                !CommandFields.Any(entry => entry.Type == type))
+                !CommandFields.TryGetValue(type!, out IReadOnlyDictionary<string, bool>? rules))
             {
                 return new RejectedCommand("not a command");
             }
-
-            IReadOnlyDictionary<string, bool> rules = CommandFields.First(entry => entry.Type == type).Fields;
 
             if (!HasFields(fields, rules, "type"))
             {

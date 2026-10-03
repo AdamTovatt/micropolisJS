@@ -56,7 +56,7 @@ namespace Micropolis.Rules
                 JsonObject evaluation = Group(savedGame, "evaluation");
                 JsonArray problems = new JsonArray();
 
-                foreach (JsonNode? problem in Array(evaluation, "problemOrder").Take(4))
+                foreach (JsonNode? problem in List(evaluation, "problemOrder").Take(4))
                 {
                     problems.Add(problem is null ? 7 : problem.DeepClone());
                 }
@@ -110,6 +110,7 @@ namespace Micropolis.Rules
                 throw new SaveFormatException("state", $"is not JSON: {exception.Message}");
             }
 
+            RefuseInfiniteNumbers(savedGame, "state");
             int version = Version(savedGame);
 
             foreach (Action<JsonObject> upgrade in Upgrades.Skip(version - OldestVersion))
@@ -123,25 +124,83 @@ namespace Micropolis.Rules
 
         private static int Version(JsonObject savedGame)
         {
-            JsonNode? node = savedGame["version"];
-
-            if (!Validation.TryGetWholeNumber(node, out double version))
+            if (!Validation.TryGetWholeNumber(savedGame["version"], out double version))
             {
-                string found = savedGame.ContainsKey("version") ? CanonicalJson.Stringify(node) : "missing";
-                throw new SaveFormatException("version", $"must be a whole number, not {found}");
+                throw new SaveFormatException("version", $"must be a whole number, not {Described(savedGame, "version")}");
             }
+
+            string shown = CanonicalJson.FormatNumber(version);
 
             if (version < OldestVersion)
             {
-                throw new SaveFormatException("version", $"is {version}, older than version {OldestVersion}, the first that holds the complete state: only the TypeScript migrates it");
+                throw new SaveFormatException("version", $"is {shown}, older than version {OldestVersion}, the first that holds the complete state: only the TypeScript migrates it");
             }
 
             if (version > CurrentVersion)
             {
-                throw new SaveFormatException("version", $"is {version}, newer than version {CurrentVersion}, the newest there is");
+                throw new SaveFormatException("version", $"is {shown}, newer than version {CurrentVersion}, the newest there is");
             }
 
             return (int)version;
+        }
+
+        // What a key of the saved game holds, for a message: a number as JavaScript writes it, and otherwise only what
+        // kind of value it is, since the text is untrusted and may be long
+        private static string Described(JsonObject savedGame, string key)
+        {
+            if (!savedGame.ContainsKey(key))
+            {
+                return "missing";
+            }
+
+            return savedGame[key] switch
+            {
+                null => "null",
+                JsonObject => "an object",
+                JsonArray => "a list",
+                JsonValue value => value.GetValueKind() switch
+                {
+                    JsonValueKind.Number when JsonNumber.TryGetDouble(value, out double number) => CanonicalJson.FormatNumber(number),
+                    JsonValueKind.String => "a string",
+                    _ => "true or false",
+                },
+                _ => throw new InvalidOperationException($"No description of a {savedGame[key]!.GetType().Name}."),
+            };
+        }
+
+        // A number too large for a double, which JSON.parse reads as infinite, has no place in a save: neither the
+        // state's canonical text nor JSON.stringify can write it
+        private static void RefuseInfiniteNumbers(JsonNode? node, string path)
+        {
+            switch (node)
+            {
+                case JsonObject members:
+                    foreach (KeyValuePair<string, JsonNode?> member in members)
+                    {
+                        RefuseInfiniteNumbers(member.Value, $"{path}.{Excerpt(member.Key)}");
+                    }
+
+                    break;
+
+                case JsonArray items:
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        RefuseInfiniteNumbers(items[i], $"{path}[{i}]");
+                    }
+
+                    break;
+
+                case JsonValue value when value.GetValueKind() == JsonValueKind.Number &&
+                                          JsonNumber.TryGetDouble(value, out double number) && !double.IsFinite(number):
+                    throw new SaveFormatException(path, "is a number too large for a double");
+            }
+        }
+
+        // A key of the save as a message names it, cut short if it is long
+        private static string Excerpt(string key)
+        {
+            const int Longest = 40;
+            return key.Length <= Longest ? key : key[..Longest] + "…";
         }
 
         private static void UpgradeFromVersion7(JsonObject savedGame)
@@ -151,7 +210,7 @@ namespace Micropolis.Rules
             // The one step that runs a game rule, because no rewriting of the fields can stand in for a year end that
             // never happened
             JsonObject budget = Group(savedGame, "budget");
-            bool awaiting = budget["awaitingValues"] is JsonValue value && value.GetValueKind() == JsonValueKind.True;
+            bool awaiting = Validation.IsTruthy(budget["awaitingValues"]);
             budget.Remove("awaitingValues");
 
             if (awaiting)
@@ -174,7 +233,7 @@ namespace Micropolis.Rules
             return savedGame[key] as JsonObject ?? throw new SaveFormatException(key, "must be an object");
         }
 
-        private static JsonArray Array(JsonObject group, string key)
+        private static JsonArray List(JsonObject group, string key)
         {
             return group[key] as JsonArray ?? throw new SaveFormatException(key, "must be a list");
         }
