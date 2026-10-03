@@ -132,4 +132,13 @@ describe("the notification bar", () => {
 
         expect([shownAt29, element.style.display]).toEqual(["", "none"]);
     });
+
+    it("hides at once when dismissed, leaving no timer behind", () => {
+        const {bar: notifications, element} = bar();
+
+        notifications.show({subject: Messages.WELCOME});
+        notifications.dismiss();
+
+        expect([element.style.display, jest.getTimerCount()]).toEqual(["none", 0]);
+    });
 });

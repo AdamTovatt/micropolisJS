@@ -12,6 +12,7 @@
  */
 
 import type { CityDriver } from "./citySource";
+import type { OriginLimits } from "./viewPosition";
 
 // The end-to-end runner's hold on the game, installed on the window in debug mode. The runner holds the city source's
 // step driver, lands its input, and moves the city on only through advance, so each step lands where it did on the
@@ -25,7 +26,8 @@ interface HookedGame {
   // The saved game's text
   save(): Promise<string>;
   onCommandResult(listener: () => void): void;
-  gameCanvas: {getTileOrigin(): {x: number, y: number}};
+  gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits};
+  notificationBar: {dismiss(): void};
   tileSet: {tileWidth: number};
 }
 
@@ -39,6 +41,8 @@ export interface View {
   // The map tile drawn at the canvas's top-left corner
   originX: number;
   originY: number;
+  // How far the origin may move each way
+  limits: OriginLimits;
   // A tile's width and height on the canvas, in pixels
   tileWidth: number;
 }
@@ -109,6 +113,12 @@ class TestHook {
     return {budgetReviewDue: result.budgetReviewDue};
   }
 
+  // Hides the notification bar, which closes on wall time, so a screenshot shows the same frame however long the run
+  // took. It has no control a player could close it with.
+  dismissNotification(): void {
+    this.attachedGame().notificationBar.dismiss();
+  }
+
   // Every step advance has taken, including those of an advance that then failed
   stepsTaken(): number {
     return this.steps;
@@ -136,7 +146,8 @@ class TestHook {
     const game = this.attachedGame();
     const origin = game.gameCanvas.getTileOrigin();
 
-    return {originX: origin.x, originY: origin.y, tileWidth: game.tileSet.tileWidth};
+    return {originX: origin.x, originY: origin.y, limits: game.gameCanvas.getOriginLimits(),
+            tileWidth: game.tileSet.tileWidth};
   }
 
   private attachedGame(): HookedGame {

@@ -83,10 +83,7 @@ export class NotificationBar<E extends BarElement<E>> {
   show(message: NotificationMessage): void {
     const view = notificationView(message);
 
-    if (this.timeout !== null) {
-      clearTimeout(this.timeout);
-      this.timeout = null;
-    }
+    this.cancelTimeout();
 
     this.element.classList.remove(...TONES);
     this.element.classList.add(view.tone);
@@ -100,6 +97,20 @@ export class NotificationBar<E extends BarElement<E>> {
       this.timeout = null;
       this.close();
     }, TIMEOUT_SECS * 1000);
+  }
+
+  // Hides the bar now, before its time is up: the end-to-end runner's screenshots would otherwise show it or not
+  // depending on how long the run took
+  dismiss(): void {
+    this.cancelTimeout();
+    this.close();
+  }
+
+  private cancelTimeout(): void {
+    if (this.timeout !== null) {
+      clearTimeout(this.timeout);
+      this.timeout = null;
+    }
   }
 
   private close(): void {
