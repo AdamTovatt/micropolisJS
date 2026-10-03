@@ -142,6 +142,13 @@ list, and the block map's width in blocks for a block map.
 | `scannedState.power.powerCapacity`, `scannedState.power.powerLoad` | The last power scan's capacity and load |
 | `scannedState.census` | The census's scan counts: `poweredZoneCount`, `unpoweredZoneCount`, `firePop`, `roadTotal`, `railTotal`, `resZonePop`, `comZonePop`, `indZonePop`, `hospitalPop`, `churchPop`, `policeStationPop`, `fireStationPop`, `stadiumPop`, `coalPowerPop`, `nuclearPowerPop`, `seaportPop`, `airportPop` and `needHospital` (−1, 0 or 1), and `trafficAverage`, which is not always an integer |
 
+## Golden hashes
+
+`test/goldenHashes.ts` pins two hashes per fixture: the **built** hash of the state its script builds, and the
+**run** hash after the number of steps given there (`STEPS`) at medium speed. `npm run fixtures` exports each
+fixture's built state to `headless/fixtures/export/<name>.json`, whose SHA-256 is the built hash. The C# port takes
+that file as its starting state, sets the speed to medium, steps it `STEPS` times and must produce the run hash.
+
 ## What the hash leaves out
 
 The browser's own settings and UI state are not simulation state and are not hashed: the city's name, whether the
