@@ -11,7 +11,10 @@
  *
  */
 
-import { forecastYear, nothingWanted, payServices, serviceSpend } from "../src/yearEndBudget";
+import { forecastYear, fundServices, serviceSpend } from "../src/yearEndBudget";
+
+const fullFunding = { road: 1, fire: 1, police: 1 };
+const noFunding = { road: 0, fire: 0, police: 0 };
 
 describe("serviceSpend", () => {
 
@@ -19,13 +22,13 @@ describe("serviceSpend", () => {
         expect(serviceSpend(240, 1)).toBe(240);
     });
 
-    it("should round halves up", () => {
-        expect(serviceSpend(101, 0.5)).toBe(51);
+    it("should drop the fraction of a dollar, as the original's (int) cast does", () => {
+        expect(serviceSpend(101, 0.5)).toBe(50);
     });
 
-    it("should round the product of maintenance and fraction", () => {
-        // 25 * 0.58 is 14.499999999999998, where 25 * 58 / 100 would be exactly 14.5 and round to 15
-        expect(serviceSpend(25, 58 / 100)).toBe(14);
+    it("should multiply in float, as the original does", () => {
+        // In double, 100 * 0.57 is 56.99999999999999; the original's float product is 57
+        expect(serviceSpend(100, 0.57)).toBe(57);
     });
 
     it("should charge nothing at zero funding", () => {
@@ -33,47 +36,78 @@ describe("serviceSpend", () => {
     });
 });
 
-describe("payServices", () => {
+describe("fundServices", () => {
 
-    it("should pay every service in full when the cash covers them", () => {
-        expect(payServices(1000, { road: 100, fire: 200, police: 300 }))
-            .toEqual({ road: 100, fire: 200, police: 300 });
+    const maintenance = { road: 100, fire: 100, police: 200 };
+
+    it("should pay every service what it wants, and keep the percentages, when the cash is more than enough", () => {
+        const percents = { road: 1, fire: 0.5, police: 0.57 };
+
+        expect(fundServices(1000, maintenance, percents)).toEqual({
+            wanted: { road: 100, fire: 50, police: 114 },
+            paid: { road: 100, fire: 50, police: 114 },
+            percents: { road: 1, fire: 0.5, police: 0.57 }
+        });
     });
 
-    it("should pay roads first, then fire, then police, out of the cash there is", () => {
-        expect(payServices(150, { road: 100, fire: 100, police: 200 }))
-            .toEqual({ road: 100, fire: 50, police: 0 });
+    it("should scale back the last service when the cash is exactly what the services want", () => {
+        // Each service is funded in full only while more cash is left than it wants, so police, left with exactly the
+        // $114 it wants, is scaled back to 114 / 200 in float. That is Math.fround(0.57), not the 0.57 it had: the
+        // expected value tells a scaled-back percentage from a kept one, so it must stay the float.
+        const funding = fundServices(314, maintenance, { road: 1, fire: 1, police: 0.57 });
+
+        expect(funding.paid).toEqual({ road: 100, fire: 100, police: 114 });
+        expect(funding.percents.police).toBe(Math.fround(0.57));
+        expect(funding.percents.police).not.toBe(0.57);
     });
 
-    it("should pay part of the roads when the cash can't cover them", () => {
-        expect(payServices(60, { road: 100, fire: 100, police: 100 }))
-            .toEqual({ road: 60, fire: 0, police: 0 });
+    it("should fund roads, then part of fire, and no police when the cash runs out at fire", () => {
+        expect(fundServices(150, maintenance, fullFunding)).toEqual({
+            wanted: { road: 100, fire: 100, police: 200 },
+            paid: { road: 100, fire: 50, police: 0 },
+            percents: { road: 1, fire: 0.5, police: 0 }
+        });
     });
 
-    it("should charge $1 per service when nothing is wanted", () => {
-        expect(payServices(0, { road: 0, fire: 0, police: 0 }))
-            .toEqual({ road: 1, fire: 1, police: 1 });
+    it("should fund part of the roads and nothing else when the cash can't cover the roads", () => {
+        const funding = fundServices(60, maintenance, fullFunding);
+
+        expect(funding.paid).toEqual({ road: 60, fire: 0, police: 0 });
+        expect(funding.percents).toEqual({ road: Math.fround(0.6), fire: 0, police: 0 });
     });
 
-    it("should charge only what is wanted when any one service wants money", () => {
-        expect(payServices(1000, { road: 0, fire: 100, police: 0 }))
-            .toEqual({ road: 0, fire: 100, police: 0 });
+    it("should put a service that costs nothing at 0% once the cash has run out before it", () => {
+        // The roads take all $100, so the fire department and police reach the end of the cash with no maintenance
+        // cost to divide by
+        const funding = fundServices(100, { road: 100, fire: 0, police: 0 }, fullFunding);
+
+        expect(funding.paid).toEqual({ road: 100, fire: 0, police: 0 });
+        expect(funding.percents).toEqual({ road: 1, fire: 0, police: 0 });
     });
-});
 
-describe("nothingWanted", () => {
+    it("should pay nothing, at 0%, when there is no cash", () => {
+        const funding = fundServices(0, maintenance, fullFunding);
 
-    it("should hold only when every service wants nothing", () => {
-        expect(nothingWanted({ road: 0, fire: 0, police: 0 })).toBe(true);
-        expect(nothingWanted({ road: 0, fire: 0, police: 1 })).toBe(false);
-        expect(nothingWanted({ road: 0, fire: 1, police: 0 })).toBe(false);
-        expect(nothingWanted({ road: 1, fire: 0, police: 0 })).toBe(false);
+        expect(funding.paid).toEqual(noFunding);
+        expect(funding.percents).toEqual(noFunding);
+    });
+
+    it("should pay nothing and keep 0% funding when the player funds nothing", () => {
+        expect(fundServices(500, maintenance, noFunding)).toEqual({
+            wanted: noFunding, paid: noFunding, percents: noFunding
+        });
+    });
+
+    it("should pay nothing and go back to 100% when there is neither cash nor anything wanted", () => {
+        const funding = fundServices(0, noFunding, fullFunding);
+
+        expect(funding.paid).toEqual(noFunding);
+        expect(funding.percents).toEqual(fullFunding);
     });
 });
 
 describe("forecastYear", () => {
 
-    const fullFunding = { road: 1, fire: 1, police: 1 };
     const maintenance = { road: 300, fire: 200, police: 100 };
 
     it("should add taxes and subtract the services when the cash covers them", () => {
@@ -81,15 +115,15 @@ describe("forecastYear", () => {
         const taxes = 3000;
 
         expect(forecastYear(funds, taxes, maintenance, fullFunding))
-            .toEqual({ requested: maintenance, fundsChange: 2400, fundsAfterYear: 12757 });
+            .toEqual({ wanted: maintenance, fundsChange: 2400, fundsAfterYear: 12757 });
     });
 
-    it("should charge each service at its funding fraction", () => {
+    it("should charge each service at its funding percentage", () => {
         const funds = 1000;
         const taxes = 0;
 
         expect(forecastYear(funds, taxes, maintenance, { road: 0.5, fire: 0, police: 1 }))
-            .toEqual({ requested: { road: 150, fire: 0, police: 100 }, fundsChange: -250, fundsAfterYear: 750 });
+            .toEqual({ wanted: { road: 150, fire: 0, police: 100 }, fundsChange: -250, fundsAfterYear: 750 });
     });
 
     it("should subtract only what the cash can pay", () => {
@@ -99,15 +133,14 @@ describe("forecastYear", () => {
         const costs = { road: 100, fire: 100, police: 200 };
 
         expect(forecastYear(funds, taxes, costs, fullFunding))
-            .toEqual({ requested: costs, fundsChange: -100, fundsAfterYear: 0 });
+            .toEqual({ wanted: costs, fundsChange: -100, fundsAfterYear: 0 });
     });
 
-    it("should not let funds fall below zero when the $1 per service charge exceeds the cash", () => {
+    it("should charge nothing when no service needs money", () => {
         const funds = 1;
         const taxes = 0;
-        const noServices = { road: 0, fire: 0, police: 0 };
 
-        expect(forecastYear(funds, taxes, noServices, fullFunding))
-            .toEqual({ requested: noServices, fundsChange: -1, fundsAfterYear: 0 });
+        expect(forecastYear(funds, taxes, noFunding, fullFunding))
+            .toEqual({ wanted: noFunding, fundsChange: 0, fundsAfterYear: 1 });
     });
 });

@@ -59,7 +59,7 @@ var updateFunding = function() {
   for (i = 0; i < services.length; i++) {
     var service = services[i];
     var text = [sliderPercentage(service.rateKey), '% of ', formatMoney(this.maintenance[service.name]),
-                ' = ', formatMoney(forecast.requested[service.name])].join('');
+                ' = ', formatMoney(forecast.wanted[service.name])].join('');
     $(MiscUtils.normaliseDOMid(service.rateKey + 'Label')).text(text);
   }
 

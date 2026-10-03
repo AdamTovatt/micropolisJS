@@ -14,7 +14,7 @@
 import { EventEmitter } from './eventEmitter.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { forecastYear, nothingWanted, payServices, serviceSpend } from './yearEndBudget.ts';
+import { forecastYear, fundServices, serviceSpend } from './yearEndBudget.ts';
 
 // Cost of maintaining 1 police station
 var policeMaintenanceCost = 100;
@@ -102,49 +102,35 @@ var FLevels = [1.4, 1.2, 0.8];
 // we can actually afford to spend. Returns an object containing the amount of cash
 // that would be spent on each service.
 Budget.prototype._calculateBestPercentages = function() {
-  // How much would we be spending based on current percentages?
   // Note: the *Budget items are updated every January by collectTax
-  this.roadSpend = serviceSpend(this.roadMaintenanceBudget, this.roadPercent);
-  this.fireSpend = serviceSpend(this.fireMaintenanceBudget, this.firePercent);
-  this.policeSpend = serviceSpend(this.policeMaintenanceBudget, this.policePercent);
+  var funding = fundServices(this.totalFunds + this.taxFund, this._maintenance(), this._percents());
 
-  // How much are we actually going to spend?
-  var wanted = {road: this.roadSpend, fire: this.fireSpend, police: this.policeSpend};
-  var costs = payServices(this.totalFunds + this.taxFund, wanted);
+  this.roadSpend = funding.wanted.road;
+  this.fireSpend = funding.wanted.fire;
+  this.policeSpend = funding.wanted.police;
 
-  // If we don't have any services on the map, we can bail early
-  if (nothingWanted(wanted)) {
-    this.roadPercent = 1;
-    this.firePercent = 1;
-    this.policePercent = 1;
-    return costs;
-  }
+  this.roadPercent = funding.percents.road;
+  this.firePercent = funding.percents.fire;
+  this.policePercent = funding.percents.police;
 
-  if (this.roadMaintenanceBudget > 0)
-    this.roadPercent = (costs.road / this.roadMaintenanceBudget).toPrecision(2) - 0;
-  else
-    this.roadPercent = 1;
+  return funding.paid;
+};
 
-  if (this.fireMaintenanceBudget > 0)
-    this.firePercent = (costs.fire / this.fireMaintenanceBudget).toPrecision(2) - 0;
-  else
-    this.firePercent = 1;
 
-  if (this.policeMaintenanceBudget > 0)
-    this.policePercent = (costs.police / this.policeMaintenanceBudget).toPrecision(2) - 0;
-  else
-    this.policePercent = 1;
+Budget.prototype._maintenance = function() {
+  return {road: this.roadMaintenanceBudget, fire: this.fireMaintenanceBudget, police: this.policeMaintenanceBudget};
+};
 
-  return costs;
+
+Budget.prototype._percents = function() {
+  return {road: this.roadPercent, fire: this.firePercent, police: this.policePercent};
 };
 
 
 // What the year-end budget would leave if it ran now, with each service funded at the given
-// fraction, from the current funds and the most recent tax collection and maintenance costs.
-Budget.prototype.forecast = function(fractions) {
-  var maintenance = {road: this.roadMaintenanceBudget, fire: this.fireMaintenanceBudget,
-                     police: this.policeMaintenanceBudget};
-  return forecastYear(this.totalFunds, this.taxFund, maintenance, fractions);
+// percentage (0 to 1), from the current funds and the most recent tax collection and maintenance costs.
+Budget.prototype.forecast = function(percents) {
+  return forecastYear(this.totalFunds, this.taxFund, this._maintenance(), percents);
 };
 
 

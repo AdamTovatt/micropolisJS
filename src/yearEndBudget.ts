@@ -11,8 +11,13 @@
  *
  */
 
-// How the year-end budget pays for road, fire and police services. Budget charges through these
-// functions, and forecasts with forecastYear.
+// How the year-end budget funds road, fire and police services, as doBudgetNow in the original's budget.cpp does.
+// Budget charges through fundServices, and forecasts with forecastYear.
+//
+// The original keeps each funding percentage in a float and does this arithmetic in float. Math.fround rounds to the
+// nearest float, as a C# (float) cast does, so wrapping each float operand and result in it reproduces the original's
+// float arithmetic exactly: a product or quotient of two floats, computed in double and then rounded to float, is the
+// float result.
 
 export interface ServiceAmounts {
   road: number;
@@ -20,52 +25,69 @@ export interface ServiceAmounts {
   police: number;
 }
 
+export interface Funding {
+  // What each service costs at its funding percentage
+  wanted: ServiceAmounts;
+  // What each service gets
+  paid: ServiceAmounts;
+  // The funding percentages afterwards: those of the services the cash can't fully fund are scaled back to it
+  percents: ServiceAmounts;
+}
+
 export interface YearForecast {
-  // What each service costs at its funding fraction, before the cash runs out
-  requested: ServiceAmounts;
+  wanted: ServiceAmounts;
   fundsChange: number;
   fundsAfterYear: number;
 }
 
-// The cost of one service when funded at a fraction (0 to 1) of its full maintenance cost.
-export function serviceSpend(maintenance: number, fraction: number): number {
-  return Math.round(maintenance * fraction);
+// The services in the order the budget funds them
+const SERVICES: (keyof ServiceAmounts)[] = ["road", "fire", "police"];
+
+// The cost of a service at its funding percentage (0 to 1): (int)(fund * percent), multiplied in float
+export function serviceSpend(maintenance: number, percent: number): number {
+  return Math.floor(Math.fround(Math.fround(maintenance) * Math.fround(percent)));
 }
 
-export function nothingWanted(wanted: ServiceAmounts): boolean {
-  return wanted.road + wanted.fire + wanted.police === 0;
+// Funds the services from the cash there is, as doBudgetNow does. With more cash than the services want, each gets
+// what it wants and the percentages stay. Otherwise roads are funded first, then fire, then police: a service is
+// funded in full only while more cash is left than it wants, and the first one that isn't gets the rest of the cash,
+// with its percentage scaled back to that, and every service after it gets nothing, at 0%. With no cash and nothing
+// wanted, nothing is paid and every percentage goes back to 100%.
+export function fundServices(cash: number, maintenance: ServiceAmounts, percents: ServiceAmounts): Funding {
+  const wanted = { road: 0, fire: 0, police: 0 };
+  for (const service of SERVICES)
+    wanted[service] = serviceSpend(maintenance[service], percents[service]);
+  const total = wanted.road + wanted.fire + wanted.police;
+
+  if (cash > total)
+    return { wanted, paid: { ...wanted }, percents: { ...percents } };
+
+  if (total === 0)
+    return { wanted, paid: { road: 0, fire: 0, police: 0 }, percents: { road: 1, fire: 1, police: 1 } };
+
+  const paid = { road: 0, fire: 0, police: 0 };
+  const after = { ...percents };
+  let left = cash;
+  for (const service of SERVICES) {
+    if (left > wanted[service]) {
+      paid[service] = wanted[service];
+      left -= wanted[service];
+    } else {
+      paid[service] = left;
+      after[service] = left > 0 ? Math.fround(Math.fround(left) / Math.fround(maintenance[service])) : 0;
+      left = 0;
+    }
+  }
+
+  return { wanted, paid, percents: after };
 }
 
-// Pays the services out of the cash available, roads first, then fire, then police. A service
-// the cash can't cover gets whatever is left.
-//
-// When nothing is wanted, each service costs $1, whatever the cash. That is a divergence of this
-// port from the original: budget.cpp charges nothing in that case.
-export function payServices(cash: number, wanted: ServiceAmounts): ServiceAmounts {
-  if (nothingWanted(wanted))
-    return { road: 1, fire: 1, police: 1 };
-
-  const road = Math.min(cash, wanted.road);
-  cash -= road;
-  const fire = Math.min(cash, wanted.fire);
-  cash -= fire;
-  const police = Math.min(cash, wanted.police);
-
-  return { road, fire, police };
-}
-
-// The year-end budget applied to the given funds, taxes and maintenance costs, with each service
-// funded at the given fraction: the taxes come in, the services are paid, and funds never fall
-// below zero.
+// The year-end budget applied to the given funds, taxes and maintenance costs, with each service funded at the given
+// percentage: the taxes come in and the services are paid from funds plus taxes.
 export function forecastYear(funds: number, taxes: number, maintenance: ServiceAmounts,
-                             fractions: ServiceAmounts): YearForecast {
-  const requested = {
-    road: serviceSpend(maintenance.road, fractions.road),
-    fire: serviceSpend(maintenance.fire, fractions.fire),
-    police: serviceSpend(maintenance.police, fractions.police)
-  };
-  const paid = payServices(funds + taxes, requested);
-  const fundsAfterYear = Math.max(0, funds + taxes - (paid.road + paid.fire + paid.police));
+                             percents: ServiceAmounts): YearForecast {
+  const funding = fundServices(funds + taxes, maintenance, percents);
+  const fundsChange = taxes - (funding.paid.road + funding.paid.fire + funding.paid.police);
 
-  return { requested, fundsChange: fundsAfterYear - funds, fundsAfterYear };
+  return { wanted: funding.wanted, fundsChange, fundsAfterYear: funds + fundsChange };
 }
