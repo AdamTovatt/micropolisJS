@@ -26,7 +26,6 @@ var problemData = [];
 // drops a point: half funding takes a score of 1000 to 949, not 950.
 var SERVICE_CUT_DIVISOR = 10.0001;
 
-
 var Evaluation = EventEmitter(function(random) {
   this._random = random;
   this.problemVotes = [];
@@ -222,10 +221,15 @@ var getUnemployment = function(census) {
   if (b === 0)
       return 0;
 
-  // Ratio total people / working. At least 1.
-  var r = census.resPop / b;
+  // Ratio of residents to jobs, below 1 where jobs outnumber residents.
+  //
+  // evaluate.cpp works out this ratio, and the score's migration and power scales, in float.
+  // Math.fround rounds to the nearest float, as a C# (float) cast does, so wrapping each float
+  // operand and result in it reproduces that arithmetic exactly. Whole numbers are exact in
+  // float, so they aren't wrapped.
+  var r = Math.fround(Math.fround(census.resPop) / Math.fround(b));
 
-  b = Math.trunc((r - 1) * 255);
+  b = Math.trunc(Math.fround(Math.fround(r - 1) * 255));
   return Math.min(b, 255);
 };
 
@@ -350,20 +354,22 @@ Evaluation.prototype.getScore = function(simData) {
     recordAdjustment(Evaluation.SCORE_IND_OVERSUPPLY, score);
   }
 
-  var scale = 1.0;
+  // evaluate.cpp's SM, a float
+  var migrationScale = 1.0;
   if (this.cityPop === 0 || this.cityPopDelta === 0 || this.cityPopDelta === this.cityPop) {
     // Leave score unchanged if city is empty, if there hasn't been any migration, if the
     // initial settlers have just arrived, or if the city has doubled in size
-    scale = 1.0;
+    migrationScale = 1.0;
   } else if (this.cityPopDelta > 0) {
     // If the city is growing, scale score by percentage growth in population
-    scale = (this.cityPopDelta / this.cityPop) + 1.0;
+    migrationScale = Math.fround(Math.fround(Math.fround(this.cityPopDelta) / Math.fround(this.cityPop)) + 1.0);
   } else if (this.cityPopDelta < 0) {
     // If the city is shrinking, scale by 0.95 less the share of last year's population that left
-    scale = 0.95 + (this.cityPopDelta / (this.cityPop - this.cityPopDelta));
+    migrationScale = Math.fround(Math.fround(0.95) +
+        Math.fround(Math.fround(this.cityPopDelta) / Math.fround(this.cityPop - this.cityPopDelta)));
   }
 
-  score = Math.trunc(score * scale);
+  score = Math.trunc(Math.fround(Math.fround(score) * migrationScale));
   recordAdjustment(Evaluation.SCORE_MIGRATION, score);
 
   // Penalize player for having fires and a burdensome tax rate. The two subtractions are
@@ -374,10 +380,11 @@ Evaluation.prototype.getScore = function(simData) {
   score = score - budget.cityTax;
   recordAdjustment(Evaluation.SCORE_TAXES, score);
 
-  // Penalize player based on ratio of unpowered zones to total zones
-  scale = census.unpoweredZoneCount + census.poweredZoneCount;
-  if (scale > 0)
-    score = Math.trunc(score * (census.poweredZoneCount / scale));
+  // Scale by the share of zones that are powered, in float. evaluate.cpp's TM, the zone total, is
+  // a float.
+  var zoneTotal = Math.fround(census.unpoweredZoneCount + census.poweredZoneCount);
+  if (zoneTotal > 0)
+    score = Math.trunc(Math.fround(Math.fround(score) * Math.fround(Math.fround(census.poweredZoneCount) / zoneTotal)));
   recordAdjustment(Evaluation.SCORE_UNPOWERED_ZONES, score);
 
   // Force in to range 0-1000. New score is average of last score and new computed value

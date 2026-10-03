@@ -12,131 +12,37 @@
  */
 
 // TypeScript modules are imported without an extension, as in the rest of test/
-import { BlockMap } from "../src/blockMap";
-import { Budget } from "../src/budget.js";
-import { Census } from "../src/census.js";
 import { Evaluation } from "../src/evaluation.js";
-import { Random } from "../src/random";
 import type { ScoreEntry } from "../src/scoreBreakdownView";
-import { Valves } from "../src/valves.js";
+import { developedLand, evaluateYear, makeCity, newEvaluation, problemFreeYear, type Year } from "./helpers/evaluationCity";
 
-// The stream only drives the opinion poll and the problem votes, never the score
-function newEvaluation() {
-    return new Evaluation(Random.fromSeed(1));
-}
-
-interface YearState {
-    resPop: number;
-    comPop: number;
-    indPop: number;
-    crime: number;
-    pollution: number;
-    landValue: number;
-    traffic: number;
-    firePop: number;
-    poweredZones: number;
-    unpoweredZones: number;
-    tax: number;
-    roadEffect?: number;
-    policeEffect?: number;
-    fireEffect?: number;
-    resCap?: boolean;
-    comCap?: boolean;
-    indCap?: boolean;
-    resValve?: number;
-    comValve?: number;
-    indValve?: number;
-}
-
-const MAP_WIDTH = 16;
-const MAP_HEIGHT = 16;
-
-function makeCity() {
-    const landValueMap = new BlockMap(MAP_WIDTH, MAP_HEIGHT, 2);
-    const trafficDensityMap = new BlockMap(MAP_WIDTH, MAP_HEIGHT, 2);
-
-    return {
-        blockMaps: {landValueMap, trafficDensityMap},
-        budget: new Budget(),
-        census: new Census(),
-        evaluation: newEvaluation(),
-        valves: new Valves(),
-    };
-}
-
-type City = ReturnType<typeof makeCity>;
-
-// Sets up one year's census, budget and valves, then runs the yearly evaluation
-function evaluateYear(city: City, state: YearState) {
-    const {blockMaps, budget, census, evaluation, valves} = city;
-
-    census.resPop = state.resPop;
-    census.comPop = state.comPop;
-    census.indPop = state.indPop;
-    census.totalPop = state.resPop + state.comPop + state.indPop;
-    census.crimeAverage = state.crime;
-    census.pollutionAverage = state.pollution;
-    census.landValueAverage = state.landValue;
-    census.firePop = state.firePop;
-    census.poweredZoneCount = state.poweredZones;
-    census.unpoweredZoneCount = state.unpoweredZones;
-
-    // Half the blocks are developed land, each carrying the same traffic
-    for (let x = 0; x < MAP_WIDTH; x += 2) {
-        for (let y = 0; y < MAP_HEIGHT / 2; y += 2) {
-            blockMaps.landValueMap.worldSet(x, y, state.landValue);
-            blockMaps.trafficDensityMap.worldSet(x, y, state.traffic);
-        }
-    }
-
-    budget.cityTax = state.tax;
-    budget.roadEffect = state.roadEffect ?? budget.MAX_ROAD_EFFECT;
-    budget.policeEffect = state.policeEffect ?? budget.MAX_POLICESTATION_EFFECT;
-    budget.fireEffect = state.fireEffect ?? budget.MAX_FIRESTATION_EFFECT;
-
-    valves.resCap = state.resCap ?? false;
-    valves.comCap = state.comCap ?? false;
-    valves.indCap = state.indCap ?? false;
-    valves.resValve = state.resValve ?? 0;
-    valves.comValve = state.comValve ?? 0;
-    valves.indValve = state.indValve ?? 0;
-
-    evaluation.cityEvaluation({blockMaps, budget, census, valves});
-}
-
-const THRIVING_TOWN: YearState[] = [
-    {resPop: 300, comPop: 40, indPop: 50, crime: 20, pollution: 30, landValue: 100, traffic: 10,
-     firePop: 0, poweredZones: 40, unpoweredZones: 0, tax: 7},
-    {resPop: 400, comPop: 60, indPop: 60, crime: 25, pollution: 35, landValue: 110, traffic: 12,
-     firePop: 0, poweredZones: 50, unpoweredZones: 0, tax: 7},
-    {resPop: 400, comPop: 60, indPop: 60, crime: 25, pollution: 35, landValue: 110, traffic: 12,
-     firePop: 0, poweredZones: 50, unpoweredZones: 0, tax: 7},
+// Each year sets its figures over a problem-free year of its residents
+const THRIVING_TOWN: Year[] = [
+    problemFreeYear(300, {comPop: 40, indPop: 50, crimeAverage: 20, pollutionAverage: 30, ...developedLand(100, 10),
+                          poweredZoneCount: 40, cityTax: 7}),
+    problemFreeYear(400, {comPop: 60, indPop: 60, crimeAverage: 25, pollutionAverage: 35, ...developedLand(110, 12),
+                          poweredZoneCount: 50, cityTax: 7}),
+    problemFreeYear(400, {comPop: 60, indPop: 60, crimeAverage: 25, pollutionAverage: 35, ...developedLand(110, 12),
+                          poweredZoneCount: 50, cityTax: 7}),
 ];
 
 // Sets every condition the score checks: capped and collapsed valves, underfunded roads, police
 // and fire, growth, decline, fires, taxes and unpowered zones
-const TROUBLED_CITY: YearState[] = [
-    {resPop: 600, comPop: 120, indPop: 80, crime: 40, pollution: 60, landValue: 60, traffic: 20,
-     firePop: 4, poweredZones: 60, unpoweredZones: 0, tax: 9},
-    {resPop: 900, comPop: 150, indPop: 100, crime: 50, pollution: 70, landValue: 70, traffic: 25,
-     firePop: 6, poweredZones: 70, unpoweredZones: 20, tax: 11, roadEffect: 20, policeEffect: 500,
-     fireEffect: 400, resCap: true, comCap: true, indCap: true, indValve: -1200},
-    {resPop: 1000, comPop: 160, indPop: 110, crime: 45, pollution: 65, landValue: 75, traffic: 22,
-     firePop: 2, poweredZones: 90, unpoweredZones: 5, tax: 10, resCap: true, resValve: -1500,
-     comValve: -1100},
-    {resPop: 800, comPop: 150, indPop: 100, crime: 45, pollution: 65, landValue: 75, traffic: 22,
-     firePop: 2, poweredZones: 90, unpoweredZones: 5, tax: 10},
+const TROUBLED_CITY: Year[] = [
+    problemFreeYear(600, {comPop: 120, indPop: 80, crimeAverage: 40, pollutionAverage: 60, ...developedLand(60, 20),
+                          firePop: 4, poweredZoneCount: 60, cityTax: 9}),
+    problemFreeYear(900, {comPop: 150, indPop: 100, crimeAverage: 50, pollutionAverage: 70, ...developedLand(70, 25),
+                          firePop: 6, poweredZoneCount: 70, unpoweredZoneCount: 20, cityTax: 11, roadEffect: 20,
+                          policeEffect: 500, fireEffect: 400, resCap: true, comCap: true, indCap: true,
+                          indValve: -1200}),
+    problemFreeYear(1000, {comPop: 160, indPop: 110, crimeAverage: 45, pollutionAverage: 65, ...developedLand(75, 22),
+                           firePop: 2, poweredZoneCount: 90, unpoweredZoneCount: 5, cityTax: 10, resCap: true,
+                           resValve: -1500, comValve: -1100}),
+    problemFreeYear(800, {comPop: 150, indPop: 100, crimeAverage: 45, pollutionAverage: 65, ...developedLand(75, 22),
+                          firePop: 2, poweredZoneCount: 90, unpoweredZoneCount: 5, cityTax: 10}),
 ];
 
-// A year without problems: no crime, pollution, land value, traffic, fires or tax, and as many
-// residents as jobs. Its base score is 1000, so each step's points can be worked out by hand. It
-// has (resPop + resPop) * 20 people, and resPop is a multiple of 8.
-function problemFreeYear(resPop: number, changes: Partial<YearState> = {}): YearState {
-    return {resPop, comPop: resPop / 8, indPop: 0, crime: 0, pollution: 0, landValue: 0, traffic: 0, firePop: 0,
-            poweredZones: 10, unpoweredZones: 0, tax: 0, ...changes};
-}
-
-function scoresOver(years: YearState[]): number[] {
+function scoresOver(years: Year[]): number[] {
     const city = makeCity();
     return years.map((state) => {
         evaluateYear(city, state);
@@ -191,26 +97,46 @@ describe("the city score breakdown", () => {
         ]);
     });
 
-    // Each scales a base of 1000 to a score with a fraction, which evaluate.cpp's int score drops
+    // Each scales the score to one with a fraction, which evaluate.cpp's int score drops. Most start
+    // from a problem-free base of 1000.
     it.each([
         // 1000 * (1 + 1600 / 9600) = 1166.67
         ["growth from 8000 to 9600 people", [problemFreeYear(200), problemFreeYear(240)],
-         Evaluation.SCORE_MIGRATION, 1166],
+         Evaluation.SCORE_MIGRATION, 1000, 1166],
         // 1000 * (0.95 - 3200 / 9600) = 616.67: 0.95 less the share of last year's people who left
         ["decline from 9600 to 6400 people", [problemFreeYear(240), problemFreeYear(160)],
-         Evaluation.SCORE_MIGRATION, 616],
+         Evaluation.SCORE_MIGRATION, 1000, 616],
         // 1000 * (0.9 + 337 / 10000.1) = 933.7: up to 10% off, in proportion to the funding missing
         ["police funded at 337 of 1000", [problemFreeYear(200, {policeEffect: 337})],
-         Evaluation.SCORE_POLICE_FUNDING, 933],
+         Evaluation.SCORE_POLICE_FUNDING, 1000, 933],
         ["fire funded at 337 of 1000", [problemFreeYear(200, {fireEffect: 337})],
-         Evaluation.SCORE_FIRE_FUNDING, 933],
+         Evaluation.SCORE_FIRE_FUNDING, 1000, 933],
         // 1000 * (0.9 + 500 / 10000.1) = 949.9995, where a divisor of 10 would give exactly 950
-        ["police funded at half", [problemFreeYear(200, {policeEffect: 500})], Evaluation.SCORE_POLICE_FUNDING, 949],
-        ["fire funded at half", [problemFreeYear(200, {fireEffect: 500})], Evaluation.SCORE_FIRE_FUNDING, 949],
+        ["police funded at half", [problemFreeYear(200, {policeEffect: 500})],
+         Evaluation.SCORE_POLICE_FUNDING, 1000, 949],
+        ["fire funded at half", [problemFreeYear(200, {fireEffect: 500})],
+         Evaluation.SCORE_FIRE_FUNDING, 1000, 949],
         // 1000 * (2 / 3) = 666.67
-        ["2 of 3 zones powered", [problemFreeYear(200, {poweredZones: 2, unpoweredZones: 1})],
-         Evaluation.SCORE_UNPOWERED_ZONES, 666],
-    ])("scales the score for %s, dropping the fraction", (_, years, reason, scoreAfter) => {
+        ["2 of 3 zones powered", [problemFreeYear(200, {poweredZoneCount: 2, unpoweredZoneCount: 1})],
+         Evaluation.SCORE_UNPOWERED_ZONES, 1000, 666],
+
+        // evaluate.cpp works out the migration and power scales in float, where these come out a
+        // point away from double.
+        // 1000 * (0.95 - 320 / 640) is exactly 450: double falls just under it, and float rounds
+        // the product to 450
+        ["decline from 640 to 320 people", [problemFreeYear(16), problemFreeYear(8)],
+         Evaluation.SCORE_MIGRATION, 1000, 450],
+        // Crime and pollution of 255 give a base of (256 - 170) * 4 = 344, and 344 * (1 + 5440 /
+        // 13760) is exactly 480: double rounds to it, and float's scale rounds down, so its product
+        // falls just under
+        ["growth from 8320 to 13760 people", [208, 344].map((resPop) =>
+            problemFreeYear(resPop, {crimeAverage: 255, pollutionAverage: 255})),
+         Evaluation.SCORE_MIGRATION, 344, 479],
+        // Crime of 75 gives a base of (256 - 25) * 4 = 924, and 924 * 3 / 11 is exactly 252: double's
+        // 3 / 11 rounds down, so its product falls just under, and float's rounds up
+        ["3 of 11 zones powered", [problemFreeYear(200, {crimeAverage: 75, poweredZoneCount: 3, unpoweredZoneCount: 8})],
+         Evaluation.SCORE_UNPOWERED_ZONES, 924, 252],
+    ])("scales the score for %s, dropping the fraction", (_, years, reason, scoreBefore, scoreAfter) => {
         const city = makeCity();
         for (const state of years.slice(0, -1))
             evaluateYear(city, state);
@@ -218,23 +144,27 @@ describe("the city score breakdown", () => {
         evaluateYear(city, years[years.length - 1]);
 
         const step = stepOf(city.evaluation.cityScoreBreakdown, lastScore, reason);
-        expect(step.scoreBefore).toBe(1000);
-        expect(step.entry.points).toBe(scoreAfter - 1000);
+        expect(step.scoreBefore).toBe(scoreBefore);
+        expect(step.entry.points).toBe(scoreAfter - scoreBefore);
     });
 
     // A third of the problems' sum, truncated, takes 4 points each from 1024, and the base is
     // clamped to 1000
     it.each([
         // 20 / 3 = 6: 1024 - 24
-        ["crime of 20", {crime: 20}, 1000],
+        ["crime of 20", {crimeAverage: 20}, 1000],
         // 21 / 3 = 7: 1024 - 28
-        ["crime of 21", {crime: 21}, 996],
+        ["crime of 21", {crimeAverage: 21}, 996],
         // Unemployment is (200 / 400 - 1) * 255 = -127.5, which drops its fraction to -127, and
         // -127 / 3 = -42: 1024 + 168, clamped
         ["more jobs than residents", {comPop: 50}, 1000],
         // Unemployment is (200 / 160 - 1) * 255 = 63.75, which drops its fraction to 63, and with
         // crime of 2, 65 / 3 = 21: 1024 - 84
-        ["more residents than jobs", {comPop: 20, crime: 2}, 940],
+        ["more residents than jobs", {comPop: 20, crimeAverage: 2}, 940],
+        // Unemployment is (32 / 24 - 1) * 255, exactly 85, which evaluate.cpp works out in float:
+        // double falls just under and truncates to 84, float rounds to just over 85. With crime of
+        // 2, 87 / 3 = 29: 1024 - 116
+        ["32 residents for 24 jobs", {resPop: 32, comPop: 3, crimeAverage: 2}, 908],
     ])("starts from the base score for %s", (_, changes, base) => {
         const city = makeCity();
         evaluateYear(city, problemFreeYear(200, changes));
@@ -260,7 +190,7 @@ describe("the city score breakdown", () => {
     it("leaves out adjustments that didn't move the score", () => {
         const city = makeCity();
         const lastScore = city.evaluation.cityScore;
-        evaluateYear(city, {...TROUBLED_CITY[0], tax: 0, firePop: 0});
+        evaluateYear(city, {...TROUBLED_CITY[0], cityTax: 0, firePop: 0});
 
         // No tax, no fires, no migration yet, every zone powered and the score within range
         const breakdown: ScoreEntry[] = city.evaluation.cityScoreBreakdown;
@@ -309,7 +239,7 @@ describe("the city score breakdown", () => {
         // The second year's growth scales the score past 1000
         ["above 1000", THRIVING_TOWN.slice(0, 2), 1000],
         // Problems leave no base score, and fires and taxes take it below 0
-        ["below 0", [{...TROUBLED_CITY[0], crime: 255, pollution: 255, firePop: 50}], 0],
+        ["below 0", [{...TROUBLED_CITY[0], crimeAverage: 255, pollutionAverage: 255, firePop: 50}], 0],
     ])("records the clamp to the 0-1000 range for a score %s", (_, years, limit) => {
         const city = makeCity();
         for (const state of years.slice(0, -1))
@@ -375,7 +305,7 @@ describe("the problems", () => {
     // this stream's voters on housing draws 10.
     it("drop the fraction of the housing problem", () => {
         const city = makeCity();
-        evaluateYear(city, problemFreeYear(200, {landValue: 15}));
+        evaluateYear(city, problemFreeYear(200, developedLand(15, 0)));
 
         const housing = city.evaluation.problemVotes.find(
             (vote: {index: number}) => vote.index === Evaluation.HOUSING);
@@ -386,7 +316,7 @@ describe("the problems", () => {
     // drops its fraction, and 11 * 2.4 = 26.4 drops its own, as evaluate.cpp's ints do
     it("drop the fractions of the traffic average", () => {
         const city = makeCity();
-        evaluateYear(city, problemFreeYear(200, {landValue: 1, traffic: 12}));
+        evaluateYear(city, problemFreeYear(200, developedLand(1, 12)));
 
         expect(city.census.trafficAverage).toBe(26);
     });
