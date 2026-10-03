@@ -14,8 +14,8 @@
 import { SNAPSHOT_POINTS } from "../conformance/snapshotPoints";
 import { recordSnapshots, SnapshotPoint, SnapshotRecord, unrecorded } from "../conformance/unitSnapshots";
 import { cityFromSave, SaveData } from "../headless/city";
-import { fixtureLog, fixtureNamesOf, spriteFreeFixtureNames } from "../headless/fixtures/index";
-import { replay } from "../headless/runner";
+import { fixtureNamesOf, spriteFreeFixtureNames } from "../headless/fixtures/index";
+import { fixtureLog, replay } from "../headless/runner";
 import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { plainSavedState } from "../src/stateHash";
 

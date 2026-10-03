@@ -16,12 +16,18 @@
 // fails when a point stops reaching it.
 
 import { SaveData } from "../headless/city";
+import { BRIDGE_STRIP, FIRE_STRIP, RADIATION_STRIP, STADIUM_STRIP } from "../headless/fixtures/disasters";
 import { fixtureNamesOf } from "../headless/fixtures/index";
 import { FRONT_END_MESSAGE, NOT_ENOUGH_POWER } from "../src/messages";
 import { savedState } from "../src/stateHash";
 import { BIT_MASK, ZONEBIT } from "../src/tileFlags";
-import { FIRE, HTRFBASE, LASTFIRE, LASTIND, LTRFBASE, PORTBASE, POWERBASE, ROADBASE } from "../src/tileValues";
-import { SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES } from "./unitSnapshots";
+import {
+  BRWH, DIRT, FIRE, FIREBASE, FLOOD, FREEZ, FULLSTADIUM, HBRIDGE, HTRFBASE, LASTFIRE, LASTIND, LASTRUBBLE, LTRFBASE,
+  PORTBASE, POWERBASE, RADTILE, RIVER, ROADBASE, RUBBLE, STADIUM, VBRIDGE,
+} from "../src/tileValues";
+import {
+  Internals, SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES,
+} from "./unitSnapshots";
 
 // How many of each unit's first calls are recorded in each fixture
 const FIRST_CALLS = 2;
@@ -163,6 +169,80 @@ function firstCalls(): SnapshotPoint[] {
   }));
 }
 
+// --- The infrastructure handlers' rarer branches, each a map scan of one strip of the disasters fixture, whose scenes
+// headless/fixtures/disasters.ts lays out a strip each
+
+interface SavedTiles {
+  map: {width: number, tiles: number[]};
+}
+
+// Whether a tile of the strip the record scanned went from a value `from` accepts to one `to` accepts
+function tileChanged(record: SnapshotRecord, from: (value: number) => boolean, to: (value: number) => boolean): boolean {
+  const before = (record.before as SavedTiles).map;
+  const after = (record.after as SavedTiles).map.tiles;
+  const [x0, x1] = record.args;
+
+  return before.tiles.some((raw, i) => {
+    const x = i % before.width;
+    return x >= x0 && x < x1 && from(raw & BIT_MASK) && to(after[i] & BIT_MASK);
+  });
+}
+
+const isFire = (value: number) => value >= FIREBASE && value < ROADBASE;
+const isRubble = (value: number) => value >= RUBBLE && value <= LASTRUBBLE;
+const isFlood = (value: number) => value >= FLOOD && value < RADTILE;
+const isRoad = (value: number) => value >= ROADBASE && value < POWERBASE;
+const isBridge = (value: number) => value === HBRIDGE || value === VBRIDGE;
+const is = (wanted: number) => (value: number) => value === wanted;
+
+// A strip's map scan with each family alone, whose record of the family that owns the branch must reach it
+function scanOf(strip: number, call: number, family: string, branch: string, test: (record: SnapshotRecord) => boolean,
+                where?: (simulation: Internals) => boolean): SnapshotPoint {
+  return {
+    fixture: "disasters", unit: "mapScanner.mapScan", call, handlers: "each",
+    where: (simulation, args) => args[0] === strip && (where === undefined || where(simulation)),
+    reaches: {branch, test, family},
+  };
+}
+
+const floodCount = (state: object) => (state as {disasters: {floodCount: number}}).disasters.floodCount;
+
+// The fire department's effect, of the live budget or a saved one
+const fireEffect = (budget: object) => (budget as {fireEffect: number}).fireEffect;
+
+// A drawbridge opening turns two of its bridge tiles to water too, so a bridge worn to water is told apart by a scan in
+// which no drawbridge opened
+const drawbridgeOpened = (record: SnapshotRecord) => tileChanged(record, is(HBRIDGE), is(BRWH));
+
+function infrastructurePoints(): SnapshotPoint[] {
+  return [
+    scanOf(FIRE_STRIP, 1, "miscTiles", "a fire burning out", (record) => tileChanged(record, isFire, isRubble)),
+    scanOf(FIRE_STRIP, 1, "miscTiles", "a fire spreading into a zone's centre",
+           (record) => tileChanged(record, is(FREEZ), isFire)),
+    scanOf(FIRE_STRIP, 0, "emergencyServices", "a fire station working at a share of its effect",
+           (record) => fireEffect((record.before as {budget: object}).budget) < 1000 &&
+                       record.reached.includes("emergencyServices.fireStationFound"),
+           (simulation) => fireEffect(simulation.budget) < 1000),
+    scanOf(BRIDGE_STRIP, 3, "road", "a drawbridge opening", drawbridgeOpened),
+    scanOf(BRIDGE_STRIP, 1, "road", "a drawbridge closing", (record) => tileChanged(record, is(BRWH), is(HBRIDGE))),
+    scanOf(BRIDGE_STRIP, 59, "road", "a road wearing away", (record) => tileChanged(record, isRoad, isRubble)),
+    scanOf(BRIDGE_STRIP, 56, "road", "a bridge wearing away to water",
+           (record) => tileChanged(record, isBridge, is(RIVER)) && !drawbridgeOpened(record)),
+    scanOf(STADIUM_STRIP, 17, "stadia", "a stadium's game starting",
+           (record) => tileChanged(record, is(STADIUM), is(FULLSTADIUM))),
+    scanOf(STADIUM_STRIP, 25, "stadia", "a stadium's game ending",
+           (record) => tileChanged(record, is(FULLSTADIUM), is(STADIUM))),
+    scanOf(RADIATION_STRIP, 1, "miscTiles", "radiation decaying", (record) => tileChanged(record, is(RADTILE), is(DIRT))),
+    scanOf(RADIATION_STRIP, 0, "miscTiles", "a flood spreading into a zone's centre",
+           (record) => tileChanged(record, is(FREEZ), isFlood)),
+    scanOf(RADIATION_STRIP, 30, "miscTiles", "a flood receding", (record) => tileChanged(record, isFlood, is(DIRT))),
+    {
+      fixture: "disasters", unit: "disasterManager.doDisasters", call: 0,
+      reaches: {branch: "a flood counting down", test: (record) => floodCount(record.after) < floodCount(record.before)},
+    },
+  ];
+}
+
 export const SNAPSHOT_POINTS: SnapshotPoint[] = [
   ...firstCalls(),
 
@@ -301,4 +381,6 @@ export const SNAPSHOT_POINTS: SnapshotPoint[] = [
     fixture: "wilderness", unit: "blockMapUtils.populationDensityScan", call: 0,
     reaches: {branch: "no zone", test: (record) => before(record).map.tiles.every((tile) => (tile & ZONEBIT) === 0)},
   },
+
+  ...infrastructurePoints(),
 ];

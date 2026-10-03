@@ -12,13 +12,13 @@
  */
 
 import { takeSteps } from "../src/cityTimeModel";
-import { CommandLog, lastStep } from "../src/commandLog";
+import { CommandLog, lastStep, LOG_FORMAT_VERSION } from "../src/commandLog";
 import { CommandQueue } from "../src/commandQueue";
 import { CommandResult } from "../src/protocol";
 import { Random } from "../src/random";
 import { plainSavedState, stateHash } from "../src/stateHash";
 import { cityFromSave, cityFromSeed, Level, RunningSpeed, SaveData, Simulation, Speed } from "./city";
-import { fixtureLog } from "./fixtures/index";
+import { DerivedFixture, namedFixture } from "./fixtures/index";
 
 // Starts a city from a seed, a fixture or a command log and advances it step by step, as fast as the CPU allows. A
 // run never stalls silently: it fails when the simulation is paused, or doesn't advance city time as far as the step
@@ -75,6 +75,26 @@ export function startFromSave(saved: SaveData, options: {reseed?: number, speed?
   }
 
   return cityFromSave({...saved, simulation});
+}
+
+const derivedLogs = new Map<DerivedFixture, CommandLog>();
+
+// A fixture's command log. A derived fixture's is built on first use, from the city the fixture it derives from builds.
+export function fixtureLog(name: string): CommandLog {
+  const fixture = namedFixture(name);
+  if (!("from" in fixture)) {
+    return fixture;
+  }
+
+  let log = derivedLogs.get(fixture);
+  if (log === undefined) {
+    const {description, entries, checkpoints} = fixture;
+    const save = fixture.save(replay(fixture.from, {to: 0, verify: false}).city);
+    log = {formatVersion: LOG_FORMAT_VERSION, description, save, entries, checkpoints};
+    derivedLogs.set(fixture, log);
+  }
+
+  return log;
 }
 
 // The saved state a fixture's log builds, before its first step, as plain data shared with nothing

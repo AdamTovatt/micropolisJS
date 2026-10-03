@@ -75,8 +75,9 @@ fails.
   the hash needs only to a page served over https or from localhost; elsewhere the log downloads without
   checkpoints, and the game says so.
 - **Fixtures.** Each fixture in `headless/fixtures/` is a log whose checkpoints are its golden hashes: one at step 0,
-  of the city as its commands build it, and one after a fixed run. `npm run fixtures` exports each as
-  `headless/fixtures/export/<name>.log.json`.
+  of the city as its log builds it, and one after a fixed run. A fixture that needs what no command places starts
+  from a save instead: the city another fixture's commands build, with its script's writes. `npm run fixtures`
+  exports each as `headless/fixtures/export/<name>.log.json`.
 - **The end-to-end playthrough.** The runner downloads each session's log from the debug window and joins them into
   one from the seed (`joinSessions`): a session that loaded the save the one before it ended on carries on its steps,
   with no entry for the load. A joined session may apply no command before its first step: the joined log takes its

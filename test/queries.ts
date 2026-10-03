@@ -12,11 +12,10 @@
  */
 
 import { cityFromSeed, Simulation as HeadlessSimulation, Speed } from "../headless/city";
-import { fixtureLog } from "../headless/fixtures/index";
 import { CommandLog } from "../src/commandLog";
 import { CommandQueue } from "../src/commandQueue";
 import * as Messages from "../src/messages";
-import { startCity } from "../headless/runner";
+import { fixtureLog, startCity } from "../headless/runner";
 import {
     OVERLAY_LAYERS, OverlayAnswer, OverlayLayer, Query, QueryAnswer, TileReportAnswer, ZONE_CATEGORIES, ZoneCategory,
 } from "../src/protocol";

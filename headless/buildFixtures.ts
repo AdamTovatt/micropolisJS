@@ -17,7 +17,8 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { fixtureLog, fixtureNames } from "./fixtures/index";
+import { fixtureNames } from "./fixtures/index";
+import { fixtureLog } from "./runner";
 
 // Relative to the repository root, where npm runs scripts
 const EXPORT_DIRECTORY = path.join("headless", "fixtures", "export");
