@@ -15,7 +15,6 @@ import { expect, Page } from "@playwright/test";
 import { readFileSync } from "fs";
 
 import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
-import { NOTIFICATION_ELEMENT_ID, NOTIFICATION_SECS } from "../src/notification";
 import type { Advanced, View } from "../src/testHook";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
@@ -42,9 +41,6 @@ export type Difficulty = "Easy" | "Med" | "Hard";
 
 const CANVAS_ID = "MicropolisCanvas";
 const CANVAS = `#${CANVAS_ID}`;
-
-// The longest waitForTheNotificationToClose waits: the bar's time, and a margin
-const NOTIFICATION_WAIT_MS = (NOTIFICATION_SECS + 10) * 1000;
 
 type Axis = "x" | "y";
 
@@ -282,12 +278,10 @@ export class Player {
     }));
   }
 
-  // Waits for the notification bar to close on its own, which it does on wall time: it has no control that closes it,
-  // and a click on it centres the map on the place it names
-  async waitForTheNotificationToClose(): Promise<void> {
-    await expect(this.page.locator(`#${NOTIFICATION_ELEMENT_ID}`),
-                 `the notification bar, which closes ${NOTIFICATION_SECS} seconds after it opens`)
-      .toBeHidden({timeout: NOTIFICATION_WAIT_MS});
+  // Dismisses the notification bar through the hook. It closes on wall time, and has no control a player could close it
+  // with: a click on it centres the map on the place it names.
+  async dismissNotification(): Promise<void> {
+    await this.page.evaluate(() => window.micropolisTestHook!.dismissNotification());
   }
 
   // Applies the commands the input sent at once, rather than on the game's next tick, so the city the runner reads next

@@ -63,10 +63,10 @@ test("the playthrough", async ({page}) => {
     return all.length > 0 ? all.join("\n") : undefined;
   };
 
-  // The notification bar closes on wall time, so each screenshot waits it out. The disaster view closes on wall time
-  // too, once the sprite it follows is gone, so a stage must not end while it counts down.
+  // The notification bar closes on wall time, so each screenshot dismisses it first. The disaster view closes on wall
+  // time too, once the sprite it follows is gone, so a stage must not end while it counts down.
   const screenshot = async (stem: string) => {
-    await player.waitForTheNotificationToClose();
+    await player.dismissNotification();
     await player.settle();
     await page.screenshot({path: join(report.directory, `${stem}.png`), fullPage: true});
     return `${stem}.png`;

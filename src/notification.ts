@@ -18,9 +18,8 @@ import type { TilePoint } from "./viewPosition";
 // The bar along the bottom of the map that announces a message for a while, coloured by its tone. A message about a
 // place on the map is a link: clicking the bar centres the map there.
 
-export const NOTIFICATION_ELEMENT_ID = "notifications";
-// How long the bar shows a message, on wall time
-export const NOTIFICATION_SECS = 30;
+const ELEMENT_ID = "notifications";
+const TIMEOUT_SECS = 30;
 const TONES: MessageTone[] = ["good", "bad", "neutral"];
 
 // A message the bar announces: its subject, from messages.ts, and where on the map it happened, if it did somewhere
@@ -80,14 +79,11 @@ export class NotificationBar<E extends BarElement<E>> {
     this.close();
   }
 
-  // Announces the message in its tone, for NOTIFICATION_SECS from now
+  // Announces the message in its tone, for TIMEOUT_SECS from now
   show(message: NotificationMessage): void {
     const view = notificationView(message);
 
-    if (this.timeout !== null) {
-      clearTimeout(this.timeout);
-      this.timeout = null;
-    }
+    this.cancelTimeout();
 
     this.element.classList.remove(...TONES);
     this.element.classList.add(view.tone);
@@ -100,7 +96,21 @@ export class NotificationBar<E extends BarElement<E>> {
     this.timeout = setTimeout(() => {
       this.timeout = null;
       this.close();
-    }, NOTIFICATION_SECS * 1000);
+    }, TIMEOUT_SECS * 1000);
+  }
+
+  // Hides the bar now, before its time is up: the end-to-end runner's screenshots would otherwise show it or not
+  // depending on how long the run took
+  dismiss(): void {
+    this.cancelTimeout();
+    this.close();
+  }
+
+  private cancelTimeout(): void {
+    if (this.timeout !== null) {
+      clearTimeout(this.timeout);
+      this.timeout = null;
+    }
   }
 
   private close(): void {
@@ -110,5 +120,5 @@ export class NotificationBar<E extends BarElement<E>> {
 
 // The bar in the page's notification element
 export function placeNotificationBar(map: CentringMap): NotificationBar<HTMLElement> {
-  return new NotificationBar(requiredElement(NOTIFICATION_ELEMENT_ID), map);
+  return new NotificationBar(requiredElement(ELEMENT_ID), map);
 }

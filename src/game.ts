@@ -82,7 +82,7 @@ export class Game {
   private readonly touchWindow: TouchWarnWindow;
   private readonly queryWindow: QueryWindow;
   private readonly queryTool: QueryTool;
-  private readonly notificationBar: NotificationBar<HTMLElement>;
+  readonly notificationBar: NotificationBar<HTMLElement>;
   private readonly tooSmall = requiredElement("tooSmall");
 
   private mouse: MouseOutline | null = null;

@@ -39,6 +39,10 @@ function gameOn(source: PageCitySource, state: CityState) {
         save: () => source.save(),
         onCommandResult: (listener: () => void) => state.on("commandResult", listener),
         gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS},
+        dismissals: 0,
+        notificationBar: {dismiss: () => {
+            game.dismissals++;
+        }},
         tileSet: {tileWidth: 16},
     };
 
@@ -51,6 +55,7 @@ const IDLE_GAME = {
     save: async () => "",
     onCommandResult: () => {},
     gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS},
+    notificationBar: {dismiss: () => {}},
     tileSet: {tileWidth: 16},
 };
 
@@ -130,9 +135,10 @@ describe("the test hook", () => {
             await expect(call()).rejects.toThrow("No game has started");
         });
 
-        it.each(["view", "commandsApplied"])("can't tell %s", (method) => {
+        it.each(["view", "commandsApplied", "dismissNotification"])("can't %s", (method) => {
             const hook = new TestHook();
-            const call = {view: () => hook.view(), commandsApplied: () => hook.commandsApplied()}[method]!;
+            const call = {view: () => hook.view(), commandsApplied: () => hook.commandsApplied(),
+                          dismissNotification: () => hook.dismissNotification()}[method]!;
 
             expect(call).toThrow("No game has started");
         });
@@ -328,5 +334,13 @@ describe("the test hook", () => {
         const {hook} = await holdingGame();
 
         expect(hook.view()).toEqual({originX: 3, originY: 4, limits: LIMITS, tileWidth: 16});
+    });
+
+    it("dismisses the game's notification bar", async () => {
+        const {hook, game} = await holdingGame();
+
+        hook.dismissNotification();
+
+        expect(game.dismissals).toBe(1);
     });
 });

@@ -27,6 +27,7 @@ interface HookedGame {
   save(): Promise<string>;
   onCommandResult(listener: () => void): void;
   gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits};
+  notificationBar: {dismiss(): void};
   tileSet: {tileWidth: number};
 }
 
@@ -110,6 +111,12 @@ class TestHook {
     }
 
     return {budgetReviewDue: result.budgetReviewDue};
+  }
+
+  // Hides the notification bar, which closes on wall time, so a screenshot shows the same frame however long the run
+  // took. It has no control a player could close it with.
+  dismissNotification(): void {
+    this.attachedGame().notificationBar.dismiss();
   }
 
   // Every step advance has taken, including those of an advance that then failed
