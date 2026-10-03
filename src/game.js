@@ -332,9 +332,7 @@ Game.prototype.handleBudgetWindowClosure = function(data) {
   var budget = this.simulation.budget;
 
   if (!data.cancelled) {
-    budget.roadPercent = data.roadPercent / 100;
-    budget.firePercent = data.firePercent / 100;
-    budget.policePercent = data.policePercent / 100;
+    budget.setFunding(data.funding);
     budget.setTax(data.taxPercent - 0);
   }
 
@@ -342,25 +340,20 @@ Game.prototype.handleBudgetWindowClosure = function(data) {
   // the city until the window opens again
   if (budget.awaitingValues)
     budget.doBudgetWindow();
-  else if (!data.cancelled)
-    budget.updateFundEffects();
 };
 
 
-// The values the budget window opens with
+// The values the budget window opens with: each service's maintenance cost and funding percentage (0 to 1), by service.
 Game.prototype.budgetWindowValues = function() {
   var budget = this.simulation.budget;
 
   return [{
-    roadMaintenanceBudget: budget.roadMaintenanceBudget,
-    roadRate: Math.floor(budget.roadPercent * 100),
-    fireMaintenanceBudget: budget.fireMaintenanceBudget,
-    fireRate: Math.floor(budget.firePercent * 100),
-    policeMaintenanceBudget: budget.policeMaintenanceBudget,
-    policeRate: Math.floor(budget.policePercent * 100),
+    maintenance: budget.maintenance(),
+    percents: budget.percents(),
     taxRate: budget.cityTax,
     totalFunds: budget.totalFunds,
-    taxesCollected: budget.taxFund
+    taxesCollected: budget.taxFund,
+    forecast: budget.forecast.bind(budget)
   }];
 };
 

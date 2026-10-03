@@ -35,7 +35,8 @@ const PURE_GLOBALS = new Set([
 ]);
 
 // The Math functions whose results are exact on every runtime. Math may be used only as Math.<one of these>.
-const PORTABLE_MATH = new Set(["abs", "ceil", "clz32", "floor", "imul", "max", "min", "round", "sign", "trunc"]);
+const PORTABLE_MATH = new Set(["abs", "ceil", "clz32", "floor", "fround", "imul", "max", "min", "round", "sign",
+                               "trunc"]);
 
 const OPTIONS: ts.CompilerOptions = {
     allowJs: true,

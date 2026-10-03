@@ -14,6 +14,7 @@
 import { EventEmitter } from './eventEmitter.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
+import { SERVICES, forecastYear, fundEffect, fundServices, fundingPercent, fundingSpend } from './serviceFunding.ts';
 
 // Cost of maintaining 1 police station
 var policeMaintenanceCost = 100;
@@ -52,7 +53,8 @@ var Budget = EventEmitter(function() {
   this.firePercent = 1;
   this.policePercent = 1;
 
-  // Cash value of spending. Should equal Math.round(_MaintenanceBudget * _Percent)
+  // The spend booked on each service, from which updateFundEffects sets its effect: what the player's funding costs,
+  // what the year-end budget paid, or the full maintenance cost when autobudget funded every service
   this.roadSpend = 0;
   this.fireSpend = 0;
   this.policeSpend = 0;
@@ -94,69 +96,83 @@ Budget.prototype.setAutoBudget = function(value) {
 var RLevels = [0.7, 0.9, 1.2];
 var FLevels = [1.4, 1.2, 0.8];
 
-// Calculates the best possible outcome in terms of funding the various services
-// given the player's current funds and tax yield. On entry, roadPercent etc. are
-// assumed to contain the desired percentage level, and taxFunds should contain the
-// most recent tax collected. On exit, the *Percent members will be updated with what
-// we can actually afford to spend. Returns an object containing the amount of cash
-// that would be spent on each service.
+// Funds the services from the funds and the last tax collection, scaling back the percentages the cash can't cover, and
+// returns what each service is paid
 Budget.prototype._calculateBestPercentages = function() {
-  // How much would we be spending based on current percentages?
-  // Note: the *Budget items are updated every January by collectTax
-  this.roadSpend = Math.round(this.roadMaintenanceBudget * this.roadPercent);
-  this.fireSpend = Math.round(this.fireMaintenanceBudget * this.firePercent);
-  this.policeSpend = Math.round(this.policeMaintenanceBudget * this.policePercent);
-  var total = this.roadSpend + this.fireSpend + this.policeSpend;
+  var funding = fundServices(this.totalFunds + this.taxFund, this.maintenance(), this.percents());
+  this._setPercents(funding.percents);
 
-  // If we don't have any services on the map, we can bail early
-  if (total === 0) {
-    this.roadPercent = 1;
-    this.firePercent = 1;
-    this.policePercent = 1;
-    return {road: 1, fire: 1, police: 1};
-  }
+  return funding.paid;
+};
 
-  // How much are we actually going to spend?
-  var roadCost;
-  var fireCost;
-  var policeCost;
 
-  var cashRemaining = this.totalFunds + this.taxFund;
+// Each service's full maintenance cost, by service
+Budget.prototype.maintenance = function() {
+  return {road: this.roadMaintenanceBudget, fire: this.fireMaintenanceBudget, police: this.policeMaintenanceBudget};
+};
 
-  // Spending priorities: road, fire, police
-  if (cashRemaining >= this.roadSpend)
-    roadCost = this.roadSpend;
-  else
-    roadCost = cashRemaining;
-  cashRemaining -= roadCost;
 
-  if (cashRemaining >= this.fireSpend)
-    fireCost = this.fireSpend;
-  else
-    fireCost = cashRemaining;
-  cashRemaining -= fireCost;
+// Each service's funding percentage (0 to 1), by service
+Budget.prototype.percents = function() {
+  return {road: this.roadPercent, fire: this.firePercent, police: this.policePercent};
+};
 
-  if (cashRemaining >= this.policeSpend)
-    policeCost = this.policeSpend;
-  else
-    policeCost = cashRemaining;
 
-  if (this.roadMaintenanceBudget > 0)
-    this.roadPercent = (roadCost / this.roadMaintenanceBudget).toPrecision(2) - 0;
-  else
-    this.roadPercent = 1;
+Budget.prototype._setPercents = function(percents) {
+  this.roadPercent = percents.road;
+  this.firePercent = percents.fire;
+  this.policePercent = percents.police;
+};
 
-  if (this.fireMaintenanceBudget > 0)
-    this.firePercent = (fireCost / this.fireMaintenanceBudget).toPrecision(2) - 0;
-  else
-    this.firePercent = 1;
 
-  if (this.policeMaintenanceBudget > 0)
-    this.policePercent = (policeCost / this.policeMaintenanceBudget).toPrecision(2) - 0;
-  else
-    this.policePercent = 1;
+Budget.prototype._spends = function() {
+  return {road: this.roadSpend, fire: this.fireSpend, police: this.policeSpend};
+};
 
-  return {road: roadCost, police: policeCost, fire: fireCost};
+
+// The services given a whole percent in a map of them, in the order the budget funds them
+var servicesIn = function(wholePercents) {
+  return SERVICES.filter(function(service) { return wholePercents[service] !== undefined; });
+};
+
+
+// The percentages with the services given funded at the given whole percents, and the others at the percentages they
+// have
+Budget.prototype._percentsWith = function(wholePercents) {
+  var percents = this.percents();
+  servicesIn(wholePercents).forEach(function(service) {
+    percents[service] = fundingPercent(wholePercents[service]);
+  });
+
+  return percents;
+};
+
+
+// What the year-end budget would leave if it ran now, from the current funds and the most recent tax collection and
+// maintenance costs, with the services given funded at the given whole percents, as setFunding would set them, and
+// the others at the percentages they have
+Budget.prototype.forecast = function(wholePercents) {
+  return forecastYear(this.totalFunds, this.taxFund, this.maintenance(), this._percentsWith(wholePercents));
+};
+
+
+// Funds the services given at the given whole percents, as the original's budget slider handlers (SimCmdRoadFund,
+// SimCmdFireFund and SimCmdPoliceFund in micropolis-activity's w_sim.c) do, and leaves the others as they are: each one's spend is booked from its whole percent, and the effects are set from the spends.
+// With no service given, nothing changes.
+Budget.prototype.setFunding = function(wholePercents) {
+  var services = servicesIn(wholePercents);
+  if (services.length === 0)
+    return;
+
+  var maintenance = this.maintenance();
+  var spends = this._spends();
+  services.forEach(function(service) {
+    spends[service] = fundingSpend(maintenance[service], wholePercents[service]);
+  });
+
+  this._setPercents(this._percentsWith(wholePercents));
+  this._bookSpend(spends);
+  this.updateFundEffects();
 };
 
 
@@ -182,11 +198,29 @@ Budget.prototype.doBudgetNow = function(fromWindow) {
   var totalCost = roadCost + policeCost + fireCost;
   var cashRemaining = this.totalFunds + this.taxFund - totalCost;
 
-  // Autobudget
-  if ((cashRemaining > 0 && this.autoBudget) || fromWindow) {
-    // Either we were able to fully fund services, or we have just normalised user input. Go ahead and spend.
+  // The player's values, which the city waits on. As in the original, what each service gets is booked as its spend.
+  // The effects are then set from those spends, standing in for the original's budget window. That window
+  // (drawCurrPercents in micropolis-activity's w_budget.c, and the Tcl it calls), on drawing a percentage at a slider
+  // position other than the slider's last one, sets the slider, which runs its handler (SimCmdRoadFund,
+  // SimCmdFireFund or SimCmdPoliceFund in w_sim.c). The handler stores the whole percent back as the percentage, losing
+  // any fraction, re-books the service's spend from it, and updates the effects. So there a fire department paid $94
+  // of $300, drawn at 31%, is set to 31% and gets the effect of $93, and when no slider is drawn at a new position, no
+  // effect changes. Here opening a window never changes the city: the percentages keep their fractions, and the effects
+  // always follow what was paid, set as the player's values are applied.
+  if (fromWindow) {
     this.awaitingValues = false;
-    this.doBudgetSpend(roadCost, fireCost, policeCost);
+    this._collectTaxAndPayServices(totalCost);
+    this._bookSpend(costs);
+    this.updateFundEffects();
+    return;
+  }
+
+  // Autobudget with cash for every service. As in the original, each service's spend is booked as its full
+  // maintenance cost whatever its percentage, and the effects stay as they are.
+  if (cashRemaining > 0 && this.autoBudget) {
+    this.awaitingValues = false;
+    this._collectTaxAndPayServices(totalCost);
+    this._bookSpend(this.maintenance());
     return;
   }
 
@@ -199,36 +233,35 @@ Budget.prototype.doBudgetNow = function(fromWindow) {
 };
 
 
-Budget.prototype.doBudgetSpend = function(roadValue, fireValue, policeValue) {
-  this.roadSpend = roadValue;
-  this.fireSpend = fireValue;
-  this.policeSpend = policeValue;
-  var total = this.roadSpend + this.fireSpend + this.policeSpend;
-
+// Collects this year's taxes and pays the year's services out of them
+Budget.prototype._collectTaxAndPayServices = function(total) {
   this.spend(-(this.taxFund - total));
-  this.updateFundEffects();
 };
 
 
-Budget.prototype.updateFundEffects = function() {
-  // The caller is assumed to have correctly set the percentage spend
-  this.roadSpend = Math.round(this.roadMaintenanceBudget * this.roadPercent);
-  this.fireSpend = Math.round(this.fireMaintenanceBudget * this.firePercent);
-  this.policeSpend = Math.round(this.policeMaintenanceBudget * this.policePercent);
+// Books the spend on each service, which updateFundEffects reads
+Budget.prototype._bookSpend = function(spends) {
+  this.roadSpend = spends.road;
+  this.fireSpend = spends.fire;
+  this.policeSpend = spends.police;
+};
 
+
+// Sets each service's effect from the spend booked on it
+Budget.prototype.updateFundEffects = function() {
   // Update the effect this level of spending will have on infrastructure deterioration
   this.roadEffect = this.MAX_ROAD_EFFECT;
   this.policeEffect = this.MAX_POLICESTATION_EFFECT;
   this.fireEffect = this.MAX_FIRESTATION_EFFECT;
 
   if (this.roadMaintenanceBudget > 0)
-    this.roadEffect = Math.floor(this.roadEffect * this.roadSpend / this.roadMaintenanceBudget);
+    this.roadEffect = fundEffect(this.roadEffect, this.roadSpend, this.roadMaintenanceBudget);
 
   if (this.fireMaintenanceBudget > 0)
-    this.fireEffect = Math.floor(this.fireEffect * this.fireSpend / this.fireMaintenanceBudget);
+    this.fireEffect = fundEffect(this.fireEffect, this.fireSpend, this.fireMaintenanceBudget);
 
   if (this.policeMaintenanceBudget > 0)
-    this.policeEffect = Math.floor(this.policeEffect * this.policeSpend / this.policeMaintenanceBudget);
+    this.policeEffect = fundEffect(this.policeEffect, this.policeSpend, this.policeMaintenanceBudget);
 };
 
 
