@@ -76,14 +76,16 @@ describe("the speed control", () => {
         expect(shown).toEqual([false, false]);
     });
 
-    it("ends a pause when Settings chooses a speed, and shows the game running", () => {
+    it("keeps a paused game paused when Settings chooses a speed, and resumes it at that speed", () => {
         const simulation = simulationFromSeed(SEED);
         const {speedControl, shown} = control(simulation);
         speedControl.togglePause();
 
         speedControl.setRunningSpeed(Simulation.SPEED_FAST);
+        const whilePaused = simulation.getSpeed();
+        speedControl.togglePause();
 
-        expect(simulation.getSpeed()).toBe(Simulation.SPEED_FAST);
+        expect([whilePaused, simulation.getSpeed()]).toEqual([Simulation.SPEED_PAUSED, Simulation.SPEED_FAST]);
         expect(shown).toEqual([false, true, false]);
     });
 });

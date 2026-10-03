@@ -39,10 +39,13 @@ export class SpeedControl {
     this.setSpeed(this.simulation.isPaused() ? this.runningSpeed : Simulation.SPEED_PAUSED);
   }
 
-  // Settings sets the speed the game runs at, which also ends a pause
+  // Settings sets the speed the game runs at. A paused game stays paused, and Play resumes it at that speed: the
+  // settings window sends its speed whenever it closes, changed or not.
   setRunningSpeed(speed: number): void {
     this.runningSpeed = speed;
-    this.setSpeed(speed);
+    if (!this.simulation.isPaused()) {
+      this.setSpeed(speed);
+    }
   }
 
   private setSpeed(speed: number): void {
