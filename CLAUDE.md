@@ -45,7 +45,12 @@ npm run dev              # webpack-dev-server on http://localhost:8080
 npm run build            # production bundle into dist/
 npm test                 # Jest
 npx jest test/tile.ts    # one test file
+npm run lint             # ESLint over src/, test/ and the build config
 ```
+
+Node 24 or later (`engines` in `package.json`). CI (`.github/workflows/ci.yml`) runs `npm ci`, then build, test and lint, on Node 24 on every push and pull request.
+
+Tests are TypeScript and can import the legacy JavaScript modules: ts-jest compiles both. The footers of the built HTML pages show the build ID, `git rev-parse --short=12 HEAD`, or `unknown` outside a git checkout.
 
 Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an undefined event name throws instead of warning, the FPS counter shows, and the query tool reports raw tile data.
 
