@@ -199,6 +199,36 @@ namespace Micropolis.Rules
             GetTileAt(x, y, nameof(SetTile)).Set(value, flags);
         }
 
+        /// <summary>
+        /// Lays a zone of <paramref name="size"/> by <paramref name="size"/> tiles from the centre's upper left
+        /// neighbour, as <c>putZone</c> in <c>src/gameMap.js</c>: the values count up row by row from the centre's less
+        /// <c>size + 1</c>, each tile burnable and conductive, and the centre the zone's centre.
+        /// </summary>
+        /// <remarks>
+        /// As the TypeScript, it checks the centre and the far corner are on the map before it lays a tile; a zone
+        /// past the near edge throws as it reaches the first tile off the map.
+        /// </remarks>
+        public void PutZone(int centreX, int centreY, int centreTile, int size)
+        {
+            if (!TestBounds(centreX, centreY) || !TestBounds(centreX - 1 + size - 1, centreY - 1 + size - 1))
+            {
+                throw new ArgumentOutOfRangeException(nameof(centreX), $"GameMap putZone called with invalid bounds {centreX}, {centreY}.");
+            }
+
+            int tile = centreTile - 1 - size;
+            int startX = centreX - 1;
+            int startY = centreY - 1;
+
+            for (int y = startY; y < startY + size; y++)
+            {
+                for (int x = startX; x < startX + size; x++)
+                {
+                    SetTile(x, y, tile, x == centreX && y == centreY ? TileFlags.BNCNBIT | TileFlags.ZONEBIT : TileFlags.BNCNBIT);
+                    tile += 1;
+                }
+            }
+        }
+
         public void SetTile(Position position, int value, int flags)
         {
             SetTile(position.X, position.Y, value, flags);

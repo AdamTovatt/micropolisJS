@@ -22,9 +22,14 @@ namespace Micropolis.Rules.Tests
     public sealed record ConformanceHelpers(
         IReadOnlyDictionary<string, string> ValuePredicates,
         IReadOnlyDictionary<string, string> ZonePredicates,
+        IReadOnlyList<int> CheckZoneSize,
+        IReadOnlyList<IReadOnlyList<int>> CheckBigZone,
         IReadOnlyList<HelperZone> Zones,
+        IReadOnlyList<HelperFireZone> FireZones,
+        IReadOnlyList<HelperGrowth> RateOfGrowth,
+        IReadOnlyList<HelperPutZone> PutZones,
         string RepairFixture,
-        IReadOnlyList<RepairDamage> RepairDamage,
+        IReadOnlyList<TileOverwrite> RepairDamage,
         IReadOnlyList<HelperRepair> Repairs,
         HelperSprites Sprites)
     {
@@ -39,10 +44,19 @@ namespace Micropolis.Rules.Tests
             ConformanceFile.NonEmpty("valuePredicates", helpers.ValuePredicates);
             ConformanceFile.NonEmpty("zonePredicates", helpers.ZonePredicates);
             ConformanceFile.NonEmpty("zones", helpers.Zones);
+            ConformanceFile.NonEmpty("fireZones", helpers.FireZones);
+            ConformanceFile.NonEmpty("rateOfGrowth", helpers.RateOfGrowth);
+            ConformanceFile.NonEmpty("putZones", helpers.PutZones);
             ConformanceFile.NonEmpty("repairDamage", helpers.RepairDamage);
             ConformanceFile.NonEmpty("repairs", helpers.Repairs);
             ConformanceFile.NonEmpty("firstOfType", helpers.Sprites.FirstOfType);
             ConformanceFile.NonEmpty("boatDistances", helpers.Sprites.BoatDistances);
+
+            if (helpers.CheckZoneSize.Count != TileValues.TILE_COUNT || helpers.CheckBigZone.Count != TileValues.TILE_COUNT ||
+                helpers.CheckBigZone.Any(zone => zone.Count != 3))
+            {
+                throw new InvalidDataException($"checkZoneSize and checkBigZone must hold an answer for each of the {TileValues.TILE_COUNT} tile values.");
+            }
 
             foreach ((string name, string line) in helpers.ValuePredicates.Concat(helpers.ZonePredicates))
             {
@@ -58,10 +72,12 @@ namespace Micropolis.Rules.Tests
 
     /// <summary>
     /// A zone centre in a fixture's save: its population as its kind of zone counts it, when it is a residential,
-    /// commercial or industrial zone, and the road on its perimeter, if there is one.
+    /// commercial or industrial zone, the road on its perimeter, if there is one, and its land value less its pollution
+    /// as a category.
     /// </summary>
     public sealed record HelperZone(
-        string Fixture, string Point, int X, int Y, int Value, string? Kind, int? Population, HelperPosition? PerimeterRoad)
+        string Fixture, string Point, int X, int Y, int Value, string? Kind, int? Population, HelperPosition? PerimeterRoad,
+        int LandPollutionValue)
     {
         public override string ToString()
         {
@@ -72,9 +88,27 @@ namespace Micropolis.Rules.Tests
     public sealed record HelperPosition(int X, int Y);
 
     /// <summary>
-    /// A tile of a zone overwritten before the repair is tried, relative to the zone's centre.
+    /// A zone centre of a fixture's built save set on fire: its block's rate of growth after, and the seven by seven
+    /// tiles from its upper left neighbour after, as raw values row by row.
     /// </summary>
-    public sealed record RepairDamage(int Dx, int Dy, int Value);
+    public sealed record HelperFireZone(string Fixture, int X, int Y, int Value, int RateOfGrowth, IReadOnlyList<int> Area);
+
+    /// <summary>
+    /// A block's rate of growth before and after a change of it.
+    /// </summary>
+    public sealed record HelperGrowth(int Start, int Delta, int Result);
+
+    /// <summary>
+    /// A zone laid around (x, y) on a fixture's built map, after any tile of its area was overwritten: whether it was
+    /// laid, and the five by five tiles around the centre after, as raw values row by row.
+    /// </summary>
+    public sealed record HelperPutZone(
+        string Fixture, int X, int Y, int CentreTile, bool IsPowered, TileOverwrite? Blocker, bool Laid, IReadOnlyList<int> Area);
+
+    /// <summary>
+    /// A tile overwritten before a helper runs, relative to the zone's centre: before a repair is tried, or a zone laid.
+    /// </summary>
+    public sealed record TileOverwrite(int Dx, int Dy, int Value);
 
     /// <summary>
     /// The repair manager's check of the zone centred at (x, y) at a city time, after the damage: whether it repaired

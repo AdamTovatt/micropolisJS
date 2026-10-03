@@ -112,6 +112,45 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
+        public void PutZone_OnTheMap_CountsTheValuesUpFromTheUpperLeftWithTheCentreAZone()
+        {
+            GameMap map = new GameMap(5, 5);
+
+            map.PutZone(2, 2, FREEZ, 3);
+
+            for (int i = 0; i < 9; i++)
+            {
+                int x = 1 + (i % 3);
+                int y = 1 + (i / 3);
+                int flags = x == 2 && y == 2 ? BNCNBIT | ZONEBIT : BNCNBIT;
+                Assert.AreEqual(FREEZ - 4 + i, map.GetTileValue(x, y), $"({x}, {y})");
+                Assert.AreEqual(flags, map.GetTileFlags(x, y), $"({x}, {y})");
+            }
+        }
+
+        [TestMethod]
+        [DataRow(4, 2)]
+        [DataRow(2, 4)]
+        public void PutZone_CentreOnTheMapFarCornerOff_ThrowsBeforeLayingATile(int centreX, int centreY)
+        {
+            GameMap map = new GameMap(5, 5);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => map.PutZone(centreX, centreY, FREEZ, 3));
+            AssertAllDirt(map);
+        }
+
+        [TestMethod]
+        [DataRow(0, 2)]
+        [DataRow(2, 0)]
+        public void PutZone_CentreOnTheMapNearCornerOff_ThrowsBeforeLayingATile(int centreX, int centreY)
+        {
+            GameMap map = new GameMap(5, 5);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => map.PutZone(centreX, centreY, FREEZ, 3));
+            AssertAllDirt(map);
+        }
+
+        [TestMethod]
         public void Save_Map_WritesItsFieldsAndRawTilesRowByRow()
         {
             GameMap map = new GameMap(3, 2);
@@ -126,6 +165,17 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(
                 $"{{\"map\":{{\"cityCentreX\":1,\"cityCentreY\":1,\"height\":2,\"pollutionMaxX\":1,\"pollutionMaxY\":0,\"tiles\":[0,0,{RIVER},{WOODS | BLBNBIT},0,0],\"width\":3}}}}",
                 CanonicalJson.Write(saveData));
+        }
+
+        private static void AssertAllDirt(GameMap map)
+        {
+            for (int y = 0; y < map.Height; y++)
+            {
+                for (int x = 0; x < map.Width; x++)
+                {
+                    Assert.AreEqual(DIRT, map.GetTileValue(x, y), $"({x}, {y})");
+                }
+            }
         }
     }
 }

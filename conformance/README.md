@@ -98,10 +98,24 @@ What the helpers the tile handlers share answered in the TypeScript:
 
 - `valuePredicates`: each predicate of `src/tileUtils.js` that reads a tile's value, with a character per tile value,
   `1` where it holds; `zonePredicates`, the same for those that read a zone's centre, given a tile with the zone flag.
-- `zones`: each zone centre in the sprite-free fixtures' saves (`fixture`, `point`, `x`, `y` and its `value`): the
-  `population` its own `kind` of zone counts, for a residential, commercial or industrial zone, and the
-  `perimeterRoad` `Traffic.findPerimeterRoad` finds, or `null`. The generator fails unless they cover an empty
-  residential zone, a commercial and an industrial zone, and a zone with no road on its perimeter.
+- `checkZoneSize`: `ZoneUtils.checkZoneSize` of each tile value; `checkBigZone`, `ZoneUtils.checkBigZone` of each tile
+  value as `[zoneSize, deltaX, deltaY]`.
+- `zones`: each zone centre in the fixtures' saves (`fixture`, `point`, `x`, `y` and its `value`): the
+  `population` its own `kind` of zone counts, for a residential, commercial or industrial zone, the
+  `perimeterRoad` `Traffic.findPerimeterRoad` finds, or `null`, and `ZoneUtils.getLandPollutionValue` there
+  (`landPollutionValue`). The generator fails unless they cover an empty residential zone, a commercial and an
+  industrial zone, a zone with no road on its perimeter, and each land pollution value from 0 to 3.
+- `fireZones`: each zone centre of the built saves of the fixtures `generate.ts` names, set on fire by
+  `ZoneUtils.fireZone` (`fixture`, `x`, `y`, `value`): the `rateOfGrowth` of its block after, and the seven by seven
+  tiles from the centre's upper left neighbour after (`area`), as raw values row by row. The generator fails unless
+  they cover the airport, a 4×4 zone and a 3×3 zone.
+- `rateOfGrowth`: `ZoneUtils.incRateOfGrowth` by `delta` on a block whose rate of growth was `start`, and the
+  `result`, from either end of the map's range to its middle.
+- `putZones`: `ZoneUtils.putZone` on a `fixture`'s built map, at the centre (`x`, `y`) of its first three by three
+  tiles with none from flood up, of a `centreTile`, powered or not (`isPowered`), with one tile of the area first
+  overwritten by a `blocker` (`dx`, `dy` from the centre, and its `value`), or `null`: whether the zone was `laid`,
+  and the five by five tiles around the centre after (`area`), as raw values row by row. The generator fails unless a
+  zone is laid and a zone is stopped.
 - `repairs`: each zone centre of `repairFixture`'s built save, with the tiles `repairDamage` gives, relative to the
   centre, overwritten, then checked by the repair manager at a `cityTime`: whether it `repaired` anything, and the six
   by six tiles from the centre's upper left neighbour after it (`area`), as raw values row by row. The generator fails

@@ -123,22 +123,103 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
+        public void CheckZoneSize_EveryTileValue_AnswersAsTypeScript()
+        {
+            for (int value = 0; value < TileValues.TILE_COUNT; value++)
+            {
+                Assert.AreEqual(Helpers.CheckZoneSize[value], ZoneUtils.CheckZoneSize(value), $"checkZoneSize({value})");
+            }
+        }
+
+        [TestMethod]
+        public void CheckBigZone_EveryTileValue_AnswersAsTypeScript()
+        {
+            for (int value = 0; value < TileValues.TILE_COUNT; value++)
+            {
+                IReadOnlyList<int> expected = Helpers.CheckBigZone[value];
+
+                Assert.AreEqual(new BigZone(expected[0], expected[1], expected[2]), ZoneUtils.CheckBigZone(value), $"checkBigZone({value})");
+            }
+        }
+
+        [TestMethod]
+        public void GetLandPollutionValue_FixtureZones_CategoriseAsTypeScript()
+        {
+            foreach (IGrouping<(string, string), HelperZone> save in Helpers.Zones.GroupBy(zone => (zone.Fixture, zone.Point)))
+            {
+                BlockMaps blockMaps = City(save.Key.Item1, save.Key.Item2).BlockMaps;
+
+                foreach (HelperZone zone in save)
+                {
+                    Assert.AreEqual(zone.LandPollutionValue, ZoneUtils.GetLandPollutionValue(blockMaps, zone.X, zone.Y), zone.ToString());
+                }
+            }
+        }
+
+        [TestMethod]
+        public void FireZone_FixtureZones_BurnAsTypeScript()
+        {
+            foreach (HelperFireZone fire in Helpers.FireZones)
+            {
+                Simulation city = City(fire.Fixture, "built");
+
+                ZoneUtils.FireZone(city.Map, fire.X, fire.Y, city.BlockMaps);
+
+                string zone = $"{fire.Fixture}: the zone at ({fire.X}, {fire.Y})";
+                Assert.AreEqual(fire.RateOfGrowth, city.BlockMaps.RateOfGrowthMap.WorldGet(fire.X, fire.Y), zone);
+                CollectionAssert.AreEqual(fire.Area.ToList(), Area(city.Map, fire.X - 1, fire.Y - 1, 7), zone);
+            }
+        }
+
+        [TestMethod]
+        public void IncRateOfGrowth_StartsAndChanges_AsTypeScript()
+        {
+            BlockMaps blockMaps = new BlockMaps(120, 100);
+
+            foreach (HelperGrowth growth in Helpers.RateOfGrowth)
+            {
+                blockMaps.RateOfGrowthMap.WorldSet(0, 0, growth.Start);
+
+                ZoneUtils.IncRateOfGrowth(blockMaps, 0, 0, growth.Delta);
+
+                Assert.AreEqual(growth.Result, blockMaps.RateOfGrowthMap.WorldGet(0, 0), $"{growth.Start} changed by {growth.Delta}");
+            }
+        }
+
+        [TestMethod]
+        public void PutZone_ClearOrBlockedArea_LaysAsTypeScript()
+        {
+            foreach (HelperPutZone put in Helpers.PutZones)
+            {
+                Simulation city = City(put.Fixture, "built");
+                if (put.Blocker is TileOverwrite blocker)
+                {
+                    city.Map.SetTile(put.X + blocker.Dx, put.Y + blocker.Dy, blocker.Value, TileFlags.NOFLAGS);
+                }
+
+                ZoneUtils.PutZone(city.Map, put.X, put.Y, put.CentreTile, put.IsPowered);
+
+                string zone = $"{put.CentreTile}, powered {put.IsPowered}, with {put.Blocker?.ToString() ?? "nothing"} in the way";
+                Assert.AreEqual(put.Laid, city.Map.GetTile(put.X, put.Y).IsZone(), zone);
+                CollectionAssert.AreEqual(put.Area.ToList(), Area(city.Map, put.X - 2, put.Y - 2, 5), zone);
+            }
+        }
+
+        [TestMethod]
         public void CheckTile_DamagedFixtureZones_RepairsAsTypeScript()
         {
             foreach (HelperRepair repair in Helpers.Repairs)
             {
                 Simulation city = City(Helpers.RepairFixture, "built");
-                foreach (RepairDamage damage in Helpers.RepairDamage)
+                foreach (TileOverwrite damage in Helpers.RepairDamage)
                 {
                     city.Map.SetTile(repair.X + damage.Dx, repair.Y + damage.Dy, damage.Value, TileFlags.NOFLAGS);
                 }
 
                 city.RepairManager.CheckTile(repair.X, repair.Y, repair.CityTime);
 
-                List<int> area = Enumerable.Range(0, 36)
-                    .Select(i => city.Map.GetTile(repair.X - 1 + (i % 6), repair.Y - 1 + (i / 6)).GetRawValue())
-                    .ToList();
-                CollectionAssert.AreEqual(repair.Area.ToList(), area, $"The zone at ({repair.X}, {repair.Y}) at city time {repair.CityTime}");
+                CollectionAssert.AreEqual(repair.Area.ToList(), Area(city.Map, repair.X - 1, repair.Y - 1, 6),
+                    $"The zone at ({repair.X}, {repair.Y}) at city time {repair.CityTime}");
             }
         }
 
@@ -184,6 +265,12 @@ namespace Micropolis.Rules.Tests
                 "isRoad" => TileUtils.IsRoad(tile),
                 _ => throw new ArgumentException($"No predicate named {name}.", nameof(name)),
             };
+        }
+
+        // The n by n tiles from (left, top), as raw values row by row
+        private static List<int> Area(GameMap map, int left, int top, int n)
+        {
+            return Enumerable.Range(0, n * n).Select(i => map.GetTile(left + (i % n), top + (i / n)).GetRawValue()).ToList();
         }
 
         // The sprites' fixture, with the sprites the file adds at the end of its list

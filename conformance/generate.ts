@@ -18,8 +18,9 @@ import * as fs from "fs";
 import * as path from "path";
 import * as zlib from "zlib";
 import { cityFromSave, RUNNING_SPEEDS, RunningSpeed, SaveData } from "../headless/city";
-import { fixtureLog, fixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index";
+import { fixtureLog, fixtureNames } from "../headless/fixtures/index";
 import { replay, startFromSave } from "../headless/runner";
+import { BlockMap } from "../src/blockMap";
 import { canonicalJson } from "../src/canonicalJson";
 import { Commercial } from "../src/commercial.js";
 import { GameMap } from "../src/gameMap.js";
@@ -37,6 +38,7 @@ import * as TileFlags from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import * as TileValues from "../src/tileValues";
 import { Traffic } from "../src/traffic.js";
+import { ZoneUtils } from "../src/zoneUtils.js";
 import { SNAPSHOT_POINTS } from "./snapshotPoints";
 import { Internals, recordSnapshots, recordSpeed, SnapshotRecord, UNIT_NAMES } from "./unitSnapshots";
 
@@ -393,6 +395,7 @@ const ZONE_PREDICATES = ["isCommercialZone", "isIndustrialZone", "isResidentialZ
 // A city's internals the helpers are given
 interface HelperCity {
   _map: InstanceType<typeof GameMap>;
+  blockMaps: {rateOfGrowthMap: BlockMap};
   _repairManager: {checkTile(x: number, y: number, cityTime: number): void, _actions: {criterion: unknown}[]};
   spriteManager: {spriteList: unknown[], getSprite(type: number): unknown, getBoatDistance(x: number, y: number): number};
 }
@@ -411,8 +414,8 @@ function truthLine(predicate: (value: number) => unknown): string {
   return Array.from({length: TileValues.TILE_COUNT}, (_, value) => (predicate(value) === true ? "1" : "0")).join("");
 }
 
-// Each zone centre of the sprite-free fixtures' saves: its population as its own kind of zone counts it, and the road
-// on its perimeter traffic starts from
+// Each zone centre of the fixtures' saves: its population as its own kind of zone counts it, the road on
+// its perimeter traffic starts from, and its land value less its pollution as a category
 function zoneVectors(): object[] {
   type Population = {getZonePopulation(map: unknown, x: number, y: number, tileValue: number): number};
   const populations: [string, (tile: Tile) => boolean, Population][] = [
@@ -421,8 +424,9 @@ function zoneVectors(): object[] {
     ["industrial", (tile) => TileUtils.isIndustrialZone(tile), Industrial],
   ];
 
-  return spriteFreeFixtureNames().flatMap((fixture) => Object.keys(SAVE_POINTS).flatMap((point) => {
-    const map = helperCity(writtenSave(fixture, point))._map;
+  return fixtureNames().flatMap((fixture) => Object.keys(SAVE_POINTS).flatMap((point) => {
+    const city = helperCity(writtenSave(fixture, point));
+    const map = city._map;
     const traffic = new Traffic(map, null, null);
     const zones: object[] = [];
 
@@ -439,6 +443,7 @@ function zoneVectors(): object[] {
           fixture, point, x, y, value: tile.getValue(), kind: kind ? kind[0] : null,
           population: kind ? kind[2].getZonePopulation(map, x, y, tile.getValue()) : null,
           perimeterRoad: road === null ? null : {x: road.x, y: road.y},
+          landPollutionValue: ZoneUtils.getLandPollutionValue(city.blockMaps, x, y),
         });
       }
     }
@@ -456,9 +461,14 @@ const REPAIR_TIMES = [0, 1, 4, 8, 16];
 const REPAIR_DAMAGE = [{dx: 1, dy: -1, value: TileValues.DIRT}, {dx: -1, dy: 1, value: TileValues.RUBBLE},
                        {dx: 1, dy: 1, value: TileValues.ROADBASE + 1}];
 
-// The six by six tiles from the centre's upper left neighbour, which hold the largest zone, as raw values row by row
+// The n by n tiles from (left, top), as raw values row by row
+function areaFrom(map: InstanceType<typeof GameMap>, left: number, top: number, n: number): number[] {
+  return Array.from({length: n * n}, (_, i) => map.getTile(left + (i % n), top + Math.floor(i / n)).getRawValue());
+}
+
+// The six by six tiles from the centre's upper left neighbour, which hold the largest zone
 function zoneArea(map: InstanceType<typeof GameMap>, x: number, y: number): number[] {
-  return Array.from({length: 36}, (_, i) => map.getTile(x - 1 + (i % 6), y - 1 + Math.floor(i / 6)).getRawValue());
+  return areaFrom(map, x - 1, y - 1, 6);
 }
 
 function repairVectors(): object[] {
@@ -490,6 +500,98 @@ function repairVectors(): object[] {
   ensureCovers(repairs.some((repair) => !(repair as {repaired: boolean}).repaired), "a zone left for another time");
 
   return repairs;
+}
+
+// The fixtures whose zones are set on fire as built, which hold zones of 3×3 and 4×4 tiles and the airport
+const FIRE_FIXTURES = ["suburbBroke", "town"];
+
+// Each zone centre set on fire: its block's rate of growth after, and the seven by seven tiles from its upper left
+// neighbour, which hold the furthest the sweep reaches
+function fireZoneVectors(): object[] {
+  const fires = FIRE_FIXTURES.flatMap((fixture) => {
+    const save = writtenSave(fixture, "built");
+    const map = helperCity(save)._map;
+    const centres: {fixture: string, x: number, y: number, value: number}[] = [];
+
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        if (map.getTile(x, y).isZone()) {
+          centres.push({fixture, x, y, value: map.getTileValue(x, y)});
+        }
+      }
+    }
+
+    return centres.map((centre) => {
+      const city = helperCity(save);
+      ZoneUtils.fireZone(city._map, centre.x, centre.y, city.blockMaps);
+      return {...centre, rateOfGrowth: city.blockMaps.rateOfGrowthMap.worldGet(centre.x, centre.y),
+              area: areaFrom(city._map, centre.x - 1, centre.y - 1, 7)};
+    });
+  });
+
+  ensureCovers(fires.some((fire) => fire.value === TileValues.AIRPORT), "the airport on fire");
+  ensureCovers(fires.some((fire) => ZoneUtils.checkZoneSize(fire.value) === 4), "a 4×4 zone on fire");
+  ensureCovers(fires.some((fire) => ZoneUtils.checkZoneSize(fire.value) === 3), "a 3×3 zone on fire");
+
+  return fires;
+}
+
+// The rate of growth a block starts at and the change, from either end of its range to the middle
+const GROWTH_STARTS = [-200, -199, -5, 0, 5, 199, 200];
+const GROWTH_DELTAS = [-3, -1, 0, 1, 3];
+
+function growthVectors(): object[] {
+  const blockMaps = helperCity(writtenSave(REPAIR_FIXTURE, "built")).blockMaps;
+
+  return GROWTH_STARTS.flatMap((start) => GROWTH_DELTAS.map((delta) => {
+    blockMaps.rateOfGrowthMap.worldSet(0, 0, start);
+    ZoneUtils.incRateOfGrowth(blockMaps, 0, 0, delta);
+    return {start, delta, result: blockMaps.rateOfGrowthMap.worldGet(0, 0)};
+  }));
+}
+
+// The zone centres laid, each powered or not, and the values a tile of the area holds before, which flood, radiation
+// and fire among them stop it being laid: each at the corner below and right of the centre, and flood at each corner
+const PUT_CENTRES = [TileValues.FREEZ, TileValues.COMCLR, TileValues.INDCLR];
+const PUT_BLOCKERS = [TileValues.RUBBLE + 3, TileValues.FLOOD, TileValues.LASTFLOOD, TileValues.RADTILE,
+                      TileValues.FIRE + 3, TileValues.ROADBASE - 1, TileValues.ROADBASE];
+const PUT_CORNERS = [{dx: -1, dy: -1}, {dx: 1, dy: -1}, {dx: -1, dy: 1}];
+
+// Zones laid on the repair fixture's map, centred on the first 3×3 area with no tile from flood up, which putZone
+// checks: the five by five tiles around the centre after, as raw values row by row
+function putZoneVectors(): object[] {
+  const fixture = REPAIR_FIXTURE;
+  const save = writtenSave(fixture, "built");
+  const map = helperCity(save)._map;
+  let x = 2;
+  let y = 2;
+  while (areaFrom(map, x - 1, y - 1, 3).some((raw) => (raw & TileFlags.BIT_MASK) >= TileValues.FLOOD)) {
+    x = x + 1 < map.width - 2 ? x + 1 : 2;
+    y = x === 2 ? y + 1 : y;
+  }
+
+  type Blocker = {dx: number, dy: number, value: number} | null;
+  const cases: {centreTile: number, isPowered: boolean, blocker: Blocker}[] = [
+    ...PUT_CENTRES.flatMap((centreTile) => [true, false].map((isPowered) => ({centreTile, isPowered, blocker: null}))),
+    ...PUT_BLOCKERS.map((value) => ({centreTile: TileValues.FREEZ, isPowered: true, blocker: {dx: 1, dy: 1, value}})),
+    ...PUT_CORNERS.map(({dx, dy}) => ({centreTile: TileValues.FREEZ, isPowered: true,
+                                       blocker: {dx, dy, value: TileValues.FLOOD}})),
+  ];
+
+  const puts = cases.map(({centreTile, isPowered, blocker}) => {
+    const city = helperCity(save);
+    if (blocker !== null) {
+      city._map.setTile(x + blocker.dx, y + blocker.dy, blocker.value, 0);
+    }
+
+    ZoneUtils.putZone(city._map, x, y, centreTile, isPowered);
+    return {fixture, x, y, centreTile, isPowered, blocker, laid: city._map.getTile(x, y).isZone(),
+            area: areaFrom(city._map, x - 2, y - 2, 5)};
+  });
+
+  ensureCovers(puts.some((put) => put.laid) && puts.some((put) => !put.laid), "a zone laid and a zone stopped");
+
+  return puts;
 }
 
 // The city whose sprites are read, with ships added: a dead one, which counts for nothing, and two at sea
@@ -524,12 +626,16 @@ function helperLines(): string[] {
   const tiles = TileUtils as unknown as Record<string, (tile: unknown) => unknown>;
   const values = VALUE_PREDICATES.map((name) => [name, truthLine((value) => tiles[name](value))]);
   const zoneCentres = ZONE_PREDICATES.map((name) => [name, truthLine((value) => tiles[name](new Tile(value, TileFlags.ZONEBIT)))]);
-  const zones = zoneVectors() as {kind: string | null, value: number, perimeterRoad: unknown}[];
+  const zones = zoneVectors() as {kind: string | null, value: number, perimeterRoad: unknown, landPollutionValue: number}[];
+  const tileValues = Array.from({length: TileValues.TILE_COUNT}, (_, value) => value);
 
   ensureCovers(zones.some((zone) => zone.value === TileValues.FREEZ), "an empty residential zone");
   ensureCovers(zones.some((zone) => zone.kind === "commercial") && zones.some((zone) => zone.kind === "industrial"),
                "a commercial and an industrial zone");
   ensureCovers(zones.some((zone) => zone.perimeterRoad === null), "a zone with no road on its perimeter");
+  for (const category of [0, 1, 2, 3]) {
+    ensureCovers(zones.some((zone) => zone.landPollutionValue === category), `a zone of land pollution value ${category}`);
+  }
 
   const lines = (key: string, entries: string[][]) => [
     `  ${JSON.stringify(key)}: {`,
@@ -541,7 +647,15 @@ function helperLines(): string[] {
     "{",
     ...lines("valuePredicates", values),
     ...lines("zonePredicates", zoneCentres),
+    `  "checkZoneSize": ${JSON.stringify(tileValues.map((value) => ZoneUtils.checkZoneSize(value)))},`,
+    `  "checkBigZone": ${JSON.stringify(tileValues.map((value) => {
+      const {zoneSize, deltaX, deltaY} = ZoneUtils.checkBigZone(value);
+      return [zoneSize, deltaX, deltaY];
+    }))},`,
     ...listLines("zones", zones, false),
+    ...listLines("fireZones", fireZoneVectors(), false),
+    ...listLines("rateOfGrowth", growthVectors(), false),
+    ...listLines("putZones", putZoneVectors(), false),
     `  "repairFixture": ${JSON.stringify(REPAIR_FIXTURE)},`,
     `  "repairDamage": ${JSON.stringify(REPAIR_DAMAGE)},`,
     ...listLines("repairs", repairVectors(), false),
