@@ -178,6 +178,18 @@ describe("monsterTV", () => {
             expect(showing()).toBe(false);
         });
 
+        it("stays closed when closed before it would close by itself", () => {
+            const {state, showing} = newState();
+            state.show();
+            state.closeLater();
+
+            state.close();
+            jest.advanceTimersByTime(10000);
+
+            expect(state.isOpen).toBe(false);
+            expect(showing()).toBe(false);
+        });
+
         it("stays open when shown again before it closes", () => {
             const {state, showing} = newState();
             state.show();

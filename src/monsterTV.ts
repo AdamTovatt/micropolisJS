@@ -73,12 +73,9 @@ class SpriteFollower {
 // render shows or hides the view, and marks it open or not.
 class ViewState {
   private open = false;
-  // Whether the view shows. Each open and each close flips it, whether or not the view was open, as jQuery's toggle
-  // did in the original port: a close that finds the view closed shows it again.
-  private visible = false;
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private readonly render: (visible: boolean, open: boolean) => void) {}
+  constructor(private readonly render: (open: boolean) => void) {}
 
   get isOpen(): boolean {
     return this.open;
@@ -93,13 +90,13 @@ class ViewState {
 
     if (!this.open) {
       this.open = true;
-      this.flip();
+      this.render(true);
     }
   }
 
   close(): void {
     this.open = false;
-    this.flip();
+    this.render(false);
   }
 
   // Closes the view a while from now, unless it shows again first
@@ -108,11 +105,6 @@ class ViewState {
       this.closeTimer = null;
       this.close();
     }, TIMEOUT_SECS * 1000);
-  }
-
-  private flip(): void {
-    this.visible = !this.visible;
-    this.render(this.visible, this.open);
   }
 }
 
@@ -136,16 +128,16 @@ class MonsterTV {
 
     // Need to quickly flick on the canvas container so the canvas picks up the correct dimensions (this is a bit of a
     // hack as we're reusing the same GameCanvas that paints the main map, but it avoids a lot of duplication)
-    this.element.style.display = "block";
+    this.setVisible(true);
 
     this.canvas = new GameCanvas(CONTAINER_ID, CANVAS_ID);
     this.canvas.init(map, tileSet, spriteSheet);
     this.canvas.disallowOffMap();
 
-    this.element.style.display = "none";
+    this.setVisible(false);
 
-    this.state = new ViewState((visible, open) => {
-      this.element.style.display = visible ? "block" : "none";
+    this.state = new ViewState((open) => {
+      this.setVisible(open);
       this.element.classList.toggle(SHOWING_CLASS, open);
     });
     this.follower = new SpriteFollower((position) => this.onMove(position), () => this.state.closeLater());
@@ -173,6 +165,11 @@ class MonsterTV {
   show(x: number, y: number): void {
     this.canvas.centreOn(x, y);
     this.state.show();
+  }
+
+  // The stylesheet hides the view until it first opens
+  private setVisible(visible: boolean): void {
+    this.element.style.display = visible ? "block" : "none";
   }
 
   private onMove(position: TilePoint): void {
