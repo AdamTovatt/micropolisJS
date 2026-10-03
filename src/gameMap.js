@@ -15,7 +15,7 @@ import { Bounds } from "./bounds.ts";
 import * as Direction from './direction.ts';
 import { Position } from './position.ts';
 import { Tile } from './tile.ts';
-import { BNCNBIT, ZONEBIT } from "./tileFlags.ts";
+import { ALLBITS, BIT_MASK, BNCNBIT, ZONEBIT } from "./tileFlags.ts";
 import { TILE_INVALID } from "./tileValues.ts";
 
 function GameMap(width, height, defaultValue) {
@@ -82,9 +82,11 @@ GameMap.prototype.load = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
     this[saveProps[i]] = saveData[saveProps[i]];
 
+  // Each tile takes its saved value and flags exactly: setTileValue would keep a tile's flags where the saved value
+  // has none, so flags of the map loaded over would survive
   var map = saveData.map;
   for (i = 0, l = map.length; i < l; i++)
-    this.setTileValue(i % this.width, Math.floor(i / this.width), map[i].value);
+    this._data[i].set(map[i].value & BIT_MASK, map[i].value & ALLBITS);
 };
 
 
