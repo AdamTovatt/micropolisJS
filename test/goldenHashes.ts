@@ -11,8 +11,8 @@
  *
  */
 
-import { fixtureLog, fixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index";
-import { replay } from "../headless/runner";
+import { fixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index";
+import { fixtureLog, replay } from "../headless/runner";
 import { Simulation } from "../headless/city";
 import { SpriteManager } from "../src/spriteManager.js";
 import { savedState } from "../src/stateHash";

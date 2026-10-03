@@ -96,6 +96,12 @@ export class Tile {
     this.value = value | flags;
   }
 
+  // Sets the value and the flags a raw value holds, as a save and the original's tables give a tile: unlike setValue,
+  // a raw value with no flag bits leaves the tile with no flags
+  setRawValue(rawValue: number) {
+    this.set(this.valueFromCombinedValue(rawValue), this.flagsFromCombinedValue(rawValue));
+  }
+
   isAnimated(): boolean {
     return this.checkBits(TileFlags.ANIMBIT);
   }

@@ -102,6 +102,15 @@ namespace Micropolis.Rules
             _value = value | flags;
         }
 
+        /// <summary>
+        /// Sets the value and the flags a raw value holds, as a save and the original's tables give a tile: unlike
+        /// <see cref="SetValue"/>, a raw value with no flag bits leaves the tile with no flags.
+        /// </summary>
+        public void SetRawValue(int rawValue)
+        {
+            Set(ValueFromCombinedValue(rawValue), FlagsFromCombinedValue(rawValue));
+        }
+
         public bool IsAnimated()
         {
             return CheckBits(TileFlags.ANIMBIT);

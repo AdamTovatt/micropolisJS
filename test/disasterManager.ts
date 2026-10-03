@@ -15,7 +15,7 @@ import { DisasterManager } from "../src/disasterManager.js";
 import { GameMap } from "../src/gameMap.js";
 import { Simulation } from "../src/simulation.js";
 import { BLBNBIT, BULLBIT } from "../src/tileFlags";
-import { DIRT, FIRSTRIVEDGE, FLOOD, RUBBLE, WOODS } from "../src/tileValues";
+import { DIRT, FIRSTRIVEDGE, FLOOD, RIVER, RUBBLE, WOODS, WOODS5 } from "../src/tileValues";
 import { streamAlwaysDrawing } from "./helpers/streams";
 
 
@@ -91,6 +91,46 @@ describe("the disaster manager", () => {
             for (const [dx, dy] of NEIGHBOURS) {
                 expect(map.getTileValue(RIVER_EDGE_X + dx, RIVER_EDGE_Y + dy)).toBe(DIRT);
             }
+        });
+    });
+
+    // A flood spreading as doFlood in the original's disasters.cpp spreads it: while the flood lasts, each neighbour
+    // that burns, is bare dirt, or is from the last of the woods, WOODS5, to the last rubble floods on one chance in 8
+    describe("when a flood spreads", () => {
+
+        const X = 10;
+        const Y = 10;
+        const NORTH: [number, number] = [X, Y - 1];
+
+        // Every draw is 0: each neighbour is tried, and floods as FLOOD
+        function spread(neighbourValue: number, neighbourFlags: number) {
+            const map = new GameMap(120, 100);
+            map.setTile(X, Y, FLOOD, 0);
+            map.setTile(...NORTH, neighbourValue, neighbourFlags);
+            const manager = new DisasterManager(map, null, streamAlwaysDrawing(0));
+            manager.load({disasters: {floodCount: 30, disastersEnabled: false}});
+
+            manager.doFlood(X, Y, null);
+
+            return map.getTile(...NORTH).getRawValue();
+        }
+
+        it.each([
+            ["bare dirt", DIRT, 0],
+            ["woods that burn", WOODS, BLBNBIT],
+            ["the last of the woods, though it doesn't burn", WOODS5, 0],
+            ["the last rubble, just below a flood", FLOOD - 1, 0],
+        ])("should flood %s", (_, value, flags) => {
+            expect(spread(value, flags)).toBe(FLOOD);
+        });
+
+        it.each([
+            ["dirt that carries flags", DIRT, BULLBIT],
+            ["the river", RIVER, 0],
+            ["woods just before the last, that don't burn", WOODS5 - 1, 0],
+            ["a flood", FLOOD, 0],
+        ])("should not flood %s", (_, value, flags) => {
+            expect(spread(value, flags)).toBe(value | flags);
         });
     });
 });

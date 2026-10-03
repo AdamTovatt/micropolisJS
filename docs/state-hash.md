@@ -153,11 +153,11 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 ## Golden hashes
 
 Each fixture is a command log (`docs/command-log.md`) whose checkpoints are its golden hashes: the **built** hash at
-step 0, of the state its commands build, and the **run** hash after a fixed run at the medium speed a new city starts
-at. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtures` exports each fixture's log to
-`headless/fixtures/export/<name>.log.json`, and `conformance/README.md` describes the copies of each fixture's state
-at both checkpoints. The C# port replays the log, or takes the built state as its starting state and steps it at
-medium speed to the run checkpoint's step, and must produce the run hash.
+step 0, of the state its log builds before its first step, and the **run** hash after a fixed run at the medium speed
+a new city starts at. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtures` exports each
+fixture's log to `headless/fixtures/export/<name>.log.json`, and `conformance/README.md` describes the copies of each
+fixture's state at both checkpoints. The C# port replays the log, or takes the built state as its starting state and
+steps it at medium speed to the run checkpoint's step, and must produce the run hash.
 
 `e2e/goldenPlaythrough.json` pins the hash of the city at each stage of the end-to-end playthrough: the hash of the
 keys `Simulation.save` writes, taken from the browser's save (`src/gameSaveHash.ts`), which leaves out what the next

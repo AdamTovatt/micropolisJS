@@ -177,12 +177,9 @@ PowerManager.prototype.nuclearPowerFound = function(map, x, y, simData) {
     return;
   }
 
+  // As doSpecialZone in the original does, the plant's tiles are left as they are
   simData.census.nuclearPowerPop += 1;
   this._powerStack.push(new Position(x, y));
-
-  // Ensure animation bits set
-  for (var i = 0; i < 4; i++)
-    map.addTileFlags(x, y, ANIMBIT | CONDBIT | POWERBIT | BURNBIT);
 };
 
 

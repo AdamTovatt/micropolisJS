@@ -14,10 +14,12 @@
 import { cityFromSave, SaveData, Speed } from "../headless/city";
 import { parseCommandLine } from "../headless/commandLine";
 import { RUN_STEPS } from "../headless/fixtures/fixture";
-import { fixtureLog, fixtureNames } from "../headless/fixtures/index";
+import { fixtureNames } from "../headless/fixtures/index";
 import { lineOf } from "../headless/fixtures/toolCommands";
 import { run } from "../headless/run";
-import { advance, fixtureSave, replay, Start, startCity, startFromSave, summarise } from "../headless/runner";
+import {
+    advance, fixtureLog, fixtureSave, replay, Start, startCity, startFromSave, summarise,
+} from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
 import { parseLog } from "../src/commandLog";
 import { LOCAL_PLAYER } from "../src/protocol";

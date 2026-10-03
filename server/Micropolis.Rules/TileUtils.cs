@@ -136,5 +136,21 @@ namespace Micropolis.Rules
         {
             return IsRoad(tile.GetValue());
         }
+
+        /// <summary>
+        /// One of the four fire tiles, animated, picked by one draw.
+        /// </summary>
+        public static Tile RandomFire(RandomStream random)
+        {
+            return new Tile(TileValues.FIRE + (random.GetRandom16() & 3), TileFlags.ANIMBIT);
+        }
+
+        /// <summary>
+        /// One of the four rubble tiles, bulldozable, picked by one draw.
+        /// </summary>
+        public static Tile RandomRubble(RandomStream random)
+        {
+            return new Tile(TileValues.RUBBLE + (random.GetRandom16() & 3), TileFlags.BULLBIT);
+        }
     }
 }

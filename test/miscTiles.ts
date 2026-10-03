@@ -18,16 +18,9 @@ import { MiscTiles } from "../src/miscTiles.js";
 import { ANIMBIT, BLBNBIT, BNCNBIT, BULLBIT, ZONEBIT } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import { DIRT, FIRE, IZB, LASTTINYEXP, RUBBLE, RZB, TINYEXP, WOODS } from "../src/tileValues";
+import { registeredHandler } from "./helpers/handlers";
 import { streamAlwaysDrawing, streamDrawing } from "./helpers/streams";
 
-
-type TileHandler = (map: unknown, x: number, y: number, simData: unknown) => void;
-
-function findHandler(predicate: unknown): TileHandler {
-    const handlers = new Map<unknown, TileHandler>();
-    MiscTiles.registerHandlers({addAction: (key: unknown, handler: TileHandler) => handlers.set(key, handler)});
-    return handlers.get(predicate)!;
-}
 
 describe("miscellaneous tiles", () => {
 
@@ -58,7 +51,7 @@ describe("miscellaneous tiles", () => {
                 random: streamAlwaysDrawing(SPREAD_NEVER_BURN_OUT),
                 spriteManager: {makeExplosion: jest.fn()},
             };
-            findHandler(TileUtils.isFire)(map, FIRE_X, FIRE_Y, simData);
+            registeredHandler(MiscTiles.registerHandlers, TileUtils.isFire)(map, FIRE_X, FIRE_Y, simData);
             return simData.spriteManager.makeExplosion;
         }
 

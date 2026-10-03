@@ -25,6 +25,14 @@ namespace Micropolis.Rules
         private const long CoalPowerStrength = 700;
         private const long NuclearPowerStrength = 2000;
 
+        // The coal plant's smokestacks, relative to its centre, and their smoke tiles
+        private static readonly int[] SmokeDeltaX = [1, 2, 1, 2];
+        private static readonly int[] SmokeDeltaY = [-1, -1, 0, 0];
+        private static readonly int[] SmokeTiles = [TileValues.COALSMOKE1, TileValues.COALSMOKE2, TileValues.COALSMOKE3, TileValues.COALSMOKE4];
+
+        // At each level, easy, medium and hard, the odds against a nuclear plant melting down at its scan
+        private static readonly int[] MeltdownTable = [30000, 20000, 10000];
+
         private readonly GameMap _map;
 
         public PowerManager(GameMap map)
@@ -184,14 +192,39 @@ namespace Micropolis.Rules
             }
         }
 
+        /// <summary>
+        /// Counts a coal plant, pushes it as a power source for the next power scan, and sets its smokestacks to
+        /// their animated smoke, as coalSmoke in the original does.
+        /// </summary>
         public void CoalPowerFound(GameMap map, int x, int y, SimData simData)
         {
-            throw new NotPortedException("powerManager.coalPowerFound");
+            simData.Census.CoalPowerPop += 1;
+
+            _powerStack.Add(new Position(x, y));
+
+            for (int i = 0; i < 4; i++)
+            {
+                map.SetTile(x + SmokeDeltaX[i], y + SmokeDeltaY[i], SmokeTiles[i],
+                            TileFlags.ANIMBIT | TileFlags.CONDBIT | TileFlags.POWERBIT | TileFlags.BURNBIT);
+            }
         }
 
+        /// <summary>
+        /// Counts a nuclear plant and pushes it as a power source, leaving its tiles as they are, unless disasters are
+        /// enabled and it melts down, a disaster that isn't ported.
+        /// </summary>
         public void NuclearPowerFound(GameMap map, int x, int y, SimData simData)
         {
-            throw new NotPortedException("powerManager.nuclearPowerFound");
+            // With the auto repair system, the zone is repaired before a meltdown; the original bails before repairing
+            if (simData.DisasterManager.DisastersEnabled &&
+                simData.Random.GetRandom(MeltdownTable[(int)simData.GameLevel]) == 0)
+            {
+                simData.DisasterManager.DoMeltdown(x, y);
+                return;
+            }
+
+            simData.Census.NuclearPowerPop += 1;
+            _powerStack.Add(new Position(x, y));
         }
 
         public void RegisterHandlers(MapScanner mapScanner, RepairManager repairManager)

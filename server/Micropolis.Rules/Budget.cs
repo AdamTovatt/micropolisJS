@@ -24,6 +24,21 @@ namespace Micropolis.Rules
     /// </remarks>
     public sealed class Budget
     {
+        /// <summary>
+        /// The roads' effect when fully funded.
+        /// </summary>
+        public const long MaxRoadEffect = 32;
+
+        /// <summary>
+        /// The police stations' effect when fully funded.
+        /// </summary>
+        public const long MaxPoliceStationEffect = 1000;
+
+        /// <summary>
+        /// The fire stations' effect when fully funded.
+        /// </summary>
+        public const long MaxFireStationEffect = 1000;
+
         public long TotalFunds { get; internal set; }
 
         public long CityTax { get; internal set; }
@@ -63,6 +78,14 @@ namespace Micropolis.Rules
         /// <see cref="Messages.NO_MONEY"/>, as <c>src/budget.js</c> does.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
+
+        /// <summary>
+        /// Whether roads wear away: when their funded effect is below 15/16 of its most.
+        /// </summary>
+        public bool ShouldDegradeRoad()
+        {
+            return RoadEffect < 15 * MaxRoadEffect / 16;
+        }
 
         public void CollectTax(Level gameLevel, Census census)
         {

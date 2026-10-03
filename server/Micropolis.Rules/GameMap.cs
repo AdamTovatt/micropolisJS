@@ -117,7 +117,7 @@ namespace Micropolis.Rules
 
                 for (int i = 0; i < tiles.Length; i++)
                 {
-                    map._data[i].Set(tiles[i] & TileFlags.BIT_MASK, tiles[i] & TileFlags.ALLBITS);
+                    map._data[i].SetRawValue(tiles[i]);
                 }
 
                 map.CityCentreX = saved.ReadInt("cityCentreX", 0, width - 1);
@@ -197,6 +197,16 @@ namespace Micropolis.Rules
         public void SetTile(int x, int y, int value, int flags)
         {
             GetTileAt(x, y, nameof(SetTile)).Set(value, flags);
+        }
+
+        /// <summary>
+        /// Gives a tile the value and flags of <paramref name="tile"/>, as <c>setTo</c> in <c>src/gameMap.js</c>, which
+        /// puts the tile itself on the map; the map keeps its own, so later changes to <paramref name="tile"/> don't
+        /// reach it.
+        /// </summary>
+        public void SetTo(int x, int y, Tile tile)
+        {
+            GetTileAt(x, y, nameof(SetTo)).SetFrom(tile);
         }
 
         /// <summary>

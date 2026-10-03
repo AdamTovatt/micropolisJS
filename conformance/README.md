@@ -87,7 +87,7 @@ against. An event is known by its string alone, and the TypeScript tests check t
 ### saves/
 
 Each fixture's saved state (`docs/state-hash.md`), as the TypeScript simulation writes it when the fixture's command
-log (`headless/fixtures/`) is replayed: `<fixture>.built.json` at its first checkpoint, as its commands build it, and
+log (`headless/fixtures/`) is replayed: `<fixture>.built.json` at its first checkpoint, as its log builds it, and
 `<fixture>.run.json` at its last, after its golden run. Each file is the canonical text alone, with no final newline,
 so its SHA-256 is the state hash, and the generator fails unless the replay matches the fixture's golden hashes up to
 that checkpoint. `checkpoints.json` lists the step of each fixture's built and run checkpoints.
@@ -200,8 +200,11 @@ cycle that sets no valves, after the first evaluation. Then each gate of the cyc
 and, where one exists, on one that doesn't: phase 0 setting the valves; phase 9's census, long census, and tax and
 evaluation, each when its city time falls due; phase 10 easing the rate of growth or not; and the scans of phases 11 to
 15 at each speed, from the suburb and from the `"branch"` fixtures `suburbSlow` and `suburbFast`, the suburb set to slow
-and to fast. A point for a rare branch names the branch in `reaches`, so a change that stops the point reaching it fails
-the generator rather than leaving the branch unproven.
+and to fast. The `"branch"` fixture `disasters` lays out a scene for each rare branch of the infrastructure handlers
+that `snapshotPoints.ts` names, each in a strip of the map of its own. Each branch's point is a map scan of that strip
+with `"each"`, and names the family whose record must reach the branch. The fixture also records its first disaster
+phase, which counts its flood down. A point for a rare branch names the branch in `reaches`, so a change that stops the
+point reaching it fails the generator rather than leaving the branch unproven.
 
 The generator watches a fixture's city for sprites only until its last point; `test/goldenHashes.ts` checks that every
 sprite-free fixture, a `"branch"` fixture included, creates none over its whole golden run. A test fails on a point
