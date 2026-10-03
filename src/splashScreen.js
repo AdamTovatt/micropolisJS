@@ -18,7 +18,7 @@ import { Game } from './game.js';
 import { MapGenerator } from './mapGenerator.js';
 import { Random } from './random.ts';
 import { SplashCanvas } from './splashCanvas.ts';
-import { Storage } from './storage.js';
+import { Storage } from './storage.ts';
 import { UiRandom } from './uiRandom.ts';
 
 /*

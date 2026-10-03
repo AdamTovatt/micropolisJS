@@ -27,18 +27,14 @@ type Save = Record<string, unknown>;
 
 async function loadStorage() {
     const localStorage = stubWindow();
-    const Storage = (await import("../src/storage.js")).Storage;
+    const Storage = (await import("../src/storage")).Storage;
 
-    // Defined as a constant property, which the type of the module doesn't show
-    const currentVersion = (Storage as unknown as {CURRENT_VERSION: number}).CURRENT_VERSION;
-    const key = (Storage as unknown as {KEY: string}).KEY;
-
-    return {Storage, localStorage, currentVersion, key};
+    return {Storage, localStorage, currentVersion: Storage.CURRENT_VERSION, key: Storage.KEY};
 }
 
 const SEED = 2026;
 
-// The keys the game itself saves beside the simulation, and the version storage.js adds
+// The keys the game itself saves beside the simulation, and the version storage.ts adds
 const GAME_KEYS = ["version", "name"];
 
 // The keys version 4 saved that no save holds any more
@@ -156,7 +152,7 @@ describe("storage", () => {
 
             const savedGame = Storage.parse(JSON.stringify(oldSave(3)));
 
-            expect(savedGame.simulation.speedCycle).toBe(0);
+            expect((savedGame.simulation as {speedCycle: number}).speedCycle).toBe(0);
         });
 
         it("refuses text that isn't JSON", async () => {
@@ -336,7 +332,7 @@ describe("storage", () => {
         const {Storage, localStorage, key} = await loadStorage();
         localStorage.setItem(key, JSON.stringify(saveBeforeBreakdown(6)));
 
-        const savedGame = Storage.getSavedGame() as unknown as Save;
+        const savedGame = Storage.getSavedGame() as Save;
 
         expect((savedGame.evaluation as Save).cityScoreBreakdown).toEqual([]);
     });

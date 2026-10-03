@@ -84,7 +84,7 @@ export function cityFromSeed(seed: number, level: number, speed: number): Simula
   return new construct(MapGenerator(Random.mapStream(seed)), level, speed, seed);
 }
 
-// A city restored from what Simulation.save wrote, without storage.js. Loading copies the saved values, so the
+// A city restored from what Simulation.save wrote, without storage.ts. Loading copies the saved values, so the
 // caller's object is never shared with the city.
 export function cityFromSave(saveData: SaveData): Simulation {
   return construct.fromSave(saveData);

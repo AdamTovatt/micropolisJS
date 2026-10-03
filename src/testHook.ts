@@ -14,7 +14,7 @@
 import { checkStepCount, ClockedSimulation, takeSteps } from "./cityTimeModel";
 import { BUDGET_REVIEW_DUE, COMMAND_RESULT } from "./messages";
 import { StepDriver } from "./stepDriver";
-import { Storage } from "./storage.js";
+import { Storage } from "./storage";
 
 // The end-to-end runner's hold on the game, installed on the window in debug mode. The runner holds the step driver,
 // lands its input, and moves the city on only through advance, so each step lands where it did on the last run. It

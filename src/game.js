@@ -44,7 +44,7 @@ import { SpeedControl } from './speedControl.ts';
 import { plainSavedState } from './stateHash.ts';
 import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
-import { Storage } from './storage.js';
+import { Storage } from './storage.ts';
 import { attachToTestHook } from './testHook.ts';
 import { Text } from './text.ts';
 import { TouchWarnWindow } from './touchWarnWindow.ts';

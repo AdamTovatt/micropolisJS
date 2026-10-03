@@ -11,7 +11,7 @@
  *
  */
 
-// A browser window for modules that read one, such as storage.js, which reads window.localStorage when it loads. The
+// A browser window for modules that read one, such as storage.ts, which reads window.localStorage when it loads. The
 // tests run in Node: stub the window, then import the module.
 
 type Global = {window?: unknown};

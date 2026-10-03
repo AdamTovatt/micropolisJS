@@ -17,11 +17,11 @@ import { simulationFromSeed, SimulationInstance } from "./helpers/simulations";
 import { removeWindow, stubWindow } from "./helpers/window";
 
 // A game's save of a city, as the browser writes it: the simulation's state beside the game's own key, the city's
-// name, and the save version storage.js stamps. Game needs the DOM, so its key is written out here as Game.saveData
+// name, and the save version storage.ts stamps. Game needs the DOM, so its key is written out here as Game.saveData
 // writes it.
 async function gameSave(simulation: SimulationInstance): Promise<Record<string, unknown>> {
     stubWindow();
-    const {Storage} = await import("../src/storage.js");
+    const {Storage} = await import("../src/storage");
 
     return JSON.parse(Storage.serialise({...plainSavedState(simulation), name: "Town"}));
 }
