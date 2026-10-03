@@ -20,6 +20,9 @@ const HANDLE_TYPESCRIPT_WITH_TS_LOADER = { test: /\.([cm]?ts|tsx)$/, loader: "ts
 
 const OUTPUT_DIRECTORY = 'dist';
 
+// The C# server's address in development: applicationUrl in server/Micropolis.Server/Properties/launchSettings.json
+const SERVER_URL = 'http://localhost:5180';
+
 function recursivelyCopy(dir) {
   return {from: dir, to: dir, toType: 'dir'};
 }
@@ -97,6 +100,13 @@ export default {
   output: {
     path: path.resolve(__dirname, OUTPUT_DIRECTORY),
     filename: 'src/micropolis.js'
+  },
+  // Sign-in and the city's WebSocket go to the server. With no server running they fail, and the game starts
+  // single-player.
+  devServer: {
+    proxy: [
+      {context: ['/api', '/ws/city'], target: SERVER_URL, ws: true},
+    ],
   },
   plugins: [
     cleanUpLeftovers(),

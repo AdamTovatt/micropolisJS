@@ -11,7 +11,7 @@ This repository is Adam's private continuation. The aim is to grow it from a fai
 | Language    | JavaScript (legacy, ES5-style prototypes) and TypeScript (new code) in the browser; C# on .NET 10 for the server |
 | Bundler     | webpack 5 + ts-loader, entry `src/micropolis.js`, output `dist/`                   |
 | UI          | jQuery-driven DOM windows in `index.html`; the map on a `<canvas>`                 |
-| Server      | .NET 10 solution `server/Micropolis.slnx`                                          |
+| Server      | ASP.NET Core on .NET 10, `server/Micropolis.slnx`; EasyReasy.Auth for tokens       |
 | Tests       | Jest + ts-jest, `test/*.ts`; MSTest, one test project per C# project               |
 | Persistence | JSON in `localStorage` (`src/storage.js`)                                          |
 
@@ -44,7 +44,8 @@ Ask before writing code that settles an open decision; record the decision under
 
 ```bash
 npm install
-npm run dev              # webpack-dev-server on http://localhost:8080
+(cd server/Micropolis.Server && dotnet run)   # server and client together: open http://localhost:5180
+npm run dev              # webpack-dev-server on http://localhost:8080, the client alone
 npm run build            # production bundle into dist/
 npm test                 # Jest
 npx jest test/tile.ts    # one test file
@@ -54,6 +55,8 @@ npm run fixtures         # export each fixture's saved state to headless/fixture
 dotnet build server/Micropolis.slnx   # the C# solution
 dotnet test server/Micropolis.slnx    # MSTest
 ```
+
+`dotnet run` in `server/Micropolis.Server` is the dev command, and `remote-claude.json` binds the dev-server button to it. The server listens on :5180, and SpaProxy starts `npm run dev` unless something already answers on :8080, then sends the browser there; whatever answers on :8080 is the client it uses. webpack-dev-server proxies `/api` and `/ws/city` to the server. The development signing secret is in `Properties/launchSettings.json`; outside development `JWT_SECRET` must be set to at least 32 bytes, and the server will not start without it. `dotnet publish` runs `npm ci` in the repository root, which deletes and reinstalls `node_modules`, then builds the client into `wwwroot`, which the server serves.
 
 The headless runner takes `--seed <n>` (a generated map) or `--fixture <name>`, `--reseed <n>` to replace a fixture's stream, `--speed slow|medium|fast` to override the saved speed, and `--steps <n>`.
 
@@ -71,7 +74,7 @@ Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an und
 - **Game and UI** — `game.js` owns the `Simulation`, the canvas, the tools and the windows (`*Window.js`). It runs two loops: `tick` (`setTimeout(0)`: input, then the simulation steps due) and `animate` (`requestAnimationFrame`: painting). `stepDriver.ts` turns real time into steps at a fixed 60 per second. It catches up after a slow frame, up to a second's worth of steps at a time, and drops the rest of a longer gap. It owes nothing while the city is not stepping: paused, behind the budget window, in a hidden tab, or under the screen-too-small overlay. `windowManager.ts` shows the windows one at a time. A window showing holds the keyboard and mouse, but only the budget window holds the city. A year-end budget that falls due while another window shows opens when that window closes, and the simulation holds its phases until it has the player's values. Milestones are good-news notifications, not windows. `speedControl.ts` applies the speed the player sets with Pause, Play and Settings; the simulation's speed is the only record of whether the game is paused.
 - **Headless** — `headless/` runs the simulation in Node through `tsx`, without a browser: `runner.ts` starts a city from a seed or a fixture and steps it, failing rather than stalling silently, and `cli.ts` is its command line. A fixture is a seed plus a build script in `headless/fixtures/` that drives the tool objects. The runner and the tests build a fixture from its script each time they use it, then load its saved state; no saved copy is committed. The state hash (`stateHash.ts`, specified in `docs/state-hash.md`) is SHA-256 over the canonical text of the saved state.
 - **Rendering** — `gameCanvas.js` draws 16×16 tiles from `images/tiles.png` through `tileSet.js` (with a snow variant), and sprites from `images/sprites.png`. `animationManager.js` animates tiles from their value and the client's clock, and never writes the map: an explosion holds its last frame until the simulation's scan turns the tile to rubble. `monsterTV.js` is the small disaster-follow view.
-- **Server** — `server/` is a .NET 10 solution, `Micropolis.slnx`, with a test project per project. `Micropolis.Rules` holds the game rules and has no ASP.NET dependency, so a test or a tool can run them without a host: `RandomStream`, the port of `random.ts`, and `Protocol.cs`, the server's half of the protocol.
+- **Server** — `server/` is a .NET 10 solution, `Micropolis.slnx`, with a test project per project. `Micropolis.Rules` holds the game rules and has no ASP.NET dependency, so a test or a tool can run them without a host: `RandomStream`, the port of `random.ts`, and `Protocol.cs`, the server's half of the protocol. `Micropolis.Server` is the ASP.NET Core host. `POST /api/session` signs a player in with a display name only, a few times a minute per client address: the token's subject is a new player id, the name is the only claim the server adds, and it carries no roles, because no player can be denied anything. `/ws/city` is one plain WebSocket of JSON messages, where `PlayerPresence` lists who is online and each `CityConnection` is the one writer to its socket. The server closes a connection when its token expires.
 - **Protocol** — `src/protocol.ts` and `server/Micropolis.Rules/Protocol.cs` define the bodies of `/api/session` and the WebSocket's messages by hand. `protocol/README.md` specifies the wire format, and the examples and reader cases under `protocol/` pin the two sides together: both test suites read them in place.
 - **Conformance data** — `conformance/` holds data both implementations of the game rules test against, read in place by both test suites: `random.json`, the random stream's reference vectors, and `random.c`, the reference C program that writes them.
 
