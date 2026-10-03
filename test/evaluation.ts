@@ -365,6 +365,21 @@ describe("the city score breakdown", () => {
     });
 });
 
+describe("the problems", () => {
+
+    // Housing is 7/10 of the land value average, an int division in evaluate.cpp: 15 gives 10, not
+    // 10.5. A voter objects to a problem above their tolerance, drawn from 0 to 299, and one of
+    // this stream's voters on housing draws 10.
+    it("drop the fraction of the housing problem", () => {
+        const city = makeCity();
+        evaluateYear(city, problemFreeYear(200, {landValue: 15}));
+
+        const housing = city.evaluation.problemVotes.find(
+            (vote: {index: number}) => vote.index === Evaluation.HOUSING);
+        expect(housing.voteCount).toBe(3);
+    });
+});
+
 describe("the city score", () => {
 
     // Pinned scores over several years: a change to how the score is worked out moves them, and
