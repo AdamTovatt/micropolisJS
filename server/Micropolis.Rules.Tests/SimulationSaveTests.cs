@@ -11,8 +11,6 @@
  *
  */
 
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json.Nodes;
 
 namespace Micropolis.Rules.Tests
@@ -34,8 +32,6 @@ namespace Micropolis.Rules.Tests
 
         // Every object in the save, the first entry standing for each list of objects
         private static readonly IReadOnlyList<string> ObjectPathList = ObjectPaths(Run, "").ToList();
-
-        public static IEnumerable<object[]> AllSaves => Saves.Select(save => new object[] { save });
 
         // Every key of every object in the save
         public static IEnumerable<object[]> KeyPaths => ObjectPathList.SelectMany(path => Keys(Run, path).Select(key => new object[] { Join(path, key) }));
@@ -235,7 +231,7 @@ namespace Micropolis.Rules.Tests
             };
 
         [TestMethod]
-        [DynamicData(nameof(AllSaves))]
+        [DynamicData(nameof(ConformanceSaves.AllSaves), typeof(ConformanceSaves))]
         public void Save_LoadedConformanceSave_WritesTheSameCanonicalText(ConformanceSave save)
         {
             string text = save.ReadText();
@@ -245,12 +241,12 @@ namespace Micropolis.Rules.Tests
 
         // The file's SHA-256 is the TypeScript's state hash, which the generator checks against the golden hash
         [TestMethod]
-        [DynamicData(nameof(AllSaves))]
+        [DynamicData(nameof(ConformanceSaves.AllSaves), typeof(ConformanceSaves))]
         public void Save_LoadedConformanceSave_HashesAsTypeScript(ConformanceSave save)
         {
             string text = save.ReadText();
 
-            Assert.AreEqual(Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text))), StateHash.HashSavedState(Resave(text)));
+            Assert.AreEqual(StateHash.HashCanonicalText(text), StateHash.HashSavedState(Resave(text)));
         }
 
         // The round trip can't tell a key read into the wrong property and written back from it, so each key is set to a

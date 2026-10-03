@@ -28,7 +28,10 @@ namespace Micropolis.Rules
             return HashCanonicalText(CanonicalJson.Write(saveData));
         }
 
-        private static string HashCanonicalText(string canonicalText)
+        /// <summary>
+        /// The state hash of a state given as its canonical text, such as a save the TypeScript wrote.
+        /// </summary>
+        public static string HashCanonicalText(string canonicalText)
         {
             byte[] digest = SHA256.HashData(Encoding.UTF8.GetBytes(canonicalText));
             return Convert.ToHexStringLower(digest);

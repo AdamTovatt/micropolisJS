@@ -142,6 +142,8 @@ function numberVectors(): {bits: string, text: string}[] {
     0.007, 0.1, 0.000001, 0.0000015, 1e-7, 1.5e-7, -1.5e-7, 9.999999999999997e-7,
     Number.MAX_VALUE, Number.MIN_VALUE, -Number.MAX_VALUE, Number.MAX_SAFE_INTEGER, Number.EPSILON, 2.2250738585072014e-308,
     1e100, 1.7976931348623157e+308, 5e-324, 9.999999999999999e22, 1e23, 0.1 + 0.2,
+    // Integers past 2^53 whose shortest digits end in zeros where a long's digits don't
+    2 ** 62, 1e18 + 128,
   ];
 
   // Each funding share the budget sets, as the single-precision value the save writes
