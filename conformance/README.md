@@ -200,10 +200,11 @@ cycle that sets no valves, after the first evaluation. Then each gate of the cyc
 and, where one exists, on one that doesn't: phase 0 setting the valves; phase 9's census, long census, and tax and
 evaluation, each when its city time falls due; phase 10 easing the rate of growth or not; and the scans of phases 11 to
 15 at each speed, from the suburb and from the `"branch"` fixtures `suburbSlow` and `suburbFast`, the suburb set to slow
-and to fast. In the `"branch"` fixture `disasters`, a map scan with `"each"` of a strip one of its scenes is in for each
-rare branch of the infrastructure handlers that `snapshotPoints.ts` names, which names the family that owns it, and its
-first disaster phase, which counts its flood down. A point for a rare branch names the branch in `reaches`, so a change
-that stops the point reaching it fails the generator rather than leaving the branch unproven.
+and to fast. The `"branch"` fixture `disasters` lays out a scene for each rare branch of the infrastructure handlers
+that `snapshotPoints.ts` names, each in a strip of the map of its own. Each branch's point is a map scan of that strip
+with `"each"`, and names the family whose record must reach the branch. The fixture also records its first disaster
+phase, which counts its flood down. A point for a rare branch names the branch in `reaches`, so a change that stops the
+point reaching it fails the generator rather than leaving the branch unproven.
 
 The generator watches a fixture's city for sprites only until its last point; `test/goldenHashes.ts` checks that every
 sprite-free fixture, a `"branch"` fixture included, creates none over its whole golden run. A test fails on a point

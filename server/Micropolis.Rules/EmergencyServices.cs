@@ -62,8 +62,8 @@ namespace Micropolis.Rules
                 roadPosition = position;
             }
 
-            // A funded effect is at most 1000, so an entry stays within the station map's 16000; one past an int would
-            // be a save no budget wrote, and fails rather than wraps
+            // A funded effect is at most the budget's fully funded one, so an entry stays within the station map's
+            // bound (BlockMaps); one past an int would be a save no budget wrote, and fails rather than wraps
             long currentEffect = stationMap.WorldGet(roadPosition.Value.X, roadPosition.Value.Y);
             currentEffect += effect;
             stationMap.WorldSet(roadPosition.Value.X, roadPosition.Value.Y, checked((int)currentEffect));

@@ -23,7 +23,21 @@ namespace Micropolis.Rules.Tests
     [TestClass]
     public sealed class InfrastructureHandlersTests
     {
-        private static readonly string[] Families = ["emergencyServices", "miscTiles", "powerManager", "road", "stadia"];
+        // The families and the handlers each registers with the map scanner
+        private static readonly Dictionary<string, string[]> FamilyHandlers = new Dictionary<string, string[]>
+        {
+            ["emergencyServices"] = ["policeStationFound", "fireStationFound"],
+            ["miscTiles"] = ["fireFound", "radiationFound", "floodFound", "explosionFound"],
+            ["powerManager"] = ["coalPowerFound", "nuclearPowerFound"],
+            ["road"] = ["roadFound"],
+            ["stadia"] = ["emptyStadiumFound", "fullStadiumFound"],
+        };
+
+        private static readonly string[] Families = FamilyHandlers.Keys.ToArray();
+
+        // IZB is the centre of the first industrial zone with buildings, which a fire leaves standing, since only a centre
+        // past it explodes; the next building's centre is the first that does
+        private const int ExplodingIndustrialCentre = IZB + 9;
 
         // A fire on the west tile of a zone, beside its centre, on open land east of the suburb
         private const int FireX = 110;
@@ -44,7 +58,7 @@ namespace Micropolis.Rules.Tests
 
         // Every map scan the TypeScript recorded with one of the family's modules alone registered matches, in every
         // fixture whose map scans are recorded a family at a time, the rare branches' points included, and none stops at
-        // a stub
+        // a stub. Between them they reach every handler the families register.
         [TestMethod]
         public void MapScan_InfrastructureFamilyAlone_MatchesTypeScript()
         {
@@ -54,6 +68,9 @@ namespace Micropolis.Rules.Tests
             List<UnitSnapshot> records = familyScans.Where(snapshot => Families.Contains(snapshot.Handlers[0])).ToList();
 
             CollectionAssert.AreEquivalent(Families, records.Select(snapshot => snapshot.Handlers[0]).Distinct().ToList());
+            CollectionAssert.AreEquivalent(
+                FamilyHandlers.SelectMany(family => family.Value.Select(handler => $"{family.Key}.{handler}")).ToList(),
+                records.SelectMany(snapshot => snapshot.Reached).Distinct().ToList());
             CollectionAssert.AreEquivalent(familyScans.Select(snapshot => snapshot.Fixture).Distinct().ToList(),
                                            records.Select(snapshot => snapshot.Fixture).Distinct().ToList());
 
@@ -67,9 +84,10 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void FireFound_SpreadingIntoAnIndustrialZone_ThrowsAtTheSpriteSeam()
         {
-            Simulation city = CityWithAFireBesideAZone(IZB + 9);
+            Simulation city = CityWithAFireBesideAZone(ExplodingIndustrialCentre);
 
-            NotPortedException exception = Assert.Throws<NotPortedException>(() => MiscTiles.FireFound(city.Map, FireX, FireY, city.ConstructSimData()));
+            NotPortedException exception = Assert.Throws<NotPortedException>(() => MiscTiles.FireFound(city.Map, FireX, FireY, city.ConstructSimData()),
+                                                                             $"The stream of seed {SpreadingEastSeed} no longer spreads the fire east into the zone's centre");
 
             Assert.AreEqual("spriteManager.makeExplosion", exception.Unit);
         }

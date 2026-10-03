@@ -26,10 +26,11 @@ import { suburb } from "./suburb";
 // The suburb as built, with the tiles the infrastructure handlers' rarer branches need written onto open land east of
 // it, as no command places them: fires, a flood, radiation and explosions, a stadium with its own plant, a fire station
 // whose road is in the next block, two drawbridges over the river's channel, one open, and a field of bridges. A flood
-// starts with it, which spreads for a number of cycles. Each scene has a strip of the map scan's own, an eighth of the
-// map's columns, away from the town's and from each other's handlers, so the unit snapshots of a scene register few
-// families. Nothing that burns leads from a fire to a zone that explodes when it catches, so the city creates no
-// sprite and its snapshots run in the C# before the sprites are ported.
+// starts with it, which spreads for a number of cycles. Each scene is laid out in a strip of the map scan's own, an
+// eighth of the map's columns, away from the town's and from each other's handlers, so the unit snapshots of a scene
+// register few families. The flood is the exception: it spreads over the dirt and woods west of its strip, into the
+// stadium's. Nothing that burns leads from a fire to a zone that explodes when it catches, so the city creates no
+// sprite, as a "branch" fixture must, or the snapshot generator fails.
 
 // The first column of each scene's strip
 export const FIRE_STRIP = 60;

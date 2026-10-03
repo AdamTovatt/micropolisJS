@@ -29,6 +29,16 @@ namespace Micropolis.Rules
         /// </summary>
         public const long MaxRoadEffect = 32;
 
+        /// <summary>
+        /// The police stations' effect when fully funded.
+        /// </summary>
+        public const long MaxPoliceStationEffect = 1000;
+
+        /// <summary>
+        /// The fire stations' effect when fully funded.
+        /// </summary>
+        public const long MaxFireStationEffect = 1000;
+
         public long TotalFunds { get; internal set; }
 
         public long CityTax { get; internal set; }

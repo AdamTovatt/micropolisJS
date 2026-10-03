@@ -21,9 +21,10 @@ import { fixtureNamesOf } from "../headless/fixtures/index";
 import { FRONT_END_MESSAGE, NOT_ENOUGH_POWER } from "../src/messages";
 import { savedState } from "../src/stateHash";
 import { BIT_MASK, ZONEBIT } from "../src/tileFlags";
+import { TileUtils } from "../src/tileUtils.js";
 import {
-  BRWH, DIRT, FIRE, FIREBASE, FLOOD, FREEZ, FULLSTADIUM, HBRIDGE, HTRFBASE, LASTFIRE, LASTIND, LASTRUBBLE, LTRFBASE,
-  PORTBASE, POWERBASE, RADTILE, RIVER, ROADBASE, RUBBLE, STADIUM, VBRIDGE,
+  BRWH, DIRT, FIRE, FREEZ, FULLSTADIUM, HBRIDGE, HTRFBASE, LASTFIRE, LASTIND, LASTRUBBLE, LTRFBASE, PORTBASE,
+  POWERBASE, RADTILE, RIVER, ROADBASE, RUBBLE, STADIUM, VBRIDGE,
 } from "../src/tileValues";
 import {
   Internals, SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES,
@@ -188,10 +189,8 @@ function tileChanged(record: SnapshotRecord, from: (value: number) => boolean, t
   });
 }
 
-const isFire = (value: number) => value >= FIREBASE && value < ROADBASE;
+const {isFire, isFlood, isManualExplosion, isRoad} = TileUtils;
 const isRubble = (value: number) => value >= RUBBLE && value <= LASTRUBBLE;
-const isFlood = (value: number) => value >= FLOOD && value < RADTILE;
-const isRoad = (value: number) => value >= ROADBASE && value < POWERBASE;
 const isBridge = (value: number) => value === HBRIDGE || value === VBRIDGE;
 const is = (wanted: number) => (value: number) => value === wanted;
 
@@ -217,6 +216,8 @@ const drawbridgeOpened = (record: SnapshotRecord) => tileChanged(record, is(HBRI
 function infrastructurePoints(): SnapshotPoint[] {
   return [
     scanOf(FIRE_STRIP, 1, "miscTiles", "a fire burning out", (record) => tileChanged(record, isFire, isRubble)),
+    scanOf(FIRE_STRIP, 0, "miscTiles", "an explosion cleared to rubble",
+           (record) => tileChanged(record, isManualExplosion, isRubble)),
     scanOf(FIRE_STRIP, 1, "miscTiles", "a fire spreading into a zone's centre",
            (record) => tileChanged(record, is(FREEZ), isFire)),
     scanOf(FIRE_STRIP, 0, "emergencyServices", "a fire station working at a share of its effect",

@@ -72,9 +72,9 @@ command, since replaying it would change nothing.
   `trafficDensity` and `cityCentreScore`. A station map is the simulation's working map of a service: cleared as each
   cycle starts, then added to by the map scan, which adds the funded effect of each station it finds, halved for a
   station without power and again for one without a road beside it, to the block of the road tile beside it that the
-  zones' perimeter search finds first, or of the station when it has none. When the service's analysis runs, it smooths the
-  station map into the coverage and leaves its middle step of smoothing in the station map. The answer carries no
-  display text: the client sorts the values into the bands it shows.
+  zones' perimeter search finds first, or of the station when it has none. When the service's analysis runs, it
+  smooths the station map into the coverage and leaves its middle step of smoothing in the station map. The answer
+  carries no display text: the client sorts the values into the bands it shows.
 - `budgetForecast` may name `road`, `fire` and `police`, each a whole percent from 0 to 100 of what that service
   needs, as `setBudget` does, and is answered with `budget`, the budget now as a `budget` record (see Records), and
   what the year end would do if it came now, from those funds and that tax collection, with each service named at
