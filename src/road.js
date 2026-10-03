@@ -16,20 +16,10 @@ import { ANIMBIT, BIT_MASK, BULLBIT } from "./tileFlags.ts";
 import * as TileValues from "./tileValues.ts";
 import { TileUtils } from './tileUtils.js';
 
+// As doBridge does, opening and closing overwrite each tile whole, flags and all: water from a bridge carries none
+
+// Opening takes any tile of the closed bridge's shape, traffic included, or the channel
 var openBridge = function(map, origX, origY, xDelta, yDelta, oldTiles, newTiles) {
-  for (var i = 0; i < 7; i++) {
-    var x = origX + xDelta[i];
-    var y = origY + yDelta[i];
-
-    if (map.testBounds(x, y)) {
-      if (map.getTileValue(x, y) === (oldTiles[i] & BIT_MASK))
-        map.setTileValue(x, y, newTiles[i]);
-    }
-  }
-};
-
-
-var closeBridge = function(map, origX, origY, xDelta, yDelta, oldTiles, newTiles) {
   for (var i = 0; i < 7; i++) {
     var x = origX + xDelta[i];
     var y = origY + yDelta[i];
@@ -37,7 +27,21 @@ var closeBridge = function(map, origX, origY, xDelta, yDelta, oldTiles, newTiles
     if (map.testBounds(x, y)) {
       var tileValue = map.getTileValue(x, y);
       if (tileValue === TileValues.CHANNEL || (tileValue & 15) === (oldTiles[i] & 15))
-        map.setTileValue(x, y, newTiles[i]);
+        map.getTile(x, y).setRawValue(newTiles[i]);
+    }
+  }
+};
+
+
+// Closing takes only the open bridge's own tiles
+var closeBridge = function(map, origX, origY, xDelta, yDelta, oldTiles, newTiles) {
+  for (var i = 0; i < 7; i++) {
+    var x = origX + xDelta[i];
+    var y = origY + yDelta[i];
+
+    if (map.testBounds(x, y)) {
+      if (map.getTileValue(x, y) === (oldTiles[i] & BIT_MASK))
+        map.getTile(x, y).setRawValue(newTiles[i]);
     }
   }
 };
