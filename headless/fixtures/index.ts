@@ -45,7 +45,7 @@ export type FixtureKind = "sprites" | "snapshots" | "branch";
 // Every fixture, by name, with its kind. A fixture is a command log, or for a derived fixture what the runner builds
 // one from: a city built afresh by replaying commands whenever it is used, so no stored state can go stale when a rule
 // changes. `npm run fixtures` exports each one's log, which is never read back. The copies of its state in
-// conformance/saves/ are for the C# tests.
+// conformance/saves/, and of its log in conformance/logs/, are for the C# tests.
 const fixtures: Record<string, {fixture: Fixture, kind: FixtureKind}> = {
   broke: {fixture: broke, kind: "sprites"},
   disasters: {fixture: disasters, kind: "branch"},

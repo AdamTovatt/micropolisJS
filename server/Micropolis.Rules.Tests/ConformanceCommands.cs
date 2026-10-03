@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using static Micropolis.Rules.Tests.ConformanceJson;
 
 namespace Micropolis.Rules.Tests
 {
@@ -56,41 +57,6 @@ namespace Micropolis.Rules.Tests
             }
 
             return new CommandCase(description, results, String(commandCase["hash"], "hash"), fixture, state);
-        }
-
-        // An object that holds every required key, and otherwise only optional ones
-        private static JsonObject Members(JsonNode? node, string what, string[] required, string[]? optional = null)
-        {
-            if (node is not JsonObject value)
-            {
-                throw Broken($"{what} is not an object");
-            }
-
-            string? unknown = value.Select(member => member.Key)
-                .FirstOrDefault(key => !required.Contains(key) && !(optional ?? []).Contains(key));
-            string? missing = required.FirstOrDefault(key => !value.ContainsKey(key));
-
-            if (unknown is not null || missing is not null)
-            {
-                throw Broken(unknown is not null ? $"{what} has an unknown member {unknown}" : $"{what} lacks {missing}");
-            }
-
-            return value;
-        }
-
-        private static IEnumerable<JsonNode?> List(JsonNode? node, string name)
-        {
-            return node as JsonArray ?? throw Broken($"{name} is not a list");
-        }
-
-        private static string String(JsonNode? node, string name)
-        {
-            return node is JsonValue value && value.TryGetValue(out string? text) ? text : throw Broken($"{name} is not a string");
-        }
-
-        private static InvalidDataException Broken(string problem)
-        {
-            return new InvalidDataException(problem);
         }
     }
 

@@ -31,8 +31,8 @@ Seeds and 32-bit words are hex strings, as the C reference prints them.
 ## Files the TypeScript reference writes
 
 `generate.ts` writes `tiles.json`, `canonicalJson.json`, `maps.json`, `saveStrings.json`, `messages.json`,
-`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/`, `snapshots/` and `runs/` from the TypeScript
-game rules. Regenerate them in the commit that changes what they are computed from:
+`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/`, `logs/`, `snapshots/` and `runs/` from the
+TypeScript game rules. Regenerate them in the commit that changes what they are computed from:
 
 ```bash
 npm run conformance
@@ -172,6 +172,33 @@ the C# migrated saves were written by these commits on `main`:
 
 `migrated/<sample>.json` is what the TypeScript loads each sample to, `SaveFormat.parse` and then the simulation's
 load, as canonical text: the C#'s `SavedGame.Load` must load the sample to the same state.
+
+### logs/
+
+Command logs (`docs/command-log.md`), which the C# replays to every checkpoint, each laid out a line to each entry and
+each checkpoint, so a diff shows which moved:
+
+- `<fixture>.log.json`: the log `npm run fixtures` exports for a fixture, with its golden hashes as its checkpoints.
+  While the disasters' triggers are stand-ins in `server/Micropolis.Rules/PortStandIns.cs`, which throw, and the C#
+  runs no sprite, a log is written for each fixture whose golden run creates no sprite, which the runs check, and
+  that triggers no disaster. Porting them removes the filter, and every fixture's log is written.
+- `suburbMidRun.log.json`: the suburb's log with commands sent partway through its run, which no fixture's log has,
+  since a fixture's commands all precede its first step: tool commands, and a step that pauses the city, takes a
+  command and resumes it. Its checkpoints are the TypeScript replay's state hash where it starts, at each step that
+  applies commands, after them, and at its last step, so a command applied a step early or late moves the hash at its
+  own step. The generator fails unless each of those commands applies.
+
+The generator reads each file back as a replayer reads it, and fails unless it replays to every checkpoint. It fails
+too unless one log starts from a seed and another from a save.
+`npm run simulate -- --log conformance/logs/<name>.log.json` replays one headless.
+
+`ConformanceLogs` reads the logs as `parseLog` does, but more strictly, as the readers of the other files here read
+theirs: it refuses a key the format doesn't define, and a `level` beside a `save`, which `parseLog` ignores.
+`LogReplayTests` replays every log in the directory through `LogReplayer`, as the headless runner replays one: from a
+new city on the seed's map, at the log's level and medium speed, or from its save, it applies each step's commands
+through `Simulation.ApplyCommands`, checks the step's checkpoints, then takes the step. A difference names the first
+checkpoint whose state hash differs, or the step at which the log has a paused city step. A command's result is held
+by `commands.json`, since a checkpoint can't tell one rejection from another.
 
 ### snapshots/
 
