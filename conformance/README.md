@@ -31,8 +31,8 @@ Seeds and 32-bit words are hex strings, as the C reference prints them.
 ## Files the TypeScript reference writes
 
 `generate.ts` writes `tiles.json`, `canonicalJson.json`, `maps.json`, `saveStrings.json`, `messages.json`,
-`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/`, `logs/`, `snapshots/` and `runs/` from the
-TypeScript game rules. Regenerate them in the commit that changes what they are computed from:
+`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/`, `logs/`, `snapshots/`, `runs/` and `traces/`
+from the TypeScript game rules. Regenerate them in the commit that changes what they are computed from:
 
 ```bash
 npm run conformance
@@ -184,10 +184,8 @@ load, as canonical text: the C#'s `SavedGame.Load` must load the sample to the s
 Command logs (`docs/command-log.md`), which the C# replays to every checkpoint, each laid out a line to each entry and
 each checkpoint, so a diff shows which moved:
 
-- `<fixture>.log.json`: the log `npm run fixtures` exports for a fixture, with its golden hashes as its checkpoints.
-  While the disasters' triggers are stand-ins in `server/Micropolis.Rules/PortStandIns.cs`, which throw, and the C#
-  runs no sprite, a log is written for each fixture whose golden run creates no sprite, which the runs check, and
-  that triggers no disaster. Porting them removes the filter, and every fixture's log is written.
+- `<fixture>.log.json`: the log `npm run fixtures` exports for each fixture, with its golden hashes as its
+  checkpoints.
 - `suburbMidRun.log.json`: the suburb's log with commands sent partway through its run, which no fixture's log has,
   since a fixture's commands all precede its first step: tool commands, and a step that pauses the city, takes a
   command and resumes it. Its checkpoints are the TypeScript replay's state hash where it starts, at each step that
@@ -225,9 +223,11 @@ their modules, `FAMILIES` in `unitSnapshots.ts` and `Simulation.HandlerFamilies`
 the disasters, the names are `spriteManager.makeExplosion` and `disasterManager.doMeltdown`.
 
 These names are the contract between the two sides: a unit the C# has no port of is a stub that throws
-`NotPortedException` with the unit's name, and a record names every unit it reached. One stub is outside it:
-`spriteManager.moveObjects`, which the step loop calls and no unit does, throws for a city with sprites, and the
-snapshots come from cities without them.
+`NotPortedException` with the unit's name, and a record names every unit it reached. A record whose call reaches the
+disasters or a transport handler, such as phase 15's or a map scan's over a rail tile, holds the C# to them as to any
+other unit. The sprites' moves are no unit, since the step makes them outside the phases: the traces prove them, and
+call the disasters and the transport handlers directly besides, for runs too long for snapshots, which keep the whole
+state before and after each call.
 
 #### Records
 
@@ -322,11 +322,11 @@ values, and for an entry of the tiles, a block map or the power grid, the tile's
 passes when nothing differs. It is inconclusive when the run stops at a stub the TypeScript's call reached, the unit
 itself or one in `reached`, and fails when it stops at any other stub: the C# called what the TypeScript did not.
 
-What is ported is held to passing. `UnitSnapshotTests` lists the units, handlers and sprite or disaster functions not
-yet ported, and fails unless the list names exactly the stubs in `server/Micropolis.Rules`, each of which names its
-unit in a string literal, `new NotPortedException("census.take10Census")`: a port removes its units from it, and a
-stub that comes back fails rather than turning its records inconclusive. Every record whose call reaches no listed
-unit, the unit itself included, must pass.
+What is ported is held to passing. `UnitSnapshotTests` lists the units and handlers not yet ported, and fails unless
+the list names exactly the stubs in `server/Micropolis.Rules`, each of which names its unit in a string literal,
+`new NotPortedException("census.take10Census")`: a port removes its units from it, and a stub that comes back fails
+rather than turning its records inconclusive. Every record whose call reaches no listed unit, the unit itself included,
+must pass.
 
 ### runs/
 
@@ -363,3 +363,38 @@ difference names the first event that differs, with its step, or the first check
 diverges is diagnosed with the unit snapshots: a record whose unit fails names the unit, key and tile. When every
 unit's snapshots pass and a run still diverges, the gap is in the snapshots, which don't reach the branch the run
 does, or in the integration, how the cycle calls the units; a point recorded at the step the run names tells which.
+
+### traces/
+
+Traces: a fixture's saved city, then a run of calls into the sprites, the disasters and the transport handlers, each
+with the state hash after it and the events it emitted. `traces.ts` records them, and says which calls each makes. A
+unit snapshot keeps the whole state before and after one call; a trace keeps a hash, so it affords thousands of calls,
+the sprites' moves among them, and a mismatch names the first call after which the states differ.
+
+Each file is `<name>.json.gz`: gzip over the canonical text of one trace, an object of:
+
+- `name`, and `fixture` and `point`: the fixture's save in `saves/`, `built` or `run`, the city starts from.
+- `changes`: keys of the save, as dotted paths, set to the values given before the city is built from it, such as
+  `disasters.disastersEnabled`, `sprites.list` set to `[]` to clear the sprites in flight, or set to sprites placed
+  where they collide.
+- `tiles`: tiles of the saved map, each an object of `x`, `y` and `value`, the raw value it is set to after the
+  changes, for a layout no fixture builds, such as a loop of rail or a channel alone on an edge of the map.
+- `calls`: each an object of `unit` and `args`, the call; `hash`, the first 12 hex digits of the state hash
+  (`docs/state-hash.md`) after it; and `events`, every event `Simulation` emitted during it, as a snapshot record holds
+  them. The units are `spriteManager.moveObjects`, the pass of the sprites a step makes; the disasters, by their
+  function, `disasterManager.makeEarthquake` and the rest, with `disasterManager.doDisasters` taking the game level as
+  its argument; `spriteManager.makeMonster`, `makeMonsterAt`, `makeTornado` and `makeExplosion`; and the transport
+  handlers, `transport.railFound`, `portFound` and `airportFound`, each with the tile it is found on.
+
+A trace sets off a disaster by calling the disaster manager's or the sprite manager's own function directly, where a
+command log sends a `triggerDisaster` command, so the trigger's own code is compared. Each trace is built for the
+branches it names in `traces.ts`, and runs until what shows them has happened: a train turning both ways and crossing a
+bridge, the vehicles a monster stands on crashing, each random disaster drawn. The generator fails when a trace would
+not reach what it is for, when a unit is called by no trace, and when the gzipped files take more than 1 MB. It checks
+what a trace reaches by what the city shows, never by the C#: whether every branch of the C# is reached is for a
+coverage run of `TraceTests` to show.
+
+The C# side, `TraceTests`, replays each trace through `TraceRunner`: it builds the city from the save with the
+changes and the tiles, makes each call from a table with a case per unit name, and fails naming the first call whose
+hash or events differ from the TypeScript's. It compares the hash after every call, since a state may differ for one
+call only, such as the frame a train shows on a bend.

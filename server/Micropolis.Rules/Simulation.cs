@@ -119,8 +119,8 @@ namespace Micropolis.Rules
             Random = RandomStream.SimulationStream(seed);
             BlockMaps = new BlockMaps(map.Width, map.Height);
             PowerManager = new PowerManager(map);
-            SpriteManager = new SpriteManager(map);
-            DisasterManager = new DisasterManager(map, Random);
+            SpriteManager = new SpriteManager(map, Random);
+            DisasterManager = new DisasterManager(map, SpriteManager, Random);
             MapScanner = new MapScanner(map);
             RepairManager = new RepairManager(map);
             TrafficManager = new Traffic(map, SpriteManager, Random);

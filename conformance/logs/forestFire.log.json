@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "description": "Seed 8's map with two fires set and nothing built",
+  "seed": 8,
+  "level": 0,
+  "entries": [
+    {"step":0,"player":"local","command":{"type":"triggerDisaster","kind":"fire"}},
+    {"step":0,"player":"local","command":{"type":"triggerDisaster","kind":"fire"}}
+  ],
+  "checkpoints": [
+    {"step":0,"hash":"46ab566ecdb9905ee982fc254789c6d86b7e66b579b1cb26e7ffdc97e709c4ec"},
+    {"step":6912,"hash":"9d8d06cd17af0e6742db35bbf1af2430180456c1c4361ccd85ccbda75953907b"}
+  ]
+}

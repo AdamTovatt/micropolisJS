@@ -86,20 +86,22 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEqual(new[] { "{\"month\":1,\"year\":1900}" }, events);
         }
 
-        // The sprites aren't ported: a city with sprites stops at the seam on a step that runs no phase
+        // A step that runs no phase moves the sprites, on every step whatever the speed
         [TestMethod]
-        public void Step_CityWithSprites_ThrowsNamingMoveObjects()
+        public void Step_CityWithSprites_MovesThem()
         {
             Simulation city = City("town", "run");
             Simulation gate = City("town", "run");
+            long spriteCycle = city.SpriteManager.SpriteCycle;
+            string sprites = CanonicalJson.Write(city.Save()["sprites"]!["list"]!);
 
             Assert.IsNotEmpty(city.SpriteManager.SpriteList);
-            Assert.IsFalse(gate.TakeSpeedCycle(), "The step runs a phase, which would stop first at another unit.");
+            Assert.IsFalse(gate.TakeSpeedCycle(), "The step runs a phase, which may stop at a unit not yet ported.");
 
-            NotPortedException exception = Assert.ThrowsExactly<NotPortedException>(city.Step);
+            city.Step();
 
-            Assert.AreEqual("spriteManager.moveObjects", exception.Unit);
-            StringAssert.Contains(exception.Message, "spriteManager.moveObjects");
+            Assert.AreEqual(spriteCycle + 1, city.SpriteManager.SpriteCycle);
+            Assert.AreNotEqual(sprites, CanonicalJson.Write(city.Save()["sprites"]!["list"]!));
         }
 
         [TestMethod]

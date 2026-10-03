@@ -24,8 +24,6 @@ namespace Micropolis.Rules.Tests
     [TestClass]
     public sealed class SavedGameTests
     {
-        private const string AwaitingBudgetSample = "version7AwaitingBudget.json";
-
         public static IEnumerable<object[]> Samples => Directory.GetFiles(RepositoryFiles.GetPath("conformance/saveVersions"), "*.json")
             .Order(StringComparer.Ordinal)
             .Select(path => new object[] { Path.GetFileName(path) });
@@ -35,20 +33,7 @@ namespace Micropolis.Rules.Tests
         public void Load_SampleSave_IsTheStateTypeScriptMigratesItTo(string fileName)
         {
             string expected = ConformanceFile.Read($"migrated/{fileName}");
-            Simulation city;
-            string name;
-
-            try
-            {
-                city = SavedGame.Load(ConformanceFile.Read($"saveVersions/{fileName}"), out name);
-            }
-            catch (NotPortedException exception) when (fileName == AwaitingBudgetSample && exception.Unit == "budget.doBudgetNow")
-            {
-                // The one sample whose migration runs a game rule, the year end, which another lane ports. The stand-in
-                // that throws here goes when that lane merges (PortStandInsTests), and the sample is held then.
-                Assert.Inconclusive($"{exception.Unit} is not ported yet.");
-                return;
-            }
+            Simulation city = SavedGame.Load(ConformanceFile.Read($"saveVersions/{fileName}"), out string name);
 
             Assert.AreEqual("Sample", name);
             JsonObject state = city.Save();

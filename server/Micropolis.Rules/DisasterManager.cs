@@ -16,7 +16,8 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The disasters' state: how long a flood has left, and whether random disasters happen.
+    /// The disasters, as <c>src/disasterManager.js</c> brings them after the original's disasters.cpp, and their state:
+    /// how long a flood has left, and whether random disasters happen.
     /// </summary>
     public sealed class DisasterManager
     {
@@ -24,12 +25,18 @@ namespace Micropolis.Rules
         private static readonly int[] Dx = [0, 1, 0, -1];
         private static readonly int[] Dy = [-1, 0, 1, 0];
 
+        // The maximum of the draw a disaster needs a 0 from, at each level: getRandom includes its maximum, so the
+        // chance is one in one more than these
+        private static readonly int[] DisChance = [10 * 48, 5 * 48, 60];
+
         private readonly GameMap _map;
+        private readonly SpriteManager _spriteManager;
         private readonly RandomStream _random;
 
-        public DisasterManager(GameMap map, RandomStream random)
+        public DisasterManager(GameMap map, SpriteManager spriteManager, RandomStream random)
         {
             _map = map;
+            _spriteManager = spriteManager;
             _random = random;
         }
 
@@ -46,8 +53,8 @@ namespace Micropolis.Rules
         internal EventEmitter Events { get; } = new EventEmitter();
 
         /// <summary>
-        /// Phase 15's disasters: a flood runs down, and with disasters enabled one may strike, which needs the sprites
-        /// and isn't ported.
+        /// Phase 15's disasters: a flood runs down, and with disasters enabled one may strike: of the nine draws, two
+        /// a fire, two a flood, one a tornado, one an earthquake, two a monster if the city is polluted, and one none.
         /// </summary>
         public void DoDisasters(Level gameLevel, Census census)
         {
@@ -62,7 +69,190 @@ namespace Micropolis.Rules
                 return;
             }
 
-            throw new NotPortedException("disasterManager.doDisasters");
+            if (_random.GetRandom(DisChance[(int)gameLevel]) != 0)
+            {
+                return;
+            }
+
+            switch (_random.GetRandom(8))
+            {
+                case 0:
+                case 1:
+                    SetFire();
+                    break;
+
+                case 2:
+                case 3:
+                    MakeFlood();
+                    break;
+
+                case 5:
+                    _spriteManager.MakeTornado();
+                    break;
+
+                case 6:
+                    MakeEarthquake();
+                    break;
+
+                case 7:
+                case 8:
+                    if (census.PollutionAverage > 60)
+                    {
+                        _spriteManager.MakeMonster();
+                    }
+
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// The random fire: one tile drawn at random, which burns if it is a building, but no zone's centre.
+        /// </summary>
+        public void SetFire()
+        {
+            int x = _random.GetRandom(_map.Width - 1);
+            int y = _random.GetRandom(_map.Height - 1);
+            Tile tile = _map.GetTile(x, y);
+
+            if (!tile.IsZone())
+            {
+                int tileValue = tile.GetValue();
+                if (tileValue > TileValues.LHTHR && tileValue < TileValues.LASTZONE)
+                {
+                    _map.SetTo(x, y, TileUtils.RandomFire(_random));
+                    Events.Emit(Messages.FIRE_REPORTED, new JsonObject { ["showable"] = true, ["x"] = x, ["y"] = y });
+                }
+            }
+        }
+
+        /// <summary>
+        /// The fire the player sets: up to 40 tiles drawn at random until one burns, which must be flammable, past the
+        /// trees, and no zone's centre. The original reports it without a picture.
+        /// </summary>
+        public void MakeFire()
+        {
+            for (int i = 0; i < 40; i++)
+            {
+                int x = _random.GetRandom(_map.Width - 1);
+                int y = _random.GetRandom(_map.Height - 1);
+                Tile tile = _map.GetTile(x, y);
+
+                if (!tile.IsZone() && tile.IsCombustible())
+                {
+                    int tileValue = tile.GetValue();
+                    if (tileValue > TileValues.TREEBASE && tileValue < TileValues.LASTZONE)
+                    {
+                        _map.SetTo(x, y, TileUtils.RandomFire(_random));
+                        Events.Emit(Messages.FIRE_REPORTED, new JsonObject { ["x"] = x, ["y"] = y });
+                        return;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// The plane crash the player sets off: the plane in the air, or a new one over the land away from the map's
+        /// edges, crashes. The original's engine has no crash; this is MakeAirCrash from its older C version.
+        /// </summary>
+        public void MakeCrash()
+        {
+            if (_spriteManager.GetSprite(SpriteType.Airplane) is null)
+            {
+                int x = _random.GetRandom(_map.Width - 20) + 10;
+                int y = _random.GetRandom(_map.Height - 10) + 5;
+                _spriteManager.GeneratePlane(x, y);
+            }
+
+            _spriteManager.ExplodeSprite(_spriteManager.GetSprite(SpriteType.Airplane)!);
+        }
+
+        /// <summary>
+        /// The meltdown the player sets off, of the first nuclear plant found, column by column.
+        /// </summary>
+        public void MakeMeltdown()
+        {
+            for (int x = 0; x < _map.Width - 1; x++)
+            {
+                for (int y = 0; y < _map.Height - 1; y++)
+                {
+                    if (_map.GetTileValue(x, y) == TileValues.NUCLEAR)
+                    {
+                        DoMeltdown(x, y);
+                        return;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// An earthquake, of a strength drawn first: each of that many tiles drawn at random, if a building but no
+        /// zone's centre, falls to rubble three times in four, and catches fire the fourth. The original's doEarthquake,
+        /// which shakes the screen, is the client's to do on the news.
+        /// </summary>
+        public void MakeEarthquake()
+        {
+            int strength = _random.GetRandom(700) + 300;
+
+            Events.Emit(Messages.EARTHQUAKE,
+                        new JsonObject { ["showable"] = true, ["x"] = _map.CityCentreX, ["y"] = _map.CityCentreY });
+
+            for (int i = 0; i < strength; i++)
+            {
+                int x = _random.GetRandom(_map.Width - 1);
+                int y = _random.GetRandom(_map.Height - 1);
+
+                if (Vulnerable(_map.GetTile(x, y)))
+                {
+                    _map.SetTo(x, y, (i & 3) != 0 ? TileUtils.RandomRubble(_random) : TileUtils.RandomFire(_random));
+                }
+            }
+        }
+
+        /// <summary>
+        /// A flood from up to 300 tiles drawn at random: the first river edge drawn floods the first neighbour that is
+        /// bare dirt, or bulldozable and flammable, and the flood lasts 30 passes of phase 15.
+        /// </summary>
+        public void MakeFlood()
+        {
+            for (int i = 0; i < 300; i++)
+            {
+                int x = _random.GetRandom(_map.Width - 1);
+                int y = _random.GetRandom(_map.Height - 1);
+                int tileValue = _map.GetTileValue(x, y);
+
+                if (tileValue > TileValues.CHANNEL && tileValue <= TileValues.WATER_HIGH)
+                {
+                    for (int j = 0; j < 4; j++)
+                    {
+                        int xx = x + Dx[j];
+                        int yy = y + Dy[j];
+
+                        if (!_map.TestBounds(xx, yy))
+                        {
+                            continue;
+                        }
+
+                        Tile tile = _map.GetTile(xx, yy);
+
+                        // As in the original, only dirt without flags counts as dirt
+                        if (tile.GetRawValue() == TileValues.DIRT || (tile.IsBulldozable() && tile.IsCombustible()))
+                        {
+                            _map.SetTile(xx, yy, TileValues.FLOOD, TileFlags.NOFLAGS);
+                            FloodCount = 30;
+                            Events.Emit(Messages.FLOODING_REPORTED, new JsonObject { ["showable"] = true, ["x"] = xx, ["y"] = yy });
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // A building, but no zone's centre
+        private static bool Vulnerable(Tile tile)
+        {
+            int tileValue = tile.GetValue();
+
+            return tileValue >= TileValues.RESBASE && tileValue <= TileValues.LASTZONE && !tile.IsZone();
         }
 
         /// <summary>
@@ -111,11 +301,49 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// A nuclear plant's meltdown, a disaster, which creates sprites: it isn't ported, so it throws.
+        /// The meltdown of the nuclear plant centred at (x, y): an explosion at each corner, the whole plant on fire,
+        /// and radiation on flammable tiles and bare dirt among 200 drawn around it, but on no zone's centre.
         /// </summary>
         public void DoMeltdown(int x, int y)
         {
-            throw new NotPortedException("disasterManager.doMeltdown");
+            _spriteManager.MakeExplosion(x - 1, y - 1);
+            _spriteManager.MakeExplosion(x - 1, y + 2);
+            _spriteManager.MakeExplosion(x + 2, y - 1);
+            _spriteManager.MakeExplosion(x + 2, y + 2);
+
+            for (int dX = x - 1; dX < x + 3; dX++)
+            {
+                for (int dY = y - 1; dY < y + 3; dY++)
+                {
+                    _map.SetTo(dX, dY, TileUtils.RandomFire(_random));
+                }
+            }
+
+            for (int i = 0; i < 200; i++)
+            {
+                int dX = x - 20 + _random.GetRandom(40);
+                int dY = y - 15 + _random.GetRandom(30);
+
+                if (!_map.TestBounds(dX, dY))
+                {
+                    continue;
+                }
+
+                Tile tile = _map.GetTile(dX, dY);
+
+                if (tile.IsZone())
+                {
+                    continue;
+                }
+
+                // As in the original, only dirt without flags counts as dirt
+                if (tile.IsCombustible() || tile.GetRawValue() == TileValues.DIRT)
+                {
+                    _map.SetTile(dX, dY, TileValues.RADTILE, TileFlags.NOFLAGS);
+                }
+            }
+
+            Events.Emit(Messages.NUCLEAR_MELTDOWN, new JsonObject { ["showable"] = true, ["x"] = x, ["y"] = y });
         }
 
         internal void Save(JsonObject saveData)

@@ -74,6 +74,10 @@ var portFound = function(map, x, y, simData) {
 
 
 var Transport = {
+  railFound: railFound,
+  portFound: portFound,
+  airportFound: airportFound,
+
   registerHandlers: function(mapScanner, repairManager) {
     mapScanner.addAction(TileUtils.isRail, railFound);
     mapScanner.addAction(TileValues.PORT, portFound);

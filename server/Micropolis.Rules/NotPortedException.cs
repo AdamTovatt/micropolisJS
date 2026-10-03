@@ -28,8 +28,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// The unit's TypeScript name, its module and function as <c>src/</c> names them, such as
         /// <c>census.take10Census</c> or <c>residential.residentialFound</c>: the name a unit snapshot records it under,
-        /// for every unit a snapshot can reach. <c>spriteManager.moveObjects</c>, which the step loop calls, is outside
-        /// the snapshots: they are recorded from cities without sprites, where moving them does nothing.
+        /// for every unit a snapshot can reach.
         /// </summary>
         public string Unit { get; }
     }

@@ -44,12 +44,12 @@ import * as TileFlags from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import * as TileValues from "../src/tileValues";
 import { Traffic } from "../src/traffic.js";
-import { isRecord } from "../src/validation";
 import { ZoneUtils } from "../src/zoneUtils.js";
 import { CityRun, describeStart, recordRun, RunStart } from "./cityRuns";
 import { COMMAND_CASES } from "./commandCases";
 import { Internals } from "./instrumentation";
 import { COMMAND_POINTS, SNAPSHOT_POINTS } from "./snapshotPoints";
+import { recordTraces } from "./traces";
 import {
   COMMAND_UNIT, recordCommandSnapshots, recordSnapshots, recordSpeed, SnapshotRecord, UNIT_NAMES,
 } from "./unitSnapshots";
@@ -905,14 +905,6 @@ const REJECTION_REASONS = [
 
 const LOGS_DIRECTORY = "logs";
 
-// Whether the C# can replay a fixture's log while the disasters' triggers are stand-ins (PortStandIns.cs) and it runs
-// no sprite: the log of a sprite-free fixture, whose golden run the runs check creates no sprite, that triggers no
-// disaster. The filter goes once those are ported, and every fixture's log is written.
-function replayableWithoutSpritesOrDisasters(name: string): boolean {
-  return spriteFreeFixtureNames().includes(name) &&
-         !fixtureLog(name).entries.some((entry) => isRecord(entry.command) && entry.command.type === "triggerDisaster");
-}
-
 // A log that is no fixture's: the suburb's, with commands sent partway through its run, as a fixture's log, whose
 // commands all precede its first step, never has. One step pauses the city, takes a command and resumes it.
 const MID_RUN_LOG = "suburbMidRun";
@@ -972,8 +964,7 @@ function logLines(log: CommandLog): string[] {
 async function writeLogs(): Promise<void> {
   fs.mkdirSync(path.join(CONFORMANCE_DIRECTORY, LOGS_DIRECTORY));
 
-  const logs: [string, CommandLog][] = fixtureNames().filter(replayableWithoutSpritesOrDisasters)
-    .map((name) => [name, fixtureLog(name)]);
+  const logs: [string, CommandLog][] = fixtureNames().map((name) => [name, fixtureLog(name)]);
   logs.push([MID_RUN_LOG, await midRunLog()]);
 
   for (const [name, log] of logs) {
@@ -1086,6 +1077,35 @@ async function writeRuns(seeds: number[]): Promise<void> {
   writeFile(path.join(RUNS_DIRECTORY, RUN_INDEX), ["{", ...listLines("runs", index, true), "}"]);
 }
 
+// --- traces/: calls into the sprites, the disasters and the transport handlers, gzipped, from the fixtures' saves
+
+const TRACES_DIRECTORY = "traces";
+
+// What the traces may take in the repository, compressed
+const TRACE_LIMIT = 1024 * 1024;
+
+async function writeTraces(): Promise<void> {
+  const directory = path.join(CONFORMANCE_DIRECTORY, TRACES_DIRECTORY);
+  fs.mkdirSync(directory, {recursive: true});
+
+  const traces = await recordTraces(writtenSave);
+  const files = new Set(traces.map((trace) => `${trace.name}.json.gz`));
+
+  let size = 0;
+  for (const trace of traces) {
+    size += writeGzipped(path.join(TRACES_DIRECTORY, `${trace.name}.json.gz`), canonicalJson(trace));
+  }
+
+  ensureCovers(size <= TRACE_LIMIT, `its traces in ${TRACE_LIMIT} bytes: they take ${size}`);
+
+  // A file no trace writes any more is gone
+  for (const entry of fs.readdirSync(directory)) {
+    if (!files.has(entry)) {
+      fs.rmSync(path.join(directory, entry));
+    }
+  }
+}
+
 // The files in conformance/ another program writes: random.c writes random.json
 const WRITTEN_ELSEWHERE = new Set(["random.json"]);
 
@@ -1118,6 +1138,7 @@ async function main() {
   await writeLogs();
   await writeSnapshots();
   await writeRuns(maps.map((map) => map.seed));
+  await writeTraces();
 }
 
 main().catch((error: Error) => {

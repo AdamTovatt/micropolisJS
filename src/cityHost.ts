@@ -68,7 +68,7 @@ interface HostedSprite {
 // The news the simulation sends: where it happened is a place, or a sprite to follow
 interface SimulationNews {
   subject: string;
-  data?: {x: number, y: number, showable?: true, trackable?: true, sprite?: {type: number}};
+  data?: {x: number, y: number, showable?: true, trackable?: true, sprite?: number};
 }
 
 // The news as the client reads it: a sprite to follow is named by its type, of which the map holds at most one
@@ -79,7 +79,7 @@ export function newsMessage(news: SimulationNews): NewsMessage {
   }
 
   if (data.trackable) {
-    return {type: "news", subject: news.subject, data: {x: data.x, y: data.y, trackable: true, sprite: data.sprite!.type}};
+    return {type: "news", subject: news.subject, data: {x: data.x, y: data.y, trackable: true, sprite: data.sprite!}};
   }
 
   if (data.showable) {

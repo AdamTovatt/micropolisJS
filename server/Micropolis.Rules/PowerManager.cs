@@ -211,7 +211,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Counts a nuclear plant and pushes it as a power source, leaving its tiles as they are, unless disasters are
-        /// enabled and it melts down, a disaster that isn't ported.
+        /// enabled and it melts down.
         /// </summary>
         public void NuclearPowerFound(GameMap map, int x, int y, SimData simData)
         {

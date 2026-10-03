@@ -29,20 +29,6 @@ namespace Micropolis.Rules.Tests
         // be inconclusive, and every other record must pass. A port removes its units from the list.
         private static readonly IReadOnlySet<string> NotYetPorted = new HashSet<string>
         {
-            "disasterManager.doDisasters",
-            "disasterManager.doMeltdown",
-            "disasterManager.makeCrash",
-            "disasterManager.makeEarthquake",
-            "disasterManager.makeFire",
-            "disasterManager.makeFlood",
-            "disasterManager.makeMeltdown",
-            "spriteManager.makeExplosion",
-            "spriteManager.makeMonster",
-            "spriteManager.makeTornado",
-            "spriteManager.moveObjects",
-            "transport.airportFound",
-            "transport.portFound",
-            "transport.railFound",
         };
 
         public static IEnumerable<object[]> AllSnapshots => Snapshots.Select(snapshot => new object[] { snapshot });
@@ -140,25 +126,6 @@ namespace Micropolis.Rules.Tests
             record["events"]!.AsArray().Add(new JsonObject { ["name"] = Messages.VALVES_UPDATED });
 
             StringAssert.Contains(UnitSnapshotRunner.Run(record).Difference, "Event 0 differs: expected {\"name\":\"Valves updated\"}, was no event");
-        }
-
-        // A stub the TypeScript's call never reached means the C# called what it should not have: a failure, never
-        // an inconclusive result. Every recorded city has random disasters off, so phase 15 run with them on reaches a
-        // stub that no record does, as long as random disasters are one; the record then claims to reach nothing.
-        [TestMethod]
-        public void AssertMatches_StubReachedThatTheTypeScriptDidNotReach_Fails()
-        {
-            Assert.Contains("disasterManager.doDisasters", NotYetPorted,
-                            "Random disasters are ported: this test needs another stub no recorded city reaches.");
-
-            JsonObject stopped = Snapshots.Where(snapshot => snapshot.Unit == "simulation._simulate")
-                .Select(UnitSnapshots.ReadRecord)
-                .First(record => (int)record["before"]!["simulation"]!["phaseCycle"]! == 15);
-            stopped["before"]!["disasters"]!["disastersEnabled"] = true;
-            stopped["reached"] = new JsonArray();
-
-            Assert.AreEqual("disasterManager.doDisasters", UnitSnapshotRunner.Run(stopped).NotPorted);
-            Assert.Throws<AssertFailedException>(() => AssertMatches(stopped));
         }
 
         [TestMethod]

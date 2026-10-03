@@ -80,16 +80,18 @@ namespace Micropolis.Rules.Tests
             }
         }
 
-        // An industrial zone with buildings in it sets off an explosion, a sprite, which isn't ported, when it catches
+        // An industrial zone with buildings in it sets off an explosion when it catches, whose hot spot is the middle of
+        // the zone's centre
         [TestMethod]
-        public void FireFound_SpreadingIntoAnIndustrialZone_ThrowsAtTheSpriteSeam()
+        public void FireFound_SpreadingIntoAnIndustrialZone_SetsOffAnExplosionOverItsCentre()
         {
             Simulation city = CityWithAFireBesideAZone(ExplodingIndustrialCentre);
 
-            NotPortedException exception = Assert.Throws<NotPortedException>(() => MiscTiles.FireFound(city.Map, FireX, FireY, city.ConstructSimData()),
-                                                                             $"The stream of seed {SpreadingEastSeed} no longer spreads the fire east into the zone's centre");
+            MiscTiles.FireFound(city.Map, FireX, FireY, city.ConstructSimData());
 
-            Assert.AreEqual("spriteManager.makeExplosion", exception.Unit);
+            List<Sprite> explosions = city.SpriteManager.GetLiveSprites().Where(sprite => sprite.Type == SpriteType.Explosion).ToList();
+            Assert.HasCount(1, explosions, $"The stream of seed {SpreadingEastSeed} no longer spreads the fire east into the zone's centre");
+            Assert.AreEqual((CentreX * 16 + 8, CentreY * 16 + 8), (explosions[0].X + explosions[0].XHot, explosions[0].Y + explosions[0].YHot));
         }
 
         // The same fire, drawing from the same stream, sets an empty residential zone on fire, which doesn't explode: its
@@ -108,18 +110,25 @@ namespace Micropolis.Rules.Tests
             Assert.IsTrue(Unreached.All(tile => city.Map.GetTile(tile.X, tile.Y).IsBulldozable()));
         }
 
-        // A nuclear plant melting down is a disaster, which needs the sprites, so it stops there
+        // A nuclear plant melting down explodes at its four corners and burns from end to end
         [TestMethod]
-        public void NuclearPowerFound_MeltingDown_ThrowsAtTheDisasterSeam()
+        public void NuclearPowerFound_MeltingDown_ExplodesAndBurnsThePlant()
         {
             Simulation city = FixtureCities.City("suburb", "built");
             city.Map.PutZone(CentreX, CentreY, NUCLEAR, 4);
             city.DisasterManager.DisastersEnabled = true;
             city.Random.SetState(RandomStream.SimulationStream(MeltdownSeed).GetState());
 
-            NotPortedException exception = Assert.Throws<NotPortedException>(() => city.PowerManager.NuclearPowerFound(city.Map, CentreX, CentreY, city.ConstructSimData()));
+            city.PowerManager.NuclearPowerFound(city.Map, CentreX, CentreY, city.ConstructSimData());
 
-            Assert.AreEqual("disasterManager.doMeltdown", exception.Unit);
+            Assert.HasCount(4, city.SpriteManager.GetLiveSprites().Where(sprite => sprite.Type == SpriteType.Explosion).ToList());
+            for (int x = CentreX - 1; x < CentreX + 3; x++)
+            {
+                for (int y = CentreY - 1; y < CentreY + 3; y++)
+                {
+                    Assert.IsTrue(TileUtils.IsFire(city.Map.GetTileValue(x, y)), $"The plant's tile at ({x}, {y})");
+                }
+            }
         }
 
         // Phase 15 counts a flood down, and with disasters disabled draws no disaster
@@ -133,17 +142,17 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(FloodCycles - 1, city.DisasterManager.FloodCount);
         }
 
-        // With disasters enabled it counts the flood down, then would draw a random disaster, which needs the sprites, so
-        // it stops there
+        // With disasters enabled it counts the flood down, then draws for a random disaster
         [TestMethod]
-        public void DoDisasters_FloodRunningWithDisastersEnabled_CountsItDownThenThrows()
+        public void DoDisasters_FloodRunningWithDisastersEnabled_CountsItDownThenDrawsForADisaster()
         {
             Simulation city = CityWithAFlood(disastersEnabled: true);
+            uint[] before = city.Random.GetState();
 
-            NotPortedException exception = Assert.Throws<NotPortedException>(() => city.DisasterManager.DoDisasters(city.GameLevel, city.Census));
+            city.DisasterManager.DoDisasters(city.GameLevel, city.Census);
 
-            Assert.AreEqual("disasterManager.doDisasters", exception.Unit);
             Assert.AreEqual(FloodCycles - 1, city.DisasterManager.FloodCount);
+            CollectionAssert.AreNotEqual(before, city.Random.GetState());
         }
 
         private static Simulation CityWithAFireBesideAZone(int zoneCentre)

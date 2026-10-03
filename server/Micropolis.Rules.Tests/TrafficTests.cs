@@ -38,7 +38,7 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void MakeTraffic_TrafficCappedAndADrawOfZero_PointsTheHelicopterAtTheBlock()
         {
-            Sprite helicopter = Drive(SeedWhoseFirstDraw(draw => draw == 0));
+            (Sprite helicopter, _) = Drive(SeedWhoseFirstDraw(draw => draw == 0));
 
             Assert.AreEqual(((long)RoadX << 4, (long)ArrivalY << 4), (helicopter.DestX, helicopter.DestY));
         }
@@ -46,9 +46,9 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void MakeTraffic_TrafficCappedAndADrawOfMoreThanZero_LeavesTheHelicopterAlone()
         {
-            Sprite helicopter = Drive(SeedWhoseFirstDraw(draw => draw != 0));
+            (Sprite helicopter, (long, long) destination) = Drive(SeedWhoseFirstDraw(draw => draw != 0));
 
-            Assert.AreEqual((0L, 0L), (helicopter.DestX, helicopter.DestY));
+            Assert.AreEqual(destination, (helicopter.DestX, helicopter.DestY));
         }
 
         [TestMethod]
@@ -76,8 +76,8 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(inside, range.Contains(tileValue));
         }
 
-        // The helicopter after the drive, from a city whose stream is seeded with the seed
-        private static Sprite Drive(uint seed)
+        // The helicopter after the drive, from a city whose stream is seeded with the seed, and its destination before it
+        private static (Sprite Helicopter, (long, long) Destination) Drive(uint seed)
         {
             GameMap map = new GameMap(120, 100);
             map.SetTile(RoadX, ZoneY - 2, ROADS, 0);
@@ -85,9 +85,11 @@ namespace Micropolis.Rules.Tests
             map.SetTile(RoadX, ArrivalY, ROADS, 0);
             map.SetTile(RoadX, ArrivalY - 1, COMBASE, 0);
 
-            // A live helicopter: frame 0 is a sprite that has died
-            Sprite helicopter = new Sprite { Type = SpriteType.Helicopter, Frame = 1 };
-            SpriteManager spriteManager = new SpriteManager(map) { SpriteList = [helicopter] };
+            // A live helicopter, made from a stream of the sprite manager's own, so the drive's stream is the seed's alone
+            SpriteManager spriteManager = new SpriteManager(map, RandomStream.FromSeed(0));
+            spriteManager.GenerateCopter(0, 0);
+            Sprite helicopter = spriteManager.GetSprite(SpriteType.Helicopter)!;
+            (long, long) destination = (helicopter.DestX, helicopter.DestY);
             BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
             blockMaps.TrafficDensityMap.WorldSet(RoadX, ArrivalY, HeavyTraffic);
 
@@ -96,7 +98,7 @@ namespace Micropolis.Rules.Tests
 
             Assert.AreEqual(TrafficResult.RouteFound, result);
             Assert.AreEqual(Traffic.MaxTrafficDensity, blockMaps.TrafficDensityMap.WorldGet(RoadX, ArrivalY));
-            return helicopter;
+            return (helicopter, destination);
         }
 
         // The first seed whose stream's first draw from five passes the test

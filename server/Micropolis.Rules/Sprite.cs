@@ -30,7 +30,14 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// A sprite's saved state. Its size and drawing offset are fixed by its type, and not saved.
+    /// What a type fixes for every sprite of it: its hot spot, where it collides, crashes and leaves the map, in pixels
+    /// from the sprite's position, as the original's initSprite gives it, and the message that reports its crash, for a
+    /// type that can crash. The size and drawing offset the original also gives are the client's, which draws it.
+    /// </summary>
+    public readonly record struct SpriteTraits(int XHot, int YHot, string? CrashMessage);
+
+    /// <summary>
+    /// A sprite's saved state, at its position in the original's frame. Its traits are its type's, and not saved.
     /// </summary>
     /// <remarks>
     /// The positions and counters have no range the simulation keeps them within, such as a sprite's pixels while it
@@ -38,6 +45,11 @@ namespace Micropolis.Rules
     /// </remarks>
     public sealed class Sprite
     {
+        internal Sprite(SpriteType type)
+        {
+            Type = type;
+        }
+
         public SpriteType Type { get; internal set; }
 
         /// <summary>
@@ -70,28 +82,32 @@ namespace Micropolis.Rules
 
         public long Flag { get; internal set; }
 
+        public SpriteTraits Traits => TraitsOf(Type);
+
         /// <summary>
         /// The pixels across from <see cref="X"/> to the point where the sprite collides, crashes and leaves the map.
         /// </summary>
-        public long XHot => HotSpot.X;
+        public long XHot => Traits.XHot;
 
         /// <summary>
         /// The pixels down from <see cref="Y"/> to the sprite's hot spot.
         /// </summary>
-        public long YHot => HotSpot.Y;
+        public long YHot => Traits.YHot;
 
-        // The hot spot as the original's initSprite gives each type
-        private (long X, long Y) HotSpot => Type switch
+        public static SpriteTraits TraitsOf(SpriteType type)
         {
-            SpriteType.Train => (40, -8),
-            SpriteType.Helicopter => (40, -8),
-            SpriteType.Airplane => (48, 16),
-            SpriteType.Ship => (48, 0),
-            SpriteType.Monster => (40, 16),
-            SpriteType.Tornado => (40, 36),
-            SpriteType.Explosion => (40, 16),
-            _ => throw new InvalidOperationException($"No sprite type {Type}."),
-        };
+            return type switch
+            {
+                SpriteType.Train => new SpriteTraits(40, -8, Messages.TRAIN_CRASHED),
+                SpriteType.Helicopter => new SpriteTraits(40, -8, Messages.HELICOPTER_CRASHED),
+                SpriteType.Airplane => new SpriteTraits(48, 16, Messages.PLANE_CRASHED),
+                SpriteType.Ship => new SpriteTraits(48, 0, Messages.SHIP_CRASHED),
+                SpriteType.Monster => new SpriteTraits(40, 16, null),
+                SpriteType.Tornado => new SpriteTraits(40, 36, null),
+                SpriteType.Explosion => new SpriteTraits(40, 16, null),
+                _ => throw new ArgumentOutOfRangeException(nameof(type), type, "No such sprite type."),
+            };
+        }
 
         internal JsonObject Save()
         {
@@ -116,9 +132,8 @@ namespace Micropolis.Rules
 
         internal static Sprite Load(SavedObject data)
         {
-            return new Sprite
+            return new Sprite(data.ReadEnum<SpriteType>("type"))
             {
-                Type = data.ReadEnum<SpriteType>("type"),
                 Frame = data.ReadSafeInteger("frame"),
                 X = data.ReadSafeInteger("x"),
                 Y = data.ReadSafeInteger("y"),

@@ -217,8 +217,9 @@ SpriteManager.prototype.makeTornado = function() {
   var x = this.random.getRandom(SpriteUtils.worldToPix(this.map.width) - 800) + 400;
   var y = this.random.getRandom(SpriteUtils.worldToPix(this.map.height) - 200) + 100;
 
-  sprite = this.makeSprite(SpriteConstants.SPRITE_TORNADO, x, y);
-  this._emitEvent(Messages.TORNADO_SIGHTED, {trackable: true, x: (x >> 4) + 3, y: (y >> 4) + 2, sprite: sprite});
+  this.makeSprite(SpriteConstants.SPRITE_TORNADO, x, y);
+  this._emitEvent(Messages.TORNADO_SIGHTED,
+                  {trackable: true, x: (x >> 4) + 3, y: (y >> 4) + 2, sprite: SpriteConstants.SPRITE_TORNADO});
 };
 
 
@@ -335,12 +336,13 @@ SpriteManager.prototype.generateCopter = function(x, y) {
 };
 
 
-// The monster rises from the river tile at (x, y), which places its hot spot five tiles east and one south
+// The monster rises from the river tile at (x, y), which places its hot spot five tiles east and one south. A sighting
+// names the sprite to follow by its type, of which the list holds one.
 SpriteManager.prototype.makeMonsterAt = function(x, y) {
-  var sprite = this.makeSprite(SpriteConstants.SPRITE_MONSTER,
+  this.makeSprite(SpriteConstants.SPRITE_MONSTER,
                   SpriteUtils.worldToPix(x) + 48,
                   SpriteUtils.worldToPix(y));
-  this._emitEvent(Messages.MONSTER_SIGHTED, {trackable: true, x: x + 5, y: y, sprite: sprite});
+  this._emitEvent(Messages.MONSTER_SIGHTED, {trackable: true, x: x + 5, y: y, sprite: SpriteConstants.SPRITE_MONSTER});
 };
 
 

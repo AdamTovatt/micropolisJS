@@ -330,7 +330,9 @@ describe("making sprites", () => {
         manager.makeMonster();
 
         expect(types(manager)).toEqual([SpriteConstants.SPRITE_MONSTER]);
-        expect([manager.spriteList[0].count, sightings.length]).toEqual([1000, 1]);
+        expect(manager.spriteList[0].count).toBe(1000);
+        // A sighting names the sprite to follow by its type, which is plain data
+        expect(sightings).toEqual([expect.objectContaining({sprite: SpriteConstants.SPRITE_MONSTER})]);
     });
 
     it("gives a tornado already blowing more time, unannounced, rather than make a second", () => {
@@ -342,7 +344,8 @@ describe("making sprites", () => {
         manager.makeTornado();
 
         expect(types(manager)).toEqual([SpriteConstants.SPRITE_TORNADO]);
-        expect([manager.spriteList[0].count, sightings.length]).toEqual([200, 1]);
+        expect(manager.spriteList[0].count).toBe(200);
+        expect(sightings).toEqual([expect.objectContaining({sprite: SpriteConstants.SPRITE_TORNADO})]);
     });
 });
 
