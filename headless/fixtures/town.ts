@@ -39,7 +39,8 @@ function zoneRow(kinds: string, top: number): Command[] {
   return Array.from(kinds, (kind, i) => buildingAt(ZONE_TOOLS[kind], LEFT + 3 * i + 1, top + 1));
 }
 
-const commands: Command[] = [
+// The commands that build the town, which other fixtures build on
+export const townCommands: Command[] = [
   // The plant's east side touches the north row's first zone
   buildingAt("coal", LEFT - 3, TOP + 1),
   ...zoneRow(NORTH_ROW, TOP),
@@ -60,7 +61,7 @@ const commands: Command[] = [
 
 // Its checkpoints are its golden hashes: the town as built, and after its run
 export const town = builtFixture(
-  "A small powered town of twenty zones, with a coal plant, an airport and a railway", commands, [
+  "A small powered town of twenty zones, with a coal plant, an airport and a railway", townCommands, [
     {step: 0, hash: "2bef2f8f64e1941c8a29b6202fa3dd23c8c0d54f73a37f9a56f50b46959ff2ec"},
     {step: RUN_STEPS, hash: "8abbc233606361020d9ef13643b9759cc2aa993cae85149c3dd1b5d10f5c1644"},
   ]);

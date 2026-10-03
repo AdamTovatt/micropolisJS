@@ -12,12 +12,13 @@
  */
 
 import { CommandLog } from "../../src/commandLog";
+import { broke, underfunded } from "./budgets";
 import { town } from "./town";
 
 // Every fixture, by name. A fixture is a command log: a city built afresh by replaying its commands whenever it is
 // used, so no stored state can go stale when a rule changes. `npm run fixtures` exports each one's log, and its state
 // as built, as JSON, which is never read back.
-const fixtures: Record<string, CommandLog> = {town};
+const fixtures: Record<string, CommandLog> = {broke, town, underfunded};
 
 export function fixtureNames(): string[] {
   return Object.keys(fixtures).sort();
