@@ -11,31 +11,26 @@
  *
  */
 
-function TileHistory() {
-  this.clear();
+// The tile value painted at each position of a view, so an animation can carry on from the frame painted last
+class TileHistory {
+  private data = new Map<string, number>();
+
+  clear(): void {
+    this.data.clear();
+  }
+
+  // The tile painted at the position, or undefined if none was recorded
+  getTile(x: number, y: number): number | undefined {
+    return this.data.get(toKey(x, y));
+  }
+
+  setTile(x: number, y: number, value: number): void {
+    this.data.set(toKey(x, y), value);
+  }
 }
 
-
-var toKey = function(x, y) {
-  return [x, y].join(',');
-};
-
-
-TileHistory.prototype.clear = function() {
-  this.data = {};
-};
-
-
-TileHistory.prototype.getTile = function(x, y) {
-  var key = toKey(x, y);
-  return this.data[key];
-};
-
-
-TileHistory.prototype.setTile = function(x, y, value) {
-  var key = toKey(x, y);
-  this.data[key] = value;
-};
-
+function toKey(x: number, y: number): string {
+  return `${x},${y}`;
+}
 
 export { TileHistory };

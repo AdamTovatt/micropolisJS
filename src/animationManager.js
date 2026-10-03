@@ -12,7 +12,7 @@
  */
 
 import { ANIMBIT, BIT_MASK, POWERBIT, ZONEBIT } from './tileFlags.ts';
-import { TileHistory } from './tileHistory.js';
+import { TileHistory } from './tileHistory.ts';
 import { LIGHTNINGBOLT, TILE_COUNT, TILE_INVALID } from "./tileValues.ts";
 
 
