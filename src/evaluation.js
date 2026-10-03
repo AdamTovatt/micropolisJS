@@ -21,6 +21,11 @@ var NUMPROBLEMS = PROBLEMS.length;
 var NUM_COMPLAINTS = 4;
 var problemData = [];
 
+// The underfunded police and fire cuts divide the funding share by 10.0001 rather than 10, kept to
+// match evaluate.cpp. A product that 10 would make whole comes out just below it, and truncating
+// drops a point: half funding takes a score of 1000 to 949, not 950.
+var SERVICE_CUT_DIVISOR = 10.0001;
+
 
 var Evaluation = EventEmitter(function(random) {
   this._random = random;
@@ -311,12 +316,12 @@ Evaluation.prototype.getScore = function(simData) {
 
   // Penalize player by up to 10% for underfunded police and fire services
   if (budget.policeEffect < budget.MAX_POLICESTATION_EFFECT) {
-    score = Math.trunc(score * (0.9 + (budget.policeEffect / (10 * budget.MAX_POLICESTATION_EFFECT))));
+    score = Math.trunc(score * (0.9 + (budget.policeEffect / (SERVICE_CUT_DIVISOR * budget.MAX_POLICESTATION_EFFECT))));
     recordAdjustment(Evaluation.SCORE_POLICE_FUNDING, score);
   }
 
   if (budget.fireEffect < budget.MAX_FIRESTATION_EFFECT) {
-    score = Math.trunc(score * (0.9 + (budget.fireEffect / (10 * budget.MAX_FIRESTATION_EFFECT))));
+    score = Math.trunc(score * (0.9 + (budget.fireEffect / (SERVICE_CUT_DIVISOR * budget.MAX_FIRESTATION_EFFECT))));
     recordAdjustment(Evaluation.SCORE_FIRE_FUNDING, score);
   }
 

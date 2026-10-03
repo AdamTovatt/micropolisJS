@@ -199,11 +199,14 @@ describe("the city score breakdown", () => {
         // 1000 * (0.95 - 3200 / 9600) = 616.67: 0.95 less the share of last year's people who left
         ["decline from 9600 to 6400 people", [problemFreeYear(240), problemFreeYear(160)],
          Evaluation.SCORE_MIGRATION, 616],
-        // 1000 * (0.9 + 337 / 10000) = 933.7: up to 10% off, in proportion to the funding missing
+        // 1000 * (0.9 + 337 / 10000.1) = 933.7: up to 10% off, in proportion to the funding missing
         ["police funded at 337 of 1000", [problemFreeYear(200, {policeEffect: 337})],
          Evaluation.SCORE_POLICE_FUNDING, 933],
         ["fire funded at 337 of 1000", [problemFreeYear(200, {fireEffect: 337})],
          Evaluation.SCORE_FIRE_FUNDING, 933],
+        // 1000 * (0.9 + 500 / 10000.1) = 949.9995, where a divisor of 10 would give exactly 950
+        ["police funded at half", [problemFreeYear(200, {policeEffect: 500})], Evaluation.SCORE_POLICE_FUNDING, 949],
+        ["fire funded at half", [problemFreeYear(200, {fireEffect: 500})], Evaluation.SCORE_FIRE_FUNDING, 949],
         // 1000 * (2 / 3) = 666.67
         ["2 of 3 zones powered", [problemFreeYear(200, {poweredZones: 2, unpoweredZones: 1})],
          Evaluation.SCORE_UNPOWERED_ZONES, 666],
