@@ -34,7 +34,7 @@ import { SPEEDS } from './protocol.ts';
 import { pageQuerySource } from './querySource.ts';
 import { QueryTool } from './queryTool.ts';
 import { QueryWindow } from './queryWindow.ts';
-import { RCI } from './rci.js';
+import { placeRCI } from './rci.ts';
 import { SaveWindow } from './saveWindow.ts';
 import { ScreenshotLinkWindow } from './screenshotLinkWindow.ts';
 import { ScreenshotWindow } from './screenshotWindow.ts';
@@ -64,7 +64,7 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   this.simulation = simulation;
   this.gameMap = simulation.getMap();
 
-  this.rci = new RCI('RCIContainer', this.simulation);
+  this.rci = placeRCI('RCIContainer', this.simulation);
   this.statusPanel = new StatusPanel('statusPanel', this.simulation);
 
   // Note: must init canvas before inputStatus
