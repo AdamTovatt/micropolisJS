@@ -34,6 +34,9 @@ interface Viewport {
   maxY: number;
 }
 
+// How far the origin may move each way
+type OriginLimits = Pick<Viewport, "minX" | "maxX" | "minY" | "maxY">;
+
 function viewport(canvasWidth: number, canvasHeight: number, tileWidth: number, mapWidth: number, mapHeight: number,
                   allowOffMap: boolean): Viewport {
   // How many tiles fit?
@@ -152,4 +155,4 @@ class ViewPosition {
 }
 
 export { ViewPosition, canvasPointToTile, centredOrigin, viewport };
-export type { PixelPoint, TilePoint, Viewport };
+export type { OriginLimits, PixelPoint, TilePoint, Viewport };

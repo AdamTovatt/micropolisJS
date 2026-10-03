@@ -27,6 +27,9 @@ const STEPS_PER_CITY_TIME = stepsPerCityTime(Simulation.SPEED_MED);
 
 // A game as the hook sees it, around an in-page source and the client's copy of its city. Tool paths the player has
 // drawn wait for the game to send them, as the game's do until its next tick.
+// How far the fake games' views may move
+const LIMITS = {minX: -40, maxX: 79, minY: -30, maxY: 69};
+
 function gameOn(source: PageCitySource, state: CityState) {
     const game = {
         toolPaths: [] as Command[],
@@ -35,7 +38,7 @@ function gameOn(source: PageCitySource, state: CityState) {
         },
         save: () => source.save(),
         onCommandResult: (listener: () => void) => state.on("commandResult", listener),
-        gameCanvas: {getTileOrigin: () => ({x: 3, y: 4})},
+        gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS},
         tileSet: {tileWidth: 16},
     };
 
@@ -47,7 +50,7 @@ const IDLE_GAME = {
     sendToolPaths: () => {},
     save: async () => "",
     onCommandResult: () => {},
-    gameCanvas: {getTileOrigin: () => ({x: 0, y: 0})},
+    gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS},
     tileSet: {tileWidth: 16},
 };
 
@@ -324,6 +327,6 @@ describe("the test hook", () => {
     it("tells where the view is", async () => {
         const {hook} = await holdingGame();
 
-        expect(hook.view()).toEqual({originX: 3, originY: 4, tileWidth: 16});
+        expect(hook.view()).toEqual({originX: 3, originY: 4, limits: LIMITS, tileWidth: 16});
     });
 });

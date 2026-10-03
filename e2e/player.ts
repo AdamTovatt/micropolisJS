@@ -11,10 +11,11 @@
  *
  */
 
-import { errors, expect, Page } from "@playwright/test";
+import { expect, Page } from "@playwright/test";
 import { readFileSync } from "fs";
 
 import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
+import { NOTIFICATION_ELEMENT_ID, NOTIFICATION_SECS } from "../src/notification";
 import type { Advanced, View } from "../src/testHook";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
@@ -42,8 +43,24 @@ export type Difficulty = "Easy" | "Med" | "Hard";
 const CANVAS_ID = "MicropolisCanvas";
 const CANVAS = `#${CANVAS_ID}`;
 
-// The most times showTiles holds a key along one axis
-const MAX_SCROLL_MOVES = 200;
+// The longest waitForTheNotificationToClose waits: the bar's time, and a margin
+const NOTIFICATION_WAIT_MS = (NOTIFICATION_SECS + 10) * 1000;
+
+type Axis = "x" | "y";
+
+// The keys that move the view's origin down and up along each axis
+const SCROLL_KEYS: Record<Axis, {down: string, up: string}> = {
+  x: {down: "ArrowLeft", up: "ArrowRight"},
+  y: {down: "ArrowUp", up: "ArrowDown"},
+};
+
+// The farthest from its stop scrollTo taps a key rather than holding one
+const NEAR_ENOUGH_TO_TAP = 3;
+// The most presses scrollTo makes along one axis, though the farthest scroll across the map holds a key fewer times
+// than the map is wide
+const MAX_SCROLL_PRESSES = 500;
+// The longest a held key may leave the view where it was
+const HOLD_STALL_MS = 1000;
 
 export class Player {
   // Steps taken through the hook since the count was last read
@@ -265,6 +282,14 @@ export class Player {
     }));
   }
 
+  // Waits for the notification bar to close on its own, which it does on wall time: it has no control that closes it,
+  // and a click on it centres the map on the place it names
+  async waitForTheNotificationToClose(): Promise<void> {
+    await expect(this.page.locator(`#${NOTIFICATION_ELEMENT_ID}`),
+                 `the notification bar, which closes ${NOTIFICATION_SECS} seconds after it opens`)
+      .toBeHidden({timeout: NOTIFICATION_WAIT_MS});
+  }
+
   // Applies the commands the input sent at once, rather than on the game's next tick, so the city the runner reads next
   // has them. They apply at the same step either way.
   private async applyInput(): Promise<void> {
@@ -317,30 +342,20 @@ export class Player {
   }
 
   // Scrolls the map with the arrow keys, as a player does, until every tile given is in view and clear of the panels:
-  // first across, then down, until the tiles' middle is near the canvas's or the view can go no further. The view moves
-  // a tile on each tick a key is held, so a key is held until the view moves, then let go.
+  // first across, then down, to the origin that puts the tiles' middle at the canvas's, held within the view's limits.
   async showTiles(tiles: Tile[]): Promise<void> {
-    const middleX = (Math.min(...tiles.map((tile) => tile.x)) + Math.max(...tiles.map((tile) => tile.x))) / 2;
-    const middleY = (Math.min(...tiles.map((tile) => tile.y)) + Math.max(...tiles.map((tile) => tile.y))) / 2;
+    const middle = (along: (tile: Tile) => number) =>
+      (Math.min(...tiles.map(along)) + Math.max(...tiles.map(along))) / 2;
+    const view = await this.view();
+    const canvas = await this.canvasBox();
+    const {minX, maxX, minY, maxY} = view.limits;
+    const stops: Record<Axis, number> = {
+      x: Math.max(minX, Math.min(maxX, Math.floor(middle((tile) => tile.x) - canvas.width / view.tileWidth / 2))),
+      y: Math.max(minY, Math.min(maxY, Math.floor(middle((tile) => tile.y) - canvas.height / view.tileWidth / 2))),
+    };
 
-    for (const axis of ["x", "y"] as const) {
-      // A held key can carry the view past the middle, so the moves are bounded rather than left to settle
-      for (let moves = 0; moves < MAX_SCROLL_MOVES; moves++) {
-        const view = await this.view();
-        const canvas = await this.canvasBox();
-        const origin = axis === "x" ? view.originX : view.originY;
-        const span = (axis === "x" ? canvas.width : canvas.height) / view.tileWidth;
-        const offset = (axis === "x" ? middleX : middleY) - origin - span / 2;
-        if (Math.abs(offset) <= 2) {
-          break;
-        }
-
-        const key = axis === "x" ? (offset < 0 ? "ArrowLeft" : "ArrowRight") : (offset < 0 ? "ArrowUp" : "ArrowDown");
-        if (!(await this.holdUntilTheViewMoves(key, axis, origin))) {
-          break;
-        }
-      }
-    }
+    await this.scrollTo("x", stops.x);
+    await this.scrollTo("y", stops.y);
 
     const hidden = [];
     for (const tile of tiles) {
@@ -354,22 +369,68 @@ export class Player {
     }
   }
 
-  // Holds the key until the view's origin on the axis is no longer the one given, and answers whether it moved: at the
-  // map's edge it never does
-  private async holdUntilTheViewMoves(key: string, axis: "x" | "y", origin: number): Promise<boolean> {
-    await this.page.keyboard.down(key);
-    try {
-      await this.page.waitForFunction(({along, from}) => {
-        const view = window.micropolisTestHook!.view();
-        return (along === "x" ? view.originX : view.originY) !== from;
-      }, {along: axis, from: origin}, {polling: 10, timeout: 1000});
-      return true;
-    } catch (error) {
-      if (error instanceof errors.TimeoutError) {
-        return false;
+  // Scrolls the view along the axis until its origin is the stop given, which is within the view's limits. The view
+  // moves a tile on each of the game's ticks while a key is down, and how many ticks a press spans depends on timing,
+  // so the view is brought to the stop, never moved a number of tiles: it comes to rest there on every run, and the
+  // screenshot that follows shows the same frame. While the view is far from the stop and has not yet passed it, a key
+  // is held until the view moves. Otherwise a key is let go as soon as it is pressed, which moves the view a tile when a
+  // tick falls between and seldom more, so a hold that carried the view past the stop is undone a tile at a time.
+  private async scrollTo(axis: Axis, stop: number): Promise<void> {
+    const start = await this.origin(axis);
+
+    for (let presses = 0; ; presses++) {
+      const origin = await this.origin(axis);
+      if (origin === stop) {
+        return;
       }
 
-      throw error;
+      if (presses === MAX_SCROLL_PRESSES) {
+        throw new Error(`Scrolling along ${axis} never came to rest at ${stop}: after ${presses} presses it is at ` +
+                        `${origin}`);
+      }
+
+      const key = origin > stop ? SCROLL_KEYS[axis].down : SCROLL_KEYS[axis].up;
+      const passed = Math.sign(stop - origin) !== Math.sign(stop - start);
+      if (!passed && Math.abs(stop - origin) > NEAR_ENOUGH_TO_TAP) {
+        await this.holdUntilTheViewMoves(key, axis, origin);
+      } else {
+        await this.page.keyboard.press(key);
+      }
+    }
+  }
+
+  // Holds the key until the page sees the view's origin on the axis move from the one given, then lets it go. The page
+  // looks on a timer of its own, beside the game's ticks, and the key comes up only once its answer has reached the
+  // runner and the runner's key-up has reached the page, so on a loaded machine the view may move several tiles more.
+  // Fails when the view doesn't move at all, as when a window holds the keyboard: the stop is within the view's limits.
+  private async holdUntilTheViewMoves(key: string, axis: Axis, origin: number): Promise<void> {
+    await this.page.keyboard.down(key);
+    try {
+      const moved = await this.page.evaluate(({along, from, stallMs}) => new Promise<boolean>((resolve) => {
+        let stalled = false;
+        const giveUp = window.setTimeout(() => {
+          stalled = true;
+          resolve(false);
+        }, stallMs);
+        const look = () => {
+          if (stalled) {
+            return;
+          }
+
+          const view = window.micropolisTestHook!.view();
+          if ((along === "x" ? view.originX : view.originY) !== from) {
+            window.clearTimeout(giveUp);
+            resolve(true);
+          } else {
+            window.setTimeout(look, 0);
+          }
+        };
+        look();
+      }), {along: axis, from: origin, stallMs: HOLD_STALL_MS});
+
+      if (!moved) {
+        throw new Error(`Holding ${key} left the view's origin at ${origin} along ${axis} for ${HOLD_STALL_MS} ms`);
+      }
     } finally {
       await this.page.keyboard.up(key);
     }
@@ -377,6 +438,11 @@ export class Player {
 
   private async view(): Promise<View> {
     return await this.page.evaluate(() => window.micropolisTestHook!.view());
+  }
+
+  private async origin(axis: Axis): Promise<number> {
+    const view = await this.view();
+    return axis === "x" ? view.originX : view.originY;
   }
 
   private async canvasBox(): Promise<{x: number, y: number, width: number, height: number}> {

@@ -22,7 +22,7 @@ import type { SpriteView } from "./protocol";
 import type { TileSet } from "./tileSet";
 import { TILE_INVALID } from "./tileValues";
 import { ViewPosition, canvasPointToTile, viewport } from "./viewPosition";
-import type { PixelPoint, TilePoint } from "./viewPosition";
+import type { OriginLimits, PixelPoint, TilePoint } from "./viewPosition";
 
 // What the canvas reads of the map
 interface PaintableMap {
@@ -247,6 +247,12 @@ class GameCanvas {
   getMaxTile(): TilePoint {
     this.requireReady();
     return this.position.maxTile;
+  }
+
+  getOriginLimits(): OriginLimits {
+    this.requireReady();
+    const {minX, maxX, minY, maxY} = this.position.viewport;
+    return {minX, maxX, minY, maxY};
   }
 
   canvasCoordinateToTileOffset(x: number, y: number): TilePoint {
