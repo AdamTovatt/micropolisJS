@@ -28,7 +28,7 @@ import { InfoBar } from './infoBar.js';
 import { InputStatus } from './inputStatus.js';
 import * as Messages from './messages.ts';
 import { MonsterTV } from './monsterTV.ts';
-import { Notification } from './notification.js';
+import { placeNotificationBar } from './notification.ts';
 import { OverlayPicker, pageOverlaySource } from './overlayPicker.ts';
 import { SPEEDS } from './protocol.ts';
 import { pageQuerySource } from './querySource.ts';
@@ -169,7 +169,7 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   };
   this.infoBar(this.simulation, initialValues);
 
-  this._notificationBar = new Notification('#notifications', this.gameCanvas);
+  this._notificationBar = placeNotificationBar(this.gameCanvas);
 
   // Listen for touches, so we can warn tablet users
   this.touchListener = touchListener.bind(this);
@@ -245,7 +245,7 @@ Game.prototype.revealControls = function() {
    $(this).removeClass('initialHidden');
  });
 
- this._notificationBar.news({subject: Messages.WELCOME});
+ this._notificationBar.show({subject: Messages.WELCOME});
  this.rci.update({residential: 750, commercial: 750, industrial: 750});
 };
 
@@ -312,7 +312,7 @@ Game.prototype.downloadLog = function() {
 
     if (recorded.unhashed !== null) {
       console.error('The command log has no checkpoints: ' + recorded.unhashed.message);
-      this._notificationBar.badNews({subject: Messages.LOG_UNCHECKED});
+      this._notificationBar.show({subject: Messages.LOG_UNCHECKED});
     }
   }.bind(this));
 };
@@ -490,7 +490,7 @@ Game.prototype.processFrontEndMessage = function(message) {
   // Good news is a milestone: the city reaching a new class. It shows even over a recent disaster, unlike neutral news,
   // as the notification is the only place the player learns of it
   if (tone === 'good') {
-    this._notificationBar.goodNews(message);
+    this._notificationBar.show(message);
     return;
   }
 
@@ -503,7 +503,7 @@ Game.prototype.processFrontEndMessage = function(message) {
   }
 
   if (tone === 'bad') {
-    this._notificationBar.badNews(message);
+    this._notificationBar.show(message);
     if (Messages.DISASTER_MESSAGES.indexOf(message.subject) !== -1)
       this.lastBadMessageTime = d;
     return;
@@ -512,7 +512,7 @@ Game.prototype.processFrontEndMessage = function(message) {
   if (tone === 'neutral') {
     if (this.lastBadMessageTime === null || d - this.lastBadMessageTime > disasterTimeout) {
       this.lastBadMessageTime = null;
-      this._notificationBar.news(message);
+      this._notificationBar.show(message);
     }
     return;
   }

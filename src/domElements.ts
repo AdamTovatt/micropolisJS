@@ -52,6 +52,31 @@ export function placeNewCanvas(parent: Node, id: string): HTMLCanvasElement {
   return canvas;
 }
 
+// What showing and hiding an element reads and writes
+export interface Displayable {
+  readonly style: {display: string};
+  getClientRects(): {length: number};
+}
+
+// Whether the element shows: it has a box on the page, as jQuery's :visible tested
+export function isShown(element: Displayable): boolean {
+  return element.getClientRects().length > 0;
+}
+
+// Hides the element, or shows it as the stylesheet lays it out, or as a block where the stylesheet hides it, as
+// jQuery's show and hide did
+export function setShown(element: Displayable, shown: boolean): void {
+  if (!shown) {
+    element.style.display = "none";
+    return;
+  }
+
+  element.style.display = "";
+  if (!isShown(element)) {
+    element.style.display = "block";
+  }
+}
+
 // A new element of the tag, with the class name if one is given, appended to the parent
 export function appendElement<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tagName: K,
                                                                      className?: string): HTMLElementTagNameMap[K] {
