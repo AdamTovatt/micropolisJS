@@ -21,7 +21,7 @@ import { makeMap, makeSimData } from "./helpers/zoneCity";
 
 describe("a commercial zone", () => {
 
-    // A powered zone of the lowest population, with a road on the west end of its northern edge
+    // A powered zone, empty or of the lowest population, with a road on the west end of its northern edge
     const ZONE_X = 20;
     const ZONE_Y = 20;
     const ROAD_X = ZONE_X - 1;
@@ -96,5 +96,16 @@ describe("a commercial zone", () => {
 
         expect(map.getTileValue(ZONE_X, ZONE_Y)).toBe(COMCLR);
         expect(rateOfGrowth(simData)).toBe(-LEVEL_OF_GROWTH);
+    });
+
+    // As doComOut in the original, an empty zone that declines is left as it is, and its rate of growth with it. An
+    // empty zone never drives, whatever getRandom(5) draws.
+    it("should leave an empty zone that declines as it is", () => {
+        const {map, simData} = makeCity(COMCLR, INDBASE, -STRONG_DEMAND, [DRIVE, ASSESS, DECLINE]);
+
+        registeredHandler(Commercial.registerHandlers, TileUtils.isCommercialZone)(map, ZONE_X, ZONE_Y, simData);
+
+        expect(map.getTileValue(ZONE_X, ZONE_Y)).toBe(COMCLR);
+        expect(rateOfGrowth(simData)).toBe(0);
     });
 });

@@ -56,8 +56,12 @@ var growZone = function(map, x, y, blockMaps, population, lpValue, zonePower) {
 
 
 var degradeZone = function(map, x, y, blockMaps, populationCategory, lpCategory, zonePower) {
-  // Note that we special case empty zones here, rather than having to check population value on every
-  // call to placeIndustrial (which we anticipate will be called more often)
+  // An empty zone has nowhere lower to go, and is left as it is, as doComOut in the original leaves it
+  if (populationCategory === 0)
+    return;
+
+  // Note that we special case the lowest population here, rather than having to check population value on every
+  // call to placeCommercial (which we anticipate will be called more often)
   if (populationCategory > 1) {
     placeCommercial(map, x, y, populationCategory - 2, lpCategory, zonePower);
   } else {
