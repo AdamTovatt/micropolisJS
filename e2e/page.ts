@@ -14,9 +14,10 @@
 import { Page } from "@playwright/test";
 
 // The page serves everything the game needs. Anything from another host, such as the share button's script, is
-// refused, so a run never waits on the network.
-export async function blockOtherHosts(page: Page): Promise<void> {
-  await page.route((url) => url.hostname !== "localhost", (route) => route.abort());
+// refused, and so is the game server's session API: the game, finding no server answering, plays single-player and
+// never opens the city's WebSocket. So a run never waits on the network.
+export async function blockNetwork(page: Page): Promise<void> {
+  await page.route((url) => url.hostname !== "localhost" || url.pathname.startsWith("/api/"), (route) => route.abort());
 }
 
 // What went wrong in the page that the runner wouldn't otherwise see: uncaught errors, and alerts, which the game

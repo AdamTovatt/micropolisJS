@@ -1,0 +1,52 @@
+{
+  "checkpoints": [
+    {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"c78700d557ed157ab9b4d8f60945188a97f460658c16a83f6a692ee6a2c17901"},
+    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"0c8499f4ec2a89e39e643e62702de7cd4f4a4292e646f1ba805404e649c25d75"},
+    {"stage":"Build while paused","step":5760,"commands":17,"hash":"ab6b09a39be3a8fb6953ac72e8929567e384733580518ae142fd845d95994b5f"},
+    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"810ef8ba54ec9f7f6ecc66356c5645d18cec9a66f19739475dd159c1899edd58"},
+    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"4b6fb5138995a1adf79d5dd552e4df2eb763660d8874516945ff181ff29ffb3c"},
+    {"stage":"A fire, and the fire department's response","step":8928,"commands":27,"hash":"9fd887e8c243623b1547621d2aac9815af7430f695c8acc9caafa7c998213772"},
+    {"stage":"Save, reload, and carry on","step":10080,"commands":27,"hash":"4e59b71f258ee2a7d96916e889e42cc8decdf00a7e833c5bfda15050cd71d915"}
+  ],
+  "log": {
+    "formatVersion": 1,
+    "seed": 23,
+    "level": 1,
+    "entries": [
+      {"step":0,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":47,"y":36},{"x":48,"y":36},{"x":49,"y":36},{"x":50,"y":36},{"x":51,"y":36},{"x":52,"y":36},{"x":53,"y":36},{"x":54,"y":36},{"x":55,"y":36},{"x":56,"y":36},{"x":57,"y":36},{"x":58,"y":36},{"x":59,"y":36},{"x":60,"y":36},{"x":61,"y":36},{"x":62,"y":36},{"x":63,"y":36},{"x":64,"y":36},{"x":65,"y":36},{"x":66,"y":36},{"x":67,"y":36},{"x":68,"y":36},{"x":69,"y":36}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"coal","path":[{"x":48,"y":33}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":63,"y":34},{"x":64,"y":34},{"x":65,"y":34},{"x":66,"y":34}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":48,"y":36}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":52,"y":34}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":55,"y":34}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":54,"y":38}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":57,"y":38}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":58,"y":34}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":61,"y":34}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":48,"y":38}],"autoBulldoze":true}},
+      {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":51,"y":38}],"autoBulldoze":true}},
+      {"step":4608,"player":"local","command":{"type":"setSpeed","speed":0}},
+      {"step":4608,"player":"local","command":{"type":"tool","tool":"police","path":[{"x":60,"y":38}],"autoBulldoze":true}},
+      {"step":4608,"player":"local","command":{"type":"tool","tool":"fire","path":[{"x":68,"y":34}],"autoBulldoze":true}},
+      {"step":4608,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":63,"y":38}],"autoBulldoze":true}},
+      {"step":4608,"player":"local","command":{"type":"setSpeed","speed":2}},
+      {"step":5760,"player":"local","command":{"type":"tool","tool":"airport","path":[{"x":47,"y":41}],"autoBulldoze":true}},
+      {"step":5760,"player":"local","command":{"type":"tool","tool":"airport","path":[{"x":72,"y":30}],"autoBulldoze":true}},
+      {"step":5760,"player":"local","command":{"type":"setAutoBudget","on":false}},
+      {"step":6912,"player":"local","command":{"type":"setBudget","tax":9,"police":90}},
+      {"step":6912,"player":"local","command":{"type":"setAutoBudget","on":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":47,"y":46},{"x":47,"y":47},{"x":47,"y":48},{"x":47,"y":49},{"x":47,"y":50},{"x":47,"y":51},{"x":47,"y":52},{"x":47,"y":53},{"x":47,"y":54},{"x":47,"y":55},{"x":47,"y":56},{"x":47,"y":57},{"x":47,"y":58},{"x":47,"y":59},{"x":47,"y":60},{"x":47,"y":61}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":46,"y":61},{"x":45,"y":61},{"x":44,"y":61},{"x":43,"y":61},{"x":42,"y":61},{"x":41,"y":61},{"x":40,"y":61},{"x":39,"y":61},{"x":38,"y":61},{"x":37,"y":61},{"x":36,"y":61},{"x":35,"y":61}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":33,"y":63}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"tool","tool":"fire","path":[{"x":33,"y":61}],"autoBulldoze":true}},
+      {"step":8064,"player":"local","command":{"type":"triggerDisaster","kind":"fire"}}
+    ],
+    "checkpoints": [
+      {"step":0,"hash":"efae97e17a8f648bfc393c372e84506556e13fde55d4bae28c210d30bc4dab23"},
+      {"step":3600,"hash":"6684e610902a716f08ad172b608ed308ba3a2aababcd5498d4254b1776663260"},
+      {"step":7200,"hash":"665912d346d915ff854c1041edcf713fba92196e3fdd7ffe433fc2b014916599"},
+      {"step":8928,"hash":"9fd887e8c243623b1547621d2aac9815af7430f695c8acc9caafa7c998213772"},
+      {"step":10080,"hash":"4e59b71f258ee2a7d96916e889e42cc8decdf00a7e833c5bfda15050cd71d915"}
+    ]
+  }
+}

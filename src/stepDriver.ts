@@ -59,8 +59,9 @@ class StepDriver {
   }
 
   // A held driver takes no steps, so that something else, such as the end-to-end runner, decides when the city steps.
-  // Holding is not pausing: the city's speed is untouched. As for any time the city is not stepping, nothing is owed for
-  // the time it is held.
+  // The game's tick then leaves the input to it as well, sending and applying none, so it also decides which step each
+  // command lands before. Holding is not pausing: the city's speed is untouched. As for any time the city is not
+  // stepping, nothing is owed for the time it is held.
   hold(): void {
     this.held = true;
     this.idle();

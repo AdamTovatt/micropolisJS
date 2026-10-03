@@ -12,7 +12,7 @@
  */
 
 import { clockOf, ClockedSimulation, impliedCityTime } from "./cityTimeModel";
-import { BUDGET_REVIEW_DUE } from "./messages";
+import { BUDGET_REVIEW_DUE, COMMAND_RESULT } from "./messages";
 import { StepDriver } from "./stepDriver";
 import { Storage } from "./storage.js";
 
@@ -60,11 +60,19 @@ class TestHook {
   private game: HookedGame | null = null;
   private held = false;
   private steps = 0;
+  // The commands the attached game has applied
+  private commands = 0;
+  private readonly countCommand = () => {
+    this.commands++;
+  };
 
-  // Called by the game as it starts, before its first step. A hold taken before the game started applies from its
-  // first step, so no step runs before the runner says so.
+  // Called by the game as it starts, before its first step and its first command. A hold taken before the game started
+  // applies from its first step, so no step runs before the runner says so.
   attach(game: HookedGame): void {
+    this.game?.simulation.removeEventListener(COMMAND_RESULT, this.countCommand);
     this.game = game;
+    this.commands = 0;
+    game.simulation.addEventListener(COMMAND_RESULT, this.countCommand);
 
     if (this.held) {
       game.stepDriver.hold();
@@ -82,9 +90,8 @@ class TestHook {
     this.game?.stepDriver.release();
   }
 
-  // Sends the tool paths the player has drawn and applies the commands sent, as the game's next tick would. With the
-  // driver held, a command applies at the same step whenever that happens, so this changes only when the runner sees
-  // the city change: at once, rather than on the next tick.
+  // Sends the tool paths the player has drawn, one tool command each, and applies the commands sent. While the driver is
+  // held, the game's tick leaves this to the runner, so a run's input becomes the same commands on every run.
   applyInput(): void {
     const game = this.attachedGame();
 
@@ -147,6 +154,13 @@ class TestHook {
   // The save, as the object the game writes to storage
   save(): object {
     return JSON.parse(Storage.serialise(this.attachedGame().saveData()));
+  }
+
+  // The commands the game has applied since it started, rejected ones included: one entry each in its command log
+  commandsApplied(): number {
+    // Only to fail when no game has started
+    this.attachedGame();
+    return this.commands;
   }
 
   cityTime(): number {

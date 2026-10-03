@@ -16,9 +16,10 @@ import { expect } from "@playwright/test";
 import { stepsPerCityTime } from "../src/cityTimeModel";
 import { Simulation } from "../src/simulation.js";
 import { BIT_MASK } from "../src/tileFlags";
+import { TileUtils } from "../src/tileUtils.js";
 import {
-  AIRPORT, COMCLR, FIREBASE, FIRESTATION, FREEZ, HROADPOWER, INDCLR, LASTFIRE, LASTPOWER, LASTROAD, LASTRUBBLE,
-  POLICESTATION, POWERBASE, POWERPLANT, ROADBASE, RUBBLE, TREEBASE, VROADPOWER, WOODS5,
+  AIRPORT, COMCLR, FIRESTATION, FREEZ, HROADPOWER, INDCLR, LASTPOWER, LASTRUBBLE, POLICESTATION, POWERBASE, POWERPLANT,
+  RUBBLE, TREEBASE, VROADPOWER, WOODS5,
 } from "../src/tileValues";
 import { Player, SaveData, Tile } from "./player";
 
@@ -95,8 +96,9 @@ function isTree(id: number): boolean {
   return id >= TREEBASE && id <= WOODS5;
 }
 
-function isFire(id: number): boolean {
-  return id >= FIREBASE && id <= LASTFIRE;
+// Power lines, those crossing a road or a rail included
+function isPowerLine(id: number): boolean {
+  return id >= POWERBASE && id <= LASTPOWER;
 }
 
 // Checks that each tile holds the tile value given for it
@@ -130,9 +132,9 @@ export const STAGES: Stage[] = [
       const road = tilesIn({left: 47, top: 36, right: 69, bottom: 36})
         .filter((tile) => tile.x !== 48)
         .map((tile) => tileAt(save, tile));
-      expect(road.every((id) => id >= ROADBASE && id <= LASTROAD), `road tiles ${road}`).toBe(true);
+      expect(road.every((id) => TileUtils.isRoad(id)), `road tiles ${road}`).toBe(true);
       const line = tilesIn({left: 63, top: 34, right: 66, bottom: 34}).map((tile) => tileAt(save, tile));
-      expect(line.every((id) => id >= POWERBASE && id <= LASTPOWER), `power line tiles ${line}`).toBe(true);
+      expect(line.every(isPowerLine), `power line tiles ${line}`).toBe(true);
       expect([HROADPOWER, VROADPOWER], "the line across the road").toContain(tileAt(save, {x: 48, y: 36}));
       expect(tileAt(save, {x: 48, y: 33}), "the power plant's centre").toBe(POWERPLANT);
     },
@@ -238,14 +240,14 @@ export const STAGES: Stage[] = [
       await expectTiles(player, [[{x: 33, y: 61}, FIRESTATION]], "the fire station's centre");
 
       await player.triggerDisaster("Fire");
-      expect(tilesWhere(await player.save(), isFire), "the tiles on fire").toEqual([FIRE_TILE]);
+      expect(tilesWhere(await player.save(), TileUtils.isFire), "the tiles on fire").toEqual([FIRE_TILE]);
 
       // Until the fire is out: a unit of city time at a time, the time a scan of the map takes. Even under the
       // strongest cover a burning tile goes out on only one scan in eight, so a fire can last a year.
       let save = await player.save();
-      for (let time = 0; tilesWhere(save, isFire).length > 0; time++) {
+      for (let time = 0; tilesWhere(save, TileUtils.isFire).length > 0; time++) {
         if (time === 2 * CITY_TIME_PER_YEAR) {
-          throw new Error(`Still on fire after two years: ${JSON.stringify(tilesWhere(save, isFire))}`);
+          throw new Error(`Still on fire after two years: ${JSON.stringify(tilesWhere(save, TileUtils.isFire))}`);
         }
 
         await player.advance(stepsPerCityTime(Simulation.SPEED_MED));

@@ -12,26 +12,28 @@
  */
 
 import { mkdirSync, rmSync, writeFileSync } from "fs";
-import { join } from "path";
+import { basename, join } from "path";
 
-import { HashCheck } from "./goldenHashes";
+import { CheckpointCheck } from "./goldenPlaythrough";
 
 // The playthrough's report: one static page showing every stage in order, with its screenshot, so anyone can flip
 // through it and see the game working. Each checkpoint's save sits beside it, and debug mode's "Load save file" opens
-// it.
+// it. So does the run's command log, which the headless runner replays: `npm run simulate -- --log <file>`.
 
 export interface Checkpoint {
   stage: string;
   // Steps the stage took, and steps since the city was founded, as the runner counted them
   steps: number;
   totalSteps: number;
+  // Commands applied since the city was founded: the entries of the run's log before the checkpoint
+  commands?: number;
   // Files in the report's directory, absent only when taking the checkpoint itself failed
   screenshot?: string;
   save?: string;
-  // The state hash of the save, and how it compares with its golden hash: absent when the run writes the golden
-  // hashes rather than checking them
+  // The state hash of the save, and how the checkpoint compares with its golden one: absent when the run writes the
+  // golden playthrough rather than checking against it
   hash?: string;
-  hashCheck?: HashCheck;
+  goldenCheck?: CheckpointCheck;
   error?: string;
 }
 
@@ -47,7 +49,10 @@ export class Report {
   buildId = "unknown";
   // Why the run failed, as the test reports it, the first stage that diverged included
   failures: string[] = [];
+  // The run's command log, a file in the report's directory, absent when the run ended before it was taken
+  log: string | null = null;
 
+  // The directory is in the repository root
   constructor(readonly directory: string, private readonly seed: number) {
     rmSync(directory, {recursive: true, force: true});
     mkdirSync(directory, {recursive: true});
@@ -65,17 +70,23 @@ export class Report {
 
   private html(): string {
     const stages = this.checkpoints.map((checkpoint, index) => {
-      const diverged = checkpoint.hashCheck?.diverged ?? false;
+      const check = checkpoint.goldenCheck;
+      const expected = check?.expected ?? null;
+      const hashDiffers = expected !== null && checkpoint.hash !== expected.hash;
+      // A figure, and the golden one where that differs
+      const figure = (actual: number | string, golden: number | string | undefined) =>
+        `${actual}${golden !== undefined && actual !== golden ? ` (expected ${golden})` : ""}`;
 
       return `
-      <section class="stage${checkpoint.error || diverged ? " failed" : ""}">
+      <section class="stage${checkpoint.error || check?.diverged ? " failed" : ""}">
         <h2>${index + 1}. ${escapeHtml(checkpoint.stage)}</h2>
         <dl>
           <dt>Steps</dt><dd>${checkpoint.steps}</dd>
-          <dt>Steps in all</dt><dd>${checkpoint.totalSteps}</dd>
-          ${checkpoint.hashCheck ?
-            `<dt>Expected hash</dt><dd>${checkpoint.hashCheck.expected ?? "none pinned"}</dd>` : ""}
-          ${checkpoint.hash ? `<dt>State hash</dt><dd>${checkpoint.hash}${diverged ? " (differs)" : ""}</dd>` : ""}
+          <dt>Steps in all</dt><dd>${figure(checkpoint.totalSteps, expected?.step)}</dd>
+          ${checkpoint.commands !== undefined ?
+            `<dt>Commands in all</dt><dd>${figure(checkpoint.commands, expected?.commands)}</dd>` : ""}
+          ${check ? `<dt>Expected hash</dt><dd>${expected?.hash ?? "none pinned"}</dd>` : ""}
+          ${checkpoint.hash ? `<dt>State hash</dt><dd>${checkpoint.hash}${hashDiffers ? " (differs)" : ""}</dd>` : ""}
           ${checkpoint.save ? `<dt>Save</dt><dd><a href="${checkpoint.save}">${checkpoint.save}</a></dd>` : ""}
         </dl>
         ${errorBlock(checkpoint.error)}
@@ -112,6 +123,8 @@ export class Report {
 <h1>Playthrough report</h1>
 <p>Build ${escapeHtml(this.buildId)}, seed ${this.seed}. Open a stage's save in the game with <code>?debug=1</code> and
 "Load save file".</p>
+${this.log === null ? "" : `<p>The run's <a href="${this.log}">command log</a> replays headless with
+<code>npm run simulate -- --log ${basename(this.directory)}/${this.log}</code>, from the repository root.</p>`}
 ${this.failures.length > 0 ? `<h2 class="failed">The run failed</h2>\n${errorBlock(this.failures.join("\n"))}` : ""}
 ${stages}
 ${driverRun}

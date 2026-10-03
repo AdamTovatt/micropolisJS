@@ -12,7 +12,9 @@
  */
 
 import { expect, Page } from "@playwright/test";
+import { readFileSync } from "fs";
 
+import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
 import type { Advanced, View } from "../src/testHook";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
@@ -42,6 +44,11 @@ const CANVAS = "#MicropolisCanvas";
 export class Player {
   // Steps taken through the hook since the count was last read
   private stepsTaken = 0;
+  // The command logs of the sessions ended so far, in order. A reload ends a session: the game it loads starts a log
+  // of its own.
+  private readonly sessionLogs: CommandLog[] = [];
+  // The commands those sessions applied
+  private commandsBefore = 0;
 
   constructor(readonly page: Page) {}
 
@@ -63,8 +70,9 @@ export class Player {
     await this.waitForGame();
   }
 
-  // Reloads the page and loads the game saved in storage, as a player would
+  // Ends the session, then reloads the page and loads the game saved in storage, as a player would
   async reloadSavedGame(): Promise<void> {
+    await this.endSession();
     await this.page.reload();
     await this.holdOnceHooked();
     await this.page.click("#splashLoad");
@@ -81,6 +89,18 @@ export class Player {
         return false;
       }
     });
+  }
+
+  // Ends the session, and joins its command log to those of the sessions before it, in order: the run's log, from
+  // where the first session started
+  async runLog(): Promise<CommandLog> {
+    await this.endSession();
+    return joinSessions(this.sessionLogs);
+  }
+
+  // The commands applied since the run began, in every session: the entries of the run's log so far
+  async commandsApplied(): Promise<number> {
+    return this.commandsBefore + await this.page.evaluate(() => window.micropolisTestHook!.commandsApplied());
   }
 
   // Takes exactly this many steps. A year-end budget review falling due on the way fails the run, since its window
@@ -244,6 +264,24 @@ export class Player {
   // has them. They apply at the same step either way.
   private async applyInput(): Promise<void> {
     await this.page.evaluate(() => window.micropolisTestHook!.applyInput());
+  }
+
+  // Downloads the session's command log from the debug window, adding no funds, and keeps it. Fails unless the log
+  // holds every command the game applied, one entry each.
+  private async endSession(): Promise<void> {
+    await this.page.click("#debugRequest");
+    await this.page.check("#fundsNo");
+    await this.page.check("#logYes");
+    const [download] = await Promise.all([this.page.waitForEvent("download"), this.page.click("#debugOK")]);
+    const log = parseLog(JSON.parse(readFileSync(await download.path(), "utf8")));
+
+    const applied = await this.page.evaluate(() => window.micropolisTestHook!.commandsApplied());
+    if (log.entries.length !== applied) {
+      throw new Error(`The session's log holds ${log.entries.length} commands, but the game applied ${applied}`);
+    }
+
+    this.sessionLogs.push(log);
+    this.commandsBefore += applied;
   }
 
   // Waits for the page to install the hook, then holds the driver

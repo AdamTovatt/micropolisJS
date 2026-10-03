@@ -605,9 +605,12 @@ var tick = function() {
   this.handleInput();
 
   // The tiles clicked or dragged over since the last tick go as tool commands, one per path. The commands sent since the
-  // last tick apply first, whether or not the city is stepping: you can build when paused.
-  this.sendToolPaths();
-  this.commandQueue.applyCommands();
+  // last tick apply first, whether or not the city is stepping: you can build when paused. While the end-to-end runner
+  // holds the driver, it applies them itself, so that how a drag splits into commands never depends on when ticks ran.
+  if (!this.stepDriver.isHeld()) {
+    this.sendToolPaths();
+    this.commandQueue.applyCommands();
+  }
 
   // Run the sim: as many steps as the time since the last tick is due
   this.stepDriver.run(performance.now(), this.isStepping, this.stepSimulation);

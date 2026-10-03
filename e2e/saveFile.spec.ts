@@ -14,7 +14,7 @@
 import { expect, Page, test } from "@playwright/test";
 import { writeFileSync } from "fs";
 
-import { blockOtherHosts, collectPageProblems } from "./page";
+import { blockNetwork, collectPageProblems } from "./page";
 import { Player } from "./player";
 import { SEED, SITE } from "./stages";
 
@@ -27,7 +27,7 @@ async function chooseSaveFile(page: Page, file: string): Promise<void> {
 }
 
 test("debug mode loads a save file as the city it saved", async ({page}) => {
-  await blockOtherHosts(page);
+  await blockNetwork(page);
   const problems = collectPageProblems(page);
   const player = new Player(page);
 
@@ -51,7 +51,7 @@ test("debug mode loads a save file as the city it saved", async ({page}) => {
 });
 
 test("debug mode refuses a file that isn't a save, as often as it is chosen", async ({page}) => {
-  await blockOtherHosts(page);
+  await blockNetwork(page);
   const problems = collectPageProblems(page);
   const player = new Player(page);
   const file = test.info().outputPath("notes.json");
@@ -69,7 +69,7 @@ test("debug mode refuses a file that isn't a save, as often as it is chosen", as
 });
 
 test("the save file button is only in debug mode", async ({page}) => {
-  await blockOtherHosts(page);
+  await blockNetwork(page);
   const button = page.locator("#splashLoadFile");
 
   await page.goto("/?debug=1");

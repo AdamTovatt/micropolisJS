@@ -78,7 +78,7 @@ describe("the test hook", () => {
 
     describe("before a game has started", () => {
 
-        it.each(["applyInput", "advance", "save", "view", "cityTime"])("can't %s", async (method) => {
+        it.each(["applyInput", "advance", "save", "view", "cityTime", "commandsApplied"])("can't %s", async (method) => {
             const {hook} = await loadTestHook();
             const call = {
                 applyInput: () => hook.applyInput(),
@@ -86,6 +86,7 @@ describe("the test hook", () => {
                 save: () => hook.save(),
                 view: () => hook.view(),
                 cityTime: () => hook.cityTime(),
+                commandsApplied: () => hook.commandsApplied(),
             }[method]!;
 
             expect(call).toThrow("No game has started");
@@ -234,6 +235,39 @@ describe("the test hook", () => {
         hook.attach(game);
 
         expect(hook.save()).toEqual({...JSON.parse(JSON.stringify(game.saveData())), version: currentVersion});
+    });
+
+    // A command the simulation rejects is applied, and logged, all the same
+    it("counts the commands the game has applied, rejected ones included", async () => {
+        const {hook, game} = await holdingGame();
+        game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
+        game.commandQueue.send(LOCAL_PLAYER, {type: "noSuchCommand"});
+
+        hook.applyInput();
+
+        expect(hook.commandsApplied()).toBe(2);
+        expect(game.applied).toHaveLength(2);
+    });
+
+    it("counts the commands an advance applies before its first step", async () => {
+        const {hook, game} = await holdingGame();
+        game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
+
+        hook.advance(1);
+
+        expect(hook.commandsApplied()).toBe(1);
+    });
+
+    it("counts only the newly started game's commands, from none", async () => {
+        const {hook, game} = await holdingGame();
+        game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
+        hook.applyInput();
+
+        hook.attach(gameOf(simulationFromSeed(2)));
+        game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: true});
+        game.commandQueue.applyCommands();
+
+        expect(hook.commandsApplied()).toBe(0);
     });
 
     it("tells where the view is", async () => {
