@@ -13,11 +13,12 @@
 
 import { BlockMap } from "../src/blockMap";
 import { GameMap } from "../src/gameMap.js";
+import { MapScanner } from "../src/mapScanner.js";
 import { MiscTiles } from "../src/miscTiles.js";
-import { BLBNBIT, BNCNBIT, ZONEBIT } from "../src/tileFlags";
+import { ANIMBIT, BLBNBIT, BNCNBIT, BULLBIT, ZONEBIT } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
-import { DIRT, FIRE, IZB, RZB, WOODS } from "../src/tileValues";
-import { streamAlwaysDrawing } from "./helpers/streams";
+import { DIRT, FIRE, IZB, LASTTINYEXP, RUBBLE, RZB, TINYEXP, WOODS } from "../src/tileValues";
+import { streamAlwaysDrawing, streamDrawing } from "./helpers/streams";
 
 
 type TileHandler = (map: unknown, x: number, y: number, simData: unknown) => void;
@@ -93,6 +94,35 @@ describe("miscellaneous tiles", () => {
 
             expect(map.getTileValue(NEIGHBOUR_X, FIRE_Y)).toBe(FIRE);
             expect(makeExplosion).toHaveBeenCalledWith(NEIGHBOUR_X, FIRE_Y);
+        });
+    });
+
+    describe("when the scan finds an explosion", () => {
+
+        const FRAMES = Array.from({length: LASTTINYEXP - TINYEXP + 1}, (_, i) => TINYEXP + i);
+
+        it.each(FRAMES)("should turn explosion tile %i into the rubble its one draw picks", (explosion) => {
+            const map = new GameMap(120, 100);
+            map.setTile(10, 10, explosion, ANIMBIT | BULLBIT);
+            const scanner = new MapScanner(map);
+            MiscTiles.registerHandlers(scanner);
+
+            scanner.mapScan(10, 11, {random: streamDrawing([2])});
+
+            expect(map.getTileValue(10, 10)).toBe(RUBBLE + 2);
+            expect(map.getTileFlags(10, 10)).toBe(BULLBIT);
+        });
+
+        it.each([TINYEXP - 1, LASTTINYEXP + 1])("should leave tile %i, just outside the explosion's frames, alone",
+                                                 (neighbour) => {
+            const map = new GameMap(120, 100);
+            map.setTile(10, 10, neighbour, ANIMBIT | BULLBIT);
+            const scanner = new MapScanner(map);
+            MiscTiles.registerHandlers(scanner);
+
+            scanner.mapScan(10, 11, {random: streamDrawing([])});
+
+            expect(map.getTileValue(10, 10)).toBe(neighbour);
         });
     });
 });

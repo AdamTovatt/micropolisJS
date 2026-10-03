@@ -77,11 +77,20 @@ var floodFound = function(map, x, y, simData) {
 };
 
 
+// The original's scan clears explosions from their middle frames on, as its map tiles step through the animation.
+// Here the map keeps an explosion's first frame and only the renderer animates it, so the whole range is cleared. An
+// explosion lasts until its column's next scan, which at fast speed can come before its animation ends
+var explosionFound = function(map, x, y, simData) {
+  map.setTo(x, y, TileUtils.randomRubble(simData.random));
+};
+
+
 var MiscTiles = {
   registerHandlers: function(mapScanner) {
-    mapScanner.addAction(TileUtils.isFire, fireFound, true);
-    mapScanner.addAction(RADTILE, radiationFound, true);
-    mapScanner.addAction(TileUtils.isFlood, floodFound, true);
+    mapScanner.addAction(TileUtils.isFire, fireFound);
+    mapScanner.addAction(RADTILE, radiationFound);
+    mapScanner.addAction(TileUtils.isFlood, floodFound);
+    mapScanner.addAction(TileUtils.isManualExplosion, explosionFound);
   }
 };
 
