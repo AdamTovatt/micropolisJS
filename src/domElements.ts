@@ -52,6 +52,55 @@ export function placeNewCanvas(parent: Node, id: string): HTMLCanvasElement {
   return canvas;
 }
 
+// What showing and hiding an element reads and writes
+// The window whose stylesheets lay out elements of type E
+export interface StylingWindow<E> {
+  getComputedStyle(element: E): {readonly display: string};
+}
+
+// What showing and hiding an element reads and writes: its inline display, and the window that styles it
+export interface Displayable<E> {
+  readonly style: {display: string};
+  readonly ownerDocument: {readonly defaultView: StylingWindow<E> | null};
+}
+
+// Whether the element shows: it has a box on the page, which it has not under an ancestor that hides, as jQuery's
+// :visible tested
+export function isShown(element: {getClientRects(): {length: number}}): boolean {
+  return element.getClientRects().length > 0;
+}
+
+// Whether the element's own display hides it, inline or from the stylesheet, whatever its ancestors do
+export function isHidden<E extends Displayable<E>>(element: E): boolean {
+  const view = element.ownerDocument.defaultView;
+  if (view === null) {
+    throw new Error("The element is in no window");
+  }
+
+  return view.getComputedStyle(element).display === "none";
+}
+
+// Hides the element, or shows it as the stylesheet lays it out, or as a block where the stylesheet hides it, as
+// jQuery's show and hide did
+export function setShown<E extends Displayable<E>>(element: E, shown: boolean): void {
+  if (!shown) {
+    element.style.display = "none";
+    return;
+  }
+
+  element.style.display = "";
+  if (isHidden(element)) {
+    element.style.display = "block";
+  }
+}
+
+// Shows the element if its own display hides it, or hides it, as jQuery's toggle did, and says whether it shows now
+export function toggleShown<E extends Displayable<E>>(element: E): boolean {
+  const shows = isHidden(element);
+  setShown(element, shows);
+  return shows;
+}
+
 // A new element of the tag, with the class name if one is given, appended to the parent
 export function appendElement<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tagName: K,
                                                                      className?: string): HTMLElementTagNameMap[K] {

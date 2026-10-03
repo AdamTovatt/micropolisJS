@@ -13,9 +13,9 @@
 
 import { requiredElement } from "./domElements";
 import { EVAL_WINDOW_CLOSED } from "./messages";
-import { type EvaluationRecord, MAX_RANKED_PROBLEMS } from "./protocol";
+import { CITY_PROBLEMS, type EvaluationRecord, GAME_LEVELS, MAX_RANKED_PROBLEMS } from "./protocol";
 import { scoreBreakdownRows, signedPoints, type ScoreRow } from "./scoreBreakdownView";
-import { Text } from "./text.js";
+import { Text } from "./text";
 import { ClosableWindow } from "./windowBase";
 
 // What the window shows for one evaluation record: its text, field by field
@@ -33,22 +33,18 @@ export interface EvaluationView {
   scoreBreakdown: ScoreRow[];
 }
 
-const problemText: {[problem: number]: string} = Text.problems;
-const cityClassText: {[cityClass: string]: string} = Text.cityClass;
-const levelText: {[level: string]: string} = Text.gameLevel;
-
 // Every decision about what the window shows is made here, so it is tested under node. The window only writes the
 // view into the DOM. A code without text is a defect the tests catch, so there is no fallback.
 export function evaluationView(record: EvaluationRecord): EvaluationView {
   return {
     yes: `${record.approval}`,
     no: `${100 - record.approval}`,
-    problems: record.problems.map((problem) => problemText[problem]),
+    problems: record.problems.map((problem) => Text.problems[CITY_PROBLEMS[problem]]),
     population: `${record.population}`,
     migration: `${record.migration}`,
     assessedValue: `${record.assessedValue}`,
-    level: levelText[`${record.level}`],
-    cityClass: cityClassText[record.cityClass],
+    level: Text.gameLevel[GAME_LEVELS[record.level]],
+    cityClass: Text.cityClass[record.cityClass],
     score: `${record.score}`,
     scoreDelta: signedPoints(record.scoreDelta),
     scoreBreakdown: scoreBreakdownRows(record.scoreBreakdown, record.score),

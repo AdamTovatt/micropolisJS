@@ -87,7 +87,7 @@ function getBuildId() {
 const buildId = getBuildId();
 
 export default {
-  entry: './src/micropolis.js',
+  entry: './src/micropolis.ts',
   resolve: {
     extensions: ADD_TS_EXTENSIONS_TO_WEPACK,
     extensionAlias: SUPPORT_FULLY_QUALIFIED_TS_ESM_IMPORTS,

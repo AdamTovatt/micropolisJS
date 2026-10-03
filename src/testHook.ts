@@ -14,12 +14,18 @@
 import { checkStepCount, ClockedSimulation, takeSteps } from "./cityTimeModel";
 import { BUDGET_REVIEW_DUE, COMMAND_RESULT } from "./messages";
 import { StepDriver } from "./stepDriver";
-import { Storage } from "./storage.js";
+import { Storage } from "./storage";
 
 // The end-to-end runner's hold on the game, installed on the window in debug mode. The runner holds the step driver,
 // lands its input, and moves the city on only through advance, so each step lands where it did on the last run. It
 // changes city state only through the commands the game sends and the step the driver calls: input reaches the game as
 // real mouse and keyboard.
+
+// What the hook needs of the game's simulation
+export interface HookedSimulation extends ClockedSimulation {
+  addEventListener(event: string, listener: () => void): void;
+  removeEventListener(event: string, listener: () => void): void;
+}
 
 // What the hook needs of the game
 interface HookedGame {
@@ -30,10 +36,7 @@ interface HookedGame {
   sendToolPaths(): void;
   commandQueue: {applyCommands(): unknown};
   saveData(): object;
-  simulation: ClockedSimulation & {
-    addEventListener(event: string, listener: () => void): void;
-    removeEventListener(event: string, listener: () => void): void;
-  };
+  simulation: HookedSimulation;
   gameCanvas: {getTileOrigin(): {x: number, y: number}};
   tileSet: {tileWidth: number};
 }

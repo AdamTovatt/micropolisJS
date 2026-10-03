@@ -20,13 +20,13 @@ import type { TestHook } from "../src/testHook";
 import { buildCity, simulationFromSeed, SimulationInstance, YEAR } from "./helpers/simulations";
 import { removeWindow, stubWindow } from "./helpers/window";
 
-// The hook saves through storage.js, which needs a window
+// The hook saves through storage.ts, which needs a window
 async function loadTestHook() {
     stubWindow();
     const {TestHook} = await import("../src/testHook");
-    const {Storage} = await import("../src/storage.js");
+    const {Storage} = await import("../src/storage");
 
-    return {hook: new TestHook(), currentVersion: (Storage as unknown as {CURRENT_VERSION: number}).CURRENT_VERSION};
+    return {hook: new TestHook(), currentVersion: Storage.CURRENT_VERSION};
 }
 
 const STEPS_PER_CITY_TIME = stepsPerCityTime(Simulation.SPEED_MED);

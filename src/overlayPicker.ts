@@ -16,7 +16,7 @@ import { OVERLAY_UPDATED } from "./messages";
 import { layerName, legendView, OverlayView } from "./overlayRenderer";
 import { OVERLAY_LAYERS, OverlayLayer, QueryAnswer } from "./protocol";
 import { AnsweringSimulation, pageQuerySource, QuerySource } from "./querySource";
-import { Text } from "./text.js";
+import { Text } from "./text";
 
 // The player's choice of map overlay: asks the simulation for the chosen layer, asks again each time the simulation
 // announces it recomputed, and shows each answer.

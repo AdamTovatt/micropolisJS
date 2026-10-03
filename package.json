@@ -48,8 +48,5 @@
   },
   "author": "Graeme McCutcheon (http://www.graememcc.co.uk)",
   "license": "GPL-3.0",
-  "readmeFilename": "README.md",
-  "dependencies": {
-    "jquery": "3.7.1"
-  }
+  "readmeFilename": "README.md"
 }

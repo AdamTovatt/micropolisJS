@@ -22,10 +22,11 @@ export default defineConfig(
   },
   js.configs.recommended,
   {
-    // The game: bundled by webpack and run in the browser.
+    // The simulation's legacy modules, which run without a DOM: test/simulationImports.ts holds them to the globals
+    // they may use, and console is the only one beyond the language's own.
     files: ["src/**/*.js"],
     languageOptions: {
-      globals: globals.browser,
+      globals: {console: "readonly"},
     },
   },
   {

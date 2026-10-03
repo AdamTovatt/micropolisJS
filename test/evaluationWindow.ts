@@ -14,7 +14,6 @@
 import { Level } from "../headless/city";
 import { evaluationView } from "../src/evaluationWindow";
 import { CITY_CLASSES, CITY_PROBLEMS, type EvaluationRecord } from "../src/protocol";
-import { Text } from "../src/text.js";
 
 // The breakdown's points sum to scoreDelta, so last year's score was 504 - -29 = 533
 const RECORD: EvaluationRecord = {
@@ -70,11 +69,10 @@ describe("the evaluation window's view", () => {
         expect(problems).toEqual(["Crime", "Pollution", "Housing", "Taxes", "Traffic", "Unemployment", "Fire"]);
     });
 
-    it.each([...CITY_CLASSES])("has text for the city class %s", (cityClass) => {
-        const text = evaluationView({...RECORD, cityClass}).cityClass;
+    it("has text for every city class", () => {
+        const classes = CITY_CLASSES.map((cityClass) => evaluationView({...RECORD, cityClass}).cityClass);
 
-        expect(text).toEqual(expect.any(String));
-        expect(text).toBe((Text.cityClass as Record<string, string>)[cityClass]);
+        expect(classes).toEqual(["VILLAGE", "TOWN", "CITY", "CAPITAL", "METROPOLIS", "MEGALOPOLIS"]);
     });
 
     it.each(Object.entries(Level))("has text for the %s level", (name, level) => {

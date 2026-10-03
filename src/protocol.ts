@@ -347,6 +347,12 @@ export type QueryAnswer = OverlayAnswer | TileReportAnswer | BudgetForecastAnswe
 // The records the simulation produces for the windows to show: what it says about the city, as codes and numbers. The
 // client turns the codes into text, so the wording is the client's alone.
 
+// The game's levels of difficulty, easiest first. A level's number, which a new city starts at and the evaluation
+// record gives, is its place in the list.
+export const GAME_LEVELS = ["EASY", "MED", "HARD"] as const;
+
+export type GameLevel = typeof GAME_LEVELS[number];
+
 // The city's classes by population, smallest first
 export const CITY_CLASSES = ["VILLAGE", "TOWN", "CITY", "CAPITAL", "METROPOLIS", "MEGALOPOLIS"] as const;
 
@@ -375,7 +381,7 @@ export const MAX_RANKED_PROBLEMS = 4;
 // The city's evaluation, as the evaluation window shows it. approval is the share of the public, in percent, who think
 // the mayor is doing a good job. problems are the ids of the worst problems, worst first: at most MAX_RANKED_PROBLEMS,
 // each one some of the public voted for. migration is the population's change since the last census, level the game's
-// difficulty, 0 to 2 from easy to hard, and scoreDelta the score's change since last year. scoreBreakdown lists the
+// difficulty, by its number in GAME_LEVELS, and scoreDelta the score's change since last year. scoreBreakdown lists the
 // steps that moved the score last year, in order. It is empty until the city's next yearly score after a new city or
 // an old save migrated from before the breakdown was kept; otherwise its points sum to scoreDelta.
 export interface EvaluationRecord {

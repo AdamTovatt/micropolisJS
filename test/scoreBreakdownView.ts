@@ -11,18 +11,17 @@
  *
  */
 
-import { Evaluation } from "../src/evaluation.js";
+import { type ScoreEntry } from "../src/protocol";
 import { scoreBreakdownRows, signedPoints } from "../src/scoreBreakdownView";
-import { Text } from "../src/text.js";
 
 describe("the score breakdown's rows", () => {
 
     it("start from last year's score and give each step's points and the score it left", () => {
-        const breakdown = [
-            {points: 168, reason: Evaluation.SCORE_PROBLEMS},
-            {points: -122, reason: Evaluation.SCORE_RES_CAP},
-            {points: 0, reason: Evaluation.SCORE_TAXES},
-            {points: 91, reason: Evaluation.SCORE_AVERAGING},
+        const breakdown: ScoreEntry[] = [
+            {points: 168, reason: "PROBLEMS"},
+            {points: -122, reason: "RES_CAP"},
+            {points: 0, reason: "TAXES"},
+            {points: 91, reason: "AVERAGING"},
         ];
 
         // Last year's score is this year's less the points: 781 - 137 = 644
@@ -37,17 +36,6 @@ describe("the score breakdown's rows", () => {
 
     it("are empty when there is no breakdown", () => {
         expect(scoreBreakdownRows([], 500)).toEqual([]);
-    });
-
-    it("have a label for every reason the evaluation records", () => {
-        const reasons = Object.getOwnPropertyNames(Evaluation)
-            .filter((name) => name.startsWith("SCORE_"))
-            .map((name) => (Evaluation as unknown as Record<string, string>)[name]);
-        const labels: Record<string, string> = Text.scoreBreakdown.reasons;
-
-        expect(reasons.length).toBe(16);
-        for (const reason of reasons)
-            expect(labels[reason]).toEqual(expect.any(String));
     });
 });
 

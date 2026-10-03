@@ -11,32 +11,15 @@
  *
  */
 
-var clamp = function(value, min, max) {
-  if (value < min)
-    return min;
-  if (value > max)
-    return max;
+import type { StylingWindow } from "../../src/domElements";
 
-  return value;
-};
-
-
-var makeConstantDescriptor = function(value) {
-  return {configurable: false, enumerable: false,
-          writeable: false, value: value};
-};
-
-
-var reflectEvent = function(message, value) {
-  this._emitEvent(message, value);
-};
-
-
-var MiscUtils = {
-  clamp: clamp,
-  makeConstantDescriptor: makeConstantDescriptor,
-  reflectEvent: reflectEvent
-};
-
-
-export { MiscUtils };
+// The document of a fake element, whose window's stylesheet gives it the display given: an element is displayed as
+// its inline style says, or as the stylesheet does where its inline style says nothing
+export function styledBy<E extends {style: {display: string}}>(sheetDisplay: string):
+    {defaultView: StylingWindow<E>} {
+    return {
+        defaultView: {
+            getComputedStyle: (element) => ({display: element.style.display === "" ? sheetDisplay : element.style.display}),
+        },
+    };
+}

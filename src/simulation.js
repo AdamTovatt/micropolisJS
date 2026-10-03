@@ -264,7 +264,7 @@ Simulation.prototype.load = function(saveData) {
   if (saveData.scannedState !== null) {
     this._loadScanned(saveData.scannedState);
   } else {
-    // A browser save migrated from an older version holds no scanned state (see storage.js), so derive it by
+    // A browser save migrated from an older version holds no scanned state (see storage.ts), so derive it by
     // scanning, as the original does on every load. The scan's handlers change the map and draw from the stream:
     // the rest of the saved state is then restored over them. The scan adds to what it finds, such as the census
     // counts and the rate of growth, so it starts from a new city's scanned state.
