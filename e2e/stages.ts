@@ -226,6 +226,20 @@ export const STAGES: Stage[] = [
     },
   },
   {
+    name: "Drag a long road quickly",
+    async play(player) {
+      // The pointer is seen twice on the way, about a dozen tiles apart: the tiles between are filled in, not skipped.
+      // The stage takes no steps, and a road draws nothing from the simulation's stream.
+      const row = {left: 47, top: 31, right: 69, bottom: 31};
+      await player.selectTool("road");
+      await player.dragTiles({x: row.left, y: row.top}, {x: row.right, y: row.top}, 2);
+
+      const save = await player.save();
+      const skipped = tilesIn(row).filter((tile) => !TileUtils.isRoad(tileAt(save, tile)));
+      expect(skipped, "tiles of the drag that are not road").toEqual([]);
+    },
+  },
+  {
     name: "A fire, and the fire department's response",
     async play(player) {
       // A fire station in the forest the fire will land in, powered by a line from the airport, with a road beside

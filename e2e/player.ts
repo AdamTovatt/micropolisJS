@@ -167,8 +167,9 @@ export class Player {
     await this.applyInput();
   }
 
-  // Drags the selected tool from one tile to another along a row or column, with the pointer on every tile on the way
-  async dragTiles(from: Tile, to: Tile): Promise<void> {
+  // Drags the selected tool from one tile to another along a row or column. The pointer is seen on every tile on the
+  // way, unless moves gives fewer: a fast mouse, seen only that many times between the ends.
+  async dragTiles(from: Tile, to: Tile, moves?: number): Promise<void> {
     if (from.x !== to.x && from.y !== to.y) {
       throw new Error("A drag runs along a row or a column");
     }
@@ -179,7 +180,7 @@ export class Player {
 
     await this.page.mouse.move(start.x, start.y);
     await this.page.mouse.down();
-    await this.page.mouse.move(end.x, end.y, {steps: Math.max(tiles, 1)});
+    await this.page.mouse.move(end.x, end.y, {steps: moves ?? Math.max(tiles, 1)});
     await this.page.mouse.up();
     await this.applyInput();
   }
