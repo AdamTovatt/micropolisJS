@@ -222,6 +222,23 @@ describe("the city score breakdown", () => {
         expect(step.entry.points).toBe(scoreAfter - 1000);
     });
 
+    // A third of the problems' sum, truncated, takes 4 points each from 1024, and the base is
+    // clamped to 1000
+    it.each([
+        // 20 / 3 = 6: 1024 - 24
+        ["crime of 20", {crime: 20}, 1000],
+        // 21 / 3 = 7: 1024 - 28
+        ["crime of 21", {crime: 21}, 996],
+        // Unemployment is (200 / 400 - 1) * 255 = -127.5, which drops its fraction to -127, and
+        // -127 / 3 = -42: 1024 + 168, clamped
+        ["more jobs than residents", {comPop: 50}, 1000],
+    ])("starts from the base score for %s", (_, changes, base) => {
+        const city = makeCity();
+        evaluateYear(city, problemFreeYear(200, changes));
+
+        expect(city.evaluation.cityScoreBreakdown[0]).toEqual({reason: Evaluation.SCORE_PROBLEMS, points: base - 500});
+    });
+
     it("credits each step with exactly the points it moved the score", () => {
         const city = makeCity();
         evaluateYear(city, TROUBLED_CITY[0]);
@@ -353,10 +370,10 @@ describe("the city score", () => {
     // Pinned scores over several years: a change to how the score is worked out moves them, and
     // its commit updates them and says why
     it("is pinned for a thriving town", () => {
-        expect(scoresOver(THRIVING_TOWN)).toEqual([706, 853, 867]);
+        expect(scoresOver(THRIVING_TOWN)).toEqual([718, 859, 882]);
     });
 
     it("is pinned for a troubled city", () => {
-        expect(scoresOver(TROUBLED_CITY)).toEqual([643, 458, 456, 525]);
+        expect(scoresOver(TROUBLED_CITY)).toEqual([655, 468, 469, 541]);
     });
 });

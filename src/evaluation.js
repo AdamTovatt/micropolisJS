@@ -283,13 +283,18 @@ Evaluation.prototype.getScore = function(simData) {
   for (var i = 0; i < NUMPROBLEMS; i++)
     score += problemData[i];
 
-  score = Math.floor(score / 3);
-  score = (250 - Math.min(score, 250)) * 4;
+  // The score is an int in evaluate.cpp, and Math.trunc does what each (int) cast and integer
+  // division there does: drop the fraction, toward zero.
+
+  // A third of the problems' sum, capped at 256, gives a base of up to 1024, clamped to 1000: so
+  // problems summing to 20 or less leave it at 1000
+  score = Math.trunc(score / 3);
+  score = Math.min(score, 256);
+  score = MiscUtils.clamp((256 - score) * 4, 0, 1000);
   addEntry(Evaluation.SCORE_PROBLEMS, score);
 
   // The adjustments below follow evaluate.cpp's in order, so the repeated blocks are kept rather
-  // than extracted into a loop. Its score is an int, and Math.trunc does what each (int) cast and
-  // integer division there does: drop the fraction, toward zero.
+  // than extracted into a loop
 
   // Penalise the player by 15% if demand for any type of zone is capped due
   // to lack of suitable buildings
