@@ -226,15 +226,10 @@ function startCity(start: CityStart): {name: string, simulation: HostedSimulatio
 }
 
 // What drives the host's loop: the time now, in milliseconds, and a way to run a callback again soon. The browser's
-// is performance.now and setTimeout; a test's runs the loop by hand.
+// is performance.now and setTimeout (cityWorker.ts); a test's runs the loop by hand.
 export interface Ticker {
   now(): number;
   later(callback: () => void): void;
-}
-
-// The browser's ticker, in the page or in a worker
-export function browserTicker(): Ticker {
-  return {now: () => performance.now(), later: (callback) => setTimeout(callback, 0)};
 }
 
 export class CityHost {

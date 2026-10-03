@@ -16,13 +16,14 @@ import type { CityStart } from "../src/citySource";
 import { stepsPerCityTime } from "../src/cityTimeModel";
 import { CityState } from "../src/cityState";
 import { CommandLog } from "../src/commandLog";
+import { Config } from "../src/config.js";
 import { MapGenerator } from "../src/mapGenerator.js";
 import { Query, QueryAnswer, SPEEDS, StateMessage } from "../src/protocol";
 import { Random } from "../src/random";
 import { SaveFormat } from "../src/savedGame";
 import { STEPS_PER_SECOND } from "../src/stepDriver";
 import { BIT_MASK } from "../src/tileFlags";
-import { pageSource, SourceFactory, SourceUnderTest } from "./helpers/citySources";
+import { pageSource, SourceFactory, SourceUnderTest, workerSource } from "./helpers/citySources";
 
 // The contract every city source in the browser keeps, whatever runs the simulation behind it
 
@@ -31,7 +32,7 @@ const STEPS_PER_CITY_TIME = stepsPerCityTime(SPEEDS.medium);
 // The milliseconds a number of steps takes in real time
 const millisecondsFor = (steps: number) => steps * 1000 / STEPS_PER_SECOND;
 
-const SOURCES: SourceFactory[] = [pageSource];
+const SOURCES: SourceFactory[] = [pageSource, workerSource];
 
 describe.each(SOURCES)("$name", (factory) => {
 
@@ -312,6 +313,27 @@ describe.each(SOURCES)("$name", (factory) => {
             expect(clientTiles()).toEqual(await savedTiles());
         });
 
+        it("says whether it is held, and once released leaves the city to apply commands and step on its own", async () => {
+            const driver = tested.source.driver;
+            expect(driver.isHeld()).toBe(false);
+            await driver.hold();
+            expect(driver.isHeld()).toBe(true);
+            await startNewCity();
+            tested.source.send({type: "setAutoBudget", on: false});
+            await tested.run(millisecondsFor(STEPS_PER_CITY_TIME));
+            expect(state.current("settings").autoBudget).toBe(true);
+            expect(await driver.cityTime()).toBe(0);
+
+            // The turn after the release starts the clock again, without catching up on the time it was held
+            await driver.release();
+            expect(driver.isHeld()).toBe(false);
+            await tested.run(millisecondsFor(10 * STEPS_PER_CITY_TIME));
+            await tested.run(millisecondsFor(STEPS_PER_CITY_TIME));
+
+            expect(state.current("settings").autoBudget).toBe(false);
+            expect(await driver.cityTime()).toBe(1);
+        });
+
         it("reports why an advance failed", async () => {
             const driver = tested.source.driver;
             await startNewCity();
@@ -320,6 +342,18 @@ describe.each(SOURCES)("$name", (factory) => {
                                                      error: "Advance needs the driver held, or the driver's steps " +
                                                             "would land at times of its own"});
         });
+    });
+
+    // The simulation's debug mode is a module both sides share under Jest, so the test puts it back
+    it("passes the client's debug mode on to the simulation", async () => {
+        const debugging = factory.create(true);
+        try {
+            await debugging.run();
+            expect(Config.debug).toBe(true);
+        } finally {
+            debugging.close();
+            Config.debug = false;
+        }
     });
 
     it("saves a game whose text is the save format's", async () => {

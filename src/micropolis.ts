@@ -13,18 +13,17 @@
 
 import { browserCityEnvironment } from "./browserCityEnvironment";
 import { CityClient } from "./cityClient";
-import { browserTicker } from "./cityHost";
 import type { CitySource } from "./citySource";
 import { CityState } from "./cityState";
 import { Config } from "./config.js";
 import { requiredElement } from "./domElements";
 import { showOnlineList } from "./onlineList";
-import { PageCitySource } from "./pageCitySource";
 import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
 import { attachDriverToTestHook, installTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
 import { debugOption, seedOption } from "./urlOptions";
+import { WorkerCitySource } from "./workerCitySource";
 
 // The page's entry point: it loads the tile set, waits for the sprites, signs in where a server answers, and shows the
 // splash screen
@@ -100,8 +99,19 @@ if (Config.debug) {
   installTestHook();
 }
 
+// The city runs in a Web Worker, off the page's thread. What goes wrong there outside a call, such as in the loop that
+// steps the city, goes wrong in the page too, so it is never silent. The page reports it only as this throw, which
+// names the worker; the worker reports it in its own scope too. A worker's script that fails to load fires a plain
+// event, with no message of its own.
+const worker = new Worker(new URL("./cityWorker.ts", import.meta.url));
+worker.addEventListener("error", (event) => {
+  event.preventDefault();
+  const reason = event instanceof ErrorEvent ? event.message : "its script didn't load";
+  throw new Error(`The city's worker failed: ${reason}`);
+});
+
 // The only way the client reaches the city, and the client's copy of it, which follows the source from the start
-const source: CitySource = new PageCitySource(browserTicker());
+const source: CitySource = new WorkerCitySource(worker, Config.debug);
 const state = new CityState(source);
 attachDriverToTestHook(source.driver);
 

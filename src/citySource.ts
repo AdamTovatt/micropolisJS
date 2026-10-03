@@ -85,3 +85,34 @@ export interface CitySource extends QuerySource {
   // The session's command log: every command applied since the city started, and checkpoints of its state hash
   commandLog(): Promise<SessionLog>;
 }
+
+// A source's subscribers, to whom it delivers each state message in turn, in the order they subscribed
+export class Subscribers {
+  private readonly listeners: ((message: StateMessage) => void)[] = [];
+
+  subscribe(listener: (message: StateMessage) => void): void {
+    this.listeners.push(listener);
+  }
+
+  deliver(messages: StateMessage[]): void {
+    messages.forEach((message) => this.listeners.forEach((listener) => listener(message)));
+  }
+}
+
+// A driver over the calls that reach the city's own, which answers whether it is held at once, from its last hold or
+// release, since the game's tick asks every tick
+export function trackingHold(calls: Omit<CityDriver, "isHeld">): CityDriver {
+  let held = false;
+  return {
+    ...calls,
+    isHeld: () => held,
+    hold: async () => {
+      held = true;
+      await calls.hold();
+    },
+    release: async () => {
+      held = false;
+      await calls.release();
+    },
+  };
+}

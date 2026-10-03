@@ -55,7 +55,7 @@ const IDLE_GAME = {
 // lists the commands the source has applied, in order.
 async function holdingGame(start: CityStart = {name: "Town", seed: 1, level: 0}) {
     const ticker = new ManualTicker();
-    const source = new PageCitySource(ticker);
+    const source = new PageCitySource(ticker, false);
     const state = new CityState(source);
     const hook = new TestHook();
     hook.attachDriver(source.driver);

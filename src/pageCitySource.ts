@@ -12,44 +12,39 @@
  */
 
 import { CityHost, Ticker } from "./cityHost";
+import { Subscribers, trackingHold } from "./citySource";
 import type { CityDriver, CitySource, StartedCity, CityStart, SessionLog } from "./citySource";
+import { Config } from "./config.js";
 import { Command, LOCAL_PLAYER, Query, QueryAnswer, StateMessage } from "./protocol";
 
-// The in-page source: the simulation runs in the same thread as the client, and answers at once. It is the simplest
-// source to test against.
+// The in-page source: the simulation runs in the same thread as the client, and answers at once. The page plays
+// through the Worker source; the client's tests run against this one, on the test's own thread, and it passes the same
+// contract tests as the Worker source.
 
 export class PageCitySource implements CitySource {
   readonly player = LOCAL_PLAYER;
   readonly driver: CityDriver;
 
-  private readonly listeners: ((message: StateMessage) => void)[] = [];
+  private readonly subscribers = new Subscribers();
   private readonly host: CityHost;
 
-  constructor(ticker: Ticker) {
-    const host = new CityHost((messages) => {
-      messages.forEach((message) => this.listeners.forEach((listener) => listener(message)));
-    }, ticker);
+  // debug is whether the client is in debug mode, which the simulation takes on
+  constructor(ticker: Ticker, debug: boolean) {
+    Config.debug = debug;
+    const host = new CityHost((messages) => this.subscribers.deliver(messages), ticker);
     this.host = host;
 
-    let held = false;
-    this.driver = {
-      isHeld: () => held,
-      hold: async () => {
-        held = true;
-        host.hold();
-      },
-      release: async () => {
-        held = false;
-        host.release();
-      },
+    this.driver = trackingHold({
+      hold: async () => host.hold(),
+      release: async () => host.release(),
       flush: async () => host.flush(),
       advance: async (steps) => host.advance(steps),
       cityTime: async () => host.cityTime(),
-    };
+    });
   }
 
   subscribe(listener: (message: StateMessage) => void): void {
-    this.listeners.push(listener);
+    this.subscribers.subscribe(listener);
   }
 
   async start(start: CityStart): Promise<StartedCity> {

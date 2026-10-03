@@ -148,7 +148,7 @@ describe("the overlay selection", () => {
 describe("the overlay selection on a city source", () => {
 
     it("shows the simulation's answer, and the new one each time the layer's phase recomputes it", async () => {
-        const source = new PageCitySource(new ManualTicker());
+        const source = new PageCitySource(new ManualTicker(), false);
         const state = new CityState(source);
         await source.driver.hold();
         await source.start({save: SaveFormat.serialise({...plainSavedState(buildCity(2026, 7)), name: "Town"})});
