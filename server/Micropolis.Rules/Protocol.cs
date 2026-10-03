@@ -58,6 +58,7 @@ namespace Micropolis.Rules
     [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
     [JsonDerivedType(typeof(HelloMessage), "hello")]
     [JsonDerivedType(typeof(PlayersMessage), "players")]
+    [JsonDerivedType(typeof(CursorMessage), "cursor")]
     [JsonDerivedType(typeof(StateBatchMessage), "state")]
     [JsonDerivedType(typeof(AnswerMessage), "answer")]
     [JsonDerivedType(typeof(FailedMessage), "failed")]
@@ -138,6 +139,77 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("error")] string? Error);
 
     /// <summary>
+    /// Another player in the city moved their hover box, or it left the map. The server passes it on to the city's
+    /// other players and to nothing else: the simulation never sees it, and no log keeps it.
+    /// </summary>
+    /// <param name="Player">The id of the player whose box it is.</param>
+    /// <param name="Cursor">The box, or null when it left the map, the player put their tool down, or the connection
+    /// it came from left the city.</param>
+    public sealed record CursorMessage(
+        [property: JsonPropertyName("player")] string Player,
+        [property: JsonPropertyName("cursor")] Cursor? Cursor) : ServerMessage;
+
+    /// <summary>
+    /// A player's hover box on the map.
+    /// </summary>
+    /// <param name="Tool">The tool the player holds.</param>
+    /// <param name="X">The column of the map tile under the player's pointer, where a click applies the tool.</param>
+    /// <param name="Y">The row of that tile.</param>
+    /// <param name="Size">The box's side in tiles.</param>
+    public sealed record Cursor(
+        [property: JsonPropertyName("tool")] CursorTool Tool,
+        [property: JsonPropertyName("x")] int X,
+        [property: JsonPropertyName("y")] int Y,
+        [property: JsonPropertyName("size")] int Size);
+
+    /// <summary>
+    /// The tools a hover box shows, as <c>CURSOR_TOOLS</c> in <c>src/protocol.ts</c> lists them, in its order: those of
+    /// <see cref="ToolName"/>, then the query tool. Read by name only, as the client's reader reads it.
+    /// </summary>
+    [JsonConverter(typeof(ProtocolNameConverter<CursorTool>))]
+    public enum CursorTool
+    {
+        [JsonStringEnumMemberName("airport")] Airport,
+        [JsonStringEnumMemberName("bulldozer")] Bulldozer,
+        [JsonStringEnumMemberName("coal")] Coal,
+        [JsonStringEnumMemberName("commercial")] Commercial,
+        [JsonStringEnumMemberName("fire")] Fire,
+        [JsonStringEnumMemberName("industrial")] Industrial,
+        [JsonStringEnumMemberName("nuclear")] Nuclear,
+        [JsonStringEnumMemberName("park")] Park,
+        [JsonStringEnumMemberName("police")] Police,
+        [JsonStringEnumMemberName("port")] Port,
+        [JsonStringEnumMemberName("rail")] Rail,
+        [JsonStringEnumMemberName("residential")] Residential,
+        [JsonStringEnumMemberName("road")] Road,
+        [JsonStringEnumMemberName("stadium")] Stadium,
+        [JsonStringEnumMemberName("wire")] Wire,
+        [JsonStringEnumMemberName("query")] Query,
+    }
+
+    /// <summary>
+    /// Reads and writes an enumeration by its members' protocol names, compared exactly, as the client's reader
+    /// compares them: a number, names joined as flags, or a name with spaces round it is an error.
+    /// </summary>
+    public sealed class ProtocolNameConverter<TEnum> : JsonConverter<TEnum> where TEnum : struct, Enum
+    {
+        public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.String || !ProtocolJson.TryParseName(reader.GetString()!, out TEnum value))
+            {
+                throw new JsonException($"A {typeof(TEnum).Name} is one of {string.Join(", ", ProtocolJson.Names<TEnum>())}.");
+            }
+
+            return value;
+        }
+
+        public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(ProtocolJson.Name(value));
+        }
+    }
+
+    /// <summary>
     /// A request or response body of <c>/api/session</c>. Each body's endpoint and status say what it is, so a body
     /// carries no type.
     /// </summary>
@@ -175,7 +247,7 @@ namespace Micropolis.Rules
     /// <summary>
     /// The tools that change the city, as <c>TOOL_NAMES</c> in <c>src/protocol.ts</c> lists them, in its order.
     /// </summary>
-    [JsonConverter(typeof(JsonStringEnumConverter<ToolName>))]
+    [JsonConverter(typeof(ProtocolNameConverter<ToolName>))]
     public enum ToolName
     {
         [JsonStringEnumMemberName("airport")] Airport,
@@ -198,7 +270,7 @@ namespace Micropolis.Rules
     /// <summary>
     /// The disasters a player may trigger, as <c>DISASTER_KINDS</c> lists them, in its order.
     /// </summary>
-    [JsonConverter(typeof(JsonStringEnumConverter<DisasterKind>))]
+    [JsonConverter(typeof(ProtocolNameConverter<DisasterKind>))]
     public enum DisasterKind
     {
         [JsonStringEnumMemberName("monster")] Monster,
@@ -273,7 +345,7 @@ namespace Micropolis.Rules
     /// What came of a command, as <c>Outcome</c> in <c>src/protocol.ts</c> names it. A tool command is ok when the tool
     /// succeeded at every tile of its path, and otherwise takes the outcome of the first tile where it didn't.
     /// </summary>
-    [JsonConverter(typeof(JsonStringEnumConverter<Outcome>))]
+    [JsonConverter(typeof(ProtocolNameConverter<Outcome>))]
     public enum Outcome
     {
         [JsonStringEnumMemberName("ok")] Ok,

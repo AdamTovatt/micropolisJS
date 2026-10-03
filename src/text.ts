@@ -12,7 +12,10 @@
  */
 
 import * as Messages from "./messages";
-import { CITY_PROBLEMS, CityClass, GameLevel, OverlayLayer, ScoreReason, ZoneCategory } from "./protocol";
+import {
+  CITY_PROBLEMS, CityClass, DisasterKind, GameLevel, OverlayLayer, ScoreReason, ServiceAmounts, SPEEDS, ToolName,
+  ZoneCategory,
+} from "./protocol";
 
 // TODO Some kind of rudimentary L20N based on navigator.language?
 
@@ -182,6 +185,32 @@ const overlays: {label: string, none: string, layers: Record<OverlayLayer, Layer
   },
 };
 
+// What the activity list says another player did, after their name, for each command that went through
+const playerActions = {
+  tools: {
+    airport: "built an airport", bulldozer: "bulldozed", coal: "built a coal power plant",
+    commercial: "zoned commercial land", fire: "built a fire station", industrial: "zoned industrial land",
+    nuclear: "built a nuclear power plant", park: "built a park", police: "built a police station",
+    port: "built a seaport", rail: "laid rail", residential: "zoned residential land", road: "built a road",
+    stadium: "built a stadium", wire: "laid power lines",
+  } satisfies Record<ToolName, string>,
+  taxes: (tax: number) => `set taxes to ${tax}%`,
+  funding: {road: "road funding", fire: "fire funding", police: "police funding"} satisfies Record<keyof ServiceAmounts, string>,
+  fundingTo: (service: string, percent: number) => `${service} to ${percent}%`,
+  speeds: {
+    paused: "paused the city", slow: "set the speed to slow", medium: "set the speed to medium",
+    fast: "set the speed to fast",
+  } satisfies Record<keyof typeof SPEEDS, string>,
+  autoBudget: (on: boolean) => on ? "turned auto-budget on" : "turned auto-budget off",
+  disastersSetting: (on: boolean) => on ? "turned disasters on" : "turned disasters off",
+  disasters: {
+    monster: "set a monster loose", fire: "started a fire", flood: "caused a flood", crash: "crashed a plane",
+    meltdown: "caused a nuclear meltdown", tornado: "summoned a tornado", earthquake: "caused an earthquake",
+  } satisfies Record<DisasterKind, string>,
+  addFunds: "added funds",
+  line: (name: string, action: string) => `${name} ${action}`,
+};
+
 export const Text = {
   cityClass,
   crimeStrings,
@@ -191,6 +220,7 @@ export const Text = {
   messages,
   months,
   overlays,
+  playerActions,
   problems,
   pollutionStrings,
   rateStrings,

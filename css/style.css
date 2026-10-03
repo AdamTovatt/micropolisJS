@@ -402,9 +402,32 @@ main {
 }
 
 #onlineList {
-  top: 10px;
-  max-width: 400px;
   font-size: 14px;
+}
+
+#activityList {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.activityLine {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation-name: activityFade;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+/* A line holds for most of its time, then fades out as its time runs out */
+@keyframes activityFade {
+  0%, 80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
 
 #opaque {
@@ -420,7 +443,6 @@ main {
 }
 
 #overlayPanel {
-  top: 58px;
   width: 220px;
   font-size: 14px;
   text-align: center;
@@ -606,6 +628,30 @@ main {
   right: 0;
   display: none;
   z-index: 200;
+}
+
+/* The online list, the overlay picker and the activity list, one under the other across the top of the map. The
+   activity list comes last, so a line coming or going never moves the picker under the player's pointer. */
+#topPanels {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  /* The gaps between the panels are the map's */
+  pointer-events: none;
+}
+
+#topPanels > * {
+  max-width: 400px;
+  border: 1px solid black;
+}
+
+#onlineList, #overlayPanel {
+  pointer-events: auto;
 }
 
 #tvContainer {

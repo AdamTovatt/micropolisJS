@@ -12,8 +12,8 @@
  */
 
 import {
-  CITY_FAILED_CLOSE, CityMessage, ClientMessage, parseErrorResponse, parsePlayerResponse, parseServerMessage,
-  parseSessionResponse, PlayerInfo, signInRequest,
+  CITY_FAILED_CLOSE, CityMessage, ClientMessage, Cursor, CursorMessage, cursorReport, parseErrorResponse,
+  parsePlayerResponse, parseServerMessage, parseSessionResponse, PlayerInfo, signInRequest,
 } from "./protocol";
 
 // The browser's side of the server, as protocol/README.md describes it: signing in and the city's WebSocket. When no
@@ -71,7 +71,14 @@ export type SignInResult =
 
 type SessionCheck = "valid" | "rejected" | "unreachable";
 
-export class CityClient {
+// What a game hears from the server of the other players in its city, and tells it of this one
+export interface Presence {
+  onStatus(listener: (status: CityStatus) => void): void;
+  onCursor(listener: (message: CursorMessage) => void): void;
+  reportCursor(cursor: Cursor | null): void;
+}
+
+export class CityClient implements Presence {
   private session: StoredSession | null = null;
   // The name a sign-in was given while the server stopped answering, to sign in under once it answers again
   private pendingName: string | null = null;
@@ -86,6 +93,7 @@ export class CityClient {
   private hasSocket = false;
   // What waits for the socket opening to be welcomed or closed
   private welcomes: ((online: boolean) => void)[] = [];
+  private readonly cursorListeners: ((message: CursorMessage) => void)[] = [];
 
   constructor(private readonly environment: CityClientEnvironment) {}
 
@@ -128,6 +136,17 @@ export class CityClient {
 
     this.socket.send(JSON.stringify(message));
     return true;
+  }
+
+  // Calls the listener with each other player's hover box the server passes on, from now on
+  onCursor(listener: (message: CursorMessage) => void): void {
+    this.cursorListeners.push(listener);
+  }
+
+  // Tells the server where this player's hover box is now, or that it left the map. Nothing goes while offline: the
+  // next box reported after the client is welcomed again is where it is then.
+  reportCursor(cursor: Cursor | null): void {
+    this.send(cursorReport(cursor));
   }
 
   // Finds out whether a server answers, and connects with the stored session when it does. The stored name signs in
@@ -296,6 +315,12 @@ export class CityClient {
       case "players":
         if (this.status.online) {
           this.setStatus({online: true, you: this.status.you, players: message.players});
+        }
+        break;
+
+      case "cursor":
+        if (this.status.online) {
+          this.cursorListeners.forEach((listener) => listener(message));
         }
         break;
 

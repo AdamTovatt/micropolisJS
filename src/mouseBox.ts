@@ -42,4 +42,44 @@ function drawMouseBox(canvas: HTMLCanvasElement, pos: PixelPoint, width: number,
   ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
 }
 
-export { drawMouseBox, mouseBoxRect };
+// A name beside a box: a tag in the box's colour, its text LABEL_FONT_PX high, starting LABEL_GAP right of the box's
+// line
+const LABEL_FONT_PX = 12;
+const LABEL_PADDING = 3;
+const LABEL_GAP = LINE_WIDTH + 2;
+
+// The tag for a name textWidth pixels wide, beside the box whose area's top-right corner is at pos
+function boxLabelRect(pos: PixelPoint, textWidth: number): MouseBoxRect {
+  return {
+    x: pos.x + LABEL_GAP,
+    y: pos.y - LINE_WIDTH / 2,
+    width: Math.ceil(textWidth) + 2 * LABEL_PADDING,
+    height: LABEL_FONT_PX + 2 * LABEL_PADDING,
+  };
+}
+
+// Black or white, whichever reads better on the colour, a "#rrggbb", by its luminance as Rec. 601 weighs it
+function labelTextColour(colour: string): string {
+  const value = parseInt(colour.slice(1), 16);
+  const luminance = 0.299 * (value >> 16) + 0.587 * ((value >> 8) & 0xff) + 0.114 * (value & 0xff);
+  return luminance > 140 ? "black" : "white";
+}
+
+// Writes the name in a tag of the colour, a "#rrggbb", beside the box whose area's top-right corner is at pos, and
+// gives the rectangle it covers
+function drawBoxLabel(canvas: HTMLCanvasElement, pos: PixelPoint, name: string, colour: string): MouseBoxRect {
+  const ctx = canvas.getContext("2d")!;
+  ctx.font = `${LABEL_FONT_PX}px 'Open Sans', sans-serif`;
+  const rect = boxLabelRect(pos, ctx.measureText(name).width);
+
+  ctx.fillStyle = colour;
+  ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+  ctx.fillStyle = labelTextColour(colour);
+  ctx.textBaseline = "top";
+  ctx.fillText(name, rect.x + LABEL_PADDING, rect.y + LABEL_PADDING);
+
+  return rect;
+}
+
+export { boxLabelRect, drawBoxLabel, drawMouseBox, labelTextColour, mouseBoxRect };
+export type { MouseBoxRect };

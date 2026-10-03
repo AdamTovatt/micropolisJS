@@ -103,6 +103,9 @@ export class InputStatus extends Emitter {
   toolWidth = 0;
   toolColour = "";
 
+  // Each tool's outline colour, by the tool's name, as its button gives it
+  private readonly toolColours = new Map<string, string>();
+
   private readonly canvas: HTMLElement;
   private readonly pauseButton: HTMLElement;
   private readonly toolOutput: HTMLElement;
@@ -132,6 +135,7 @@ export class InputStatus extends Emitter {
 
     document.querySelectorAll<HTMLElement>(".toolButton").forEach((button) => {
       button.addEventListener("click", (e) => this.onToolButton(e, button));
+      this.toolColours.set(button.dataset.tool ?? "", button.dataset.colour ?? "");
     });
 
     const requests: [HTMLElement, string][] = [
@@ -280,6 +284,11 @@ export class InputStatus extends Emitter {
 
     this.emit(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
     e.preventDefault();
+  }
+
+  // The colour the tool's outline is drawn in, whoever holds it
+  toolColourOf(tool: string): string {
+    return this.toolColours.get(tool) || "yellow";
   }
 
   private onToolButton(e: MouseEvent, button: HTMLElement): void {
