@@ -11,8 +11,8 @@
  *
  */
 
-import { FundingChoice, wholePercent } from "../src/fundingChoice";
-import { fundingPercent } from "../src/yearEndBudget";
+import { fundingPercent } from "../src/serviceFunding";
+import { wholePercent } from "../src/wholePercent";
 
 describe("wholePercent", () => {
 
@@ -36,21 +36,5 @@ describe("wholePercent", () => {
         }
 
         expect(shownOtherwise).toEqual([[53, 52], [59, 58]]);
-    });
-});
-
-describe("FundingChoice", () => {
-
-    it("should hold no changes until a slider moves", () => {
-        expect(new FundingChoice().changes()).toEqual({});
-    });
-
-    it("should hold the whole percent of each slider moved, the last position each", () => {
-        const choice = new FundingChoice();
-        choice.choose("fire", 80);
-        choice.choose("road", 40);
-        choice.choose("fire", 75);
-
-        expect(choice.changes()).toEqual({ fire: 75, road: 40 });
     });
 });

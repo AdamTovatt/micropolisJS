@@ -14,7 +14,7 @@
 import { EventEmitter } from './eventEmitter.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { SERVICES, forecastYear, fundEffect, fundServices, fundingPercent, fundingSpend } from './yearEndBudget.ts';
+import { SERVICES, forecastYear, fundEffect, fundServices, fundingPercent, fundingSpend } from './serviceFunding.ts';
 
 // Cost of maintaining 1 police station
 var policeMaintenanceCost = 100;

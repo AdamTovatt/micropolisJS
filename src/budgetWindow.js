@@ -13,11 +13,11 @@
 
 import $ from "jquery";
 
-import { FundingChoice, wholePercent } from './fundingChoice.ts';
 import { BUDGET_WINDOW_CLOSED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import { ModalWindow } from './modalWindow.js';
 import { formatMoney } from './money.ts';
+import { wholePercent } from './wholePercent.ts';
 
 var BudgetWindow = ModalWindow(function() {
   $(budgetCancelID).on('click', cancel.bind(this));
@@ -51,7 +51,7 @@ var sliderPercentage = function(elementID) {
 // Shows each service's cost at its funding level, and the cash flow and year-end balance the budget forecasts for
 // those levels.
 var updateFunding = function() {
-  var forecast = this.forecast(this.funding.changes());
+  var forecast = this.forecast(this.funding);
 
   for (var i = 0; i < services.length; i++) {
     var service = services[i];
@@ -65,9 +65,15 @@ var updateFunding = function() {
 };
 
 
-// Starts the window's funding from the percentages the budget has, with each slider at its whole percent
+// Draws each slider at the whole percent of the percentage the budget has, and starts the window's funding with no
+// changes. The funding holds the whole percent of each slider the player moves, and OK sends only those, which the
+// budget funds as the original's slider handlers do. A service whose slider hasn't moved keeps its percentage.
+//
+// This keeps the fraction of a percentage the budget scaled back to the cash it had, where the original loses it: its
+// window, on drawing a slider at a whole percent other than the slider's last position, sets the slider, and setting a
+// slider stores its whole percent back. Opening a window never changes the city here, so that is not ported.
 var startFunding = function() {
-  this.funding = new FundingChoice();
+  this.funding = {};
   for (var i = 0; i < services.length; i++) {
     var service = services[i];
     $(MiscUtils.normaliseDOMid(service.sliderID))[0].value = wholePercent(this.originalPercents[service.name]);
@@ -77,7 +83,7 @@ var startFunding = function() {
 
 
 var onSliderMoved = function(service) {
-  this.funding.choose(service.name, sliderPercentage(service.sliderID));
+  this.funding[service.name] = sliderPercentage(service.sliderID);
   updateFunding.call(this);
 };
 
@@ -112,7 +118,7 @@ var cancel = function(e) {
 var submit = function(e) {
   e.preventDefault();
 
-  this.close({cancelled: false, funding: this.funding.changes(), taxPercent: sliderPercentage('taxRate'), e: e,
+  this.close({cancelled: false, funding: this.funding, taxPercent: sliderPercentage('taxRate'), e: e,
               original: e.type});
 };
 

@@ -13,7 +13,7 @@
 
 import {
     forecastYear, fundEffect, fundServices, serviceSpend, fundingPercent, fundingSpend,
-} from "../src/yearEndBudget";
+} from "../src/serviceFunding";
 
 const fullFunding = { road: 1, fire: 1, police: 1 };
 const noFunding = { road: 0, fire: 0, police: 0 };
