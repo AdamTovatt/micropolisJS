@@ -18,10 +18,12 @@
 import { SaveData } from "../headless/city";
 import { BRIDGE_STRIP, FIRE_STRIP, RADIATION_STRIP, STADIUM_STRIP } from "../headless/fixtures/disasters";
 import { fixtureNamesOf } from "../headless/fixtures/index";
+import { buildingAt, lineOf } from "../headless/fixtures/toolCommands";
 import {
-  BUDGET_REVIEW_DUE, CLASSIFICATION_UPDATED, FIRE_STATION_NEEDS_FUNDING, FRONT_END_MESSAGE, HIGH_CRIME, NO_MONEY,
-  NOT_ENOUGH_POWER, POLICE_NEEDS_FUNDING, POPULATION_UPDATED, REACHED_TOWN, ROAD_NEEDS_FUNDING,
+  BUDGET_REVIEW_DUE, CLASSIFICATION_UPDATED, COMMAND_RESULT, FIRE_STATION_NEEDS_FUNDING, FRONT_END_MESSAGE, HIGH_CRIME,
+  NO_MONEY, NOT_ENOUGH_POWER, POLICE_NEEDS_FUNDING, POPULATION_UPDATED, REACHED_TOWN, ROAD_NEEDS_FUNDING,
 } from "../src/messages";
+import { Command, ToolName } from "../src/protocol";
 import { savedState } from "../src/stateHash";
 import { BIT_MASK, ZONEBIT } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
@@ -29,8 +31,9 @@ import {
   BRWH, DIRT, FIRE, FREEZ, FULLSTADIUM, HBRIDGE, HTRFBASE, LASTFIRE, LASTIND, LASTRUBBLE, LTRFBASE, PORTBASE,
   POWERBASE, RADTILE, RIVER, ROADBASE, RUBBLE, STADIUM, VBRIDGE,
 } from "../src/tileValues";
+import { local } from "./commandCases";
 import {
-  Internals, SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES,
+  CommandPoint, Internals, SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES,
 } from "./unitSnapshots";
 import { zonePoint } from "./zoneBranches";
 
@@ -185,7 +188,8 @@ interface SavedTiles {
 function tileChanged(record: SnapshotRecord, from: (value: number) => boolean, to: (value: number) => boolean): boolean {
   const before = (record.before as SavedTiles).map;
   const after = (record.after as SavedTiles).map.tiles;
-  const [x0, x1] = record.args;
+  // A map scan's arguments are the columns of its strip
+  const [x0, x1] = record.args as number[];
 
   return before.tiles.some((raw, i) => {
     const x = i % before.width;
@@ -523,3 +527,128 @@ function cityRulesPoints(): SnapshotPoint[] {
        (event.payload as {conditions?: string[]} | undefined)?.conditions?.includes(ROAD_NEEDS_FUNDING))}},
   ];
 }
+
+// --- Command applications: each tool's rules and costs, and the settings commands, applied to a fixture's city
+
+// A line of the tool, with or without auto-bulldoze
+function line(tool: ToolName, x1: number, y1: number, x2: number, y2: number, autoBulldoze: boolean): Command {
+  return {...lineOf(tool, x1, y1, x2, y2), autoBulldoze};
+}
+
+function at(tool: ToolName, x: number, y: number, autoBulldoze: boolean): Command {
+  return {...buildingAt(tool, x, y), autoBulldoze};
+}
+
+// The outcomes and events a record's commands came to
+function outcomes(record: SnapshotRecord): string[] {
+  return record.events.filter((event) => event.name === COMMAND_RESULT)
+    .map((event) => (event.payload as {outcome: string}).outcome);
+}
+
+function reachingOutcomes(branch: string, wanted: string[]): CommandPoint["reaches"] {
+  return {branch, test: (record) => wanted.every((outcome) => outcomes(record).includes(outcome))};
+}
+
+// The step the suburb has passed its first year end by, so its services' upkeep is set and its grid powered
+const AFTER_FIRST_YEAR = 2400;
+
+export const COMMAND_POINTS: CommandPoint[] = [
+  // Roads: across the river, dozing its edges and bridging it; over a power line; and refused on a zone and on trees
+  // without auto-bulldoze, then laid over the trees with it, joining a road's end
+  {
+    fixture: "suburb", step: 0,
+    received: local(
+      line("road", 76, 20, 90, 20, true), at("road", 44, 13, false), at("road", 34, 16, true),
+      at("road", 45, 19, false), at("road", 45, 19, true), line("road", 78, 21, 79, 21, false),
+    ),
+    reaches: reachingOutcomes("a bridge, a crossing and refusals", ["ok", "failed"]),
+  },
+
+  // Rail: a tunnel under the river, a crossing over a road and a power line, and track joining the crossing
+  {
+    fixture: "suburb", step: 0,
+    received: local(
+      line("rail", 72, 22, 90, 22, true), at("rail", 35, 19, false), at("rail", 35, 20, false),
+      at("rail", 44, 13, false), at("rail", 34, 16, false),
+    ),
+    reaches: reachingOutcomes("a tunnel, crossings and a refusal", ["ok", "failed"]),
+  },
+
+  // Wire on a powered grid: a line under the river, over a road, and onto a zone it can't cross
+  {
+    fixture: "suburb", step: AFTER_FIRST_YEAR,
+    received: local(
+      line("wire", 70, 26, 97, 26, true), at("wire", 30, 15, false), at("wire", 30, 16, false),
+      line("wire", 44, 20, 44, 22, false),
+    ),
+    reaches: reachingOutcomes("a line under water and over a road, and a refusal", ["ok", "failed"]),
+  },
+
+  // Every building, with funds granted for them, a wire whose end a new zone turns into, a zone on trees with and
+  // without auto-bulldoze, and one off the map's edge
+  {
+    fixture: "suburb", step: 0,
+    received: local(
+      {type: "addFunds"}, {type: "addFunds"},
+      at("residential", 33, 21, false), at("commercial", 36, 21, false), at("industrial", 39, 21, false),
+      at("police", 42, 21, false), at("fire", 45, 21, false), at("stadium", 32, 24, false), at("coal", 36, 24, false),
+      at("nuclear", 40, 24, false), at("port", 44, 24, false), at("airport", 55, 44, false),
+      line("wire", 47, 22, 50, 22, false), at("industrial", 49, 24, false),
+      at("residential", 66, 23, false), at("residential", 66, 23, true), at("police", 0, 50, true),
+    ),
+    reaches: reachingOutcomes("buildings, refusals and the bulldozer they need", ["ok", "needsBulldoze", "failed"]),
+  },
+
+  // The bulldozer: a zone from its centre, a power plant from another of its tiles, an airport built for it, a road,
+  // trees, a river edge, a bridge, and the river itself, which it can't doze
+  {
+    fixture: "suburb", step: 0,
+    received: local(
+      at("bulldozer", 15, 13, false), at("bulldozer", 12, 13, false),
+      at("airport", 55, 44, false), at("bulldozer", 57, 46, false),
+      at("bulldozer", 34, 15, false), at("bulldozer", 52, 8, false), at("bulldozer", 78, 20, false),
+      line("road", 77, 20, 80, 20, true), at("bulldozer", 79, 20, false), at("bulldozer", 82, 20, false),
+    ),
+    reaches: reachingOutcomes("zones blown up and tiles dozed, and water it can't doze", ["ok", "failed"]),
+  },
+
+  // Parks, each drawing what to plant, and one on trees, which draws and plants nothing
+  {
+    fixture: "suburb", step: 0,
+    received: local(line("park", 60, 40, 66, 40, false), at("park", 52, 8, false)),
+    reaches: reachingOutcomes("parks planted and refused", ["ok", "needsBulldoze"]),
+  },
+
+  // Spending the last of the funds: an airport it can't pay for, then roads, a wire and dozing trees down to nothing,
+  // which says there is no money, and a road it can't pay for
+  {
+    fixture: "suburbBroke", step: 0,
+    received: local(
+      at("airport", 55, 40, false), line("road", 52, 31, 68, 31, false), at("wire", 52, 32, false),
+      at("bulldozer", 60, 30, false), at("bulldozer", 61, 30, false), at("bulldozer", 60, 29, false),
+      at("road", 69, 31, false),
+    ),
+    reaches: {
+      branch: "funds spent to nothing, and tools refused for want of them",
+      test: (record) => outcomes(record).includes("noMoney") && record.events.some((event) =>
+        event.name === FRONT_END_MESSAGE && (event.payload as {subject: string}).subject === NO_MONEY),
+    },
+  },
+
+  // The settings: funding some services and leaving the others, the tax, the speed, auto-budget, disasters and a grant,
+  // with commands rejected among them
+  {
+    fixture: "suburb", step: AFTER_FIRST_YEAR,
+    received: [
+      ...local(
+        {type: "setBudget", road: 50, police: 0, tax: 12}, {type: "setBudget", tax: 5},
+        {type: "setBudget", fire: 75, tax: 5}, {type: "setSpeed", speed: 3}, {type: "setSpeed", speed: 3},
+        {type: "setSpeed", speed: 0}, {type: "setAutoBudget", on: false}, {type: "setDisasters", on: true},
+        {type: "addFunds"},
+      ),
+      {player: "ada", command: {type: "triggerDisaster", kind: "volcano"}},
+      {player: "ada", command: {type: "tool", tool: "road", path: [{x: 120, y: 0}], autoBulldoze: true}},
+    ],
+    reaches: reachingOutcomes("settings applied and commands rejected", ["ok", "rejected"]),
+  },
+];

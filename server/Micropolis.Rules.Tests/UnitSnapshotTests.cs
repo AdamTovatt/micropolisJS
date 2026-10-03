@@ -31,7 +31,13 @@ namespace Micropolis.Rules.Tests
         {
             "disasterManager.doDisasters",
             "disasterManager.doMeltdown",
+            "disasterManager.makeCrash",
+            "disasterManager.makeFire",
+            "disasterManager.makeFlood",
+            "disasterManager.makeMeltdown",
             "spriteManager.makeExplosion",
+            "spriteManager.makeMonster",
+            "spriteManager.makeTornado",
             "spriteManager.moveObjects",
             "transport.airportFound",
             "transport.portFound",
@@ -181,7 +187,7 @@ namespace Micropolis.Rules.Tests
             UnitSnapshot wrong = field switch
             {
                 "step" => snapshot with { Step = snapshot.Step + 1 },
-                "args" => snapshot with { Args = snapshot.Args.Select(arg => arg + 1).ToList() },
+                "args" => snapshot with { Args = snapshot.Args.Select(arg => (JsonNode?)((int)arg! + 1)).ToList() },
                 _ => snapshot with { Handlers = [] },
             };
 

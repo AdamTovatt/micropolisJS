@@ -33,11 +33,20 @@ namespace Micropolis.Rules
                 return value.GetValue<string>();
             }
 
+            // The raw text is quoted and well formed: the parser has checked it
             string raw = element.GetRawText();
+            return Unescape(raw[1..^1]);
+        }
+
+        /// <summary>
+        /// A string's text between its quotes, as the parser has checked it, with its escapes decoded into the UTF-16
+        /// code units they stand for.
+        /// </summary>
+        public static string Unescape(string raw)
+        {
             StringBuilder decoded = new StringBuilder(raw.Length);
 
-            // The raw text is quoted and well formed: the parser has checked it
-            for (int i = 1; i < raw.Length - 1; i++)
+            for (int i = 0; i < raw.Length; i++)
             {
                 if (raw[i] != '\\')
                 {

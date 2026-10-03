@@ -31,8 +31,8 @@ Seeds and 32-bit words are hex strings, as the C reference prints them.
 ## Files the TypeScript reference writes
 
 `generate.ts` writes `tiles.json`, `canonicalJson.json`, `maps.json`, `saveStrings.json`, `messages.json`,
-`saves/`, `helpers.json`, `speedGate.json` and `snapshots/` from the TypeScript game rules. Regenerate them in the
-commit that changes what they are computed from:
+`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/` and `snapshots/` from the TypeScript game
+rules. Regenerate them in the commit that changes what they are computed from:
 
 ```bash
 npm run conformance
@@ -134,6 +134,45 @@ ran a phase (`phaseSteps`). The run passes the counter's wrap from 1023 to 0, wh
 The built save is the replay of the fixture's log to step 0, which the generator checks against the golden hash there,
 as it does each city the snapshots start from.
 
+### commands.json
+
+Commands applied to a city, each with the result the simulation gave it, which checkpoint hashes can't tell apart:
+`commandCases.ts` lists the commands, and the generator applies them. Each of `cases` holds a `description`; the city
+the commands apply to, the built save of a `fixture` (`saves/<fixture>.built.json`), or a `state` it holds, such as a
+new city on a small blank map; `results`, each command's result in the order applied, as `COMMAND_RESULT` carries it
+(`player`, `command` as it arrived, `outcome` and `reason`); and `hash`, the state hash of the city after them all.
+The C# applies each case's commands to its city as their players sent them, and must emit the same results, each
+rejection's reason word for word, and leave the same hash.
+
+The cases reach every reason `commandRejection` gives and every outcome, and the generator fails unless they do. The
+small map's longest command, 3072 characters, is short enough to list one either side of it, with characters
+`JSON.stringify` escapes, in a type and in a key, and numbers it writes as `Number::toString` does. The commands are
+any JSON, a key that is a lone surrogate included, so the C# reads the file as `JSON.parse` does (`JsonText`).
+`triggerDisaster` is listed only as rejected: what an accepted one does is the disasters' rules, which their own unit
+snapshots hold.
+
+### saveVersions/ and migrated/
+
+`saveVersions/` holds sample saves as the browser stored them, the game's own keys and the version included, one or
+more of each save version from 5 on: the oldest the C# migrates, the first that holds the complete simulation state.
+Each was written by the game of its version, and they are never regenerated, since a version's format never changes:
+`version7AwaitingBudget.json` was saved while a year end waited for the player, which the step from version 7 pays.
+The generator writes nothing there, but fails unless every version from 5 to the current one has a sample, so a new
+version adds one, written by the game of the commit that adds it. A sample is the output of the game that wrote it,
+byte for byte, so writing it again from that commit gives the same file. The samples of the versions that came before
+the C# migrated saves were written by these commits on `main`:
+
+| Sample | Commit |
+|--------|--------|
+| `version5.json` | `054dbaf` |
+| `version6.json` | `5b15221` |
+| `version7.json`, `version7AwaitingBudget.json` | `824956a` |
+| `version8.json` | `051aa86` |
+| `version9.json` | `17098d0` |
+
+`migrated/<sample>.json` is what the TypeScript loads each sample to, `SaveFormat.parse` and then the simulation's
+load, as canonical text: the C#'s `SavedGame.Load` must load the sample to the same state.
+
 ### snapshots/
 
 Unit snapshots: calls of the simulation's units of work, each with the saved state before and after it and the events
@@ -145,9 +184,10 @@ which calls.
 A unit is a function the cycle calls, keyed in `UNITS` in `unitSnapshots.ts`, and named by its module and function as
 `src/` names them: `census.take10Census`, `blockMapUtils.crimeScan`, `simulation._sendMessages`.
 `simulation._simulate` is one pass the speed gate lets through: the city's first evaluation if it is still due, then
-one phase. A handler the map scan calls is named by its family and its function, `residential.residentialFound`. A
-handler family is a module that registers handlers with the map scanner and zones with the repair manager. Families
-are named by their modules, `FAMILIES` in `unitSnapshots.ts` and `Simulation.HandlerFamilies` in C# list them in
+one phase. `simulation.applyCommands` applies the commands a city receives, between steps rather than in the cycle.
+A handler the map scan calls is named by its family and its function, `residential.residentialFound`. A handler family
+is a module that registers handlers with the map scanner and zones with the repair manager. Families are named by
+their modules, `FAMILIES` in `unitSnapshots.ts` and `Simulation.HandlerFamilies` in C# list them in
 `Simulation.init`'s order, and a C# test checks that order against the records. Where a unit reaches the sprites or
 the disasters, the names are `spriteManager.makeExplosion` and `disasterManager.doMeltdown`.
 
@@ -164,7 +204,8 @@ an object of:
 - `fixture` and `step`: the sprite-free fixture whose city made the call, run at its saved speed from its built save,
   checked against its golden hash, and the step, counted from 0, during which the call came.
 - `unit` and `args`: the unit's name, and its arguments that are not simulation state. `mapScanner.mapScan`'s are its
-  first column and the column after its last; every other unit's are `[]`.
+  first column and the column after its last; `simulation.applyCommands`'s one argument is the commands it applies,
+  each `{"player", "command"}`; every other unit's are `[]`.
 - `handlers`: the handler families registered for the call, in the order registered: every family, in
   `Simulation.init`'s order, but in the map scan's records of a point with `"each"`, which register none or one, so
   one family's handlers are proven alone.
@@ -213,6 +254,14 @@ branch unproven.
 The generator watches a fixture's city for sprites only until its last point; `test/goldenHashes.ts` checks that every
 sprite-free fixture, a `"branch"` fixture included, creates none over its whole golden run. A test fails on a point
 naming a fixture that is not sprite-free.
+
+No step applies a command, so `simulation.applyCommands` has points of its own, `COMMAND_POINTS` in
+`snapshotPoints.ts`, recorded by `recordCommandSnapshots`: a fixture, the steps its city runs from its built save
+first, and the commands. Each is recorded by replay from the city's state there, and the commands applied to the city
+that stepped there must leave what the replay did; they never reach a fixture's run that the other points record from.
+The points cover each tool's rules and costs, the building, road, rail and wire tools beside what they connect to,
+over water and with auto-bulldoze on and off, funds spent to nothing, and the settings commands among rejected ones,
+and each names in `reaches` the outcomes it must come to.
 
 The generator fails when:
 

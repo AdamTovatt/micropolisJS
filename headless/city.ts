@@ -81,7 +81,12 @@ const construct = SimulationConstructor as unknown as Construct;
 
 // A new city on the map the seed generates, as the browser starts one
 export function cityFromSeed(seed: number, level: number, speed: number): Simulation {
-  return new construct(MapGenerator(Random.mapStream(seed)), level, speed, seed);
+  return cityOnMap(MapGenerator(Random.mapStream(seed)), level, speed, seed);
+}
+
+// A new city on the map given, simulated from the stream of the seed given, such as one on a blank map
+export function cityOnMap(map: GameMapInstance, level: number, speed: number, seed: number): Simulation {
+  return new construct(map, level, speed, seed);
 }
 
 // A city restored from what Simulation.save wrote, without the save format of savedGame.ts. Loading copies the saved

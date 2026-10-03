@@ -252,6 +252,54 @@ namespace Micropolis.Rules
             PoliceSpend = spends.Police;
         }
 
+        /// <summary>
+        /// Funds each service given at its whole percent, as <c>setFunding</c> does and the original's budget slider
+        /// handlers (<c>SimCmdRoadFund</c> and its siblings in micropolis-activity's <c>w_sim.c</c>), and leaves the
+        /// others as they are: each one's spend is booked from its whole percent, and the effects are set from the
+        /// spends. With no service given, nothing changes.
+        /// </summary>
+        internal void SetFunding(int? road, int? fire, int? police)
+        {
+            if (road is null && fire is null && police is null)
+            {
+                return;
+            }
+
+            if (road is int roadPercent)
+            {
+                RoadSpend = FundingSpend(RoadMaintenanceBudget, roadPercent);
+                RoadPercent = FundingPercent(roadPercent);
+            }
+
+            if (fire is int firePercent)
+            {
+                FireSpend = FundingSpend(FireMaintenanceBudget, firePercent);
+                FirePercent = FundingPercent(firePercent);
+            }
+
+            if (police is int policePercent)
+            {
+                PoliceSpend = FundingSpend(PoliceMaintenanceBudget, policePercent);
+                PolicePercent = FundingPercent(policePercent);
+            }
+
+            UpdateFundEffects();
+        }
+
+        // The funding percentage (0 to 1) of a service funded at a whole percent, as the slider handlers store it:
+        // percent / 100.0, kept in a float, as fundingPercent in src/serviceFunding.ts
+        private static double FundingPercent(int wholePercent)
+        {
+            return (float)(wholePercent / 100.0);
+        }
+
+        // The spend booked on a service funded at a whole percent, as the slider handlers book it: (max * percent) /
+        // 100, in integers, as fundingSpend in src/serviceFunding.ts
+        private static long FundingSpend(long maintenance, int wholePercent)
+        {
+            return JsMath.FloorDiv(maintenance * wholePercent, 100);
+        }
+
         internal void Save(JsonObject saveData)
         {
             saveData["budget"] = new JsonObject

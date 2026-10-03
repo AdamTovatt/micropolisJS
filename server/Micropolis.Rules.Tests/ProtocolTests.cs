@@ -41,6 +41,8 @@ namespace Micropolis.Rules.Tests
 
         public static IEnumerable<object[]> SessionExamples => ExamplePaths(SessionBodyExamples).Select(path => new object[] { Path.GetFileName(path) });
 
+        public static IEnumerable<object[]> CommandExamples => ExamplePaths(CommandExampleKind).Select(path => new object[] { Path.GetFileName(path) });
+
         public static IEnumerable<object[]> RejectedSessionBodies => ReaderCases["rejectedSessionBodies"]!.AsArray()
             .Select(item => new object[] { (string)item!["case"]!, (string)item["body"]!, (string)item["text"]! });
 
@@ -99,6 +101,36 @@ namespace Micropolis.Rules.Tests
                 $"Message types [{string.Join(", ", declaredTypes.Order())}], example types [{string.Join(", ", exampleTypes.Order())}].");
         }
 
+        // The simulation takes a command as it arrived once it has read it, so writing the command read back pins the
+        // example's field order to the protocol's
+        [TestMethod]
+        [DynamicData(nameof(CommandExamples))]
+        public void RoundTrip_SharedCommandExample_IsAcceptedAndWritesIdenticalBytes(string fileName)
+        {
+            AssertRoundTrip(Path.Combine(ExamplesDirectory(CommandExampleKind), fileName), wire =>
+                CommandReader.Read(JsonText.Parse(wire), GameMapWidth, GameMapHeight) switch
+                {
+                    AcceptedCommand accepted => ProtocolJson.Serialize(accepted.Command),
+                    RejectedCommand rejected => throw new AssertFailedException($"The example is rejected: {rejected.Reason}."),
+                    _ => throw new AssertFailedException("A command is read as accepted or rejected."),
+                });
+        }
+
+        [TestMethod]
+        public void CommandExamples_EveryCommandType_HasOne()
+        {
+            HashSet<string> declaredTypes = typeof(Command).GetCustomAttributes<JsonDerivedTypeAttribute>()
+                .Select(attribute => (string)attribute.TypeDiscriminator!)
+                .ToHashSet();
+            HashSet<string> exampleTypes = ExamplePaths(CommandExampleKind)
+                .Select(path => JsonDocument.Parse(ReadWireText(File.ReadAllBytes(path))).RootElement.GetProperty("type").GetString()!)
+                .ToHashSet();
+
+            Assert.IsNotEmpty(declaredTypes);
+            Assert.IsTrue(declaredTypes.SetEquals(exampleTypes),
+                $"Command types [{string.Join(", ", declaredTypes.Order())}], example types [{string.Join(", ", exampleTypes.Order())}].");
+        }
+
         [TestMethod]
         [DynamicData(nameof(RejectedCases))]
         public void DeserializeServerMessage_SharedRejectedCase_Throws(string description, string text)
@@ -115,6 +147,11 @@ namespace Micropolis.Rules.Tests
 
         private const string SocketExamples = "socket";
         private const string SessionBodyExamples = "session";
+        private const string CommandExampleKind = "commands";
+
+        // The game's map, which every command example's tiles lie on
+        private const int GameMapWidth = 120;
+        private const int GameMapHeight = 100;
 
         private static string ExamplesDirectory(string kind)
         {

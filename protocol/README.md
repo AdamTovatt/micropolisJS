@@ -1,10 +1,10 @@
 # Protocol
 
-The bodies and messages between the browser and the server, defined by hand on each side: `src/protocol.ts` for the
-client and `server/Micropolis.Rules/Protocol.cs` for the server, and the commands and queries a player sends the
-simulation, with the queries' answers, the records the simulation produces for the windows to show, and the state
-messages the city sends the client, defined in `src/protocol.ts`. The examples and reader cases here pin the sides
-together.
+The bodies and messages between the browser and the server. Each side defines the session's bodies and messages and the
+commands a player sends the simulation by hand: `src/protocol.ts` for the client and
+`server/Micropolis.Rules/Protocol.cs` for the server. Only `src/protocol.ts` defines the queries with their answers,
+the records the simulation produces for the windows to show, and the state messages the city sends the client. The
+examples and reader cases here pin the sides together.
 
 ## Transport
 
@@ -46,10 +46,14 @@ none is an error. Fields may come in any order, `type` included, and writers put
 
 ## Commands
 
-A command is one change a player makes to the city: a JSON object whose `type` field names it. `src/protocol.ts`
-defines each command's fields, and `docs/command-log.md` says what they mean. The simulation validates each command as
-it receives it (`src/commands.ts`), and rejects one with a field missing, a field the command doesn't have, or a value
-of the wrong kind or outside the range the game offers. Fields may come in any order.
+A command is one change a player makes to the city: a JSON object whose `type` field names it. `src/protocol.ts` and
+`server/Micropolis.Rules/Protocol.cs` define each command's fields, and `docs/command-log.md` says what they mean. The
+simulation validates each command as it receives it (`src/commands.ts`, and `CommandReader` in C#), and rejects one
+with a field missing, a field the command doesn't have, or a value of the wrong kind or outside the range the game
+offers, giving the same reason on either side. Fields may come in any order, and writers put them in the protocol's
+order. A command is any JSON a player sends, read as `JSON.parse` reads it, so the C# reads one with `JsonText`, which
+takes a key or string holding a lone surrogate, and keeps the last value of a key written twice. A command nesting
+objects and lists more than 64 deep is rejected before anything else is read.
 
 ## Queries
 

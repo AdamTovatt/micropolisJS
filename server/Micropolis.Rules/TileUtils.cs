@@ -152,5 +152,15 @@ namespace Micropolis.Rules
         {
             return new Tile(TileValues.RUBBLE + (random.GetRandom16() & 3), TileFlags.BULLBIT);
         }
+
+        /// <summary>
+        /// The tile a road, rail or wire piece is, with any road it carries taken out, as the original's
+        /// <c>neutralizeRoad</c>: from the road tiles through the first past the last road, every sixteen tiles fold
+        /// onto the sixteen from <see cref="TileValues.ROADBASE"/>.
+        /// </summary>
+        public static int NormalizeRoad(int tileValue)
+        {
+            return tileValue >= TileValues.ROADBASE && tileValue <= TileValues.LASTROAD + 1 ? (tileValue & 15) + 64 : tileValue;
+        }
     }
 }

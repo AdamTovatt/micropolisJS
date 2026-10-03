@@ -433,7 +433,9 @@ export function zonePoint(fixture: string, family: ZoneFamily, names: string[]):
     reaches: {
       branch: names.join("; "),
       family,
-      test: (record: SnapshotRecord) => unrecorded(() => reachesAll(traceOf(family, record.before, record.args))),
+      // A map scan's arguments are the columns of its strip
+      test: (record: SnapshotRecord) =>
+        unrecorded(() => reachesAll(traceOf(family, record.before, record.args as number[]))),
     },
   };
 }

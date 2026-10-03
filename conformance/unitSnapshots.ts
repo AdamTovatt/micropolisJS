@@ -20,6 +20,7 @@ import { startFromSave } from "../headless/runner";
 import { BlockMap } from "../src/blockMap";
 import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { canonicalJson } from "../src/canonicalJson";
+import { ReceivedCommand } from "../src/commands";
 import { Commercial } from "../src/commercial.js";
 import { EmergencyServices } from "../src/emergencyServices.js";
 import { Industrial } from "../src/industrial.js";
@@ -69,6 +70,7 @@ export interface Internals {
   random: unknown;
   _traffic: {_stack: unknown[]};
   _simulate(simData: unknown): void;
+  applyCommands(received: ReceivedCommand[]): unknown[];
   _sendMessages(): void;
   _publishCityStatus(): void;
   _constructSimData(): unknown;
@@ -173,6 +175,10 @@ const UNITS: Record<string, Unit> = {
 export type UnitName = keyof typeof UNITS;
 
 export const UNIT_NAMES = Object.keys(UNITS);
+
+// The unit that applies the commands a city receives, between steps rather than in the cycle: its one argument is the
+// commands, as a city source receives them
+export const COMMAND_UNIT = "simulation.applyCommands";
 
 // The units of BlockMapUtils, a module's object rather than a simulation's, which are wrapped once for every simulation
 const MODULE_UNITS = UNIT_NAMES.filter((name) => name.startsWith("blockMapUtils."));
@@ -345,7 +351,8 @@ export interface SnapshotRecord {
   fixture: string;
   step: number;
   unit: string;
-  args: number[];
+  // A cycle unit's are numbers, and the commands applied are the one argument of applyCommands
+  args: unknown[];
   handlers: string[];
   reached: string[];
   events: SnapshotEvent[];
@@ -423,8 +430,17 @@ class ReplayContext implements Context {
   }
 }
 
+// Calls the unit on a city as the cycle does, or as a city source applies commands, with a record's arguments
+function invoke(simulation: Internals, unit: string, args: unknown[]): void {
+  if (unit === COMMAND_UNIT) {
+    simulation.applyCommands(args[0] as ReceivedCommand[]);
+  } else {
+    UNITS[unit].invoke(simulation, args as number[]);
+  }
+}
+
 // The unit called on a city restored from the state before it, with the families named registered
-function replay(fixture: string, step: number, before: object, unit: string, args: number[],
+function replay(fixture: string, step: number, before: object, unit: string, args: unknown[],
                 handlers: string[]): SnapshotRecord {
   const simulation = within(NEUTRAL, () => cityFromSave(before as SaveData)) as unknown as Internals;
 
@@ -439,7 +455,7 @@ function replay(fixture: string, step: number, before: object, unit: string, arg
   const context = new ReplayContext();
 
   capturing.push(events);
-  within(context, () => UNITS[unit].invoke(simulation, args));
+  within(context, () => invoke(simulation, unit, args));
   capturing.pop();
 
   const after = within(NEUTRAL, () => plainSavedState(simulation));
@@ -629,19 +645,8 @@ export function recordSnapshots(points: SnapshotPoint[], built: Map<string, Save
       runs.set(point.fixture, [...(runs.get(point.fixture) ?? []), point]);
     }
 
-    const records = Array.from(runs.entries()).flatMap(([fixture, runPoints]) => {
-      const save = built.get(fixture);
-      if (save === undefined) {
-        throw new Error(`No saved state was given for ${fixture}`);
-      }
-
-      return recordRun(fixture, save, runPoints);
-    });
-    const keyed = records.map((record) => ({record, text: canonicalJson(record), key: sortKey(record)}));
-    keyed.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-
-    // Two points may make the same record
-    return keyed.filter((entry, i) => i === 0 || entry.text !== keyed[i - 1].text).map((entry) => entry.record);
+    return ordered(Array.from(runs.entries()).flatMap(([fixture, runPoints]) =>
+      recordRun(fixture, builtSave(built, fixture), runPoints)));
   } finally {
     restores.forEach((restore) => restore());
   }
@@ -656,13 +661,80 @@ export function stateAfter<State extends SaveData = SaveData>(record: SnapshotRe
   return record.after as State;
 }
 
+// --- Command applications, which no step makes: each point's commands applied to a city restored from the fixture's
+// state at the point's step, so the live run of a fixture never takes a command
+
+export interface CommandPoint {
+  // The fixture whose city runs, at its saved speed
+  fixture: string;
+  // How many steps it runs from its built save before the commands apply
+  step: number;
+  received: ReceivedCommand[];
+  // A branch the record must reach
+  reaches?: {branch: string, test(record: SnapshotRecord): boolean};
+}
+
+// The records of the command points, in the order recordSnapshots gives its own. The commands applied to the city that
+// stepped there must leave what the replay from its save did, as each call of a cycle unit must.
+export function recordCommandSnapshots(points: CommandPoint[], built: Map<string, SaveData>): SnapshotRecord[] {
+  return ordered(points.map((point) => {
+    const simulation = startFromSave(builtSave(built, point.fixture), {}) as unknown as Internals;
+    for (let step = 0; step < point.step; step++) {
+      simulation.step();
+    }
+
+    if (simulation.spriteManager.spriteList.length > 0) {
+      throw new Error(`${point.fixture} created a sprite by step ${point.step}: snapshots are recorded from sprite-free ` +
+                      "cities");
+    }
+
+    const before = plainSavedState(simulation);
+    const record = replay(point.fixture, point.step, before, COMMAND_UNIT, [point.received], FAMILY_NAMES);
+    const events: SnapshotEvent[] = [];
+    const capturing = captureEvents(simulation);
+    capturing.push(events);
+    simulation.applyCommands(point.received);
+    capturing.pop();
+
+    if (canonicalJson(plainSavedState(simulation)) !== canonicalJson(record.after) ||
+        canonicalJson(events) !== canonicalJson(record.events)) {
+      throw new Error(`Replaying the commands at step ${point.step} of ${point.fixture} does not do what the city did`);
+    }
+
+    if (point.reaches !== undefined && !point.reaches.test(record)) {
+      throw new Error(`The commands at step ${point.step} of ${point.fixture} do not reach ${point.reaches.branch}`);
+    }
+
+    return record;
+  }));
+}
+
+function builtSave(built: Map<string, SaveData>, fixture: string): SaveData {
+  const save = built.get(fixture);
+  if (save === undefined) {
+    throw new Error(`No saved state was given for ${fixture}`);
+  }
+
+  return save;
+}
+
+// Records in a fixed order, by fixture, unit, step, arguments and handlers, without repeats: two points may make the
+// same record
+function ordered(records: SnapshotRecord[]): SnapshotRecord[] {
+  const keyed = records.map((record) => ({record, text: canonicalJson(record), key: sortKey(record)}));
+  keyed.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
+  return keyed.filter((entry, i) => i === 0 || entry.text !== keyed[i - 1].text).map((entry) => entry.record);
+}
+
 function speedOf(record: SnapshotRecord): number {
   return stateBefore(record).simulation.speed;
 }
 
 function sortKey(record: SnapshotRecord): string {
   const pad = (n: number) => String(n).padStart(8, "0");
-  return [record.fixture, record.unit, pad(record.step), record.args.map(pad).join(","), record.handlers.join(",")]
+  const arg = (value: unknown) => (typeof value === "number" ? pad(value) : canonicalJson(value));
+  return [record.fixture, record.unit, pad(record.step), record.args.map(arg).join(","), record.handlers.join(",")]
     .join("|");
 }
 

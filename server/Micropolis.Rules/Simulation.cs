@@ -46,7 +46,7 @@ namespace Micropolis.Rules
     /// operations rather than C#'s integer semantics: <c>Math.floor</c> rounds down where C# division truncates,
     /// <c>| 0</c> and <c>&gt;&gt;</c> narrow to int32, and <c>Math.round</c> sends halves up.
     /// </remarks>
-    public sealed class Simulation
+    public sealed partial class Simulation
     {
         /// <summary>
         /// The city-class announcements a city may have sent last, in class order.
