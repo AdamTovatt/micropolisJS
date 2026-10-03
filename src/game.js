@@ -22,7 +22,7 @@ import { Config } from './config.js';
 import { DebugWindow } from './debugWindow.js';
 import { DisasterWindow } from './disasterWindow.js';
 import { ToolPaths } from './dragPath.ts';
-import { EvaluationWindow } from './evaluationWindow.js';
+import { EvaluationWindow } from './evaluationWindow.ts';
 import { GameCanvas } from './gameCanvas.js';
 import { InfoBar } from './infoBar.js';
 import { InputStatus } from './inputStatus.js';
@@ -383,7 +383,7 @@ Game.prototype.handleBudgetRequest = function() {
 
 
 Game.prototype.handleEvalRequest = function() {
-  this.windows.open(this.evalWindow, this.simulation.evaluation, this.simulation.getLevel());
+  this.windows.open(this.evalWindow, this.simulation.evaluationRecord());
 };
 
 

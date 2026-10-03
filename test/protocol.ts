@@ -15,9 +15,10 @@ import { readdirSync, readFileSync } from "fs";
 import { basename, join } from "path";
 
 import { commandRejection } from "../src/commands";
+import { evaluationRecord, type EvaluationSource } from "../src/evaluationRecord";
 import {
-    commandTypes, parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, queryTypes,
-    serverMessageTypes, signInRequest,
+    commandTypes, type EvaluationRecord, parseErrorResponse, parsePlayerResponse, parseServerMessage,
+    parseSessionResponse, queryTypes, recordTypes, serverMessageTypes, signInRequest,
 } from "../src/protocol";
 import { queryRejection } from "../src/queries";
 import { repositoryPath } from "./helpers/repository";
@@ -27,6 +28,7 @@ const SOCKET_EXAMPLES = repositoryPath("protocol/examples/socket");
 const SESSION_EXAMPLES = repositoryPath("protocol/examples/session");
 const COMMAND_EXAMPLES = repositoryPath("protocol/examples/commands");
 const QUERY_EXAMPLES = repositoryPath("protocol/examples/queries");
+const RECORD_EXAMPLES = repositoryPath("protocol/examples/records");
 
 // The game's map, which every command example's tiles lie on
 const MAP_WIDTH = 120;
@@ -144,6 +146,39 @@ describe("the protocol's queries", () => {
 
         expect(queryTypes().length).toBeGreaterThan(0);
         expect(distinctExampleTypes.sort()).toEqual(queryTypes().sort());
+    });
+});
+
+// Each record type, written by the simulation's own code from an evaluation holding the example's fields
+const RECORD_WRITERS: Record<string, (wire: string) => string> = {
+    evaluation: (wire) => {
+        const example: EvaluationRecord = JSON.parse(wire);
+        const evaluation: EvaluationSource = {
+            cityYes: example.approval,
+            cityPop: example.population,
+            cityPopDelta: example.migration,
+            cityAssessedValue: example.assessedValue,
+            cityClass: example.cityClass,
+            cityScore: example.score,
+            cityScoreDelta: example.scoreDelta,
+            cityScoreBreakdown: example.scoreBreakdown,
+            getProblemNumber: (place) => example.problems[place] ?? null,
+        };
+        return JSON.stringify(evaluationRecord(evaluation, example.level));
+    },
+};
+
+describe("the protocol's records", () => {
+
+    it.each(exampleFiles(RECORD_EXAMPLES))("writes the record %s back to identical bytes", (file) => {
+        expectRoundTrip(join(RECORD_EXAMPLES, file), (wire) => RECORD_WRITERS[JSON.parse(wire).type](wire));
+    });
+
+    it("has an example of every record type and no other", () => {
+        const exampleTypes = exampleFiles(RECORD_EXAMPLES).map((file) => JSON.parse(readWireText(join(RECORD_EXAMPLES, file))).type);
+
+        expect(Object.keys(RECORD_WRITERS).sort()).toEqual(recordTypes().sort());
+        expect(exampleTypes.sort()).toEqual(recordTypes().sort());
     });
 });
 

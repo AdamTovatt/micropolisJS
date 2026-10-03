@@ -11,15 +11,8 @@
  *
  */
 
+import type { ScoreEntry } from "./protocol";
 import { Text } from "./text.js";
-
-// One step of the yearly score calculation, as the evaluation records it. evaluation.js, which
-// records it, is JavaScript, so its reader declares the shape, as cityStatus.ts does for the census
-// and budget.
-export interface ScoreEntry {
-  reason: string;
-  points: number;
-}
 
 // One row of the evaluation window's "Why the score changed" list
 export interface ScoreRow {

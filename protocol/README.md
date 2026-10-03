@@ -2,8 +2,8 @@
 
 The bodies and messages between the browser and the server, defined by hand on each side: `src/protocol.ts` for the
 client and `server/Micropolis.Rules/Protocol.cs` for the server, and the commands and queries a player sends the
-simulation, with the queries' answers, defined in `src/protocol.ts`. The examples and reader cases here pin the sides
-together.
+simulation, with the queries' answers, and the records the simulation produces for the windows to show, defined in
+`src/protocol.ts`. The examples and reader cases here pin the sides together.
 
 ## Transport
 
@@ -66,6 +66,21 @@ command, since replaying it would change nothing.
 The protocol has no message announcing that a layer was recomputed. In the page, the simulation announces it with the
 `OVERLAY_UPDATED` event (`src/messages.ts`), which is not part of the wire format.
 
+## Records
+
+A record is what the simulation says about the city for a window to show: a JSON object whose `type` field names it.
+It carries codes and numbers, never display text: the client turns the codes into text, so the wording is the
+client's alone and the server only has to reproduce the data. `src/protocol.ts` defines each record's fields and the
+codes it uses.
+
+- `evaluation` is the city's evaluation, as the evaluation window shows it: `approval`, the percentage of the public
+  who think the mayor is doing a good job; `problems`, the ids of the worst problems, worst first, at most four, each
+  one some of the public voted for; `population` and `migration`, its change since the last census; `assessedValue`;
+  `cityClass`; `level`, the game's difficulty; `score` and `scoreDelta`, its change since last year; and
+  `scoreBreakdown`, the steps that moved the score last year, in order, each a `reason` and the `points` it moved the
+  score by. The breakdown is empty until the city's next yearly score after a new city or an old save migrated from
+  before the breakdown was kept; otherwise its points sum to `scoreDelta`.
+
 ## Examples
 
 Each file in `examples/socket/` is one WebSocket message, each file in `examples/session/` is one body of
@@ -78,6 +93,9 @@ writes back every example of one it writes, building it from the example's field
 simulation reads a command or a query by validating it, so such an example must also be one it accepts. Each side's
 tests also fail when a message type, a session body, a command type or a query type that side reads or writes has no
 example.
+
+Each file in `examples/records/` is one record, named after its type. The client's tests write each one back through
+the simulation's own code, from the example's fields, and fail on a record type with no example.
 
 `reader-cases.json` holds the messages both readers must reject, messages they must accept and write back in the
 protocol's order, and session bodies a reader must reject, each tested by the sides that read that body.

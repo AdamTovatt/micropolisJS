@@ -140,7 +140,8 @@ describe("a simulation", () => {
 
             restored.load(plainSavedState(original));
 
-            expect([restored.getLevel(), restored.getSpeed()]).toEqual([Level.hard, Speed.fast]);
+            const level = (plainSavedState(restored) as SaveData).simulation.gameLevel;
+            expect([level, restored.getSpeed()]).toEqual([Level.hard, Speed.fast]);
         });
 
         // Rejected before anything is restored: the city is left as it was

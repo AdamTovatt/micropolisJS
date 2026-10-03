@@ -23,6 +23,7 @@ import { DisasterManager } from './disasterManager.js';
 import { EventEmitter } from './eventEmitter.js';
 import { EmergencyServices } from './emergencyServices.js';
 import { Evaluation } from './evaluation.js';
+import { evaluationRecord } from './evaluationRecord.ts';
 import { GameMap } from './gameMap.js';
 import { Industrial } from './industrial.js';
 import { MapScanner } from './mapScanner.js';
@@ -148,8 +149,9 @@ Simulation.prototype.getMap = function() {
 };
 
 
-Simulation.prototype.getLevel = function() {
-  return this._gameLevel;
+// The city's evaluation, as the evaluation window shows it
+Simulation.prototype.evaluationRecord = function() {
+  return evaluationRecord(this.evaluation, this._gameLevel);
 };
 
 
