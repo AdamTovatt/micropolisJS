@@ -16,20 +16,27 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { fixtureLog, fixtureNames } from "../headless/fixtures/index";
+import { replay } from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
 import { MapGenerator } from "../src/mapGenerator.js";
 import { Random } from "../src/random";
-import { hashSavedState } from "../src/stateHash";
+import { hashSavedState, savedState } from "../src/stateHash";
 import * as TileFlags from "../src/tileFlags";
 import * as TileValues from "../src/tileValues";
 
 // Relative to the repository root, where npm runs scripts
 const CONFORMANCE_DIRECTORY = "conformance";
 
-function writeFile(name: string, lines: string[]): void {
+// The text exactly as given
+function writeText(name: string, text: string): void {
   const file = path.join(CONFORMANCE_DIRECTORY, name);
-  fs.writeFileSync(file, lines.join("\n") + "\n");
+  fs.writeFileSync(file, text);
   console.log(`wrote ${file}`);
+}
+
+function writeFile(name: string, lines: string[]): void {
+  writeText(name, lines.join("\n") + "\n");
 }
 
 // One JSON value per line, in a list
@@ -303,10 +310,58 @@ async function mapLines(): Promise<string[]> {
   ];
 }
 
+// --- saves/: each fixture's saved state as built and after its golden run, and their hashes
+
+const SAVES_DIRECTORY = "saves";
+
+// The checkpoints each fixture's saves are taken at: its first, as built, and its last, after its run
+const SAVE_POINTS = {built: (steps: number[]) => steps[0], run: (steps: number[]) => steps[steps.length - 1]};
+
+async function writeSaves(): Promise<void> {
+  // Written afresh, so a fixture that is gone leaves no save behind
+  const directory = path.join(CONFORMANCE_DIRECTORY, SAVES_DIRECTORY);
+  fs.rmSync(directory, {recursive: true, force: true});
+  fs.mkdirSync(directory);
+
+  const hashes: Record<string, Record<string, {step: number, hash: string}>> = {};
+
+  for (const name of fixtureNames()) {
+    const log = fixtureLog(name);
+    const steps = log.checkpoints.map((checkpoint) => checkpoint.step);
+    hashes[name] = {};
+
+    for (const [point, stepOf] of Object.entries(SAVE_POINTS)) {
+      const step = stepOf(steps);
+      const saveData = savedState(replay(log, {to: step, verify: false}).city);
+      const hash = await hashSavedState(saveData);
+
+      // The fixture's own golden hash, which the save has to be the state of
+      const golden = log.checkpoints.find((checkpoint) => checkpoint.step === step)!.hash;
+      if (hash !== golden) {
+        throw new Error(`The ${name} fixture's state at step ${step} hashes to ${hash}, not its golden ${golden}`);
+      }
+
+      // The canonical text alone, so the file's SHA-256 is the state hash
+      writeText(path.join(SAVES_DIRECTORY, `${name}.${point}.json`), canonicalJson(saveData));
+      hashes[name][point] = {step, hash};
+    }
+  }
+
+  ensureCovers(Object.keys(hashes).length > 0, "a fixture's save");
+
+  writeFile(path.join(SAVES_DIRECTORY, "hashes.json"), [
+    "{",
+    ...Object.entries(hashes).map(([name, points], i, all) =>
+      `  ${JSON.stringify(name)}: ${JSON.stringify(points)}${i < all.length - 1 ? "," : ""}`),
+    "}",
+  ]);
+}
+
 async function main() {
   writeFile("tiles.json", tileLines());
   writeFile("canonicalJson.json", canonicalJsonLines());
   writeFile("maps.json", await mapLines());
+  await writeSaves();
 }
 
 main().catch((error: Error) => {

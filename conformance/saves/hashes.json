@@ -1,0 +1,5 @@
+{
+  "broke": {"built":{"step":0,"hash":"90c8a7d1b9a9b28dc40d5bf316bc6700234fbf0d89832f043379442c03686160"},"run":{"step":6912,"hash":"ff11e442f74f56542729aa47841cc816b8c36ac1ea7e8e98f39446590991abfd"}},
+  "town": {"built":{"step":0,"hash":"dbbb58b0ec5af2e94f98affa36610bf8459143ffae1434ae25775ac5463c76c8"},"run":{"step":6912,"hash":"d00793abc22eeb9545edff69c6e4191a43fd6dbe6af44977b3d65bd234d2a364"}},
+  "underfunded": {"built":{"step":0,"hash":"59778d640b55b81c3e1ed68061e229f0496d59d4816519ee78e3127f441ddf95"},"run":{"step":6912,"hash":"6255cc8f62552f2f014124cac84a392217ff74af5794d5ac07a91075fb20cdd7"}}
+}

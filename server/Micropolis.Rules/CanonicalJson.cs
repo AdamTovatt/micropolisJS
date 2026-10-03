@@ -194,35 +194,14 @@ namespace Micropolis.Rules
             }
         }
 
-        // A number parsed from text, or one the state model wrote as an int, a uint, a long or a double
         private static double GetNumber(JsonValue value, string path)
         {
-            if (value.TryGetValue(out JsonElement element))
+            if (!JsonNumber.TryGetDouble(value, out double number))
             {
-                return element.GetDouble();
+                throw Fail(path, "a number of this type has no canonical form");
             }
 
-            if (value.TryGetValue(out int intValue))
-            {
-                return intValue;
-            }
-
-            if (value.TryGetValue(out uint uintValue))
-            {
-                return uintValue;
-            }
-
-            if (value.TryGetValue(out long longValue))
-            {
-                return longValue;
-            }
-
-            if (value.TryGetValue(out double doubleValue))
-            {
-                return doubleValue;
-            }
-
-            throw Fail(path, "a number of this type has no canonical form");
+            return number;
         }
 
         private static string FormatNumberAt(double value, string path)

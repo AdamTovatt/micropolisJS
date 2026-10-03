@@ -17,8 +17,8 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The guards in the readers of <c>conformance/maps.json</c> and <c>conformance/canonicalJson.json</c>, so the
-    /// generator's and canonical text's tests cannot pass over data the files lost.
+    /// The guards in the readers of <c>conformance/maps.json</c>, <c>conformance/canonicalJson.json</c> and
+    /// <c>conformance/saves/hashes.json</c>, so the tests that read them cannot pass over data the files lost.
     /// </summary>
     [TestClass]
     public sealed class ConformanceFileTests
@@ -27,11 +27,14 @@ namespace Micropolis.Rules.Tests
 
         private static readonly string VectorsText = ConformanceFile.Read("canonicalJson.json");
 
+        private static readonly string SavesText = ConformanceFile.Read("saves/hashes.json");
+
         [TestMethod]
         public void Parse_SharedFiles_ReadsThem()
         {
             Assert.IsNotEmpty(ConformanceMaps.Parse(MapsText).Maps);
             Assert.IsNotEmpty(CanonicalJsonVectors.Parse(VectorsText).Numbers);
+            Assert.IsNotEmpty(ConformanceSaves.Parse(SavesText));
         }
 
         [TestMethod]
@@ -60,6 +63,15 @@ namespace Micropolis.Rules.Tests
             BreakVectors(file, change);
 
             AssertBroken(() => CanonicalJsonVectors.Parse(file.ToJsonString()), description, message);
+        }
+
+        [TestMethod]
+        [DataRow("no fixtures", "{}", "saves is empty")]
+        [DataRow("a fixture without its run", "{\"town\":{\"built\":{\"step\":0,\"hash\":\"00\"}}}", "run")]
+        [DataRow("a checkpoint with no hash", "{\"town\":{\"built\":{\"step\":0},\"run\":{\"step\":1,\"hash\":\"00\"}}}", "hash")]
+        public void ParseSaves_BrokenFile_Throws(string description, string json, string message)
+        {
+            AssertBroken(() => ConformanceSaves.Parse(json), description, message);
         }
 
         [TestMethod]

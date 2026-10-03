@@ -30,7 +30,7 @@ Seeds and 32-bit words are hex strings, as the C reference prints them.
 
 ## Files the TypeScript reference writes
 
-`generate.ts` writes `tiles.json`, `canonicalJson.json` and `maps.json` from the TypeScript game rules, which are
+`generate.ts` writes `tiles.json`, `canonicalJson.json`, `maps.json` and `saves/` from the TypeScript game rules, which are
 the reference until the C# port replaces them. Regenerate them in the commit that changes what they are computed
 from:
 
@@ -71,3 +71,12 @@ What `src/mapGenerator.js` generates from the map stream of each seed (`src/rand
   first 10000 seeds don't cover them.
 - `maps`: the whole `map` object of the first seed of the island, naked island and land kinds, with its tiles one row
   per line, so a mismatch can be located.
+
+### saves/
+
+Each fixture's saved state (`docs/state-hash.md`), as the TypeScript simulation writes it when the fixture's command
+log (`headless/fixtures/`) is replayed: `<fixture>.built.json` at its first checkpoint, as its commands build it, and
+`<fixture>.run.json` at its last, after its golden run. Each file is the canonical text alone, with no final newline,
+so its SHA-256 is the state hash, and the generator fails unless that is the fixture's golden hash at that checkpoint.
+`hashes.json` lists each fixture's built and run checkpoints, their steps and hashes. The directory is written afresh, so a fixture
+that is gone leaves no save behind.

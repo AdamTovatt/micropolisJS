@@ -57,26 +57,31 @@ namespace Micropolis.Rules
 
         public Bounds Bounds { get; }
 
-        public int CityCentreX { get; set; }
+        /// <summary>
+        /// The population centre's x, which the save gives no range.
+        /// </summary>
+        public long CityCentreX { get; set; }
 
-        public int CityCentreY { get; set; }
+        /// <summary>
+        /// The population centre's y, which the save gives no range.
+        /// </summary>
+        public long CityCentreY { get; set; }
 
-        public int PollutionMaxX { get; set; }
+        /// <summary>
+        /// The most polluted tile's x, which the save gives no range.
+        /// </summary>
+        public long PollutionMaxX { get; set; }
 
-        public int PollutionMaxY { get; set; }
+        /// <summary>
+        /// The most polluted tile's y, which the save gives no range.
+        /// </summary>
+        public long PollutionMaxY { get; set; }
 
         /// <summary>
         /// Writes the map under <c>map</c>: its size, its positions, and each tile's raw value row by row.
         /// </summary>
         public void Save(JsonObject saveData)
         {
-            JsonArray tiles = new JsonArray();
-
-            foreach (Tile tile in _data)
-            {
-                tiles.Add(tile.GetRawValue());
-            }
-
             saveData["map"] = new JsonObject
             {
                 ["cityCentreX"] = CityCentreX,
@@ -85,8 +90,43 @@ namespace Micropolis.Rules
                 ["pollutionMaxY"] = PollutionMaxY,
                 ["width"] = Width,
                 ["height"] = Height,
-                ["tiles"] = tiles,
+                ["tiles"] = SavedList.Of(_data.Select(tile => tile.GetRawValue())),
             };
+        }
+
+        /// <summary>
+        /// The map a save holds under <c>map</c>: each tile takes its saved value and flags exactly.
+        /// </summary>
+        public static GameMap FromSave(SavedObject saveData)
+        {
+            return saveData.ReadObject("map", saved =>
+            {
+                // A map holds at least one tile, and its tiles fit in one list
+                int width = saved.ReadInt("width", 1, int.MaxValue);
+                int height = saved.ReadInt("height", 1, int.MaxValue);
+
+                if ((long)width * height > Array.MaxLength)
+                {
+                    throw saved.Invalid("height", $"makes a {width}×{height} map too large to hold");
+                }
+
+                // The tile value in bits 0–9 and its flags in bits 10–15. Read before the map is made, so a save
+                // claiming a larger map than its tiles fill fails before the map is allocated.
+                int[] tiles = saved.ReadIntList("tiles", width * height, 0, 0xffff);
+                GameMap map = new GameMap(width, height);
+
+                for (int i = 0; i < tiles.Length; i++)
+                {
+                    map._data[i].Set(tiles[i] & TileFlags.BIT_MASK, tiles[i] & TileFlags.ALLBITS);
+                }
+
+                map.CityCentreX = saved.ReadSafeInteger("cityCentreX");
+                map.CityCentreY = saved.ReadSafeInteger("cityCentreY");
+                map.PollutionMaxX = saved.ReadSafeInteger("pollutionMaxX");
+                map.PollutionMaxY = saved.ReadSafeInteger("pollutionMaxY");
+
+                return map;
+            });
         }
 
         public bool IsPositionInBounds(Position position)

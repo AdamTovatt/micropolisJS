@@ -52,6 +52,12 @@ numbers are integers. A list ordered "row by row" holds the entry for (x, y) at 
 is the list's own width: the map's width in tiles for a per-tile list, and the block map's width in blocks for a
 block map.
 
+The C# port's `Simulation.FromSave` (`server/Micropolis.Rules`) reads a saved state against this specification: a key
+missing or unknown, or a value of the wrong type or outside the range given here or in the block-map comments of the
+`Simulation` constructor in `src/simulation.js`, fails with an error naming the key. It reads the current format only,
+with its scanned state. It reads no older save: `storage.js` migrates one from a version without the scanned state to a
+save whose `scannedState` is `null`, which only the TypeScript `Simulation.load` fills, by scanning.
+
 ### Simulation
 
 | Key | Value |
@@ -140,7 +146,7 @@ block map.
 
 | Key | Value |
 |-----|-------|
-| `scannedState.blockMaps` | One list per block map, row by row: `cityCentreDistScoreMap`, `crimeRateMap`, `fireStationMap`, `fireStationEffectMap`, `landValueMap`, `policeStationMap`, `policeStationEffectMap`, `pollutionDensityMap`, `populationDensityMap`, `rateOfGrowthMap`, `terrainDensityMap` and `trafficDensityMap`. A block map of block size `b` over the 120×100 map is `ceil(120 / b)` blocks wide and `ceil(100 / b)` high: 195 entries at size 8, 750 at size 4, 3000 at size 2. The `Simulation` constructor gives each map's block size and range. The temporary maps are scratch space and are not saved |
+| `scannedState.blockMaps` | One list per block map, row by row: `cityCentreDistScoreMap`, `crimeRateMap`, `fireStationMap`, `fireStationEffectMap`, `landValueMap`, `policeStationMap`, `policeStationEffectMap`, `pollutionDensityMap`, `populationDensityMap`, `rateOfGrowthMap`, `terrainDensityMap` and `trafficDensityMap`. A block map of block size `b` over the 120×100 map is `ceil(120 / b)` blocks wide and `ceil(100 / b)` high: 195 entries at size 8, 750 at size 4, 3000 at size 2. The `Simulation` constructor in `src/simulation.js` gives each map's block size and range. The temporary maps are scratch space and are not saved |
 | `scannedState.power.powerGrid` | One entry per tile, row by row: 1 where the last power scan delivered power |
 | `scannedState.power.powerStack` | The `{"x", "y"}` power sources the map scan has found for the next power scan, in push order |
 | `scannedState.power.powerCapacity`, `scannedState.power.powerLoad` | The last power scan's capacity and load |
@@ -151,9 +157,10 @@ block map.
 Each fixture is a command log (`docs/command-log.md`) whose checkpoints are its golden hashes: the **built** hash at
 step 0, of the state its commands build, and the **run** hash after a fixed run at the medium speed a new city starts
 at. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtures` exports each fixture's log to
-`headless/fixtures/export/<name>.log.json`, and its built state to `<name>.json`, whose SHA-256 is the built hash. The
-C# port replays the log, or takes the built state as its starting state and steps it at medium speed to the run
-checkpoint's step, and must produce the run hash.
+`headless/fixtures/export/<name>.log.json`. `conformance/saves/` holds each fixture's state at both checkpoints, whose
+SHA-256 is the checkpoint's hash, which the C# tests load and save back to the same canonical text. The C# port
+replays the log, or takes the built state as its starting state and steps it at medium speed to the run checkpoint's
+step, and must produce the run hash.
 
 `e2e/goldenPlaythrough.json` pins the hash of the city at each stage of the end-to-end playthrough: the hash of the
 keys `Simulation.save` writes, taken from the browser's save (`src/gameSaveHash.ts`), which leaves out what the next
