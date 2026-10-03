@@ -70,7 +70,8 @@ describe("the city status record the simulation publishes", () => {
         runPhases(PHASES_PER_CYCLE);
 
         expect(simulation._simCycle % 4).not.toBe(0);
-        expect([records[0].powerCapacity, records[0].powerLoad]).toEqual([700, 1]);
+        // The walk reaches the plant tile and its four smoke tiles, and counts the branch point it returns to twice
+        expect([records[0].powerCapacity, records[0].powerLoad]).toEqual([700, 6]);
     });
 
     it("carries the cap flags the advisor has set on the valves", () => {

@@ -17,7 +17,7 @@ import { EventEmitter } from './eventEmitter.js';
 import { Position } from './position.ts';
 import { NOT_ENOUGH_POWER } from './messages.ts';
 import { ANIMBIT, BURNBIT, CONDBIT, POWERBIT } from "./tileFlags.ts";
-import { NUCLEAR, POWERPLANT } from "./tileValues.ts";
+import { COALSMOKE1, COALSMOKE2, COALSMOKE3, COALSMOKE4, NUCLEAR, POWERPLANT } from "./tileValues.ts";
 
 var COAL_POWER_STRENGTH = 700;
 var NUCLEAR_POWER_STRENGTH = 2000;
@@ -128,18 +128,19 @@ PowerManager.prototype.doPowerScan = function(census) {
 };
 
 
-// The coal plant's smokestacks, relative to its centre
+// The coal plant's smokestacks, relative to its centre, and their smoke tiles
 var dX = [1, 2, 1, 2];
 var dY = [-1, -1, 0, 0];
+var smokeTiles = [COALSMOKE1, COALSMOKE2, COALSMOKE3, COALSMOKE4];
 
 PowerManager.prototype.coalPowerFound = function(map, x, y, simData) {
   simData.census.coalPowerPop += 1;
 
   this._powerStack.push(new Position(x, y));
 
-  // Ensure animation runs
+  // As coalSmoke in simulate.cpp does, set the smokestacks to their animated smoke tiles
   for (var i = 0; i < 4; i++)
-    map.addTileFlags(x + dX[i], y + dY[i], ANIMBIT);
+    map.setTile(x + dX[i], y + dY[i], smokeTiles[i], ANIMBIT | CONDBIT | POWERBIT | BURNBIT);
 };
 
 

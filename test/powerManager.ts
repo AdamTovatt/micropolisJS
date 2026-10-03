@@ -17,7 +17,8 @@ import { GameMap } from "../src/gameMap.js";
 import { NOT_ENOUGH_POWER } from "../src/messages";
 import { Position } from "../src/position";
 import { PowerManager } from "../src/powerManager.js";
-import { ANIMBIT, CONDBIT } from "../src/tileFlags";
+import { ANIMBIT, BURNBIT, CONDBIT, POWERBIT } from "../src/tileFlags";
+import { COALSMOKE1, COALSMOKE2, COALSMOKE3, COALSMOKE4 } from "../src/tileValues";
 
 const WIDTH = 120;
 const HEIGHT = 100;
@@ -136,9 +137,9 @@ function nuclearCount(fixture: Fixture) {
     return fixture.plants.filter((plant) => plant.nuclear).length;
 }
 
-// Scans the way the simulation does each cycle: the census and the stack are cleared, the map scan finds the
-// plants, which pushes them and counts them in the census, then the power scan runs.
-function findPlantsAndScan(manager: PowerManagerInstance, map: GameMapInstance, fixture: Fixture) {
+// What the map scan does with the plants: the census and the stack are cleared, then each plant is found, which
+// pushes it, counts it in the census, and for a coal plant sets its smoke tiles. Returns the census.
+function findPlants(manager: PowerManagerInstance, map: GameMapInstance, fixture: Fixture) {
     const simData = {census: {coalPowerPop: 0, nuclearPowerPop: 0},
                      disasterManager: {disastersEnabled: false}, gameLevel: 0};
 
@@ -151,7 +152,19 @@ function findPlantsAndScan(manager: PowerManagerInstance, map: GameMapInstance, 
         }
     }
 
-    manager.doPowerScan(simData.census);
+    return simData.census;
+}
+
+// Scans the way the simulation does each cycle: the map scan finds the plants, then the power scan runs.
+function findPlantsAndScan(manager: PowerManagerInstance, map: GameMapInstance, fixture: Fixture) {
+    manager.doPowerScan(findPlants(manager, map, fixture));
+}
+
+// The map as the map scan leaves it for the power scan, which is the map the original's power scan walks too
+function foundPlantsMap(fixture: Fixture) {
+    const map = buildMap(fixture);
+    findPlants(new PowerManager(map), map, fixture);
+    return map;
 }
 
 function scan(fixture: Fixture) {
@@ -175,9 +188,9 @@ function scanResults(fixture: Fixture) {
     };
 
     beforeAll(() => {
-        results.original = originalPowerScan(buildMap(fixture), plantStack(fixture), coalCount(fixture),
+        results.original = originalPowerScan(foundPlantsMap(fixture), plantStack(fixture), coalCount(fixture),
                                              nuclearCount(fixture));
-        results.uncapped = originalPowerScan(buildMap(fixture), plantStack(fixture), 1000000, 0);
+        results.uncapped = originalPowerScan(foundPlantsMap(fixture), plantStack(fixture), 1000000, 0);
         results.port = scan(fixture);
     });
 
@@ -255,8 +268,9 @@ const underCapacityFixtures: Fixture[] = [
     randomFixture(7, 0.5, 1, 1),
 ];
 
-// A single unbranched wire of the given number of tiles, starting at a coal plant: it runs along every other
-// row, joined at alternate ends. The walk takes one step per tile, so its load is its length.
+// A single unbranched wire of the given number of tiles, starting at a nuclear plant: it runs along every other
+// row, joined at alternate ends. The walk takes one step per tile, so its load is its length. A coal plant would
+// branch it: finding one makes its smoke tiles conductive.
 function wire(length: number): Fixture {
     const path: string[] = [];
 
@@ -277,8 +291,8 @@ function wire(length: number): Fixture {
 
     return {
         conductive: (cx, cy) => tiles.has(`${cx},${cy}`),
-        name: `a wire of ${length} tiles from one coal plant`,
-        plants: [{x: 1, y: 1, nuclear: false}],
+        name: `a wire of ${length} tiles from one nuclear plant`,
+        plants: [{x: 1, y: 1, nuclear: true}],
     };
 }
 
@@ -341,13 +355,13 @@ describe("the power scan of a city within capacity", () => {
 describe("the power scan at exactly its capacity", () => {
 
     const fixtures: Array<[string, Fixture, boolean]> = [
-        [wire(COAL_POWER_STRENGTH).name, wire(COAL_POWER_STRENGTH), false],
-        [wire(COAL_POWER_STRENGTH + 1).name, wire(COAL_POWER_STRENGTH + 1), true],
+        [wire(NUCLEAR_POWER_STRENGTH).name, wire(NUCLEAR_POWER_STRENGTH), false],
+        [wire(NUCLEAR_POWER_STRENGTH + 1).name, wire(NUCLEAR_POWER_STRENGTH + 1), true],
     ];
 
     describe.each(fixtures)("%s", (_, fixture, overloaded) => {
         const results = scanResults(fixture);
-        const powered = COAL_POWER_STRENGTH;
+        const powered = NUCLEAR_POWER_STRENGTH;
 
         it("measures one step per tile", () => {
             expect(results.port.manager.powerLoad).toBe(poweredTiles(results.uncapped.grid).length);
@@ -400,6 +414,16 @@ describe("the power manager", () => {
 
             for (const [dx, dy] of [[1, -1], [2, -1], [1, 0], [2, 0]]) {
                 expect(map.getTileFlags(CENTRE_X + dx, CENTRE_Y + dy) & ANIMBIT).toBe(ANIMBIT);
+            }
+        });
+
+        it("should set the four smokestack tiles to coal smoke, as coalSmoke does", () => {
+            const map = scanPlant();
+            const smoke = [[1, -1, COALSMOKE1], [2, -1, COALSMOKE2], [1, 0, COALSMOKE3], [2, 0, COALSMOKE4]];
+
+            for (const [dx, dy, value] of smoke) {
+                expect(map.getTileValue(CENTRE_X + dx, CENTRE_Y + dy)).toBe(value);
+                expect(map.getTileFlags(CENTRE_X + dx, CENTRE_Y + dy)).toBe(ANIMBIT | CONDBIT | POWERBIT | BURNBIT);
             }
         });
 
