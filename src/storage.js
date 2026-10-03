@@ -26,9 +26,6 @@ var getSavedGame = function() {
 
     if (savedGame.version !== this.CURRENT_VERSION)
       this.transitionOldSave(savedGame);
-
-    // Flag as a saved game for Game/Simulation etc...
-    savedGame.isSavedGame = true;
   }
 
   return savedGame;

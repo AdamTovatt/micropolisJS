@@ -13,12 +13,6 @@
 
 import { Simulation } from "./simulation.js";
 
-export interface SpeedSetting {
-  getSpeed(): number;
-  setSpeed(speed: number): void;
-  isPaused(): boolean;
-}
-
 // The game speed as the player sets it, with Pause and Play or from Settings. The simulation's speed is the only
 // record of whether the game is paused, and the pause button is shown from it after every change. Play resumes at
 // the running speed: the speed a game was saved at, medium for a new game or one saved paused, or the speed Settings
@@ -26,7 +20,8 @@ export interface SpeedSetting {
 export class SpeedControl {
   private runningSpeed: number;
 
-  constructor(private readonly simulation: SpeedSetting, private readonly showPaused: (paused: boolean) => void) {
+  constructor(private readonly simulation: InstanceType<typeof Simulation>,
+              private readonly showPaused: (paused: boolean) => void) {
     this.runningSpeed = simulation.isPaused() ? Simulation.SPEED_MED : simulation.getSpeed();
     showPaused(simulation.isPaused());
   }

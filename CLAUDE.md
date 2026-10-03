@@ -45,7 +45,7 @@ npm run dev              # webpack-dev-server on http://localhost:8080
 npm run build            # production bundle into dist/
 npm test                 # Jest
 npx jest test/tile.ts    # one test file
-npm run lint             # ESLint over src/, test/ and the build config
+npm run lint             # ESLint over src/, test/, headless/ and the build config
 npm run simulate -- --fixture town --steps 3000   # headless run: prints the state hash, year, population, funds
 npm run fixtures         # export each fixture's saved state to headless/fixtures/export/ (ignored by git)
 ```
@@ -104,13 +104,13 @@ A condition that holds over time (power load against capacity, a demand cap, an 
 
 ### Tools
 
-`*Tool.js` on top of `baseTool.js`; `gameTools.js` builds the set. A tool stages its edits in a `WorldEffects` (`worldEffects.js`), checks the funds, then writes the staged tiles to the map and charges the budget.
+`*Tool.js` on top of `baseTool.js`. `cityTools.ts` builds the tools that change the city, with their costs, for the browser and the headless fixtures alike; `gameTools.js` adds the query tool and re-emits its events. A tool stages its edits in a `WorldEffects` (`worldEffects.js`), checks the funds, then writes the staged tiles to the map and charges the budget.
 
 ## Rules for simulation code
 
 - **Deterministic.** Randomness comes only from `random.ts`; time comes only from counters the simulation advances as it steps. A `Math.random`, `Date` or `performance.now` read inside simulation code is a defect to fix, not a pattern to copy. Only what changes city state draws from the simulation's stream, tools and disasters included; the UI's own randomness, such as picking a new seed, comes from `uiRandom.ts`.
 - **No DOM.** No `window`, `document` or jQuery in simulation modules.
-- **Simulation modules** are every file the simulation (`simulation.js`), the map generator (`mapGenerator.js`) or a map-editing tool (every `*Tool.js` but the query tool) imports, directly or not. `test/simulationImports.ts` walks that graph with the TypeScript checker and fails on any global but a short list of pure built-ins, on any `Math` function outside the portable ones, and on `**`, a package import or a dynamic import.
+- **Simulation modules** are every file the simulation (`simulation.js`), the map generator (`mapGenerator.js`) or a map-editing tool (`cityTools.ts`, and every `*Tool.js` but the query tool) imports, directly or not. `test/simulationImports.ts` walks that graph with the TypeScript checker and fails on any global but a short list of pure built-ins, on any `Math` function outside the portable ones, and on `**`, a package import or a dynamic import.
 - **Portable arithmetic.** No transcendental `Math` functions (`sqrt`, `pow`, `sin`, `log`…) in simulation code: their results can differ between runtimes. Arithmetic, `Math.floor` and `Math.round` are fine, provided the C# port mirrors JavaScript's `Math.round`, where halves round toward +∞ rather than to even.
 - **Rule changes are deliberate.** The original's numbers are tuned against each other. A change to how the city behaves is named as such in its commit, never folded into a refactor. `test/goldenHashes.ts` pins each fixture's state hash as built and after a fixed run. A change to a fixture's script, to saved state or to a rule moves them, and that commit updates them; a refactor that moves one is a defect. A run hash that moves while the built hash holds is a change to how the city behaves.
 

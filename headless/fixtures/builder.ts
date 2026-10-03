@@ -12,20 +12,12 @@
  */
 
 import { BaseTool } from "../../src/baseTool.js";
-import { CityTools } from "../../src/cityTools.js";
+import { CityTool, CityToolName, cityTools } from "../../src/cityTools";
 import { cityFromSeed, Simulation } from "../city";
 
 // Builds a fixture's city by driving the tool objects directly, as the browser does when the player clicks. Every
 // edit must succeed: a fixture whose build silently skipped an edit would pin a different city than its script
 // describes.
-
-interface Tool {
-  result: number;
-  doTool(x: number, y: number, blockMaps: object, random: unknown): void;
-  modifyIfEnoughFunding(budget: object): boolean;
-}
-
-const cityTools = CityTools as unknown as (map: unknown) => Record<string, Tool>;
 
 export interface Fixture {
   // The game seed, which generates the map and seeds the stream
@@ -36,11 +28,11 @@ export interface Fixture {
 }
 
 export class CityBuilder {
-  private readonly tools: Record<string, Tool>;
+  private readonly tools: Record<CityToolName, CityTool>;
 
   constructor(readonly city: Simulation) {
     // The tools the player is given, with the same costs
-    this.tools = cityTools(city._map);
+    this.tools = cityTools(city.getMap());
   }
 
   // A building's position is its centre tile, as for the player's click: one in from the top left
@@ -57,7 +49,7 @@ export class CityBuilder {
   road(x1: number, y1: number, x2: number, y2: number) { this.line("road", x1, y1, x2, y2); }
   wire(x1: number, y1: number, x2: number, y2: number) { this.line("wire", x1, y1, x2, y2); }
 
-  private line(toolName: string, x1: number, y1: number, x2: number, y2: number) {
+  private line(toolName: CityToolName, x1: number, y1: number, x2: number, y2: number) {
     if (x1 !== x2 && y1 !== y2) {
       throw new Error(`A ${toolName} line must be horizontal or vertical, got (${x1}, ${y1}) to (${x2}, ${y2})`);
     }
@@ -71,7 +63,7 @@ export class CityBuilder {
     }
   }
 
-  private apply(toolName: string, x: number, y: number) {
+  private apply(toolName: CityToolName, x: number, y: number) {
     const tool = this.tools[toolName];
     tool.doTool(x, y, this.city.blockMaps, this.city.random);
 

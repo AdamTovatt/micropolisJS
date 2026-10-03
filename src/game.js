@@ -45,25 +45,14 @@ import { WindowManager } from './windowManager.ts';
 var disasterTimeout = 20 * 1000;
 
 
-// gameMap is either a generated map, with seed the game seed it was generated from, or a saved game, with a null
-// seed: the save holds its own
-function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
-  difficulty = difficulty || 0;
-
+// A game of the given simulation: Game.newGame and Game.fromSave build one
+function Game(simulation, tileSet, snowTileSet, spriteSheet, name, everClicked) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
-  this.name = name || 'MyTown';
-  this.everClicked = false;
-
-  var savedGame = gameMap.isSavedGame ? gameMap : null;
-  if (savedGame) {
-    this.simulation = Simulation.fromSave(savedGame);
-    this.gameMap = this.simulation.getMap();
-    this.load(savedGame);
-  } else {
-    this.gameMap = gameMap;
-    this.simulation = new Simulation(this.gameMap, difficulty, Simulation.SPEED_MED, seed);
-  }
+  this.name = name;
+  this.everClicked = everClicked;
+  this.simulation = simulation;
+  this.gameMap = simulation.getMap();
 
   this.rci = new RCI('RCIContainer', this.simulation);
   this.statusPanel = new StatusPanel('statusPanel', this.simulation);
@@ -227,11 +216,18 @@ Game.prototype.save = function() {
 };
 
 
-// The game's own part of a save: Simulation.fromSave restores the city
-Game.prototype.load = function(saveData) {
-  this.name = saveData.name;
-  this.everClicked = saveData.everClicked;
-  BaseTool.load(saveData);
+// A new game on the map generated from the game seed, at the chosen level
+Game.newGame = function(map, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
+  var simulation = new Simulation(map, difficulty || 0, Simulation.SPEED_MED, seed);
+  return new Game(simulation, tileSet, snowTileSet, spriteSheet, name || 'MyTown', false);
+};
+
+
+// A game restored from what Game.save wrote
+Game.fromSave = function(savedGame, tileSet, snowTileSet, spriteSheet) {
+  BaseTool.load(savedGame);
+  return new Game(Simulation.fromSave(savedGame), tileSet, snowTileSet, spriteSheet, savedGame.name,
+                  savedGame.everClicked);
 };
 
 

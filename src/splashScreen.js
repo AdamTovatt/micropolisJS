@@ -17,7 +17,6 @@ import { Config } from './config.js';
 import { Game } from './game.js';
 import { MapGenerator } from './mapGenerator.js';
 import { Random } from './random.ts';
-import { Simulation } from './simulation.js';
 import { SplashCanvas } from './splashCanvas.js';
 import { Storage } from './storage.js';
 import { UiRandom } from './uiRandom.ts';
@@ -111,7 +110,7 @@ var handleLoad = function(e) {
   $('#splash').toggle();
 
   // Launch
-  new Game(savedGame, null, this.tileSet, this.snowTileSet, this.spriteSheet, Simulation.LEVEL_EASY, name);
+  Game.fromSave(savedGame, this.tileSet, this.snowTileSet, this.spriteSheet);
 };
 
 
@@ -155,7 +154,7 @@ var play = function(e) {
   var name = $('#nameForm').val();
 
   // Launch a new game
-  new Game(this.map, this.seed, this.tileSet, this.snowTileSet, this.spriteSheet, difficulty, name);
+  Game.newGame(this.map, this.seed, this.tileSet, this.snowTileSet, this.spriteSheet, difficulty, name);
 };
 
 

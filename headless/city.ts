@@ -11,6 +11,7 @@
  *
  */
 
+import { GameMap } from "../src/gameMap.js";
 import { MapGenerator } from "../src/mapGenerator.js";
 import { Random } from "../src/random";
 import { Simulation as SimulationConstructor } from "../src/simulation.js";
@@ -24,6 +25,8 @@ export interface Budget {
   spend(amount: number): void;
 }
 
+export type GameMapInstance = InstanceType<typeof GameMap>;
+
 export interface Simulation {
   random: Random;
   blockMaps: object;
@@ -35,11 +38,12 @@ export interface Simulation {
   isPaused(): boolean;
   getLevel(): number;
   getSpeed(): number;
+  getMap(): GameMapInstance;
   getDate(): {month: number, year: number};
   addEventListener(event: string, listener: (value: unknown) => void): void;
   removeEventListener(event: string, listener: (value: unknown) => void): void;
+  // The raw counters, which the runner's stall check models independently
   _cityTime: number;
-  _map: {setTile(x: number, y: number, value: number, flags: number): void};
   _phaseCycle: number;
   _speedCycle: number;
 }

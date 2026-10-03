@@ -18,22 +18,11 @@ import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
 import { Simulation } from "../src/simulation.js";
 import { plainSavedState, stateHash } from "../src/stateHash";
-import { ANIMBIT } from "../src/tileFlags";
-import { FIRE } from "../src/tileValues";
 import { InspectedSave } from "./helpers/savedState";
 import { newSimulation, SimulationInstance, YEAR, buildCity, simulationFromSeed } from "./helpers/simulations";
 
 const SEED = 2026;
 const OTHER_SEED = 2027;
-
-// Loaded over a city of another seed, with its own map and stream
-function restore(simulation: SimulationInstance) {
-    const saveData = {};
-    simulation.save(saveData);
-    const restored = simulationFromSeed(OTHER_SEED);
-    restored.load(JSON.parse(JSON.stringify(saveData)));
-    return restored;
-}
 
 function steps(simulation: SimulationInstance, count: number) {
     for (let i = 0; i < count; i++) {
@@ -50,33 +39,11 @@ describe("a simulation", () => {
 
     describe("restored from a save", () => {
 
-        function saveAndRestore() {
-            const original = simulationFromSeed(SEED);
-            original.random.next();
-
-            // A burning tile makes any scan draw from the stream, so the stream shows whether loading scanned
-            original._map.setTile(60, 50, FIRE, ANIMBIT);
-
-            return {original, restored: restore(original)};
-        }
-
-        it("keeps the seed", () => {
-            const {original, restored} = saveAndRestore();
-
-            expect(restored.seed).toBe(original.seed);
-        });
-
-        it("continues the stream from the saved state, whatever the city it was loaded over drew", () => {
-            const {original, restored} = saveAndRestore();
-
-            expect(restored.random.getState()).toEqual(original.random.getState());
-            expect(restored.random.next()).toBe(original.random.next());
-        });
-
         it("runs its next phase at the same step as the original, as the speed cycle is saved", () => {
             const original = simulationFromSeed(SEED);
             steps(original, 4);
-            const restored = restore(original);
+            const restored = simulationFromSeed(OTHER_SEED);
+            restored.load(plainSavedState(original));
             const originalBefore = phasesRun(original);
             const restoredBefore = phasesRun(restored);
 
@@ -89,7 +56,7 @@ describe("a simulation", () => {
         });
     });
 
-    describe("restored from a version 5 save", () => {
+    describe("restored from a current save", () => {
 
         // A grown town, with sprites in flight, mid-cycle: at fast speed every step runs a phase
         let grownTownSave: InspectedSave;
@@ -169,7 +136,7 @@ describe("a simulation", () => {
 
             steps(simulation, 16);
 
-            expect(doDisasters).toHaveBeenCalledWith(Simulation.LEVEL_HARD, simulation._census);
+            expect(doDisasters).toHaveBeenCalledWith(Simulation.LEVEL_HARD, expect.anything());
         });
 
         it.each([

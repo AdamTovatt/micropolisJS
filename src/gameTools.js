@@ -11,14 +11,14 @@
  *
  */
 
-import { CityTools } from './cityTools.js';
+import { cityTools } from './cityTools.ts';
 import { EventEmitter } from './eventEmitter.js';
 import { QUERY_WINDOW_NEEDED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import { QueryTool } from './queryTool.js';
 
 function GameTools(map) {
-  var tools = CityTools(map);
+  var tools = cityTools(map);
   tools.query = new QueryTool(map);
   EventEmitter(tools);
 

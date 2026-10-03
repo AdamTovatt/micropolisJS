@@ -173,10 +173,14 @@ describe("a run", () => {
     });
 
     // Two whole speed cycles: each wrap from 1023 to 0 lets a phase through at slow and medium speed that the step
-    // count alone wouldn't, which shows in the phase reached
+    // count alone wouldn't, which shows in the phase reached. City time advances on each cycle's phase 0, so p phases
+    // from phase 0 reach city time ceil(p / 16) and phase p % 16.
     it.each([
+        // 1023 / 5 rounded down, plus the wrap's: 205 phases per speed cycle, 410 in all
         ["slow", 26, 10],
+        // 1023 / 3 plus the wrap's: 342 phases per speed cycle, 684 in all
         ["medium", 43, 12],
+        // Every step: 2048 phases
         ["fast", 128, 0],
     ] as const)("reaches the city time and phase its steps imply at %s speed", (speed, cityTime, phase) => {
         const city = startCity({fixture: "town", speed});
