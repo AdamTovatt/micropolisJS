@@ -15,7 +15,8 @@ module.exports = {
   ],
   testEnvironment: "node",
   testMatch: ["**/test/*.ts", "**/test/**/*.ts"],
+  // The legacy JavaScript modules are ES modules too, so ts-jest compiles both (tsconfig's allowJs).
   transform: {
-    "^.+\\.ts$": "ts-jest"
+    "^.+\\.[jt]s$": "ts-jest"
   }
 };

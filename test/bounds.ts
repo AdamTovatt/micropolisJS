@@ -1,5 +1,4 @@
 import { Bounds } from "../src/bounds";
-import { assert } from "../src/debugAssert";
 import { Position } from "../src/position";
 
 const STARTX = 5;
@@ -7,28 +6,16 @@ const STARTY = 7;
 const WIDTH = 12;
 const HEIGHT = 9;
 
-jest.mock("../src/debugAssert");
-
 describe("the Bounds class", () => {
 
     describe("when constructing", () => {
 
-        beforeEach(() => {
-            jest.mock("../src/debugAssert");
-        });
-
         it("should assert if constructed with a zero width", () => {
-            // tslint:disable-next-line:no-unused-expression
-            new Bounds(STARTX, STARTY, 0, HEIGHT);
-
-            expect(assert).toHaveBeenCalled();
+            expect(() => new Bounds(STARTX, STARTY, 0, HEIGHT)).toThrow("must have a width");
         });
 
         it("should assert if constructed with a zero height", () => {
-            // tslint:disable-next-line:no-unused-expression
-            new Bounds(STARTX, STARTY, WIDTH, 0);
-
-            expect(assert).toHaveBeenCalled();
+            expect(() => new Bounds(STARTX, STARTY, WIDTH, 0)).toThrow("must have a height");
         });
     });
 

@@ -11,12 +11,10 @@
  *
  */
 
-// TODO: More descriptive asserting functions: will require better
-// assert-stripping than is provided by ts-transform-unassert at time of writing
-
-export function assert(assertionPassed: boolean, message: string) {
-    // TODO: Less invasive reporting than an alert
+// A failed assert is a bug, so it throws in every environment, the browser included: logging it instead
+// would hide it from tests and headless runs.
+export function assert(assertionPassed: boolean, message: string): asserts assertionPassed {
     if (!assertionPassed) {
-        alert(`Assertion failed: ${message}`);
+        throw new Error(`Assertion failed: ${message}`);
     }
 }
