@@ -22,17 +22,13 @@ describe("the game canvas", () => {
 
     describe("deciding to repaint every tile", () => {
 
-        it("repaints only what changed while the canvas keeps its size and tileset", () => {
-            expect(mustRepaintAll(false, 1280, 900, 1280, 900)).toBe(false);
-        });
-
-        it("repaints every tile when the tileset changes", () => {
-            expect(mustRepaintAll(true, 1280, 900, 1280, 900)).toBe(true);
+        it("repaints only what changed while the canvas keeps its size", () => {
+            expect(mustRepaintAll(1280, 900, 1280, 900)).toBe(false);
         });
 
         it("repaints every tile when the canvas changes width or height", () => {
-            expect(mustRepaintAll(false, 1440, 900, 1280, 900)).toBe(true);
-            expect(mustRepaintAll(false, 1280, 800, 1280, 900)).toBe(true);
+            expect(mustRepaintAll(1440, 900, 1280, 900)).toBe(true);
+            expect(mustRepaintAll(1280, 800, 1280, 900)).toBe(true);
         });
     });
 

@@ -49,7 +49,6 @@ import { attachToTestHook, HookedSimulation } from "./testHook";
 import { Text } from "./text";
 import { TileSet } from "./tileSet";
 import { TouchWarnWindow } from "./touchWarnWindow";
-import { UiRandom } from "./uiRandom";
 import { budgetCommand, settingsCommands, toolOutcome } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
@@ -170,7 +169,7 @@ export class Game {
   readonly isStepping = () => this.notSteppingReason() === null;
 
   constructor(readonly simulation: GameSimulation, logStart: LogStart, readonly tileSet: TileSet,
-              private readonly snowTileSet: TileSet, spriteSheet: HTMLImageElement, private readonly name: string) {
+              spriteSheet: HTMLImageElement, private readonly name: string) {
     this.autoBulldoze = new AutoBulldozePreference(Storage.canStore ? window.localStorage : null);
     this.gameMap = simulation.getMap();
 
@@ -266,10 +265,6 @@ export class Game {
     // And pauses
     this.inputStatus.addEventListener(Messages.PAUSE_REQUESTED, () => this.speedControl.togglePause());
 
-    // And date changes
-    // XXX Not yet activated
-    //this.simulation.addEventListener(Messages.DATE_UPDATED, (date) => this.onDateChange(date));
-
     const initialValues = {
       classification: this.simulation.evaluation.cityClass,
       population: this.simulation.evaluation.cityPop,
@@ -311,18 +306,17 @@ export class Game {
 
   // A new game on the map generated from the game seed, at the chosen level. The name may be empty: the splash screen
   // doesn't require one in debug mode.
-  static newGame(map: unknown, seed: number, tileSet: TileSet, snowTileSet: TileSet, spriteSheet: HTMLImageElement,
-                 level: number, name: string): Game {
+  static newGame(map: unknown, seed: number, tileSet: TileSet, spriteSheet: HTMLImageElement, level: number,
+                 name: string): Game {
     const simulation = new Simulation(map, level, SPEEDS.medium, seed);
-    return new Game(simulation, {seed, level}, tileSet, snowTileSet, spriteSheet, name || "MyTown");
+    return new Game(simulation, {seed, level}, tileSet, spriteSheet, name || "MyTown");
   }
 
   // A game restored from what Game.save wrote
-  static fromSave(savedGame: SavedGame, tileSet: TileSet, snowTileSet: TileSet, spriteSheet: HTMLImageElement): Game {
+  static fromSave(savedGame: SavedGame, tileSet: TileSet, spriteSheet: HTMLImageElement): Game {
     // The session's log starts from the city as loaded
     const simulation = Simulation.fromSave(savedGame);
-    return new Game(simulation, {save: plainSavedState(simulation)}, tileSet, snowTileSet, spriteSheet,
-                    savedGame.name as string);
+    return new Game(simulation, {save: plainSavedState(simulation)}, tileSet, spriteSheet, savedGame.name as string);
   }
 
   // What the game saves, before storage stamps its version
@@ -368,15 +362,6 @@ export class Game {
 
     this.notificationBar.show({subject: Messages.WELCOME});
     this.rci.update({residential: 750, commercial: 750, industrial: 750});
-  }
-
-  // Not yet called: see the date listener in the constructor
-  onDateChange(date: CityDate): void {
-    if (date.month === 10 && UiRandom.stream.getChance(10)) {
-      this.gameCanvas.changeTileSet(this.snowTileSet);
-    } else if (date.month === 1) {
-      this.gameCanvas.changeTileSet(this.tileSet);
-    }
   }
 
   private handleDisasterWindowClosure(kind: DisasterKind | null): void {

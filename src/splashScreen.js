@@ -33,25 +33,24 @@ var onresize = null;
 
 
 // If the window is initially too small, try and relaunch if it gets bigger
-var makeResizeListener = function(tileSet, snowTileSet, spriteSheet) {
+var makeResizeListener = function(tileSet, spriteSheet) {
   return function() {
     $(window).off('resize');
-    new SplashScreen(tileSet, snowTileSet, spriteSheet);
+    new SplashScreen(tileSet, spriteSheet);
   };
 };
 
 
-function SplashScreen(tileSet, snowTileSet, spriteSheet) {
+function SplashScreen(tileSet, spriteSheet) {
   // We don't launch the game if the screen is too small, however, we should retain the right to do so
   // should the situation change...
   if ($('#tooSmall').is(':visible')) {
-    onresize = makeResizeListener(tileSet, snowTileSet, spriteSheet);
+    onresize = makeResizeListener(tileSet, spriteSheet);
     $(window).on('resize', onresize);
     return;
   }
 
   this.tileSet = tileSet;
-  this.snowTileSet = snowTileSet;
   this.spriteSheet = spriteSheet;
   // Whether the player has moved on, to a new game or a saved one
   this.departed = false;
@@ -158,7 +157,7 @@ var leaveSplash = function() {
 
 // The game is built before the splash screen goes, so a save that won't load leaves it showing
 var launchSavedGame = function(savedGame) {
-  Game.fromSave(savedGame, this.tileSet, this.snowTileSet, this.spriteSheet);
+  Game.fromSave(savedGame, this.tileSet, this.spriteSheet);
 
   leaveSplash.call(this);
 };
@@ -198,7 +197,7 @@ var play = function(e) {
   var name = $('#nameForm').val();
 
   // Launch a new game
-  Game.newGame(this.map, this.seed, this.tileSet, this.snowTileSet, this.spriteSheet, difficulty, name);
+  Game.newGame(this.map, this.seed, this.tileSet, this.spriteSheet, difficulty, name);
 };
 
 

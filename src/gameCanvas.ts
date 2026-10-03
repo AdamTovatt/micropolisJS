@@ -67,11 +67,9 @@ const SPRITE_CELL = 48;
 // Sprites are positioned in map pixels, at 16 a tile whatever the tileset's width
 const SPRITE_PIXELS_PER_TILE = 16;
 
-// Whether a paint must clear the canvas and repaint every tile: the tileset changed, or the canvas changed size since
-// the last paint
-function mustRepaintAll(tileSetChanged: boolean, width: number, height: number, lastWidth: number,
-                        lastHeight: number): boolean {
-  return tileSetChanged || width !== lastWidth || height !== lastHeight;
+// Whether a paint must clear the canvas and repaint every tile: the canvas changed size since the last paint
+function mustRepaintAll(width: number, height: number, lastWidth: number, lastHeight: number): boolean {
+  return width !== lastWidth || height !== lastHeight;
 }
 
 // The tiles a sprite drawn with the view's origin at (originX, originY) covers, so they are repainted next time
@@ -127,7 +125,6 @@ class GameCanvas {
   // The map overlay tinting each tile as it is painted, under the sprites
   private readonly overlay = new CanvasOverlay();
   private ready = false;
-  private pendingTileSet: TileSet | null = null;
 
   // The canvas' size in pixels, as of the last change of dimensions
   private width = 0;
@@ -254,16 +251,6 @@ class GameCanvas {
     return canvasPointToTile(x, y, this.position.origin, this.tileSet.tileWidth, this.width, this.height);
   }
 
-  changeTileSet(tileSet: TileSet): void {
-    this.requireReady();
-
-    if (!tileSet.isValid) {
-      throw new Error("new tileset not loaded");
-    }
-
-    this.pendingTileSet = tileSet;
-  }
-
   // Shows an overlay view, or none
   setOverlay(view: OverlayView | null): void {
     this.overlay.show(view);
@@ -292,19 +279,13 @@ class GameCanvas {
 
     const ctx = this.canvas.getContext("2d")!;
 
-    // Recompute our dimensions if there has been a resize since last paint, and change the tileset if asked to
-    const tileSetChanged = this.pendingTileSet !== null;
-    if (this.pendingDimensionChange || this.pendingTileSet !== null) {
+    // Recompute our dimensions if there has been a resize since last paint
+    if (this.pendingDimensionChange) {
       this.calculateDimensions();
       this.pendingDimensionChange = false;
-
-      if (this.pendingTileSet !== null) {
-        this.tileSet = this.pendingTileSet;
-        this.pendingTileSet = null;
-      }
     }
 
-    if (mustRepaintAll(tileSetChanged, this.width, this.height, this.lastCanvasWidth, this.lastCanvasHeight)) {
+    if (mustRepaintAll(this.width, this.height, this.lastCanvasWidth, this.lastCanvasHeight)) {
       ctx.clearRect(0, 0, this.width, this.height);
       this.record.repaintAll();
     }

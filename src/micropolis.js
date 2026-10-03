@@ -23,7 +23,6 @@ import { SplashScreen } from './splashScreen.js';
 import { installTestHook } from './testHook.ts';
 import { TileSet } from './tileSet.ts';
 import { TileSetURI } from './tileSetURI.ts';
-import { TileSetSnowURI } from './tileSetSnowURI.ts';
 import { debugOption, seedOption } from './urlOptions.ts';
 
 /*
@@ -34,23 +33,17 @@ import { debugOption, seedOption } from './urlOptions.ts';
  */
 
 
-var fallbackImage, tileSet, snowTileSet;
+var fallbackImage, tileSet;
 
 
 var onTilesLoaded = function() {
-  var snowTiles = requiredElement('snowtiles', HTMLImageElement);
-  snowTileSet = new TileSet(snowTiles, onAllTilesLoaded, onFallbackTilesLoaded);
-};
-
-
-var onAllTilesLoaded = function() {
   // Kick things off properly
   var sprites = $('#sprites')[0];
   if (sprites.complete) {
     $('#loadingBanner').css('display', 'none');
 
     var startGame = function() {
-      new SplashScreen(tileSet, snowTileSet, sprites);
+      new SplashScreen(tileSet, sprites);
     };
 
     // Sign in first when a server answers. The game starts whatever happens, single-player when it must.
@@ -61,7 +54,7 @@ var onAllTilesLoaded = function() {
       startGame();
     });
   } else {
-     window.setTimeout(onAllTilesLoaded, 0);
+     window.setTimeout(onTilesLoaded, 0);
   }
 };
 
@@ -73,23 +66,9 @@ var onFallbackError = function() {
 };
 
 
-var onFallbackSnowLoad = function() {
-  fallbackImage.onload = fallbackImage.onerror = null;
-  snowTileSet = new TileSet(fallbackImage, onAllTilesLoaded, onFallbackError);
-};
-
-
-var onFallbackTilesLoaded = function() {
-  fallbackImage = new Image();
-  fallbackImage.onload = onFallbackSnowLoad;
-  fallbackImage.onerror = onFallbackError;
-  fallbackImage.src = TileSetSnowURI;
-};
-
-
 var onFallbackLoad = function() {
   fallbackImage.onload = fallbackImage.onerror = null;
-  tileSet = new TileSet(fallbackImage, onFallbackTilesLoaded, onFallbackError);
+  tileSet = new TileSet(fallbackImage, onTilesLoaded, onFallbackError);
 };
 
 
