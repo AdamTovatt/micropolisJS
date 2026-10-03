@@ -18,6 +18,11 @@
   margin: 0;
 }
 
+/* How far the top panels sit below the map's top edge, and the notification bar above its bottom edge */
+:root {
+  --panel-margin: 40px;
+}
+
 @font-face {
   font-family: 'Chunk';
   font-style: normal;
@@ -47,11 +52,16 @@ footer {
   background-color: darkslategray;
 }
 
-header {
+/* The striped bar: a static page's header bar, and every window's title bar. Without specificity, so that a window's
+   own colour rule wins. */
+:where(body > header, .modal > header) {
   background-color: darkslategray;
   background-image: repeating-linear-gradient(-45deg, transparent, transparent 35px, rgba(255, 255, 255, 0.2) 35px, rgba(255, 255, 255, 0.2) 70px);
   font-family: 'Chunk', serif;
-  height: 35px;
+}
+
+.modal > header {
+  height: 18px;
 }
 
 header h1 {
@@ -61,7 +71,7 @@ header h1 {
 main {
   position: absolute;
   top: 0;
-  bottom: 55px;
+  bottom: 0;
   width: 100%;
   overflow: hidden;
 }
@@ -200,10 +210,6 @@ nav li {
   width: 500px;
 }
 
-.modal header {
-  height: 18px;
-}
-
 .mintcream, .neutral {
   background-color: mintcream;
 }
@@ -332,7 +338,7 @@ nav li {
 
 #controls {
   position: absolute;
-  top: 40px;
+  top: var(--panel-margin);
   width: 305px;
   height: 220px;
 }
@@ -369,7 +375,7 @@ nav li {
 
 #infobar {
   position: absolute;
-  top: 40px;
+  top: var(--panel-margin);
   height: 150px;
 }
 
@@ -401,7 +407,7 @@ nav li {
 
 #notifications {
   position: absolute;
-  bottom: 65px;
+  bottom: var(--panel-margin);
   left: 50%;
   border: 1px solid black;
   width: 400px;
@@ -444,7 +450,7 @@ nav li {
 #splash {
   position: absolute;
   width: 540px;
-  height: 380px;
+  height: 480px;
 }
 
 #splashButton {
@@ -467,6 +473,14 @@ nav li {
   position: absolute;
   top: 90px;
   left: 20px;
+}
+
+#splashCredits {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  font-size: 12px;
 }
 
 #splashGenerate {
@@ -572,7 +586,7 @@ nav li {
 
 #wrapper {
   position: absolute;
-  top: 55px;
+  top: 0px;
   left: 0px;
   right: 0px;
   bottom: 0px;
@@ -678,53 +692,21 @@ nav li {
   background-color: khaki;
 }
 
+/* The window heights at which the panels close up, down to the too-small overlay. They were set when header and footer
+   bars took 70px of a short window, and were kept when the bars went, so each one applies with about 70px to spare. */
 @media (max-height: 742px) {
-  header {
-    height: 15px;
-  }
-
-  main {
-    bottom: 35px;
-  }
-
-  footer {
-    height: 4em;
-  }
-
-  .border-bottom {
-    border: none;
-  }
-
-  .fontlarge {
-      font-size: 16px;
-  }
-
-  #author {
-    display: none;
-  }
-
   #notifications {
-    bottom: unset;
     border: none;
-    top: 593px;
-  }
-
-  #wrapper {
-    top: 35px;
   }
 }
 
 @media (max-height: 702px) {
-  #controls {
-    top: 30px;
+  :root {
+    --panel-margin: 30px;
   }
 
   #debug {
     top: 544px;
-  }
-
-  #infobar {
-    top: 30px;
   }
 
   #monstertv {
@@ -733,10 +715,6 @@ nav li {
 
   #miscButtons {
     top: 230px;
-  }
-
-  #notifications {
-    top: 563px;
   }
 
   #RCIContainer {
@@ -753,16 +731,12 @@ nav li {
 }
 
 @media (max-height: 672px) {
-  #controls {
-    top: 20px;
+  :root {
+    --panel-margin: 20px;
   }
 
   #debug {
     top: 504px;
-  }
-
-  #infobar {
-    top: 20px;
   }
 
   #monstertv {
@@ -771,10 +745,6 @@ nav li {
 
   #miscButtons {
     top: 210px;
-  }
-
-  #notifications {
-    top: 533px;
   }
 
   #RCIContainer {
@@ -798,16 +768,12 @@ nav li {
     box-shadow: unset;
   }
 
-  #controls {
-    top: 10px;
+  :root {
+    --panel-margin: 10px;
   }
 
   #debug {
     top: 460px;
-  }
-
-  #infobar {
-    top: 10px;
   }
 
   #miscButtons {
@@ -816,10 +782,6 @@ nav li {
 
   #monstertv {
     top: 274px;
-  }
-
-  #notifications {
-    top: 503px;
   }
 
   #RCIContainer {
@@ -837,16 +799,12 @@ nav li {
 }
 
 @media (max-height: 612px) {
-  #controls {
-    top: 0px;
+  :root {
+    --panel-margin: 0px;
   }
 
   #debug {
     top: 396px;
-  }
-
-  #infobar {
-    top: 0px;
   }
 
   #miscButtons {
@@ -855,10 +813,6 @@ nav li {
 
   #monstertv {
     top: 220px;
-  }
-
-  #notifications {
-    top: 473px;
   }
 
   #RCIContainer {
@@ -891,7 +845,6 @@ nav li {
   }
 
   #notifications {
-    bottom: 40px;
     left: unset;
     right: 0;
     transform: unset;
@@ -924,7 +877,33 @@ nav li {
   }
 }
 
-/* About/nag page styles */
+/* About and name-license page styles */
+
+body > header {
+  height: 35px;
+}
+
+@media (max-height: 742px) {
+  body > header {
+    height: 15px;
+  }
+
+  footer {
+    height: 4em;
+  }
+
+  .border-bottom {
+    border: none;
+  }
+
+  .fontlarge {
+      font-size: 16px;
+  }
+
+  #author {
+    display: none;
+  }
+}
 
 #aboutMain, #licenseMain {
   position: relative;
@@ -969,7 +948,7 @@ nav li {
 
 #aboutMain a, #aboutMain a:link, #aboutMain a:visited, #aboutMain a:hover,
 #licenseMain a, #licenseMain a:link, #licenseMain a:visited, #licenseMain a:hover,
-#nagContainer a, #nagContainer a:link, #nagContainer a:visited, #nagContainer a:hover {
+#splashCredits a, #splashCredits a:link, #splashCredits a:visited, #splashCredits a:hover {
   text-decoration: none;
   color: dodgerblue;
 }

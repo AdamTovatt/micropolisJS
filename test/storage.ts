@@ -32,7 +32,10 @@ async function loadStorage() {
 const SEED = 2026;
 
 // The keys the game itself saves beside the simulation, and the version storage.js adds
-const GAME_KEYS = ["version", "name", "everClicked", "autoBulldoze"];
+const GAME_KEYS = ["version", "name", "autoBulldoze"];
+
+// The keys version 4 saved that no save holds any more
+const DROPPED_KEYS = ["everClicked"];
 
 // An empty map with one coal plant tile, which a scan counts, and one burning tile, which makes a scan draw from the
 // stream and change the map
@@ -163,7 +166,7 @@ describe("storage", () => {
 
             const groups = Object.values(restored).filter((group) => group !== null && typeof group === "object");
             for (const [key, value] of Object.entries(version4)) {
-                if (GAME_KEYS.includes(key) || key === "map") {
+                if (GAME_KEYS.includes(key) || DROPPED_KEYS.includes(key) || key === "map") {
                     continue;
                 }
                 const name = key.replace(/^_/, "");

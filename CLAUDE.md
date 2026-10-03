@@ -54,7 +54,7 @@ The headless runner takes `--seed <n>` (a generated map) or `--fixture <name>`, 
 
 Node 24 or later (`engines` in `package.json`). CI (`.github/workflows/ci.yml`) runs `npm ci`, then build, test and lint, on Node 24 on every push and pull request.
 
-Tests are TypeScript and can import the legacy JavaScript modules: ts-jest compiles both. The footers of the built HTML pages show the build ID, `git rev-parse --short=12 HEAD`, or `unknown` outside a git checkout.
+Tests are TypeScript and can import the legacy JavaScript modules: ts-jest compiles both. The game's Settings window and the footers of the about and name-license pages show the build ID, `git rev-parse --short=12 HEAD`, or `unknown` outside a git checkout.
 
 Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an undefined event name throws instead of warning, the FPS counter shows, and the query tool reports raw tile data.
 
