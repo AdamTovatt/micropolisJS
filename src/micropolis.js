@@ -19,6 +19,7 @@ import { Config } from './config.js';
 import { showOnlineList } from './onlineList.ts';
 import { signInIfServerAnswers } from './signInForm.ts';
 import { SplashScreen } from './splashScreen.js';
+import { installTestHook } from './testHook.ts';
 import { TileSet } from './tileSet.js';
 import { TileSetURI } from './tileSetURI.ts';
 import { TileSetSnowURI } from './tileSetSnowURI.ts';
@@ -105,6 +106,10 @@ var tileSetError = function() {
 Config.debug = window.location.search.slice(1).split('&').some(function(param) {
   return param.trim().toLowerCase() === 'debug=1';
 });
+
+// The end-to-end runner drives the game through this
+if (Config.debug)
+  installTestHook();
 
 
 var tiles = $('#tiles')[0];

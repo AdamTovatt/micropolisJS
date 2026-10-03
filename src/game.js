@@ -44,6 +44,7 @@ import { plainSavedState } from './stateHash.ts';
 import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
+import { attachToTestHook } from './testHook.ts';
 import { Text } from './text.js';
 import { TouchWarnWindow } from './touchWarnWindow.ts';
 import { UiRandom } from './uiRandom.ts';
@@ -182,6 +183,7 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   this.stepDriver = new StepDriver();
   this.isStepping = isStepping.bind(this);
   this.stepSimulation = this.commandQueue.step.bind(this.commandQueue);
+  attachToTestHook(this);
   this.tick = tick.bind(this);
   this.tick();
 
@@ -200,11 +202,17 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
 }
 
 
-Game.prototype.save = function() {
+// What the game saves, before storage stamps its version
+Game.prototype.saveData = function() {
   var saveData = {name: this.name};
   this.simulation.save(saveData);
 
-  Storage.saveGame(saveData);
+  return saveData;
+};
+
+
+Game.prototype.save = function() {
+  Storage.saveGame(this.saveData());
 };
 
 

@@ -20,14 +20,19 @@ import { Simulation } from "../src/simulation.js";
 import { plainSavedState } from "../src/stateHash";
 import { ANIMBIT, CONDBIT } from "../src/tileFlags";
 import { FIRE, POWERPLANT } from "../src/tileValues";
+import { removeWindow, stubWindow } from "./helpers/window";
 
-type Window = {window?: unknown};
 type Save = Record<string, unknown>;
 
-// storage.js reads window.localStorage when it loads, and the tests run in Node: stub the window, then import it
 async function loadStorage() {
-    (globalThis as Window).window = {localStorage: {}};
-    return (await import("../src/storage.js")).Storage;
+    const localStorage = stubWindow();
+    const Storage = (await import("../src/storage.js")).Storage;
+
+    // Defined as a constant property, which the type of the module doesn't show
+    const currentVersion = (Storage as unknown as {CURRENT_VERSION: number}).CURRENT_VERSION;
+    const key = (Storage as unknown as {KEY: string}).KEY;
+
+    return {Storage, localStorage, currentVersion, key};
 }
 
 const SEED = 2026;
@@ -125,13 +130,75 @@ function migratedAndCurrentKeys(migrated: Save) {
 describe("storage", () => {
 
     afterAll(() => {
-        delete (globalThis as Window).window;
+        removeWindow();
+    });
+
+    describe("save text", () => {
+
+        it("is the save data stamped with the current version", async () => {
+            const {Storage, currentVersion} = await loadStorage();
+
+            expect(JSON.parse(Storage.serialise({name: "Town", _cityTime: 12})))
+                .toEqual({name: "Town", _cityTime: 12, version: currentVersion});
+        });
+
+        it("reads back as what was written", async () => {
+            const {Storage, currentVersion} = await loadStorage();
+
+            const savedGame = Storage.parse(Storage.serialise({name: "Town", _cityTime: 12}));
+
+            expect(savedGame).toEqual({name: "Town", _cityTime: 12, version: currentVersion});
+        });
+
+        it("migrates an old version as it reads it", async () => {
+            const {Storage} = await loadStorage();
+
+            const savedGame = Storage.parse(JSON.stringify(oldSave(3)));
+
+            expect(savedGame.simulation.speedCycle).toBe(0);
+        });
+
+        it("refuses text that isn't JSON", async () => {
+            const {Storage} = await loadStorage();
+
+            expect(() => Storage.parse("not a save")).toThrow(SyntaxError);
+        });
+
+        it("refuses a version it doesn't know", async () => {
+            const {Storage} = await loadStorage();
+
+            expect(() => Storage.parse(JSON.stringify({version: 99}))).toThrow("Unknown save version!");
+        });
+    });
+
+    describe("the saved game", () => {
+
+        it("is stored as save text", async () => {
+            const {Storage, localStorage, key} = await loadStorage();
+
+            Storage.saveGame({name: "Town"});
+
+            expect(localStorage.getItem(key)).toBe(Storage.serialise({name: "Town"}));
+        });
+
+        it("reads back from storage", async () => {
+            const {Storage, currentVersion} = await loadStorage();
+            Storage.saveGame({name: "Town"});
+
+            expect(Storage.getSavedGame()).toEqual({name: "Town", version: currentVersion});
+        });
+
+        it("is null when nothing is saved", async () => {
+            const {Storage} = await loadStorage();
+
+            expect(Storage.getSavedGame()).toBeNull();
+        });
     });
 
     describe.each([1, 2, 3])("when migrating a version %i save", (version) => {
 
         it("gives it a uint32 seed and the simulation stream of that seed", async () => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const savedGame = oldSave(version);
 
             Storage.transitionOldSave(savedGame);
@@ -144,7 +211,7 @@ describe("storage", () => {
         });
 
         it("starts its speed cycle from 0", async () => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const savedGame = oldSave(version);
 
             Storage.transitionOldSave(savedGame);
@@ -155,7 +222,7 @@ describe("storage", () => {
 
     it.each([1, 2, 3, 4])("gives a migrated version %i save exactly the keys a current save holds, at every level",
         async (version) => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const savedGame = oldSave(version);
 
             Storage.transitionOldSave(savedGame);
@@ -168,7 +235,7 @@ describe("storage", () => {
 
         // Each value turns up under its own name, without a leading underscore, in one of the current save's groups
         it("keeps every value it holds through a load", async () => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const savedGame = version4Save();
             const version4 = JSON.parse(JSON.stringify(savedGame)) as Save;
             Storage.transitionOldSave(savedGame);
@@ -188,7 +255,7 @@ describe("storage", () => {
         });
 
         it("loads it by scanning for what it lacks, then restoring the save over what the scan changed", async () => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const savedGame = version4Save();
             Storage.transitionOldSave(savedGame);
 
@@ -206,7 +273,7 @@ describe("storage", () => {
         // The town's zones and traffic add to block maps such as the rate of growth as the load's scan runs, and so
         // did the grown city it is loaded over: none of that city's additions may survive
         it("loads to the same state over a grown city as over a blank one", async () => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const townTiles = fixtureSave("town").map as unknown as {tiles: number[]};
             const savedGame = version4Save(townTiles.tiles.map((value) => ({value})));
             Storage.transitionOldSave(savedGame);
@@ -223,7 +290,7 @@ describe("storage", () => {
 
         // Version 8 then drops the auto-bulldoze setting
         it("drops the donation flag, and keeps every other key and value but auto-bulldoze", async () => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const version5 = {...simulationSave(), version: 5, name: "Newtown", autoBulldoze: false, everClicked: true};
             const savedGame = JSON.parse(JSON.stringify(version5)) as Save;
 
@@ -254,7 +321,7 @@ describe("storage", () => {
     describe.each([1, 2, 3, 4, 5, 6])("when migrating a version %i save", (version) => {
 
         it("gives it an empty score breakdown", async () => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const savedGame = saveBeforeBreakdown(version);
 
             Storage.transitionOldSave(savedGame);
@@ -265,10 +332,8 @@ describe("storage", () => {
 
     // getSavedGame migrates only a save whose version differs from the current one
     it("migrates a stored version 6 save when it reads it", async () => {
-        const Storage = await loadStorage();
-        const stored = JSON.stringify(saveBeforeBreakdown(6));
-        const stubbed = (globalThis as Window).window as {localStorage: {getItem?: (key: string) => string}};
-        stubbed.localStorage.getItem = () => stored;
+        const {Storage, localStorage, key} = await loadStorage();
+        localStorage.setItem(key, JSON.stringify(saveBeforeBreakdown(6)));
 
         const savedGame = Storage.getSavedGame() as unknown as Save;
 
@@ -290,7 +355,7 @@ describe("storage", () => {
         // The save is migrated on every page load, so a setting it held must never overwrite the one the player chose
         it.each([true, false])("leaves the player's auto-bulldoze preference as it is, the save holding %s",
                                async (on) => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const kept: Record<string, string> = {[AUTO_BULLDOZE_KEY]: String(!on)};
             (globalThis as {window: {localStorage: object}}).window.localStorage = {
                 getItem: (key: string) => kept[key] ?? null,
@@ -303,7 +368,7 @@ describe("storage", () => {
         });
 
         it("leaves it as a save of the current version holds it, without the auto-bulldoze setting", async () => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const savedGame = version7Save({});
 
             Storage.transitionOldSave(savedGame);
@@ -313,7 +378,7 @@ describe("storage", () => {
 
         // Road upkeep of 100, fully funded, and 300 of tax to come in
         it("pays the year-end budget that a save waited on, with the values it holds", async () => {
-            const Storage = await loadStorage();
+            const {Storage} = await loadStorage();
             const savedGame = version7Save({awaitingValues: true, autoBudget: false, totalFunds: 1000, taxFund: 300,
                                             roadMaintenanceBudget: 100, fireMaintenanceBudget: 0,
                                             policeMaintenanceBudget: 0, roadPercent: 1, roadSpend: 0, roadEffect: 0});

@@ -113,6 +113,56 @@ describe("the step driver", () => {
 
             expect(step).toHaveBeenCalledTimes(1);
         });
+
+        it("takes no steps while held", () => {
+            const driver = new StepDriver();
+            const step = jest.fn();
+            driver.run(0, () => true, step);
+            driver.hold();
+
+            driver.run(10 * STEP, () => true, step);
+
+            expect(driver.isHeld()).toBe(true);
+            expect(step).not.toHaveBeenCalled();
+        });
+
+        it("is no longer held once released", () => {
+            const driver = new StepDriver();
+            driver.hold();
+
+            driver.release();
+
+            expect(driver.isHeld()).toBe(false);
+        });
+
+        it("owes nothing for time it was held", () => {
+            const driver = new StepDriver();
+            const step = jest.fn();
+            driver.run(0, () => true, step);
+            driver.hold();
+            driver.run(10 * STEP, () => true, step);
+            driver.release();
+
+            // The first run after the release only starts the clock; the next is a step and a millisecond later
+            driver.run(10 * STEP + 1, () => true, step);
+            driver.run(11 * STEP + 2, () => true, step);
+
+            expect(step).toHaveBeenCalledTimes(1);
+        });
+
+        it("owes nothing for time it was held, when released before it ran again", () => {
+            const driver = new StepDriver();
+            const step = jest.fn();
+            driver.run(0, () => true, step);
+            driver.hold();
+            driver.release();
+
+            // Ten steps' time has passed since the last run, all of it before the hold ended
+            driver.run(10 * STEP, () => true, step);
+            driver.run(11 * STEP + 1, () => true, step);
+
+            expect(step).toHaveBeenCalledTimes(1);
+        });
     });
 
     it("owes nothing for time spent idle", () => {

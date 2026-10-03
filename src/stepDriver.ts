@@ -30,6 +30,7 @@ const UNITS_PER_STEP = 1000;
 class StepDriver {
   private lastTime: number | null = null;
   private owedUnits = 0;
+  private held = false;
 
   // The number of steps due by now, a time in milliseconds
   stepsDue(now: number): number {
@@ -57,10 +58,26 @@ class StepDriver {
     this.owedUnits = 0;
   }
 
-  // Takes the steps due by now while the city is stepping. A step can stop it, as by opening a dialog, which ends the
-  // run there.
+  // A held driver takes no steps, so that something else, such as the end-to-end runner, decides when the city steps.
+  // Holding is not pausing: the city's speed is untouched. As for any time the city is not stepping, nothing is owed for
+  // the time it is held.
+  hold(): void {
+    this.held = true;
+    this.idle();
+  }
+
+  release(): void {
+    this.held = false;
+  }
+
+  isHeld(): boolean {
+    return this.held;
+  }
+
+  // Takes the steps due by now while the city is stepping and the driver is not held. A step can stop it, as by
+  // opening a dialog, which ends the run there.
   run(now: number, isStepping: () => boolean, step: () => void): void {
-    if (!isStepping()) {
+    if (this.held || !isStepping()) {
       this.idle();
       return;
     }
