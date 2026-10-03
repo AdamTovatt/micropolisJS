@@ -232,8 +232,8 @@ describe("storage", () => {
         });
     });
 
-    // Versions 5 and 6 are today's save less the breakdown, which version 7 added, and version 5 also kept the
-    // donation flag
+    // A version 5 or 6 save stands in as a current save without the breakdown, which version 7 added, and for
+    // version 5 with the donation flag
     function saveBeforeBreakdown(version: number): Save {
         if (version <= 4) {
             return oldSave(version);
@@ -260,10 +260,15 @@ describe("storage", () => {
         });
     });
 
-    it("is past every version it migrates", async () => {
+    // getSavedGame migrates only a save whose version differs from the current one
+    it("migrates a stored version 6 save when it reads it", async () => {
         const Storage = await loadStorage();
+        const stored = JSON.stringify(saveBeforeBreakdown(6));
+        const stubbed = (globalThis as Window).window as {localStorage: {getItem?: (key: string) => string}};
+        stubbed.localStorage.getItem = () => stored;
 
-        // getSavedGame migrates only a save whose version differs from the current one
-        expect((Storage as unknown as {CURRENT_VERSION: number}).CURRENT_VERSION).toBeGreaterThan(6);
+        const savedGame = Storage.getSavedGame() as unknown as Save;
+
+        expect((savedGame.evaluation as Save).cityScoreBreakdown).toEqual([]);
     });
 });

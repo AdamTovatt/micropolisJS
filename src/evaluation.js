@@ -26,6 +26,10 @@ var problemData = [];
 // drops a point: half funding takes a score of 1000 to 949, not 950.
 var SERVICE_CUT_DIVISOR = 10.0001;
 
+// The 15% cut for each zone type whose demand is capped or has collapsed. evaluate.cpp writes .85
+// at each of the six.
+var DEMAND_CUT = 0.85;
+
 var Evaluation = EventEmitter(function(random) {
   this._random = random;
   this.problemVotes = [];
@@ -218,7 +222,7 @@ var getTrafficAverage = function(blockMaps, census) {
 var getUnemployment = function(census) {
   // evaluate.cpp keeps the jobs in a short, which wraps past 32767: more than 4095 commercial and
   // industrial people count as a negative number of jobs. A map that is almost all top-density
-  // commercial holds about 6700, and up to there the ratio below stays in a short's range too.
+  // commercial holds about 6700.
   var b = (((census.comPop + census.indPop) * 8) << 16) >> 16;
 
   if (b === 0)
@@ -232,6 +236,11 @@ var getUnemployment = function(census) {
   // float, so they aren't wrapped.
   var r = Math.fround(Math.fround(census.resPop) / Math.fround(b));
 
+  // A deliberate divergence: evaluate.cpp converts this float to a short, and past about 130
+  // residents per job it is out of a short's range, where C leaves the conversion undefined. gcc
+  // wraps it: 1040 residents for one commercial person's 8 jobs give 129 * 255 = 32895, which
+  // wraps to -32641, a negative problem that lets a residential-only town score perfectly. The
+  // port keeps the value and caps it at 255.
   b = Math.trunc(Math.fround(Math.fround(r - 1) * 255));
   return Math.min(b, 255);
 };
@@ -309,17 +318,17 @@ Evaluation.prototype.getScore = function(simData) {
   // Penalise the player by 15% if demand for any type of zone is capped due
   // to lack of suitable buildings
   if (valves.resCap) {
-    score = Math.trunc(score * 0.85);
+    score = Math.trunc(score * DEMAND_CUT);
     recordAdjustment(Evaluation.SCORE_RES_CAP, score);
   }
 
   if (valves.comCap) {
-    score = Math.trunc(score * 0.85);
+    score = Math.trunc(score * DEMAND_CUT);
     recordAdjustment(Evaluation.SCORE_COM_CAP, score);
   }
 
   if (valves.indCap) {
-    score = Math.trunc(score * 0.85);
+    score = Math.trunc(score * DEMAND_CUT);
     recordAdjustment(Evaluation.SCORE_IND_CAP, score);
   }
 
@@ -343,17 +352,17 @@ Evaluation.prototype.getScore = function(simData) {
   // Penalise the player by 15% if demand for any type of zone has collapsed due
   // to overprovision
   if (valves.resValve < -1000) {
-    score = Math.trunc(score * 0.85);
+    score = Math.trunc(score * DEMAND_CUT);
     recordAdjustment(Evaluation.SCORE_RES_OVERSUPPLY, score);
   }
 
   if (valves.comValve < -1000) {
-    score = Math.trunc(score * 0.85);
+    score = Math.trunc(score * DEMAND_CUT);
     recordAdjustment(Evaluation.SCORE_COM_OVERSUPPLY, score);
   }
 
   if (valves.indValve < -1000) {
-    score = Math.trunc(score * 0.85);
+    score = Math.trunc(score * DEMAND_CUT);
     recordAdjustment(Evaluation.SCORE_IND_OVERSUPPLY, score);
   }
 

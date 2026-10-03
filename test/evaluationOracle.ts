@@ -21,7 +21,8 @@ import { lcg } from "./helpers/lcg";
 // MicropolisEngine. It is transcribed with each C type's arithmetic made explicit, and is the oracle the port is
 // compared with below:
 // - short, int and Quad values are whole numbers: a cast to one, and a division of two, drop the fraction toward zero
-//   (Math.trunc). The inputs stay in each type's range, and only getUnemployment's jobs overflow theirs.
+//   (Math.trunc). Of the values that leave their type's range, getUnemployment's jobs wrap as a short does, and
+//   its unemployment, whose conversion C leaves undefined, follows the port.
 // - float arithmetic rounds every operation to 32 bits (Math.fround); double arithmetic is JavaScript's own.
 // The problem votes are left out: they never feed the score, and the port's vote loop differs from the original's
 // on purpose (see voteProblems).
@@ -73,7 +74,9 @@ function getUnemployment(year: Year): number {
         return 0;
     }
 
-    // float r = ((float)resPop) / b; then (short)((r - 1) * 255), in float
+    // float r = ((float)resPop) / b; then (short)((r - 1) * 255), in float. Past about 130 residents per job that
+    // float is out of a short's range, where C leaves the conversion undefined: gcc wraps 1040 residents for 8 jobs
+    // to -32641. The port keeps the value instead, a deliberate divergence, and this mirrors it.
     const r = f(f(year.resPop) / f(b));
     return Math.min(Math.trunc(f(f(r - 1) * 255)), 255);
 }

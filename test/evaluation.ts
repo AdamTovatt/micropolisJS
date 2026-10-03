@@ -11,7 +11,6 @@
  *
  */
 
-// TypeScript modules are imported without an extension, as in the rest of test/
 import { Evaluation } from "../src/evaluation.js";
 import type { ScoreEntry } from "../src/scoreBreakdownView";
 import { developedLand, evaluateYear, makeCity, newEvaluation, problemFreeYear, type Year } from "./helpers/evaluationCity";
@@ -44,10 +43,20 @@ const TROUBLED_CITY: Year[] = [
 
 function scoresOver(years: Year[]): number[] {
     const city = makeCity();
-    return years.map((state) => {
-        evaluateYear(city, state);
+    return years.map((year) => {
+        evaluateYear(city, year);
         return city.evaluation.cityScore;
     });
+}
+
+// A new city evaluated over the years, and its score before the last of them
+function evaluateYears(years: Year[]) {
+    const city = makeCity();
+    for (const year of years.slice(0, -1))
+        evaluateYear(city, year);
+    const lastScore = city.evaluation.cityScore;
+    evaluateYear(city, years[years.length - 1]);
+    return {city, lastScore};
 }
 
 function sumOfPoints(breakdown: ScoreEntry[]): number {
@@ -70,9 +79,9 @@ describe("the city score breakdown", () => {
     it("sums to the change from last year's score, every year", () => {
         for (const years of [THRIVING_TOWN, TROUBLED_CITY]) {
             const city = makeCity();
-            for (const state of years) {
+            for (const year of years) {
                 const lastScore = city.evaluation.cityScore;
-                evaluateYear(city, state);
+                evaluateYear(city, year);
 
                 const {cityScore, cityScoreDelta} = city.evaluation;
                 const breakdown: ScoreEntry[] = city.evaluation.cityScoreBreakdown;
@@ -137,11 +146,7 @@ describe("the city score breakdown", () => {
         ["3 of 11 zones powered", [problemFreeYear(200, {crimeAverage: 75, poweredZoneCount: 3, unpoweredZoneCount: 8})],
          Evaluation.SCORE_UNPOWERED_ZONES, 924, 252],
     ])("scales the score for %s, dropping the fraction", (_, years, reason, scoreBefore, scoreAfter) => {
-        const city = makeCity();
-        for (const state of years.slice(0, -1))
-            evaluateYear(city, state);
-        const lastScore = city.evaluation.cityScore;
-        evaluateYear(city, years[years.length - 1]);
+        const {city, lastScore} = evaluateYears(years);
 
         const step = stepOf(city.evaluation.cityScoreBreakdown, lastScore, reason);
         expect(step.scoreBefore).toBe(scoreBefore);
@@ -170,6 +175,10 @@ describe("the city score breakdown", () => {
         // and with crime and pollution of 255, 192 / 3 = 64: 1024 - 256
         ["4096 commercial people, whose jobs wrap",
          {resPop: 8192, comPop: 4096, crimeAverage: 255, pollutionAverage: 255}, 768],
+        // Unemployment is (1040 / 8 - 1) * 255 = 32895, past a short's range, so it is capped at
+        // 255 where gcc's build of evaluate.cpp wraps it to -32641 (see getUnemployment), and
+        // 255 / 3 = 85: 1024 - 340
+        ["1040 residents for 8 jobs", {resPop: 1040, comPop: 1}, 684],
     ])("starts from the base score for %s", (_, changes, base) => {
         const city = makeCity();
         evaluateYear(city, problemFreeYear(200, changes));
@@ -178,10 +187,7 @@ describe("the city score breakdown", () => {
     });
 
     it("credits each step with exactly the points it moved the score", () => {
-        const city = makeCity();
-        evaluateYear(city, TROUBLED_CITY[0]);
-        const lastScore = city.evaluation.cityScore;
-        evaluateYear(city, TROUBLED_CITY[1]);
+        const {city, lastScore} = evaluateYears(TROUBLED_CITY.slice(0, 2));
         const breakdown: ScoreEntry[] = city.evaluation.cityScoreBreakdown;
         const step = (reason: string) => stepOf(breakdown, lastScore, reason);
 
@@ -193,9 +199,7 @@ describe("the city score breakdown", () => {
     });
 
     it("leaves out adjustments that didn't move the score", () => {
-        const city = makeCity();
-        const lastScore = city.evaluation.cityScore;
-        evaluateYear(city, {...TROUBLED_CITY[0], cityTax: 0, firePop: 0});
+        const {city, lastScore} = evaluateYears([{...TROUBLED_CITY[0], cityTax: 0, firePop: 0}]);
 
         // No tax, no fires, no migration yet, every zone powered and the score within range
         const breakdown: ScoreEntry[] = city.evaluation.cityScoreBreakdown;
@@ -246,11 +250,7 @@ describe("the city score breakdown", () => {
         // Problems leave no base score, and fires and taxes take it below 0
         ["below 0", [{...TROUBLED_CITY[0], crimeAverage: 255, pollutionAverage: 255, firePop: 50}], 0],
     ])("records the clamp to the 0-1000 range for a score %s", (_, years, limit) => {
-        const city = makeCity();
-        for (const state of years.slice(0, -1))
-            evaluateYear(city, state);
-        const lastScore = city.evaluation.cityScore;
-        evaluateYear(city, years[years.length - 1]);
+        const {city, lastScore} = evaluateYears(years);
 
         const range = stepOf(city.evaluation.cityScoreBreakdown, lastScore, Evaluation.SCORE_RANGE);
         expect(range.entry.points).toBe(limit - range.scoreBefore);
@@ -272,6 +272,7 @@ describe("the city score breakdown", () => {
         const city = makeCity();
         evaluateYear(city, THRIVING_TOWN[0]);
         evaluateYear(city, THRIVING_TOWN[1]);
+        expect(city.evaluation.cityScoreDelta).not.toBe(0);
 
         const saveData: Record<string, unknown> = {};
         city.evaluation.save(saveData);
@@ -281,7 +282,6 @@ describe("the city score breakdown", () => {
         expect(loaded.cityScore).toBe(city.evaluation.cityScore);
         expect(loaded.cityScoreBreakdown).toEqual(city.evaluation.cityScoreBreakdown);
         expect(loaded.cityScoreDelta).toBe(city.evaluation.cityScoreDelta);
-        expect(loaded.cityScoreDelta).not.toBe(0);
     });
 
     // An old save is migrated to an empty breakdown (test/storage.ts); loading one replaces the
