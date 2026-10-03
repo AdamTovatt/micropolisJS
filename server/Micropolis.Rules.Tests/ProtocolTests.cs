@@ -28,7 +28,21 @@ namespace Micropolis.Rules.Tests
     {
         private static readonly JsonObject ReaderCases = JsonNode.Parse(File.ReadAllText(RepositoryFiles.GetPath("protocol/reader-cases.json")))!.AsObject();
 
-        public static IEnumerable<object[]> Examples => ExamplePaths().Select(path => new object[] { Path.GetFileName(path) });
+        // Each session body by its example's file name, read and written back by the protocol's own code
+        private static readonly Dictionary<string, Func<string, string>> SessionBodies = new Dictionary<string, Func<string, string>>
+        {
+            ["sign-in-request"] = json => ProtocolJson.Serialize(ProtocolJson.DeserializeSessionBody<SignInRequest>(json)),
+            ["session-response"] = json => ProtocolJson.Serialize(ProtocolJson.DeserializeSessionBody<SessionResponse>(json)),
+            ["player-response"] = json => ProtocolJson.Serialize(ProtocolJson.DeserializeSessionBody<PlayerResponse>(json)),
+            ["error-response"] = json => ProtocolJson.Serialize(ProtocolJson.DeserializeSessionBody<ErrorResponse>(json)),
+        };
+
+        public static IEnumerable<object[]> Examples => ExamplePaths(SocketExamples).Select(path => new object[] { Path.GetFileName(path) });
+
+        public static IEnumerable<object[]> SessionExamples => ExamplePaths(SessionBodyExamples).Select(path => new object[] { Path.GetFileName(path) });
+
+        public static IEnumerable<object[]> RejectedSessionBodies => ReaderCases["rejectedSessionBodies"]!.AsArray()
+            .Select(item => new object[] { (string)item!["case"]!, (string)item["body"]!, (string)item["text"]! });
 
         public static IEnumerable<object[]> RejectedCases => ReaderCases["rejected"]!.AsArray()
             .Select(item => new object[] { (string)item!["case"]!, (string)item["text"]! });
@@ -40,15 +54,34 @@ namespace Micropolis.Rules.Tests
         [DynamicData(nameof(Examples))]
         public void RoundTrip_SharedExample_WritesIdenticalBytes(string fileName)
         {
-            byte[] fileBytes = File.ReadAllBytes(Path.Combine(ExamplesDirectory(), fileName));
-            string wire = ReadWireText(fileBytes);
+            AssertRoundTrip(Path.Combine(ExamplesDirectory(SocketExamples), fileName),
+                wire => ProtocolJson.Serialize(ProtocolJson.DeserializeServerMessage(wire)));
+        }
 
-            string written = ProtocolJson.Serialize(ProtocolJson.DeserializeServerMessage(wire));
+        [TestMethod]
+        [DynamicData(nameof(SessionExamples))]
+        public void RoundTrip_SharedSessionBodyExample_WritesIdenticalBytes(string fileName)
+        {
+            AssertRoundTrip(Path.Combine(ExamplesDirectory(SessionBodyExamples), fileName), SessionBodies[Path.GetFileNameWithoutExtension(fileName)]);
+        }
 
-            // Both comparisons are needed: the text one shows a readable difference, and the byte one also covers
-            // the final newline and the encoding
-            Assert.AreEqual(wire, written);
-            CollectionAssert.AreEqual(fileBytes, Encoding.UTF8.GetBytes(written + "\n"));
+        [TestMethod]
+        public void SessionExamples_EverySessionBody_HasOneAndNoOther()
+        {
+            int declaredBodies = typeof(SessionBody).Assembly.GetTypes().Count(type => type.IsSubclassOf(typeof(SessionBody)));
+            HashSet<string> exampleBodies = ExamplePaths(SessionBodyExamples).Select(path => Path.GetFileNameWithoutExtension(path)).ToHashSet();
+
+            // A body added to the protocol and not to the table above fails here, and one without an example below
+            Assert.HasCount(declaredBodies, SessionBodies);
+            Assert.IsTrue(exampleBodies.SetEquals(SessionBodies.Keys),
+                $"Session bodies [{string.Join(", ", SessionBodies.Keys.Order())}], examples [{string.Join(", ", exampleBodies.Order())}].");
+        }
+
+        [TestMethod]
+        [DynamicData(nameof(RejectedSessionBodies))]
+        public void DeserializeSessionBody_SharedRejectedCase_Throws(string description, string body, string text)
+        {
+            Assert.ThrowsExactly<JsonException>(() => SessionBodies[body](text), description);
         }
 
         [TestMethod]
@@ -57,7 +90,7 @@ namespace Micropolis.Rules.Tests
             HashSet<string> declaredTypes = typeof(ServerMessage).GetCustomAttributes<JsonDerivedTypeAttribute>()
                 .Select(attribute => (string)attribute.TypeDiscriminator!)
                 .ToHashSet();
-            HashSet<string> exampleTypes = ExamplePaths()
+            HashSet<string> exampleTypes = ExamplePaths(SocketExamples)
                 .Select(path => JsonDocument.Parse(ReadWireText(File.ReadAllBytes(path))).RootElement.GetProperty("type").GetString()!)
                 .ToHashSet();
 
@@ -80,14 +113,30 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(canonical, ProtocolJson.Serialize(ProtocolJson.DeserializeServerMessage(text)), description);
         }
 
-        private static string ExamplesDirectory()
+        private const string SocketExamples = "socket";
+        private const string SessionBodyExamples = "session";
+
+        private static string ExamplesDirectory(string kind)
         {
-            return RepositoryFiles.GetPath("protocol/examples");
+            return RepositoryFiles.GetPath($"protocol/examples/{kind}");
         }
 
-        private static IEnumerable<string> ExamplePaths()
+        private static IEnumerable<string> ExamplePaths(string kind)
         {
-            return Directory.GetFiles(ExamplesDirectory(), "*.json").Order(StringComparer.Ordinal);
+            return Directory.GetFiles(ExamplesDirectory(kind), "*.json").Order(StringComparer.Ordinal);
+        }
+
+        private static void AssertRoundTrip(string path, Func<string, string> readAndWrite)
+        {
+            byte[] fileBytes = File.ReadAllBytes(path);
+            string wire = ReadWireText(fileBytes);
+
+            string written = readAndWrite(wire);
+
+            // Both comparisons are needed: the text one shows a readable difference, and the byte one also covers
+            // the final newline and the encoding
+            Assert.AreEqual(wire, written);
+            CollectionAssert.AreEqual(fileBytes, Encoding.UTF8.GetBytes(written + "\n"));
         }
 
         // An example is one message's exact wire text and a final newline, as protocol/README.md specifies

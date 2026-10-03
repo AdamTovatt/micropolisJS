@@ -1,21 +1,29 @@
 # Protocol
 
-The messages between the browser and the server, defined by hand on each side: `src/protocol.ts` for the client and
-`server/Micropolis.Rules/Protocol.cs` for the server. The examples and reader cases here pin the two together.
+The bodies and messages between the browser and the server, defined by hand on each side: `src/protocol.ts` for the
+client and `server/Micropolis.Rules/Protocol.cs` for the server. The examples and reader cases here pin the two
+together.
 
 ## Transport
 
-- `POST /api/session` with `{"name": "<display name>"}` signs a player in under a new player id. It answers
-  `{"token", "playerId", "name"}`, where `token` is a JWT that lasts 30 days.
+- `POST /api/session` with `{"name"}` signs a player in under a new player id. It answers `{"token", "playerId",
+  "name"}`, where `token` is a JWT that lasts 30 days and `name` is the name as the server keeps it, trimmed: the
+  browser stores that name and signs in with it again when the token is rejected. It answers 400 with `{"error"}`, a
+  reason to show the player, when the body is not a sign-in or the name breaks the rule below, and 429 with
+  `{"error"}` when one client address signs in more than 10 times in a minute.
 - `GET /api/session` with the token as a bearer answers `{"playerId", "name"}` while the token is valid, and 401 once
-  it is not.
+  it is not. A token is refused from the second it expires: the server that issues tokens is the one that checks
+  them, so it allows no clock skew.
 - `/ws/city` is one plain WebSocket carrying one JSON message per text frame. The browser cannot set an
   `Authorization` header on a WebSocket, so the token travels in the `access_token` query parameter. A connection
-  without a valid token is refused, and the server closes a connection with status 1008 when its token expires.
+  without a valid token is refused. The server closes a connection with status 1008 when its token expires, and with
+  1001 when the server stops. It pings every 15 seconds, which browsers answer on their own, and drops a connection
+  that leaves a ping unanswered for 15 seconds.
 
 A display name is 1 to 32 characters, counted as UTF-16 code units as JavaScript's `length` counts them, after
-surrounding whitespace is trimmed, and holds no control characters. `POST /api/session` enforces it; the browser's
-reader does not, since the server is the authority on what it sends.
+surrounding whitespace is trimmed. It holds no control characters, no format characters (Unicode category Cf, such as
+a zero-width space or a right-to-left override) and no line or paragraph separators. `POST /api/session` enforces it;
+the browser's reader does not, since the server is the authority on what it sends.
 
 ## Messages
 
@@ -33,13 +41,15 @@ none is an error. Fields may come in any order, `type` included, and writers put
 
 ## Examples
 
-Each file in `examples/` is one message: its exact wire text on one line, then a newline, in UTF-8 without a byte
-order mark. The tests on both sides read every example, deserialize it into their own types and serialize it back, and
-fail unless the bytes are identical, so a field renamed, added or dropped on one side turns that side red. Each side's
-tests also fail when a message type has no example.
+Each file in `examples/socket/` is one WebSocket message, and each file in `examples/session/` is one body of
+`/api/session`, named after the body. An example is its exact wire text on one line, then a newline, in UTF-8 without
+a byte order mark. The tests on both sides read every example, deserialize it into their own types and serialize it
+back, and fail unless the bytes are identical, so a field renamed, added or dropped on one side turns that side red.
+The browser only writes a sign-in, so its tests write one with the example's name. Each side's tests also fail when a
+message type or a session body has no example.
 
-`reader-cases.json` holds the messages both readers must reject, and messages they must accept and write back in the
-protocol's order.
+`reader-cases.json` holds the messages both readers must reject, messages they must accept and write back in the
+protocol's order, and session bodies a reader must reject, each tested by the sides that read that body.
 
 The two serializers write the letters, digits, punctuation and symbols of every script as they are. They write
 differently only characters that System.Text.Json escapes and `JSON.stringify` does not: every character outside the

@@ -15,9 +15,9 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-// The messages on the city's WebSocket, /ws/city. src/protocol.ts defines the same messages by hand, and the examples
-// under protocol/examples/ pin the two together: each side's tests read every example and write it back to the same
-// bytes. protocol/README.md describes the wire format.
+// The bodies of /api/session and the messages on the city's WebSocket, /ws/city. src/protocol.ts defines the same by
+// hand, and the examples under protocol/examples/ pin the two together: each side's tests read every example and
+// write it back to the same bytes. protocol/README.md describes the wire format.
 
 namespace Micropolis.Rules
 {
@@ -73,6 +73,43 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("players")] IReadOnlyList<PlayerInfo> Players) : ServerMessage;
 
     /// <summary>
+    /// A request or response body of <c>/api/session</c>. Each body's endpoint and status say what it is, so a body
+    /// carries no type.
+    /// </summary>
+    public abstract record SessionBody;
+
+    /// <summary>
+    /// The body of <c>POST /api/session</c>.
+    /// </summary>
+    /// <param name="Name">The display name to sign in under.</param>
+    public sealed record SignInRequest(
+        [property: JsonPropertyName("name")] string Name) : SessionBody;
+
+    /// <summary>
+    /// A new player's session, the answer to a sign-in.
+    /// </summary>
+    /// <param name="Token">The token that authenticates the player.</param>
+    /// <param name="PlayerId">The new player's id.</param>
+    /// <param name="Name">The display name as the server keeps it, trimmed.</param>
+    public sealed record SessionResponse(
+        [property: JsonPropertyName("token")] string Token,
+        [property: JsonPropertyName("playerId")] string PlayerId,
+        [property: JsonPropertyName("name")] string Name) : SessionBody;
+
+    /// <summary>
+    /// The player a valid token authenticates, the answer to <c>GET /api/session</c>.
+    /// </summary>
+    public sealed record PlayerResponse(
+        [property: JsonPropertyName("playerId")] string PlayerId,
+        [property: JsonPropertyName("name")] string Name) : SessionBody;
+
+    /// <summary>
+    /// Why the server refused a sign-in, as text to show the player.
+    /// </summary>
+    public sealed record ErrorResponse(
+        [property: JsonPropertyName("error")] string Error) : SessionBody;
+
+    /// <summary>
     /// Reads and writes protocol messages. Reading is strict: an unknown field, a missing one or a null where the
     /// protocol has none is an error rather than a default. The fields of a message may come in any order, its
     /// <c>type</c> included, and writing puts them in the protocol's order.
@@ -115,6 +152,25 @@ namespace Micropolis.Rules
                 // System.Text.Json reports a message with no type this way, as if the fault were the reader's
                 throw new JsonException("A server message must have a type.", exception);
             }
+        }
+
+        /// <summary>
+        /// The session body as the wire carries it.
+        /// </summary>
+        public static string Serialize(SessionBody body)
+        {
+            // By the body's own type: a body has no discriminator, so serializing it as a SessionBody writes no field
+            return JsonSerializer.Serialize(body, body.GetType(), Options);
+        }
+
+        /// <summary>
+        /// Reads a session body.
+        /// </summary>
+        /// <exception cref="JsonException">The text is not a body of the given kind.</exception>
+        public static TBody DeserializeSessionBody<TBody>(string json) where TBody : SessionBody
+        {
+            return JsonSerializer.Deserialize<TBody>(json, Options)
+                ?? throw new JsonException("A session body cannot be null.");
         }
     }
 }

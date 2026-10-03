@@ -17,5 +17,12 @@
       "text": "{\"players\":[{\"name\":\"Ada\",\"id\":\"a\"}],\"type\":\"players\"}",
       "canonical": "{\"type\":\"players\",\"players\":[{\"id\":\"a\",\"name\":\"Ada\"}]}"
     }
+  ],
+  "rejectedSessionBodies": [
+    {"case": "a session with an unknown field", "body": "session-response", "text": "{\"token\":\"t\",\"playerId\":\"a\",\"name\":\"Ada\",\"roles\":[]}"},
+    {"case": "a player without a name", "body": "player-response", "text": "{\"playerId\":\"a\"}"},
+    {"case": "a null error", "body": "error-response", "text": "{\"error\":null}"},
+    {"case": "a sign-in whose name is not a string", "body": "sign-in-request", "text": "{\"name\":7}"},
+    {"case": "a list for a session", "body": "session-response", "text": "[]"}
   ]
 }

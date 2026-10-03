@@ -11,9 +11,9 @@
  *
  */
 
-// The messages on the city's WebSocket, /ws/city. server/Micropolis.Rules/Protocol.cs defines the same messages by
-// hand, and the examples under protocol/examples/ pin the two together: each side's tests read every example and
-// write it back to the same bytes. protocol/README.md describes the wire format.
+// The bodies of /api/session and the messages on the city's WebSocket, /ws/city. server/Micropolis.Rules/Protocol.cs
+// defines the same by hand, and the examples under protocol/examples/ pin the two together: each side's tests read
+// every example and write it back to the same bytes. protocol/README.md describes the wire format.
 
 // A player as the others see them. Two players may share a name, never an id.
 export interface PlayerInfo {
@@ -46,7 +46,7 @@ export function serverMessageTypes(): string[] {
 }
 
 function fail(reason: string): never {
-  throw new Error(`Not a server message: ${reason}`);
+  throw new Error(`Not what the server sends: ${reason}`);
 }
 
 type JsonObject = Record<string, unknown>;
@@ -78,6 +78,55 @@ function stringField(object: JsonObject, field: string, what: string): string {
   }
 
   return value;
+}
+
+// The body of POST /api/session
+export interface SignInRequest {
+  name: string;
+}
+
+// A new player's session, the answer to a sign-in. The name is as the server keeps it, trimmed.
+export interface SessionResponse {
+  token: string;
+  playerId: string;
+  name: string;
+}
+
+// The player a valid token authenticates, the answer to GET /api/session
+export interface PlayerResponse {
+  playerId: string;
+  name: string;
+}
+
+// Why the server refused a sign-in, as text to show the player
+export interface ErrorResponse {
+  error: string;
+}
+
+export function signInRequest(name: string): SignInRequest {
+  return {name};
+}
+
+// Each reader below takes a parsed body and builds the result field by field in the protocol's order, as
+// parseServerMessage does, and throws on anything else
+
+export function parseSessionResponse(value: unknown): SessionResponse {
+  const body = objectWithFields(value, ["token", "playerId", "name"], "a session");
+  return {
+    token: stringField(body, "token", "a session"),
+    playerId: stringField(body, "playerId", "a session"),
+    name: stringField(body, "name", "a session"),
+  };
+}
+
+export function parsePlayerResponse(value: unknown): PlayerResponse {
+  const body = objectWithFields(value, ["playerId", "name"], "a player response");
+  return {playerId: stringField(body, "playerId", "a player response"), name: stringField(body, "name", "a player response")};
+}
+
+export function parseErrorResponse(value: unknown): ErrorResponse {
+  const body = objectWithFields(value, ["error"], "an error");
+  return {error: stringField(body, "error", "an error")};
 }
 
 function parsePlayers(value: unknown): PlayerInfo[] {
