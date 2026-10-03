@@ -14,13 +14,15 @@
 import { readdirSync, readFileSync } from "fs";
 import { basename, join } from "path";
 
+import { budgetRecord, type BudgetSource } from "../src/budgetRecord";
 import { commandRejection } from "../src/commands";
 import { evaluationRecord, type EvaluationSource } from "../src/evaluationRecord";
 import {
-    commandTypes, type EvaluationRecord, parseErrorResponse, parsePlayerResponse, parseServerMessage,
-    parseSessionResponse, queryTypes, recordTypes, serverMessageTypes, signInRequest,
+    type BudgetRecord, commandTypes, type EvaluationRecord, parseErrorResponse, parsePlayerResponse, parseServerMessage,
+    parseSessionResponse, queryTypes, recordTypes, serverMessageTypes, type SettingsRecord, signInRequest,
 } from "../src/protocol";
 import { queryRejection } from "../src/queries";
+import { settingsRecord, type SettingsSource } from "../src/settingsRecord";
 import { repositoryPath } from "./helpers/repository";
 
 // The examples and reader cases are shared with the server's tests: protocol/README.md describes them
@@ -165,6 +167,26 @@ const RECORD_WRITERS: Record<string, (wire: string) => string> = {
             getProblemNumber: (place) => example.problems[place] ?? null,
         };
         return JSON.stringify(evaluationRecord(evaluation, example.level));
+    },
+    budget: (wire) => {
+        const example: BudgetRecord = JSON.parse(wire);
+        const budget: BudgetSource = {
+            cityTax: example.taxRate,
+            taxFund: example.taxesCollected,
+            totalFunds: example.funds,
+            maintenance: () => example.maintenance,
+            percents: () => example.funding,
+        };
+        return JSON.stringify(budgetRecord(budget));
+    },
+    settings: (wire) => {
+        const example: SettingsRecord = JSON.parse(wire);
+        const simulation: SettingsSource = {
+            budget: {autoBudget: example.autoBudget},
+            disasterManager: {disastersEnabled: example.disasters},
+            getSpeed: () => example.speed,
+        };
+        return JSON.stringify(settingsRecord(simulation));
     },
 };
 

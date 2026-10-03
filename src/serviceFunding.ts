@@ -11,6 +11,8 @@
  *
  */
 
+import { SERVICES, type ServiceAmounts } from "./protocol";
+
 // How the budget funds road, fire and police services: at year end, as doBudgetNow in the original's budget.cpp does;
 // during the year, at the whole percent the player sets, as the original's budget slider handlers in
 // micropolis-activity's w_sim.c do; and the effect
@@ -21,12 +23,6 @@
 // nearest float, as a C# (float) cast does, so wrapping each float operand and result in it reproduces the original's
 // float arithmetic exactly: a product or quotient of two floats, computed in double and then rounded to float, is the
 // float result.
-
-export interface ServiceAmounts {
-  road: number;
-  fire: number;
-  police: number;
-}
 
 export interface Funding {
   // What each service costs at its funding percentage
@@ -42,9 +38,6 @@ export interface YearForecast {
   fundsChange: number;
   fundsAfterYear: number;
 }
-
-// The services in the order the budget funds them
-export const SERVICES: (keyof ServiceAmounts)[] = ["road", "fire", "police"];
 
 // What a service wants at year end at its funding percentage (0 to 1), as doBudgetNow computes it: (int)(fund *
 // percent), multiplied in float

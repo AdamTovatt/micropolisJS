@@ -15,8 +15,7 @@ import { requiredElement } from "./domElements";
 import { EventEmitter } from "./eventEmitter.js";
 
 // The base of the game's windows: a window over the opacity layer, which windowManager.ts shows one at a time. A
-// window emits its events through the event emitter. A TypeScript window extends ClosableWindow below, and a window
-// still in JavaScript is built through ModalWindow.
+// window emits its events through the event emitter. Each window extends ClosableWindow below.
 export class WindowBase {
   declare addEventListener: (event: string, listener: (value: never) => void) => void;
   declare removeEventListener: (event: string, listener: (value: never) => void) => void;
@@ -60,8 +59,10 @@ function toggle(element: HTMLElement): boolean {
 // A window that closes by hiding, then emitting its closed event, so that a handler that opens another window in its
 // place starts from a hidden opacity layer
 export class ClosableWindow extends WindowBase {
-  constructor(opacityLayerID: string, windowID: string, private readonly closedEvent: string) {
-    super(opacityLayerID, windowID);
+  // focusID names the element that takes the focus when the window shows, by default its submit button
+  constructor(opacityLayerID: string, windowID: string, private readonly closedEvent: string,
+              focusID: string | null = null) {
+    super(opacityLayerID, windowID, focusID);
   }
 
   // value goes with the closed event, such as the actions a window closes with
@@ -76,21 +77,12 @@ export class ClosableWindow extends WindowBase {
       this.close();
     });
   }
-}
 
-type WindowConstructor = new (opacityLayerID: string, windowID: string) => WindowBase;
-
-// A window class for a window still in JavaScript: its constructor takes the opacity layer's id and the window's id,
-// then calls constructorFunction on the new window, and the window adds its methods to the class's prototype. focusID
-// names the element that takes the focus when the window shows, by default its submit button, with or without the
-// leading # the JavaScript windows write.
-export function ModalWindow(constructorFunction: (this: WindowBase) => void, focusID?: string): WindowConstructor {
-  const focusElementID = focusID === undefined ? null : focusID.replace(/^#/, "");
-
-  return class extends WindowBase {
-    constructor(opacityLayerID: string, windowID: string) {
-      super(opacityLayerID, windowID, focusElementID);
-      constructorFunction.call(this);
-    }
-  };
+  // Closes with no value when the button is clicked, as a cancel button does, instead of submitting its form
+  protected closeOnClick(buttonID: string): void {
+    requiredElement(buttonID).addEventListener("click", (event) => {
+      event.preventDefault();
+      this.close();
+    });
+  }
 }

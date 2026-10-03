@@ -11,7 +11,7 @@
  *
  */
 
-import { requiredElement } from "./domElements";
+import { isChecked, requiredElement } from "./domElements";
 import { DEBUG_WINDOW_CLOSED } from "./messages";
 import { ClosableWindow } from "./windowBase";
 
@@ -45,10 +45,7 @@ export class DebugWindow extends ClosableWindow {
   constructor(opacityLayerID: string, windowID: string) {
     super(opacityLayerID, windowID, DEBUG_WINDOW_CLOSED);
 
-    requiredElement("debugCancel").addEventListener("click", (event) => {
-      event.preventDefault();
-      this.close();
-    });
+    this.closeOnClick("debugCancel");
 
     requiredElement("debugForm", HTMLFormElement).addEventListener("submit", (event) => {
       event.preventDefault();
@@ -65,8 +62,4 @@ export class DebugWindow extends ClosableWindow {
   close(actions: DebugAction[] = []): void {
     super.close(actions);
   }
-}
-
-function isChecked(id: string): boolean {
-  return requiredElement(id, HTMLInputElement).checked;
 }

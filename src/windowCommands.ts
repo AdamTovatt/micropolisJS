@@ -13,8 +13,7 @@
 
 import { CommandResult, LOCAL_PLAYER, Outcome } from "./commands";
 import { isRecord } from "./validation";
-import { Command } from "./protocol";
-import { ServiceAmounts } from "./serviceFunding";
+import { Command, ServiceAmounts } from "./protocol";
 
 // The commands the player's choices in the game's windows send, and what the game shows of their results
 
@@ -42,8 +41,8 @@ export function settingsCommands(shown: CitySettings, chosen: CitySettings): Com
 }
 
 // What the budget window's OK sends: the tax rate, and the funding of each service whose slider the player moved
-export function budgetCommand(funding: Partial<ServiceAmounts>, taxPercent: number): Command {
-  return {type: "setBudget", tax: taxPercent, ...funding};
+export function budgetCommand(funding: Partial<ServiceAmounts>, tax: number): Command {
+  return {type: "setBudget", tax, ...funding};
 }
 
 // The outcome the tool output shows for a command result: that of the local player's tool commands, and null for

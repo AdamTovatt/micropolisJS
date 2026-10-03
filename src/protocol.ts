@@ -179,6 +179,9 @@ export const DISASTER_KINDS = ["monster", "fire", "flood", "crash", "meltdown", 
 
 export type DisasterKind = typeof DISASTER_KINDS[number];
 
+// The speeds a setSpeed command sets, as the simulation numbers them
+export const SPEEDS = {paused: 0, slow: 1, medium: 2, fast: 3} as const;
+
 export interface TilePosition {
   x: number;
   y: number;
@@ -232,13 +235,16 @@ export type Query =
   // The layer's values as the simulation last computed them
   | {type: "overlay", layer: OverlayLayer}
   // What the query tool reports about the tile at (x, y)
-  | {type: "tileReport", x: number, y: number};
+  | {type: "tileReport", x: number, y: number}
+  // What the year end would leave if it came now, with each service named, road, fire or police, funded at the whole
+  // percent of what it needs given, as a setBudget command would fund it, and the others at the funding they have
+  | {type: "budgetForecast", road?: number, fire?: number, police?: number};
 
 export type QueryType = Query["type"];
 
 // Every query type, as the compiler checks against the union: a type added to Query and not here fails to compile,
 // and the tests fail on a type with no example.
-const QUERY_TYPES: Record<QueryType, true> = {overlay: true, tileReport: true};
+const QUERY_TYPES: Record<QueryType, true> = {overlay: true, tileReport: true, budgetForecast: true};
 
 export function queryTypes(): string[] {
   return Object.keys(QUERY_TYPES);
@@ -308,13 +314,35 @@ export interface TileReportAnswer {
   cityCentreScore: number;
 }
 
+// An amount for each funded service
+export interface ServiceAmounts {
+  road: number;
+  fire: number;
+  police: number;
+}
+
+// The funded services, in the order the budget funds them
+export const SERVICES: readonly (keyof ServiceAmounts)[] = ["road", "fire", "police"];
+
+// The answer to a budget forecast query: the budget now, which the forecast is worked out from, and what the year end
+// would do with the funding asked about: what each service would cost, the change in funds, the taxes less what the
+// services would be paid, and the funds the year end would leave. Everything a budget window shows is in one answer,
+// taken at one moment, though the city keeps running and other players may change the budget.
+export interface BudgetForecastAnswer {
+  type: "budgetForecast";
+  budget: BudgetRecord;
+  costs: ServiceAmounts;
+  fundsChange: number;
+  fundsAfterYear: number;
+}
+
 // A query the simulation could not answer, and why
 export interface QueryRejection {
   type: "rejected";
   reason: string;
 }
 
-export type QueryAnswer = OverlayAnswer | TileReportAnswer | QueryRejection;
+export type QueryAnswer = OverlayAnswer | TileReportAnswer | BudgetForecastAnswer | QueryRejection;
 
 // The records the simulation produces for the windows to show: what it says about the city, as codes and numbers. The
 // client turns the codes into text, so the wording is the client's alone.
@@ -364,11 +392,32 @@ export interface EvaluationRecord {
   scoreBreakdown: ScoreEntry[];
 }
 
-export type SimulationRecord = EvaluationRecord;
+// The budget, as the budget window shows it: the tax rate in percent, the taxes the last collection brought in, the
+// funds now, and for each service the maintenance it needs a year and its funding, 0 to 1 of what it needs. A funding
+// the year end scaled back to the cash it had holds a fraction of a percent; a player only sets whole percents.
+export interface BudgetRecord {
+  type: "budget";
+  taxRate: number;
+  taxesCollected: number;
+  funds: number;
+  maintenance: ServiceAmounts;
+  funding: ServiceAmounts;
+}
+
+// The city's settings, as the settings window shows them: whether auto-budget and disasters are on, and the speed the
+// city runs at, one of SPEEDS, paused included
+export interface SettingsRecord {
+  type: "settings";
+  autoBudget: boolean;
+  disasters: boolean;
+  speed: number;
+}
+
+export type SimulationRecord = EvaluationRecord | BudgetRecord | SettingsRecord;
 
 // Every record type, as the compiler checks against the union: a type added to SimulationRecord and not here fails to
 // compile, and the tests fail on a type with no example.
-const RECORD_TYPES: Record<SimulationRecord["type"], true> = {evaluation: true};
+const RECORD_TYPES: Record<SimulationRecord["type"], true> = {evaluation: true, budget: true, settings: true};
 
 export function recordTypes(): string[] {
   return Object.keys(RECORD_TYPES);

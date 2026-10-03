@@ -29,6 +29,11 @@ export function requiredElement(id: string, kind: new () => HTMLElement = HTMLEl
   return element;
 }
 
+// Whether the checkbox or radio button with the id, which the page must have, is checked
+export function isChecked(id: string): boolean {
+  return requiredElement(id, HTMLInputElement).checked;
+}
+
 // A new element of the tag, with the class name if one is given, appended to the parent
 export function appendElement<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tagName: K,
                                                                      className?: string): HTMLElementTagNameMap[K] {

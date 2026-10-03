@@ -11,8 +11,7 @@
  *
  */
 
-import { Command, CommandType, DISASTER_KINDS, TilePosition, TOOL_NAMES } from "./protocol";
-import { SERVICES } from "./serviceFunding";
+import { Command, CommandType, DISASTER_KINDS, SERVICES, SPEEDS, TilePosition, TOOL_NAMES } from "./protocol";
 import {
   FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumber, isWholeNumberIn, oneOf,
 } from "./validation";
@@ -24,8 +23,7 @@ import {
 export const MAX_FUNDING_PERCENT = 100;
 export const MAX_TAX_PERCENT = 20;
 
-// The speeds, as Simulation numbers them: 0 is paused
-export const MAX_SPEED = 3;
+export const MAX_SPEED = SPEEDS.fast;
 
 // A player's id. Single player has the one player.
 export type PlayerId = string;
@@ -67,6 +65,18 @@ const FIELDS = {
 // bounds what a hostile player can make it hold.
 export function maxCommandLength(width: number, height: number): number {
   return 32 * width * height + 1024;
+}
+
+// Why the funding a setBudget command or a budgetForecast query names is out of range, or null when each service it
+// names is at a whole percent the budget window offers
+export function fundingRejection(message: Record<string, unknown>): string | null {
+  for (const service of SERVICES) {
+    if (service in message && !isWholeNumberIn(message[service], 0, MAX_FUNDING_PERCENT)) {
+      return `${service} funding is a whole percent from 0 to ${MAX_FUNDING_PERCENT}`;
+    }
+  }
+
+  return null;
 }
 
 function pathRejection(path: unknown, width: number, height: number): string | null {
@@ -130,17 +140,9 @@ export function commandRejection(command: unknown, width: number, height: number
       return pathRejection(command.path, width, height);
 
     case "setBudget":
-      for (const service of SERVICES) {
-        if (service in command && !isWholeNumberIn(command[service], 0, MAX_FUNDING_PERCENT)) {
-          return `${service} funding is a whole percent from 0 to ${MAX_FUNDING_PERCENT}`;
-        }
-      }
-
-      if (!isWholeNumberIn(command.tax, 0, MAX_TAX_PERCENT)) {
-        return `the tax rate is a whole percent from 0 to ${MAX_TAX_PERCENT}`;
-      }
-
-      return null;
+      return fundingRejection(command) ??
+             (isWholeNumberIn(command.tax, 0, MAX_TAX_PERCENT) ? null :
+                `the tax rate is a whole percent from 0 to ${MAX_TAX_PERCENT}`);
 
     case "setSpeed":
       return isWholeNumberIn(command.speed, 0, MAX_SPEED) ? null : `the speed is a whole number from 0 to ${MAX_SPEED}`;

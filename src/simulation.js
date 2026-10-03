@@ -14,6 +14,7 @@
 import { BlockMap } from './blockMap.ts';
 import { BlockMapUtils } from './blockMapUtils.js';
 import { Budget } from './budget.js';
+import { budgetRecord } from './budgetRecord.ts';
 import { Census } from './census.js';
 import { buildCityStatus, conditionHolds } from './cityStatus.ts';
 import { cityTools } from './cityTools.ts';
@@ -31,11 +32,13 @@ import * as Messages from './messages.ts';
 import { MiscTiles } from './miscTiles.js';
 import { MiscUtils } from './miscUtils.js';
 import { PowerManager } from './powerManager.js';
+import { SPEEDS } from './protocol.ts';
 import { answerQuery, layersOfPhase } from './queries.ts';
 import { Random } from './random.ts';
 import { RepairManager } from './repairManager.js';
 import { Residential } from './residential.js';
 import { Road } from './road.js';
+import { settingsRecord } from './settingsRecord.ts';
 import { SpriteManager } from './spriteManager.js';
 import { Stadia } from './stadia.js';
 import { Traffic } from './traffic.js';
@@ -152,6 +155,18 @@ Simulation.prototype.getMap = function() {
 // The city's evaluation, as the evaluation window shows it
 Simulation.prototype.evaluationRecord = function() {
   return evaluationRecord(this.evaluation, this._gameLevel);
+};
+
+
+// The budget, as the budget window shows it
+Simulation.prototype.budgetRecord = function() {
+  return budgetRecord(this.budget);
+};
+
+
+// The city's settings, as the settings window shows them
+Simulation.prototype.settingsRecord = function() {
+  return settingsRecord(this);
 };
 
 
@@ -321,7 +336,7 @@ Simulation.prototype.applyCommands = function(received) {
 // it changes nothing, draws nothing from the stream, and is never logged, so it may be asked at any time.
 Simulation.prototype.answerQuery = function(query) {
   return answerQuery(query, {map: this._map, blockMaps: this.blockMaps,
-                             powerGridMap: this._powerManager.powerGridMap});
+                             powerGridMap: this._powerManager.powerGridMap, budget: this.budget});
 };
 
 
@@ -901,10 +916,10 @@ Object.defineProperties(Simulation,
   {LEVEL_EASY: MiscUtils.makeConstantDescriptor(0),
   LEVEL_MED:  MiscUtils.makeConstantDescriptor(1),
   LEVEL_HARD: MiscUtils.makeConstantDescriptor(2),
-  SPEED_PAUSED: MiscUtils.makeConstantDescriptor(0),
-  SPEED_SLOW:  MiscUtils.makeConstantDescriptor(1),
-  SPEED_MED: MiscUtils.makeConstantDescriptor(2),
-  SPEED_FAST: MiscUtils.makeConstantDescriptor(3),
+  SPEED_PAUSED: MiscUtils.makeConstantDescriptor(SPEEDS.paused),
+  SPEED_SLOW:  MiscUtils.makeConstantDescriptor(SPEEDS.slow),
+  SPEED_MED: MiscUtils.makeConstantDescriptor(SPEEDS.medium),
+  SPEED_FAST: MiscUtils.makeConstantDescriptor(SPEEDS.fast),
 });
 
 

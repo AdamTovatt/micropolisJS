@@ -73,6 +73,12 @@ command, since replaying it would change nothing.
   station without power and again for one without a road beside it. When the service's analysis runs, it smooths the
   station map into the coverage and leaves its middle step of smoothing in the station map. The answer carries no
   display text: the client sorts the values into the bands it shows.
+- `budgetForecast` may name `road`, `fire` and `police`, each a whole percent from 0 to 100 of what that service
+  needs, as `setBudget` does, and is answered with `budget`, the budget now as a `budget` record (see Records), and
+  what the year end would do if it came now, from those funds and that tax collection, with each service named at
+  that funding and the others at the funding they have: `costs`, what each service would cost, as
+  `{"road", "fire", "police"}`; `fundsChange`, the taxes less what the services would be paid; and `fundsAfterYear`,
+  the funds it would leave. One answer holds everything a forecast is worked out from, taken at one moment.
 
 The protocol has no message announcing that a layer was recomputed. In the page, the simulation announces it with the
 `OVERLAY_UPDATED` event (`src/messages.ts`), which is not part of the wire format.
@@ -91,6 +97,14 @@ codes it uses.
   `scoreBreakdown`, the steps that moved the score last year, in order, each a `reason` and the `points` it moved the
   score by. The breakdown is empty until the city's next yearly score after a new city or an old save migrated from
   before the breakdown was kept; otherwise its points sum to `scoreDelta`.
+- `budget` is the budget, as the budget window shows it: `taxRate`, in percent; `taxesCollected`, what the last tax
+  collection brought in; `funds`, the funds now; and `maintenance` and `funding`, each `{"road", "fire", "police"}`:
+  what each service needs a year, and its funding, 0 to 1 of what it needs. The year end may scale a funding back to
+  the cash there was, which leaves it a fraction of a percent; a player only sets whole percents. A funding is a
+  single-precision float, as the original keeps it, written as the double it widens to.
+- `settings` is the city's settings, as the settings window shows them: `autoBudget` and `disasters`, whether each is
+  on, and `speed`, the speed the city runs at as `setSpeed` sets it, 0 when paused. The settings a client keeps for
+  itself, such as auto-bulldoze, are not part of it.
 
 ## Examples
 

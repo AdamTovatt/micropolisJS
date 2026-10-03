@@ -12,9 +12,13 @@
  */
 
 import { BlockMap } from "./blockMap";
+import { budgetRecord, BudgetSource } from "./budgetRecord";
+import { fundingRejection } from "./commands";
 import {
-  OVERLAY_LAYERS, OverlayAnswer, OverlayLayer, Query, QueryAnswer, QueryType, TileReportAnswer, ZoneCategory,
+  BudgetForecastAnswer, OVERLAY_LAYERS, OverlayAnswer, OverlayLayer, Query, QueryAnswer, QueryType, ServiceAmounts,
+  TileReportAnswer, ZoneCategory,
 } from "./protocol";
+import { YearForecast } from "./serviceFunding";
 import { Tile } from "./tile";
 import * as TileValues from "./tileValues";
 import { FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumberIn, oneOf } from "./validation";
@@ -22,11 +26,13 @@ import { FieldRule, fieldsReason, FieldRules, hasFields, isRecord, isWholeNumber
 // How the simulation answers the queries a player sends it, which protocol.ts defines. They arrive untrusted, like
 // commands: the simulation validates each one before it answers it. Answering reads the city and changes nothing.
 
-// What the simulation answers from: its map, its block maps, and the power scan's grid
+// What the simulation answers from: its map, its block maps, the power scan's grid, and the budget, which forecasts
+// the year end as Budget.forecast in budget.js does
 export interface QuerySources {
   map: {width: number, height: number, getTile(x: number, y: number): Tile};
   blockMaps: Record<string, BlockMap>;
   powerGridMap: BlockMap;
+  budget: BudgetSource & {forecast(wholePercents: Partial<ServiceAmounts>): YearForecast};
 }
 
 interface LayerSource {
@@ -76,6 +82,7 @@ export function layersOfPhase(phase: number): OverlayLayer[] {
 const FIELDS = {
   overlay: {layer: "required"},
   tileReport: {x: "required", y: "required"},
+  budgetForecast: {fire: "optional", police: "optional", road: "optional"},
 } satisfies {[T in QueryType]: FieldRules<Extract<Query, {type: T}>>};
 
 // Why the simulation rejects this query on a map of this size, or null when it is valid. A valid query is a Query:
@@ -99,6 +106,9 @@ export function queryRejection(query: unknown, width: number, height: number): s
     case "tileReport":
       return isWholeNumberIn(query.x, 0, width - 1) && isWholeNumberIn(query.y, 0, height - 1) ? null :
         `the tile is an x from 0 to ${width - 1} and a y from 0 to ${height - 1}, in whole numbers`;
+
+    case "budgetForecast":
+      return fundingRejection(query);
   }
 }
 
@@ -116,6 +126,9 @@ export function answerQuery(query: unknown, sources: QuerySources): QueryAnswer 
 
     case "tileReport":
       return tileReport(valid.x, valid.y, sources);
+
+    case "budgetForecast":
+      return budgetForecast(valid, sources);
   }
 }
 
@@ -175,5 +188,16 @@ function tileReport(x: number, y: number, sources: QuerySources): TileReportAnsw
     fireStationMap: at("fireStationMap"), fireCoverage: at("fireStationEffectMap"),
     policeStationMap: at("policeStationMap"), policeCoverage: at("policeStationEffectMap"), terrainDensity: at("terrainDensityMap"),
     trafficDensity: at("trafficDensityMap"), cityCentreScore: at("cityCentreDistScoreMap"),
+  };
+}
+
+function budgetForecast(query: Extract<Query, {type: "budgetForecast"}>, sources: QuerySources): BudgetForecastAnswer {
+  const forecast = sources.budget.forecast({road: query.road, fire: query.fire, police: query.police});
+  const costs = forecast.wanted;
+
+  return {
+    type: "budgetForecast", budget: budgetRecord(sources.budget),
+    costs: {road: costs.road, fire: costs.fire, police: costs.police}, fundsChange: forecast.fundsChange,
+    fundsAfterYear: forecast.fundsAfterYear,
   };
 }

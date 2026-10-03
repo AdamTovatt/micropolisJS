@@ -12,7 +12,7 @@
  */
 
 import { SPEED_CHANGED } from "./messages";
-import { Simulation } from "./simulation.js";
+import { SPEEDS } from "./protocol";
 
 // The simulation's speed as the speed control reads it: the speed now, and each change to it
 export interface SpeedSource {
@@ -31,7 +31,7 @@ export class SpeedControl {
 
   constructor(private readonly simulation: SpeedSource, private readonly send: (speed: number) => void,
               private readonly showPaused: (paused: boolean) => void) {
-    this.runningSpeed = simulation.isPaused() ? Simulation.SPEED_MED : simulation.getSpeed();
+    this.runningSpeed = simulation.isPaused() ? SPEEDS.medium :simulation.getSpeed();
     simulation.addEventListener(SPEED_CHANGED, this.speedChanged.bind(this));
     showPaused(simulation.isPaused());
   }
@@ -41,7 +41,7 @@ export class SpeedControl {
   }
 
   togglePause(): void {
-    this.send(this.simulation.isPaused() ? this.runningSpeed : Simulation.SPEED_PAUSED);
+    this.send(this.simulation.isPaused() ? this.runningSpeed : SPEEDS.paused);
   }
 
   // Settings sets the speed the game runs at. A paused game stays paused, and Play resumes it at that speed: the
@@ -54,10 +54,10 @@ export class SpeedControl {
   }
 
   private speedChanged(speed: number): void {
-    if (speed !== Simulation.SPEED_PAUSED) {
+    if (speed !== SPEEDS.paused) {
       this.runningSpeed = speed;
     }
 
-    this.showPaused(speed === Simulation.SPEED_PAUSED);
+    this.showPaused(speed === SPEEDS.paused);
   }
 }

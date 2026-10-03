@@ -14,13 +14,13 @@
 import $ from "jquery";
 
 import { AutoBulldozePreference } from './autoBulldozePreference.ts';
-import { BudgetWindow } from './budgetWindow.js';
+import { BudgetWindow } from './budgetWindow.ts';
 import { CommandRecorder } from './commandLog.ts';
 import { CommandQueue } from './commandQueue.ts';
 import { LOCAL_PLAYER } from './commands.ts';
 import { Config } from './config.js';
 import { DebugWindow } from './debugWindow.ts';
-import { DisasterWindow } from './disasterWindow.js';
+import { DisasterWindow } from './disasterWindow.ts';
 import { ToolPaths } from './dragPath.ts';
 import { EvaluationWindow } from './evaluationWindow.ts';
 import { GameCanvas } from './gameCanvas.js';
@@ -30,14 +30,15 @@ import * as Messages from './messages.ts';
 import { MonsterTV } from './monsterTV.js';
 import { Notification } from './notification.js';
 import { OverlayPicker, pageOverlaySource } from './overlayPicker.ts';
+import { SPEEDS } from './protocol.ts';
 import { pageQuerySource } from './querySource.ts';
 import { QueryTool } from './queryTool.ts';
 import { QueryWindow } from './queryWindow.ts';
 import { RCI } from './rci.js';
-import { SaveWindow } from './saveWindow.js';
+import { SaveWindow } from './saveWindow.ts';
 import { ScreenshotLinkWindow } from './screenshotLinkWindow.ts';
-import { ScreenshotWindow } from './screenshotWindow.js';
-import { SettingsWindow } from './settingsWindow.js';
+import { ScreenshotWindow } from './screenshotWindow.ts';
+import { SettingsWindow } from './settingsWindow.ts';
 import { Simulation } from './simulation.js';
 import { SpeedControl } from './speedControl.ts';
 import { plainSavedState } from './stateHash.ts';
@@ -88,7 +89,7 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
 
   var opacityLayerID = 'opaque';
 
-  this.budgetWindow = new BudgetWindow(opacityLayerID, 'budget');
+  this.budgetWindow = new BudgetWindow(opacityLayerID, 'budget', pageQuerySource(this.simulation));
   this.windows = new WindowManager(this.budgetWindow, this.budgetWindowValues.bind(this));
   this.simulation.addEventListener(Messages.BUDGET_REVIEW_DUE, this.windows.budgetReviewDue.bind(this.windows));
 
@@ -220,7 +221,7 @@ Game.prototype.save = function() {
 // A new game on the map generated from the game seed, at the chosen level
 Game.newGame = function(map, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   var level = difficulty || 0;
-  var simulation = new Simulation(map, level, Simulation.SPEED_MED, seed);
+  var simulation = new Simulation(map, level, SPEEDS.medium, seed);
   return new Game(simulation, {seed: seed, level: level}, tileSet, snowTileSet, spriteSheet, name || 'MyTown');
 };
 
@@ -257,47 +258,23 @@ Game.prototype.onDateChange = function(date) {
 };
 
 
-Game.prototype.handleDisasterWindowClosure = function(request) {
+Game.prototype.handleDisasterWindowClosure = function(kind) {
   this.windows.closed();
 
-  if (request === DisasterWindow.DISASTER_NONE)
-    return;
-
-  this.commandQueue.send(LOCAL_PLAYER, {type: 'triggerDisaster', kind: request});
+  if (kind !== null)
+    this.commandQueue.send(LOCAL_PLAYER, {type: 'triggerDisaster', kind: kind});
 };
 
 
-Game.prototype.handleSettingsWindowClosure = function(actions) {
+Game.prototype.handleSettingsWindowClosure = function(choice) {
   this.windows.closed();
 
-  var chosen = {autoBudget: this.settingsShown.autoBudget, disasters: this.settingsShown.disasters};
+  if (choice === null)
+    return;
 
-  for (var i = 0, l = actions.length; i < l; i++) {
-    var a = actions[i];
-
-    switch (a.action) {
-      case SettingsWindow.AUTOBUDGET:
-        chosen.autoBudget = a.data;
-        break;
-
-      case SettingsWindow.AUTOBULLDOZE:
-        this.autoBulldoze.set(a.data);
-        break;
-
-      case SettingsWindow.SPEED:
-        this.speedControl.setRunningSpeed(a.data);
-        break;
-
-      case SettingsWindow.DISASTERS_CHANGED:
-        chosen.disasters = a.data;
-        break;
-
-      default:
-        console.warn('Unexpected action', a);
-    }
-  }
-
-  settingsCommands(this.settingsShown, chosen).forEach(function(command) {
+  this.autoBulldoze.set(choice.autoBulldoze);
+  this.speedControl.setRunningSpeed(choice.speed);
+  settingsCommands(this.settingsShown, choice).forEach(function(command) {
     this.commandQueue.send(LOCAL_PLAYER, command);
   }, this);
 };
@@ -341,42 +318,28 @@ Game.prototype.downloadLog = function() {
 };
 
 
-Game.prototype.handleScreenshotWindowClosure = function(action) {
+Game.prototype.handleScreenshotWindowClosure = function(area) {
   this.windows.closed();
 
-  if (action === null)
+  if (area === null)
     return;
 
-  var dataURI;
-  if (action === ScreenshotWindow.SCREENSHOT_VISIBLE)
-    dataURI = this.gameCanvas.screenshotVisible();
-  else if (action === ScreenshotWindow.SCREENSHOT_ALL)
-    dataURI = this.gameCanvas.screenshotMap();
-
+  var dataURI = area === 'visible' ? this.gameCanvas.screenshotVisible() : this.gameCanvas.screenshotMap();
   this.windows.open(this.screenshotLinkWindow, dataURI);
 };
 
 
-Game.prototype.handleBudgetWindowClosure = function(data) {
+Game.prototype.handleBudgetWindowClosure = function(choice) {
   this.windows.closed();
 
-  if (!data.cancelled)
-    this.commandQueue.send(LOCAL_PLAYER, budgetCommand(data.funding, data.taxPercent));
+  if (choice !== null)
+    this.commandQueue.send(LOCAL_PLAYER, budgetCommand(choice.funding, choice.tax));
 };
 
 
-// The values the budget window opens with: each service's maintenance cost and funding percentage (0 to 1), by service.
+// The arguments the budget window opens with: the budget record
 Game.prototype.budgetWindowValues = function() {
-  var budget = this.simulation.budget;
-
-  return [{
-    maintenance: budget.maintenance(),
-    percents: budget.percents(),
-    taxRate: budget.cityTax,
-    totalFunds: budget.totalFunds,
-    taxesCollected: budget.taxFund,
-    forecast: budget.forecast.bind(budget)
-  }];
+  return [this.simulation.budgetRecord()];
 };
 
 
@@ -392,13 +355,11 @@ Game.prototype.handleEvalRequest = function() {
 
 Game.prototype.handleSettingsRequest = function() {
   // The city settings as the window shows them, which its choices are compared with when it closes
-  var shown = {autoBudget: this.simulation.budget.autoBudget,
-               disasters: this.simulation.disasterManager.disastersEnabled};
+  var shown = this.simulation.settingsRecord();
+  var client = {autoBulldoze: this.autoBulldoze.isOn(), seed: this.simulation.seed,
+                resumeSpeed: this.speedControl.getRunningSpeed()};
 
-  if (this.windows.open(this.settingsWindow, {
-    autoBudget: shown.autoBudget, autoBulldoze: this.autoBulldoze.isOn(),
-    speed: this.speedControl.getRunningSpeed(), disasters: shown.disasters, seed: this.simulation.seed
-  }))
+  if (this.windows.open(this.settingsWindow, shown, client))
     this.settingsShown = shown;
 };
 
