@@ -92,7 +92,7 @@ const PHASES_PER_CYCLE = 16;
 // phase 0. A run that ends anywhere else has stalled. This restates the simulation's speed gate on purpose: the check
 // is an independent model of it, so a simulation that stops letting phases through can't vouch for itself.
 function impliedCityTime(city: Simulation, steps: number): number {
-  const stepsPerPhase = STEPS_PER_PHASE[city._speed];
+  const stepsPerPhase = STEPS_PER_PHASE[city.getSpeed()];
   let speedCycle = city._speedCycle;
   let phase = city._phaseCycle;
   let cityTime = city._cityTime;

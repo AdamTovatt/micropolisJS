@@ -18,10 +18,9 @@ import { TileUtils } from './tileUtils.js';
 import * as TileValues from "./tileValues.ts";
 import { ZoneUtils } from './zoneUtils.js';
 
-var DisasterManager = EventEmitter(function(map, spriteManager, gameLevel, random) {
+var DisasterManager = EventEmitter(function(map, spriteManager, random) {
   this._map = map;
   this._spriteManager = spriteManager;
-  this._gameLevel = gameLevel;
   this._random = random;
 
   this._floodCount = 0;
@@ -42,7 +41,7 @@ DisasterManager.prototype.load = function(saveData) {
 
 var DisChance = [479, 239, 59];
 
-DisasterManager.prototype.doDisasters = function(census) {
+DisasterManager.prototype.doDisasters = function(gameLevel, census) {
   if (this._floodCount)
       this._floodCount--;
 
@@ -51,7 +50,7 @@ DisasterManager.prototype.doDisasters = function(census) {
   if (!this.disastersEnabled)
       return;
 
-  if (!this._random.getRandom(DisChance[this._gameLevel])) {
+  if (!this._random.getRandom(DisChance[gameLevel])) {
     switch (this._random.getRandom(8)) {
       case 0:
       case 1:

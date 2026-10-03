@@ -62,6 +62,13 @@ var rotate120Arrays = function() {
 };
 
 
+// Every count and figure the scans compute, at zero as in a new city
+Census.prototype.clearScan = function() {
+  for (var i = 0, l = scanProps.length; i < l; i++)
+    this[scanProps[i]] = 0;
+};
+
+
 Census.prototype.clearCensus = function() {
   this.poweredZoneCount = 0;
   this.unpoweredZoneCount = 0;

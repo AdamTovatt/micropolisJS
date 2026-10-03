@@ -126,8 +126,8 @@ describe("the sprite manager", () => {
     });
 
     it("saves every field a sprite holds as it moves", () => {
-        const city = new Simulation(MapGenerator(Random.mapStream(8)), Simulation.LEVEL_EASY, Simulation.SPEED_MED, 8,
-                                    null) as unknown as {spriteManager: Manager, _constructSimData(): object};
+        const city = new Simulation(MapGenerator(Random.mapStream(8)), Simulation.LEVEL_EASY, Simulation.SPEED_MED,
+                                    8) as unknown as {spriteManager: Manager, _constructSimData(): object};
         const manager = city.spriteManager;
         makeSprites(manager);
 

@@ -11,6 +11,8 @@
  *
  */
 
+import { fixtureSave } from "../headless/fixtures/index";
+import { advance, startCity } from "../headless/runner";
 import { GameMap } from "../src/gameMap.js";
 import { Random } from "../src/random";
 import { Simulation } from "../src/simulation.js";
@@ -58,7 +60,7 @@ describe("storage", () => {
 
     describe("when migrating a version 4 save", () => {
 
-        const VERSION_5_KEYS = ["_phaseCycle", "_simCycle", "_cityPopLast", "_messageLast",
+        const VERSION_5_KEYS = ["_phaseCycle", "_simCycle", "_cityPopLast", "_messageLast", "_lastPowerMessage",
                                 "_initialEvaluationPending", "evaluation", "valves", "budget", "sprites", "disasters",
                                 "scannedState"];
 
@@ -68,7 +70,7 @@ describe("storage", () => {
             const map = new GameMap(120, 100);
             map.setTile(60, 50, POWERPLANT, CONDBIT);
             map.setTile(30, 30, FIRE, ANIMBIT);
-            return new Simulation(map, Simulation.LEVEL_EASY, Simulation.SPEED_MED, 1, null);
+            return new Simulation(map, Simulation.LEVEL_EASY, Simulation.SPEED_MED, 1);
         }
 
         // What a version 5 save holds, less what version 5 added
@@ -112,15 +114,33 @@ describe("storage", () => {
             const {map, randomState} = JSON.parse(JSON.stringify(savedGame));
             Storage.transitionOldSave(savedGame);
 
-            const restored = plainSavedState(new Simulation(new GameMap(120, 100), null, null, null, savedGame)) as {
+            // Loaded over a city whose own scan has already counted a coal plant
+            const city = newCity();
+            city.load(savedGame);
+            const restored = plainSavedState(city) as {
                 map: unknown, randomState: number[], scannedState: {census: {coalPowerPop: number}},
                 sprites: {list: unknown[]}};
 
             expect(restored.map).toEqual(map);
             expect(restored.randomState).toEqual(randomState);
-            // The scan counted the one coal plant
+            // The scan counted the save's one coal plant, and nothing the city counted before
             expect(restored.scannedState.census.coalPowerPop).toBe(1);
             expect(restored.sprites.list).toEqual([]);
+        });
+
+        // The town's zones and traffic add to block maps such as the rate of growth as the load's scan runs, and so
+        // did the grown city it is loaded over: none of that city's additions may survive
+        it("loads to the same state over a grown city as over a blank one", async () => {
+            const Storage = await loadStorage();
+            const savedGame = {...fixtureSave("town"), version: 4} as Record<string, unknown>;
+            VERSION_5_KEYS.forEach((key) => delete savedGame[key]);
+            Storage.transitionOldSave(savedGame);
+            const grown = startCity({fixture: "town", reseed: 2, speed: "fast"});
+            advance(grown, 2000);
+
+            grown.load(JSON.parse(JSON.stringify(savedGame)));
+
+            expect(plainSavedState(grown)).toEqual(plainSavedState(Simulation.fromSave(savedGame)));
         });
     });
 });

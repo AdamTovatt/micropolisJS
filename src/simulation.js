@@ -21,6 +21,7 @@ import { DisasterManager } from './disasterManager.js';
 import { EventEmitter } from './eventEmitter.js';
 import { EmergencyServices } from './emergencyServices.js';
 import { Evaluation } from './evaluation.js';
+import { GameMap } from './gameMap.js';
 import { Industrial } from './industrial.js';
 import { MapScanner } from './mapScanner.js';
 import * as Messages from './messages.ts';
@@ -37,21 +38,16 @@ import { Traffic } from './traffic.js';
 import { Transport } from './transport.js';
 import { Valves } from './valves.js';
 
-// A new game passes the game seed its map was generated from, and a null savedGame. A saved game passes a null seed:
-// the save holds the seed and the stream's state.
-var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGame) {
-  if ((seed === null) === (savedGame === null))
-    throw new Error('A simulation starts from either a seed or a saved game');
-
+// A new city on gameMap, simulated from the stream of seed, the game seed its map was generated from. A saved game is
+// restored over a new city by load.
+var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed) {
   this._map = gameMap;
-
-  // A saved game's level and speed are its own, and the managers below are built with that level
-  this.setLevel(savedGame ? savedGame._gameLevel : gameLevel);
-  this.setSpeed(savedGame ? savedGame._speed : speed);
+  this.setLevel(gameLevel);
+  this.setSpeed(speed);
 
   // Every random draw that changes the city comes from this stream
-  this.seed = savedGame ? savedGame.seed : seed;
-  this.random = Random.simulationStream(this.seed);
+  this.seed = seed;
+  this.random = Random.simulationStream(seed);
 
   this._speedCycle = 0;
   this._phaseCycle = 0;
@@ -70,7 +66,7 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGa
   this._lastPowerMessage = null;
 
   // And now, the main cast of characters
-  this.evaluation = new Evaluation(this._gameLevel, this.random);
+  this.evaluation = new Evaluation(this.random);
   this._valves = new Valves();
   this.budget = new Budget();
   this._census = new Census();
@@ -79,7 +75,7 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGa
   this._mapScanner = new MapScanner(this._map);
   this._repairManager = new RepairManager(this._map);
   this._traffic = new Traffic(this._map, this.spriteManager, this.random);
-  this.disasterManager = new DisasterManager(this._map, this.spriteManager, this._gameLevel, this.random);
+  this.disasterManager = new DisasterManager(this._map, this.spriteManager, this.random);
 
   this.blockMaps = {
     // Holds a "distance score" for the block from the city centre, range  -64 to 64
@@ -127,14 +123,9 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed, savedGa
   this._clearCensus();
   this.init();
 
-  if (!savedGame) {
-    this.budget.setFunds(20000);
-    this._census.totalPop = 1;
-    this._scan();
-    return;
-  }
-
-  this.load(savedGame);
+  this.budget.setFunds(20000);
+  this._census.totalPop = 1;
+  this._scan();
 });
 
 
@@ -148,6 +139,16 @@ Simulation.prototype.setLevel = function(l) {
 };
 
 
+Simulation.prototype.getMap = function() {
+  return this._map;
+};
+
+
+Simulation.prototype.getLevel = function() {
+  return this._gameLevel;
+};
+
+
 Simulation.prototype.setSpeed = function(s) {
   if (s !== Simulation.SPEED_PAUSED &&
       s !== Simulation.SPEED_SLOW &&
@@ -156,6 +157,11 @@ Simulation.prototype.setSpeed = function(s) {
     throw new Error('Invalid speed!');
 
   this._speed = s;
+};
+
+
+Simulation.prototype.getSpeed = function() {
+  return this._speed;
 };
 
 
@@ -199,10 +205,24 @@ Simulation.prototype.save = function(saveData) {
 };
 
 
-// Restores a saved game over this city: the save holds the complete state, the seed and stream's included
+// A new city restored from a save, on a blank map of the save's size
+Simulation.fromSave = function(saveData) {
+  var simulation = new Simulation(new GameMap(saveData.width, saveData.height), saveData._gameLevel, saveData._speed,
+                                  saveData.seed);
+  simulation.load(saveData);
+  return simulation;
+};
+
+
+// Restores a saved game over this city of the same map size. The save holds the complete state, the level, speed,
+// seed and stream's included, so nothing the city held before survives.
 Simulation.prototype.load = function(saveData) {
   if (saveData.scannedState === undefined)
     throw new Error('A save from before version 5 must be migrated before it is loaded');
+
+  if (saveData.width !== this._map.width || saveData.height !== this._map.height)
+    throw new Error('A ' + saveData.width + 'x' + saveData.height + ' save cannot be loaded over a ' +
+                    this._map.width + 'x' + this._map.height + ' city');
 
   this._loadSaved(saveData);
 
@@ -211,9 +231,9 @@ Simulation.prototype.load = function(saveData) {
   } else {
     // A browser save migrated from an older version holds no scanned state (see storage.js), so derive it by
     // scanning, as the original does on every load. The scan's handlers change the map and draw from the stream:
-    // the rest of the saved state is then restored over them. The scan adds to the census and the station maps, so
-    // it starts from them cleared.
-    this._clearCensus();
+    // the rest of the saved state is then restored over them. The scan adds to what it finds, such as the census
+    // counts and the rate of growth, so it starts from a new city's scanned state.
+    this._clearScanned();
     this._scan();
     this._loadSaved(saveData);
   }
@@ -235,6 +255,16 @@ Simulation.prototype._loadSaved = function(saveData) {
   this._census.load(saveData);
   this.spriteManager.load(saveData);
   this.disasterManager.load(saveData);
+};
+
+
+// Everything a save's scanned state holds, as a new city has it
+Simulation.prototype._clearScanned = function() {
+  for (var i = 0, l = scannedBlockMaps.length; i < l; i++)
+    this.blockMaps[scannedBlockMaps[i]].clear();
+
+  this._census.clearScan();
+  this._powerManager.clearPowerStack();
 };
 
 
@@ -444,7 +474,7 @@ var simulate = function(simData) {
       if ((this._simCycle % speedFireAnalysis[speedIndex]) === 0)
         BlockMapUtils.fireAnalysis(this.blockMaps);
 
-      this.disasterManager.doDisasters(this._census);
+      this.disasterManager.doDisasters(this._gameLevel, this._census);
       this._publishCityStatus();
       break;
   }

@@ -26,7 +26,7 @@ export type SimulationInstance = InstanceType<typeof Simulation>;
 // A new easy-level simulation of the given map, from the given seed
 export function newSimulation(map: InstanceType<typeof GameMap>, seed: number,
                               speed = Simulation.SPEED_MED): SimulationInstance {
-    return new Simulation(map, Simulation.LEVEL_EASY, speed, seed, null);
+    return new Simulation(map, Simulation.LEVEL_EASY, speed, seed);
 }
 
 // A new simulation of the map the seed generates, as a new game starts

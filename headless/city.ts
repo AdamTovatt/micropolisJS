@@ -11,7 +11,6 @@
  *
  */
 
-import { GameMap } from "../src/gameMap.js";
 import { MapGenerator } from "../src/mapGenerator.js";
 import { Random } from "../src/random";
 import { Simulation as SimulationConstructor } from "../src/simulation.js";
@@ -31,16 +30,17 @@ export interface Simulation {
   budget: Budget;
   evaluation: {cityPop: number};
   save(saveData: object): void;
+  load(saveData: object): void;
   step(): void;
   isPaused(): boolean;
+  getLevel(): number;
+  getSpeed(): number;
   getDate(): {month: number, year: number};
   addEventListener(event: string, listener: (value: unknown) => void): void;
   removeEventListener(event: string, listener: (value: unknown) => void): void;
   _cityTime: number;
-  _gameLevel: number;
   _map: {setTile(x: number, y: number, value: number, flags: number): void};
   _phaseCycle: number;
-  _speed: number;
   _speedCycle: number;
 }
 
@@ -50,6 +50,7 @@ export interface SaveData {
   height: number;
   seed: number;
   randomState: number[];
+  _gameLevel: number;
   _speed: number;
 }
 
@@ -69,18 +70,19 @@ export type RunningSpeed = Exclude<keyof typeof Speed, "paused">;
 export const RUNNING_SPEEDS = (Object.keys(Speed) as (keyof typeof Speed)[])
   .filter((name): name is RunningSpeed => name !== "paused");
 
-type Construct = new (gameMap: unknown, gameLevel: number | null, speed: number | null, seed: number | null,
-                      savedGame: object | null) => Simulation;
+type Construct = (new (gameMap: unknown, gameLevel: number, speed: number, seed: number) => Simulation) & {
+  fromSave(saveData: SaveData): Simulation;
+};
 
 const construct = SimulationConstructor as unknown as Construct;
 
 // A new city on the map the seed generates, as the browser starts one
 export function cityFromSeed(seed: number, level: number, speed: number): Simulation {
-  return new construct(MapGenerator(Random.mapStream(seed)), level, speed, seed, null);
+  return new construct(MapGenerator(Random.mapStream(seed)), level, speed, seed);
 }
 
-// A city restored from what Simulation.save wrote, without storage.js: the save's level and speed are its own
+// A city restored from what Simulation.save wrote, without storage.js. Loading copies the saved values, so the
+// caller's object is never shared with the city.
 export function cityFromSave(saveData: SaveData): Simulation {
-  // Loading copies the saved values, so the caller's object is never shared with the city
-  return new construct(new GameMap(saveData.width, saveData.height), null, null, null, saveData);
+  return construct.fromSave(saveData);
 }

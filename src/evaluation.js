@@ -22,12 +22,11 @@ var NUM_COMPLAINTS = 4;
 var problemData = [];
 
 
-var Evaluation = EventEmitter(function(gameLevel, random) {
+var Evaluation = EventEmitter(function(random) {
   this._random = random;
   this.problemVotes = [];
   this.problemOrder = [];
   this.evalInit();
-  this.gameLevel = '' + gameLevel;
 });
 
 

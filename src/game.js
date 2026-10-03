@@ -20,7 +20,6 @@ import { DebugWindow } from './debugWindow.js';
 import { DisasterWindow } from './disasterWindow.js';
 import { EvaluationWindow } from './evaluationWindow.js';
 import { GameCanvas } from './gameCanvas.js';
-import { GameMap } from './gameMap.js';
 import { InfoBar } from './infoBar.js';
 import { InputStatus } from './inputStatus.js';
 import * as Messages from './messages.ts';
@@ -49,26 +48,22 @@ var disasterTimeout = 20 * 1000;
 // seed: the save holds its own
 function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
   difficulty = difficulty || 0;
-  var savedGame;
-
-  if (!gameMap.isSavedGame) {
-    this.gameMap = gameMap;
-    savedGame = null;
-  } else {
-    this.gameMap = new GameMap(120, 100);
-    savedGame = gameMap;
-  }
 
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
   this.defaultSpeed = Simulation.SPEED_MED;
-  this.simulation = new Simulation(this.gameMap, difficulty, this.defaultSpeed, seed, savedGame);
-
   this.name = name || 'MyTown';
   this.everClicked = false;
 
-  if (savedGame)
+  var savedGame = gameMap.isSavedGame ? gameMap : null;
+  if (savedGame) {
+    this.simulation = Simulation.fromSave(savedGame);
+    this.gameMap = this.simulation.getMap();
     this.load(savedGame);
+  } else {
+    this.gameMap = gameMap;
+    this.simulation = new Simulation(this.gameMap, difficulty, this.defaultSpeed, seed);
+  }
 
   this.rci = new RCI('RCIContainer', this.simulation);
   this.statusPanel = new StatusPanel('statusPanel', this.simulation);
@@ -231,7 +226,7 @@ Game.prototype.save = function() {
 };
 
 
-// The simulation loads its own state when it is constructed
+// The game's own part of a save: Simulation.fromSave restores the city
 Game.prototype.load = function(saveData) {
   this.name = saveData.name;
   this.everClicked = saveData.everClicked;
@@ -406,7 +401,7 @@ Game.prototype.handleBudgetRequest = function() {
 
 
 Game.prototype.handleEvalRequest = function() {
-  this.windows.open(this.evalWindow, this.simulation.evaluation);
+  this.windows.open(this.evalWindow, this.simulation.evaluation, this.simulation.getLevel());
 };
 
 

@@ -37,7 +37,7 @@ var submit = function(e) {
 };
 
 
-EvaluationWindow.prototype._populateWindow = function(evaluation) {
+EvaluationWindow.prototype._populateWindow = function(evaluation, gameLevel) {
   $('#evalYes').text(evaluation.cityYes);
   $('#evalNo').text(100 - evaluation.cityYes);
   for (var i = 0; i < 4; i++) {
@@ -54,15 +54,15 @@ EvaluationWindow.prototype._populateWindow = function(evaluation) {
   $('#evalPopulation').text(evaluation.cityPop);
   $('#evalMigration').text(evaluation.cityPopDelta);
   $('#evalValue').text(evaluation.cityAssessedValue);
-  $('#evalLevel').text(Text.gameLevel[evaluation.gameLevel]);
+  $('#evalLevel').text(Text.gameLevel['' + gameLevel]);
   $('#evalClass').text(Text.cityClass[evaluation.cityClass]);
   $('#evalScore').text(evaluation.cityScore);
   $('#evalScoreDelta').text(evaluation.cityScoreDelta);
 };
 
 
-EvaluationWindow.prototype.open = function(evaluation) {
-  this._populateWindow(evaluation);
+EvaluationWindow.prototype.open = function(evaluation, gameLevel) {
+  this._populateWindow(evaluation, gameLevel);
   this._toggleDisplay();
 };
 

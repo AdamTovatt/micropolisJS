@@ -67,7 +67,7 @@ describe("the runner", () => {
     });
 
     it("overrides the saved speed when given one", () => {
-        expect(startCity({fixture: "town", speed: "fast"})._speed).toBe(Speed.fast);
+        expect(startCity({fixture: "town", speed: "fast"}).getSpeed()).toBe(Speed.fast);
     });
 
     describe("given a fixture saved paused", () => {
@@ -78,7 +78,7 @@ describe("the runner", () => {
         });
 
         it("runs at the speed it is given", () => {
-            expect(startFromSave(pausedSave(), {speed: "slow"})._speed).toBe(Speed.slow);
+            expect(startFromSave(pausedSave(), {speed: "slow"}).getSpeed()).toBe(Speed.slow);
         });
 
         it("is never stepped", () => {
