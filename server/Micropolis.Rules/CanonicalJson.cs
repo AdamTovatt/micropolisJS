@@ -27,7 +27,7 @@ namespace Micropolis.Rules
     public static class CanonicalJson
     {
         // 2^53: a double holds every integer up to it exactly. JavaScript's safe integers stop one below.
-        private const double ExactIntegerLimit = 9007199254740992;
+        private const long ExactIntegerLimit = 1L << 53;
 
         public static string Write(JsonNode? value)
         {
@@ -231,6 +231,11 @@ namespace Micropolis.Rules
             // A number first, which most values are, without asking the value its kind
             if (JsonNumber.TryGetDouble(value, out double number))
             {
+                if (Math.Abs(number) >= ExactIntegerLimit)
+                {
+                    RefuseInexactInteger(value);
+                }
+
                 output.Append(stringify && !double.IsFinite(number) ? "null" : FormatFiniteNumber(number));
                 return;
             }
@@ -254,6 +259,18 @@ namespace Micropolis.Rules
 
                 default:
                     throw new CanonicalFailure($"a {value.GetValueKind()} value has no canonical form");
+            }
+        }
+
+        // An integer the model holds beyond 2^53, which no double is exactly: the C# has worked out a value the
+        // TypeScript's numbers can't hold, and writing it would round it. A number parsed from text is the double
+        // JSON.parse reads, and passes.
+        private static void RefuseInexactInteger(JsonValue value)
+        {
+            if (!value.TryGetValue(out JsonElement _) && value.TryGetValue(out long integer) &&
+                (integer > ExactIntegerLimit || integer < -ExactIntegerLimit))
+            {
+                throw new CanonicalFailure($"the integer {integer} is beyond 2^53, so no double holds it exactly");
             }
         }
 

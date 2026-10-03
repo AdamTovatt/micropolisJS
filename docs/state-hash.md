@@ -36,6 +36,10 @@ The canonical text is JSON with these rules:
     `|n − 1|` (`1e+21`, `1.5e-7`).
   - A negative number is `-` followed by the form of its magnitude. Negative zero is written `0`.
 
+  An integer must be an exact double, from −2^53 to 2^53: a JavaScript number holds no other, so the C# port refuses
+  to write an integer its model holds beyond them rather than round it. A number parsed from text is the double
+  `JSON.parse` reads.
+
   .NET's shortest round-trip formatting produces the same digits `s` but lays them out differently, so the port
   formats them by the rules above.
 - **Nothing else** has a canonical form. Undefined values, NaN, infinities and non-data objects are errors, never
