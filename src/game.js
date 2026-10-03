@@ -30,7 +30,9 @@ import * as Messages from './messages.ts';
 import { MonsterTV } from './monsterTV.js';
 import { Notification } from './notification.js';
 import { OverlayPicker, pageOverlaySource } from './overlayPicker.ts';
-import { QueryWindow } from './queryWindow.js';
+import { pageQuerySource } from './querySource.ts';
+import { QueryTool } from './queryTool.ts';
+import { QueryWindow } from './queryWindow.ts';
 import { RCI } from './rci.js';
 import { SaveWindow } from './saveWindow.js';
 import { ScreenshotLinkWindow } from './screenshotLinkWindow.ts';
@@ -66,7 +68,7 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   // Note: must init canvas before inputStatus
   this.gameCanvas = new GameCanvas('canvasContainer');
   this.gameCanvas.init(this.gameMap, this.tileSet, spriteSheet);
-  this.inputStatus = new InputStatus(this.gameMap, tileSet.tileWidth);
+  this.inputStatus = new InputStatus(tileSet.tileWidth);
 
   this.overlayPicker = new OverlayPicker('overlayPanel', pageOverlaySource(this.simulation), this.gameCanvas);
 
@@ -132,10 +134,10 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   this.touchWindow = new TouchWarnWindow(opacityLayerID, 'touchWarnWindow');
   this.touchWindow.addEventListener(Messages.TOUCH_WINDOW_CLOSED, this.handleWindowClosure);
 
-  // ... and finally the query window
+  // ... and finally the query window, which shows the report the query tool asks the simulation for
   this.queryWindow = new QueryWindow(opacityLayerID, 'queryWindow');
   this.queryWindow.addEventListener(Messages.QUERY_WINDOW_CLOSED, this.handleWindowClosure);
-  this.inputStatus.addEventListener(Messages.QUERY_WINDOW_NEEDED, this.handleQueryRequest.bind(this));
+  this.queryTool = new QueryTool(pageQuerySource(this.simulation), this.handleQueryReport.bind(this));
 
   // Listen for clicks on the save button
   this.inputStatus.addEventListener(Messages.SAVE_REQUESTED, this.handleSave.bind(this));
@@ -402,8 +404,8 @@ Game.prototype.handleDisasterRequest = function() {
 };
 
 
-Game.prototype.handleQueryRequest = function() {
-  this.windows.open(this.queryWindow);
+Game.prototype.handleQueryReport = function(report) {
+  this.windows.open(this.queryWindow, report);
 };
 
 
@@ -423,8 +425,10 @@ Game.prototype.handleTool = function(data) {
     return;
   }
 
+  // The view may show a margin around the map, where there is no tile to report on
   if (toolName === 'query') {
-    this.inputStatus.queryTool.doTool(tileCoords.x, tileCoords.y, this.simulation.blockMaps);
+    if (this.gameMap.testBounds(tileCoords.x, tileCoords.y))
+      this.queryTool.query(tileCoords.x, tileCoords.y);
     return;
   }
 

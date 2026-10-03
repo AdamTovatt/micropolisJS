@@ -65,7 +65,7 @@ Node 24 or later (`engines` in `package.json`), and the .NET 10 SDK for `server/
 
 Tests are TypeScript and can import the legacy JavaScript modules: ts-jest compiles both. The game's Settings window and the footers of the about and name-license pages show the build ID, `git rev-parse --short=12 HEAD`, or `unknown` outside a git checkout.
 
-Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an undefined event name throws instead of warning, the FPS counter shows, and the query tool reports raw tile data.
+Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an undefined event name throws instead of warning, the FPS counter shows, and the query window shows its debug rows: the raw values of the simulation's report on the tile.
 
 ## Architecture
 
@@ -123,13 +123,13 @@ A query asks the simulation about the city and changes nothing: plain JSON, defi
 
 ### Tools
 
-`*Tool.js` on top of `baseTool.js`; `cityTools.ts` builds the tools that change the city, with their costs, which the simulation applies tool commands with. A tool command applies its tool at each tile of its path in order, as one click each: the tool stages its edits in a `WorldEffects` (`worldEffects.js`), drawing from the stream as it goes, checks the funds, then writes the staged tiles to the map and charges the budget. The query tool only reads the city, and belongs to the UI.
+`*Tool.js` on top of `baseTool.js`; `cityTools.ts` builds the tools that change the city, with their costs, which the simulation applies tool commands with. A tool command applies its tool at each tile of its path in order, as one click each: the tool stages its edits in a `WorldEffects` (`worldEffects.js`), drawing from the stream as it goes, checks the funds, then writes the staged tiles to the map and charges the budget. The query tool (`queryTool.ts`) belongs to the UI: it sends a `tileReport` query for the tile clicked, and the query window shows the answer. It asks, as the overlay picker does, through a `QuerySource` (`querySource.ts`), which the simulation in the page answers, or a server in its place.
 
 ## Rules for simulation code
 
 - **Deterministic.** Randomness comes only from `random.ts`; time comes only from counters the simulation advances as it steps. A `Math.random`, `Date` or `performance.now` read inside simulation code is a defect to fix, not a pattern to copy. Only what changes city state draws from the simulation's stream, tools and disasters included; the UI's own randomness, such as picking a new seed, comes from `uiRandom.ts`.
 - **No DOM.** No `window`, `document` or jQuery in simulation modules.
-- **Simulation modules** are every file the simulation (`simulation.js`), the map generator (`mapGenerator.js`) or a map-editing tool (`cityTools.ts`, and every `*Tool.js` but the query tool) imports, directly or not. `test/simulationImports.ts` walks that graph with the TypeScript checker and fails on any global but a short list of pure built-ins, on any `Math` function outside the portable ones, and on `**`, a package import or a dynamic import.
+- **Simulation modules** are every file the simulation (`simulation.js`), the map generator (`mapGenerator.js`) or a map-editing tool (`cityTools.ts`, and every `*Tool.js`) imports, directly or not. `test/simulationImports.ts` walks that graph with the TypeScript checker and fails on any global but a short list of pure built-ins, on any `Math` function outside the portable ones, and on `**`, a package import or a dynamic import.
 - **Portable arithmetic.** No transcendental `Math` functions (`sqrt`, `pow`, `sin`, `log`…) in simulation code: their results can differ between runtimes. Arithmetic, `Math.floor` and `Math.round` are fine, provided the C# port mirrors JavaScript's `Math.round`, where halves round toward +∞ rather than to even. `Math.fround` is fine too: it rounds to the nearest IEEE single, as a C# `(float)` cast does. It reproduces the original's float arithmetic where a rule depends on it, provided every float operand and the result of each single `+`, `-`, `*` or `/` is wrapped in it: `Math.fround(Math.fround(a) * Math.fround(b))` is the float product, but `Math.fround(a * b + c)` is not the float sum of a float product.
 - **Rule changes are deliberate.** The original's numbers are tuned against each other. A change to how the city behaves is named as such in its commit, never folded into a refactor. Each fixture's log pins its state hash as built and after a fixed run, as checkpoints that `test/goldenHashes.ts` replays. A change to a fixture's commands, to saved state or to a rule moves them, and that commit updates them; a refactor that moves one is a defect. A run hash that moves while the built hash holds is a change to how the city behaves.
 

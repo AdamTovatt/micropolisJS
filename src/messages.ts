@@ -60,7 +60,6 @@ export const PLANE_CRASHED = "Plane crashed";
 export const POLICE_NEEDS_FUNDING = "Police need funding";
 export const POPULATION_UPDATED = "Population updated";
 export const QUERY_WINDOW_CLOSED = "Query window closed";
-export const QUERY_WINDOW_NEEDED = "Query window needed";
 export const REACHED_CAPITAL = "Now a capital";
 export const REACHED_CITY = "Now a city";
 export const REACHED_METROPOLIS = "Now a metropolis";
