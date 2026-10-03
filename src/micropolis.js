@@ -19,7 +19,7 @@ import { Config } from './config.js';
 import { requiredElement } from './domElements.ts';
 import { showOnlineList } from './onlineList.ts';
 import { signInIfServerAnswers } from './signInForm.ts';
-import { SplashScreen } from './splashScreen.js';
+import { showSplashScreen } from './splashScreen.ts';
 import { installTestHook } from './testHook.ts';
 import { TileSet } from './tileSet.ts';
 import { TileSetURI } from './tileSetURI.ts';
@@ -43,7 +43,7 @@ var onTilesLoaded = function() {
     $('#loadingBanner').css('display', 'none');
 
     var startGame = function() {
-      new SplashScreen(tileSet, sprites);
+      showSplashScreen(tileSet, sprites);
     };
 
     // Sign in first when a server answers. The game starts whatever happens, single-player when it must.

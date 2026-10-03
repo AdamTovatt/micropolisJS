@@ -67,3 +67,4 @@ class SplashCanvas {
 }
 
 export { PREVIEW_TILE_SIZE, SplashCanvas, previewTileOrigin };
+export type { PreviewMap };
