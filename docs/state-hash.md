@@ -110,7 +110,6 @@ block map.
 | `budget.roadEffect`, `budget.fireEffect`, `budget.policeEffect` | Each service's effectiveness |
 | `budget.cashFlow` | The last year's cash flow |
 | `budget.taxFund` | The last tax collected |
-| `budget.awaitingValues` | Whether the simulation waits for the player to set the budget |
 
 ### Census
 

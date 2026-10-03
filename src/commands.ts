@@ -47,7 +47,8 @@ export type Command =
   // player's preference: whether the building, road, rail and wire tools clear what they can before building.
   | {type: "tool", tool: ToolName, path: TilePosition[], autoBulldoze: boolean}
   // The tax rate in percent, and the funding of each service named, road, fire or police, in whole percent of what it
-  // needs, as the original's budget sliders set it. A service left out keeps its funding.
+  // needs, as the original's budget sliders set it. A service left out keeps its funding. It takes effect at once:
+  // each service named works at its new funding from then on, and the next year end pays for it.
   | {type: "setBudget", road?: number, fire?: number, police?: number, tax: number}
   | {type: "setSpeed", speed: number}
   | {type: "setAutoBudget", on: boolean}

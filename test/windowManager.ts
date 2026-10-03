@@ -34,36 +34,33 @@ function setUp() {
     const budget = new FakeWindow();
     const other = new FakeWindow();
     const followUp = new FakeWindow();
-    const state = {budgetDue: false};
-    const windows = new WindowManager(budget, () => state.budgetDue, () => [BUDGET_VALUES]);
+    const windows = new WindowManager(budget, () => [BUDGET_VALUES]);
 
     for (const window of [budget, other, followUp]) {
         window.onClose = () => windows.closed();
     }
 
-    return {windows, budget, other, followUp, state};
+    return {windows, budget, other, followUp};
 }
 
 describe("the window manager", () => {
 
-    it("holds the input, but not the city, while any window but the budget window shows", () => {
+    it("holds the input while a window shows", () => {
         const {windows, other} = setUp();
 
         windows.open(other, "data");
 
         expect(other.opened).toEqual([["data"]]);
         expect(windows.holdsInput()).toBe(true);
-        expect(windows.holdsCity()).toBe(false);
     });
 
-    it("holds the city while the budget window shows", () => {
+    it("opens the budget window with the budget's values", () => {
         const {windows, budget} = setUp();
 
         windows.openBudget();
 
         expect(budget.opened).toEqual([[BUDGET_VALUES]]);
         expect(windows.holdsInput()).toBe(true);
-        expect(windows.holdsCity()).toBe(true);
     });
 
     it("holds nothing once the window closes", () => {
@@ -73,33 +70,30 @@ describe("the window manager", () => {
         windows.closeShown();
 
         expect(windows.holdsInput()).toBe(false);
-        expect(windows.holdsCity()).toBe(false);
     });
 
-    it("opens no window over another, so one opening unasked can't take the budget window's place", () => {
+    it("opens no window over another", () => {
         const {windows, other} = setUp();
         windows.openBudget();
 
         windows.open(other);
 
         expect(other.opened).toEqual([]);
-        expect(windows.holdsCity()).toBe(true);
     });
 
-    it("opens a budget that falls due as soon as no window shows", () => {
-        const {windows, budget, state} = setUp();
-        state.budgetDue = true;
+    it("opens a budget review that falls due as soon as no window shows", () => {
+        const {windows, budget} = setUp();
+        windows.budgetReviewDue();
 
         windows.openDue();
 
         expect(budget.opened).toEqual([[BUDGET_VALUES]]);
-        expect(windows.holdsCity()).toBe(true);
     });
 
-    it("opens a budget that falls due behind a window when that window closes", () => {
-        const {windows, budget, other, state} = setUp();
+    it("opens a budget review that falls due behind a window when that window closes", () => {
+        const {windows, budget, other} = setUp();
         windows.open(other);
-        state.budgetDue = true;
+        windows.budgetReviewDue();
 
         windows.openDue();
         expect(budget.opened).toEqual([]);
@@ -110,13 +104,13 @@ describe("the window manager", () => {
     });
 
     it("waits for a window that a closing window opens in its place", () => {
-        const {windows, budget, other, followUp, state} = setUp();
+        const {windows, budget, other, followUp} = setUp();
         other.onClose = () => {
             windows.closed();
             windows.open(followUp);
         };
         windows.open(other);
-        state.budgetDue = true;
+        windows.budgetReviewDue();
 
         windows.closeShown();
         windows.openDue();
@@ -128,11 +122,12 @@ describe("the window manager", () => {
         expect(budget.opened).toEqual([[BUDGET_VALUES]]);
     });
 
-    it("opens a due budget once, whether the player or the manager opens it first", () => {
-        const {windows, budget, state} = setUp();
-        state.budgetDue = true;
+    it("opens a review once, whether the player or the manager opens it first", () => {
+        const {windows, budget} = setUp();
+        windows.budgetReviewDue();
 
         windows.openBudget();
+        windows.closeShown();
         windows.openDue();
 
         expect(budget.opened).toHaveLength(1);

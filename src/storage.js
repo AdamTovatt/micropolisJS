@@ -11,6 +11,7 @@
  *
  */
 
+import { Budget } from './budget.js';
 import { MiscUtils } from './miscUtils.js';
 import { Random } from './random.ts';
 import { UiRandom } from './uiRandom.ts';
@@ -161,6 +162,19 @@ var transitionOldSave = function(savedGame) {
     case 6:
       // The score breakdown wasn't recorded: show none until the next evaluation
       savedGame.evaluation.cityScoreBreakdown = [];
+
+      /* falls through */
+    case 7:
+      // The year-end budget no longer waits for the player: a save made while it waited pays it on load, with the
+      // values it holds, as the city now pays it at the year end.
+      if (savedGame.budget.awaitingValues) {
+        var budget = new Budget();
+        budget.load(savedGame);
+        budget.doBudgetNow();
+        budget.save(savedGame);
+      }
+
+      delete savedGame.budget.awaitingValues;
       break;
 
     default:
@@ -176,7 +190,7 @@ var Storage = {
 };
 
 
-Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(7));
+Object.defineProperty(Storage, 'CURRENT_VERSION', MiscUtils.makeConstantDescriptor(8));
 Object.defineProperty(Storage, 'KEY', MiscUtils.makeConstantDescriptor('micropolisJSGame'));
 Object.defineProperty(Storage, 'canStore', MiscUtils.makeConstantDescriptor(window.localStorage !== undefined));
 

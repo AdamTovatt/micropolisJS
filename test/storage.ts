@@ -13,6 +13,7 @@
 
 import { fixtureSave } from "../headless/fixtures/index";
 import { advance, startCity } from "../headless/runner";
+import { Budget } from "../src/budget.js";
 import { GameMap } from "../src/gameMap.js";
 import { Random } from "../src/random";
 import { Simulation } from "../src/simulation.js";
@@ -270,5 +271,41 @@ describe("storage", () => {
         const savedGame = Storage.getSavedGame() as unknown as Save;
 
         expect((savedGame.evaluation as Save).cityScoreBreakdown).toEqual([]);
+    });
+
+    describe("when migrating a version 7 save", () => {
+
+        type Version7Save = Record<string, unknown> & {budget: Record<string, unknown>};
+
+        // The town as version 7 saved it, whose budget also held whether it waited for the player, with the budget
+        // fields given
+        function version7Save(budget: Record<string, unknown>): Version7Save {
+            const saved = fixtureSave("town") as unknown as Version7Save;
+            return {...saved, version: 7, budget: {...saved.budget, awaitingValues: false, ...budget}};
+        }
+
+        it("leaves it as a save of the current version holds it", async () => {
+            const Storage = await loadStorage();
+            const savedGame = version7Save({});
+
+            Storage.transitionOldSave(savedGame);
+
+            expect(savedGame).toEqual({...fixtureSave("town"), version: 7});
+        });
+
+        // Road upkeep of 100, fully funded, and 300 of tax to come in
+        it("pays the year-end budget that a save waited on, with the values it holds", async () => {
+            const Storage = await loadStorage();
+            const savedGame = version7Save({awaitingValues: true, autoBudget: false, totalFunds: 1000, taxFund: 300,
+                                            roadMaintenanceBudget: 100, fireMaintenanceBudget: 0,
+                                            policeMaintenanceBudget: 0, roadPercent: 1, roadSpend: 0, roadEffect: 0});
+
+            Storage.transitionOldSave(savedGame);
+
+            const {budget} = savedGame;
+            expect(budget).not.toHaveProperty("awaitingValues");
+            expect([budget.totalFunds, budget.roadSpend, budget.roadEffect, budget.autoBudget])
+                .toEqual([1000 + 300 - 100, 100, new Budget().MAX_ROAD_EFFECT, false]);
+        });
     });
 });

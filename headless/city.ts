@@ -22,7 +22,6 @@ import { Simulation as SimulationConstructor } from "../src/simulation.js";
 
 export interface Budget {
   totalFunds: number;
-  awaitingValues: boolean;
   spend(amount: number): void;
 }
 

@@ -16,7 +16,8 @@ import { CityBuilder, Fixture } from "./builder";
 
 // A small powered town: two rows of ten zones either side of a road, a coal plant at the west end, and an airport
 // and a railway to the south, which bring planes, a helicopter and trains. It has no police or fire station: their
-// upkeep would run its funds down until the simulation stops for the player's budget. Seed 8's map has open land
+// upkeep would run its funds down until auto-budget couldn't pay, turned itself off and left the services underfunded,
+// and the run would pin that slide rather than a growing town. Seed 8's map has open land
 // and woods from (10, 10) to (53, 33), and the town fits inside it.
 
 const LEFT = 14;

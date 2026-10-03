@@ -41,7 +41,7 @@ import { Storage } from './storage.js';
 import { Text } from './text.js';
 import { TouchWarnWindow } from './touchWarnWindow.js';
 import { UiRandom } from './uiRandom.ts';
-import { toolOutcome } from './windowCommands.ts';
+import { budgetCommand, settingsCommands, toolOutcome } from './windowCommands.ts';
 import { WindowManager } from './windowManager.ts';
 
 var disasterTimeout = 20 * 1000;
@@ -75,9 +75,8 @@ function Game(simulation, tileSet, snowTileSet, spriteSheet, name) {
   var opacityLayerID = 'opaque';
 
   this.budgetWindow = new BudgetWindow(opacityLayerID, 'budget');
-  this.windows = new WindowManager(this.budgetWindow, function() {
-    return this.simulation.budget.awaitingValues;
-  }.bind(this), this.budgetWindowValues.bind(this));
+  this.windows = new WindowManager(this.budgetWindow, this.budgetWindowValues.bind(this));
+  this.simulation.addEventListener(Messages.BUDGET_REVIEW_DUE, this.windows.budgetReviewDue.bind(this.windows));
 
   this.handleWindowClosure = this.windows.closed.bind(this.windows);
 
@@ -249,13 +248,14 @@ Game.prototype.handleDisasterWindowClosure = function(request) {
 Game.prototype.handleSettingsWindowClosure = function(actions) {
   this.windows.closed();
 
+  var chosen = {autoBudget: this.settingsShown.autoBudget, disasters: this.settingsShown.disasters};
+
   for (var i = 0, l = actions.length; i < l; i++) {
     var a = actions[i];
 
     switch (a.action) {
       case SettingsWindow.AUTOBUDGET:
-        if (a.data !== this.simulation.budget.autoBudget)
-          this.commandQueue.send(LOCAL_PLAYER, {type: 'setAutoBudget', on: a.data});
+        chosen.autoBudget = a.data;
         break;
 
       case SettingsWindow.AUTOBULLDOZE:
@@ -267,14 +267,17 @@ Game.prototype.handleSettingsWindowClosure = function(actions) {
         break;
 
       case SettingsWindow.DISASTERS_CHANGED:
-        if (a.data !== this.simulation.disasterManager.disastersEnabled)
-          this.commandQueue.send(LOCAL_PLAYER, {type: 'setDisasters', on: a.data});
+        chosen.disasters = a.data;
         break;
 
       default:
         console.warn('Unexpected action', a);
     }
   }
+
+  settingsCommands(this.settingsShown, chosen).forEach(function(command) {
+    this.commandQueue.send(LOCAL_PLAYER, command);
+  }, this);
 };
 
 
@@ -315,17 +318,8 @@ Game.prototype.handleScreenshotWindowClosure = function(action) {
 Game.prototype.handleBudgetWindowClosure = function(data) {
   this.windows.closed();
 
-  var budget = this.simulation.budget;
-
-  if (!data.cancelled) {
-    budget.setFunding(data.funding);
-    budget.setTax(data.taxPercent - 0);
-  }
-
-  // A year-end budget the city waits on takes the values it already has when the player cancels, rather than holding
-  // the city until the window opens again
-  if (budget.awaitingValues)
-    budget.doBudgetWindow();
+  if (!data.cancelled)
+    this.commandQueue.send(LOCAL_PLAYER, budgetCommand(data.funding, data.taxPercent));
 };
 
 
@@ -355,11 +349,15 @@ Game.prototype.handleEvalRequest = function() {
 
 
 Game.prototype.handleSettingsRequest = function() {
-  this.windows.open(this.settingsWindow, {
-    autoBudget: this.simulation.budget.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(),
-    speed: this.speedControl.getRunningSpeed(), disasters: this.simulation.disasterManager.disastersEnabled,
-    seed: this.simulation.seed
-  });
+  // The city settings as the window shows them, which its choices are compared with when it closes
+  var shown = {autoBudget: this.simulation.budget.autoBudget,
+               disasters: this.simulation.disasterManager.disastersEnabled};
+
+  if (this.windows.open(this.settingsWindow, {
+    autoBudget: shown.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(),
+    speed: this.speedControl.getRunningSpeed(), disasters: shown.disasters, seed: this.simulation.seed
+  }))
+    this.settingsShown = shown;
 };
 
 
@@ -545,10 +543,10 @@ Game.prototype.calculateSpritesForPaint = function(canvas) {
 };
 
 
-// The city steps unless it is paused, the budget window holds it, the screen is too small to play, or the tab is hidden:
-// a hidden tab is not watched, so the city waits rather than running on unseen
+// The city steps unless it is paused, the screen is too small to play, or the tab is hidden: a hidden tab is not
+// watched, so the city waits rather than running on unseen
 var isStepping = function() {
-  return !this.simulation.isPaused() && !this.windows.holdsCity() && !$('#tooSmall').is(':visible') && !document.hidden;
+  return !this.simulation.isPaused() && !$('#tooSmall').is(':visible') && !document.hidden;
 };
 
 
@@ -561,7 +559,7 @@ var tick = function() {
   // Run the sim: as many steps as the time since the last tick is due
   this.stepDriver.run(performance.now(), this.isStepping, this.stepSimulation);
 
-  // A year-end budget that fell due during those steps, or while a window showed
+  // A year-end budget review that fell due during those steps, or while a window showed
   this.windows.openDue();
 
   this.mouse = this.windows.holdsInput() ? null : this.calculateMouseForPaint();

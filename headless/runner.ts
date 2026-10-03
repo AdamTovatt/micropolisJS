@@ -11,15 +11,14 @@
  *
  */
 
-import { BUDGET_NEEDED } from "../src/messages";
 import { Random } from "../src/random";
 import { stateHash } from "../src/stateHash";
 import { cityFromSave, cityFromSeed, Level, RunningSpeed, SaveData, Simulation, Speed } from "./city";
 import { fixtureSave } from "./fixtures/index";
 
 // Starts a city from a seed or a fixture and advances it step by step, as fast as the CPU allows. A run never
-// stalls silently: it fails when the simulation is paused, waits for the player, or doesn't advance city time as
-// far as the step count implies.
+// stalls silently: it fails when the simulation is paused, or doesn't advance city time as far as the step count
+// implies.
 
 export interface Start {
   // A map generated from this seed, or the named fixture: exactly one
@@ -112,8 +111,8 @@ function impliedCityTime(city: Simulation, steps: number): number {
   return cityTime;
 }
 
-// Never steps a paused simulation, and fails rather than stalling: when the simulation waits for the player's budget,
-// or city time doesn't advance as far as the step count implies
+// Never steps a paused simulation, and fails rather than stalling: when city time doesn't advance as far as the step
+// count implies
 export function advance(city: Simulation, steps: number): void {
   if (!Number.isInteger(steps) || steps < 0) {
     throw new Error(`A run takes a whole number of steps, got ${steps}`);
@@ -126,23 +125,8 @@ export function advance(city: Simulation, steps: number): void {
   const startTime = city._cityTime;
   const expectedTime = impliedCityTime(city, steps);
 
-  let budgetNeeded = false;
-  const onBudgetNeeded = () => {
-    budgetNeeded = true;
-  };
-  city.addEventListener(BUDGET_NEEDED, onBudgetNeeded);
-
-  try {
-    for (let i = 0; i < steps; i++) {
-      city.step();
-
-      if (budgetNeeded) {
-        throw new Error(`The simulation stopped for the player's budget after ${i + 1} steps: keep auto-budget ` +
-                        "on, with funds to cover it");
-      }
-    }
-  } finally {
-    city.removeEventListener(BUDGET_NEEDED, onBudgetNeeded);
+  for (let i = 0; i < steps; i++) {
+    city.step();
   }
 
   if (city._cityTime !== expectedTime) {

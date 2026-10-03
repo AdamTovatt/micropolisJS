@@ -12,7 +12,7 @@
  */
 
 export const AUTOBUDGET_CHANGED = "Autobudget changed";
-export const BUDGET_NEEDED = "User needs to budget";
+export const BUDGET_REVIEW_DUE = "Year-end budget to review";
 export const BUDGET_REQUESTED = "Budget window requested";
 export const BUDGET_WINDOW_CLOSED = "Budget window closed";
 export const BLACKOUTS_REPORTED = "Blackouts reported";

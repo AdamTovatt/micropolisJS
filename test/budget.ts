@@ -12,6 +12,7 @@
  */
 
 import { Budget } from "../src/budget.js";
+import * as Messages from "../src/messages";
 
 type BudgetInstance = InstanceType<typeof Budget>;
 
@@ -115,7 +116,7 @@ describe("Budget.forecast", () => {
 function afterAutobudgetAtHalfRoads(): BudgetInstance {
     const budget = budgetWith(20000, 500);
     budget.setFunding({ road: 50, fire: 100, police: 100 });
-    budget.doBudgetNow(false);
+    budget.doBudgetNow();
     return budget;
 }
 
@@ -130,8 +131,8 @@ describe("A year-end autobudget with cash for every service", () => {
     });
 });
 
-// What Game.handleBudgetWindowClosure applies when the player presses OK without moving a slider: the window sends
-// no funding. This covers the budget's side; the window's own wiring has no DOM to run in under these tests.
+// What a setBudget command applies when the player presses OK without moving a slider: the window sends no funding.
+// This covers the budget's side; the window's own wiring has no DOM to run in under these tests.
 describe("A budget given the funding of a window the player moved no slider in", () => {
 
     const untouched = {};
@@ -156,7 +157,8 @@ describe("A year-end budget with the player's values", () => {
 
     it("should book what each service gets as its spend, and set the effects from it", () => {
         const budget = budgetWith(20000, 500);
-        budget.doBudgetWindow();
+        budget.setAutoBudget(false);
+        budget.doBudgetNow();
 
         expect(budget.totalFunds).toBe(20500 - (57 + 140 + 10));
         expect(spendsOf(budget)).toEqual(heldCosts);
@@ -165,32 +167,75 @@ describe("A year-end budget with the player's values", () => {
     });
 });
 
-describe("A year-end budget the player sets", () => {
-
-    it("should charge nothing until the player's values come, with the percentages already scaled back to the cash", () => {
-        // $150 would pay the $57 of roads and $93 of the fire department's $140; police would go unpaid
-        const budget = budgetWith(50, 100);
-        budget.setAutoBudget(false);
-        budget.doBudgetNow(false);
-
-        expect(budget.awaitingValues).toBe(true);
-        expect(budget.totalFunds).toBe(50);
-        expect(percentsOf(budget)).toEqual({ road: 0.57, fire: Math.fround(93 / 300), police: 0 });
-        expect(spendsOf(budget)).toEqual({ road: 0, fire: 0, police: 0 });
-    });
-});
-
 describe("A year-end budget short of cash", () => {
 
     it("should charge what it has and scale back the percentages of the services it can't fully fund", () => {
         // $150 pays the $57 of roads and $93 of the fire department's $140; police goes unpaid
         const budget = budgetWith(50, 100);
-        budget.doBudgetWindow();
+        budget.setAutoBudget(false);
+        budget.doBudgetNow();
 
         expect(budget.totalFunds).toBe(0);
         expect(percentsOf(budget)).toEqual({ road: 0.57, fire: Math.fround(93 / 300), police: 0 });
         expect(spendsOf(budget)).toEqual({ road: 57, fire: 93, police: 0 });
         // 32 * 57 / 100 is 18, rounded down, 1000 * 93 / 300 is 310, and police gets nothing
         expect(effectsOf(budget)).toEqual({ road: 18, fire: 310, police: 0 });
+    });
+});
+
+// A budget at the year end: road upkeep of 100 asked for at the given share, the funds, and the year's tax
+function yearEnd(autoBudget: boolean, roadPercent: number, totalFunds: number, taxFund: number) {
+    const budget = new Budget();
+    budget.autoBudget = autoBudget;
+    budget.roadMaintenanceBudget = 100;
+    budget.roadPercent = roadPercent;
+    budget.totalFunds = totalFunds;
+    budget.taxFund = taxFund;
+
+    const events: string[] = [];
+    for (const event of [Messages.BUDGET_REVIEW_DUE, Messages.NO_MONEY]) {
+        budget.addEventListener(event, () => events.push(event));
+    }
+
+    budget.doBudgetNow();
+    return {budget, events};
+}
+
+describe("the year-end budget", () => {
+
+    it("pays for the services and takes in the tax with auto-budget on and the funds to cover them", () => {
+        const {budget, events} = yearEnd(true, 1, 1000, 300);
+
+        expect([budget.totalFunds, budget.roadSpend, budget.roadEffect])
+            .toEqual([1000 + 300 - 100, 100, budget.MAX_ROAD_EFFECT]);
+        expect(budget.autoBudget).toBe(true);
+        expect(events).toEqual([]);
+    });
+
+    it("pays the player's values with auto-budget off, without waiting, and offers them for review", () => {
+        const {budget, events} = yearEnd(false, 0.5, 1000, 300);
+
+        expect([budget.totalFunds, budget.roadSpend, budget.roadEffect])
+            .toEqual([1000 + 300 - 50, 50, budget.MAX_ROAD_EFFECT / 2]);
+        expect(budget.autoBudget).toBe(false);
+        expect(events).toEqual([Messages.BUDGET_REVIEW_DUE]);
+    });
+
+    // Auto-budget is already off, so there is nothing to turn off and no notification that it was
+    it("funds what it can of the player's values with auto-budget off, and offers them for review", () => {
+        const {budget, events} = yearEnd(false, 1, 0, 30);
+
+        expect([budget.totalFunds, budget.roadSpend, budget.roadPercent]).toEqual([0, 30, Math.fround(0.3)]);
+        expect(budget.autoBudget).toBe(false);
+        expect(events).toEqual([Messages.BUDGET_REVIEW_DUE]);
+    });
+
+    // As the original, which forces auto-budget off and funds what the city can afford
+    it("turns auto-budget off when the city can't pay, and funds what it can", () => {
+        const {budget, events} = yearEnd(true, 1, 0, 30);
+
+        expect([budget.totalFunds, budget.roadSpend, budget.roadPercent]).toEqual([0, 30, Math.fround(0.3)]);
+        expect(budget.autoBudget).toBe(false);
+        expect(events).toEqual([Messages.NO_MONEY, Messages.BUDGET_REVIEW_DUE]);
     });
 });

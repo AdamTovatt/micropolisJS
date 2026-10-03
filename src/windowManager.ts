@@ -12,8 +12,8 @@
  */
 
 // The game's windows, shown one at a time. A window showing holds the keyboard and the mouse: the arrow keys don't
-// scroll the map, there is no hover box, and no other window opens. Only the budget window holds the city as well;
-// the city keeps stepping behind every other window.
+// scroll the map, there is no hover box, and no other window opens. No window holds the city, which keeps stepping
+// behind every one of them.
 
 // A window as the game drives it. Closing one emits its closed event, whose handler calls closed() before acting on
 // the player's choice, so that the handler may open another window in its place.
@@ -24,24 +24,25 @@ interface GameWindow {
 
 class WindowManager {
   private shown: GameWindow | null = null;
+  private reviewDue = false;
 
-  // budgetDue says whether the simulation awaits the player's year-end budget values; budgetValues gives the
-  // arguments the budget window opens with
-  constructor(private readonly budgetWindow: GameWindow, private readonly budgetDue: () => boolean,
-              private readonly budgetValues: () => unknown[]) {}
+  // budgetValues gives the arguments the budget window opens with
+  constructor(private readonly budgetWindow: GameWindow, private readonly budgetValues: () => unknown[]) {}
 
-  // Opens a window unless one is already showing. A window that opens unasked, such as the touch warning, is not shown
-  // at all when another is showing, so it can't take the budget window's place while the budget holds the city.
-  open(window: GameWindow, ...args: unknown[]): void {
+  // Opens a window unless one is already showing, and says whether it did. A window that opens unasked, such as the
+  // touch warning, is not shown at all when another is showing.
+  open(window: GameWindow, ...args: unknown[]): boolean {
     if (this.shown !== null)
-      return;
+      return false;
 
     this.shown = window;
     window.open(...args);
+    return true;
   }
 
   openBudget(): void {
-    this.open(this.budgetWindow, ...this.budgetValues());
+    if (this.open(this.budgetWindow, ...this.budgetValues()))
+      this.reviewDue = false;
   }
 
   closed(): void {
@@ -58,14 +59,15 @@ class WindowManager {
     return this.shown !== null;
   }
 
-  holdsCity(): boolean {
-    return this.shown === this.budgetWindow;
+  // The year-end budget was paid with the player's values, which the player is offered to review. It falls due during
+  // a step, maybe while another window shows.
+  budgetReviewDue(): void {
+    this.reviewDue = true;
   }
 
-  // The year-end budget falls due during a step, maybe while another window shows. Called after each run of steps, it
-  // opens the budget window once no window shows, and the simulation holds its phases until it has the player's values.
+  // Called after each run of steps: opens a budget review that has fallen due once no window shows
   openDue(): void {
-    if (this.budgetDue())
+    if (this.reviewDue)
       this.openBudget();
   }
 }

@@ -156,21 +156,19 @@ describe("a run", () => {
         expect(summary.funds).toBe(city.budget.totalFunds);
     });
 
-    // With auto-budget off, the year-end budget waits for the player
-    it("fails when the simulation stops for the player's budget", () => {
+    // With auto-budget off, the year-end budget takes the player's values without waiting for them
+    it("runs on through a year end with auto-budget off", () => {
         const saved = fixtureSave("town") as InspectedSave;
         const city = startFromSave({...saved, budget: {...saved.budget, autoBudget: false}} as SaveData,
                                    {speed: "fast"});
 
-        expect(() => advance(city, STEPS_PER_YEAR_AT_FAST))
-            .toThrow("The simulation stopped for the player's budget");
+        expect(() => advance(city, 2 * STEPS_PER_YEAR_AT_FAST)).not.toThrow();
     });
 
-    // Saved while waiting for the player's budget, so the city never sends BUDGET_NEEDED during the run
+    // A simulation whose steps do nothing, as one that stopped letting phases through would
     it("fails when city time doesn't advance as far as the steps imply", () => {
-        const saved = fixtureSave("town") as InspectedSave;
-        const city = startFromSave({...saved, budget: {...saved.budget, awaitingValues: true}} as SaveData,
-                                   {speed: "fast"});
+        const city = startCity({fixture: "town", speed: "fast"});
+        city.step = () => {};
 
         expect(() => advance(city, 64))
             .toThrow("The simulation stalled: 64 steps should advance city time from 0 to 4, but it reached 0");

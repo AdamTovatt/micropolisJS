@@ -435,9 +435,6 @@ Simulation.prototype.step = function() {
 // As simFrame in the original: speedCycle lets a phase through on every 5th step at slow speed, every 3rd at medium,
 // and every step at fast
 Simulation.prototype._simFrame = function() {
-  if (this.budget.awaitingValues)
-    return;
-
   if (++this._speedCycle > 1023)
     this._speedCycle = 0;
 
@@ -490,7 +487,8 @@ Simulation.prototype.init = function() {
                                       this._sendPowerMessage.bind(this, Messages.NOT_ENOUGH_POWER));
 
   this.budget.addEventListener(Messages.FUNDS_CHANGED, MiscUtils.reflectEvent.bind(this, Messages.FUNDS_CHANGED));
-  this.budget.addEventListener(Messages.BUDGET_NEEDED, MiscUtils.reflectEvent.bind(this, Messages.BUDGET_NEEDED));
+  this.budget.addEventListener(Messages.BUDGET_REVIEW_DUE,
+                               MiscUtils.reflectEvent.bind(this, Messages.BUDGET_REVIEW_DUE));
   this.budget.addEventListener(Messages.NO_MONEY, this._wrapMessage.bind(this, Messages.NO_MONEY));
 
   this._valves.addEventListener(Messages.VALVES_UPDATED, this._onValveChange.bind(this));
