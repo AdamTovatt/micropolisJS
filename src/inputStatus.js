@@ -273,10 +273,13 @@ var toolButtonHandler = function(e) {
 
 
 InputStatus.prototype.speedChangeHandler = function() {
-  var requestedSpeed = $('#pauseRequest').text();
-  var newRequest = requestedSpeed === 'Pause' ? 'Play' : 'Pause';
-  $('#pauseRequest').text(newRequest);
-  this._emitEvent(Messages.SPEED_CHANGE, requestedSpeed);
+  this._emitEvent(Messages.SPEED_CHANGE);
+};
+
+
+// The pause button offers whatever the simulation isn't doing
+InputStatus.prototype.showPaused = function(paused) {
+  $('#pauseRequest').text(paused ? 'Play' : 'Pause');
 };
 
 

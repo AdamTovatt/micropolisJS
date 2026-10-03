@@ -103,7 +103,7 @@ var save = function(saveData) {
 
 
 var load = function(saveData) {
-  BaseTool.autoBulldoze = saveData.autoBulldoze;
+  BaseToolConstructor.autoBulldoze = saveData.autoBulldoze;
 };
 
 

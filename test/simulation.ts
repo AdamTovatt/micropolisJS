@@ -11,21 +11,18 @@
  *
  */
 
+import { cityFromSave, cityFromSeed, Level, SaveData, Speed } from "../headless/city";
+import { advance, startCity } from "../headless/runner";
+import { canonicalJson } from "../src/canonicalJson";
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
 import { Simulation } from "../src/simulation.js";
-import { ANIMBIT } from "../src/tileFlags";
-import { FIRE } from "../src/tileValues";
-import { SimulationInstance, YEAR, buildCity, simulationFromSeed } from "./helpers/simulations";
+import { plainSavedState, stateHash } from "../src/stateHash";
+import { InspectedSave } from "./helpers/savedState";
+import { newSimulation, SimulationInstance, YEAR, buildCity, simulationFromSeed } from "./helpers/simulations";
 
 const SEED = 2026;
-
-function restore(simulation: SimulationInstance) {
-    const saveData = {};
-    simulation.save(saveData);
-    const savedGame = JSON.parse(JSON.stringify(saveData));
-    return new Simulation(new GameMap(120, 100), Simulation.LEVEL_EASY, Simulation.SPEED_MED, null, savedGame);
-}
+const OTHER_SEED = 2027;
 
 function steps(simulation: SimulationInstance, count: number) {
     for (let i = 0; i < count; i++) {
@@ -40,58 +37,13 @@ function phasesRun(simulation: SimulationInstance) {
 
 describe("a simulation", () => {
 
-    it("starts from either a seed or a saved game, not both or neither", () => {
-        const savedGame = {};
-        simulationFromSeed(SEED).save(savedGame);
-
-        expect(() => new Simulation(new GameMap(120, 100), Simulation.LEVEL_EASY, Simulation.SPEED_MED, SEED, savedGame))
-            .toThrow("either a seed or a saved game");
-        expect(() => new Simulation(new GameMap(120, 100), Simulation.LEVEL_EASY, Simulation.SPEED_MED, null, null))
-            .toThrow("either a seed or a saved game");
-    });
-
     describe("restored from a save", () => {
-
-        function saveAndRestore() {
-            const original = simulationFromSeed(SEED);
-            original.random.next();
-
-            // A burning tile makes the restored simulation's construction scan draw from its stream
-            original._map.setTile(60, 50, FIRE, ANIMBIT);
-
-            return {original, restored: restore(original)};
-        }
-
-        it("keeps the seed", () => {
-            const {original, restored} = saveAndRestore();
-
-            expect(restored.seed).toBe(original.seed);
-        });
-
-        it("continues the stream from the saved state, whatever construction drew", () => {
-            const {original, restored} = saveAndRestore();
-
-            expect(restored.random.getState()).toEqual(original.random.getState());
-            expect(restored.random.next()).toBe(original.random.next());
-        });
-
-        it("takes the seed and the stream's state from a save loaded into a running simulation", () => {
-            const original = simulationFromSeed(SEED);
-            original.random.next();
-            const saveData = {};
-            original.save(saveData);
-            const other = simulationFromSeed(SEED + 1);
-
-            other.load(JSON.parse(JSON.stringify(saveData)));
-
-            expect(other.seed).toBe(original.seed);
-            expect(other.random.getState()).toEqual(original.random.getState());
-        });
 
         it("runs its next phase at the same step as the original, as the speed cycle is saved", () => {
             const original = simulationFromSeed(SEED);
             steps(original, 4);
-            const restored = restore(original);
+            const restored = simulationFromSeed(OTHER_SEED);
+            restored.load(plainSavedState(original));
             const originalBefore = phasesRun(original);
             const restoredBefore = phasesRun(restored);
 
@@ -104,7 +56,140 @@ describe("a simulation", () => {
         });
     });
 
+    describe("restored from a current save", () => {
+
+        // A grown town, with sprites in flight, mid-cycle: at fast speed every step runs a phase
+        let grownTownSave: InspectedSave;
+
+        beforeAll(() => {
+            const city = startCity({fixture: "town", speed: "fast"});
+            advance(city, 3001);
+            grownTownSave = plainSavedState(city) as typeof grownTownSave;
+        });
+
+        // The grown town with every field it shares with a new city changed, so a load that skipped a field would
+        // leave the new city's value and show
+        type Groups = Record<string, Record<string, unknown>>;
+
+        function awayFromNewCity(saved: InspectedSave): Groups {
+            const s = saved as unknown as Groups;
+            return {
+                ...s,
+                simulation: {...s.simulation, gameLevel: Level.hard, lastPowerMessage: 11},
+                budget: {...s.budget, autoBudget: false, awaitingValues: true, cityTax: 9, fireEffect: 900,
+                         fireMaintenanceBudget: 50, firePercent: 0.9, fireSpend: 45, policeEffect: 800,
+                         policeMaintenanceBudget: 60, policePercent: 0.8, policeSpend: 48, roadEffect: 30,
+                         roadPercent: 0.9},
+                disasters: {floodCount: 4, disastersEnabled: true},
+                valves: {...s.valves, resCap: true, comCap: true, indCap: true},
+            };
+        }
+
+        it("holds exactly the saved state: loading runs no scan", () => {
+            const saved = awayFromNewCity(grownTownSave);
+            expect(grownTownSave.simulation.phaseCycle).not.toBe(0);
+            expect(grownTownSave.sprites.list.length).toBeGreaterThan(0);
+
+            // Every saved field outside the map and the scanned state differs from a new city's
+            const newCity = plainSavedState(cityFromSeed(OTHER_SEED, Level.easy, Speed.medium)) as Groups;
+            const sameAsNew = Object.keys(saved)
+                .filter((group) => group !== "map" && group !== "scannedState")
+                .flatMap((group) => Object.keys(saved[group])
+                    .filter((key) => canonicalJson(saved[group][key]) === canonicalJson(newCity[group][key]))
+                    .map((key) => `${group}.${key}`));
+            expect(sameAsNew).toEqual([]);
+
+            expect(plainSavedState(cityFromSave(saved as unknown as SaveData))).toEqual(saved);
+        });
+
+        it("never shares the saved object with the city it restores", () => {
+            const before = canonicalJson(grownTownSave);
+
+            // Long enough for a yearly evaluation, so every array the load copies has been written since
+            advance(cityFromSave(grownTownSave), 800);
+
+            expect(canonicalJson(grownTownSave)).toBe(before);
+        });
+
+        it.each([
+            ["level", "gameLevel", "Invalid level!"],
+            ["speed", "speed", "Invalid speed!"],
+        ])("rejects a save with an invalid %s", (_, field, message) => {
+            const saved = plainSavedState(simulationFromSeed(SEED)) as {simulation: Record<string, unknown>};
+            saved.simulation[field] = 7;
+
+            expect(() => simulationFromSeed(OTHER_SEED).load(saved)).toThrow(message);
+        });
+
+        // The UI is sent the date only when it changes: a city loaded at the date it last sent sends it again
+        it("sends its date on its first step, even loaded over a city that last sent the same date", () => {
+            const city = simulationFromSeed(SEED);
+            steps(city, 1);
+            const dates = jest.fn();
+            city.addEventListener(Messages.DATE_UPDATED, dates);
+
+            city.load(plainSavedState(city));
+            steps(city, 1);
+
+            expect(dates).toHaveBeenCalledTimes(1);
+        });
+
+        it("gives its own level and speed to the city it is loaded over", () => {
+            const original = cityFromSeed(SEED, Level.hard, Speed.fast);
+            const restored = cityFromSeed(OTHER_SEED, Level.easy, Speed.medium);
+
+            restored.load(plainSavedState(original));
+
+            expect([restored.getLevel(), restored.getSpeed()]).toEqual([Level.hard, Speed.fast]);
+        });
+
+        // Rejected before anything is restored: the city is left as it was
+        it("is never loaded over a city of another map size", async () => {
+            const smallCity = newSimulation(new GameMap(60, 50), SEED);
+            const before = await stateHash(smallCity);
+
+            expect(() => smallCity.load(grownTownSave)).toThrow("A 120x100 save cannot be loaded over a 60x50 city");
+            expect(await stateHash(smallCity)).toBe(before);
+        });
+
+        // Loaded over a city grown from another stream at another speed, with its own sprites in flight, rather than
+        // the blank one cityFromSave builds: none of that city's map, scans, sprites or stream may reach the loaded
+        // city's later cycles
+        it("evolves as it would have loaded over a blank city, whatever city it is loaded over", async () => {
+            const other = startCity({fixture: "town", reseed: OTHER_SEED, speed: "slow"});
+            advance(other, 4000);
+            expect((plainSavedState(other) as InspectedSave).sprites.list.length).toBeGreaterThan(0);
+            other.load(grownTownSave);
+            const overBlank = cityFromSave(grownTownSave);
+            expect(plainSavedState(other)).toEqual(grownTownSave);
+
+            advance(other, 800);
+            advance(overBlank, 800);
+
+            expect(await stateHash(other)).toBe(await stateHash(overBlank));
+        });
+
+        it("must be migrated first if it predates version 5", () => {
+            const saveData = plainSavedState(simulationFromSeed(SEED)) as SaveData & {scannedState?: object};
+            delete saveData.scannedState;
+
+            expect(() => cityFromSave(saveData))
+                .toThrow("A save from before version 5 must be migrated before it is loaded");
+        });
+    });
+
     describe("stepping", () => {
+
+        // At fast speed every step runs a phase: 16 steps reach the disasters in phase 15
+        it("runs the disasters at its own level", () => {
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_FAST);
+            simulation.setLevel(Simulation.LEVEL_HARD);
+            const doDisasters = jest.spyOn(simulation.disasterManager, "doDisasters");
+
+            steps(simulation, 16);
+
+            expect(doDisasters).toHaveBeenCalledWith(Simulation.LEVEL_HARD, expect.anything());
+        });
 
         it.each([
             ["slow", Simulation.SPEED_SLOW, 3],

@@ -64,17 +64,21 @@ var Budget = EventEmitter(function() {
 
 var saveProps = ['autoBudget', 'totalFunds', 'policePercent', 'roadPercent', 'firePercent', 'roadSpend',
                  'policeSpend', 'fireSpend', 'roadMaintenanceBudget', 'policeMaintenanceBudget',
-                 'fireMaintenanceBudget', 'cityTax', 'roadEffect', 'policeEffect', 'fireEffect'];
+                 'fireMaintenanceBudget', 'cityTax', 'roadEffect', 'policeEffect', 'fireEffect', 'cashFlow', 'taxFund',
+                 'awaitingValues'];
 
 Budget.prototype.save = function(saveData) {
+  var budget = {};
   for (var i = 0, l = saveProps.length; i < l; i++)
-    saveData[saveProps[i]] = this[saveProps[i]];
+    budget[saveProps[i]] = this[saveProps[i]];
+
+  saveData.budget = budget;
 };
 
 
 Budget.prototype.load = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
-    this[saveProps[i]] = saveData[saveProps[i]];
+    this[saveProps[i]] = saveData.budget[saveProps[i]];
 
   this._emitEvent(Messages.AUTOBUDGET_CHANGED, this.autoBudget);
   this._emitEvent(Messages.FUNDS_CHANGED, this.totalFunds);

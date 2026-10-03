@@ -24,7 +24,7 @@ function stepBoth(first: SimulationInstance, second: SimulationInstance, steps: 
     }
 }
 
-// The state a save leaves out: the sprites in flight
+// The sprites in flight: their type, position and frame
 function sprites(simulation: SimulationInstance) {
     return simulation.spriteManager.getSpriteList().map((sprite: {type: number, x: number, y: number, frame: number}) =>
         ({type: sprite.type, x: sprite.x, y: sprite.y, frame: sprite.frame}));

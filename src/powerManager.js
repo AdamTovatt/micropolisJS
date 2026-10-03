@@ -53,8 +53,30 @@ PowerManager.prototype.setTilePower = function(x, y) {
 };
 
 
+// The last power scan's grid and figures, and the stack of power sources the map scan found, which the next power
+// scan consumes: part of the simulation's scanned state. The visited map is left out: each power scan clears it
+// before reading it.
+PowerManager.prototype.saveScan = function(scanData) {
+  scanData.powerGrid = this.powerGridMap.save();
+  scanData.powerStack = this._powerStack.map(function(pos) {
+    return {x: pos.x, y: pos.y};
+  });
+  scanData.powerCapacity = this.powerCapacity;
+  scanData.powerLoad = this.powerLoad;
+};
+
+
+PowerManager.prototype.loadScan = function(scanData) {
+  this.powerGridMap.load(scanData.powerGrid);
+  this._powerStack = scanData.powerStack.map(function(pos) {
+    return new Position(pos.x, pos.y);
+  });
+  this.powerCapacity = scanData.powerCapacity;
+  this.powerLoad = scanData.powerLoad;
+};
+
+
 PowerManager.prototype.clearPowerStack = function() {
-  this._powerStackPointer = 0;
   this._powerStack = [];
 };
 

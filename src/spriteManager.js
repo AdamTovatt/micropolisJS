@@ -95,16 +95,52 @@ SpriteManager.prototype.moveObjects = function(simData) {
 
 SpriteManager.prototype.makeSprite = function(type, x, y) {
   var newSprite = new constructors[type](this.map, this, this.random, x, y);
+  this._addSprite(newSprite);
+  return newSprite;
+};
 
+
+SpriteManager.prototype._addSprite = function(sprite) {
   // Listen for crashes
   for (var i = 0, l = Messages.CRASHES.length; i < l; i++)
-    newSprite.addEventListener(Messages.CRASHES[i], MiscUtils.reflectEvent.bind(this, Messages.CRASHES[i]));
+    sprite.addEventListener(Messages.CRASHES[i], MiscUtils.reflectEvent.bind(this, Messages.CRASHES[i]));
 
-  if (type == SpriteConstants.SPRITE_HELICOPTER)
-    newSprite.addEventListener(Messages.HEAVY_TRAFFIC, MiscUtils.reflectEvent.bind(this, Messages.HEAVY_TRAFFIC));
+  if (sprite.type == SpriteConstants.SPRITE_HELICOPTER)
+    sprite.addEventListener(Messages.HEAVY_TRAFFIC, MiscUtils.reflectEvent.bind(this, Messages.HEAVY_TRAFFIC));
 
-  this.spriteList.push(newSprite);
-  return newSprite;
+  this.spriteList.push(sprite);
+};
+
+
+SpriteManager.prototype.save = function(saveData) {
+  saveData.sprites = {
+    spriteCycle: this.spriteCycle,
+    list: this.spriteList.map(function(sprite) {
+      return sprite.save();
+    })
+  };
+};
+
+
+SpriteManager.prototype.load = function(saveData) {
+  var sprites = saveData.sprites;
+  this.spriteCycle = sprites.spriteCycle;
+  this.spriteList = [];
+
+  for (var i = 0, l = sprites.list.length; i < l; i++) {
+    var data = sprites.list[i];
+    var constructor = constructors[data.type];
+
+    if (constructor === undefined)
+      throw new Error('A saved sprite has unknown type ' + data.type);
+
+    // A sprite's constructor sets a new sprite's starting state, and may draw from the stream: a restored sprite takes
+    // its saved state instead
+    var sprite = Object.create(constructor.prototype);
+    sprite.init(data.type, this.map, this, this.random, data.x, data.y);
+    sprite.load(data);
+    this._addSprite(sprite);
+  }
 };
 
 

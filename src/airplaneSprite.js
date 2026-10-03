@@ -19,10 +19,6 @@ import { SpriteUtils } from './spriteUtils.js';
 
 function AirplaneSprite(map, spriteManager, random, x, y) {
   this.init(SPRITE_AIRPLANE, map, spriteManager, random, x, y);
-  this.width = 48;
-  this.height = 48;
-  this.xOffset = -24;
-  this.yOffset = -24;
   if (x > SpriteUtils.worldToPix(map.width - 20)) {
     this.destX = this.x - 200;
     this.frame = 7;
@@ -34,7 +30,7 @@ function AirplaneSprite(map, spriteManager, random, x, y) {
 }
 
 
-BaseSprite(AirplaneSprite);
+BaseSprite(AirplaneSprite, {width: 48, height: 48, xOffset: -24, yOffset: -24});
 
 
 var xDelta = [0, 0, 6, 8, 6, 0, -6, -8, -6, 8, 8, 8];

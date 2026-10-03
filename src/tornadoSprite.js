@@ -19,16 +19,12 @@ import { SpriteUtils } from './spriteUtils.js';
 
 function TornadoSprite(map, spriteManager, random, x, y) {
   this.init(SpriteConstants.SPRITE_TORNADO, map, spriteManager, random, x, y);
-  this.width = 48;
-  this.height = 48;
-  this.xOffset = -24;
-  this.yOffset = -40;
   this.frame = 1;
   this.count = 200;
 }
 
 
-BaseSprite(TornadoSprite);
+BaseSprite(TornadoSprite, {width: 48, height: 48, xOffset: -24, yOffset: -40});
 
 
 var xDelta = [2, 3, 2, 0, -2, -3];

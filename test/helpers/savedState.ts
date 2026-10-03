@@ -11,21 +11,12 @@
  *
  */
 
-import { cityTools } from './cityTools.ts';
-import { EventEmitter } from './eventEmitter.js';
-import { QUERY_WINDOW_NEEDED } from './messages.ts';
-import { MiscUtils } from './miscUtils.js';
-import { QueryTool } from './queryTool.js';
+import { SaveData } from "../../headless/city";
 
-function GameTools(map) {
-  var tools = cityTools(map);
-  tools.query = new QueryTool(map);
-  EventEmitter(tools);
-
-  tools.query.addEventListener(QUERY_WINDOW_NEEDED, MiscUtils.reflectEvent.bind(tools, QUERY_WINDOW_NEEDED));
-
-  return tools;
+// A saved state with the fields the tests read or override, as Simulation.save writes them. docs/state-hash.md
+// lists every key.
+export interface InspectedSave extends SaveData {
+    simulation: SaveData["simulation"] & {phaseCycle: number, speedCycle: number};
+    budget: {autoBudget: boolean, awaitingValues: boolean};
+    sprites: {list: unknown[]};
 }
-
-
-export { GameTools };

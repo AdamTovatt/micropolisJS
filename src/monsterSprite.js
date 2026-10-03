@@ -20,10 +20,6 @@ import { DIRT, RIVER, WATER_HIGH } from "./tileValues.ts";
 
 function MonsterSprite(map, spriteManager, random, x, y) {
   this.init(SpriteConstants.SPRITE_MONSTER, map, spriteManager, random, x, y);
-  this.width = 48;
-  this.height = 48;
-  this.xOffset = -24;
-  this.yOffset = -24;
 
   if (x > SpriteUtils.worldToPix(map.width) / 2) {
     if (y > SpriteUtils.worldToPix(map.height) / 2)
@@ -46,7 +42,10 @@ function MonsterSprite(map, spriteManager, random, x, y) {
 }
 
 
-BaseSprite(MonsterSprite);
+BaseSprite(MonsterSprite, {width: 48, height: 48, xOffset: -24, yOffset: -24});
+
+
+MonsterSprite.prototype.extraSaveProps = ['_seenLand'];
 
 
 var xDelta = [ 2, 2, -2, -2, 0];

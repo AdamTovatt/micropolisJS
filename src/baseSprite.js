@@ -83,9 +83,6 @@ var init = function(type, map, spriteManager, random, x, y) {
   this.newDir = 0;
   this.step = 0;
   this.flag = 0;
-  this.turn = 0;
-  this.accel = 0;
-  this.speed = 100;
 };
 
 
@@ -102,15 +99,58 @@ var spriteNotInBounds = function() {
 };
 
 
-var base = {
-  init: init,
-  getFileName: getFileName,
-  spriteNotInBounds: spriteNotInBounds
+// A sprite's saved state. Its size and offsets are its type's, on the prototype, so they aren't saved.
+var saveProps = ['type', 'frame', 'x', 'y', 'origX', 'origY', 'destX', 'destY', 'count', 'soundCount', 'dir',
+                 'newDir', 'step', 'flag'];
+
+
+var getSaveProps = function() {
+  return saveProps.concat(this.extraSaveProps);
 };
 
 
-var BaseSprite = function(spriteConstructor) {
+var save = function() {
+  var data = {};
+  var props = this.getSaveProps();
+
+  for (var i = 0, l = props.length; i < l; i++)
+    data[props[i]] = this[props[i]];
+
+  return data;
+};
+
+
+var load = function(data) {
+  var props = this.getSaveProps();
+
+  for (var i = 0, l = props.length; i < l; i++) {
+    if (data[props[i]] === undefined)
+      throw new Error('A saved sprite has no ' + props[i]);
+
+    this[props[i]] = data[props[i]];
+  }
+};
+
+
+var base = {
+  init: init,
+  getFileName: getFileName,
+  spriteNotInBounds: spriteNotInBounds,
+  // State a sprite type holds beyond the common fields
+  extraSaveProps: [],
+  getSaveProps: getSaveProps,
+  save: save,
+  load: load
+};
+
+
+// geometry is the type's fixed size and drawing offset: {width, height, xOffset, yOffset}
+var BaseSprite = function(spriteConstructor, geometry) {
   spriteConstructor.prototype = Object.create(base);
+  spriteConstructor.prototype.width = geometry.width;
+  spriteConstructor.prototype.height = geometry.height;
+  spriteConstructor.prototype.xOffset = geometry.xOffset;
+  spriteConstructor.prototype.yOffset = geometry.yOffset;
   EventEmitter(spriteConstructor);
 };
 

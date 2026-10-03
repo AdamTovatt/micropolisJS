@@ -20,10 +20,6 @@ import * as TileValues from "./tileValues.ts";
 
 function BoatSprite(map, spriteManager, random, x, y) {
   this.init(SPRITE_SHIP, map, spriteManager, random, x, y);
-  this.width = 48;
-  this.height = 48;
-  this.xOffset = -24;
-  this.yOffset = -24;
 
   if (x < SpriteUtils.worldToPix(4))
     this.frame = 3;
@@ -42,7 +38,7 @@ function BoatSprite(map, spriteManager, random, x, y) {
 }
 
 
-BaseSprite(BoatSprite);
+BaseSprite(BoatSprite, {width: 48, height: 48, xOffset: -24, yOffset: -24});
 
 
 // This is an odd little function. It returns true if

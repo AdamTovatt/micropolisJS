@@ -22,12 +22,11 @@ var NUM_COMPLAINTS = 4;
 var problemData = [];
 
 
-var Evaluation = EventEmitter(function(gameLevel, random) {
+var Evaluation = EventEmitter(function(random) {
   this._random = random;
   this.problemVotes = [];
   this.problemOrder = [];
   this.evalInit();
-  this.gameLevel = '' + gameLevel;
 });
 
 
@@ -67,17 +66,32 @@ Evaluation.prototype.evalInit = function() {
 };
 
 
-var saveProps = ['cityClass', 'cityScore'];
+var saveProps = ['cityClass', 'cityScore', 'cityYes', 'cityPop', 'cityPopDelta', 'cityAssessedValue', 'cityClassLast',
+                 'cityScoreDelta'];
+
+var copyVotes = function(votes) {
+  return votes.map(function(vote) {
+    return {index: vote.index, voteCount: vote.voteCount};
+  });
+};
+
 
 Evaluation.prototype.save = function(saveData) {
+  var evaluation = {problemVotes: copyVotes(this.problemVotes), problemOrder: this.problemOrder.slice()};
   for (var i = 0, l = saveProps.length; i < l; i++)
-    saveData[saveProps[i]] = this[saveProps[i]];
+    evaluation[saveProps[i]] = this[saveProps[i]];
+
+  saveData.evaluation = evaluation;
 };
 
 
 Evaluation.prototype.load = function(saveData) {
+  var evaluation = saveData.evaluation;
   for (var i = 0, l = saveProps.length; i < l; i++)
-    this[saveProps[i]] = saveData[saveProps[i]];
+    this[saveProps[i]] = evaluation[saveProps[i]];
+
+  this.problemVotes = copyVotes(evaluation.problemVotes);
+  this.problemOrder = evaluation.problemOrder.slice();
 };
 
 

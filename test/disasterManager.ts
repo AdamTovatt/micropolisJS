@@ -13,12 +13,29 @@
 
 import { DisasterManager } from "../src/disasterManager.js";
 import { GameMap } from "../src/gameMap.js";
+import { Simulation } from "../src/simulation.js";
 import { BLBNBIT, BULLBIT } from "../src/tileFlags";
 import { DIRT, FIRSTRIVEDGE, FLOOD, RUBBLE, WOODS } from "../src/tileValues";
 import { streamAlwaysDrawing } from "./helpers/streams";
 
 
 describe("the disaster manager", () => {
+
+    // A draw of 1 is no disaster at any level, so the manager draws once and stops
+    it.each([
+        ["easy", Simulation.LEVEL_EASY, 479],
+        ["medium", Simulation.LEVEL_MED, 239],
+        ["hard", Simulation.LEVEL_HARD, 59],
+    ])("draws a disaster's chance from the %s level's odds", (_, level, odds) => {
+        const stream = streamAlwaysDrawing(1);
+        const getRandom = jest.spyOn(stream, "getRandom");
+        const manager = new DisasterManager(new GameMap(120, 100), null, stream);
+        manager.disastersEnabled = true;
+
+        manager.doDisasters(level, null);
+
+        expect(getRandom.mock.calls).toEqual([[odds]]);
+    });
 
     describe("when starting a flood", () => {
 
@@ -28,7 +45,7 @@ describe("the disaster manager", () => {
         const NEIGHBOURS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
         function makeDisasterManager(map: InstanceType<typeof GameMap>) {
-            return new DisasterManager(map, null, 0, streamAlwaysDrawing(RIVER_EDGE_X));
+            return new DisasterManager(map, null, streamAlwaysDrawing(RIVER_EDGE_X));
         }
 
         function makeMap(neighbourValue: number, neighbourFlags: number) {

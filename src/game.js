@@ -20,7 +20,6 @@ import { DebugWindow } from './debugWindow.js';
 import { DisasterWindow } from './disasterWindow.js';
 import { EvaluationWindow } from './evaluationWindow.js';
 import { GameCanvas } from './gameCanvas.js';
-import { GameMap } from './gameMap.js';
 import { InfoBar } from './infoBar.js';
 import { InputStatus } from './inputStatus.js';
 import * as Messages from './messages.ts';
@@ -34,6 +33,7 @@ import { ScreenshotLinkWindow } from './screenshotLinkWindow.js';
 import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.js';
 import { Simulation } from './simulation.js';
+import { SpeedControl } from './speedControl.ts';
 import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
@@ -45,30 +45,14 @@ import { WindowManager } from './windowManager.ts';
 var disasterTimeout = 20 * 1000;
 
 
-// gameMap is either a generated map, with seed the game seed it was generated from, or a saved game, with a null
-// seed: the save holds its own
-function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
-  difficulty = difficulty || 0;
-  var savedGame;
-
-  if (!gameMap.isSavedGame) {
-    this.gameMap = gameMap;
-    savedGame = null;
-  } else {
-    this.gameMap = new GameMap(120, 100);
-    savedGame = gameMap;
-  }
-
+// A game of the given simulation: Game.newGame and Game.fromSave build one
+function Game(simulation, tileSet, snowTileSet, spriteSheet, name, everClicked) {
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
-  this.defaultSpeed = Simulation.SPEED_MED;
-  this.simulation = new Simulation(this.gameMap, difficulty, this.defaultSpeed, seed, savedGame);
-
-  this.name = name || 'MyTown';
-  this.everClicked = false;
-
-  if (savedGame)
-    this.load(savedGame);
+  this.name = name;
+  this.everClicked = everClicked;
+  this.simulation = simulation;
+  this.gameMap = simulation.getMap();
 
   this.rci = new RCI('RCIContainer', this.simulation);
   this.statusPanel = new StatusPanel('statusPanel', this.simulation);
@@ -80,8 +64,9 @@ function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name
 
   this.mouse = null;
   this.lastCoord = null;
-  this.isPaused = false;
   this.lastBadMessageTime = null;
+
+  this.speedControl = new SpeedControl(this.simulation, this.inputStatus.showPaused.bind(this.inputStatus));
 
   var self = this;
   if (!this.everClicked) {
@@ -231,11 +216,18 @@ Game.prototype.save = function() {
 };
 
 
-Game.prototype.load = function(saveData) {
-  this.name = saveData.name;
-  this.everClicked = saveData.everClicked;
-  BaseTool.load(saveData);
-  this.simulation.load(saveData);
+// A new game on the map generated from the game seed, at the chosen level
+Game.newGame = function(map, seed, tileSet, snowTileSet, spriteSheet, difficulty, name) {
+  var simulation = new Simulation(map, difficulty || 0, Simulation.SPEED_MED, seed);
+  return new Game(simulation, tileSet, snowTileSet, spriteSheet, name || 'MyTown', false);
+};
+
+
+// A game restored from what Game.save wrote
+Game.fromSave = function(savedGame, tileSet, snowTileSet, spriteSheet) {
+  BaseTool.load(savedGame);
+  return new Game(Simulation.fromSave(savedGame), tileSet, snowTileSet, spriteSheet, savedGame.name,
+                  savedGame.everClicked);
 };
 
 
@@ -312,8 +304,7 @@ Game.prototype.handleSettingsWindowClosure = function(actions) {
         break;
 
       case SettingsWindow.SPEED:
-        this.defaultSpeed = a.data;
-        this.simulation.setSpeed(this.defaultSpeed);
+        this.speedControl.setRunningSpeed(a.data);
         break;
 
       case SettingsWindow.DISASTERS_CHANGED:
@@ -406,14 +397,15 @@ Game.prototype.handleBudgetRequest = function() {
 
 
 Game.prototype.handleEvalRequest = function() {
-  this.windows.open(this.evalWindow, this.simulation.evaluation);
+  this.windows.open(this.evalWindow, this.simulation.evaluation, this.simulation.getLevel());
 };
 
 
 Game.prototype.handleSettingsRequest = function() {
   this.windows.open(this.settingsWindow, {
-    autoBudget: this.simulation.budget.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(), speed: this.defaultSpeed,
-    disasters: this.simulation.disasterManager.disastersEnabled, seed: this.simulation.seed
+    autoBudget: this.simulation.budget.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(),
+    speed: this.speedControl.getRunningSpeed(), disasters: this.simulation.disasterManager.disastersEnabled,
+    seed: this.simulation.seed
   });
 };
 
@@ -478,15 +470,7 @@ Game.prototype.handleSave = function() {
 
 
 Game.prototype.handlePause = function() {
-  // XXX Currently only offer pause and run to the user
-  // No real difference among the speeds until we optimise
-  // the sim
-  this.isPaused = !this.isPaused;
-
-  if (this.isPaused)
-    this.simulation.setSpeed(Simulation.SPEED_PAUSED);
-  else
-    this.simulation.setSpeed(this.defaultSpeed);
+  this.speedControl.togglePause();
 };
 
 
@@ -619,11 +603,12 @@ var tick = function() {
 
 
 var commonAnimate = function() {
+  var paused = this.simulation.isPaused();
   var sprites = this.calculateSpritesForPaint(this.gameCanvas);
-  this.gameCanvas.paint(this.mouse, sprites, this.isPaused);
+  this.gameCanvas.paint(this.mouse, sprites, paused);
 
   sprites = this.calculateSpritesForPaint(this.monsterTV.canvas);
-  this.monsterTV.paint(sprites, this.isPaused);
+  this.monsterTV.paint(sprites, paused);
 
   nextFrame(this.animate);
 };
