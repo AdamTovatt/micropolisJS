@@ -62,6 +62,6 @@ export const townCommands: Command[] = [
 // Its checkpoints are its golden hashes: the town as built, and after its run
 export const town = builtFixture(
   "A small powered town of twenty zones, with a coal plant, an airport and a railway", townCommands, [
-    {step: 0, hash: "dbbb58b0ec5af2e94f98affa36610bf8459143ffae1434ae25775ac5463c76c8"},
-    {step: RUN_STEPS, hash: "d00793abc22eeb9545edff69c6e4191a43fd6dbe6af44977b3d65bd234d2a364"},
+    {step: 0, hash: "5cdc1d34c620776358d898cce347f5f9695eb9c60c3ea43f219f93ff355390f1"},
+    {step: RUN_STEPS, hash: "fc2caca66720707f94119cbf4941be114a5af46535d6005d05bdb4f839530182"},
   ]);

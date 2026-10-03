@@ -1,13 +1,13 @@
 {
   "checkpoints": [
-    {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"c78700d557ed157ab9b4d8f60945188a97f460658c16a83f6a692ee6a2c17901"},
-    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"463defe3ae51a6ed34b633e4a7a194c461b2cbbf2cd0807dab677a86eea4ac0f"},
-    {"stage":"Build while paused","step":5760,"commands":17,"hash":"1f51a3b5b7fed6bbb8c714aad67c2e466d16d40c8ac03acaf5d90a4670d1c16c"},
-    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"a486dc4152764ee26177005af7909c6488f63afb75fa6d44ae0876e787887094"},
-    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"5676803dfde1bb87b1770f2473003e8e5c47c3dc9b68cd45f6d1d40df2e92a16"},
-    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"1c81fa4921e0de3af235a17c96a3c54d398a364cf4757f21dff134d393ff864a"},
-    {"stage":"A fire, and the fire department's response","step":8928,"commands":28,"hash":"de2a8f7543de291027400587bbcfc5d646f0e40c62153039366d97a29fbaeaf3"},
-    {"stage":"Save, reload, and carry on","step":10080,"commands":28,"hash":"423814a2b43da158b034bdfdf0a74e43a58c46f253db6ac5a8346a8348c486fd"}
+    {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"96a4b76ad4670eee2c1ce9e573fbdaf3ce87a63802f7c0f2a05359078737b63e"},
+    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"23dde896bbd4951e55c1f77f760446433946e64cecba5b7812152ac56bd27eee"},
+    {"stage":"Build while paused","step":5760,"commands":17,"hash":"8c72e85c0a7fd42cbd5c4d63637ad27a4b4c7961f55b4328070c37ddb1981ea2"},
+    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"715cd2de9a7d09f0b9bb859dff23fcc8c0055489edf39640a79062d068fee62c"},
+    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"8ff91d42a20da1e55f44852f7501cbca3f89bdc49d30932c931c0943eadf9b24"},
+    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"bd17004267c41af94eb3b7a8baf6f894c5b3698b1014437012154669248b3d51"},
+    {"stage":"A fire, and the fire department's response","step":8928,"commands":28,"hash":"4a112fe3f6bdfa2655373d4096ab98d3d99b38e5f116a05c4a1c6ec95517014d"},
+    {"stage":"Save, reload, and carry on","step":10080,"commands":28,"hash":"251fef52a6f469a43f02c2c3a4bebd443a2ae7ba3dc077fffc37d40f82db8618"}
   ],
   "log": {
     "formatVersion": 1,
@@ -44,11 +44,11 @@
       {"step":8064,"player":"local","command":{"type":"triggerDisaster","kind":"fire"}}
     ],
     "checkpoints": [
-      {"step":0,"hash":"efae97e17a8f648bfc393c372e84506556e13fde55d4bae28c210d30bc4dab23"},
-      {"step":3600,"hash":"da52cc8fcf7c7d4c6557cd161b86a92058a6441f1bf0589a898ea35878701b2a"},
-      {"step":7200,"hash":"bca38f7d3fd7a276a08ff2baf4289c70b345b4d87e69bcb06ab45a54dc1f83e7"},
-      {"step":8928,"hash":"de2a8f7543de291027400587bbcfc5d646f0e40c62153039366d97a29fbaeaf3"},
-      {"step":10080,"hash":"423814a2b43da158b034bdfdf0a74e43a58c46f253db6ac5a8346a8348c486fd"}
+      {"step":0,"hash":"c8d63c5e8fd94165461a609bbed78358750ec2f55d396dab521ab34b830d6614"},
+      {"step":3600,"hash":"ff3871f9ddd8f68f89b41b9b96f5b42da8ecb91969f513b96eec8b726c487529"},
+      {"step":7200,"hash":"fd9c4934e493abdf5403513904cc757efef44b9bf1042f29ffca901e474e245c"},
+      {"step":8928,"hash":"4a112fe3f6bdfa2655373d4096ab98d3d99b38e5f116a05c4a1c6ec95517014d"},
+      {"step":10080,"hash":"251fef52a6f469a43f02c2c3a4bebd443a2ae7ba3dc077fffc37d40f82db8618"}
     ]
   }
 }

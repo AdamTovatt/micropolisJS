@@ -362,8 +362,8 @@ namespace Micropolis.Rules
             }
             else
             {
-                // Dirt carries no flag bits, so the cleared tree keeps its flags
-                map.SetTileValue(x, y, temp);
+                // The bare value 0, as the original writes it: dirt with no flags
+                map.SetTile(x, y, temp, 0);
             }
         }
 

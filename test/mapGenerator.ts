@@ -13,7 +13,8 @@
 
 import { MapGenerator } from "../src/mapGenerator.js";
 import { Random } from "../src/random";
-import { RIVER } from "../src/tileValues";
+import { BIT_MASK } from "../src/tileFlags";
+import { DIRT, RIVER } from "../src/tileValues";
 
 // Every tile's raw value, flags included
 function rawTiles(seed: number): number[] {
@@ -30,6 +31,16 @@ describe("the map generator", () => {
 
     it("generates a different map from a different seed", () => {
         expect(rawTiles(1234)).not.toEqual(rawTiles(1235));
+    });
+
+    // A lone tree is cleared to the bare value 0, as smoothTreesAt in generate.cpp writes it, so nothing on the map is
+    // burnable or bulldozable dirt
+    it("clears a lone tree to dirt without its flags", () => {
+        for (const seed of [0, 1, 2, 3, 4]) {
+            const flaggedDirt = rawTiles(seed).filter((raw) => (raw & BIT_MASK) === DIRT && raw !== DIRT);
+
+            expect({seed, flaggedDirt: flaggedDirt.length}).toEqual({seed, flaggedDirt: 0});
+        }
     });
 
     it("places each of a lake's plops at its offset from the lake, drawing x first", () => {

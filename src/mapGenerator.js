@@ -283,8 +283,9 @@ var smoothTreesAt = function(map, x, y, preserve) {
     }
     map.setTile(x, y, temp, BLBNBIT);
   } else {
+    // The bare value 0, as the original writes it: dirt with no flags
     if (!preserve)
-      map.setTileValue(x, y, temp, 0);
+      map.setTile(x, y, temp, 0);
   }
 };
 
