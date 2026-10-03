@@ -26,7 +26,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 // Without storage the session lasts as long as the page
-export function browserEnvironment(requestTimeoutMs = REQUEST_TIMEOUT_MS): CityClientEnvironment {
+export function browserCityEnvironment(requestTimeoutMs = REQUEST_TIMEOUT_MS): CityClientEnvironment {
   let memory: StoredSession | null = null;
 
   const store: SessionStore = {

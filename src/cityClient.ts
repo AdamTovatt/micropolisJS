@@ -70,6 +70,8 @@ type SessionCheck = "valid" | "rejected" | "unreachable";
 
 export class CityClient {
   private session: StoredSession | null = null;
+  // The name a sign-in was given while the server stopped answering, to sign in under once it answers again
+  private pendingName: string | null = null;
   private status: CityStatus = {online: false};
   private reconnectDelayMs = FIRST_RECONNECT_DELAY_MS;
   private readonly listeners: ((status: CityStatus) => void)[] = [];
@@ -88,6 +90,8 @@ export class CityClient {
 
   // Finds out whether a server answers, and connects with the stored session when it does. The stored name signs in
   // again when the server rejects the stored token; when the server refuses that name too, the player gives a new one.
+  // With no server answering the game is single-player, and nothing is retried; once one has answered, a sign-in
+  // that fails is retried until it succeeds.
   async start(): Promise<StartResult> {
     const stored = this.environment.store.load();
     const check = await this.checkSession(stored?.token ?? null);
@@ -105,7 +109,7 @@ export class CityClient {
       return "signed-in";
     }
 
-    const result = await this.renewSession(stored);
+    const result = await this.signInOnce(stored.name, stored.token);
 
     switch (result.outcome) {
       case "signed-in":
@@ -113,12 +117,42 @@ export class CityClient {
       case "rejected":
         return "needs-name";
       default:
+        this.scheduleReconnect();
         return "offline";
     }
   }
 
-  // Signs in as a new player under the name, and connects
+  // Signs in as a new player under the name, and connects, unless another tab of the browser has signed in since:
+  // tabs share the stored session, so this one joins as that player. When the server has stopped answering, the
+  // game starts single-player and the sign-in is retried.
   async signIn(name: string): Promise<SignInResult> {
+    const result = await this.signInOnce(name, null);
+
+    if (result.outcome === "offline") {
+      this.pendingName = name;
+      this.scheduleReconnect();
+    }
+
+    return result;
+  }
+
+  // Connects with the stored session if it is not the rejected one and the server accepts it, and otherwise signs in
+  // under the name. The tabs of a browser run this one at a time, so tabs whose token expired together, or that sign
+  // in together, become one player.
+  private signInOnce(name: string, rejectedToken: string | null): Promise<SignInResult> {
+    return this.environment.exclusively(async () => {
+      const stored = this.environment.store.load();
+
+      if (stored !== null && stored.token !== rejectedToken && await this.checkSession(stored.token) === "valid") {
+        this.connect(stored);
+        return {outcome: "signed-in"};
+      }
+
+      return this.postSignIn(name);
+    });
+  }
+
+  private async postSignIn(name: string): Promise<SignInResult> {
     let response: ResponseLike;
     let body: unknown;
 
@@ -177,21 +211,6 @@ export class CityClient {
     return "unreachable";
   }
 
-  // Signs in again under the rejected session's name, unless another tab already has. The tabs of a browser share
-  // the stored session, and run this one at a time, so tabs whose token expired together become one new player.
-  private renewSession(rejected: StoredSession): Promise<SignInResult> {
-    return this.environment.exclusively(async () => {
-      const stored = this.environment.store.load();
-
-      if (stored !== null && stored.token !== rejected.token && await this.checkSession(stored.token) === "valid") {
-        this.connect(stored);
-        return {outcome: "signed-in"};
-      }
-
-      return this.signIn(rejected.name);
-    });
-  }
-
   private connect(session: StoredSession): void {
     this.session = session;
     const socket = this.environment.openSocket(`${CITY_PATH}?access_token=${encodeURIComponent(session.token)}`);
@@ -236,26 +255,27 @@ export class CityClient {
   // Another tab signed in as this player may have stored a newer session, so the stored one comes first
   private async reconnect(): Promise<void> {
     const session = this.environment.store.load() ?? this.session;
+    let result: SignInResult | null = null;
 
-    if (session === null) {
-      return;
-    }
+    if (session !== null) {
+      const check = await this.checkSession(session.token);
 
-    const check = await this.checkSession(session.token);
-
-    if (check === "valid") {
-      this.connect(session);
-      return;
-    }
-
-    if (check === "rejected") {
-      const result = await this.renewSession(session);
-
-      // A name the server refuses is refused every time, so the client stays offline until the page loads again and
-      // asks for a new one
-      if (result.outcome === "signed-in" || result.outcome === "rejected") {
+      if (check === "valid") {
+        this.connect(session);
         return;
       }
+
+      if (check === "rejected") {
+        result = await this.signInOnce(session.name, session.token);
+      }
+    } else if (this.pendingName !== null) {
+      result = await this.signInOnce(this.pendingName, null);
+    }
+
+    // A name the server refuses is refused every time, so the client stays offline until the page loads again and
+    // asks for a new one
+    if (result?.outcome === "signed-in" || result?.outcome === "rejected") {
+      return;
     }
 
     this.scheduleReconnect();
