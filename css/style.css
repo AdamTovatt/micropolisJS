@@ -418,45 +418,35 @@ main {
   color: dodgerblue;
 }
 
+/* The splash's contents stack in flow, so that its text and the map preview can't overlap however the text wraps. It
+   is as wide as the map row, which can't wrap, and the text wraps to fit. */
 #splash {
   position: absolute;
-  width: 540px;
-  height: 480px;
-}
-
-#splashButton {
-  margin-bottom: 10px;
+  width: min-content;
 }
 
 #splashButtons {
-  position: absolute;
-  left: 10px;
-  top: 105px;
+  margin-left: 20px;
 }
 
-#splashButtonContainer {
-  position: absolute;
-  top: 90px;
-  left: 390px;
-}
-
-#splashContainer {
-  position: absolute;
-  top: 90px;
-  left: 20px;
+#splashContainer canvas {
+  display: block;
 }
 
 #splashCredits {
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 10px;
+  margin-top: 15px;
   font-size: 12px;
 }
 
 #splashGenerate {
   background-color: dodgerBlue;
   color: white
+}
+
+#splashMapRow {
+  display: flex;
+  align-items: center;
+  margin: 10px 10px 0;
 }
 
 #splashPlay {
@@ -542,11 +532,6 @@ main {
   right: 0;
   display: none;
   z-index: 200;
-}
-
-#tw {
-  position: absolute;
-  top: 300px;
 }
 
 #tvContainer {
@@ -695,10 +680,6 @@ main {
   #statusPanel {
     top: 310px;
   }
-
-  #tw {
-    top: 280px;
-  }
 }
 
 @media (max-height: 672px) {
@@ -724,10 +705,6 @@ main {
 
   #statusPanel {
     top: 290px;
-  }
-
-  #tw {
-    top: 260px;
   }
 }
 
@@ -763,10 +740,6 @@ main {
     top: 270px;
     max-height: 160px;
   }
-
-  #tw {
-    top: 240px;
-  }
 }
 
 @media (max-height: 612px) {
@@ -793,10 +766,6 @@ main {
   #statusPanel {
     top: 240px;
     max-height: 130px;
-  }
-
-  #tw {
-    display: none;
   }
 }
 
