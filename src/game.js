@@ -33,7 +33,7 @@ import { OverlayPicker, pageOverlaySource } from './overlayPicker.ts';
 import { QueryWindow } from './queryWindow.js';
 import { RCI } from './rci.js';
 import { SaveWindow } from './saveWindow.js';
-import { ScreenshotLinkWindow } from './screenshotLinkWindow.js';
+import { ScreenshotLinkWindow } from './screenshotLinkWindow.ts';
 import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.js';
 import { Simulation } from './simulation.js';
