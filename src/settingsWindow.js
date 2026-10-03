@@ -35,6 +35,7 @@ var speedMedID = '#speedMed';
 var speedFastID = '#speedFast';
 var disastersYesID = '#disastersYes';
 var disastersNoID = '#disastersNo';
+var seedID = '#settingsSeed';
 
 
 SettingsWindow.prototype.close = function(actions) {
@@ -105,6 +106,8 @@ SettingsWindow.prototype.open = function(settingsData) {
     $(disastersYesID).prop('checked', true);
   else
     $(disastersNoID).prop('checked', true);
+
+  $(seedID).text(settingsData.seed);
 
   this._toggleDisplay();
 };

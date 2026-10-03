@@ -157,7 +157,8 @@ function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name
   // ... the settings window
   this.handleSettingsRequest = makeWindowOpenHandler('settings', function() {
     return [{autoBudget: this.simulation.budget.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(),
-             speed: this.defaultSpeed, disasters: this.simulation.disasterManager.disastersEnabled}];
+             speed: this.defaultSpeed, disasters: this.simulation.disasterManager.disastersEnabled,
+             seed: this.simulation.seed}];
   }.bind(this));
   this.settingsWindow = new SettingsWindow(opacityLayerID, 'settingsWindow');
   this.settingsWindow.addEventListener(Messages.SETTINGS_WINDOW_CLOSED, this.handleSettingsWindowClosure.bind(this));
@@ -208,15 +209,14 @@ function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name
   // XXX Not yet activated
   //this.simulation.addEventListener(Messages.DATE_UPDATED, this.onDateChange.bind(this));
 
-  this.infoBar = InfoBar('cclass', 'population', 'score', 'funds', 'date', 'name', 'seed');
+  this.infoBar = InfoBar('cclass', 'population', 'score', 'funds', 'date', 'name');
   var initialValues = {
     classification: this.simulation.evaluation.cityClass,
     population: this.simulation.evaluation.cityPop,
     score: this.simulation.evaluation.cityScore,
     funds: this.simulation.budget.totalFunds,
     date: this.simulation.getDate(),
-    name: this.name,
-    seed: this.simulation.seed
+    name: this.name
   };
   this.infoBar(this.simulation, initialValues);
 
