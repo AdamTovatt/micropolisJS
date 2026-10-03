@@ -15,15 +15,27 @@ import { BulldozerTool } from "../src/bulldozerTool.js";
 import { cityTools } from "../src/cityTools";
 import { GameMap } from "../src/gameMap.js";
 import { ParkTool } from "../src/parkTool.js";
-import { BULLBIT, BNCNBIT, ZONEBIT } from "../src/tileFlags";
+import { BLBNBIT, BULLBIT, BNCNBIT, ZONEBIT } from "../src/tileFlags";
 import {
-    FOUNTAIN, FREEZ, LHPOWER, LVPOWER, LVPOWER2, LVPOWER4, LVPOWER5, RZB, TINYEXP, WOODS2,
+    DIRT, FOUNTAIN, FREEZ, LHPOWER, LVPOWER, LVPOWER2, LVPOWER4, LVPOWER5, REDGE, RIVER, ROADS, ROADS2, RZB, TINYEXP,
+    WOODS, WOODS2,
 } from "../src/tileValues";
 import { streamDrawing } from "./helpers/streams";
 
 // A tool's random choices change the city, so they come from the simulation's stream, passed to doTool
 
 const budget = {totalFunds: 20000, spend: () => {}};
+
+// A budget that notes what it is charged
+function chargedBudget() {
+    return {
+        totalFunds: 20000,
+        charged: 0,
+        spend(amount: number) {
+            this.charged += amount;
+        },
+    };
+}
 
 describe("the park tool", () => {
 
@@ -85,6 +97,55 @@ describe("the bulldozer", () => {
             }
         }
         expect(frames).toEqual([0, 1, 2, 2, 1, 0, 1, 1, 1]);
+    });
+
+    // As bulldozerTool in the original, whose connectTile fixes the connections around every tile it dozes, water or
+    // land: the road beside the river edge, still drawn as running up into a tile long gone, is fixed to run across
+    it("should fix the connections around river it dozes", () => {
+        const map = new GameMap(120, 100);
+        map.setTile(51, 50, REDGE, BULLBIT);
+        map.setTile(50, 50, ROADS2, BLBNBIT);
+        const tool = new BulldozerTool(map);
+
+        tool.doTool(51, 50, streamDrawing([]));
+        tool.modifyIfEnoughFunding(budget);
+
+        expect(tool.result).toBe(tool.TOOLRESULT_OK);
+        expect(map.getTileValue(51, 50)).toBe(DIRT);
+        expect(map.getTileValue(50, 50)).toBe(ROADS);
+    });
+
+    // As the original's doTool, which applies what a tool staged only when it succeeds: the fix around the river is
+    // staged, and dropped with the rest when the river, which can't be bulldozed, stays
+    it("should change nothing where it can't doze the river", () => {
+        const map = new GameMap(120, 100);
+        map.setTile(51, 50, RIVER, 0);
+        map.setTile(50, 50, ROADS2, BLBNBIT);
+        const tool = new BulldozerTool(map);
+
+        tool.doTool(51, 50, streamDrawing([]));
+        tool.modifyIfEnoughFunding(budget);
+
+        expect(tool.result).toBe(tool.TOOLRESULT_FAILED);
+        expect(map.getTile(51, 50).getRawValue()).toBe(RIVER);
+        expect(map.getTile(50, 50).getRawValue()).toBe(ROADS2 | BLBNBIT);
+    });
+
+    // Dozing costs 1, and water 5 more where the doze changes the tile
+    it.each([
+        ["a river edge", REDGE, 6],
+        ["woods", WOODS, 1],
+    ])("should charge for dozing %s what the original does", (_, tileValue, cost) => {
+        const map = new GameMap(120, 100);
+        map.setTile(51, 50, tileValue, BULLBIT);
+        const tool = new BulldozerTool(map);
+        const charged = chargedBudget();
+
+        tool.doTool(51, 50, streamDrawing([]));
+        tool.modifyIfEnoughFunding(charged);
+
+        expect(tool.result).toBe(tool.TOOLRESULT_OK);
+        expect(charged.charged).toBe(cost);
     });
 });
 
