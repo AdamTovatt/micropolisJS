@@ -64,7 +64,7 @@ Open the game with `?debug=1` in the URL for debug mode (`Config.debug`): an und
 
 ### The simulation cycle
 
-`Simulation.step()` is one loop, as `simLoop` in the original: `_simFrame()` gates on the game speed, then every sprite moves. The gate is the saved `_speedCycle` counter, which lets a phase through on every 5th step at slow speed, every 3rd at medium and every step at fast. A paused simulation's step does nothing. The step count, never wall time, advances the city. Each step that passes the gate runs `simulate()`, which advances one phase of a 16-phase cycle:
+`Simulation.step()` is one loop, as `simLoop` in the original: `_simFrame()` gates on the game speed, then every sprite moves. The gate is the saved `_speedCycle` counter, which lets a phase through on every 5th step at slow speed, every 3rd at medium and every step at fast. A paused simulation's step does nothing. While the budget awaits the player's values (`budget.awaitingValues`), the gate lets no phase through and holds `_speedCycle`, but sprites keep moving. The step count, never wall time, advances the city. Each step that passes the gate runs `simulate()`, which advances one phase of a 16-phase cycle:
 
 | Phase | Work |
 |-------|------|
@@ -85,7 +85,7 @@ Subsystems register handlers with `mapScanner.addAction(tileValueOrPredicate, ha
 - `gameMap.js` holds the tile grid. `tile.ts` is a tile's value plus flags (`tileFlags.ts`: powered, conductive, burnable, bulldozable, zone centre…). `tileValues.ts` names every tile id (`RIVER`, `CHANNEL`, `PORT`…).
 - `simulation.blockMaps` holds coarse overlays at block sizes 2, 4 or 8 (`blockMap.ts`): land value, pollution, crime, traffic density, population density, police and fire coverage, rate of growth. Each map's comment in the `Simulation` constructor states its range.
 - `simulation.random` is the simulation's random stream (`random.ts`), seeded from the game seed. The map generator draws from the same seed's map stream, so one seed reproduces map and city. The `random.ts` header specifies the stream, which the C# port reproduces bit for bit, and `test/random.ts` holds reference vectors computed by the reference C implementation.
-- Every stateful component but the sprite manager has `save(saveData)` and `load(saveData)`: sprites are not saved, so a loaded city starts with none in flight. A save holds the game seed and the stream's state. `storage.js` writes the combined object, versions it (`Storage.CURRENT_VERSION`) and migrates old saves (`transitionOldSave`). A change to saved state bumps the version and adds a migration step.
+- A save holds the map, the evaluation, the valves, the budget, the census, the simulation's speed, level, city time and `_speedCycle`, the game seed and the stream's state, each written by its component's `save(saveData)` and read back by its `load(saveData)`. Everything else is rebuilt or starts afresh on load: construction's scans recompute the block maps and the power grid, the 16-phase cycle starts again at phase 0, as the original's `doSimInit` does, and a loaded city has no sprites in flight. `storage.js` writes the combined object, versions it (`Storage.CURRENT_VERSION`) and migrates old saves (`transitionOldSave`). A change to saved state bumps the version and adds a migration step.
 
 ### Events
 

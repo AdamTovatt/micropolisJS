@@ -78,8 +78,8 @@ var floodFound = function(map, x, y, simData) {
 
 
 // The original's scan clears explosions from their middle frames on, as its map tiles step through the animation.
-// Here the map keeps an explosion's first frame and only the renderer animates it, so the whole range is cleared. An
-// explosion lasts until its column's next scan, which at fast speed can come before its animation ends
+// Here the map keeps the frame an explosion was placed with and only the renderer animates it, so the whole range is
+// cleared. An explosion lasts until its column's next scan, which at fast speed can come before its animation ends
 var explosionFound = function(map, x, y, simData) {
   map.setTo(x, y, TileUtils.randomRubble(simData.random));
 };
