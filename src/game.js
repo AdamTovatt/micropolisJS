@@ -24,7 +24,7 @@ import { DisasterWindow } from './disasterWindow.ts';
 import { ToolPaths } from './dragPath.ts';
 import { EvaluationWindow } from './evaluationWindow.ts';
 import { GameCanvas } from './gameCanvas.ts';
-import { InfoBar } from './infoBar.js';
+import { placeInfoBar } from './infoBar.ts';
 import { InputStatus } from './inputStatus.js';
 import * as Messages from './messages.ts';
 import { MonsterTV } from './monsterTV.ts';
@@ -158,7 +158,6 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   // XXX Not yet activated
   //this.simulation.addEventListener(Messages.DATE_UPDATED, this.onDateChange.bind(this));
 
-  this.infoBar = InfoBar('cclass', 'population', 'score', 'funds', 'date', 'name');
   var initialValues = {
     classification: this.simulation.evaluation.cityClass,
     population: this.simulation.evaluation.cityPop,
@@ -167,7 +166,7 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
     date: this.simulation.getDate(),
     name: this.name
   };
-  this.infoBar(this.simulation, initialValues);
+  this.infoBar = placeInfoBar(this.simulation, initialValues);
 
   this._notificationBar = placeNotificationBar(this.gameCanvas);
 
