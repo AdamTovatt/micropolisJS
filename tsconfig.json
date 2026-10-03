@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "es5",
-    "lib": ["es2020", "dom"],
+    "lib": ["es2020", "es2022.error", "dom"],
     "module": "commonjs",
     "allowJs": true,
     "outDir": "dist/src",

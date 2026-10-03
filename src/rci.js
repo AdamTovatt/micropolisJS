@@ -13,6 +13,7 @@
 
 import $ from "jquery";
 
+import { placeNewCanvas } from './domElements.ts';
 import { VALVES_UPDATED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 
@@ -43,18 +44,7 @@ function RCI(parentNode, eventSource, id) {
   this._rectSize = 5; // Each rect is 5px
   this._scale = Math.floor(2000 / this._buckets);
 
-  this._canvas = $('<canvas></canvas>', {id: id})[0];
-
-  // Remove any existing element with the same id
-  var elems = $(MiscUtils.normaliseDOMid(id));
-  var current = elems.length > 0 ? elems[0] : null;
-  if (current !== null) {
-    if (current.parentNode === parentNode)
-      parentNode.replaceChild(this._canvas, current);
-    else
-      throw new Error('ID ' + id + ' already exists in document!');
-  } else
-    parentNode.appendChild(this._canvas);
+  this._canvas = placeNewCanvas(parentNode, id);
 
   // We might be created before our container has appeared on screen
   this._initialisedBounds = false;

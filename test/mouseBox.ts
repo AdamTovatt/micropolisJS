@@ -11,31 +11,11 @@
  *
  */
 
-function TileHistory() {
-  this.clear();
-}
+import { mouseBoxRect } from "../src/mouseBox";
 
+describe("the mouse box", () => {
 
-var toKey = function(x, y) {
-  return [x, y].join(',');
-};
-
-
-TileHistory.prototype.clear = function() {
-  this.data = {};
-};
-
-
-TileHistory.prototype.getTile = function(x, y) {
-  var key = toKey(x, y);
-  return this.data[key];
-};
-
-
-TileHistory.prototype.setTile = function(x, y, value) {
-  var key = toKey(x, y);
-  this.data[key] = value;
-};
-
-
-export { TileHistory };
+    it("strokes a three pixel line half a line outside the area, so the line clears it", () => {
+        expect(mouseBoxRect({x: 32, y: 48}, 48, 64)).toEqual({x: 30.5, y: 46.5, width: 51, height: 67});
+    });
+});

@@ -14,7 +14,7 @@
 import $ from "jquery";
 
 import { EventEmitter } from './eventEmitter.js';
-import { GameCanvas } from './gameCanvas.js';
+import { GameCanvas } from './gameCanvas.ts';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 
