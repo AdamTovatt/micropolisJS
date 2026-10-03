@@ -18,18 +18,19 @@ This repository is Adam's private continuation. The aim is to grow it from a fai
 
 Work that pulls against this needs Adam's go before it starts.
 
-1. **A deterministic, headless simulation.** The simulation runs in Node without a DOM, advances by explicit ticks rather than wall-clock time, and produces the same city from the same seed and the same sequence of player commands. Everything below builds on this.
-2. **Server-authoritative multiplayer.** A server owns the simulation. Browsers send commands ("road from A to B", "set tax to 9%") and render the state the server sends back. A player edit is a command the simulation applies, never a direct write to the map from UI code.
-3. **A modernised codebase.** Legacy JavaScript moves to TypeScript module by module, and the jQuery UI is replaced.
-4. **Gameplay improvements on top of the original rules**, such as ships that sail to the seaport instead of wandering the channel at random.
-5. **Longer horizon, not planned in detail:** a richer generated world (climate and weather driven by parameters, natural resources, choosing where to found a city), several cities linked by road and rail, individually simulated residents, and LLM-driven notable residents whose behaviour may later be distilled into a small model of our own.
+1. **A deterministic, headless simulation.** The simulation runs without a DOM (in Node, and in C# after the port), advances by explicit ticks rather than wall-clock time, and produces the same city from the same seed and the same sequence of player commands. Everything below builds on this.
+2. **Server-authoritative multiplayer on a C# server.** The server owns the simulation. Browsers send commands ("road from A to B", "set tax to 9%") and render the state the server sends back. A player edit is a command the simulation applies, never a direct write to the map from UI code. Every player has the same powers: any player can issue any command, and the simulation never branches on who sent one.
+3. **The TypeScript simulation is the reference until the C# port replaces it.** Everything that changes or computes city state moves to C#: the simulation, sprite behaviour, map generation and the random stream, applying and validating commands, save and load. The port is correct when it reproduces the TypeScript simulation's state hash from the same seed, starting state and command log. Once it does, the TypeScript simulation is deleted and the C# code is the only home of the game rules. Command logs are both the end-to-end suite and the conformance suite: replayed headless and in the browser while the TypeScript simulation exists, and on the server after. Anything in the simulation that another language can't reproduce bit for bit is a defect.
+4. **The browser is the client.** It draws tiles and sprites, animates tiles, captures input (tool choice, the hover box, turning drags into tile paths) and shows the windows. It changes city state only by sending commands. Map overlays and query-tool data come from the server on request.
+5. **A modernised client.** Client code moves from JavaScript to TypeScript module by module, and the jQuery UI is replaced. Simulation modules are not converted: the C# port retires them.
+6. **Gameplay improvements on top of the original rules**, such as ships that sail to the seaport instead of wandering the channel at random. They are built in the C# simulation after the port, so each rule is written once.
+7. **Longer horizon, not planned in detail:** a richer generated world (climate and weather driven by parameters, natural resources, choosing where to found a city), several cities linked by road and rail, individually simulated residents, and LLM-driven notable residents whose behaviour may later be distilled into a small model of our own.
 
 ### Open decisions
 
 Ask before writing code that settles one of these; record the decision here when it is made.
 
-- **Server language.** TypeScript on Node reuses the simulation as it stands; a C# port of the simulation fits Adam's backend stack.
-- **Multiplayer shape.** One shared city run by several mayors, or neighbouring cities on one map. A shared city raises who controls the budget and taxes, and how pause and game speed work with more than one player.
+- **Multiplayer shape.** One shared city run by several mayors, or neighbouring cities on one map. Either way every player has the same powers; a shared city still has to settle how pause and game speed work with more than one player.
 
 ## Git
 
@@ -96,6 +97,7 @@ Subsystems register handlers with `mapScanner.addAction(tileValueOrPredicate, ha
 
 - **Deterministic.** Randomness comes only from `random.ts`; time comes only from the simulation's own counters (`_cityTime`, `_simCycle`, `_phaseCycle`). A `Math.random`, `Date` or `performance.now` read inside simulation code is a defect to fix, not a pattern to copy. UI code never draws from the simulation's random stream.
 - **No DOM.** No `window`, `document` or jQuery in simulation modules.
+- **Portable arithmetic.** No transcendental `Math` functions (`sqrt`, `pow`, `sin`, `log`…) in simulation code: their results can differ between runtimes. Arithmetic, `Math.floor` and `Math.round` are fine, provided the C# port mirrors JavaScript's `Math.round`, where halves round toward +∞ rather than to even.
 - **Rule changes are deliberate.** The original's numbers are tuned against each other. A change to how the city behaves is named as such in its commit, never folded into a refactor.
 
 ## The original as reference
@@ -104,7 +106,7 @@ The original C/C++ source is the behavioural reference: <https://github.com/SimH
 
 ## Code style
 
-- New modules are TypeScript. Convert a legacy module whole, together with its tests, rather than mixing styles inside one file.
+- New modules are TypeScript. Convert a legacy client module whole, together with its tests, rather than mixing styles inside one file. Legacy simulation modules are not converted, since the C# port retires them.
 - Imports name the file extension (`./tile.ts`, `./game.js`); webpack's `extensionAlias` resolves both.
 - `tsconfig.json` is strict, including `noUnusedLocals` and `noUnusedParameters`.
 - Every source file keeps the GPL and Micropolis header comment at the top, new files included.
