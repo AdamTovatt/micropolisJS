@@ -248,6 +248,13 @@ function lineToTheGrid(site: FireSite, grid: Set<number>, centre: Tile, road: Ti
   return null;
 }
 
+// The fire department's cover at the tile as the save holds it, from the last fire analysis
+export function savedFireCover(save: GameSave, tile: Tile): number {
+  const cover = (save.scannedState as {blockMaps: {fireStationEffectMap: number[]}}).blockMaps.fireStationEffectMap;
+  const blocksAcross = Math.ceil(save.map.width / FIRE_BLOCK_SIZE);
+  return cover[blocksAcross * Math.floor(tile.y / FIRE_BLOCK_SIZE) + Math.floor(tile.x / FIRE_BLOCK_SIZE)];
+}
+
 // A line as straight runs of at most longest tiles, each from its first tile to its last, in order: each a drag of the
 // line tool, or a click for a run of one
 export function runsOf(line: Tile[], longest: number): [Tile, Tile][] {

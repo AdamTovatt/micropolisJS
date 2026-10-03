@@ -13,7 +13,7 @@
 
 import type { GameSave, Tile } from "../e2e/player";
 import { chebyshev, Rect, tileAt, tilesAround, tilesIn } from "../e2e/savedMap";
-import { planStation, runsOf, StationPlan, STRONGEST_COVER } from "../e2e/stationSite";
+import { planStation, runsOf, savedFireCover, StationPlan, STRONGEST_COVER } from "../e2e/stationSite";
 import { BlockMap } from "../src/blockMap";
 import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { CONDBIT, ZONEBIT } from "../src/tileFlags";
@@ -198,6 +198,19 @@ describe("the fire stage's station plan", () => {
         expect(() => planStation(saveWith([...filled({left: 14, top: 8, right: 47, bottom: 31}, RIVER), [fire, FIRE]]),
                                  fire))
             .toThrow("No site near the fire at (30, 20)");
+    });
+});
+
+describe("the fire department's cover in a save", () => {
+
+    // Blocks of eight tiles a side, row by row: the 48 by 32 map is 6 blocks across
+    it("is the fire analysis's figure for the tile's block", () => {
+        const cover = new Array<number>(6 * 4).fill(0);
+        cover[6 * 2 + 3] = 218;
+        const save = {...saveWith([]), scannedState: {blockMaps: {fireStationEffectMap: cover}}};
+
+        expect([savedFireCover(save, {x: 24, y: 16}), savedFireCover(save, {x: 31, y: 23}),
+                savedFireCover(save, {x: 32, y: 23}), savedFireCover(save, {x: 31, y: 24})]).toEqual([218, 218, 0, 0]);
     });
 });
 
