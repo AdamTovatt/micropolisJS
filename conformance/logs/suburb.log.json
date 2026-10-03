@@ -1,0 +1,40 @@
+{
+  "formatVersion": 1,
+  "description": "The town without its airport and railway, with a fire and a police station",
+  "seed": 8,
+  "level": 0,
+  "entries": [
+    {"step":0,"player":"local","command":{"type":"tool","tool":"coal","path":[{"x":11,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":15,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":18,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":21,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":24,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":27,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":30,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":33,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":36,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":39,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":42,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":14,"y":15},{"x":15,"y":15},{"x":16,"y":15},{"x":17,"y":15},{"x":18,"y":15},{"x":19,"y":15},{"x":20,"y":15},{"x":21,"y":15},{"x":22,"y":15},{"x":23,"y":15},{"x":24,"y":15},{"x":25,"y":15},{"x":26,"y":15},{"x":27,"y":15},{"x":28,"y":15},{"x":29,"y":15},{"x":30,"y":15},{"x":31,"y":15},{"x":32,"y":15},{"x":33,"y":15},{"x":34,"y":15},{"x":35,"y":15},{"x":36,"y":15},{"x":37,"y":15},{"x":38,"y":15},{"x":39,"y":15},{"x":40,"y":15},{"x":41,"y":15},{"x":42,"y":15},{"x":43,"y":15},{"x":44,"y":15}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":15,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":18,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":21,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":24,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":27,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":30,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":33,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":36,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":39,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":42,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":14,"y":19},{"x":15,"y":19},{"x":16,"y":19},{"x":17,"y":19},{"x":18,"y":19},{"x":19,"y":19},{"x":20,"y":19},{"x":21,"y":19},{"x":22,"y":19},{"x":23,"y":19},{"x":24,"y":19},{"x":25,"y":19},{"x":26,"y":19},{"x":27,"y":19},{"x":28,"y":19},{"x":29,"y":19},{"x":30,"y":19},{"x":31,"y":19},{"x":32,"y":19},{"x":33,"y":19},{"x":34,"y":19},{"x":35,"y":19},{"x":36,"y":19},{"x":37,"y":19},{"x":38,"y":19},{"x":39,"y":19},{"x":40,"y":19},{"x":41,"y":19},{"x":42,"y":19},{"x":43,"y":19},{"x":44,"y":19}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":44,"y":16},{"x":44,"y":17},{"x":44,"y":18}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":13,"y":16}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":44,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"fire","path":[{"x":46,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"police","path":[{"x":46,"y":16}],"autoBulldoze":true}}
+  ],
+  "checkpoints": [
+    {"step":0,"hash":"fa08081b6f968bd5bf255a57c4bbe78dac6169496f8928c1ea1d98b9aee03a2f"},
+    {"step":6912,"hash":"83a84e849dc7bbbd557feb4a476f2d52946075acd8db4b8e276f0d3c0dac4f00"}
+  ]
+}

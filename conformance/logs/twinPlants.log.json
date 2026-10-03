@@ -1,0 +1,14 @@
+{
+  "formatVersion": 1,
+  "description": "Two coal plants side by side, with nothing else built",
+  "seed": 8,
+  "level": 0,
+  "entries": [
+    {"step":0,"player":"local","command":{"type":"tool","tool":"coal","path":[{"x":11,"y":11}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"coal","path":[{"x":15,"y":11}],"autoBulldoze":true}}
+  ],
+  "checkpoints": [
+    {"step":0,"hash":"d75e7922d6b7914bfef42b17d70bfdda1c56577c5cfa1c66de4d5c564bce2456"},
+    {"step":6912,"hash":"9958a8868b4718086aa2383945495cd1cbc4d239b7c35465b0546fcb270db210"}
+  ]
+}

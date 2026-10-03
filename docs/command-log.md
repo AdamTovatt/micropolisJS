@@ -3,7 +3,8 @@
 A command log records a city's session: where the city started, every command it was sent, and the state hashes it
 reached along the way. Replaying a log reproduces the city, so logs are the end-to-end suite and the conformance
 suite (`CLAUDE.md`, Direction 3): replayed headless and in the browser while the TypeScript simulation exists, and on
-the server after. `src/commandLog.ts` reads and writes them, and `headless/runner.ts` replays them.
+the server after. `src/commandLog.ts` reads and writes them, and `headless/runner.ts` replays them. In C#, the
+game-rules tests read and replay the logs under `conformance/logs/` (`conformance/README.md`).
 
 ## The file
 
@@ -18,8 +19,9 @@ A log is a JSON object:
 | `entries` | The commands, in the order they were applied |
 | `checkpoints` | The state hashes to check, in order of step |
 
-A log has exactly one of `seed` and `save`. A log that builds on a fixture starts from the fixture's built state,
-`conformance/saves/<name>.built.json`, as its `save`.
+A log has exactly one of `seed` and `save`, and a `level` only with a `seed`. It holds no other key: `parseLog` ignores
+one, and a `level` beside a `save`, while the C# tests' reader refuses both. A log that builds on a fixture starts
+from the fixture's built state, `conformance/saves/<name>.built.json`, as its `save`.
 
 The format version covers the file and the commands it holds: a change to the file's keys, or to the commands, their
 fields or what they accept, is a new version, since a replayer of the old one would read the log differently. A
@@ -77,7 +79,8 @@ fails.
 - **Fixtures.** Each fixture in `headless/fixtures/` is a log whose checkpoints are its golden hashes: one at step 0,
   of the city as its log builds it, and one after a fixed run. A fixture that needs what no command places starts
   from a save instead: the city another fixture's commands build, with its script's writes. `npm run fixtures`
-  exports each as `headless/fixtures/export/<name>.log.json`.
+  exports each as `headless/fixtures/export/<name>.log.json`, and `npm run conformance` writes those the C# replays
+  to `conformance/logs/`.
 - **The end-to-end playthrough.** The runner downloads each session's log from the debug window and joins them into
   one from the seed (`joinSessions`): a session that loaded the save the one before it ended on carries on its steps,
   with no entry for the load. A joined session may apply no command before its first step: the joined log takes its

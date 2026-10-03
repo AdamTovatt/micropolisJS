@@ -25,23 +25,26 @@ import { fixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index
 import { builtSave, fixtureLog, replay, startFromSave } from "../headless/runner";
 import { BlockMap } from "../src/blockMap";
 import { canonicalJson } from "../src/canonicalJson";
+import { Checkpoint, CommandLog, parseLog } from "../src/commandLog";
+import { StampedCommand } from "../src/commandQueue";
 import { Commercial } from "../src/commercial.js";
 import { GameMap } from "../src/gameMap.js";
 import { Industrial } from "../src/industrial.js";
 import { MapGenerator } from "../src/mapGenerator.js";
 import * as Messages from "../src/messages";
 import { Position } from "../src/position";
-import { CITY_CLASSES, DISASTER_KINDS, OUTCOMES, SCORE_REASONS, TOOL_NAMES } from "../src/protocol";
+import { CITY_CLASSES, DISASTER_KINDS, LOCAL_PLAYER, OUTCOMES, SCORE_REASONS, TOOL_NAMES } from "../src/protocol";
 import { Random } from "../src/random";
 import { Residential } from "../src/residential.js";
 import { SaveFormat } from "../src/savedGame";
 import { SPRITE_EXPLOSION, SPRITE_SHIP } from "../src/spriteConstants";
-import { hashSavedState, plainSavedState, savedState } from "../src/stateHash";
+import { hashSavedState, plainSavedState, savedState, stateHash } from "../src/stateHash";
 import { Tile } from "../src/tile";
 import * as TileFlags from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import * as TileValues from "../src/tileValues";
 import { Traffic } from "../src/traffic.js";
+import { isRecord } from "../src/validation";
 import { ZoneUtils } from "../src/zoneUtils.js";
 import { CityRun, describeStart, recordRun, RunStart } from "./cityRuns";
 import { COMMAND_CASES } from "./commandCases";
@@ -67,6 +70,10 @@ function writeFile(name: string, lines: string[]): void {
 
 // One JSON value per line, in a list
 function listLines(key: string, values: unknown[], last: boolean): string[] {
+  if (values.length === 0) {
+    return [`  ${JSON.stringify(key)}: []${last ? "" : ","}`];
+  }
+
   return [
     `  ${JSON.stringify(key)}: [`,
     ...values.map((value, i) => `    ${JSON.stringify(value)}${i < values.length - 1 ? "," : ""}`),
@@ -887,6 +894,93 @@ const REJECTION_REASONS = [
   `the disaster is one of ${DISASTER_KINDS.join(", ")}`,
 ];
 
+// --- logs/: command logs, which the C# replays to every checkpoint
+
+const LOGS_DIRECTORY = "logs";
+
+// Whether the C# can replay a fixture's log while the disasters' triggers are stand-ins (PortStandIns.cs) and it runs
+// no sprite: the log of a sprite-free fixture, whose golden run the runs check creates no sprite, that triggers no
+// disaster. The filter goes once those are ported, and every fixture's log is written.
+function replayableWithoutSpritesOrDisasters(name: string): boolean {
+  return spriteFreeFixtureNames().includes(name) &&
+         !fixtureLog(name).entries.some((entry) => isRecord(entry.command) && entry.command.type === "triggerDisaster");
+}
+
+// A log that is no fixture's: the suburb's, with commands sent partway through its run, as a fixture's log, whose
+// commands all precede its first step, never has. One step pauses the city, takes a command and resumes it.
+const MID_RUN_LOG = "suburbMidRun";
+
+const MID_RUN_BASE = "suburb";
+
+const MID_RUN_ENTRIES: StampedCommand[] = [
+  {step: 100, player: LOCAL_PLAYER, command: {type: "addFunds"}},
+  {step: 700, player: LOCAL_PLAYER, command: {type: "tool", tool: "residential", path: [{x: 33, y: 21}], autoBulldoze: true}},
+  {step: 700, player: LOCAL_PLAYER, command: {
+    type: "tool", tool: "road", path: [{x: 31, y: 23}, {x: 32, y: 23}, {x: 33, y: 23}, {x: 34, y: 23}, {x: 35, y: 23}],
+    autoBulldoze: true,
+  }},
+  {step: 1200, player: LOCAL_PLAYER, command: {type: "setSpeed", speed: Speed.paused}},
+  {step: 1200, player: LOCAL_PLAYER, command: {type: "setBudget", tax: 12}},
+  {step: 1200, player: LOCAL_PLAYER, command: {type: "setSpeed", speed: Speed.fast}},
+];
+
+const MID_RUN_STEPS = 2000;
+
+// The mid-run log, with a checkpoint where it starts, at each step that applies commands, after them, and at its last
+// step, each the state hash of the TypeScript's replay to it: a command applied a step early or late moves the hash at
+// its own step
+async function midRunLog(): Promise<CommandLog> {
+  const base = fixtureLog(MID_RUN_BASE);
+  const unchecked: CommandLog = {
+    ...base, description: `The ${MID_RUN_BASE} fixture's log with commands sent partway through its run`,
+    entries: [...base.entries, ...MID_RUN_ENTRIES], checkpoints: [],
+  };
+
+  const results = replay(unchecked, {to: MID_RUN_STEPS, verify: false}).results.slice(base.entries.length);
+  ensureCovers(results.every((result) => result.outcome === "ok"), "a command applied partway through a run");
+
+  const steps = Array.from(new Set([0, ...MID_RUN_ENTRIES.map((entry) => entry.step), MID_RUN_STEPS]));
+  const checkpoints: Checkpoint[] = [];
+  for (const step of steps) {
+    checkpoints.push({step, hash: await stateHash(replay(unchecked, {to: step, verify: false}).city)});
+  }
+
+  return {...unchecked, checkpoints};
+}
+
+// A log in the game's format, laid out a line to each entry and each checkpoint, so a diff shows which moved, and a save
+// it starts from on one line
+function logLines(log: CommandLog): string[] {
+  const {entries, checkpoints, ...start} = log;
+
+  return [
+    "{",
+    ...Object.entries(start).map(([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)},`),
+    ...listLines("entries", entries, false),
+    ...listLines("checkpoints", checkpoints, true),
+    "}",
+  ];
+}
+
+async function writeLogs(): Promise<void> {
+  fs.mkdirSync(path.join(CONFORMANCE_DIRECTORY, LOGS_DIRECTORY));
+
+  const logs: [string, CommandLog][] = fixtureNames().filter(replayableWithoutSpritesOrDisasters)
+    .map((name) => [name, fixtureLog(name)]);
+  logs.push([MID_RUN_LOG, await midRunLog()]);
+
+  for (const [name, log] of logs) {
+    const file = path.join(LOGS_DIRECTORY, `${name}.log.json`);
+    writeFile(file, logLines(log));
+
+    // Fails unless the file, read back as a replayer reads it, replays to every checkpoint
+    await replay(parseLog(JSON.parse(fs.readFileSync(path.join(CONFORMANCE_DIRECTORY, file), "utf8")))).verified;
+  }
+
+  ensureCovers(logs.some(([, log]) => "seed" in log), "a log that starts from a seed");
+  ensureCovers(logs.some(([, log]) => "save" in log), "a log that starts from a save");
+}
+
 // --- runs/: cities run at each speed, with their state hashes in plain text and their events gzipped
 
 const RUNS_DIRECTORY = "runs";
@@ -998,6 +1092,7 @@ function clearWritten(): void {
 
   fs.rmSync(path.join(CONFORMANCE_DIRECTORY, SAVES_DIRECTORY), {recursive: true, force: true});
   fs.rmSync(path.join(CONFORMANCE_DIRECTORY, MIGRATED_DIRECTORY), {recursive: true, force: true});
+  fs.rmSync(path.join(CONFORMANCE_DIRECTORY, LOGS_DIRECTORY), {recursive: true, force: true});
 }
 
 async function main() {
@@ -1013,6 +1108,7 @@ async function main() {
   writeFile("speedGate.json", await speedGateLines());
   writeFile("commands.json", await commandLines());
   writeMigrated();
+  await writeLogs();
   await writeSnapshots();
   await writeRuns(maps.map((map) => map.seed));
 }

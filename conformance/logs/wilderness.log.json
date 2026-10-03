@@ -1,0 +1,11 @@
+{
+  "formatVersion": 1,
+  "description": "Seed 8's map with nothing built",
+  "seed": 8,
+  "level": 0,
+  "entries": [],
+  "checkpoints": [
+    {"step":0,"hash":"464e4fd88b7a6bdb3e511da11e7d920c7b06e609b6d6a88b63786ed8ef0f685b"},
+    {"step":6912,"hash":"817d4860b30fd2d2bc3f476a0fba5abc38023c0bfc14473c5dcca4c8b31d25f9"}
+  ]
+}
