@@ -16,7 +16,7 @@ import { appendElement, requiredElement } from "./domElements";
 import { CITY_STATUS_UPDATED } from "./messages";
 import { Text } from "./text";
 
-interface CityStatusSource {
+export interface CityStatusSource {
   addEventListener(event: string, listener: (status: CityStatus) => void): void;
 }
 

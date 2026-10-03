@@ -21,6 +21,12 @@ import { Storage } from "./storage";
 // changes city state only through the commands the game sends and the step the driver calls: input reaches the game as
 // real mouse and keyboard.
 
+// What the hook needs of the game's simulation
+export interface HookedSimulation extends ClockedSimulation {
+  addEventListener(event: string, listener: () => void): void;
+  removeEventListener(event: string, listener: () => void): void;
+}
+
 // What the hook needs of the game
 interface HookedGame {
   stepDriver: StepDriver;
@@ -30,10 +36,7 @@ interface HookedGame {
   sendToolPaths(): void;
   commandQueue: {applyCommands(): unknown};
   saveData(): object;
-  simulation: ClockedSimulation & {
-    addEventListener(event: string, listener: () => void): void;
-    removeEventListener(event: string, listener: () => void): void;
-  };
+  simulation: HookedSimulation;
   gameCanvas: {getTileOrigin(): {x: number, y: number}};
   tileSet: {tileWidth: number};
 }

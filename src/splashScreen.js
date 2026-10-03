@@ -14,7 +14,7 @@
 import $ from "jquery";
 
 import { Config } from './config.js';
-import { Game } from './game.js';
+import { Game } from './game.ts';
 import { MapGenerator } from './mapGenerator.js';
 import { Random } from './random.ts';
 import { SplashCanvas } from './splashCanvas.ts';
