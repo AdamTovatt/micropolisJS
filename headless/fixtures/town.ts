@@ -11,9 +11,9 @@
  *
  */
 
-import { Command, ToolName } from "../../src/protocol";
+import { Command } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
-import { buildingAt, lineOf } from "./toolCommands";
+import { buildingAt, lineOf, zoneRow } from "./toolCommands";
 
 // A small powered town: two rows of ten zones either side of a road, a coal plant at the west end, and an airport
 // and a railway to the south, which bring planes, a helicopter and trains. It has no police or fire station: their
@@ -26,26 +26,16 @@ const TOP = 12;
 const ZONES_PER_ROW = 10;
 const RIGHT = LEFT + 3 * ZONES_PER_ROW;
 
-// R residential, C commercial, I industrial
-const ZONE_TOOLS: Record<string, ToolName> = {R: "residential", C: "commercial", I: "industrial"};
 const NORTH_ROW = "RRCRRCRRCR";
 const SOUTH_ROW = "IIIRRCRRII";
-
-function zoneRow(kinds: string, top: number): Command[] {
-  if (kinds.length !== ZONES_PER_ROW) {
-    throw new Error(`A row has ${ZONES_PER_ROW} zones, got ${kinds}`);
-  }
-
-  return Array.from(kinds, (kind, i) => buildingAt(ZONE_TOOLS[kind], LEFT + 3 * i + 1, top + 1));
-}
 
 // The commands that build the town's plant, zones and roads, which create no sprites
 export const zonedTownCommands: Command[] = [
   // The plant's east side touches the north row's first zone
   buildingAt("coal", LEFT - 3, TOP + 1),
-  ...zoneRow(NORTH_ROW, TOP),
+  ...zoneRow(NORTH_ROW, LEFT, TOP),
   lineOf("road", LEFT, TOP + 3, RIGHT, TOP + 3),
-  ...zoneRow(SOUTH_ROW, TOP + 4),
+  ...zoneRow(SOUTH_ROW, LEFT, TOP + 4),
   lineOf("road", LEFT, TOP + 7, RIGHT, TOP + 7),
   lineOf("road", RIGHT, TOP + 4, RIGHT, TOP + 6),
 
@@ -76,5 +66,5 @@ export const stations: Command[] = [
 export const town = builtFixture(
   "A small powered town of twenty zones, with a coal plant, an airport and a railway", townCommands, [
     {step: 0, hash: "5cdc1d34c620776358d898cce347f5f9695eb9c60c3ea43f219f93ff355390f1"},
-    {step: RUN_STEPS, hash: "e0dd6bc72138fec739fc93db7a0714277b6adafa1fa17515a50110a5929611f5"},
+    {step: RUN_STEPS, hash: "334159ae1c03295c6292ce0d728be49e6ffaaf1a157e41a0e59f35f33d0154fa"},
   ]);

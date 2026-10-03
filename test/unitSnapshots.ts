@@ -12,7 +12,9 @@
  */
 
 import { SNAPSHOT_POINTS } from "../conformance/snapshotPoints";
-import { recordSnapshots, SnapshotPoint, SnapshotRecord, unrecorded } from "../conformance/unitSnapshots";
+import {
+    recordSnapshots, replaceMethod, SnapshotPoint, SnapshotRecord, unrecorded,
+} from "../conformance/unitSnapshots";
 import { cityFromSave, SaveData } from "../headless/city";
 import { fixtureNamesOf, spriteFreeFixtureNames } from "../headless/fixtures/index";
 import { fixtureLog, replay } from "../headless/runner";
@@ -143,5 +145,25 @@ describe("the snapshot points", () => {
         const named = Array.from(new Set(SNAPSHOT_POINTS.map((point) => point.fixture)));
 
         expect(named.filter((fixture) => !spriteFree.includes(fixture))).toEqual([]);
+    });
+});
+
+describe("a method replaced to watch it", () => {
+
+    // A method that has been renamed would otherwise go unwatched, and a check that it was never called would pass
+    it("fails when the object has no method of that name", () => {
+        expect(() => replaceMethod({}, "renamed", (original) => original)).toThrow("No method named renamed to replace");
+    });
+
+    it("is restored as the object's own, or as what it inherits", () => {
+        const proto = {inherited: () => "inherited"};
+        const owner = Object.assign(Object.create(proto), {own: () => "own"});
+
+        const restores = ["own", "inherited"].map((name) => replaceMethod(owner, name, () => () => "replaced"));
+        expect([owner.own(), owner.inherited()]).toEqual(["replaced", "replaced"]);
+
+        restores.forEach((restore) => restore());
+        expect([owner.own(), owner.inherited()]).toEqual(["own", "inherited"]);
+        expect(Object.keys(owner)).toEqual(["own"]);
     });
 });

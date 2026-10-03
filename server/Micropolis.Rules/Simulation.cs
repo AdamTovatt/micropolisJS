@@ -123,7 +123,7 @@ namespace Micropolis.Rules
             DisasterManager = new DisasterManager(map, Random);
             MapScanner = new MapScanner(map);
             RepairManager = new RepairManager(map);
-            TrafficManager = new Traffic(map);
+            TrafficManager = new Traffic(map, SpriteManager, Random);
             Init();
         }
 

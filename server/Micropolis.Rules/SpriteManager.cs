@@ -94,7 +94,10 @@ namespace Micropolis.Rules
             }
         }
 
-        private static long WorldToPix(int w)
+        /// <summary>
+        /// The pixel coordinate of a tile coordinate, as <c>SpriteUtils.worldToPix</c>.
+        /// </summary>
+        internal static long WorldToPix(int w)
         {
             // JavaScript's << on an int32
             return w << 4;

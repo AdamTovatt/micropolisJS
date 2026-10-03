@@ -30,18 +30,18 @@ function fixture(description: string, commands: Command[], checkpoints: Checkpoi
 export const suburb = fixture(
   "The town without its airport and railway, with a fire and a police station", [], [
     {step: 0, hash: "fa08081b6f968bd5bf255a57c4bbe78dac6169496f8928c1ea1d98b9aee03a2f"},
-    {step: RUN_STEPS, hash: "b576eba3031d3f2e08e34097782dabd69e196b98b3bfee7d36502b4d501c5407"},
+    {step: RUN_STEPS, hash: "83a84e849dc7bbbd557feb4a476f2d52946075acd8db4b8e276f0d3c0dac4f00"},
   ]);
 
 // The suburb at slow and at fast speed, which gate the scans of phases 11 to 15 on other cycles than medium speed does
 export const suburbSlow = fixture("The suburb at slow speed", [{type: "setSpeed", speed: SPEEDS.slow}], [
   {step: 0, hash: "97e7f14cefc13d584c4dd092cce2f08630d2c27e59ba647a631f38433ab2e1da"},
-  {step: RUN_STEPS, hash: "7adbf3e477967434a684002378a6d6ee6dd4ddb7a4da900e33f69a1a027aff04"},
+  {step: RUN_STEPS, hash: "74327c35bf9616121078d4ed6222e9de82451b2c6423c8b12207ca0a676e9b89"},
 ]);
 
 export const suburbFast = fixture("The suburb at fast speed", [{type: "setSpeed", speed: SPEEDS.fast}], [
   {step: 0, hash: "e4d4f8483402ca579b6e755b07294e528cac70ee369c9348eb8e5fe15369a6c7"},
-  {step: RUN_STEPS, hash: "f01ff37076811c3f7fd52354c936f8a5f934bfbcdfe01b58a895268a39287dcd"},
+  {step: RUN_STEPS, hash: "f50a8985b33d4976e4451dcfd6acd80201d57990a8114cb45e78e05829c514cc"},
 ]);
 
 // With auto-budget off, each year end pays every service at the share the player chose
@@ -51,7 +51,7 @@ export const suburbUnderfunded = fixture(
     {type: "setBudget", road: 60, fire: 40, police: 75, tax: 7},
   ], [
     {step: 0, hash: "490672ef0a69fe227a02ec583a0a5676ce83449ad7f077d3b8074eee05567a13"},
-    {step: RUN_STEPS, hash: "3ca463e5f18c78fdeea074f8a75b8e8060cd9ddd18934c471603efac0576f20a"},
+    {step: RUN_STEPS, hash: "6ea918ad8e53ac49fefaae549e708954f2040cc40aa7eb84f21365164a846c34"},
   ]);
 
 // No tax comes in, and building a stadium, a nuclear plant and more stations has spent all but a couple of hundred of
@@ -70,5 +70,5 @@ export const suburbBroke = fixture(
     {type: "setBudget", road: 100, fire: 100, police: 100, tax: 0},
   ], [
     {step: 0, hash: "4b9e31eace4bf0bb72f2eb20cad5f02f6d1e094060e3b6edde1339cdc187200c"},
-    {step: RUN_STEPS, hash: "be8b105d89d93f23cd5e62dd39fa6ba4631b40dbeaec87ffed78c8855d17b940"},
+    {step: RUN_STEPS, hash: "c344ff3beca3198077209b3c9784a6cf7372b1d7b50ba54ff9aea59d7c2abbfb"},
   ]);

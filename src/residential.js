@@ -17,6 +17,14 @@ import * as TileValues from "./tileValues.ts";
 import { Traffic } from './traffic.js';
 import { ZoneUtils } from './zoneUtils.js';
 
+// The pollution above which a residential zone grows no further
+var MAX_POLLUTION = 128;
+
+// The 8 lots around an empty zone's centre, relative to it, in the order buildHouse scans them, after the centre itself
+// at index 0, which is never a lot, so a best lot of 0 is none
+var LOT_X_DELTA = [0, -1, 0, 1, -1, 1, -1, 0, 1];
+var LOT_Y_DELTA = [0, -1, -1, -1, 0, 0, 1, 1, 1];
+
 // Residential tiles have 'populations' of 16, 24, 32 or 40, and value from 0 to 3. The tiles are laid out in
 // increasing order of land value, cycling through each population value
 var placeResidential = function(map, x, y, population, lpValue, zonePower) {
@@ -51,16 +59,15 @@ var getZonePopulation = function(map, x, y, tileValue) {
 };
 
 
-// Assess a tile for suitability for a house. Prefers tiles near roads
+// Assess a lot, in bounds, for suitability for a house, as evalLot in the original: -1 unless it is an empty lot of
+// the zone or dirt, whatever its flags, and otherwise one more for each neighbour that is road or lower, not counting
+// dirt without flags. Prefers lots near roads.
 var evalLot = function(map, x, y) {
   var xDelta = [0, 1, 0, -1];
   var yDelta = [-1, 0, 1, 0];
 
-  if (!map.testBounds(x, y))
-    return -1;
-
   var tileValue = map.getTileValue(x, y);
-  if (tileValue < TileValues.RESBASE || tileValue > TileValues.RESBASE + 8)
+  if (tileValue !== TileValues.DIRT && (tileValue < TileValues.RESBASE || tileValue > TileValues.RESBASE + 8))
     return -1;
 
   var score = 1;
@@ -68,11 +75,12 @@ var evalLot = function(map, x, y) {
     var edgeX = x + xDelta[i];
     var edgeY = y + yDelta[i];
 
-    if (edgeX < 0 || edgeX >= map.width || edgeY < 0 || edgeY >= map.height)
+    if (!map.testBounds(edgeX, edgeY))
       continue;
 
-    tileValue = map.getTileValue(edgeX, edgeY);
-    if (tileValue !== TileValues.DIRT && tileValue <= TileValues.LASTROAD)
+    // The original compares the whole map word, flags included, with DIRT, so only dirt without flags is bare
+    var edge = map.getTile(edgeX, edgeY);
+    if (edge.getRawValue() !== TileValues.DIRT && edge.getValue() <= TileValues.LASTROAD)
       score += 1;
   }
 
@@ -80,31 +88,33 @@ var evalLot = function(map, x, y) {
 };
 
 
+// As buildHouse in the original: picks one of the 8 lots around the centre, the best scoring, and among those that
+// tie, more likely a later one
 var buildHouse = function(map, x, y, lpValue, random) {
   var best = 0;
   var bestScore = 0;
 
-  //  Deliberately ordered so that the centre tile is at index 0
-  var xDelta = [0, -1, 0, 1, -1, 1, -1, 0, 1];
-  var yDelta = [0, -1, -1, -1, 0, 0, 1, 1, 1];
+  for (var i = 1; i < 9; i++) {
+    var xx = x + LOT_X_DELTA[i];
+    var yy = y + LOT_Y_DELTA[i];
 
-  for (var i = 0; i < 9; i++) {
-    var xx = x + xDelta[i];
-    var yy = y + yDelta[i];
+    if (!map.testBounds(xx, yy))
+      continue;
 
     var score = evalLot(map, xx, yy);
     if (score > bestScore) {
       bestScore = score;
       best = i;
-    } else if (score === bestScore && random.getChance(7)) {
-      // Ensures we don't always select the same position when we
-      // have a choice
-      best = i;
     }
+
+    // Not an else: a lot that has just become the best ties with itself, and draws as any tie does. Ensures we don't
+    // always select the same position when we have a choice.
+    if (score === bestScore && random.getChance(7))
+      best = i;
   }
 
-  if (best > 0 && map.testBounds(x + xDelta[best], y + yDelta[best]))
-    map.setTile(x + xDelta[best], y + yDelta[best],
+  if (best > 0 && map.testBounds(x + LOT_X_DELTA[best], y + LOT_Y_DELTA[best]))
+    map.setTile(x + LOT_X_DELTA[best], y + LOT_Y_DELTA[best],
               TileValues.HOUSE + random.getRandom(2) + lpValue * 3, BLBNCNBIT);
 };
 
@@ -113,7 +123,7 @@ var growZone = function(map, x, y, blockMaps, population, lpValue, zonePower, ra
   var pollution = blockMaps.pollutionDensityMap.worldGet(x, y);
 
   // Cough! Too polluted! No-one wants to move here!
-  if (pollution > 128)
+  if (pollution > MAX_POLLUTION)
     return;
 
   var tileValue = map.getTileValue(x, y);
@@ -225,7 +235,7 @@ var residentialFound = function(map, x, y, simData) {
   // will never be be bigger than any of the values Random will generate
   if (population > simData.random.getRandom(35)) {
     // Is there a route from this zone to a commercial zone?
-    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, TileUtils.isCommercial);
+    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, Traffic.COMMERCIAL);
 
     // If we're not connected to the road network, then going shopping will be a pain. Move out.
     if (trafficOK === Traffic.NO_ROAD_FOUND) {
@@ -311,7 +321,11 @@ var Residential = {
     mapScanner.addAction(TileValues.HOSPITAL, hospitalFound);
     repairManager.addAction(TileValues.HOSPITAL, 15, 3);
   },
-  getZonePopulation: getZonePopulation
+  evalLot: evalLot,
+  getZonePopulation: getZonePopulation,
+  LOT_X_DELTA: LOT_X_DELTA,
+  LOT_Y_DELTA: LOT_Y_DELTA,
+  MAX_POLLUTION: MAX_POLLUTION
 };
 
 

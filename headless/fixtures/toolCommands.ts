@@ -21,6 +21,20 @@ export function buildingAt(tool: ToolName, x: number, y: number): ToolCommand {
   return {type: "tool", tool, path: [{x, y}], autoBulldoze: true};
 }
 
+// The zone each letter of a row stands for: R residential, C commercial, I industrial
+const ZONE_TOOLS: Record<string, ToolName> = {R: "residential", C: "commercial", I: "industrial"};
+
+// A row of zones side by side, one for each letter of `kinds`, the first with its top left tile at (left, top)
+export function zoneRow(kinds: string, left: number, top: number): ToolCommand[] {
+  return Array.from(kinds, (kind, i) => {
+    if (!(kind in ZONE_TOOLS)) {
+      throw new Error(`A row's zones are R, C or I, got ${kind} in ${kinds}`);
+    }
+
+    return buildingAt(ZONE_TOOLS[kind], left + 3 * i + 1, top + 1);
+  });
+}
+
 // A straight horizontal or vertical line, both ends included, dragged as one command
 export function lineOf(tool: ToolName, x1: number, y1: number, x2: number, y2: number): ToolCommand {
   if (x1 !== x2 && y1 !== y2) {

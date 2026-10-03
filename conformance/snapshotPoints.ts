@@ -32,6 +32,7 @@ import {
 import {
   Internals, SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES,
 } from "./unitSnapshots";
+import { zonePoint } from "./zoneBranches";
 
 // How many of each unit's first calls are recorded in each fixture
 const FIRST_CALLS = 2;
@@ -229,8 +230,8 @@ function infrastructurePoints(): SnapshotPoint[] {
            (simulation) => fireEffect(simulation.budget) < 1000),
     scanOf(BRIDGE_STRIP, 3, "road", "a drawbridge opening", drawbridgeOpened),
     scanOf(BRIDGE_STRIP, 1, "road", "a drawbridge closing", (record) => tileChanged(record, is(BRWH), is(HBRIDGE))),
-    scanOf(BRIDGE_STRIP, 49, "road", "a road wearing away", (record) => tileChanged(record, isRoad, isRubble)),
-    scanOf(BRIDGE_STRIP, 117, "road", "a bridge wearing away to water",
+    scanOf(BRIDGE_STRIP, 129, "road", "a road wearing away", (record) => tileChanged(record, isRoad, isRubble)),
+    scanOf(BRIDGE_STRIP, 68, "road", "a bridge wearing away to water",
            (record) => tileChanged(record, isBridge, is(RIVER)) && !drawbridgeOpened(record)),
     scanOf(STADIUM_STRIP, 17, "stadia", "a stadium's game starting",
            (record) => tileChanged(record, is(STADIUM), is(FULLSTADIUM))),
@@ -389,6 +390,37 @@ export const SNAPSHOT_POINTS: SnapshotPoint[] = [
   ...infrastructurePoints(),
 
   ...cityRulesPoints(),
+
+  // mapScanner.mapScan: every branch of the zone handlers and their drives, several in one call where a call reaches
+  // them together, since each point records the whole city, in the calls whose points record the fewest families
+  zonePoint("suburb", "industrial", ["an empty industrial zone left as it is when it declines",
+                                     "an unpowered industrial zone assessed"]),
+
+  zonePoint("suburbBroke", "residential", ["a drive arriving to its east"]),
+  zonePoint("suburbBroke", "residential", [
+    "a block grown", "a drive giving up at a dead end", "a drive with no route", "a house removed",
+    "a residential zone with no road declined",
+  ]),
+
+  zonePoint("suburbUnderfunded", "industrial", ["an industrial zone declined from the second level or above"]),
+
+  zonePoint("hospitalTown", "commercial", ["an empty commercial zone left as it is when it declines"]),
+  zonePoint("hospitalTown", "residential", ["a house built on a lot that won a tie", "houses built into a block"]),
+  zonePoint("hospitalTown", "commercial", ["a commercial zone declined from the second level or above"]),
+  zonePoint("hospitalTown", "industrial", ["an industrial zone grown", "traffic at its cap"]),
+  zonePoint("hospitalTown", "residential", ["the sparsest block declined to houses"]),
+  zonePoint("hospitalTown", "commercial", ["a commercial zone grown", "commercial growth held back by land value"]),
+  zonePoint("hospitalTown", "residential", ["a hospital built"]),
+  zonePoint("hospitalTown", "residential", ["a hospital emptied"]),
+  zonePoint("hospitalTown", "residential", ["a block declined to a sparser block", "a drive arriving to its west"]),
+
+  zonePoint("roadlessTown", "industrial", ["an industrial zone emptied", "an industrial zone with no road declined"]),
+  zonePoint("roadlessTown", "commercial", ["a commercial zone emptied", "a commercial zone with no road declined"]),
+  zonePoint("roadlessTown", "residential", [
+    "a drive backing up from a dead end, then going its whole distance without arriving",
+  ]),
+
+  zonePoint("smokyWoods", "residential", ["residential growth held back by pollution"]),
 ];
 
 // --- The city-level rules' rarer branches: the census, the valves, the year end, the evaluation and the advisor
@@ -464,7 +496,7 @@ function cityRulesPoints(): SnapshotPoint[] {
     atCityTime("suburb", "evaluation.cityEvaluation", 144, {
       branch: "a new class", test: (record) => eventNames(record).includes(CLASSIFICATION_UPDATED),
     }),
-    atCityTime("suburbUnderfunded", "evaluation.cityEvaluation", 288, {
+    atCityTime("suburbFast", "evaluation.cityEvaluation", 336, {
       branch: "a shrinking population",
       test: (record) => stateAfter<CityRulesState>(record).evaluation.cityPopDelta < 0,
     }),
@@ -477,12 +509,12 @@ function cityRulesPoints(): SnapshotPoint[] {
       branch: "a growth check of an unchanged population, and no blackouts",
       test: (record) => record.events.length === 0,
     }),
-    adviceAt("suburb", 144, REACHED_TOWN),
+    adviceAt("suburb", 136, REACHED_TOWN),
     adviceAt("suburb", 26, null),
     adviceAt("suburbBroke", 118, ROAD_NEEDS_FUNDING),
-    adviceAt("suburbBroke", 121, FIRE_STATION_NEEDS_FUNDING),
-    adviceAt("suburbBroke", 124, POLICE_NEEDS_FUNDING),
-    adviceAt("suburbBroke", 234, HIGH_CRIME),
+    adviceAt("suburbBroke", 185, FIRE_STATION_NEEDS_FUNDING),
+    adviceAt("suburbBroke", 188, POLICE_NEEDS_FUNDING),
+    adviceAt("suburbBroke", 298, HIGH_CRIME),
 
     // The status of a city whose roads lack funding
     {fixture: "suburbBroke", unit: "simulation._publishCityStatus", call: 0,

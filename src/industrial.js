@@ -51,7 +51,11 @@ var growZone = function(map, x, y, blockMaps, population, valueCategory, zonePow
 
 
 var degradeZone = function(map, x, y, blockMaps, populationCategory, valueCategory, zonePower) {
-  // Note that we special case empty zones here, rather than having to check population value on every
+  // An empty zone has nowhere lower to go, and is left as it is, as doIndOut in the original leaves it
+  if (populationCategory === 0)
+    return;
+
+  // Note that we special case the lowest population here, rather than having to check population value on every
   // call to placeIndustrial (which we anticipate will be called more often)
   if (populationCategory > 1)
     placeIndustrial(map, x, y, populationCategory - 2, valueCategory, zonePower);
@@ -111,7 +115,7 @@ var industrialFound = function(map, x, y, simData) {
   var trafficOK = Traffic.ROUTE_FOUND;
   if (population > simData.random.getRandom(5)) {
     // Try to find a route from here to a residential zone
-    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, TileUtils.isResidential);
+    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, Traffic.RESIDENTIAL);
 
     // Trigger outward migration if not connected to road network (unless the zone is already empty)
     if (trafficOK === Traffic.NO_ROAD_FOUND) {

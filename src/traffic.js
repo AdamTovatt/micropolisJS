@@ -17,7 +17,7 @@ import { Position } from './position.ts';
 import { SPRITE_HELICOPTER } from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
 import { TileUtils } from './tileUtils.js';
-import { DIRT, POWERBASE, ROADBASE } from "./tileValues.ts";
+import { COMBASE, DIRT, LHTHR, NUCLEAR, PORT, POWERBASE, ROADBASE } from "./tileValues.ts";
 
 function Traffic(map, spriteManager, random) {
   this._map = map;
@@ -27,13 +27,35 @@ function Traffic(map, spriteManager, random) {
 }
 
 
-Traffic.prototype.makeTraffic = function(x, y, blockMaps, destFn) {
+// The destinations, each the tiles a drive to it ends beside, from the lowest tile value to the highest, as driveDone
+// in the original has them, which are not only the kind of zone each is named for:
+// - commercial, a residential zone's drive, COMBASE to NUCLEAR: commercial, industry, the seaport, the airport, the
+//   coal plant, the fire and police stations, the stadium, and the nuclear plant up to its centre tile;
+// - industrial, a commercial zone's drive, LHTHR to PORT: a house, a built residential zone, a hospital, a church,
+//   commercial, industry, and the seaport up to its centre tile;
+// - residential, an industrial zone's drive, LHTHR to COMBASE: a house, a built residential zone, a hospital, a church,
+//   and commercial's first tile.
+// No drive ends beside an empty residential zone, whose tiles lie below LHTHR.
+var DESTINATIONS = {
+  commercial: {low: COMBASE, high: NUCLEAR},
+  industrial: {low: LHTHR, high: PORT},
+  residential: {low: LHTHR, high: COMBASE}
+};
+
+// The heaviest traffic a block holds, and the traffic one arriving drive adds to each block it passes
+var MAX_TRAFFIC_DENSITY = 240;
+var TRIP_TRAFFIC = 50;
+
+
+// Drives from the zone centred at (x, y) to the destination, one of Traffic.COMMERCIAL, Traffic.INDUSTRIAL and
+// Traffic.RESIDENTIAL
+Traffic.prototype.makeTraffic = function(x, y, blockMaps, destination) {
   this._stack = [];
 
   var roadPos = this.findPerimeterRoad(new Position(x, y));
 
   if (roadPos !== null) {
-    if (this.tryDrive(roadPos, destFn)) {
+    if (this.tryDrive(roadPos, destination)) {
       this.addToTrafficDensityMap(blockMaps);
       return Traffic.ROUTE_FOUND;
     }
@@ -60,12 +82,12 @@ Traffic.prototype.addToTrafficDensityMap = function(blockMaps) {
     if (tileValue >= ROADBASE && tileValue < POWERBASE) {
       // Update traffic density.
       var traffic = trafficDensityMap.worldGet(pos.x, pos.y);
-      traffic += 50;
-      traffic = Math.min(traffic, 240);
+      traffic += TRIP_TRAFFIC;
+      traffic = Math.min(traffic, MAX_TRAFFIC_DENSITY);
       trafficDensityMap.worldSet(pos.x, pos.y, traffic);
 
       // Attract traffic copter to the traffic
-      if (traffic >= 240 && this._random.getRandom(5) === 0) {
+      if (traffic >= MAX_TRAFFIC_DENSITY && this._random.getRandom(5) === 0) {
         var sprite = this._spriteManager.getSprite(SPRITE_HELICOPTER);
         if (sprite !== null) {
           sprite.destX = SpriteUtils.worldToPix(pos.x);
@@ -98,7 +120,7 @@ Traffic.prototype.findPerimeterRoad = function(pos) {
 
 var MAX_TRAFFIC_DISTANCE = 30;
 
-Traffic.prototype.tryDrive = function(startPos, destFn) {
+Traffic.prototype.tryDrive = function(startPos, destination) {
   var dirLast;
   var drivePos = startPos;
 
@@ -112,7 +134,7 @@ Traffic.prototype.tryDrive = function(startPos, destFn) {
       if (dist & 1)
         this._stack.push(drivePos);
 
-      if (this.driveDone(drivePos, destFn))
+      if (this.driveDone(drivePos, destination))
         return true;
     } else {
       if (this._stack.length > 0) {
@@ -128,6 +150,9 @@ Traffic.prototype.tryDrive = function(startPos, destFn) {
 };
 
 
+// As tryGo in the original: the four directions clockwise from north, each null where there is no road or it is the
+// way back. With more than one way open, a draw picks one of the four, and a closed one gives way to the next open one
+// clockwise.
 Traffic.prototype.tryGo = function(pos, dirLast) {
   var directions = [];
 
@@ -138,6 +163,8 @@ Traffic.prototype.tryGo = function(pos, dirLast) {
     if (dir != dirLast && TileUtils.isDriveable(this._map.getTileFromMapOrDefault(pos, dir, DIRT))) {
       directions.push(dir);
       count++;
+    } else {
+      directions.push(null);
     }
   });
 
@@ -146,32 +173,40 @@ Traffic.prototype.tryGo = function(pos, dirLast) {
   }
 
   if (count === 1) {
-    return directions[0];
+    return directions.find((dir) => dir !== null);
   }
 
-  const index = this._random.getRandom(directions.length - 1);
-  return directions[index];
+  var i = this._random.getRandom16() & 3;
+  while (directions[i] === null) {
+    i = (i + 1) & 3;
+  }
+
+  return directions[i];
 };
 
 
-Traffic.prototype.driveDone = function(pos, destFn) {
+Traffic.prototype.driveDone = function(pos, destination) {
+  var isDestination = function(tileValue) {
+    return tileValue >= destination.low && tileValue <= destination.high;
+  };
+
   if (pos.y > 0) {
-    if (destFn(this._map.getTileValue(pos.x, pos.y - 1)))
+    if (isDestination(this._map.getTileValue(pos.x, pos.y - 1)))
       return true;
   }
 
   if (pos.x < (this._map.width - 1)) {
-    if (destFn(this._map.getTileValue(pos.x + 1, pos.y)))
+    if (isDestination(this._map.getTileValue(pos.x + 1, pos.y)))
       return true;
   }
 
   if (pos.y < (this._map.height - 1)) {
-    if (destFn(this._map.getTileValue(pos.x, pos.y + 1)))
+    if (isDestination(this._map.getTileValue(pos.x, pos.y + 1)))
       return true;
   }
 
   if (pos.x > 0) {
-    if (destFn(this._map.getTileValue(pos.x - 1, pos.y)))
+    if (isDestination(this._map.getTileValue(pos.x - 1, pos.y)))
       return true;
   }
 
@@ -182,7 +217,12 @@ Traffic.prototype.driveDone = function(pos, destFn) {
 Object.defineProperties(Traffic,
   {ROUTE_FOUND: MiscUtils.makeConstantDescriptor(1),
    NO_ROUTE_FOUND: MiscUtils.makeConstantDescriptor(0),
-   NO_ROAD_FOUND: MiscUtils.makeConstantDescriptor(-1)});
+   NO_ROAD_FOUND: MiscUtils.makeConstantDescriptor(-1),
+   COMMERCIAL: MiscUtils.makeConstantDescriptor(DESTINATIONS.commercial),
+   INDUSTRIAL: MiscUtils.makeConstantDescriptor(DESTINATIONS.industrial),
+   RESIDENTIAL: MiscUtils.makeConstantDescriptor(DESTINATIONS.residential),
+   MAX_TRAFFIC_DENSITY: MiscUtils.makeConstantDescriptor(MAX_TRAFFIC_DENSITY),
+   TRIP_TRAFFIC: MiscUtils.makeConstantDescriptor(TRIP_TRAFFIC)});
 
 
 export { Traffic };

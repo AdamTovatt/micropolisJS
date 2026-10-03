@@ -56,8 +56,12 @@ var growZone = function(map, x, y, blockMaps, population, lpValue, zonePower) {
 
 
 var degradeZone = function(map, x, y, blockMaps, populationCategory, lpCategory, zonePower) {
-  // Note that we special case empty zones here, rather than having to check population value on every
-  // call to placeIndustrial (which we anticipate will be called more often)
+  // An empty zone has nowhere lower to go, and is left as it is, as doComOut in the original leaves it
+  if (populationCategory === 0)
+    return;
+
+  // Note that we special case the lowest population here, rather than having to check population value on every
+  // call to placeCommercial (which we anticipate will be called more often)
   if (populationCategory > 1) {
     placeCommercial(map, x, y, populationCategory - 2, lpCategory, zonePower);
   } else {
@@ -90,7 +94,7 @@ var commercialFound = function(map, x, y, simData) {
   var trafficOK = Traffic.ROUTE_FOUND;
   if (population > simData.random.getRandom(5)) {
     // Try to find a route from here to an industrial zone
-    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, TileUtils.isIndustrial);
+    trafficOK = simData.trafficManager.makeTraffic(x, y, simData.blockMaps, Traffic.INDUSTRIAL);
 
     // Trigger outward migration if not connected to road network
     if (trafficOK === Traffic.NO_ROAD_FOUND) {
@@ -122,7 +126,9 @@ var commercialFound = function(map, x, y, simData) {
     // Thus, there's approximately a 3% chance that the value will be in the range, and we *might* grow.
     // This has the nice effect of not preventing an individual unit from growing even if overall demand has collapsed
     // (the business itself might still be growing.
-    if (zonePower && zoneScore > -350 && (zoneScore - 26380) > simData.random.getRandom16Signed()) {
+    // As doCommercial in the original, a zone whose drive found no route never grows, and draws nothing to decide it
+    if (trafficOK !== Traffic.NO_ROUTE_FOUND && zoneScore > -350 &&
+        (zoneScore - 26380) > simData.random.getRandom16Signed()) {
       lpValue = ZoneUtils.getLandPollutionValue(simData.blockMaps, x, y);
       growZone(map, x, y, simData.blockMaps, population, lpValue, zonePower);
       return;

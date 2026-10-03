@@ -58,6 +58,38 @@ namespace Micropolis.Rules.Tests
             Assert.IsTrue(new GameMap(5, 3).TestBounds(x, y));
         }
 
+        // The centre of a 3x3 map, each of whose neighbours holds a value of its own
+        [TestMethod]
+        public void GetTileFromMapOrDefault_InsideTheMap_IsTheNeighbourThatWay()
+        {
+            GameMap map = new GameMap(3, 3);
+            map.SetTile(1, 0, ROADS, 0);
+            map.SetTile(2, 1, RIVER, 0);
+            map.SetTile(1, 2, WOODS, 0);
+            map.SetTile(0, 1, RUBBLE, 0);
+            Position centre = new Position(1, 1);
+
+            int[] neighbours = Direction.CardinalDirections
+                .Select(dir => map.GetTileFromMapOrDefault(centre, dir, DIRT))
+                .ToArray();
+
+            CollectionAssert.AreEqual(new[] { ROADS, RIVER, WOODS, RUBBLE }, neighbours);
+        }
+
+        // A one-tile map, whose every neighbour is off it
+        [TestMethod]
+        public void GetTileFromMapOrDefault_OffTheMap_IsTheDefault()
+        {
+            GameMap map = new GameMap(1, 1);
+            map.SetTile(0, 0, ROADS, 0);
+
+            int[] neighbours = Direction.CardinalDirections
+                .Select(dir => map.GetTileFromMapOrDefault(new Position(0, 0), dir, RIVER))
+                .ToArray();
+
+            CollectionAssert.AreEqual(new[] { RIVER, RIVER, RIVER, RIVER }, neighbours);
+        }
+
         [TestMethod]
         public void SetTile_OutsideTheMap_Throws()
         {

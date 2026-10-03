@@ -257,6 +257,34 @@ namespace Micropolis.Rules
             SetTileValue(position.X, position.Y, value);
         }
 
+        /// <summary>
+        /// The value of the tile next to the position in a cardinal direction, or the default off the map.
+        /// </summary>
+        public int GetTileFromMapOrDefault(Position position, Direction direction, int defaultTile)
+        {
+            if (direction == Direction.North)
+            {
+                return position.Y > 0 ? GetTileValue(position.X, position.Y - 1) : defaultTile;
+            }
+
+            if (direction == Direction.East)
+            {
+                return position.X < Width - 1 ? GetTileValue(position.X + 1, position.Y) : defaultTile;
+            }
+
+            if (direction == Direction.South)
+            {
+                return position.Y < Height - 1 ? GetTileValue(position.X, position.Y + 1) : defaultTile;
+            }
+
+            if (direction == Direction.West)
+            {
+                return position.X > 0 ? GetTileValue(position.X - 1, position.Y) : defaultTile;
+            }
+
+            return defaultTile;
+        }
+
         private Tile GetTileAt(int x, int y, string context)
         {
             if (!TestBounds(x, y))
