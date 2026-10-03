@@ -48,16 +48,17 @@ function checkedLevel(): number {
   return radio.level;
 }
 
-// Shows the splash screen. While the screen is too small to play, it waits until a resize makes room.
-export function showSplashScreen(tileSet: TileSet, spriteSheet: HTMLImageElement): void {
+// Shows the splash screen, first offering the map of the seed, or of a new one when given none. While the screen is too
+// small to play, it waits until a resize makes room.
+export function showSplashScreen(tileSet: TileSet, spriteSheet: HTMLImageElement, seed: number | null): void {
   if (!isShown(requiredElement("tooSmall"))) {
-    new SplashScreen(tileSet, spriteSheet);
+    new SplashScreen(tileSet, spriteSheet, seed);
     return;
   }
 
   const onResize = () => {
     window.removeEventListener("resize", onResize);
-    showSplashScreen(tileSet, spriteSheet);
+    showSplashScreen(tileSet, spriteSheet, seed);
   };
   window.addEventListener("resize", onResize);
 }
@@ -153,8 +154,8 @@ class SplashScreen {
                  this.nameInput.value);
   };
 
-  constructor(private readonly tileSet: TileSet, private readonly spriteSheet: HTMLImageElement) {
-    this.choice = this.generate(Config.seed);
+  constructor(private readonly tileSet: TileSet, private readonly spriteSheet: HTMLImageElement, seed: number | null) {
+    this.choice = this.generate(seed);
 
     this.generateButton.addEventListener("click", this.onGenerate);
     this.playButton.addEventListener("click", this.onPlay);

@@ -43,6 +43,17 @@ test("a screen too small to play waits for a resize, then offers the URL's seed"
   expect(problems).toEqual([]);
 });
 
+test("a seed that isn't a uint32 is refused out loud, and the map is picked at random", async ({page}) => {
+  await blockNetwork(page);
+  const problems = collectPageProblems(page);
+
+  await page.goto("/?seed=-1");
+  await expect(page.locator("#splash")).toBeVisible();
+
+  expect(problems).toEqual(['Alert: ?seed must be a whole number from 0 to 4294967295, got "-1"']);
+  await expect(page.locator("#splashSeed")).toHaveText(/^\d+$/);
+});
+
 test("debug mode starts a city given no name as MyTown", async ({page}) => {
   await blockNetwork(page);
   const problems = collectPageProblems(page);

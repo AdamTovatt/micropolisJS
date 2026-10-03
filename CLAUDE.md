@@ -8,8 +8,8 @@ This repository is Adam's private continuation. The aim is to grow it from a fai
 
 | Component   | Technology                                                                         |
 |-------------|------------------------------------------------------------------------------------|
-| Language    | JavaScript (legacy, ES5-style prototypes) and TypeScript (new code) in the browser; C# on .NET 10 for the server |
-| Bundler     | webpack 5 + ts-loader, entry `src/micropolis.js`, output `dist/`                   |
+| Language    | TypeScript in the browser, and JavaScript (ES5-style prototypes) in the legacy simulation modules; C# on .NET 10 for the server |
+| Bundler     | webpack 5 + ts-loader, entry `src/micropolis.ts`, output `dist/`                   |
 | UI          | plain DOM windows in `index.html`, on `windowBase.ts`; the map on a `<canvas>`     |
 | Server      | ASP.NET Core on .NET 10, `server/Micropolis.slnx`; EasyReasy.Auth for tokens       |
 | Tests       | Jest + ts-jest, `test/*.ts`; MSTest, one test project per C# project               |
@@ -152,7 +152,7 @@ Where the original's behaviour is undefined in C, the port keeps defined, portab
 
 ## Code style
 
-- New modules are TypeScript. Convert a legacy client module whole, together with its tests, rather than mixing styles inside one file. Legacy simulation modules are not converted, since the C# port retires them.
+- Client modules are TypeScript, and so is every new module. Legacy simulation modules stay JavaScript, since the C# port retires them.
 - JavaScript modules name the file extension in their imports (`./tile.ts`, `./budget.js`); webpack's `extensionAlias` resolves both. TypeScript modules import TypeScript files without an extension (`./tile`), because `tsconfig.json` rejects a `.ts` suffix, and name it for JavaScript files (`./simulation.js`).
 - `tsconfig.json` is strict, including `noUnusedLocals` and `noUnusedParameters`.
 - Every source file keeps the GPL and Micropolis header comment at the top, new files included, C# and C as well.
