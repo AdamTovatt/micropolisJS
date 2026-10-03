@@ -13,7 +13,7 @@
 
 import $ from "jquery";
 
-import { AnimationManager } from './animationManager.js';
+import { AnimationManager } from './animationManager.ts';
 import { MiscUtils } from './miscUtils.js';
 import { MouseBox } from './mouseBox.js';
 import { CanvasOverlay } from './overlayRenderer.ts';
