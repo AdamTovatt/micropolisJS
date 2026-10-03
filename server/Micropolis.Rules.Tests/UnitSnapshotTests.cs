@@ -29,24 +29,17 @@ namespace Micropolis.Rules.Tests
         // be inconclusive, and every other record must pass. A port removes its units from the list.
         private static readonly IReadOnlySet<string> NotYetPorted = new HashSet<string>
         {
-            "budget.collectTax",
-            "census.take10Census",
-            "census.take120Census",
             "commercial.commercialFound",
             "disasterManager.doDisasters",
             "disasterManager.doMeltdown",
-            "evaluation.cityEvaluation",
             "industrial.industrialFound",
             "residential.hospitalFound",
             "residential.residentialFound",
-            "simulation._publishCityStatus",
-            "simulation._sendMessages",
             "spriteManager.makeExplosion",
             "spriteManager.moveObjects",
             "transport.airportFound",
             "transport.portFound",
             "transport.railFound",
-            "valves.setValves",
         };
 
         public static IEnumerable<object[]> AllSnapshots => Snapshots.Select(snapshot => new object[] { snapshot });

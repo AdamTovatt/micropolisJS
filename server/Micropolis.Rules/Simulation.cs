@@ -52,7 +52,7 @@ namespace Micropolis.Rules
         /// The city-class announcements a city may have sent last.
         /// </summary>
         public static readonly IReadOnlyList<string> CityClassMessages =
-            ["Now a town", "Now a city", "Now a capital", "Now a metropolis", "Now a megalopolis"];
+            [Messages.REACHED_TOWN, Messages.REACHED_CITY, Messages.REACHED_CAPITAL, Messages.REACHED_METROPOLIS, Messages.REACHED_MEGALOPOLIS];
 
         // The handler families, each a module of src/ that registers tile handlers with the map scanner and zones with
         // the repair manager, by name, in the order Simulation.init registers them: the first handler whose criterion
@@ -602,9 +602,178 @@ namespace Micropolis.Rules
             Events.Emit(eventName, payload);
         }
 
+        /// <summary>
+        /// The advisor's messages, as <c>_sendMessages</c> and sendMessages in the original: the growth check, then the
+        /// one condition the city time's place in its 64-unit round asks about, sent if it holds. The stadium, seaport
+        /// and airport checks also set or clear the demand caps.
+        /// </summary>
         internal void SendMessages()
         {
-            throw new NotPortedException("simulation._sendMessages");
+            CheckGrowth();
+
+            switch (CityTime & 63)
+            {
+                case 1:
+                    SendIfHolds(Messages.NEED_MORE_RESIDENTIAL);
+                    break;
+
+                case 5:
+                    SendIfHolds(Messages.NEED_MORE_COMMERCIAL);
+                    break;
+
+                case 10:
+                    SendIfHolds(Messages.NEED_MORE_INDUSTRIAL);
+                    break;
+
+                case 14:
+                    SendIfHolds(Messages.NEED_MORE_ROADS);
+                    break;
+
+                case 18:
+                    SendIfHolds(Messages.NEED_MORE_RAILS);
+                    break;
+
+                case 22:
+                    SendIfHolds(Messages.NEED_ELECTRICITY);
+                    break;
+
+                case 26:
+                    Valves.ResCap = SendIfHolds(Messages.NEED_STADIUM);
+                    break;
+
+                case 28:
+                    Valves.IndCap = SendIfHolds(Messages.NEED_SEAPORT);
+                    break;
+
+                case 30:
+                    Valves.ComCap = SendIfHolds(Messages.NEED_AIRPORT);
+                    break;
+
+                case 32:
+                    if (Holds(Messages.BLACKOUTS_REPORTED))
+                    {
+                        SendPowerMessage(Messages.BLACKOUTS_REPORTED);
+                    }
+
+                    break;
+
+                case 35:
+                    if (Holds(Messages.HIGH_POLLUTION))
+                    {
+                        WrapMessage(Messages.HIGH_POLLUTION, new JsonObject { ["x"] = Map.PollutionMaxX, ["y"] = Map.PollutionMaxY });
+                    }
+
+                    break;
+
+                case 42:
+                    SendIfHolds(Messages.HIGH_CRIME);
+                    break;
+
+                case 45:
+                    SendIfHolds(Messages.NEED_FIRE_STATION);
+                    break;
+
+                case 48:
+                    SendIfHolds(Messages.NEED_POLICE_STATION);
+                    break;
+
+                case 51:
+                    SendIfHolds(Messages.TAX_TOO_HIGH);
+                    break;
+
+                case 54:
+                    SendIfHolds(Messages.ROAD_NEEDS_FUNDING);
+                    break;
+
+                case 57:
+                    SendIfHolds(Messages.FIRE_STATION_NEEDS_FUNDING);
+                    break;
+
+                case 60:
+                    SendIfHolds(Messages.POLICE_NEEDS_FUNDING);
+                    break;
+
+                case 63:
+                    SendIfHolds(Messages.TRAFFIC_JAMS);
+                    break;
+            }
+        }
+
+        private bool Holds(string condition)
+        {
+            return CityStatus.ConditionHolds(condition, Census, Budget, PowerManager);
+        }
+
+        // Sends the condition's message if it holds, and answers whether it did
+        private bool SendIfHolds(string condition)
+        {
+            if (!Holds(condition))
+            {
+                return false;
+            }
+
+            WrapMessage(condition, null);
+            return true;
+        }
+
+        // Each month, as checkGrowth in the original: the population, which the info bar shows, and a new city class
+        // announced, unless it is the class last announced. It reads the population and the classes without changing
+        // the evaluation, which works them out a year at a time.
+        private void CheckGrowth()
+        {
+            if ((CityTime & 3) != 0)
+            {
+                return;
+            }
+
+            string? message = null;
+            long cityPop = Evaluation.GetPopulation(Census);
+
+            // A population that hasn't changed has nothing to send or announce
+            if (cityPop == CityPopLast)
+            {
+                return;
+            }
+
+            Events.Emit(Messages.POPULATION_UPDATED, cityPop);
+
+            // The original compares classes only once the city has had people at a growth check
+            if (CityPopLast > 0)
+            {
+                CityClass lastClass = Evaluation.GetCityClass(CityPopLast);
+                CityClass newClass = Evaluation.GetCityClass(cityPop);
+
+                if (lastClass != newClass)
+                {
+                    message = newClass switch
+                    {
+                        // A village is never announced
+                        CityClass.Village => null,
+                        CityClass.Town => Messages.REACHED_TOWN,
+                        CityClass.City => Messages.REACHED_CITY,
+                        CityClass.Capital => Messages.REACHED_CAPITAL,
+                        CityClass.Metropolis => Messages.REACHED_METROPOLIS,
+                        CityClass.Megalopolis => Messages.REACHED_MEGALOPOLIS,
+                        _ => throw new ArgumentOutOfRangeException(nameof(cityPop), newClass, "No such city class."),
+                    };
+                }
+            }
+
+            if (message is not null && message != MessageLast)
+            {
+                WrapMessage(message, null);
+                MessageLast = message;
+            }
+
+            CityPopLast = cityPop;
+        }
+
+        /// <summary>
+        /// The city status record at the end of the cycle, as <c>_publishCityStatus</c>: derived, never saved.
+        /// </summary>
+        internal void PublishCityStatus()
+        {
+            Events.Emit(Messages.CITY_STATUS_UPDATED, CityStatus.Build(Census, Budget, PowerManager, Valves));
         }
 
         // Each layer the phase running has just recomputed, by name, so that an overlay showing it asks for it again.
@@ -618,11 +787,6 @@ namespace Micropolis.Rules
                     Events.Emit(Messages.OVERLAY_UPDATED, new JsonObject { ["layer"] = layer });
                 }
             }
-        }
-
-        internal void PublishCityStatus()
-        {
-            throw new NotPortedException("simulation._publishCityStatus");
         }
 
         private void OnValveChange()
