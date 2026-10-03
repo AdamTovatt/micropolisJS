@@ -237,7 +237,7 @@ var mouseMoveHandler = function(e) {
 
 var canvasClickHandler = function(e) {
   if (e.which !== 1 || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || this.mouseX === -1 ||
-     this._mouseY === -1 || this._dragging)
+     this.mouseY === -1 || this._dragging)
     return;
 
   this._emitEvent(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY});
