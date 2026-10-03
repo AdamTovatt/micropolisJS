@@ -11,7 +11,6 @@
  *
  */
 
-using System.IO.Compression;
 using System.Text.Json.Nodes;
 
 namespace Micropolis.Rules.Tests
@@ -43,7 +42,7 @@ namespace Micropolis.Rules.Tests
         /// </summary>
         internal static JsonObject ReadRecord(UnitSnapshot snapshot)
         {
-            JsonArray records = ReadFile(snapshot.File);
+            JsonArray records = ConformanceFile.ReadGzippedArray($"{Directory}/{snapshot.File}");
 
             if (snapshot.Record >= records.Count)
             {
@@ -61,14 +60,6 @@ namespace Micropolis.Rules.Tests
             }
 
             return record;
-        }
-
-        private static JsonArray ReadFile(string file)
-        {
-            using FileStream stream = File.OpenRead(RepositoryFiles.GetPath($"conformance/{Directory}/{file}"));
-            using GZipStream gzip = new GZipStream(stream, CompressionMode.Decompress);
-
-            return JsonNode.Parse(gzip)?.AsArray() ?? throw new InvalidDataException($"{file} holds no records.");
         }
 
         private sealed record SnapshotIndex(IReadOnlyList<UnitSnapshot> Snapshots);

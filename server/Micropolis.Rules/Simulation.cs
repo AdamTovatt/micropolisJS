@@ -209,6 +209,28 @@ namespace Micropolis.Rules
         public bool IsPaused => Speed == Speed.Paused;
 
         /// <summary>
+        /// A new city on the map the seed generates, simulated from the seed's stream, as the <c>Simulation</c>
+        /// constructor in <c>src/simulation.js</c> starts one on the map <c>MapGenerator</c> generates from the seed's
+        /// map stream: 20000 in funds, then the first scans, which a saved game holds the results of.
+        /// </summary>
+        public static Simulation NewCity(uint seed, Level gameLevel, Speed speed)
+        {
+            Simulation city = new Simulation(MapGenerator.Generate(RandomStream.MapStream(seed)), seed)
+            {
+                GameLevel = gameLevel,
+                Speed = speed,
+                InitialEvaluationPending = true,
+            };
+
+            city.ClearCensus();
+            city.Budget.SetFunds(20000);
+            city.Census.TotalPop = 1;
+            city.Scan();
+
+            return city;
+        }
+
+        /// <summary>
         /// The city a save's text holds. Text that isn't JSON, a key written twice, missing or unknown, or a value of
         /// the wrong type or outside its documented range fails with a <see cref="SaveFormatException"/> naming where.
         /// </summary>
@@ -422,6 +444,17 @@ namespace Micropolis.Rules
 
                 family.Register(this);
             }
+        }
+
+        // A new city's first scans, as _scan in src/simulation.js
+        private void Scan()
+        {
+            MapScanner.MapScan(0, Map.Width, ConstructSimData());
+            PowerManager.DoPowerScan(Census);
+            BlockMapUtils.PollutionTerrainLandValueScan(Map, Census, BlockMaps, Random);
+            BlockMapUtils.CrimeScan(Census, BlockMaps);
+            BlockMapUtils.PopulationDensityScan(Map, BlockMaps);
+            BlockMapUtils.FireAnalysis(BlockMaps);
         }
 
         /// <summary>
