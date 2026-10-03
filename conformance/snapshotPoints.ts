@@ -32,8 +32,9 @@ import {
   POWERBASE, RADTILE, RIVER, ROADBASE, RUBBLE, STADIUM, VBRIDGE,
 } from "../src/tileValues";
 import { local } from "./commandCases";
+import { Internals } from "./instrumentation";
 import {
-  CommandPoint, Internals, SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES,
+  CommandPoint, SnapshotPoint, SnapshotRecord, stateAfter, stateBefore, UNIT_NAMES,
 } from "./unitSnapshots";
 import { zonePoint } from "./zoneBranches";
 

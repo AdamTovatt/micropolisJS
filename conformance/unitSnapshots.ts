@@ -15,9 +15,8 @@
 // the events the simulation emitted, so the C# port can prove each unit on its own. conformance/README.md specifies the
 // records; snapshotPoints.ts says which calls are recorded.
 
-import { cityFromSave, GameMapInstance, SaveData, Speed } from "../headless/city";
+import { cityFromSave, nameOf, SaveData, Speed } from "../headless/city";
 import { startFromSave } from "../headless/runner";
-import { BlockMap } from "../src/blockMap";
 import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { canonicalJson } from "../src/canonicalJson";
 import { ReceivedCommand } from "../src/commands";
@@ -30,60 +29,7 @@ import { Road } from "../src/road.js";
 import { Stadia } from "../src/stadia.js";
 import { plainSavedState } from "../src/stateHash";
 import { Transport } from "../src/transport.js";
-
-// --- The simulation's internals, which the recorder reaches into
-
-export type Method = (...args: unknown[]) => unknown;
-
-interface ScanAction {
-  criterion: unknown;
-  action: Method;
-}
-
-interface Registry {
-  _actions: ScanAction[];
-}
-
-export interface Internals {
-  _speedCycle: number;
-  _phaseCycle: number;
-  _simCycle: number;
-  _cityTime: number;
-  _speed: number;
-  _initialEvaluationPending: boolean;
-  _gameLevel: number;
-  _map: GameMapInstance;
-  _mapScanner: Registry & {mapScan(startX: number, maxX: number, simData: unknown): void};
-  _repairManager: Registry;
-  _census: {
-    take10Census(budget: unknown): void, take120Census(): void,
-    crimeAverage: number, crimeRamp: number, pollutionAverage: number, pollutionRamp: number,
-  };
-  _valves: {setValves(gameLevel: number, census: unknown, budget: unknown): void};
-  _powerManager: {doPowerScan(census: unknown): void, registerHandlers(scanner: Registry, repairer: Registry): void};
-  budget: {collectTax(gameLevel: number, census: unknown): void, roadEffect: number};
-  evaluation: {cityEvaluation(simData: unknown): void};
-  disasterManager: {doDisasters(gameLevel: number, census: unknown): void, doMeltdown(x: number, y: number): void};
-  spriteManager: {makeExplosion(x: number, y: number): void, spriteList: unknown[]};
-  // The block maps, by name, as the Simulation constructor makes them
-  blockMaps: Record<string, BlockMap>;
-  random: unknown;
-  _traffic: {_stack: unknown[]};
-  _simulate(simData: unknown): void;
-  applyCommands(received: ReceivedCommand[]): unknown[];
-  _sendMessages(): void;
-  _publishCityStatus(): void;
-  _constructSimData(): unknown;
-  _emitEvent(name: string, payload?: unknown): void;
-  save(saveData: object): void;
-  load(saveData: object): void;
-  step(): void;
-}
-
-// The object a unit is a method of, as a table of methods
-function methodsOf(owner: object): Record<string, Method> {
-  return owner as unknown as Record<string, Method>;
-}
+import { captureEvents, Internals, Method, methodsOf, RecordedEvent, Registry, replaceMethod } from "./instrumentation";
 
 // --- The units: each a function the cycle calls, under its TypeScript name, module and function
 
@@ -310,26 +256,6 @@ function wrap(name: string, original: Method): Method {
   };
 }
 
-// Replaces an object's method with what `replace` makes of it, and gives what restores it, as the object's own or as
-// what it inherits. It throws when the object has no such method, so a renamed one fails rather than going unwatched.
-export function replaceMethod(owner: object, method: string, replace: (original: Method) => Method): () => void {
-  const methods = methodsOf(owner);
-  const original = methods[method];
-  if (typeof original !== "function") {
-    throw new Error(`No method named ${method} to replace`);
-  }
-
-  const own = Object.prototype.hasOwnProperty.call(owner, method);
-  methods[method] = replace(original);
-  return () => {
-    if (own) {
-      methods[method] = original;
-    } else {
-      delete methods[method];
-    }
-  };
-}
-
 function wrapMethod(owner: object, method: string, name: string): () => void {
   return replaceMethod(owner, method, (original) => wrap(name, original));
 }
@@ -342,11 +268,6 @@ function wrapUnits(simulation: Internals): void {
 
 // --- Records
 
-export interface SnapshotEvent {
-  name: string;
-  payload?: unknown;
-}
-
 export interface SnapshotRecord {
   fixture: string;
   step: number;
@@ -355,60 +276,9 @@ export interface SnapshotRecord {
   args: unknown[];
   handlers: string[];
   reached: string[];
-  events: SnapshotEvent[];
+  events: RecordedEvent[];
   before: object;
   after: object;
-}
-
-// Drops the members a plain object holds as undefined, as JSON.stringify does, so a message sent without data has none.
-// Anything else is left for canonicalJson, which refuses what is not plain data.
-function definedMembers(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(definedMembers);
-  }
-
-  if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
-    const members: Record<string, unknown> = {};
-    for (const [key, member] of Object.entries(value)) {
-      if (member !== undefined) {
-        members[key] = definedMembers(member);
-      }
-    }
-
-    return members;
-  }
-
-  return value;
-}
-
-function eventOf(name: string, payload: unknown): SnapshotEvent {
-  if (payload === undefined) {
-    return {name};
-  }
-
-  // A payload of null would read as no payload on the C# side, which holds JSON null as no node
-  if (payload === null) {
-    throw new Error(`The event ${name} was emitted with a null payload, which a record cannot tell from none`);
-  }
-
-  return {name, payload: JSON.parse(canonicalJson(definedMembers(payload)))};
-}
-
-// Notes every event the simulation emits while capturing
-function captureEvents(simulation: Internals): SnapshotEvent[][] {
-  const capturing: SnapshotEvent[][] = [];
-  const original = simulation._emitEvent;
-
-  simulation._emitEvent = function(this: Internals, name: string, payload?: unknown) {
-    if (capturing.length > 0) {
-      const event = eventOf(name, payload);
-      capturing.forEach((events) => events.push(event));
-    }
-
-    original.call(this, name, payload);
-  };
-
-  return capturing;
 }
 
 // Notes the units and handlers a replayed call reaches, the call itself not counted, each once, as first reached
@@ -451,7 +321,7 @@ function replay(fixture: string, step: number, before: object, unit: string, arg
   }
 
   const capturing = captureEvents(simulation);
-  const events: SnapshotEvent[] = [];
+  const events: RecordedEvent[] = [];
   const context = new ReplayContext();
 
   capturing.push(events);
@@ -491,7 +361,7 @@ class LiveContext implements Context {
   private accepted: number[];
   private done: boolean[];
 
-  constructor(private simulation: Internals, private points: SnapshotPoint[], private capturing: SnapshotEvent[][]) {
+  constructor(private simulation: Internals, private points: SnapshotPoint[], private capturing: RecordedEvent[][]) {
     this.accepted = points.map(() => 0);
     this.done = points.map(() => false);
   }
@@ -541,7 +411,7 @@ class LiveContext implements Context {
       records.push(...made);
     }
 
-    const events: SnapshotEvent[] = [];
+    const events: RecordedEvent[] = [];
     this.capturing.push(events);
     const result = run();
     this.capturing.splice(this.capturing.indexOf(events), 1);
@@ -690,7 +560,7 @@ export function recordCommandSnapshots(points: CommandPoint[], built: Map<string
 
     const before = plainSavedState(simulation);
     const record = replay(point.fixture, point.step, before, COMMAND_UNIT, [point.received], FAMILY_NAMES);
-    const events: SnapshotEvent[] = [];
+    const events: RecordedEvent[] = [];
     const capturing = captureEvents(simulation);
     capturing.push(events);
     simulation.applyCommands(point.received);
@@ -739,6 +609,5 @@ function sortKey(record: SnapshotRecord): string {
 }
 
 export function recordSpeed(record: SnapshotRecord): string {
-  const speed = speedOf(record);
-  return Object.keys(Speed).find((name) => Speed[name as keyof typeof Speed] === speed)!;
+  return nameOf(Speed, speedOf(record));
 }

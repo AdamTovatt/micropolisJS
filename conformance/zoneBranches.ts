@@ -28,7 +28,8 @@ import { TileUtils } from "../src/tileUtils.js";
 import { Traffic } from "../src/traffic.js";
 import { FREEZ, HHTHR, HOSPITAL, LHTHR } from "../src/tileValues";
 import { ZoneUtils } from "../src/zoneUtils.js";
-import { Internals, registerFamilies, replaceMethod, SnapshotPoint, SnapshotRecord, unrecorded } from "./unitSnapshots";
+import { Internals, replaceMethod } from "./instrumentation";
+import { registerFamilies, SnapshotPoint, SnapshotRecord, unrecorded } from "./unitSnapshots";
 
 export type ZoneFamily = "residential" | "commercial" | "industrial";
 

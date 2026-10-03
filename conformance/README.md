@@ -31,16 +31,16 @@ Seeds and 32-bit words are hex strings, as the C reference prints them.
 ## Files the TypeScript reference writes
 
 `generate.ts` writes `tiles.json`, `canonicalJson.json`, `maps.json`, `saveStrings.json`, `messages.json`,
-`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/` and `snapshots/` from the TypeScript game
-rules. Regenerate them in the commit that changes what they are computed from:
+`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/`, `snapshots/` and `runs/` from the TypeScript
+game rules. Regenerate them in the commit that changes what they are computed from:
 
 ```bash
 npm run conformance
 ```
 
 A file it no longer writes is gone after it runs. CI runs it too, and fails unless the committed files are what it
-writes. The generator rewrites a gzipped snapshot file only when the text it holds changes, so an unchanged file keeps
-its committed bytes whatever another zlib would write. The server's tests only read them.
+writes. The generator rewrites a gzipped file only when the text it holds changes, so an unchanged file keeps its
+committed bytes whatever another zlib would write. The server's tests only read them.
 
 ### tiles.json
 
@@ -294,3 +294,39 @@ yet ported, and fails unless the list names exactly the stubs in `server/Micropo
 unit in a string literal, `new NotPortedException("census.take10Census")`: a port removes its units from it, and a
 stub that comes back fails rather than turning its records inconclusive. Every record whose call reaches no listed
 unit, the unit itself included, must pass.
+
+### runs/
+
+City runs: a city stepped at one speed for many steps, with its state hash at each checkpoint and every event the
+simulation emitted, so the C# port proves the whole cycle, every unit running together, against the TypeScript.
+`cityRuns.ts` records them.
+
+A run starts from a new city on the map a seed generates, as the browser starts one, for each seed of `maps.json`, the
+seeds taking the levels easy, medium and hard in turn; or from a sprite-free fixture's city as built (`saves/`), at its
+saved level. Each start is run at slow, medium and fast speed, a fixture's saved speed overridden as the headless
+runner overrides it, for as many steps as the fixtures' golden run takes, `RUN_STEPS` in
+`headless/fixtures/fixture.ts`, in which a city reaches a year end at every speed. A start that is the state another
+run starts from, such as a fixture that differs from another only in its saved speed, makes the same run and is
+recorded once.
+
+`index.json` lists each run: its `file`; its `seed` and its `fixture`, one of them `null`; the `level` its city is at,
+which for a fixture is its saved level; its `speed`, `steps`, how many `events` it emitted, and its `checkpoints`, each a `step` and the state `hash` after that many steps: at step 0, as the
+city starts, after its first scans for a new city, and then every 256 steps and at the last. A pull request's index diff
+shows which hashes it moves. Each file, `<fixture>.<speed>.json.gz` or `seed<seed>.<speed>.json.gz`, is gzip over the
+canonical text of the run's events, in order, each with the `step`, counted from 0, during which it was emitted, its
+`name` and its `payload`, as a unit snapshot's record holds them.
+
+The generator fails when:
+
+- a run's city has random disasters enabled, or creates a sprite: runs are what the C# can run before it ports them;
+- a fixture's run at its saved speed, which is its golden run, does not end at its golden run hash;
+- a run reaches no year end, or the runs together don't cover a year's budget that auto-budget paid, one it ran short
+  of, and one with auto-budget off;
+- no new city runs at one of the levels, or the gzipped files take more than 5 MB.
+
+`CityRunTests` runs every run the index lists, through `CityRunner`: it starts the city, `Simulation.NewCity` for a
+seed, steps it, and at each checkpoint compares the events emitted before it, in order, then the state hash. A
+difference names the first event that differs, with its step, or the first checkpoint whose hash does. A run that
+diverges is diagnosed with the unit snapshots: a record whose unit fails names the unit, key and tile. When every
+unit's snapshots pass and a run still diverges, the gap is in the snapshots, which don't reach the branch the run
+does, or in the integration, how the cycle calls the units; a point recorded at the step the run names tells which.

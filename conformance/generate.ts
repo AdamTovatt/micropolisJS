@@ -17,9 +17,12 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as zlib from "zlib";
-import { cityFromSave, cityOnMap, Level, RUNNING_SPEEDS, RunningSpeed, SaveData, Speed } from "../headless/city";
-import { fixtureNames } from "../headless/fixtures/index";
-import { fixtureLog, replay, startFromSave } from "../headless/runner";
+import {
+  cityFromSave, cityOnMap, Level, LevelName, RUNNING_SPEEDS, RunningSpeed, SaveData, Speed,
+} from "../headless/city";
+import { RUN_STEPS } from "../headless/fixtures/fixture";
+import { fixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index";
+import { builtSave, fixtureLog, replay, startFromSave } from "../headless/runner";
 import { BlockMap } from "../src/blockMap";
 import { canonicalJson } from "../src/canonicalJson";
 import { Commercial } from "../src/commercial.js";
@@ -40,10 +43,12 @@ import { TileUtils } from "../src/tileUtils.js";
 import * as TileValues from "../src/tileValues";
 import { Traffic } from "../src/traffic.js";
 import { ZoneUtils } from "../src/zoneUtils.js";
+import { CityRun, describeStart, recordRun, RunStart } from "./cityRuns";
 import { COMMAND_CASES } from "./commandCases";
+import { Internals } from "./instrumentation";
 import { COMMAND_POINTS, SNAPSHOT_POINTS } from "./snapshotPoints";
 import {
-  COMMAND_UNIT, Internals, recordCommandSnapshots, recordSnapshots, recordSpeed, SnapshotRecord, UNIT_NAMES,
+  COMMAND_UNIT, recordCommandSnapshots, recordSnapshots, recordSpeed, SnapshotRecord, UNIT_NAMES,
 } from "./unitSnapshots";
 
 // Relative to the repository root, where npm runs scripts
@@ -315,8 +320,7 @@ function listedMapLines(generated: GeneratedMap, last: boolean): string[] {
   ];
 }
 
-async function mapLines(): Promise<string[]> {
-  const chosen = chooseMaps();
+async function mapLines(chosen: GeneratedMap[]): Promise<string[]> {
   const seeds = await Promise.all(chosen.map(async ({seed, kind, lakes, map}) =>
     ({seed, kind, lakes, hash: await hashSavedState(map)})));
   const listed = LISTED_KINDS.map((kind) => chosen.find((map) => map.kind === kind)!);
@@ -680,18 +684,6 @@ function helperLines(): string[] {
   ];
 }
 
-// A fixture's saved state as built, checked against the golden hash its log pins at step 0: what the speed gate and
-// the snapshots start from
-async function builtSave(name: string): Promise<SaveData> {
-  const replayed = replay(fixtureLog(name), {to: 0});
-
-  if (await replayed.verified === 0) {
-    throw new Error(`${name}'s log has no checkpoint at step 0 to check its city against`);
-  }
-
-  return plainSavedState(replayed.city) as SaveData;
-}
-
 // --- speedGate.json: the steps at which each speed lets a phase through
 
 // A fixture's city run past the step counter's wrap from 1023 to 0, which shifts the slow and medium gates
@@ -753,6 +745,15 @@ function writeGzipped(name: string, text: string): number {
   return fs.statSync(file).size;
 }
 
+// Removes every file of the directory but those written, so a file the generator no longer writes is gone
+function removeUnwritten(directory: string, written: Set<string>): void {
+  for (const entry of fs.readdirSync(directory)) {
+    if (!written.has(entry)) {
+      fs.rmSync(path.join(directory, entry));
+    }
+  }
+}
+
 function snapshotFile(record: SnapshotRecord): string {
   return `${record.fixture}.${record.unit}.json.gz`;
 }
@@ -782,13 +783,7 @@ async function writeSnapshots(): Promise<void> {
   }
 
   ensureCovers(size <= SNAPSHOT_LIMIT, `its points in ${SNAPSHOT_LIMIT} bytes: they take ${size}`);
-
-  // A file no point writes any more is gone
-  for (const entry of fs.readdirSync(directory)) {
-    if (entry !== SNAPSHOT_INDEX && !(entry in files)) {
-      fs.rmSync(path.join(directory, entry));
-    }
-  }
+  removeUnwritten(directory, new Set([SNAPSHOT_INDEX, ...Object.keys(files)]));
 
   const index = Object.entries(files).flatMap(([file, fileRecords]) => fileRecords.map((record, i) => ({
     file, record: i, fixture: record.fixture, unit: record.unit, speed: recordSpeed(record), step: record.step,
@@ -892,6 +887,104 @@ const REJECTION_REASONS = [
   `the disaster is one of ${DISASTER_KINDS.join(", ")}`,
 ];
 
+// --- runs/: cities run at each speed, with their state hashes in plain text and their events gzipped
+
+const RUNS_DIRECTORY = "runs";
+
+const RUN_INDEX = "index.json";
+
+// How often a run checks the state hash: every 16 cycles at fast speed
+const RUN_CHECKPOINT_INTERVAL = 256;
+
+// What the runs' events may take in the repository, compressed
+const RUN_LIMIT = 5 * 1024 * 1024;
+
+// A new city from each seed, at each level in turn, and each sprite-free fixture's city as built
+async function runStarts(seeds: number[]): Promise<RunStart[]> {
+  const levels = Object.keys(Level) as LevelName[];
+  const fixtures: RunStart[] = [];
+  for (const fixture of spriteFreeFixtureNames()) {
+    fixtures.push({fixture, built: await builtSave(fixture)});
+  }
+
+  return [...seeds.map((seed, i) => ({seed, level: levels[i % levels.length]})), ...fixtures];
+}
+
+function runFile(run: CityRun): string {
+  return `${run.fixture ?? `seed${run.seed}`}.${run.speed}.json.gz`;
+}
+
+// A fixture's run at its saved speed is its golden run, which must end at its golden run hash
+function checkGoldenRun(start: RunStart, run: CityRun): void {
+  if (!("fixture" in start) || Speed[run.speed] !== start.built.simulation.speed) {
+    return;
+  }
+
+  const goldens = fixtureLog(start.fixture).checkpoints;
+  const golden = goldens[goldens.length - 1];
+  const last = run.checkpoints[run.checkpoints.length - 1];
+  if (golden.step !== last.step || golden.hash !== last.hash) {
+    throw new Error(`${start.fixture}'s run at ${run.speed} speed ends at step ${last.step} with ${last.hash}, but its ` +
+                    `golden run at step ${golden.step} with ${golden.hash}`);
+  }
+}
+
+// Each start at each speed, once: a city that starts as another does, such as a fixture that differs from another only
+// in its saved speed, makes the same run
+async function recordRuns(starts: RunStart[]): Promise<CityRun[]> {
+  const runs: CityRun[] = [];
+  for (const start of starts) {
+    for (const speed of RUNNING_SPEEDS) {
+      const run = await recordRun(start, speed, RUN_STEPS, RUN_CHECKPOINT_INTERVAL);
+      checkGoldenRun(start, run);
+
+      if (!runs.some((other) => other.checkpoints[0].hash === run.checkpoints[0].hash)) {
+        runs.push(run);
+      }
+    }
+  }
+
+  return runs;
+}
+
+function ensureRunsCover(runs: CityRun[]): void {
+  for (const level of Object.keys(Level)) {
+    ensureCovers(runs.some((run) => run.seed !== null && run.level === level), `a new city at the level ${level}`);
+  }
+
+  for (const run of runs.filter((run) => run.yearEnds === 0)) {
+    ensureCovers(false, `a year end in ${describeStart(run)}'s run at ${run.speed} speed`);
+  }
+
+  const budgets = runs.flatMap((run) => run.budgets);
+  ensureCovers(budgets.some((budget) => budget.autoBudget && !budget.shortfall), "a year's budget auto-budget paid");
+  ensureCovers(budgets.some((budget) => budget.shortfall), "a year's budget auto-budget ran short of");
+  ensureCovers(budgets.some((budget) => !budget.autoBudget), "a year's budget with auto-budget off");
+}
+
+async function writeRuns(seeds: number[]): Promise<void> {
+  const directory = path.join(CONFORMANCE_DIRECTORY, RUNS_DIRECTORY);
+  fs.mkdirSync(directory, {recursive: true});
+
+  const runs = await recordRuns(await runStarts(seeds));
+  ensureRunsCover(runs);
+
+  let size = 0;
+  for (const run of runs) {
+    size += writeGzipped(path.join(RUNS_DIRECTORY, runFile(run)), canonicalJson(run.events));
+  }
+
+  ensureCovers(size <= RUN_LIMIT, `the runs' events in ${RUN_LIMIT} bytes: they take ${size}`);
+  removeUnwritten(directory, new Set([RUN_INDEX, ...runs.map(runFile)]));
+
+  const index = runs.map((run) => ({
+    file: runFile(run), seed: run.seed, fixture: run.fixture, level: run.level, speed: run.speed, steps: run.steps,
+    events: run.events.length, checkpoints: run.checkpoints,
+  }));
+
+  writeFile(path.join(RUNS_DIRECTORY, RUN_INDEX), ["{", ...listLines("runs", index, true), "}"]);
+}
+
 // The files in conformance/ another program writes: random.c writes random.json
 const WRITTEN_ELSEWHERE = new Set(["random.json"]);
 
@@ -911,7 +1004,8 @@ async function main() {
   clearWritten();
   writeFile("tiles.json", tileLines());
   writeFile("canonicalJson.json", canonicalJsonLines());
-  writeFile("maps.json", await mapLines());
+  const maps = chooseMaps();
+  writeFile("maps.json", await mapLines(maps));
   writeFile("saveStrings.json", saveStringLines());
   writeFile("messages.json", ["{", ...namedLines("messages", Messages, true), "}"]);
   await writeSaves();
@@ -920,6 +1014,7 @@ async function main() {
   writeFile("commands.json", await commandLines());
   writeMigrated();
   await writeSnapshots();
+  await writeRuns(maps.map((map) => map.seed));
 }
 
 main().catch((error: Error) => {

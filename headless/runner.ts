@@ -102,6 +102,18 @@ export function fixtureSave(name: string): SaveData {
   return plainSavedState(replay(fixtureLog(name), {to: 0, verify: false}).city) as SaveData;
 }
 
+// The saved state a fixture's log builds, as fixtureSave gives it, checked against the golden hash the log pins at
+// step 0
+export async function builtSave(name: string): Promise<SaveData> {
+  const replayed = replay(fixtureLog(name), {to: 0});
+
+  if (await replayed.verified === 0) {
+    throw new Error(`${name}'s log has no checkpoint at step 0 to check its city against`);
+  }
+
+  return plainSavedState(replayed.city) as SaveData;
+}
+
 export interface Replay {
   city: Simulation;
   // What came of each entry's command, in the log's order

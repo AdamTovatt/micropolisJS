@@ -73,6 +73,18 @@ export type RunningSpeed = Exclude<keyof typeof Speed, "paused">;
 export const RUNNING_SPEEDS = (Object.keys(Speed) as (keyof typeof Speed)[])
   .filter((name): name is RunningSpeed => name !== "paused");
 
+export type LevelName = keyof typeof Level;
+
+// The name a table of named values, such as Level or Speed, gives a value of it
+export function nameOf<Name extends string>(table: Record<Name, number>, value: number): Name {
+  const name = (Object.keys(table) as Name[]).find((candidate) => table[candidate] === value);
+  if (name === undefined) {
+    throw new Error(`No name is given to ${value}: the names are ${Object.keys(table).join(", ")}`);
+  }
+
+  return name;
+}
+
 type Construct = (new (gameMap: unknown, gameLevel: number, speed: number, seed: number) => Simulation) & {
   fromSave(saveData: SaveData): Simulation;
 };

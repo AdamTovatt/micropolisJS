@@ -12,19 +12,25 @@
  */
 
 import { SNAPSHOT_POINTS } from "../conformance/snapshotPoints";
-import {
-    recordSnapshots, replaceMethod, SnapshotPoint, SnapshotRecord, unrecorded,
-} from "../conformance/unitSnapshots";
+import { replaceMethod } from "../conformance/instrumentation";
+import { recordSnapshots, SnapshotPoint, SnapshotRecord, unrecorded } from "../conformance/unitSnapshots";
 import { cityFromSave, SaveData } from "../headless/city";
 import { fixtureNamesOf, spriteFreeFixtureNames } from "../headless/fixtures/index";
-import { fixtureLog, replay } from "../headless/runner";
+import { builtSave } from "../headless/runner";
 import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { plainSavedState } from "../src/stateHash";
 
 const FIXTURE = "suburb";
 
+let builtFixture: SaveData;
+
+beforeAll(async () => {
+    builtFixture = await builtSave(FIXTURE);
+});
+
+// The fixture's city as built, which every recording copies as it loads it
 function built(): Map<string, SaveData> {
-    return new Map([[FIXTURE, plainSavedState(replay(fixtureLog(FIXTURE), {to: 0}).city) as SaveData]]);
+    return new Map([[FIXTURE, builtFixture]]);
 }
 
 // The map scan's first sweep, recorded with no handlers and with each family alone, which must reach a branch

@@ -40,17 +40,20 @@ namespace Micropolis.Rules
         /// </summary>
         public const long MaxFireStationEffect = 1000;
 
+        // A new city's budget starts as the Budget constructor in src/budget.js starts it: a tax of 7%, auto-budget on,
+        // and every service fully funded
+
         public long TotalFunds { get; internal set; }
 
-        public long CityTax { get; internal set; }
+        public long CityTax { get; internal set; } = 7;
 
-        public bool AutoBudget { get; internal set; }
+        public bool AutoBudget { get; internal set; } = true;
 
-        public double RoadPercent { get; internal set; }
+        public double RoadPercent { get; internal set; } = 1;
 
-        public double FirePercent { get; internal set; }
+        public double FirePercent { get; internal set; } = 1;
 
-        public double PolicePercent { get; internal set; }
+        public double PolicePercent { get; internal set; } = 1;
 
         public long RoadSpend { get; internal set; }
 
@@ -64,11 +67,11 @@ namespace Micropolis.Rules
 
         public long PoliceMaintenanceBudget { get; internal set; }
 
-        public long RoadEffect { get; internal set; }
+        public long RoadEffect { get; internal set; } = MaxRoadEffect;
 
-        public long FireEffect { get; internal set; }
+        public long FireEffect { get; internal set; } = MaxFireStationEffect;
 
-        public long PoliceEffect { get; internal set; }
+        public long PoliceEffect { get; internal set; } = MaxPoliceStationEffect;
 
         public long CashFlow { get; internal set; }
 

@@ -32,7 +32,7 @@ namespace Micropolis.Rules.Tests
         {
             Valves valves = new Valves { ResValve = start, ComValve = start, IndValve = start, ResCap = resCap, ComCap = comCap, IndCap = indCap };
 
-            valves.SetValves(Level.Easy, new Census(), new Budget());
+            valves.SetValves(Level.Easy, new Census(), new Budget { CityTax = 0 });
 
             Assert.AreEqual((resValve, comValve, indValve), (valves.ResValve, valves.ComValve, valves.IndValve));
         }

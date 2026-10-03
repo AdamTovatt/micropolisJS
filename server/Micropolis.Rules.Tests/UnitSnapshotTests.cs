@@ -142,20 +142,21 @@ namespace Micropolis.Rules.Tests
         }
 
         // A stub the TypeScript's call never reached means the C# called what it should not have: a failure, never
-        // an inconclusive result
+        // an inconclusive result. Every recorded city has random disasters off, so phase 15 run with them on reaches a
+        // stub that no record does, as long as random disasters are one; the record then claims to reach nothing.
         [TestMethod]
         public void AssertMatches_StubReachedThatTheTypeScriptDidNotReach_Fails()
         {
-            JsonObject? stopped = Snapshots.Select(UnitSnapshots.ReadRecord)
-                .FirstOrDefault(record => UnitSnapshotRunner.Run(record).NotPorted is string unit && unit != (string)record["unit"]!);
+            Assert.Contains("disasterManager.doDisasters", NotYetPorted,
+                            "Random disasters are ported: this test needs another stub no recorded city reaches.");
 
-            if (stopped is null)
-            {
-                Assert.Inconclusive("No snapshot reaches a stub any more.");
-            }
-
+            JsonObject stopped = Snapshots.Where(snapshot => snapshot.Unit == "simulation._simulate")
+                .Select(UnitSnapshots.ReadRecord)
+                .First(record => (int)record["before"]!["simulation"]!["phaseCycle"]! == 15);
+            stopped["before"]!["disasters"]!["disastersEnabled"] = true;
             stopped["reached"] = new JsonArray();
 
+            Assert.AreEqual("disasterManager.doDisasters", UnitSnapshotRunner.Run(stopped).NotPorted);
             Assert.Throws<AssertFailedException>(() => AssertMatches(stopped));
         }
 

@@ -11,6 +11,7 @@
  *
  */
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Nodes;
 using static Micropolis.Rules.JsMath;
 
@@ -90,16 +91,24 @@ namespace Micropolis.Rules
         public long CityScoreDelta { get; internal set; }
 
         /// <summary>
+        /// A new city's evaluation, as the <c>Evaluation</c> constructor in <c>src/evaluation.js</c> starts it.
+        /// </summary>
+        public Evaluation()
+        {
+            EvalInit();
+        }
+
+        /// <summary>
         /// The last poll's votes, in the poll's sorted order.
         /// </summary>
-        public IReadOnlyList<ProblemVote> ProblemVotes { get; internal set; } = [];
+        public IReadOnlyList<ProblemVote> ProblemVotes { get; internal set; }
 
         /// <summary>
         /// The worst problems' indices, worst first, <see cref="NumProblems"/> for none.
         /// </summary>
-        public IReadOnlyList<int> ProblemOrder { get; internal set; } = new int[NumComplaints];
+        public IReadOnlyList<int> ProblemOrder { get; internal set; }
 
-        public IReadOnlyList<ScoreStep> CityScoreBreakdown { get; internal set; } = [];
+        public IReadOnlyList<ScoreStep> CityScoreBreakdown { get; internal set; }
 
         /// <summary>
         /// Raises <see cref="Messages.CLASSIFICATION_UPDATED"/> and <see cref="Messages.SCORE_UPDATED"/>, as
@@ -195,6 +204,7 @@ namespace Micropolis.Rules
             }
         }
 
+        [MemberNotNull(nameof(CityScoreBreakdown), nameof(ProblemVotes), nameof(ProblemOrder))]
         private void EvalInit()
         {
             CityYes = 0;

@@ -33,7 +33,7 @@ namespace Micropolis.Rules.Tests
             }
 
             JsonArray events = new JsonArray();
-            city.Events.Observer = (name, payload) => events.Add(EventOf(name, payload));
+            city.Events.Observer = (name, payload) => events.Add(RecordedEvents.Of(name, payload));
 
             try
             {
@@ -57,19 +57,6 @@ namespace Micropolis.Rules.Tests
         public static IReadOnlyList<string> Strings(JsonNode? list)
         {
             return list!.AsArray().Select(value => (string)value!).ToList();
-        }
-
-        // An event as a record holds it: its name, and its payload unless it was emitted without one
-        private static JsonObject EventOf(string name, JsonNode? payload)
-        {
-            JsonObject recorded = new JsonObject { ["name"] = name };
-
-            if (payload is not null)
-            {
-                recorded["payload"] = payload.DeepClone();
-            }
-
-            return recorded;
         }
 
         /// <summary>
