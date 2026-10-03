@@ -83,18 +83,24 @@ export interface MeterContainer {
 }
 
 export class RCI {
+  // We might be created before our container has appeared on screen, so the canvas takes its size at the first update
+  private sized = false;
+
   constructor(private readonly container: MeterContainer, private readonly canvas: MeterCanvas,
               eventSource: ValveSource) {
     eventSource.addEventListener(VALVES_UPDATED, (valves) => this.update(valves));
   }
 
   update(data: Valves): void {
-    // The canvas is assumed to fill its container on-screen. It takes the container's size at every update.
-    const rect = this.container.getBoundingClientRect();
-    this.canvas.width = rect.width;
-    this.canvas.height = rect.height;
-    this.canvas.style.margin = "0";
-    this.canvas.style.padding = "0";
+    if (!this.sized) {
+      // The canvas is assumed to fill its container on-screen
+      const rect = this.container.getBoundingClientRect();
+      this.canvas.width = rect.width;
+      this.canvas.height = rect.height;
+      this.canvas.style.margin = "0";
+      this.canvas.style.padding = "0";
+      this.sized = true;
+    }
 
     const ctx = this.canvas.getContext("2d")!;
     this.clear(ctx);

@@ -43,8 +43,8 @@ interface Size {
     height: number;
 }
 
-// A meter on a canvas that records what is drawn on it, in a container of the size given. The meter follows only the
-// valves event.
+// A meter on a canvas that records what is drawn on it, in a container of the size given, which can change. The meter
+// follows only the valves event.
 function meter(size: Size) {
     const drawn: Drawn[] = [];
     const context: MeterContext = {
@@ -62,7 +62,7 @@ function meter(size: Size) {
         textBaseline: "alphabetic",
     };
     const canvas: MeterCanvas = {width: 0, height: 0, style: {margin: "", padding: ""}, getContext: () => context};
-    const container = {getBoundingClientRect: () => size};
+    const container = {size, getBoundingClientRect: () => container.size};
     let send: ((valves: Valves) => void) | null = null;
 
     new RCI(container, canvas, {addEventListener: (event, listener) => {
@@ -72,7 +72,7 @@ function meter(size: Size) {
     }});
 
     return {
-        drawn,
+        canvas, drawn, container,
         send: (valves: Valves) => {
             if (send === null) {
                 throw new Error("The meter follows no valves event");
@@ -91,5 +91,17 @@ describe("the demand meter", () => {
 
         expect(drawn).toEqual([{clear: true}, BOX, barRect(0, 750), {label: "R"}, barRect(1, -450), {label: "C"},
                                barRect(2, 1500), {label: "I"}]);
+    });
+
+    // The meter is made before its container shows, so the container has no size yet
+    it("takes the size its container has at the first update, and keeps it", () => {
+        const {canvas, container, send} = meter({width: 0, height: 0});
+
+        container.size = {width: 160, height: 160};
+        send({residential: 0, commercial: 0, industrial: 0});
+        container.size = {width: 90, height: 70};
+        send({residential: 0, commercial: 0, industrial: 0});
+
+        expect([canvas.width, canvas.height]).toEqual([160, 160]);
     });
 });
