@@ -494,6 +494,65 @@ nav li {
   padding: 0 110px;
 }
 
+#statusPanel {
+  position: absolute;
+  top: 330px;
+  width: 285px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+/* The disaster view opens over the status panel's slot, so the panel steps aside while it is open. */
+#monstertv.showing ~ #statusPanel {
+  display: none;
+}
+
+#statusPanel .statusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+#statusPanel .statusLabel {
+  font-weight: bold;
+}
+
+#statusPanel .statusBad {
+  color: red;
+  font-weight: bold;
+}
+
+#statusPanel .statusMeter {
+  height: 6px;
+  margin-bottom: 6px;
+  border: 1px solid gray;
+  background-color: white;
+}
+
+#statusPanel .statusMeterFill {
+  height: 100%;
+  width: 0;
+  background-color: green;
+}
+
+#statusPanel .statusMeterFill.statusMeterOver {
+  background-color: red;
+}
+
+#statusPanel .statusCap {
+  margin-left: 4px;
+  padding: 0 4px;
+  background-color: orange;
+  cursor: help;
+}
+
+#statusPanel .statusConditions {
+  margin: 0;
+  padding-left: 16px;
+}
+
 #tooSmall {
   position: absolute;
   top: 0;
@@ -688,6 +747,10 @@ nav li {
     top: 442px;
   }
 
+  #statusPanel {
+    top: 310px;
+  }
+
   #tw {
     top: 280px;
   }
@@ -720,6 +783,10 @@ nav li {
 
   #RCIContainer {
     top: 412px;
+  }
+
+  #statusPanel {
+    top: 290px;
   }
 
   #tw {
@@ -763,6 +830,11 @@ nav li {
     top: 382px;
   }
 
+  #statusPanel {
+    top: 270px;
+    max-height: 160px;
+  }
+
   #tw {
     top: 240px;
   }
@@ -795,6 +867,11 @@ nav li {
 
   #RCIContainer {
     top: 352px;
+  }
+
+  #statusPanel {
+    top: 240px;
+    max-height: 130px;
   }
 
   #tw {

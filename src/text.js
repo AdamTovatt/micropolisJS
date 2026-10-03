@@ -150,6 +150,19 @@ messageText[Messages.REACHED_MEGALOPOLIS] = 'Population has reached 500,000';
 messageText[Messages.REACHED_METROPOLIS] = 'Population has reached 100,000';
 messageText[Messages.REACHED_TOWN] = 'Population has reached 2,000';
 
+// Status panel strings
+var statusPanel = {
+  capsLabel: 'Demand capped',
+  commercialCap: 'Commercial',
+  commercialCapTitle: 'Commercial demand can\'t rise above zero until the city has an airport',
+  industrialCap: 'Industrial',
+  industrialCapTitle: 'Industrial demand can\'t rise above zero until the city has a seaport',
+  powerLabel: 'Power',
+  powerUnknown: '—',
+  residentialCap: 'Residential',
+  residentialCapTitle: 'Residential demand can\'t rise above zero until the city has a stadium'
+};
+
 var Text = {
   badMessages: badMessages,
   cityClass: cityClass,
@@ -164,6 +177,7 @@ var Text = {
   problems: problems,
   pollutionStrings: pollutionStrings,
   rateStrings: rateStrings,
+  statusPanel: statusPanel,
   toolMessages: toolMessages,
   zoneTypes: zoneTypes
 };
