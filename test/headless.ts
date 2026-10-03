@@ -58,7 +58,8 @@ describe("the runner", () => {
     });
 
     it("names the fixtures when asked for one that doesn't exist", () => {
-        expect(() => startCity({fixture: "nowhere"})).toThrow("No fixture named nowhere: the fixtures are broke, town, underfunded");
+        expect(() => startCity({fixture: "nowhere"}))
+            .toThrow(/^No fixture named nowhere: the fixtures are (\w+, )*town(, \w+)*$/);
     });
 
     // The hash sees the stream's state: two streams over the same city differ before a single step

@@ -11,7 +11,7 @@
  *
  */
 
-import { expect, Page } from "@playwright/test";
+import { errors, expect, Page } from "@playwright/test";
 import { readFileSync } from "fs";
 
 import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
@@ -30,7 +30,7 @@ export interface Tile {
 // by row.
 export interface GameSave {
   map: {width: number, height: number, tiles: number[]};
-  budget: {totalFunds: number, cityTax: number, policePercent: number};
+  budget: {totalFunds: number, cityTax: number, policePercent: number, fireEffect: number};
   [key: string]: unknown;
 }
 
@@ -41,6 +41,9 @@ export type Difficulty = "Easy" | "Med" | "Hard";
 
 const CANVAS_ID = "MicropolisCanvas";
 const CANVAS = `#${CANVAS_ID}`;
+
+// The most times showTiles holds a key along one axis
+const MAX_SCROLL_MOVES = 200;
 
 export class Player {
   // Steps taken through the hook since the count was last read
@@ -313,24 +316,98 @@ export class Player {
     return outcome.advanced;
   }
 
-  // The centre of a tile on the screen, worked out from the view's origin rather than from the game's own mapping of
-  // pointer to tile, which is the thing under test. Fails when the tile is out of view or under a panel.
-  private async tilePoint(tile: Tile): Promise<{x: number, y: number}> {
-    const view: View = await this.page.evaluate(() => window.micropolisTestHook!.view());
+  // Scrolls the map with the arrow keys, as a player does, until every tile given is in view and clear of the panels:
+  // first across, then down, until the tiles' middle is near the canvas's or the view can go no further. The view moves
+  // a tile on each tick a key is held, so a key is held until the view moves, then let go.
+  async showTiles(tiles: Tile[]): Promise<void> {
+    const middleX = (Math.min(...tiles.map((tile) => tile.x)) + Math.max(...tiles.map((tile) => tile.x))) / 2;
+    const middleY = (Math.min(...tiles.map((tile) => tile.y)) + Math.max(...tiles.map((tile) => tile.y))) / 2;
+
+    for (const axis of ["x", "y"] as const) {
+      // A held key can carry the view past the middle, so the moves are bounded rather than left to settle
+      for (let moves = 0; moves < MAX_SCROLL_MOVES; moves++) {
+        const view = await this.view();
+        const canvas = await this.canvasBox();
+        const origin = axis === "x" ? view.originX : view.originY;
+        const span = (axis === "x" ? canvas.width : canvas.height) / view.tileWidth;
+        const offset = (axis === "x" ? middleX : middleY) - origin - span / 2;
+        if (Math.abs(offset) <= 2) {
+          break;
+        }
+
+        const key = axis === "x" ? (offset < 0 ? "ArrowLeft" : "ArrowRight") : (offset < 0 ? "ArrowUp" : "ArrowDown");
+        if (!(await this.holdUntilTheViewMoves(key, axis, origin))) {
+          break;
+        }
+      }
+    }
+
+    const hidden = [];
+    for (const tile of tiles) {
+      if (await this.onCanvas(tile) === null) {
+        hidden.push(tile);
+      }
+    }
+
+    if (hidden.length > 0) {
+      throw new Error(`Scrolling leaves ${hidden.map((tile) => `(${tile.x}, ${tile.y})`).join(", ")} out of view`);
+    }
+  }
+
+  // Holds the key until the view's origin on the axis is no longer the one given, and answers whether it moved: at the
+  // map's edge it never does
+  private async holdUntilTheViewMoves(key: string, axis: "x" | "y", origin: number): Promise<boolean> {
+    await this.page.keyboard.down(key);
+    try {
+      await this.page.waitForFunction(({along, from}) => {
+        const view = window.micropolisTestHook!.view();
+        return (along === "x" ? view.originX : view.originY) !== from;
+      }, {along: axis, from: origin}, {polling: 10, timeout: 1000});
+      return true;
+    } catch (error) {
+      if (error instanceof errors.TimeoutError) {
+        return false;
+      }
+
+      throw error;
+    } finally {
+      await this.page.keyboard.up(key);
+    }
+  }
+
+  private async view(): Promise<View> {
+    return await this.page.evaluate(() => window.micropolisTestHook!.view());
+  }
+
+  private async canvasBox(): Promise<{x: number, y: number, width: number, height: number}> {
     const canvas = await this.page.locator(CANVAS).boundingBox();
     if (canvas === null) {
       throw new Error("The game canvas is not on screen");
     }
 
+    return canvas;
+  }
+
+  // The centre of a tile on the screen, worked out from the view's origin rather than from the game's own mapping of
+  // pointer to tile, which is the thing under test, or null when the tile is out of view or under a panel
+  private async onCanvas(tile: Tile): Promise<{x: number, y: number} | null> {
+    const view = await this.view();
+    const canvas = await this.canvasBox();
+
     const x = canvas.x + (tile.x - view.originX) * view.tileWidth + view.tileWidth / 2;
     const y = canvas.y + (tile.y - view.originY) * view.tileWidth + view.tileWidth / 2;
 
-    const onCanvas = await this.page.evaluate(({px, py, id}) => document.elementFromPoint(px, py)?.id === id,
-                                              {px: x, py: y, id: CANVAS_ID});
-    if (!onCanvas) {
+    const shown = await this.page.evaluate(({px, py, id}) => document.elementFromPoint(px, py)?.id === id,
+                                           {px: x, py: y, id: CANVAS_ID});
+    return shown ? {x, y} : null;
+  }
+
+  private async tilePoint(tile: Tile): Promise<{x: number, y: number}> {
+    const point = await this.onCanvas(tile);
+    if (point === null) {
       throw new Error(`Tile (${tile.x}, ${tile.y}) is out of view or under a panel`);
     }
 
-    return {x, y};
+    return point;
   }
 }

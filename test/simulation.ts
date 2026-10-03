@@ -226,6 +226,21 @@ describe("a simulation", () => {
             expect(simulate).toHaveBeenCalledTimes(1);
         });
 
+        // As updateDate in the original: the year one million turns back to the starting year, keeping the month
+        it("goes back to 1900 on reaching the year one million, in the same month", () => {
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_FAST);
+            const dates: unknown[] = [];
+            simulation.addEventListener(Messages.DATE_UPDATED, (date: unknown) => dates.push(date));
+            // The step runs phase 0, which moves the city into the second month of the year one million
+            simulation._phaseCycle = 0;
+            simulation._cityTime = (1000000 - 1900) * 48 + 3;
+
+            steps(simulation, 1);
+
+            expect(simulation._cityTime).toBe(4);
+            expect(dates).toEqual([{month: 1, year: 1900}]);
+        });
+
         it("does nothing while paused", () => {
             const simulation = simulationFromSeed(SEED, Simulation.SPEED_PAUSED);
 
@@ -233,6 +248,23 @@ describe("a simulation", () => {
 
             expect(phasesRun(simulation)).toBe(0);
             expect(simulation.spriteManager.spriteCycle).toBe(0);
+        });
+    });
+
+    describe("told the power falls short", () => {
+
+        // The power messages share a throttle of three years, 144 in city time, after the last sent
+        it.each([[244, false], [245, true]])("at city time %d, a hundred after the last message, sends one: %s", (cityTime, sent) => {
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_MED);
+            const messages: unknown[] = [];
+            simulation.addEventListener(Messages.FRONT_END_MESSAGE, (message: unknown) => messages.push(message));
+            simulation._cityTime = cityTime;
+            simulation._lastPowerMessage = 100;
+
+            simulation._powerManager._emitEvent(Messages.NOT_ENOUGH_POWER);
+
+            expect(messages).toEqual(sent ? [{subject: Messages.NOT_ENOUGH_POWER}] : []);
+            expect(simulation._lastPowerMessage).toBe(sent ? cityTime : 100);
         });
     });
 

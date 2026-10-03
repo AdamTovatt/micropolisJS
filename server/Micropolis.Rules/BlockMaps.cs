@@ -121,6 +121,14 @@ namespace Micropolis.Rules
         /// </summary>
         public BlockMap TrafficDensityMap { get; }
 
+        /// <summary>
+        /// The map saved under the key, or <see langword="null"/> for a key no map is saved under.
+        /// </summary>
+        internal BlockMap? Saved(string key)
+        {
+            return _saved.FirstOrDefault(saved => saved.Key == key).Map;
+        }
+
         internal void SaveScan(JsonObject scanData)
         {
             foreach ((string key, BlockMap map) in _saved)

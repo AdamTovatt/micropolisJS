@@ -139,6 +139,41 @@ namespace Micropolis.Rules
             return IsPositionInBounds(new Position(x, y));
         }
 
+        /// <summary>
+        /// The map's own tile at (x, y), which changes the map as it changes. Off the map, as <c>getTile</c> in
+        /// <c>src/gameMap.js</c> does, it is a new tile of <see cref="TileValues.TILE_INVALID"/> belonging to nothing.
+        /// </summary>
+        public Tile GetTile(int x, int y)
+        {
+            return TestBounds(x, y) ? _data[x + y * Width] : new Tile(TileValues.TILE_INVALID);
+        }
+
+        /// <summary>
+        /// Copies the tile at (x, y) into <paramref name="into"/>, and returns the map's own tile, as <c>getTile</c>
+        /// does given a tile to fill. Off the map, <paramref name="into"/> is left as it was.
+        /// </summary>
+        public Tile GetTile(int x, int y, Tile into)
+        {
+            Tile tile = GetTile(x, y);
+
+            if (TestBounds(x, y))
+            {
+                into.SetFrom(tile);
+            }
+
+            return tile;
+        }
+
+        public void AddTileFlags(int x, int y, int flags)
+        {
+            GetTileAt(x, y, nameof(AddTileFlags)).AddFlags(flags);
+        }
+
+        public void RemoveTileFlags(int x, int y, int flags)
+        {
+            GetTileAt(x, y, nameof(RemoveTileFlags)).RemoveFlags(flags);
+        }
+
         public int GetTileValue(int x, int y)
         {
             return GetTileAt(x, y, nameof(GetTileValue)).GetValue();
@@ -162,6 +197,36 @@ namespace Micropolis.Rules
         public void SetTile(int x, int y, int value, int flags)
         {
             GetTileAt(x, y, nameof(SetTile)).Set(value, flags);
+        }
+
+        /// <summary>
+        /// Lays a zone of <paramref name="size"/> by <paramref name="size"/> tiles from the centre's upper left
+        /// neighbour, as <c>putZone</c> in <c>src/gameMap.js</c>: the values count up row by row from the centre's less
+        /// <c>size + 1</c>, each tile burnable and conductive, and the centre the zone's centre.
+        /// </summary>
+        /// <remarks>
+        /// As the TypeScript, it checks the centre and the far corner are on the map before it lays a tile; a zone
+        /// past the near edge throws as it reaches the first tile off the map.
+        /// </remarks>
+        public void PutZone(int centreX, int centreY, int centreTile, int size)
+        {
+            if (!TestBounds(centreX, centreY) || !TestBounds(centreX - 1 + size - 1, centreY - 1 + size - 1))
+            {
+                throw new ArgumentOutOfRangeException(nameof(centreX), $"GameMap putZone called with invalid bounds {centreX}, {centreY}.");
+            }
+
+            int tile = centreTile - 1 - size;
+            int startX = centreX - 1;
+            int startY = centreY - 1;
+
+            for (int y = startY; y < startY + size; y++)
+            {
+                for (int x = startX; x < startX + size; x++)
+                {
+                    SetTile(x, y, tile, x == centreX && y == centreY ? TileFlags.BNCNBIT | TileFlags.ZONEBIT : TileFlags.BNCNBIT);
+                    tile += 1;
+                }
+            }
         }
 
         public void SetTile(Position position, int value, int flags)

@@ -887,11 +887,12 @@ Simulation.prototype.getDate = function() {
 };
 
 
+// As setYear in the original, whose division of the city time is an integer's: the city keeps its month
 Simulation.prototype._setYear = function(year) {
   if (year < this._startingYear)
     year = this._startingYear;
 
-  year = (year - this._startingYear) - (this._cityTime / 48);
+  year = (year - this._startingYear) - Math.floor(this._cityTime / 48);
   this._cityTime += year * 48;
   this._updateTime();
 };
@@ -902,8 +903,9 @@ Simulation.prototype._updateTime = function() {
   var cityYear = Math.floor(this._cityTime / 48) + this._startingYear;
   var cityMonth = Math.floor(this._cityTime % 48) >> 2;
 
+  // As updateDate in the original, a city reaching the year one million goes back to its starting year
   if (cityYear >= megalinium) {
-    this.setYear(this._startingYear);
+    this._setYear(this._startingYear);
     return;
   }
 

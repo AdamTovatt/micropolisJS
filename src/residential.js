@@ -45,8 +45,9 @@ var getZonePopulation = function(map, x, y, tileValue) {
   if (tileValue === TileValues.FREEZ)
     return getFreeZonePopulation(map, x, y, tileValue);
 
-  var populationIndex = Math.floor((tileValue - TileValues.RZB) / 9) % 4 + 1;
-  return populationIndex * 8 + 16;
+  // As getResZonePop in the original: the density, 0 to 3, counts 16, 24, 32 or 40
+  var density = Math.floor((tileValue - TileValues.RZB) / 9) % 4;
+  return density * 8 + 16;
 };
 
 
@@ -154,13 +155,13 @@ var degradeZone = function(map, x, y, blockMaps, population, lpValue, zonePower,
   }
 
   if (population === 16) {
-    // Already at lowest density: degrade to 8 individual houses
+    // Already at lowest density: degrade to 8 individual houses, column by column as doResidentialOut in the original
     map.setTile(x, y, TileValues.FREEZ, BLBNCNBIT | ZONEBIT);
 
-    for (yy = y - 1; yy <= y + 1; yy++) {
-      for (xx = x - 1; xx <= x + 1; xx++) {
+    for (xx = x - 1; xx <= x + 1; xx++) {
+      for (yy = y - 1; yy <= y + 1; yy++) {
         if (xx === x && yy === y) continue;
-        map.setTile(x, y, TileValues.LHTHR + lpValue + random.getRandom(2), BLBNCNBIT);
+        map.setTile(xx, yy, TileValues.LHTHR + lpValue + random.getRandom(2), BLBNCNBIT);
       }
     }
 

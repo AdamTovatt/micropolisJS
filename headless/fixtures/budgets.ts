@@ -14,19 +14,12 @@
 import { Checkpoint, CommandLog } from "../../src/commandLog";
 import { Command } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
-import { buildingAt, lineOf } from "./toolCommands";
-import { townCommands } from "./town";
+import { buildingAt } from "./toolCommands";
+import { stations, townCommands } from "./town";
 
 // Two towns whose golden hashes pin the year-end budget's rules, which the town alone never reaches: its services are
 // always fully funded. Each is the town with a fire and a police station east of its north row, whose upkeep the
 // year end has to pay, and a budget set before the first step. Their runs, like the town's, pass three year ends.
-
-// A wire from the north row's last zone powers the fire station, and the police station touches it
-const stations: Command[] = [
-  lineOf("wire", 44, 13, 44, 13),
-  buildingAt("fire", 46, 13),
-  buildingAt("police", 46, 16),
-];
 
 function fixture(description: string, commands: Command[], checkpoints: Checkpoint[]): CommandLog {
   return builtFixture(description, [...townCommands, ...commands], checkpoints);
@@ -56,5 +49,5 @@ export const broke = fixture(
     {type: "setBudget", road: 100, fire: 100, police: 100, tax: 0},
   ], [
     {step: 0, hash: "55f86f6a27ea1c58475acac7362c45836312de779a716b331923aacd121c7d31"},
-    {step: RUN_STEPS, hash: "03f4c76bff5ffd77cf1a5e557e82530ceb71577cf51eea3b2a94ce272deaa8b0"},
+    {step: RUN_STEPS, hash: "d852ed3e3f113f9afadcea4e4339105e01bbf30d8daf75efd1f56bebc2f73da2"},
   ]);

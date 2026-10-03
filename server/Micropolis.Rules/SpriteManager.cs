@@ -20,9 +20,85 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed class SpriteManager
     {
+        private readonly GameMap _map;
+
+        public SpriteManager(GameMap map)
+        {
+            _map = map;
+        }
+
         public long SpriteCycle { get; internal set; }
 
         public IReadOnlyList<Sprite> SpriteList { get; internal set; } = [];
+
+        /// <summary>
+        /// Raises the <see cref="Messages.DISASTER_MESSAGES"/>, the <see cref="Messages.CRASHES"/> and
+        /// <see cref="Messages.HEAVY_TRAFFIC"/>, as <c>src/spriteManager.js</c> passes them on from its sprites.
+        /// </summary>
+        internal EventEmitter Events { get; } = new EventEmitter();
+
+        // The sprite seam: the sprites aren't ported, so reading the list answers from the state the city holds, and
+        // creating or moving a sprite throws. A sprite-free city's step moves nothing, so it runs as the TypeScript does.
+
+        /// <summary>
+        /// The first live sprite of the type, or <see langword="null"/>.
+        /// </summary>
+        public Sprite? GetSprite(SpriteType type)
+        {
+            return SpriteList.FirstOrDefault(sprite => sprite.Frame != 0 && sprite.Type == type);
+        }
+
+        /// <summary>
+        /// The distance in pixels, across and down, from the tile at (x, y) to the nearest live ship: 99999 with none.
+        /// </summary>
+        public long GetBoatDistance(int x, int y)
+        {
+            long dist = 99999;
+            long pixelX = WorldToPix(x) + 8;
+            long pixelY = WorldToPix(y) + 8;
+
+            foreach (Sprite sprite in SpriteList)
+            {
+                if (sprite.Type == SpriteType.Ship && sprite.Frame != 0)
+                {
+                    long sprDist = Math.Abs(sprite.X - pixelX) + Math.Abs(sprite.Y - pixelY);
+
+                    dist = Math.Min(dist, sprDist);
+                }
+            }
+
+            return dist;
+        }
+
+        /// <summary>
+        /// Advances the sprite counter and moves every live sprite, then drops the dead.
+        /// </summary>
+        public void MoveObjects(SimData simData)
+        {
+            SpriteCycle += 1;
+
+            if (SpriteList.Count > 0)
+            {
+                throw new NotPortedException("spriteManager.moveObjects");
+            }
+        }
+
+        /// <summary>
+        /// An explosion over the tile at (x, y), or nothing off the map.
+        /// </summary>
+        public void MakeExplosion(int x, int y)
+        {
+            if (_map.TestBounds(x, y))
+            {
+                throw new NotPortedException("spriteManager.makeExplosion");
+            }
+        }
+
+        private static long WorldToPix(int w)
+        {
+            // JavaScript's << on an int32
+            return w << 4;
+        }
 
         internal void Save(JsonObject saveData)
         {

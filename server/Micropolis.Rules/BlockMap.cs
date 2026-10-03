@@ -64,6 +64,35 @@ namespace Micropolis.Rules
             return _data[Width * blockY + blockX];
         }
 
+        public void Set(int blockX, int blockY, int value)
+        {
+            _data[Width * blockY + blockX] = value;
+        }
+
+        /// <summary>
+        /// The entry of the block holding the tile at (worldX, worldY).
+        /// </summary>
+        public int WorldGet(int worldX, int worldY)
+        {
+            return Get(JsMath.FloorDiv(worldX, BlockSize), JsMath.FloorDiv(worldY, BlockSize));
+        }
+
+        /// <summary>
+        /// Sets the entry of the block holding the tile at (worldX, worldY).
+        /// </summary>
+        public void WorldSet(int worldX, int worldY, int value)
+        {
+            Set(JsMath.FloorDiv(worldX, BlockSize), JsMath.FloorDiv(worldY, BlockSize), value);
+        }
+
+        /// <summary>
+        /// Sets every entry to zero.
+        /// </summary>
+        public void Clear()
+        {
+            Array.Clear(_data);
+        }
+
         internal JsonArray Save()
         {
             return SavedList.Of(_data);
