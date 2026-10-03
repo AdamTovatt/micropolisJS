@@ -14,7 +14,7 @@
 import { EventEmitter } from './eventEmitter.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { forecastYear, fundServices, serviceSpend } from './yearEndBudget.ts';
+import { forecastYear, fundEffect, fundServices, serviceSpend } from './yearEndBudget.ts';
 
 // Cost of maintaining 1 police station
 var policeMaintenanceCost = 100;
@@ -207,13 +207,13 @@ Budget.prototype.updateFundEffects = function() {
   this.fireEffect = this.MAX_FIRESTATION_EFFECT;
 
   if (this.roadMaintenanceBudget > 0)
-    this.roadEffect = Math.floor(this.roadEffect * this.roadSpend / this.roadMaintenanceBudget);
+    this.roadEffect = fundEffect(this.roadEffect, this.roadSpend, this.roadMaintenanceBudget);
 
   if (this.fireMaintenanceBudget > 0)
-    this.fireEffect = Math.floor(this.fireEffect * this.fireSpend / this.fireMaintenanceBudget);
+    this.fireEffect = fundEffect(this.fireEffect, this.fireSpend, this.fireMaintenanceBudget);
 
   if (this.policeMaintenanceBudget > 0)
-    this.policeEffect = Math.floor(this.policeEffect * this.policeSpend / this.policeMaintenanceBudget);
+    this.policeEffect = fundEffect(this.policeEffect, this.policeSpend, this.policeMaintenanceBudget);
 };
 
 

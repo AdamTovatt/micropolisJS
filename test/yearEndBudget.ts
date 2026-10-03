@@ -11,7 +11,7 @@
  *
  */
 
-import { forecastYear, fundServices, serviceSpend } from "../src/yearEndBudget";
+import { forecastYear, fundEffect, fundServices, serviceSpend } from "../src/yearEndBudget";
 
 const fullFunding = { road: 1, fire: 1, police: 1 };
 const noFunding = { road: 0, fire: 0, police: 0 };
@@ -33,6 +33,16 @@ describe("serviceSpend", () => {
 
     it("should charge nothing at zero funding", () => {
         expect(serviceSpend(240, 0)).toBe(0);
+    });
+});
+
+describe("fundEffect", () => {
+
+    it("should scale the full effect by the spend over the maintenance cost, dropping the fraction", () => {
+        expect(fundEffect(32, 57, 100)).toBe(18);
+        expect(fundEffect(1000, 93, 300)).toBe(310);
+        expect(fundEffect(1000, 300, 300)).toBe(1000);
+        expect(fundEffect(1000, 0, 300)).toBe(0);
     });
 });
 

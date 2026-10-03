@@ -11,8 +11,9 @@
  *
  */
 
-// How the year-end budget funds road, fire and police services, as doBudgetNow in the original's budget.cpp does.
-// Budget charges through fundServices, and forecasts with forecastYear.
+// How the budget funds road, fire and police services, as doBudgetNow in the original's budget.cpp does, and the
+// effect that funding has, as its updateFundEffects does. Budget charges through fundServices, and forecasts with
+// forecastYear.
 //
 // The original keeps each funding percentage in a float and does this arithmetic in float. Math.fround rounds to the
 // nearest float, as a C# (float) cast does, so wrapping each float operand and result in it reproduces the original's
@@ -46,6 +47,13 @@ const SERVICES: (keyof ServiceAmounts)[] = ["road", "fire", "police"];
 // The cost of a service at its funding percentage (0 to 1): (int)(fund * percent), multiplied in float
 export function serviceSpend(maintenance: number, percent: number): number {
   return Math.floor(Math.fround(Math.fround(maintenance) * Math.fround(percent)));
+}
+
+// The effect a service has at a spend on it, out of its effect at full funding: (short)((float)maxEffect *
+// (float)spend / (float)fund), as updateFundEffects in the original's simulate.cpp computes it, in float. The
+// maintenance cost must not be 0.
+export function fundEffect(maxEffect: number, spend: number, maintenance: number): number {
+  return Math.floor(Math.fround(Math.fround(Math.fround(maxEffect) * Math.fround(spend)) / Math.fround(maintenance)));
 }
 
 // Funds the services from the cash there is, as doBudgetNow does. With more cash than the services want, each gets
