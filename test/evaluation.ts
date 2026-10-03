@@ -232,6 +232,9 @@ describe("the city score breakdown", () => {
         // Unemployment is (200 / 400 - 1) * 255 = -127.5, which drops its fraction to -127, and
         // -127 / 3 = -42: 1024 + 168, clamped
         ["more jobs than residents", {comPop: 50}, 1000],
+        // Unemployment is (200 / 160 - 1) * 255 = 63.75, which drops its fraction to 63, and with
+        // crime of 2, 65 / 3 = 21: 1024 - 84
+        ["more residents than jobs", {comPop: 20, crime: 2}, 940],
     ])("starts from the base score for %s", (_, changes, base) => {
         const city = makeCity();
         evaluateYear(city, problemFreeYear(200, changes));
@@ -394,10 +397,10 @@ describe("the city score", () => {
     // Pinned scores over several years: a change to how the score is worked out moves them, and
     // its commit updates them and says why
     it("is pinned for a thriving town", () => {
-        expect(scoresOver(THRIVING_TOWN)).toEqual([718, 859, 882]);
+        expect(scoresOver(THRIVING_TOWN)).toEqual([716, 858, 881]);
     });
 
     it("is pinned for a troubled city", () => {
-        expect(scoresOver(TROUBLED_CITY)).toEqual([655, 468, 469, 541]);
+        expect(scoresOver(TROUBLED_CITY)).toEqual([655, 468, 468, 540]);
     });
 });

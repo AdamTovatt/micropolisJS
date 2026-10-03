@@ -222,7 +222,7 @@ var getUnemployment = function(census) {
   // Ratio total people / working. At least 1.
   var r = census.resPop / b;
 
-  b = Math.round((r - 1) * 255);
+  b = Math.trunc((r - 1) * 255);
   return Math.min(b, 255);
 };
 
