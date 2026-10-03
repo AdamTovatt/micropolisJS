@@ -226,6 +226,21 @@ describe("a simulation", () => {
             expect(simulate).toHaveBeenCalledTimes(1);
         });
 
+        // As updateDate in the original: the year one million turns back to the starting year, keeping the month
+        it("goes back to 1900 on reaching the year one million, in the same month", () => {
+            const simulation = simulationFromSeed(SEED, Simulation.SPEED_FAST);
+            const dates: unknown[] = [];
+            simulation.addEventListener(Messages.DATE_UPDATED, (date: unknown) => dates.push(date));
+            // The step runs phase 0, which moves the city into the second month of the year one million
+            simulation._phaseCycle = 0;
+            simulation._cityTime = (1000000 - 1900) * 48 + 3;
+
+            steps(simulation, 1);
+
+            expect(simulation._cityTime).toBe(4);
+            expect(dates).toEqual([{month: 1, year: 1900}]);
+        });
+
         it("does nothing while paused", () => {
             const simulation = simulationFromSeed(SEED, Simulation.SPEED_PAUSED);
 
