@@ -63,11 +63,10 @@ export interface AdvisorBudget {
   fireEffect: number;
   policeEffect: number;
   roadEffect: number;
-  // Budget defines these as MAX_FIRESTATION_EFFECT and MAX_POLICESTATION_EFFECT, so on the real budget the two
-  // names below are undefined, the limit computes to NaN, and FIRE_STATION_NEEDS_FUNDING and POLICE_NEEDS_FUNDING
-  // never hold. The names are kept as the advisor has always read them; the fix is a rule change of its own.
-  MAX_FIRE_STATION_EFFECT: number;
-  MAX_POLICE_STATION_EFFECT: number;
+  // Budget is JavaScript, so the compiler can't check these names against it: a mismatch reads undefined and the
+  // funding conditions never hold. The real-Budget test in test/cityStatus.ts checks them.
+  MAX_FIRESTATION_EFFECT: number;
+  MAX_POLICESTATION_EFFECT: number;
   MAX_ROAD_EFFECT: number;
 }
 
@@ -135,10 +134,10 @@ const ADVISOR_CONDITIONS: ReadonlyArray<{condition: string, holds: Predicate}> =
    holds: ({budget, census}) => budget.roadEffect < Math.floor(5 * budget.MAX_ROAD_EFFECT / 8) &&
                                 census.roadTotal > 30},
   {condition: Messages.FIRE_STATION_NEEDS_FUNDING,
-   holds: ({budget, census}) => budget.fireEffect < Math.floor(7 * budget.MAX_FIRE_STATION_EFFECT / 10) &&
+   holds: ({budget, census}) => budget.fireEffect < Math.floor(7 * budget.MAX_FIRESTATION_EFFECT / 10) &&
                                 census.totalPop > 20},
   {condition: Messages.POLICE_NEEDS_FUNDING,
-   holds: ({budget, census}) => budget.policeEffect < Math.floor(7 * budget.MAX_POLICE_STATION_EFFECT / 10) &&
+   holds: ({budget, census}) => budget.policeEffect < Math.floor(7 * budget.MAX_POLICESTATION_EFFECT / 10) &&
                                 census.totalPop > 20},
 ];
 

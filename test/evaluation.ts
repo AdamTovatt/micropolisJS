@@ -114,8 +114,7 @@ const THRIVING_TOWN: YearState[] = [
 ];
 
 // Sets every condition the score checks: capped and collapsed valves, underfunded roads, police
-// and fire, growth, decline, fires, taxes and unpowered zones. The police and fire cuts still
-// never apply, because of the misnamed constants noted in getScore.
+// and fire, growth, decline, fires, taxes and unpowered zones
 const TROUBLED_CITY: YearState[] = [
     {resPop: 600, comPop: 120, indPop: 80, crime: 40, pollution: 60, landValue: 60, traffic: 20,
      firePop: 4, poweredZones: 60, unpoweredZones: 0, tax: 9},
@@ -192,20 +191,31 @@ describe("the city score breakdown", () => {
         evaluateYear(city, TROUBLED_CITY[0]);
         const lastScore = city.evaluation.cityScore;
         evaluateYear(city, TROUBLED_CITY[1]);
-        const {cityPop, cityPopDelta} = city.evaluation;
+        const {budget} = city;
         const breakdown: ScoreEntry[] = city.evaluation.cityScoreBreakdown;
         const year = TROUBLED_CITY[1];
         const step = (reason: string) => stepOf(breakdown, lastScore, reason);
 
-        expect(step(Evaluation.SCORE_ROAD_FUNDING).entry.points).toBe(-(32 - year.roadEffect!));
+        expect(step(Evaluation.SCORE_ROAD_FUNDING).entry.points).toBe(-(budget.MAX_ROAD_EFFECT - year.roadEffect!));
         expect(step(Evaluation.SCORE_FIRES).entry.points).toBe(-year.firePop * 5);
         expect(step(Evaluation.SCORE_TAXES).entry.points).toBe(-year.tax);
 
-        // Growing: scaled by the fraction of new population
+        // Growing: scaled by 1 plus the share of this year's population that is new. The city had
+        // (600 + 200 * 8) * 20 = 44000 people, and now has (900 + 250 * 8) * 20 = 58000.
         const migration = step(Evaluation.SCORE_MIGRATION);
-        expect(cityPopDelta).toBeGreaterThan(0);
         expect(migration.entry.points).toBe(
-            Math.round(migration.scoreBefore * (cityPopDelta / cityPop + 1)) - migration.scoreBefore);
+            Math.round(migration.scoreBefore * (1 + 14000 / 58000)) - migration.scoreBefore);
+
+        // Underfunded services: up to 10% off, in proportion to the funding missing. Zero funding
+        // is the same formula, so it has no case of its own.
+        for (const [reason, effect, max] of [
+            [Evaluation.SCORE_POLICE_FUNDING, year.policeEffect!, budget.MAX_POLICESTATION_EFFECT],
+            [Evaluation.SCORE_FIRE_FUNDING, year.fireEffect!, budget.MAX_FIRESTATION_EFFECT],
+        ] as const) {
+            const service = step(reason);
+            expect(service.entry.points).toBe(
+                Math.round(service.scoreBefore * (0.9 + effect / (10 * max))) - service.scoreBefore);
+        }
 
         const unpowered = step(Evaluation.SCORE_UNPOWERED_ZONES);
         const totalZones = year.poweredZones + year.unpoweredZones;
@@ -258,13 +268,14 @@ describe("the city score breakdown", () => {
         evaluateYear(city, TROUBLED_CITY[0]);
         evaluateYear(city, TROUBLED_CITY[1]);
 
-        // No police or fire funding entries: those cuts never apply (see getScore)
         expect(reasonsOf(city.evaluation.cityScoreBreakdown)).toEqual([
             Evaluation.SCORE_PROBLEMS,
             Evaluation.SCORE_RES_CAP,
             Evaluation.SCORE_COM_CAP,
             Evaluation.SCORE_IND_CAP,
             Evaluation.SCORE_ROAD_FUNDING,
+            Evaluation.SCORE_POLICE_FUNDING,
+            Evaluation.SCORE_FIRE_FUNDING,
             Evaluation.SCORE_IND_OVERSUPPLY,
             Evaluation.SCORE_MIGRATION,
             Evaluation.SCORE_FIRES,
@@ -344,6 +355,6 @@ describe("the city score", () => {
     });
 
     it("is unchanged for a troubled city", () => {
-        expect(scoresOver(TROUBLED_CITY)).toEqual([644, 478, 468, 234]);
+        expect(scoresOver(TROUBLED_CITY)).toEqual([644, 460, 459, 230]);
     });
 });

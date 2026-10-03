@@ -310,17 +310,14 @@ Evaluation.prototype.getScore = function(simData) {
     recordAdjustment(Evaluation.SCORE_ROAD_FUNDING, score);
   }
 
-  // Penalize player by up to 10% for underfunded police and fire services.
-  // Known port defect, left for a separate rule change: Budget names these constants
-  // MAX_POLICESTATION_EFFECT and MAX_FIRESTATION_EFFECT, so both comparisons are against
-  // undefined and these cuts never apply.
-  if (budget.policeEffect < budget.MAX_POLICE_STATION_EFFECT) {
-    score = Math.round(score * (0.9 + (budget.policeEffect / (10 * budget.MAX_POLICE_STATION_EFFECT))));
+  // Penalize player by up to 10% for underfunded police and fire services
+  if (budget.policeEffect < budget.MAX_POLICESTATION_EFFECT) {
+    score = Math.round(score * (0.9 + (budget.policeEffect / (10 * budget.MAX_POLICESTATION_EFFECT))));
     recordAdjustment(Evaluation.SCORE_POLICE_FUNDING, score);
   }
 
-  if (budget.fireEffect < budget.MAX_FIRE_STATION_EFFECT) {
-    score = Math.round(score * (0.9 + (budget.fireEffect / (10 * budget.MAX_FIRE_STATION_EFFECT))));
+  if (budget.fireEffect < budget.MAX_FIRESTATION_EFFECT) {
+    score = Math.round(score * (0.9 + (budget.fireEffect / (10 * budget.MAX_FIRESTATION_EFFECT))));
     recordAdjustment(Evaluation.SCORE_FIRE_FUNDING, score);
   }
 
