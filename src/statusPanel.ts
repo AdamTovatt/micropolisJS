@@ -12,7 +12,7 @@
  */
 
 import type { CityStatus } from "./cityStatus";
-import { appendElement } from "./domElements";
+import { appendElement, requiredElement } from "./domElements";
 import { CITY_STATUS_UPDATED } from "./messages";
 import { Text } from "./text.js";
 
@@ -74,10 +74,7 @@ export class StatusPanel {
   private readonly conditionsList: HTMLElement;
 
   constructor(elementId: string, source: CityStatusSource) {
-    const container = document.getElementById(elementId);
-    if (container === null) {
-      throw new Error(`Node ${elementId} not found`);
-    }
+    const container = requiredElement(elementId);
 
     const powerRow = appendElement(container, "div", "statusRow");
     appendElement(powerRow, "span", "statusLabel").textContent = Text.statusPanel.powerLabel;

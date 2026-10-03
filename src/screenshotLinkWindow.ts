@@ -11,36 +11,19 @@
  *
  */
 
-import $ from "jquery";
+import { requiredElement } from "./domElements";
+import { SCREENSHOT_LINK_CLOSED } from "./messages";
+import { ClosableWindow } from "./windowBase";
 
-import { SAVE_WINDOW_CLOSED } from './messages.ts';
-import { ModalWindow } from './windowBase.ts';
+// Shows the link to a picture of the map the player took
+export class ScreenshotLinkWindow extends ClosableWindow {
+  constructor(opacityLayerID: string, windowID: string) {
+    super(opacityLayerID, windowID, SCREENSHOT_LINK_CLOSED);
+    this.closeOnSubmit("screenshotLinkForm");
+  }
 
-var SaveWindow = ModalWindow(function() {
-  $(saveFormID).on('submit', submit.bind(this));
-});
-
-
-var saveFormID = '#saveForm';
-var saveOKID = '#saveOK';
-
-
-var submit = function(e) {
-  e.preventDefault();
-  this.close();
-};
-
-
-SaveWindow.prototype.close = function() {
-  this._toggleDisplay();
-  this._emitEvent(SAVE_WINDOW_CLOSED);
-};
-
-
-SaveWindow.prototype.open = function() {
-  this._toggleDisplay();
-  $(saveOKID).focus();
-};
-
-
-export { SaveWindow };
+  open(screenshotLink: string): void {
+    requiredElement("screenshotLink", HTMLAnchorElement).href = screenshotLink;
+    this._toggleDisplay();
+  }
+}

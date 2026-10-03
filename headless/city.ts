@@ -12,9 +12,10 @@
  */
 
 import { CommandResult, ReceivedCommand } from "../src/commands";
+import type { EvaluationSource } from "../src/evaluationRecord";
 import { GameMap } from "../src/gameMap.js";
 import { MapGenerator } from "../src/mapGenerator.js";
-import { QueryAnswer } from "../src/protocol";
+import { type EvaluationRecord, QueryAnswer } from "../src/protocol";
 import { Random } from "../src/random";
 import { Simulation as SimulationConstructor } from "../src/simulation.js";
 
@@ -31,14 +32,14 @@ export type GameMapInstance = InstanceType<typeof GameMap>;
 export interface Simulation {
   random: Random;
   budget: Budget;
-  evaluation: {cityPop: number};
+  evaluation: EvaluationSource;
+  evaluationRecord(): EvaluationRecord;
   save(saveData: object): void;
   load(saveData: object): void;
   applyCommands(received: ReceivedCommand[]): CommandResult[];
   answerQuery(query: unknown): QueryAnswer;
   step(): void;
   isPaused(): boolean;
-  getLevel(): number;
   getSpeed(): number;
   getMap(): GameMapInstance;
   getDate(): {month: number, year: number};

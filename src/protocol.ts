@@ -16,6 +16,8 @@
 // protocol/examples/ pin the sides together: each side's tests read every example of what it reads or writes and
 // write it back to the same bytes. protocol/README.md describes the wire format.
 
+// It also defines the records the simulation produces for the windows to show.
+
 // A player as the others see them. Two players may share a name, never an id.
 export interface PlayerInfo {
   id: string;
@@ -262,3 +264,61 @@ export interface QueryRejection {
 }
 
 export type QueryAnswer = OverlayAnswer | QueryRejection;
+
+// The records the simulation produces for the windows to show: what it says about the city, as codes and numbers. The
+// client turns the codes into text, so the wording is the client's alone.
+
+// The city's classes by population, smallest first
+export const CITY_CLASSES = ["VILLAGE", "TOWN", "CITY", "CAPITAL", "METROPOLIS", "MEGALOPOLIS"] as const;
+
+export type CityClass = typeof CITY_CLASSES[number];
+
+// The problems the public votes on. A problem's id is its place in the list.
+export const CITY_PROBLEMS = ["CRIME", "POLLUTION", "HOUSING", "TAXES", "TRAFFIC", "UNEMPLOYMENT", "FIRE"] as const;
+
+// The steps of the yearly score calculation, in the order it takes them
+export const SCORE_REASONS = [
+  "PROBLEMS", "RES_CAP", "COM_CAP", "IND_CAP", "ROAD_FUNDING", "POLICE_FUNDING", "FIRE_FUNDING", "RES_OVERSUPPLY",
+  "COM_OVERSUPPLY", "IND_OVERSUPPLY", "MIGRATION", "FIRES", "TAXES", "UNPOWERED_ZONES", "RANGE", "AVERAGING",
+] as const;
+
+export type ScoreReason = typeof SCORE_REASONS[number];
+
+// One step of the yearly score calculation: the points it moved the score by
+export interface ScoreEntry {
+  reason: ScoreReason;
+  points: number;
+}
+
+// The most problems an evaluation lists: the places the public ranks
+export const MAX_RANKED_PROBLEMS = 4;
+
+// The city's evaluation, as the evaluation window shows it. approval is the share of the public, in percent, who think
+// the mayor is doing a good job. problems are the ids of the worst problems, worst first: at most MAX_RANKED_PROBLEMS,
+// each one some of the public voted for. migration is the population's change since the last census, level the game's
+// difficulty, 0 to 2 from easy to hard, and scoreDelta the score's change since last year. scoreBreakdown lists the
+// steps that moved the score last year, in order. It is empty until the city's next yearly score after a new city or
+// an old save migrated from before the breakdown was kept; otherwise its points sum to scoreDelta.
+export interface EvaluationRecord {
+  type: "evaluation";
+  approval: number;
+  problems: number[];
+  population: number;
+  migration: number;
+  assessedValue: number;
+  cityClass: CityClass;
+  level: number;
+  score: number;
+  scoreDelta: number;
+  scoreBreakdown: ScoreEntry[];
+}
+
+export type SimulationRecord = EvaluationRecord;
+
+// Every record type, as the compiler checks against the union: a type added to SimulationRecord and not here fails to
+// compile, and the tests fail on a type with no example.
+const RECORD_TYPES: Record<SimulationRecord["type"], true> = {evaluation: true};
+
+export function recordTypes(): string[] {
+  return Object.keys(RECORD_TYPES);
+}

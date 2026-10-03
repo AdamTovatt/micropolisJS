@@ -16,8 +16,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 // The bodies of /api/session and the messages on the city's WebSocket, /ws/city. src/protocol.ts defines the same by
-// hand, and the examples under protocol/examples/ pin the two together: each side's tests read every example and
-// write it back to the same bytes. protocol/README.md describes the wire format. The protocol lives with the game
+// hand, and the examples under protocol/examples/ pin the two together: each side's tests read every example of what
+// that side reads or writes and write it back to the same bytes. protocol/README.md describes the wire format. The protocol lives with the game
 // rules rather than in the host, so a test or a tool reads it without one, and command messages can carry the rules'
 // own types.
 

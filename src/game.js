@@ -19,10 +19,10 @@ import { CommandRecorder } from './commandLog.ts';
 import { CommandQueue } from './commandQueue.ts';
 import { LOCAL_PLAYER } from './commands.ts';
 import { Config } from './config.js';
-import { DebugWindow } from './debugWindow.js';
+import { DebugWindow } from './debugWindow.ts';
 import { DisasterWindow } from './disasterWindow.js';
 import { ToolPaths } from './dragPath.ts';
-import { EvaluationWindow } from './evaluationWindow.js';
+import { EvaluationWindow } from './evaluationWindow.ts';
 import { GameCanvas } from './gameCanvas.js';
 import { InfoBar } from './infoBar.js';
 import { InputStatus } from './inputStatus.js';
@@ -33,7 +33,7 @@ import { OverlayPicker, pageOverlaySource } from './overlayPicker.ts';
 import { QueryWindow } from './queryWindow.js';
 import { RCI } from './rci.js';
 import { SaveWindow } from './saveWindow.js';
-import { ScreenshotLinkWindow } from './screenshotLinkWindow.js';
+import { ScreenshotLinkWindow } from './screenshotLinkWindow.ts';
 import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.js';
 import { Simulation } from './simulation.js';
@@ -43,7 +43,7 @@ import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
 import { Text } from './text.js';
-import { TouchWarnWindow } from './touchWarnWindow.js';
+import { TouchWarnWindow } from './touchWarnWindow.ts';
 import { UiRandom } from './uiRandom.ts';
 import { budgetCommand, settingsCommands, toolOutcome } from './windowCommands.ts';
 import { WindowManager } from './windowManager.ts';
@@ -295,22 +295,14 @@ Game.prototype.handleSettingsWindowClosure = function(actions) {
 Game.prototype.handleDebugWindowClosure = function(actions) {
   this.windows.closed();
 
-  for (var i = 0, l = actions.length; i < l; i++) {
-    var a = actions[i];
-
-    switch (a.action) {
-      case DebugWindow.ADD_FUNDS:
-        this.commandQueue.send(LOCAL_PLAYER, {type: 'addFunds'});
-        break;
-
-      case DebugWindow.DOWNLOAD_LOG:
-        this.downloadLog();
-        break;
-
-      default:
-        console.warn('Unexpected action', a);
-    }
-  }
+  actions.forEach(function(action) {
+    if (action === 'addFunds')
+      this.commandQueue.send(LOCAL_PLAYER, {type: 'addFunds'});
+    else if (action === 'downloadLog')
+      this.downloadLog();
+    else
+      console.warn('Unexpected action', action);
+  }, this);
 };
 
 
@@ -383,7 +375,7 @@ Game.prototype.handleBudgetRequest = function() {
 
 
 Game.prototype.handleEvalRequest = function() {
-  this.windows.open(this.evalWindow, this.simulation.evaluation, this.simulation.getLevel());
+  this.windows.open(this.evalWindow, this.simulation.evaluationRecord());
 };
 
 

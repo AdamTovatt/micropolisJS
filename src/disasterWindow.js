@@ -15,7 +15,7 @@ import $ from "jquery";
 
 import { DISASTER_WINDOW_CLOSED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { ModalWindow } from './modalWindow.js';
+import { ModalWindow } from './windowBase.ts';
 import { DISASTER_KINDS } from './protocol.ts';
 
 var disasterSelectID = '#disasterSelect';

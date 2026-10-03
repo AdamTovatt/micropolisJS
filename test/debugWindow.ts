@@ -11,36 +11,16 @@
  *
  */
 
-import $ from "jquery";
+import { debugActions } from "../src/debugWindow";
 
-import { SAVE_WINDOW_CLOSED } from './messages.ts';
-import { ModalWindow } from './windowBase.ts';
+describe("the debug window's actions", () => {
 
-var SaveWindow = ModalWindow(function() {
-  $(saveFormID).on('submit', submit.bind(this));
+    it.each([
+        [{addFunds: false, downloadLog: false}, []],
+        [{addFunds: true, downloadLog: false}, ["addFunds"]],
+        [{addFunds: false, downloadLog: true}, ["downloadLog"]],
+        [{addFunds: true, downloadLog: true}, ["addFunds", "downloadLog"]],
+    ])("are those chosen, funds first: %p", (choices, actions) => {
+        expect(debugActions(choices)).toEqual(actions);
+    });
 });
-
-
-var saveFormID = '#saveForm';
-var saveOKID = '#saveOK';
-
-
-var submit = function(e) {
-  e.preventDefault();
-  this.close();
-};
-
-
-SaveWindow.prototype.close = function() {
-  this._toggleDisplay();
-  this._emitEvent(SAVE_WINDOW_CLOSED);
-};
-
-
-SaveWindow.prototype.open = function() {
-  this._toggleDisplay();
-  $(saveOKID).focus();
-};
-
-
-export { SaveWindow };

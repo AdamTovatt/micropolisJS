@@ -12,7 +12,7 @@
  */
 
 import { Evaluation } from "../src/evaluation.js";
-import type { ScoreEntry } from "../src/scoreBreakdownView";
+import type { ScoreEntry } from "../src/protocol";
 import { developedLand, evaluateYear, makeCity, newEvaluation, problemFreeYear, type Year } from "./helpers/evaluationCity";
 
 // Each year sets its figures over a problem-free year of its residents
