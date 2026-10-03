@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The game rules: no ASP.NET dependency, so a test or a tool can run a city without a host -->
+
+</Project>

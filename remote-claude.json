@@ -1,0 +1,7 @@
+{
+  "dev": {
+    "command": "dotnet run",
+    "cwd": "server/Micropolis.Server",
+    "url": "http://localhost:5180"
+  }
+}
