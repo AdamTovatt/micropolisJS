@@ -33,6 +33,7 @@ import { ScreenshotLinkWindow } from './screenshotLinkWindow.js';
 import { ScreenshotWindow } from './screenshotWindow.js';
 import { SettingsWindow } from './settingsWindow.js';
 import { Simulation } from './simulation.js';
+import { SpeedControl } from './speedControl.ts';
 import { StatusPanel } from './statusPanel.ts';
 import { StepDriver } from './stepDriver.ts';
 import { Storage } from './storage.js';
@@ -51,7 +52,6 @@ function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name
 
   this.tileSet = tileSet;
   this.snowTileSet = snowTileSet;
-  this.defaultSpeed = Simulation.SPEED_MED;
   this.name = name || 'MyTown';
   this.everClicked = false;
 
@@ -62,7 +62,7 @@ function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name
     this.load(savedGame);
   } else {
     this.gameMap = gameMap;
-    this.simulation = new Simulation(this.gameMap, difficulty, this.defaultSpeed, seed);
+    this.simulation = new Simulation(this.gameMap, difficulty, Simulation.SPEED_MED, seed);
   }
 
   this.rci = new RCI('RCIContainer', this.simulation);
@@ -75,8 +75,9 @@ function Game(gameMap, seed, tileSet, snowTileSet, spriteSheet, difficulty, name
 
   this.mouse = null;
   this.lastCoord = null;
-  this.isPaused = false;
   this.lastBadMessageTime = null;
+
+  this.speedControl = new SpeedControl(this.simulation, this.inputStatus.showPaused.bind(this.inputStatus));
 
   var self = this;
   if (!this.everClicked) {
@@ -307,8 +308,7 @@ Game.prototype.handleSettingsWindowClosure = function(actions) {
         break;
 
       case SettingsWindow.SPEED:
-        this.defaultSpeed = a.data;
-        this.simulation.setSpeed(this.defaultSpeed);
+        this.speedControl.setRunningSpeed(a.data);
         break;
 
       case SettingsWindow.DISASTERS_CHANGED:
@@ -407,8 +407,9 @@ Game.prototype.handleEvalRequest = function() {
 
 Game.prototype.handleSettingsRequest = function() {
   this.windows.open(this.settingsWindow, {
-    autoBudget: this.simulation.budget.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(), speed: this.defaultSpeed,
-    disasters: this.simulation.disasterManager.disastersEnabled, seed: this.simulation.seed
+    autoBudget: this.simulation.budget.autoBudget, autoBulldoze: BaseTool.getAutoBulldoze(),
+    speed: this.speedControl.getRunningSpeed(), disasters: this.simulation.disasterManager.disastersEnabled,
+    seed: this.simulation.seed
   });
 };
 
@@ -473,15 +474,7 @@ Game.prototype.handleSave = function() {
 
 
 Game.prototype.handlePause = function() {
-  // XXX Currently only offer pause and run to the user
-  // No real difference among the speeds until we optimise
-  // the sim
-  this.isPaused = !this.isPaused;
-
-  if (this.isPaused)
-    this.simulation.setSpeed(Simulation.SPEED_PAUSED);
-  else
-    this.simulation.setSpeed(this.defaultSpeed);
+  this.speedControl.togglePause();
 };
 
 
@@ -614,11 +607,12 @@ var tick = function() {
 
 
 var commonAnimate = function() {
+  var paused = this.simulation.isPaused();
   var sprites = this.calculateSpritesForPaint(this.gameCanvas);
-  this.gameCanvas.paint(this.mouse, sprites, this.isPaused);
+  this.gameCanvas.paint(this.mouse, sprites, paused);
 
   sprites = this.calculateSpritesForPaint(this.monsterTV.canvas);
-  this.monsterTV.paint(sprites, this.isPaused);
+  this.monsterTV.paint(sprites, paused);
 
   nextFrame(this.animate);
 };
