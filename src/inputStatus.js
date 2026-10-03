@@ -15,14 +15,14 @@ import $ from "jquery";
 
 import { EventEmitter } from './eventEmitter.js';
 import { GameCanvas } from './gameCanvas.js';
-import { GameTools } from './gameTools.js';
 import * as Messages from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
+import { QueryTool } from './queryTool.js';
 
 var InputStatus = EventEmitter(function(map, tileWidth) {
-  this.gameTools = new GameTools(map);
-
-  this.gameTools.addEventListener(Messages.QUERY_WINDOW_NEEDED, MiscUtils.reflectEvent.bind(this, Messages.QUERY_WINDOW_NEEDED));
+  // The query tool only reads the city; every other tool is a command the simulation applies
+  this.queryTool = new QueryTool(map);
+  this.queryTool.addEventListener(Messages.QUERY_WINDOW_NEEDED, MiscUtils.reflectEvent.bind(this, Messages.QUERY_WINDOW_NEEDED));
 
   this.canvasID = MiscUtils.normaliseDOMid(canvasID);
 
@@ -46,7 +46,6 @@ var InputStatus = EventEmitter(function(map, tileWidth) {
 
   // Tool buttons
   this.toolName = null;
-  this.currentTool = null;
   this.toolWidth = 0;
   this.toolColour = '';
 
@@ -77,6 +76,9 @@ var InputStatus = EventEmitter(function(map, tileWidth) {
 
 var canvasID = '#' + GameCanvas.DEFAULT_ID;
 var toolOutputID = '#toolOutput';
+
+// The tools that lay a line as the mouse drags; every other tool acts on a click
+var draggableTools = ['rail', 'road', 'wire'];
 
 
 var keyDownHandler = function(e) {
@@ -152,12 +154,12 @@ var getRelativeCoordinates = function(e) {
 
 
 var mouseEnterHandler = function() {
-  if (this.currentTool === null)
+  if (this.toolName === null)
     return;
 
   $(this.canvasID).on('mousemove', this.mouseMoveHandler);
 
-  if (this.currentTool.isDraggable)
+  if (draggableTools.indexOf(this.toolName) !== -1)
     $(this.canvasID).on('mousedown', this.mouseDownHandler);
   else
     $(this.canvasID).on('click', this.canvasClickHandler);
@@ -256,7 +258,6 @@ var toolButtonHandler = function(e) {
 
   this.toolName = $(e.target).attr('data-tool');
   this.toolWidth = $(e.target).attr('data-size');
-  this.currentTool = this.gameTools[this.toolName];
   this.toolColour = $(e.target).attr('data-colour');
   $(toolOutputID).html('Tools');
 
@@ -289,7 +290,7 @@ InputStatus.prototype.clearTool = function() {
     $(this.canvasID).addClass('pointer');
   }
 
-  this.currentTool = null;
+  this.toolName = null;
   this.toolWidth = 0;
   this.toolColour = '';
   $('.selected').removeClass('selected');

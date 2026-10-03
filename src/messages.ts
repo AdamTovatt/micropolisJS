@@ -18,6 +18,7 @@ export const BUDGET_WINDOW_CLOSED = "Budget window closed";
 export const BLACKOUTS_REPORTED = "Blackouts reported";
 export const CITY_STATUS_UPDATED = "City status updated";
 export const CLASSIFICATION_UPDATED = "Classification updated";
+export const COMMAND_RESULT = "Command result";
 export const DATE_UPDATED = "Date changed";
 export const DEBUG_WINDOW_REQUESTED = "Debug Window Requested";
 export const DEBUG_WINDOW_CLOSED = "Debug Window Closed";

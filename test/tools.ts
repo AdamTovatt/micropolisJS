@@ -31,7 +31,7 @@ describe("the park tool", () => {
         const map = new GameMap(120, 100);
         const tool = new ParkTool(map);
 
-        tool.doTool(10, 10, null, streamDrawing([draw]));
+        tool.doTool(10, 10, streamDrawing([draw]));
         tool.modifyIfEnoughFunding(budget);
 
         expect(map.getTileValue(10, 10)).toBe(tileValue);
@@ -51,7 +51,7 @@ describe("the bulldozer", () => {
         const tool = new BulldozerTool(map);
 
         // Column by column, top to bottom
-        tool.doTool(50, 50, null, streamDrawing([0, 1, 2, 2, 1, 0, 1, 1, 1]));
+        tool.doTool(50, 50, streamDrawing([0, 1, 2, 2, 1, 0, 1, 1, 1]));
         tool.modifyIfEnoughFunding(budget);
 
         const frames = [];

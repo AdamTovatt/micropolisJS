@@ -1,11 +1,10 @@
 # The state hash
 
 The state hash identifies a city's complete simulation state. Two simulations whose hashes match evolve identically
-as long as they are given the same commands under the same player settings. The auto-bulldoze setting, which decides
-whether the building tools clear trees and rubble first, is not city state and is not hashed (see the last section).
-The headless runner prints the hash, and the C# port is correct when it produces the same hash from the same seed,
-starting state and command log (`CLAUDE.md`, Direction 3). This document specifies it so the port can produce identical bytes. `src/canonicalJson.ts` and
-`src/stateHash.ts` are the reference implementation.
+as long as they are given the same commands (`src/commands.ts`), each of which carries whatever setting of its
+sender's it depends on. The headless runner prints the hash, and the C# port is correct when it produces the same
+hash from the same seed, starting state and command log (`CLAUDE.md`, Direction 3). This document specifies it so the
+port can produce identical bytes. `src/canonicalJson.ts` and `src/stateHash.ts` are the reference implementation.
 
 ## The hash
 

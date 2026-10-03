@@ -37,6 +37,7 @@ describe("every stateful component of a grown city", () => {
             _traffic: "its route stack is cleared at the start of every use",
             random: "saved as randomState",
             blockMaps: "saved under scannedState.blockMaps, but for the temporary maps, which each scan writes in full",
+            _tools: "a tool holds staged edits only while a command applies, and clears them before the next",
             _startingYear: "a constant",
             _cityYearLast: "the date last sent to the UI, which a load resets",
             _cityMonthLast: "the date last sent to the UI, which a load resets",

@@ -17,11 +17,11 @@ import { DIRT, FOUNTAIN, WOODS2 } from "./tileValues.ts";
 
 var makeTool = BaseTool.makeTool;
 var ParkTool = makeTool(function(map) {
-  this.init(10, map, true);
+  this.init(10, map);
 });
 
 
-ParkTool.prototype.doTool = function(x, y, blockMaps, random) {
+ParkTool.prototype.doTool = function(x, y, random) {
   if (this._worldEffects.getTileValue(x, y) !== DIRT) {
     this.result = this.TOOLRESULT_NEEDS_BULLDOZE;
     return;

@@ -17,7 +17,7 @@ import { TileUtils } from './tileUtils.js';
 import * as TileValues from "./tileValues.ts";
 
 var RoadTool = ConnectingTool(function(map) {
-  this.init(10, map, true, true);
+  this.init(10, map);
 });
 
 

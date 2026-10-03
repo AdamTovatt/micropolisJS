@@ -16,6 +16,8 @@ import { BlockMapUtils } from './blockMapUtils.js';
 import { Budget } from './budget.js';
 import { Census } from './census.js';
 import { buildCityStatus, conditionHolds } from './cityStatus.ts';
+import { cityTools } from './cityTools.ts';
+import { commandRejection } from './commands.ts';
 import { Commercial } from './commercial.js';
 import { DisasterManager } from './disasterManager.js';
 import { EventEmitter } from './eventEmitter.js';
@@ -76,6 +78,7 @@ var Simulation = EventEmitter(function (gameMap, gameLevel, speed, seed) {
   this._repairManager = new RepairManager(this._map);
   this._traffic = new Traffic(this._map, this.spriteManager, this.random);
   this.disasterManager = new DisasterManager(this._map, this.spriteManager, this.random);
+  this._tools = cityTools(this._map);
 
   this.blockMaps = {
     // Holds a "distance score" for the block from the city centre, range  -64 to 64
@@ -284,6 +287,133 @@ Simulation.prototype._loadScanned = function(scannedState) {
 
   this._census.loadScan(scannedState.census);
   this._powerManager.loadScan(scannedState.power);
+};
+
+
+// Applies the commands received since the last call, in the order they arrived. They apply between steps, separately
+// from them, so a paused city takes them too. Each is validated first, and a rejected one changes nothing. Each
+// command's result is emitted as COMMAND_RESULT, and returned in the same order.
+Simulation.prototype.applyCommands = function(received) {
+  var results = [];
+
+  for (var i = 0, l = received.length; i < l; i++) {
+    var command = received[i].command;
+    var reason = commandRejection(command, this._map.width, this._map.height);
+    var outcome = reason === null ? this._applyCommand(command) : 'rejected';
+    var result = {player: received[i].player, command: command, outcome: outcome, reason: reason};
+
+    this._emitEvent(Messages.COMMAND_RESULT, result);
+    results.push(result);
+  }
+
+  return results;
+};
+
+
+// The debug menu's grant
+var ADDED_FUNDS = 20000;
+
+// Applies a valid command, and returns its outcome
+Simulation.prototype._applyCommand = function(command) {
+  switch (command.type) {
+    case 'tool':
+      return this._applyTool(command.tool, command.path, command.autoBulldoze);
+
+    case 'setBudget':
+      // A service left out keeps its funding
+      this.budget.setFunding({road: command.road, fire: command.fire, police: command.police});
+      this.budget.setTax(command.tax);
+      break;
+
+    case 'setSpeed':
+      this.setSpeed(command.speed);
+      break;
+
+    case 'setAutoBudget':
+      this.budget.setAutoBudget(command.on);
+      break;
+
+    case 'setDisasters':
+      this.disasterManager.disastersEnabled = command.on;
+      break;
+
+    case 'triggerDisaster':
+      this._triggerDisaster(command.kind);
+      break;
+
+    case 'addFunds':
+      this.budget.spend(-ADDED_FUNDS);
+      break;
+  }
+
+  return 'ok';
+};
+
+
+var toolOutcome = function(tool) {
+  switch (tool.result) {
+    case tool.TOOLRESULT_OK:
+      return 'ok';
+
+    case tool.TOOLRESULT_NO_MONEY:
+      return 'noMoney';
+
+    case tool.TOOLRESULT_NEEDS_BULLDOZE:
+      return 'needsBulldoze';
+
+    case tool.TOOLRESULT_FAILED:
+      return 'failed';
+
+    default:
+      throw new Error('Unknown tool result ' + tool.result);
+  }
+};
+
+// The tool at each tile of the path in turn, as one click each: the tool draws from the stream, then edits the map and
+// charges the budget if the city can pay. A tile that fails doesn't stop the rest. The outcome is ok when every tile
+// succeeded, and otherwise the first failed tile's.
+Simulation.prototype._applyTool = function(toolName, path, autoBulldoze) {
+  var tool = this._tools[toolName];
+  var outcome = 'ok';
+
+  for (var i = 0, l = path.length; i < l; i++) {
+    tool.doTool(path[i].x, path[i].y, this.random, autoBulldoze);
+    tool.modifyIfEnoughFunding(this.budget);
+
+    if (outcome === 'ok')
+      outcome = toolOutcome(tool);
+  }
+
+  return outcome;
+};
+
+
+Simulation.prototype._triggerDisaster = function(kind) {
+  switch (kind) {
+    case 'monster':
+      this.spriteManager.makeMonster();
+      break;
+
+    case 'fire':
+      this.disasterManager.makeFire();
+      break;
+
+    case 'flood':
+      this.disasterManager.makeFlood();
+      break;
+
+    case 'crash':
+      this.disasterManager.makeCrash();
+      break;
+
+    case 'meltdown':
+      this.disasterManager.makeMeltdown();
+      break;
+
+    case 'tornado':
+      this.spriteManager.makeTornado();
+      break;
+  }
 };
 
 

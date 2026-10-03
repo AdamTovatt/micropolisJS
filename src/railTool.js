@@ -17,7 +17,7 @@ import { TileUtils } from './tileUtils.js';
 import * as TileValues from "./tileValues.ts";
 
 var RailTool = ConnectingTool(function(map) {
-  this.init(20, map, true, true);
+  this.init(20, map);
 });
 
 

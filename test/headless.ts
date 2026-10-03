@@ -16,7 +16,6 @@ import { parseCommandLine } from "../headless/commandLine";
 import { buildFixture, CityBuilder } from "../headless/fixtures/builder";
 import { fixtureNames, fixtures, fixtureSave } from "../headless/fixtures/index";
 import { advance, Start, startCity, startFromSave, summarise } from "../headless/runner";
-import { BaseTool } from "../src/baseTool.js";
 import { canonicalJson } from "../src/canonicalJson";
 import { plainSavedState, savedState, stateHash } from "../src/stateHash";
 import { InspectedSave } from "./helpers/savedState";
@@ -206,18 +205,16 @@ describe("the fixture builder", () => {
 
     // A zone centred on the corner tile would hang off the map
     it("fails when a tool does", () => {
-        expect(() => builderOnSeed8().residential(0, 0)).toThrow("The residential tool failed at (0, 0)");
+        expect(() => builderOnSeed8().residential(0, 0))
+            .toThrow("The residential tool failed at (0, 0) with outcome failed");
     });
 
-    it("needs auto-bulldoze on", () => {
-        const baseTool = BaseTool as unknown as {getAutoBulldoze(): boolean, setAutoBulldoze(value: boolean): void};
-        baseTool.setAutoBulldoze(false);
+    // The line's first tile is open ground, where the road is laid, and its last the plant's
+    it("fails when a line fails at any tile", () => {
+        const builder = builderOnSeed8();
+        builder.coal(2, 2);
 
-        try {
-            expect(() => buildFixture(fixtures.town)).toThrow("Fixtures are built with auto-bulldoze on");
-        } finally {
-            baseTool.setAutoBulldoze(true);
-        }
+        expect(() => builder.road(0, 1, 1, 1)).toThrow("The road tool failed from (0, 1) to (1, 1) with outcome failed");
     });
 });
 

@@ -22,7 +22,7 @@ import * as TileValues from "./tileValues.ts";
 
 var makeTool = BaseTool.makeTool;
 var QueryTool = EventEmitter(makeTool(function(map) {
-  this.init(0, map, false, false);
+  this.init(0, map);
 }));
 
 
