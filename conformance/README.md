@@ -196,8 +196,12 @@ that name it; a `"sprites"` fixture creates sprites and records none.
 
 The points seeded are, in each `"snapshots"` fixture, the map scan's first sweep, its eight calls, with `"each"`, and
 every other unit's first two calls; every phase of the suburb's first cycle; and phase 0 alone in each such fixture: a
-cycle that sets no valves, after the first evaluation. A point for a rare branch names the branch in `reaches`, so a change that stops the point
-reaching it fails the generator rather than leaving the branch unproven.
+cycle that sets no valves, after the first evaluation. Then each gate of the cycle, a phase on the cycle that opens it
+and, where one exists, on one that doesn't: phase 0 setting the valves; phase 9's census, long census, and tax and
+evaluation, each when its city time falls due; phase 10 easing the rate of growth or not; and the scans of phases 11 to
+15 at each speed, from the suburb and from the `"branch"` fixtures `suburbSlow` and `suburbFast`, the suburb set to slow
+and to fast. A point for a rare branch names the branch in `reaches`, so a change that stops the point reaching it fails
+the generator rather than leaving the branch unproven.
 
 The generator fails when:
 

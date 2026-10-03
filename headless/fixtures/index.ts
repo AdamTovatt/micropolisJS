@@ -13,7 +13,7 @@
 
 import { CommandLog } from "../../src/commandLog";
 import { broke, underfunded } from "./budgets";
-import { suburb, suburbBroke, suburbUnderfunded } from "./suburb";
+import { suburb, suburbBroke, suburbFast, suburbSlow, suburbUnderfunded } from "./suburb";
 import { town } from "./town";
 
 // What a fixture is for in the unit snapshots, which are recorded only from cities that create no sprites:
@@ -29,6 +29,8 @@ const fixtures: Record<string, {log: CommandLog, kind: FixtureKind}> = {
   broke: {log: broke, kind: "sprites"},
   suburb: {log: suburb, kind: "snapshots"},
   suburbBroke: {log: suburbBroke, kind: "snapshots"},
+  suburbFast: {log: suburbFast, kind: "branch"},
+  suburbSlow: {log: suburbSlow, kind: "branch"},
   suburbUnderfunded: {log: suburbUnderfunded, kind: "snapshots"},
   town: {log: town, kind: "sprites"},
   underfunded: {log: underfunded, kind: "sprites"},

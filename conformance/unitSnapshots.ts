@@ -46,6 +46,7 @@ export interface Internals {
   _speedCycle: number;
   _phaseCycle: number;
   _simCycle: number;
+  _cityTime: number;
   _speed: number;
   _initialEvaluationPending: boolean;
   _gameLevel: number;
