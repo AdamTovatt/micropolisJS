@@ -13,7 +13,7 @@
 
 import $ from "jquery";
 
-import { ModalWindow } from './modalWindow.js';
+import { ModalWindow } from './windowBase.ts';
 import { EVAL_WINDOW_CLOSED } from './messages.ts';
 import { scoreBreakdownRows, signedPoints } from './scoreBreakdownView.ts';
 import { Text } from './text.js';

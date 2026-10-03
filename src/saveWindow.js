@@ -14,7 +14,7 @@
 import $ from "jquery";
 
 import { SAVE_WINDOW_CLOSED } from './messages.ts';
-import { ModalWindow } from './modalWindow.js';
+import { ModalWindow } from './windowBase.ts';
 
 var SaveWindow = ModalWindow(function() {
   $(saveFormID).on('submit', submit.bind(this));

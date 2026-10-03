@@ -14,7 +14,7 @@
 import $ from "jquery";
 
 import { SCREENSHOT_LINK_CLOSED } from './messages.ts';
-import { ModalWindow } from './modalWindow.js';
+import { ModalWindow } from './windowBase.ts';
 
 var ScreenshotLinkWindow = ModalWindow(function() {
   $(screenshotLinkFormID).on('submit', submit.bind(this));

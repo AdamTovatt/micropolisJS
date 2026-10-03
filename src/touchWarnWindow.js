@@ -14,7 +14,7 @@
 import $ from "jquery";
 
 import { TOUCH_WINDOW_CLOSED } from './messages.ts';
-import { ModalWindow } from './modalWindow.js';
+import { ModalWindow } from './windowBase.ts';
 
 var TouchWarnWindow = ModalWindow(function() {
   $(touchFormID).on('submit', submit.bind(this));

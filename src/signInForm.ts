@@ -12,6 +12,7 @@
  */
 
 import { CityClient, SignInResult } from "./cityClient";
+import { requiredElement } from "./domElements";
 
 export type FormStep = {done: true} | {done: false; error: string};
 
@@ -36,11 +37,11 @@ export async function signInIfServerAnswers(client: CityClient): Promise<void> {
     return;
   }
 
-  const container = document.getElementById("signIn") as HTMLElement;
-  const form = document.getElementById("signInForm") as HTMLFormElement;
-  const nameInput = document.getElementById("signInName") as HTMLInputElement;
-  const submit = document.getElementById("signInSubmit") as HTMLInputElement;
-  const error = document.getElementById("signInError") as HTMLElement;
+  const container = requiredElement("signIn");
+  const form = requiredElement("signInForm", HTMLFormElement);
+  const nameInput = requiredElement("signInName", HTMLInputElement);
+  const submit = requiredElement("signInSubmit", HTMLInputElement);
+  const error = requiredElement("signInError");
 
   container.style.display = "block";
   nameInput.focus();

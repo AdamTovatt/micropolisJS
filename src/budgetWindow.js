@@ -15,7 +15,7 @@ import $ from "jquery";
 
 import { BUDGET_WINDOW_CLOSED } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
-import { ModalWindow } from './modalWindow.js';
+import { ModalWindow } from './windowBase.ts';
 import { formatMoney } from './money.ts';
 import { percentLabel, wholePercent } from './fundingDisplay.ts';
 

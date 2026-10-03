@@ -14,7 +14,7 @@
 import $ from "jquery";
 
 import { DEBUG_WINDOW_CLOSED } from './messages.ts';
-import { ModalWindow } from './modalWindow.js';
+import { ModalWindow } from './windowBase.ts';
 import { MiscUtils } from './miscUtils.js';
 
 var DebugWindow = ModalWindow(function() {
