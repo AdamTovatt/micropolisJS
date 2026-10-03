@@ -128,6 +128,14 @@ const TROUBLED_CITY: YearState[] = [
      firePop: 2, poweredZones: 90, unpoweredZones: 5, tax: 10},
 ];
 
+// A year without problems: no crime, pollution, land value, traffic, fires or tax, and as many
+// residents as jobs. Its base score is 1000, so each step's points can be worked out by hand. It
+// has (resPop + resPop) * 20 people, and resPop is a multiple of 8.
+function problemFreeYear(resPop: number, changes: Partial<YearState> = {}): YearState {
+    return {resPop, comPop: resPop / 8, indPop: 0, crime: 0, pollution: 0, landValue: 0, traffic: 0, firePop: 0,
+            poweredZones: 10, unpoweredZones: 0, tax: 0, ...changes};
+}
+
 function scoresOver(years: YearState[]): number[] {
     const city = makeCity();
     return years.map((state) => {
@@ -168,22 +176,47 @@ describe("the city score breakdown", () => {
         }
     });
 
-    it("shows the 15% cut for a capped valve", () => {
-        const uncapped = makeCity();
-        evaluateYear(uncapped, THRIVING_TOWN[0]);
-        const capped = makeCity();
-        const lastScore = capped.evaluation.cityScore;
-        evaluateYear(capped, {...THRIVING_TOWN[0], resCap: true});
+    // The score is an int in evaluate.cpp, so each cut drops its fraction: 1000 * 0.85 = 850,
+    // 850 * 0.85 = 722.5 and 722 * 0.85 = 613.7, then (500 + 613) / 2 = 556.5
+    it("shows the 15% cut for each capped valve", () => {
+        const city = makeCity();
+        evaluateYear(city, problemFreeYear(200, {resCap: true, comCap: true, indCap: true}));
 
-        const breakdown: ScoreEntry[] = capped.evaluation.cityScoreBreakdown;
-        expect(reasonsOf(breakdown)).toEqual(
-            [Evaluation.SCORE_PROBLEMS, Evaluation.SCORE_RES_CAP, Evaluation.SCORE_TAXES, Evaluation.SCORE_AVERAGING]);
+        expect(city.evaluation.cityScoreBreakdown).toEqual([
+            {reason: Evaluation.SCORE_PROBLEMS, points: 1000 - 500},
+            {reason: Evaluation.SCORE_RES_CAP, points: 850 - 1000},
+            {reason: Evaluation.SCORE_COM_CAP, points: 722 - 850},
+            {reason: Evaluation.SCORE_IND_CAP, points: 613 - 722},
+            {reason: Evaluation.SCORE_AVERAGING, points: 556 - 613},
+        ]);
+    });
 
-        const base = lastScore + breakdown[0].points;
-        expect(breakdown[1].points).toBe(Math.round(base * 0.85) - base);
-        expect(breakdown[1].points).toBeLessThan(0);
-        expect(capped.evaluation.cityScore).toBeLessThan(uncapped.evaluation.cityScore);
-        expect(sumOfPoints(breakdown)).toBe(capped.evaluation.cityScoreDelta);
+    // Each scales a base of 1000 to a score with a fraction, which evaluate.cpp's int score drops
+    it.each([
+        // 1000 * (1 + 1600 / 9600) = 1166.67
+        ["growth from 8000 to 9600 people", [problemFreeYear(200), problemFreeYear(240)],
+         Evaluation.SCORE_MIGRATION, 1166],
+        // 1000 * (0.95 - 3200 / 9600) = 616.67: 0.95 less the share of last year's people who left
+        ["decline from 9600 to 6400 people", [problemFreeYear(240), problemFreeYear(160)],
+         Evaluation.SCORE_MIGRATION, 616],
+        // 1000 * (0.9 + 337 / 10000) = 933.7: up to 10% off, in proportion to the funding missing
+        ["police funded at 337 of 1000", [problemFreeYear(200, {policeEffect: 337})],
+         Evaluation.SCORE_POLICE_FUNDING, 933],
+        ["fire funded at 337 of 1000", [problemFreeYear(200, {fireEffect: 337})],
+         Evaluation.SCORE_FIRE_FUNDING, 933],
+        // 1000 * (2 / 3) = 666.67
+        ["2 of 3 zones powered", [problemFreeYear(200, {poweredZones: 2, unpoweredZones: 1})],
+         Evaluation.SCORE_UNPOWERED_ZONES, 666],
+    ])("scales the score for %s, dropping the fraction", (_, years, reason, scoreAfter) => {
+        const city = makeCity();
+        for (const state of years.slice(0, -1))
+            evaluateYear(city, state);
+        const lastScore = city.evaluation.cityScore;
+        evaluateYear(city, years[years.length - 1]);
+
+        const step = stepOf(city.evaluation.cityScoreBreakdown, lastScore, reason);
+        expect(step.scoreBefore).toBe(1000);
+        expect(step.entry.points).toBe(scoreAfter - 1000);
     });
 
     it("credits each step with exactly the points it moved the score", () => {
@@ -191,50 +224,14 @@ describe("the city score breakdown", () => {
         evaluateYear(city, TROUBLED_CITY[0]);
         const lastScore = city.evaluation.cityScore;
         evaluateYear(city, TROUBLED_CITY[1]);
-        const {budget} = city;
         const breakdown: ScoreEntry[] = city.evaluation.cityScoreBreakdown;
-        const year = TROUBLED_CITY[1];
         const step = (reason: string) => stepOf(breakdown, lastScore, reason);
 
-        expect(step(Evaluation.SCORE_ROAD_FUNDING).entry.points).toBe(-(budget.MAX_ROAD_EFFECT - year.roadEffect!));
-        expect(step(Evaluation.SCORE_FIRES).entry.points).toBe(-year.firePop * 5);
-        expect(step(Evaluation.SCORE_TAXES).entry.points).toBe(-year.tax);
-
-        // Growing: scaled by 1 plus the share of this year's population that is new. The city had
-        // (600 + 200 * 8) * 20 = 44000 people, and now has (900 + 250 * 8) * 20 = 58000.
-        const migration = step(Evaluation.SCORE_MIGRATION);
-        expect(migration.entry.points).toBe(
-            Math.round(migration.scoreBefore * (1 + 14000 / 58000)) - migration.scoreBefore);
-
-        // Underfunded services: up to 10% off, in proportion to the funding missing. Zero funding
-        // is the same formula, so it has no case of its own.
-        for (const [reason, effect, max] of [
-            [Evaluation.SCORE_POLICE_FUNDING, year.policeEffect!, budget.MAX_POLICESTATION_EFFECT],
-            [Evaluation.SCORE_FIRE_FUNDING, year.fireEffect!, budget.MAX_FIRESTATION_EFFECT],
-        ] as const) {
-            const service = step(reason);
-            expect(service.entry.points).toBe(
-                Math.round(service.scoreBefore * (0.9 + effect / (10 * max))) - service.scoreBefore);
-        }
-
-        const unpowered = step(Evaluation.SCORE_UNPOWERED_ZONES);
-        const totalZones = year.poweredZones + year.unpoweredZones;
-        expect(unpowered.entry.points).toBe(
-            Math.round(unpowered.scoreBefore * year.poweredZones / totalZones) - unpowered.scoreBefore);
-    });
-
-    it("scales a shrinking city's score by 0.95 less the share of people who left", () => {
-        const city = makeCity();
-        for (const state of TROUBLED_CITY.slice(0, -1))
-            evaluateYear(city, state);
-        const lastScore = city.evaluation.cityScore;
-        evaluateYear(city, TROUBLED_CITY[TROUBLED_CITY.length - 1]);
-
-        // The city had (1000 + 270 * 8) * 20 = 63200 people, and now has (800 + 250 * 8) * 20 = 56000:
-        // 7200 left
-        const migration = stepOf(city.evaluation.cityScoreBreakdown, lastScore, Evaluation.SCORE_MIGRATION);
-        expect(migration.entry.points).toBe(
-            Math.round(migration.scoreBefore * (0.95 - 7200 / 63200)) - migration.scoreBefore);
+        // Road funding at 20 of 32, 6 burning tiles at 5 points each, and an 11% tax. The scaled
+        // steps have tests of their own above.
+        expect(step(Evaluation.SCORE_ROAD_FUNDING).entry.points).toBe(-12);
+        expect(step(Evaluation.SCORE_FIRES).entry.points).toBe(-30);
+        expect(step(Evaluation.SCORE_TAXES).entry.points).toBe(-11);
     });
 
     it("leaves out adjustments that didn't move the score", () => {
@@ -350,13 +347,13 @@ describe("the city score breakdown", () => {
 
 describe("the city score", () => {
 
-    // Pinned scores: recording why the score changed must not change it. A rule change updates
-    // these deliberately.
-    it("is unchanged for a thriving town", () => {
-        expect(scoresOver(THRIVING_TOWN)).toEqual([707, 854, 868]);
+    // Pinned scores over several years: a change to how the score is worked out moves them, and
+    // its commit updates them and says why
+    it("is pinned for a thriving town", () => {
+        expect(scoresOver(THRIVING_TOWN)).toEqual([706, 853, 867]);
     });
 
-    it("is unchanged for a troubled city", () => {
-        expect(scoresOver(TROUBLED_CITY)).toEqual([644, 460, 459, 528]);
+    it("is pinned for a troubled city", () => {
+        expect(scoresOver(TROUBLED_CITY)).toEqual([643, 458, 456, 525]);
     });
 });

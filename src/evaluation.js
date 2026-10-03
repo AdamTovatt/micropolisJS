@@ -282,25 +282,24 @@ Evaluation.prototype.getScore = function(simData) {
   score = (250 - Math.min(score, 250)) * 4;
   addEntry(Evaluation.SCORE_PROBLEMS, score);
 
-  // The adjustments below mirror evaluate.cpp step by step, so the repeated blocks are kept
-  // rather than extracted into a loop.
+  // The adjustments below follow evaluate.cpp's in order, so the repeated blocks are kept rather
+  // than extracted into a loop. Its score is an int, and Math.trunc does what each (int) cast and
+  // integer division there does: drop the fraction, toward zero.
 
   // Penalise the player by 15% if demand for any type of zone is capped due
   // to lack of suitable buildings
-  var demandPenalty = 0.85;
-
   if (valves.resCap) {
-    score = Math.round(score * demandPenalty);
+    score = Math.trunc(score * 0.85);
     recordAdjustment(Evaluation.SCORE_RES_CAP, score);
   }
 
   if (valves.comCap) {
-    score = Math.round(score * demandPenalty);
+    score = Math.trunc(score * 0.85);
     recordAdjustment(Evaluation.SCORE_COM_CAP, score);
   }
 
   if (valves.indCap) {
-    score = Math.round(score * demandPenalty);
+    score = Math.trunc(score * 0.85);
     recordAdjustment(Evaluation.SCORE_IND_CAP, score);
   }
 
@@ -312,29 +311,29 @@ Evaluation.prototype.getScore = function(simData) {
 
   // Penalize player by up to 10% for underfunded police and fire services
   if (budget.policeEffect < budget.MAX_POLICESTATION_EFFECT) {
-    score = Math.round(score * (0.9 + (budget.policeEffect / (10 * budget.MAX_POLICESTATION_EFFECT))));
+    score = Math.trunc(score * (0.9 + (budget.policeEffect / (10 * budget.MAX_POLICESTATION_EFFECT))));
     recordAdjustment(Evaluation.SCORE_POLICE_FUNDING, score);
   }
 
   if (budget.fireEffect < budget.MAX_FIRESTATION_EFFECT) {
-    score = Math.round(score * (0.9 + (budget.fireEffect / (10 * budget.MAX_FIRESTATION_EFFECT))));
+    score = Math.trunc(score * (0.9 + (budget.fireEffect / (10 * budget.MAX_FIRESTATION_EFFECT))));
     recordAdjustment(Evaluation.SCORE_FIRE_FUNDING, score);
   }
 
   // Penalise the player by 15% if demand for any type of zone has collapsed due
   // to overprovision
   if (valves.resValve < -1000) {
-    score = Math.round(score * 0.85);
+    score = Math.trunc(score * 0.85);
     recordAdjustment(Evaluation.SCORE_RES_OVERSUPPLY, score);
   }
 
   if (valves.comValve < -1000) {
-    score = Math.round(score * 0.85);
+    score = Math.trunc(score * 0.85);
     recordAdjustment(Evaluation.SCORE_COM_OVERSUPPLY, score);
   }
 
   if (valves.indValve < -1000) {
-    score = Math.round(score * 0.85);
+    score = Math.trunc(score * 0.85);
     recordAdjustment(Evaluation.SCORE_IND_OVERSUPPLY, score);
   }
 
@@ -351,7 +350,7 @@ Evaluation.prototype.getScore = function(simData) {
     scale = 0.95 + (this.cityPopDelta / (this.cityPop - this.cityPopDelta));
   }
 
-  score = Math.round(score * scale);
+  score = Math.trunc(score * scale);
   recordAdjustment(Evaluation.SCORE_MIGRATION, score);
 
   // Penalize player for having fires and a burdensome tax rate. The two subtractions are
@@ -365,14 +364,14 @@ Evaluation.prototype.getScore = function(simData) {
   // Penalize player based on ratio of unpowered zones to total zones
   scale = census.unpoweredZoneCount + census.poweredZoneCount;
   if (scale > 0)
-    score = Math.round(score * (census.poweredZoneCount / scale));
+    score = Math.trunc(score * (census.poweredZoneCount / scale));
   recordAdjustment(Evaluation.SCORE_UNPOWERED_ZONES, score);
 
   // Force in to range 0-1000. New score is average of last score and new computed value
   score = MiscUtils.clamp(score, 0, 1000);
   recordAdjustment(Evaluation.SCORE_RANGE, score);
 
-  this.cityScore = Math.round((this.cityScore + score) / 2);
+  this.cityScore = Math.trunc((this.cityScore + score) / 2);
   addEntry(Evaluation.SCORE_AVERAGING, this.cityScore);
   this.cityScoreBreakdown = breakdown;
 
