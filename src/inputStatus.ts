@@ -15,11 +15,10 @@ import { requiredElement } from "./domElements";
 import { EventEmitter } from "./eventEmitter.js";
 import { GameCanvas } from "./gameCanvas";
 import * as Messages from "./messages";
+import { Text } from "./text";
 
 // The player's input as the game reads it each tick: the keys held, where the mouse is over the canvas and the tool
 // chosen. A click or a drag with the tool, and a press of a control button, are events.
-
-const TOOL_OUTPUT_ID = "toolOutput";
 
 // The tools that lay a line as the mouse drags; every other tool acts on a click
 const DRAGGABLE_TOOLS = ["rail", "road", "wire"];
@@ -110,6 +109,7 @@ export class InputStatus {
 
   private readonly canvas: HTMLElement;
   private readonly pauseButton: HTMLElement;
+  private readonly toolOutput: HTMLElement;
 
   // Mouse drags: the tile a drag last reported, as a column and row
   private dragging = false;
@@ -124,6 +124,7 @@ export class InputStatus {
   constructor(private readonly tileWidth: number) {
     this.canvas = requiredElement(GameCanvas.DEFAULT_ID);
     this.pauseButton = requiredElement("pauseRequest");
+    this.toolOutput = requiredElement("toolOutput");
 
     // Add the listeners
     document.addEventListener("keydown", (e) => this.onKeyDown(e));
@@ -154,6 +155,11 @@ export class InputStatus {
   // The pause button offers whatever the simulation isn't doing
   showPaused(paused: boolean): void {
     this.pauseButton.textContent = paused ? "Play" : "Pause";
+  }
+
+  // The tool output shows its label while a tool is chosen, and how the tool's last command went once one has
+  showToolOutput(text: string): void {
+    this.toolOutput.textContent = text;
   }
 
   clearTool(): void {
@@ -289,7 +295,7 @@ export class InputStatus {
     this.toolName = button.dataset.tool ?? null;
     this.toolWidth = Number(button.dataset.size);
     this.toolColour = button.dataset.colour ?? "";
-    requiredElement(TOOL_OUTPUT_ID).textContent = "Tools";
+    this.showToolOutput(Text.toolMessages.label);
 
     this.showCursor();
 

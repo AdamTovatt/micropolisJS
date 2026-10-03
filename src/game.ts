@@ -19,7 +19,7 @@ import { CommandResult, LOCAL_PLAYER } from "./commands";
 import { Config } from "./config.js";
 import { DebugAction, DebugWindow } from "./debugWindow";
 import { DisasterWindow } from "./disasterWindow";
-import { isShown, requiredElement, setShown } from "./domElements";
+import { isShown, requiredElement, toggleShown } from "./domElements";
 import { ToolPaths } from "./dragPath";
 import { EvaluationWindow } from "./evaluationWindow";
 import { GameCanvas, MouseOutline, PaintableMap, PaintableSprite } from "./gameCanvas";
@@ -46,10 +46,9 @@ import { CityStatusSource, StatusPanel } from "./statusPanel";
 import { StepDriver } from "./stepDriver";
 import { SavedGame, Storage } from "./storage";
 import { attachToTestHook, HookedSimulation } from "./testHook";
-import { Text } from "./text";
 import { TileSet } from "./tileSet";
 import { TouchWarnWindow } from "./touchWarnWindow";
-import { budgetCommand, settingsCommands, toolOutcome } from "./windowCommands";
+import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
 // What the game reads of the simulation itself, beside what it hands it to
@@ -97,9 +96,9 @@ export class Game {
   private readonly touchWindow: TouchWarnWindow;
   private readonly queryWindow: QueryWindow;
   private readonly queryTool: QueryTool;
-  private readonly notificationBar: NotificationBar;
+  private readonly notificationBar: NotificationBar<HTMLElement>;
   private readonly recorder: CommandRecorder;
-  private readonly tooSmall: HTMLElement;
+  private readonly tooSmall = requiredElement("tooSmall");
 
   private mouse: MouseOutline | null = null;
   private readonly newsHold = new NewsHold();
@@ -107,6 +106,7 @@ export class Game {
   private settingsShown: SettingsRecord | null = null;
 
   // Debug mode's frame counter
+  private readonly fpsValue = requiredElement("fpsValue");
   private frameCount = 0;
   private animStart = 0;
   private lastElapsed = -1;
@@ -155,7 +155,7 @@ export class Game {
     const elapsed = Math.floor((Date.now() - this.animStart) / 1000);
 
     if (elapsed > this.lastElapsed && this.frameCount > 0) {
-      requiredElement("fpsValue").textContent = String(Math.floor(this.frameCount / elapsed));
+      this.fpsValue.textContent = String(Math.floor(this.frameCount / elapsed));
       this.lastElapsed = elapsed;
     }
 
@@ -187,7 +187,6 @@ export class Game {
       this.commandQueue.send(LOCAL_PLAYER, {type: "setSpeed", speed});
     }, (paused) => this.inputStatus.showPaused(paused));
 
-    // Initialise monsterTV
     this.monsterTV = new MonsterTV(this.gameMap, tileSet, spriteSheet);
 
     const opacityLayerID = "opaque";
@@ -198,55 +197,46 @@ export class Game {
 
     this.handleWindowClosure = () => this.windows.closed();
 
-    // Hook up listeners to open/close evaluation window
     this.evalWindow = new EvaluationWindow(opacityLayerID, "evalWindow");
     this.evalWindow.addEventListener(Messages.EVAL_WINDOW_CLOSED, this.handleWindowClosure);
     this.inputStatus.addEventListener(Messages.EVAL_REQUESTED,
                                       () => this.windows.open(this.evalWindow, this.simulation.evaluationRecord()));
 
-    // ... and similarly for the budget window
     budgetWindow.addEventListener(Messages.BUDGET_WINDOW_CLOSED,
                                   (choice: BudgetChoice | null) => this.handleBudgetWindowClosure(choice));
     this.inputStatus.addEventListener(Messages.BUDGET_REQUESTED, () => this.windows.openBudget());
 
-    // ... and also the disaster window
     this.disasterWindow = new DisasterWindow(opacityLayerID, "disasterWindow");
     this.disasterWindow.addEventListener(Messages.DISASTER_WINDOW_CLOSED,
                                          (kind: DisasterKind | null) => this.handleDisasterWindowClosure(kind));
     this.inputStatus.addEventListener(Messages.DISASTER_REQUESTED, () => this.windows.open(this.disasterWindow));
 
-    // ... the debug window
     this.debugWindow = new DebugWindow(opacityLayerID, "debugWindow");
     this.debugWindow.addEventListener(Messages.DEBUG_WINDOW_CLOSED,
                                       (actions: DebugAction[]) => this.handleDebugWindowClosure(actions));
     this.inputStatus.addEventListener(Messages.DEBUG_WINDOW_REQUESTED, () => this.windows.open(this.debugWindow));
 
-    // ... the settings window
     this.settingsWindow = new SettingsWindow(opacityLayerID, "settingsWindow");
     this.settingsWindow.addEventListener(Messages.SETTINGS_WINDOW_CLOSED,
                                          (choice: SettingsChoice | null) => this.handleSettingsWindowClosure(choice));
     this.inputStatus.addEventListener(Messages.SETTINGS_WINDOW_REQUESTED, () => this.handleSettingsRequest());
 
-    // ... the screenshot window
     this.screenshotWindow = new ScreenshotWindow(opacityLayerID, "screenshotWindow");
     this.screenshotWindow.addEventListener(Messages.SCREENSHOT_WINDOW_CLOSED,
                                            (area: ScreenshotArea | null) => this.handleScreenshotWindowClosure(area));
     this.inputStatus.addEventListener(Messages.SCREENSHOT_WINDOW_REQUESTED,
                                       () => this.windows.open(this.screenshotWindow));
 
-    // ... the screenshot link window
     this.screenshotLinkWindow = new ScreenshotLinkWindow(opacityLayerID, "screenshotLinkWindow");
     this.screenshotLinkWindow.addEventListener(Messages.SCREENSHOT_LINK_CLOSED, this.handleWindowClosure);
 
-    // ... the save confirmation window
     this.saveWindow = new SaveWindow(opacityLayerID, "saveWindow");
     this.saveWindow.addEventListener(Messages.SAVE_WINDOW_CLOSED, this.handleWindowClosure);
 
-    // ... the touch warn window
     this.touchWindow = new TouchWarnWindow(opacityLayerID, "touchWarnWindow");
     this.touchWindow.addEventListener(Messages.TOUCH_WINDOW_CLOSED, this.handleWindowClosure);
 
-    // ... and finally the query window, which shows the report the query tool asks the simulation for
+    // The query window shows the report the query tool asks the simulation for
     this.queryWindow = new QueryWindow(opacityLayerID, "queryWindow");
     this.queryWindow.addEventListener(Messages.QUERY_WINDOW_CLOSED, this.handleWindowClosure);
     this.queryTool = new QueryTool(pageQuerySource(this.simulation),
@@ -276,7 +266,6 @@ export class Game {
     placeInfoBar(this.simulation, initialValues);
 
     this.notificationBar = placeNotificationBar(this.gameCanvas);
-    this.tooSmall = requiredElement("tooSmall");
 
     // Listen for touches, so we can warn tablet users
     window.addEventListener("touchstart", this.touchListener, false);
@@ -295,8 +284,7 @@ export class Game {
     // Paint the map
     const debug = Config.debug || Config.gameDebug;
     if (debug) {
-      const debugPanel = requiredElement("debug");
-      setShown(debugPanel, !isShown(debugPanel));
+      toggleShown(requiredElement("debug"));
       this.animStart = Date.now();
     }
 
@@ -460,7 +448,7 @@ export class Game {
 
   // The tiles the player's tool reaches gather into paths (see ToolPaths), sent each tick by sendToolPaths
   private handleTool(data: ToolClick): void {
-    // Were was the tool clicked?
+    // Where was the tool clicked?
     const tileCoords = this.gameCanvas.canvasCoordinateToTileCoordinate(data.x, data.y);
 
     const toolName = this.inputStatus.toolName;
@@ -491,13 +479,7 @@ export class Game {
       console.warn(`Tool command rejected: ${result.reason}`);
     }
 
-    let text = "Tools";
-    if (outcome === "needsBulldoze") {
-      text = Text.toolMessages.needsDoze;
-    } else if (outcome === "noMoney") {
-      text = Text.toolMessages.noMoney;
-    }
-    requiredElement("toolOutput").textContent = text;
+    this.inputStatus.showToolOutput(toolOutputText(outcome));
   }
 
   private handleSave(): void {
@@ -551,8 +533,7 @@ export class Game {
   }
 
   private calculateMouseForPaint(): MouseOutline | null {
-    // Determine whether we need to draw a tool outline in the
-    // canvas
+    // Determine whether we need to draw a tool outline in the canvas
     if (this.inputStatus.mouseX === -1 || this.inputStatus.toolWidth <= 0) {
       return null;
     }

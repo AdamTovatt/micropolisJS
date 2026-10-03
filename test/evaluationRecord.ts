@@ -14,7 +14,8 @@
 import { cityFromSeed, Level, Speed } from "../headless/city";
 import { Evaluation } from "../src/evaluation.js";
 import { evaluationRecord } from "../src/evaluationRecord";
-import { CITY_CLASSES, CITY_PROBLEMS, SCORE_REASONS } from "../src/protocol";
+import { CITY_CLASSES, CITY_PROBLEMS, GAME_LEVELS, SCORE_REASONS } from "../src/protocol";
+import { Simulation } from "../src/simulation.js";
 import { developedLand, evaluateYear, makeCity, newEvaluation, problemFreeYear } from "./helpers/evaluationCity";
 
 const evaluationConstants = Evaluation as unknown as Record<string, string | number>;
@@ -40,6 +41,12 @@ describe("the evaluation record", () => {
 
     it("names the score's reasons as the evaluation does, in the order it takes them", () => {
         expect(constantsNamed("SCORE_")).toEqual([...SCORE_REASONS]);
+    });
+
+    it("numbers each level as the simulation does", () => {
+        const simulationConstants = Simulation as unknown as Record<string, number>;
+
+        expect(GAME_LEVELS.map((level) => simulationConstants[`LEVEL_${level}`])).toEqual(GAME_LEVELS.map((_, i) => i));
     });
 
     it("numbers each problem as the evaluation does", () => {

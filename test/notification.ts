@@ -13,6 +13,7 @@
 
 import * as Messages from "../src/messages";
 import { BarElement, NotificationBar, notificationView } from "../src/notification";
+import { styledBy } from "./helpers/stylingWindow";
 
 describe("a notification's view", () => {
 
@@ -35,16 +36,17 @@ describe("a notification's view", () => {
     });
 });
 
-// The bar's element, which shows unless its display is "none", as the stylesheet lays it out. It starts with the class
-// the page gives it.
+type FakeBar = BarElement<FakeBar>;
+
+// The bar's element, which the stylesheet lays out as a block. It starts with the class the page gives it.
 function barElement() {
     const classes = new Set(["neutral"]);
     let click: (e: {preventDefault(): void}) => void = () => {};
 
-    const element: BarElement = {
+    const element: FakeBar = {
         textContent: "",
         style: {display: ""},
-        getClientRects: () => ({length: element.style.display === "none" ? 0 : 1}),
+        ownerDocument: styledBy("block"),
         classList: {
             add: (token) => {
                 classes.add(token);

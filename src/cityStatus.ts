@@ -141,6 +141,9 @@ const ADVISOR_CONDITIONS: ReadonlyArray<{condition: string, holds: Predicate}> =
                                 census.totalPop > 20},
 ];
 
+// The subject of each advisor condition, which the status record lists and messages announce
+export const ADVISOR_SUBJECTS: readonly string[] = ADVISOR_CONDITIONS.map(({condition}) => condition);
+
 export function conditionHolds(condition: string, census: AdvisorCensus, budget: AdvisorBudget,
                                power: AdvisorPower): boolean {
   for (const entry of ADVISOR_CONDITIONS) {

@@ -11,7 +11,7 @@
  *
  */
 
-import { Displayable, isShown, requiredElement, setShown } from "./domElements";
+import { Displayable, requiredElement, setShown } from "./domElements";
 import { MessageTone, Text } from "./text";
 import type { TilePoint } from "./viewPosition";
 
@@ -40,8 +40,8 @@ export interface CentringMap {
   centreOn(x: number, y: number): void;
 }
 
-// What the bar reads and writes of its element
-export interface BarElement extends Displayable {
+// What the bar reads and writes of its element, an E
+export interface BarElement<E> extends Displayable<E> {
   textContent: string | null;
   readonly classList: {
     add(token: string): void;
@@ -62,12 +62,12 @@ export function notificationView(message: NotificationMessage): NotificationView
   return {text, tone, link: null};
 }
 
-export class NotificationBar {
+export class NotificationBar<E extends BarElement<E>> {
   private timeout: ReturnType<typeof setTimeout> | null = null;
   // The tile a click on the bar centres the map on, or null when the message has none
   private link: TilePoint | null = null;
 
-  constructor(private readonly element: BarElement, private readonly map: CentringMap) {
+  constructor(private readonly element: E, private readonly map: CentringMap) {
     this.element.addEventListener("click", (e) => {
       e.preventDefault();
 
@@ -94,9 +94,7 @@ export class NotificationBar {
     this.element.textContent = view.text;
     this.link = view.link;
 
-    if (!isShown(this.element)) {
-      setShown(this.element, true);
-    }
+    setShown(this.element, true);
 
     this.timeout = setTimeout(() => {
       this.timeout = null;
@@ -105,13 +103,11 @@ export class NotificationBar {
   }
 
   private close(): void {
-    if (isShown(this.element)) {
-      setShown(this.element, false);
-    }
+    setShown(this.element, false);
   }
 }
 
 // The bar in the page's notification element
-export function placeNotificationBar(map: CentringMap): NotificationBar {
+export function placeNotificationBar(map: CentringMap): NotificationBar<HTMLElement> {
   return new NotificationBar(requiredElement(ELEMENT_ID), map);
 }

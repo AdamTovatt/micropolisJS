@@ -11,7 +11,7 @@
  *
  */
 
-import { requiredElement } from "./domElements";
+import { requiredElement, toggleShown } from "./domElements";
 import { EventEmitter } from "./eventEmitter.js";
 
 // The base of the game's windows: a window over the opacity layer, which windowManager.ts shows one at a time. A
@@ -36,9 +36,9 @@ export class WindowBase {
   // markup starts hidden by its class. A window that shows gives the focus to its focus element, so that Enter
   // answers a window focused on its submit button.
   _toggleDisplay(): void {
-    toggle(this.opacityLayer);
+    toggleShown(this.opacityLayer);
 
-    if (toggle(this.windowElement)) {
+    if (toggleShown(this.windowElement)) {
       const focused = this.focusID === null ?
         this.windowElement.querySelector<HTMLInputElement>("input[type=submit]") : requiredElement(this.focusID);
       focused?.focus();
@@ -47,14 +47,6 @@ export class WindowBase {
 }
 
 EventEmitter(WindowBase);
-
-// Shows a hidden element, as a block, as jQuery's toggle showed one hidden by a class, or hides one that shows, and
-// says whether it shows now
-function toggle(element: HTMLElement): boolean {
-  const shows = getComputedStyle(element).display === "none";
-  element.style.display = shows ? "block" : "none";
-  return shows;
-}
 
 // A window that closes by hiding, then emitting its closed event, so that a handler that opens another window in its
 // place starts from a hidden opacity layer

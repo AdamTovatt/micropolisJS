@@ -16,7 +16,7 @@ import { isChecked, isShown, requiredElement, setShown } from "./domElements";
 import { Game } from "./game";
 import { MapGenerator } from "./mapGenerator.js";
 import { Random } from "./random";
-import { Simulation } from "./simulation.js";
+import { GAME_LEVELS, GameLevel } from "./protocol";
 import { PreviewMap, SplashCanvas } from "./splashCanvas";
 import { SavedGame, Storage } from "./storage";
 import { TileSet } from "./tileSet";
@@ -33,19 +33,20 @@ interface MapChoice {
 }
 
 // The radio button of each level a new city can start at
-const LEVEL_RADIOS: {level: number, id: string}[] = [
-  {level: Simulation.LEVEL_EASY, id: "difficultyEasy"},
-  {level: Simulation.LEVEL_MED, id: "difficultyMed"},
-  {level: Simulation.LEVEL_HARD, id: "difficultyHard"},
+const LEVEL_RADIOS: {level: GameLevel, id: string}[] = [
+  {level: "EASY", id: "difficultyEasy"},
+  {level: "MED", id: "difficultyMed"},
+  {level: "HARD", id: "difficultyHard"},
 ];
 
+// The number of the level checked
 function checkedLevel(): number {
   const radio = LEVEL_RADIOS.find(({id}) => isChecked(id));
   if (radio === undefined) {
     throw new Error("The start form has no level checked");
   }
 
-  return radio.level;
+  return GAME_LEVELS.indexOf(radio.level);
 }
 
 // Shows the splash screen, first offering the map of the seed, or of a new one when given none. While the screen is too

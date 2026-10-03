@@ -14,6 +14,7 @@
 import { CommandResult, LOCAL_PLAYER, Outcome } from "./commands";
 import { isRecord } from "./validation";
 import { Command, ServiceAmounts } from "./protocol";
+import { Text } from "./text";
 
 // The commands the player's choices in the game's windows send, and what the game shows of their results
 
@@ -54,4 +55,18 @@ export function toolOutcome(result: CommandResult): Outcome | null {
   }
 
   return result.outcome;
+}
+
+// What the tool output shows for a tool command's outcome: why it built nothing, where the player can fix that, or
+// else its label
+export function toolOutputText(outcome: Outcome): string {
+  if (outcome === "needsBulldoze") {
+    return Text.toolMessages.needsDoze;
+  }
+
+  if (outcome === "noMoney") {
+    return Text.toolMessages.noMoney;
+  }
+
+  return Text.toolMessages.label;
 }

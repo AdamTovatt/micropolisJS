@@ -12,7 +12,7 @@
  */
 
 import * as Messages from "./messages";
-import { CITY_PROBLEMS, CityClass, OverlayLayer, ScoreReason, ZoneCategory } from "./protocol";
+import { CITY_PROBLEMS, CityClass, GameLevel, OverlayLayer, ScoreReason, ZoneCategory } from "./protocol";
 
 // TODO Some kind of rudimentary L20N based on navigator.language?
 
@@ -32,8 +32,8 @@ const zoneCategories: Record<ZoneCategory, string> = {
   URANIUM: "Ur 238",
 };
 
-// Evaluation window. The game levels are indexed by the evaluation record's level, 0 to 2 from easy to hard.
-const gameLevel: readonly string[] = ["Easy", "Medium", "Hard"];
+// Evaluation window
+const gameLevel: Record<GameLevel, string> = {EASY: "Easy", MED: "Medium", HARD: "Hard"};
 
 const cityClass: Record<CityClass, string> = {
   VILLAGE: "VILLAGE",
@@ -83,8 +83,9 @@ const scoreBreakdown = {
 const months: readonly string[] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// Tool strings
+// What the tool output shows: its label, or how the player's last tool command went
 const toolMessages = {
+  label: "Tools",
   noMoney: "Insufficient funds to build that",
   needsDoze: "Area must be bulldozed first",
 };

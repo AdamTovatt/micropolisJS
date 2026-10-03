@@ -161,10 +161,23 @@ describe("storage", () => {
             expect(() => Storage.parse("not a save")).toThrow(SyntaxError);
         });
 
-        it("refuses a version it doesn't know", async () => {
+        it.each([
+            ["no version", {}],
+            ["version 0", {version: 0}],
+            ["a version that is text", {version: "8"}],
+            ["a version that isn't whole", {version: 8.5}],
+            ["a version past the current one", {version: 99}],
+        ])("refuses a save with %s", async (_, save) => {
             const {Storage} = await loadStorage();
 
-            expect(() => Storage.parse(JSON.stringify({version: 99}))).toThrow("Unknown save version!");
+            expect(() => Storage.parse(JSON.stringify(save))).toThrow("Unknown save version!");
+        });
+
+        // The version is one past the last upgrade step, so a step inserted rather than appended would move it
+        it("is at version 9", async () => {
+            const {Storage} = await loadStorage();
+
+            expect(Storage.CURRENT_VERSION).toBe(9);
         });
     });
 

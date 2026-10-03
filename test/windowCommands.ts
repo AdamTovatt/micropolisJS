@@ -12,7 +12,7 @@
  */
 
 import { commandRejection, CommandResult, LOCAL_PLAYER } from "../src/commands";
-import { budgetCommand, settingsCommands, toolOutcome } from "../src/windowCommands";
+import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "../src/windowCommands";
 
 describe("the settings window's commands", () => {
 
@@ -61,5 +61,18 @@ describe("the outcome the tool output shows", () => {
         ["a command that is nothing", result(LOCAL_PLAYER, null)],
     ])("is none for %s", (_, other) => {
         expect(toolOutcome(other)).toBeNull();
+    });
+});
+
+describe("the tool output's text", () => {
+
+    it.each([
+        ["needsBulldoze", "Area must be bulldozed first"],
+        ["noMoney", "Insufficient funds to build that"],
+        ["ok", "Tools"],
+        ["failed", "Tools"],
+        ["rejected", "Tools"],
+    ] as const)("for an outcome of %s is %p", (outcome, text) => {
+        expect(toolOutputText(outcome)).toBe(text);
     });
 });

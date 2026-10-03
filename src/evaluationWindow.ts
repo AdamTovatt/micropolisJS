@@ -13,7 +13,7 @@
 
 import { requiredElement } from "./domElements";
 import { EVAL_WINDOW_CLOSED } from "./messages";
-import { CITY_PROBLEMS, type EvaluationRecord, MAX_RANKED_PROBLEMS } from "./protocol";
+import { CITY_PROBLEMS, type EvaluationRecord, GAME_LEVELS, MAX_RANKED_PROBLEMS } from "./protocol";
 import { scoreBreakdownRows, signedPoints, type ScoreRow } from "./scoreBreakdownView";
 import { Text } from "./text";
 import { ClosableWindow } from "./windowBase";
@@ -43,7 +43,7 @@ export function evaluationView(record: EvaluationRecord): EvaluationView {
     population: `${record.population}`,
     migration: `${record.migration}`,
     assessedValue: `${record.assessedValue}`,
-    level: Text.gameLevel[record.level],
+    level: Text.gameLevel[GAME_LEVELS[record.level]],
     cityClass: Text.cityClass[record.cityClass],
     score: `${record.score}`,
     scoreDelta: signedPoints(record.scoreDelta),
