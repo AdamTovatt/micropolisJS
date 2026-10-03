@@ -11,18 +11,19 @@
  *
  */
 
-import { GameMap } from "../src/gameMap.js";
-import { Simulation } from "../src/simulation.js";
-import { hashSavedState, savedState } from "../src/stateHash";
+import { GameMap } from "./gameMap.js";
+import { Simulation } from "./simulation.js";
+import { hashSavedState, savedState } from "./stateHash";
 
-// A checkpoint's state hash, worked out in Node from the save the page wrote
+// The state hash of the city in a game's save, as the browser writes it to storage. stateHash.ts hashes any saveable
+// state and knows nothing of the simulation; this knows which of a game's keys are the simulation's.
 
 // The keys Simulation.save writes, which a game's save holds beside the game's own, such as the city's name
 const SIMULATION_KEYS = Object.keys(savedState(new Simulation(new GameMap(120, 100), Simulation.LEVEL_EASY,
                                                               Simulation.SPEED_MED, 1)));
 
 // The state hash (stateHash.ts) of the city in a game's save: the hash of what the simulation saved
-export async function checkpointHash(save: Record<string, unknown>): Promise<string> {
+export async function gameSaveHash(save: Record<string, unknown>): Promise<string> {
   const missing = SIMULATION_KEYS.filter((key) => !(key in save));
   if (missing.length > 0) {
     throw new Error(`The save lacks the simulation's ${missing.join(", ")}`);

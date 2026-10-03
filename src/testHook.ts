@@ -11,7 +11,7 @@
  *
  */
 
-import { clockOf, ClockedSimulation, impliedCityTime } from "./cityTimeModel";
+import { checkStepCount, ClockedSimulation, takeSteps } from "./cityTimeModel";
 import { BUDGET_REVIEW_DUE, COMMAND_RESULT } from "./messages";
 import { StepDriver } from "./stepDriver";
 import { Storage } from "./storage.js";
@@ -24,13 +24,13 @@ import { Storage } from "./storage.js";
 // What the hook needs of the game
 interface HookedGame {
   stepDriver: StepDriver;
-  isStepping(): boolean;
+  // Why the city isn't stepping, or null when it is
+  notSteppingReason(): string | null;
   stepSimulation(): void;
   sendToolPaths(): void;
   commandQueue: {applyCommands(): unknown};
   saveData(): object;
   simulation: ClockedSimulation & {
-    isPaused(): boolean;
     addEventListener(event: string, listener: () => void): void;
     removeEventListener(event: string, listener: () => void): void;
   };
@@ -50,10 +50,6 @@ export interface View {
   originY: number;
   // A tile's width and height on the canvas, in pixels
   tileWidth: number;
-}
-
-function notSteppingReason(game: HookedGame): string {
-  return game.simulation.isPaused() ? "it is paused" : "the page is hidden, or too small to play";
 }
 
 class TestHook {
@@ -104,10 +100,8 @@ class TestHook {
   // imply.
   advance(steps: number): Advanced {
     const game = this.attachedGame();
-
-    if (!Number.isInteger(steps) || steps < 0) {
-      throw new Error(`Advance takes a whole number of steps, got ${steps}`);
-    }
+    // Before anything is applied, so a call refused changes nothing
+    checkStepCount(steps);
 
     if (!game.stepDriver.isHeld()) {
       throw new Error("Advance needs the driver held, or the driver's steps would land at times of its own");
@@ -116,8 +110,9 @@ class TestHook {
     // Before the check that the city steps: the input may be the Pause button
     this.applyInput();
 
-    if (!game.isStepping()) {
-      throw new Error(`The city is not stepping: ${notSteppingReason(game)}`);
+    const notStepping = game.notSteppingReason();
+    if (notStepping !== null) {
+      throw new Error(`The city is not stepping: ${notStepping}`);
     }
 
     let budgetReviewDue = false;
@@ -126,21 +121,13 @@ class TestHook {
     };
     game.simulation.addEventListener(BUDGET_REVIEW_DUE, onReviewDue);
 
-    const before = clockOf(game.simulation);
     try {
-      for (let i = 0; i < steps; i++) {
+      takeSteps(game.simulation, steps, () => {
         game.stepSimulation();
         this.steps++;
-      }
+      });
     } finally {
       game.simulation.removeEventListener(BUDGET_REVIEW_DUE, onReviewDue);
-    }
-
-    const expected = impliedCityTime(before, steps);
-    const reached = game.simulation._cityTime;
-    if (reached !== expected) {
-      throw new Error(`The city stalled: ${steps} steps should advance city time from ${before.cityTime} to ` +
-                      `${expected}, but it reached ${reached}`);
     }
 
     return {budgetReviewDue};

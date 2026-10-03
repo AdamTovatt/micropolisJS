@@ -20,7 +20,8 @@ import { CheckpointCheck } from "./goldenPlaythrough";
 // through it and see the game working. Each checkpoint's save sits beside it, and debug mode's "Load save file" opens
 // it. So does the run's command log, which the headless runner replays: `npm run simulate -- --log <file>`.
 
-export interface Checkpoint {
+// What a stage came to, and its checkpoint
+export interface StageResult {
   stage: string;
   // Steps the stage took, and steps since the city was founded, as the runner counted them
   steps: number;
@@ -44,7 +45,7 @@ export interface DriverRun {
 }
 
 export class Report {
-  readonly checkpoints: Checkpoint[] = [];
+  readonly stages: StageResult[] = [];
   driverRun: DriverRun | null = null;
   buildId = "unknown";
   // Why the run failed, as the test reports it, the first stage that diverged included
@@ -69,28 +70,28 @@ export class Report {
   }
 
   private html(): string {
-    const stages = this.checkpoints.map((checkpoint, index) => {
-      const check = checkpoint.goldenCheck;
+    const stages = this.stages.map((result, index) => {
+      const check = result.goldenCheck;
       const expected = check?.expected ?? null;
-      const hashDiffers = expected !== null && checkpoint.hash !== expected.hash;
+      const hashDiffers = expected !== null && result.hash !== expected.hash;
       // A figure, and the golden one where that differs
       const figure = (actual: number | string, golden: number | string | undefined) =>
         `${actual}${golden !== undefined && actual !== golden ? ` (expected ${golden})` : ""}`;
 
       return `
-      <section class="stage${checkpoint.error || check?.diverged ? " failed" : ""}">
-        <h2>${index + 1}. ${escapeHtml(checkpoint.stage)}</h2>
+      <section class="stage${result.error || check?.diverged ? " failed" : ""}">
+        <h2>${index + 1}. ${escapeHtml(result.stage)}</h2>
         <dl>
-          <dt>Steps</dt><dd>${checkpoint.steps}</dd>
-          <dt>Steps in all</dt><dd>${figure(checkpoint.totalSteps, expected?.step)}</dd>
-          ${checkpoint.commands !== undefined ?
-            `<dt>Commands in all</dt><dd>${figure(checkpoint.commands, expected?.commands)}</dd>` : ""}
+          <dt>Steps</dt><dd>${result.steps}</dd>
+          <dt>Steps in all</dt><dd>${figure(result.totalSteps, expected?.step)}</dd>
+          ${result.commands !== undefined ?
+            `<dt>Commands in all</dt><dd>${figure(result.commands, expected?.commands)}</dd>` : ""}
           ${check ? `<dt>Expected hash</dt><dd>${expected?.hash ?? "none pinned"}</dd>` : ""}
-          ${checkpoint.hash ? `<dt>State hash</dt><dd>${checkpoint.hash}${hashDiffers ? " (differs)" : ""}</dd>` : ""}
-          ${checkpoint.save ? `<dt>Save</dt><dd><a href="${checkpoint.save}">${checkpoint.save}</a></dd>` : ""}
+          ${result.hash ? `<dt>State hash</dt><dd>${result.hash}${hashDiffers ? " (differs)" : ""}</dd>` : ""}
+          ${result.save ? `<dt>Save</dt><dd><a href="${result.save}">${result.save}</a></dd>` : ""}
         </dl>
-        ${errorBlock(checkpoint.error)}
-        ${screenshotBlock(checkpoint.screenshot, checkpoint.stage)}
+        ${errorBlock(result.error)}
+        ${screenshotBlock(result.screenshot, result.stage)}
       </section>`;
     }).join("");
 

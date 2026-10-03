@@ -68,6 +68,67 @@ test("debug mode refuses a file that isn't a save, as often as it is chosen", as
   await expect(page.locator("#splash")).toBeVisible();
 });
 
+test("debug mode refuses a file that reads as a save but won't load, and stays on the splash screen", async ({page}) => {
+  await blockNetwork(page);
+  const problems = collectPageProblems(page);
+  const player = new Player(page);
+
+  await player.startNewGame(SEED, "Saved", "Easy");
+  const mapless: Record<string, unknown> = {...await player.save()};
+  delete mapless.map;
+  const file = test.info().outputPath("mapless.json");
+  writeFileSync(file, JSON.stringify(mapless));
+
+  await player.open();
+  await chooseSaveFile(page, file);
+  await expect.poll(() => problems.length).toBe(1);
+
+  expect(problems[0]).toMatch(/^Alert: Could not read mapless.json:/);
+  await expect(page.locator("#splash")).toBeVisible();
+});
+
+test("debug mode ignores a save file that finishes reading after the player started a new game", async ({page}) => {
+  await blockNetwork(page);
+  const problems = collectPageProblems(page);
+  const player = new Player(page);
+
+  await player.startNewGame(SEED, "Saved", "Easy");
+  const file = test.info().outputPath("city.json");
+  writeFileSync(file, JSON.stringify(await player.save()));
+
+  // A file's text is read only once the test lets it, and then the page's own handler runs before the test goes on
+  await page.addInitScript(() => {
+    const read = Blob.prototype.text;
+    let release = () => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const page = window as unknown as {finishFileRead: () => Promise<unknown>};
+    let pending: Promise<string> = Promise.resolve("");
+
+    Blob.prototype.text = function() {
+      pending = released.then(() => read.call(this));
+      return pending;
+    };
+    page.finishFileRead = () => {
+      release();
+      return pending.then(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    };
+  });
+
+  await player.open();
+  await chooseSaveFile(page, file);
+  await page.click("#splashPlay");
+  await page.fill("#nameForm", "Started");
+  await page.click("#playit");
+  await player.waitForGame();
+  await page.evaluate(() => (window as unknown as {finishFileRead: () => Promise<unknown>}).finishFileRead());
+
+  await expect(page.locator("#name")).toHaveText("Started");
+  expect((await player.save()).name).toBe("Started");
+  expect(problems).toEqual([]);
+});
+
 test("the save file button is only in debug mode", async ({page}) => {
   await blockNetwork(page);
   const button = page.locator("#splashLoadFile");

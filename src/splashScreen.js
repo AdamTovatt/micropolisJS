@@ -54,7 +54,7 @@ function SplashScreen(tileSet, snowTileSet, spriteSheet) {
   this.snowTileSet = snowTileSet;
   this.spriteSheet = spriteSheet;
   // Whether the player has moved on, to a new game or a saved one
-  this.left = false;
+  this.departed = false;
   generateMap.call(this, Config.seed);
 
   // Set up listeners on buttons. When play is clicked, we will move on to get the player's desired
@@ -130,19 +130,15 @@ var handleLoadFile = function(e) {
 
   file.text().then(function(text) {
     // The player moved on while the file was read
-    if (this.left)
+    if (this.departed)
       return;
 
-    var savedGame;
-
+    // A file that reads as a save can still fail to load
     try {
-      savedGame = Storage.parse(text);
+      launchSavedGame.call(this, Storage.parse(text));
     } catch (err) {
       alert('Could not read ' + file.name + ': ' + err.message);
-      return;
     }
-
-    launchSavedGame.call(this, savedGame);
   }.bind(this));
 };
 
@@ -156,15 +152,15 @@ var leaveSplash = function() {
   $('#splashPlay').off('click');
 
   $('#splash').toggle();
-  this.left = true;
+  this.departed = true;
 };
 
 
+// The game is built before the splash screen goes, so a save that won't load leaves it showing
 var launchSavedGame = function(savedGame) {
-  leaveSplash.call(this);
-
-  // Launch
   Game.fromSave(savedGame, this.tileSet, this.snowTileSet, this.spriteSheet);
+
+  leaveSplash.call(this);
 };
 
 

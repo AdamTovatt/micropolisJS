@@ -11,7 +11,7 @@
  *
  */
 
-import { checkpointHash } from "../e2e/checkpointHash";
+import { gameSaveHash } from "../src/gameSaveHash";
 import { plainSavedState, stateHash } from "../src/stateHash";
 import { simulationFromSeed, SimulationInstance } from "./helpers/simulations";
 import { removeWindow, stubWindow } from "./helpers/window";
@@ -26,7 +26,7 @@ async function gameSave(simulation: SimulationInstance): Promise<Record<string, 
     return JSON.parse(Storage.serialise({...plainSavedState(simulation), name: "Town"}));
 }
 
-describe("a checkpoint's hash", () => {
+describe("a game save's hash", () => {
 
     afterAll(() => {
         removeWindow();
@@ -39,7 +39,7 @@ describe("a checkpoint's hash", () => {
             simulation.step();
         }
 
-        expect(await checkpointHash(await gameSave(simulation))).toBe(await stateHash(simulation));
+        expect(await gameSaveHash(await gameSave(simulation))).toBe(await stateHash(simulation));
     });
 
     it("leaves out the game's own keys", async () => {
@@ -47,13 +47,13 @@ describe("a checkpoint's hash", () => {
         expect(Object.keys(save)).toEqual(expect.arrayContaining(["name", "version"]));
         const changed = {...save, name: "Another town", version: (save.version as number) + 1};
 
-        expect(await checkpointHash(changed)).toBe(await checkpointHash(save));
+        expect(await gameSaveHash(changed)).toBe(await gameSaveHash(save));
     });
 
     it("refuses a save without the simulation's state", async () => {
         const save = await gameSave(simulationFromSeed(23));
         delete save.budget;
 
-        await expect(checkpointHash(save)).rejects.toThrow("The save lacks the simulation's budget");
+        await expect(gameSaveHash(save)).rejects.toThrow("The save lacks the simulation's budget");
     });
 });

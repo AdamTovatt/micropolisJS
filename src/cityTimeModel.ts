@@ -83,3 +83,35 @@ export function impliedCityTime(clock: CityClock, steps: number): number {
 
   return cityTime;
 }
+
+// Units of city time in a year, as the simulation's date counts them
+export const CITY_TIME_PER_YEAR = 48;
+
+// The steps a year takes at a speed, away from the speed cycle's wrap
+export function stepsPerYear(speed: number): number {
+  return CITY_TIME_PER_YEAR * stepsPerCityTime(speed);
+}
+
+// Fails on a number of steps that isn't whole
+export function checkStepCount(steps: number): void {
+  if (!Number.isInteger(steps) || steps < 0) {
+    throw new Error(`Steps are taken in whole numbers, got ${steps}`);
+  }
+}
+
+// Takes this many steps, each a call of step, and fails when city time didn't advance as far as they imply: the city
+// stalled. Whoever calls it first checks that the city steps at all.
+export function takeSteps(simulation: ClockedSimulation, steps: number, step: () => void): void {
+  checkStepCount(steps);
+  const before = clockOf(simulation);
+
+  for (let i = 0; i < steps; i++) {
+    step();
+  }
+
+  const expected = impliedCityTime(before, steps);
+  if (simulation._cityTime !== expected) {
+    throw new Error(`The city stalled: ${steps} steps should advance city time from ${before.cityTime} to ` +
+                    `${expected}, but it reached ${simulation._cityTime}`);
+  }
+}

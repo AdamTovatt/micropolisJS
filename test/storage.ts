@@ -355,16 +355,12 @@ describe("storage", () => {
         // The save is migrated on every page load, so a setting it held must never overwrite the one the player chose
         it.each([true, false])("leaves the player's auto-bulldoze preference as it is, the save holding %s",
                                async (on) => {
-            const {Storage} = await loadStorage();
-            const kept: Record<string, string> = {[AUTO_BULLDOZE_KEY]: String(!on)};
-            (globalThis as {window: {localStorage: object}}).window.localStorage = {
-                getItem: (key: string) => kept[key] ?? null,
-                setItem: (key: string, value: string) => { kept[key] = value; },
-            };
+            const {Storage, localStorage} = await loadStorage();
+            localStorage.setItem(AUTO_BULLDOZE_KEY, String(!on));
 
             Storage.transitionOldSave({...version7Save({}), autoBulldoze: on});
 
-            expect(kept).toEqual({[AUTO_BULLDOZE_KEY]: String(!on)});
+            expect(localStorage.getItem(AUTO_BULLDOZE_KEY)).toBe(String(!on));
         });
 
         it("leaves it as a save of the current version holds it, without the auto-bulldoze setting", async () => {

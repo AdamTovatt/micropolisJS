@@ -13,7 +13,9 @@
 
 import { expect } from "@playwright/test";
 
-import { stepsPerCityTime } from "../src/cityTimeModel";
+import { CITY_TIME_PER_YEAR, stepsPerCityTime, stepsPerYear } from "../src/cityTimeModel";
+import { cityTools } from "../src/cityTools";
+import { GameMap } from "../src/gameMap.js";
 import { Simulation } from "../src/simulation.js";
 import { BIT_MASK } from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
@@ -21,20 +23,22 @@ import {
   AIRPORT, COMCLR, FIRESTATION, FREEZ, HROADPOWER, INDCLR, LASTPOWER, LASTRUBBLE, POLICESTATION, POWERBASE, POWERPLANT,
   RUBBLE, TREEBASE, VROADPOWER, WOODS5,
 } from "../src/tileValues";
-import { Player, SaveData, Tile } from "./player";
+import { Player, GameSave, Tile } from "./player";
 
 // The playthrough: one city played from a fixed seed through stages in order, each building on the last. A stage is
 // a named block of player actions, and the runner takes a checkpoint after each one. Adding a stage is the normal way
-// to cover a new feature. A stage builds only on SITE, or widens it, so the map check covers it.
+// to cover a new feature. A stage builds only on SITE, which it may widen, or in FOREST, so the first stage's map check
+// covers it.
 
 export const SEED = 23;
 export const CITY_NAME = "Playthrough";
 
-// Units of city time in a year, as the simulation's date counts them
-const CITY_TIME_PER_YEAR = 48;
-
 // The steps in a year at the city's speed, medium
-const YEAR = CITY_TIME_PER_YEAR * stepsPerCityTime(Simulation.SPEED_MED);
+const YEAR = stepsPerYear(Simulation.SPEED_MED);
+
+// What the game charges for an airport. A tool's cost is a property of every tool, which the type of the city's tools
+// leaves out.
+const AIRPORT_COST = (cityTools(new GameMap(120, 100)).airport as unknown as {toolCost: number}).toolCost;
 
 interface Rect {
   left: number;
@@ -49,6 +53,8 @@ export const SITE: Rect[] = [
   {left: 47, top: 30, right: 69, bottom: 38},
   // The airport
   {left: 46, top: 40, right: 51, bottom: 45},
+  // A second airport, refused for lack of funds
+  {left: 71, top: 29, right: 76, bottom: 34},
   // The power line south to the forest, and the road beside it
   {left: 47, top: 46, right: 47, bottom: 61},
   {left: 35, top: 61, right: 46, bottom: 61},
@@ -71,7 +77,7 @@ function tileId(value: number): number {
   return value & BIT_MASK;
 }
 
-function tileAt(save: SaveData, tile: Tile): number {
+function tileAt(save: GameSave, tile: Tile): number {
   return tileId(save.map.tiles[tile.x + tile.y * save.map.width]);
 }
 
@@ -86,7 +92,7 @@ function tilesIn(rect: Rect): Tile[] {
   return tiles;
 }
 
-function tilesWhere(save: SaveData, test: (id: number) => boolean): Tile[] {
+function tilesWhere(save: GameSave, test: (id: number) => boolean): Tile[] {
   const width = save.map.width;
   return save.map.tiles.flatMap((value, i) => test(tileId(value)) ? [{x: i % width, y: Math.floor(i / width)}] : []);
 }
@@ -198,7 +204,7 @@ export const STAGES: Stage[] = [
 
       // The airport left too little for a second one
       const before = await player.save();
-      expect(before.budget.totalFunds).toBeLessThan(10000);
+      expect(before.budget.totalFunds).toBeLessThan(AIRPORT_COST);
       await player.clickTile({x: 72, y: 30});
       await expect(player.page.locator("#toolOutput")).toHaveText("Insufficient funds to build that");
       expect(await player.save(), "a rejected tool leaves the city as it was").toEqual(before);

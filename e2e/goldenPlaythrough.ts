@@ -53,18 +53,39 @@ export function goldenFile(e2eDirectory: string): string {
   return join(e2eDirectory, GOLDEN_FILE);
 }
 
-export class GoldenPlaythrough {
-  private readonly taken: StageCheckpoint[] = [];
-  private takenLog: CommandLog | null = null;
-  private readonly problems: string[] = [];
+// What a run does with the golden playthrough: checks itself against it, or writes it afresh
+export interface GoldenPlaythrough {
+  // A stage's checkpoint, and how it compares with its golden one when the run checks against it
+  recordStage(index: number, checkpoint: StageCheckpoint, stageFailed: boolean): CheckpointCheck | undefined;
+  // The run's command log
+  recordLog(log: CommandLog): void;
+  // Why the golden playthrough fails the run, if it does
+  failures(): string[];
+  // Called once the run has passed: a run that writes the golden playthrough writes it
+  finish(e2eDirectory: string): void;
+}
+
+// The run's golden playthrough: checked against the file, or written, as E2E_WRITE_GOLDEN says
+export function goldenPlaythroughFor(e2eDirectory: string, stages: readonly string[]): GoldenPlaythrough {
+  return process.env.E2E_WRITE_GOLDEN === "1" ?
+    new GoldenWriter(stages) : new GoldenCheck(readGoldenRun(goldenFile(e2eDirectory)), stages);
+}
+
+// Golden checkpoints are found by their stage's name, so no two stages may share one
+function repeatedStageNames(stages: readonly string[]): string[] {
+  const repeated = stages.filter((name, i) => stages.indexOf(name) !== i)
+    .filter((name, i, names) => names.indexOf(name) === i);
+  return repeated.length === 0 ? [] : [`Stages that share a name: ${repeated.join(", ")}`];
+}
+
+// Checks the run against the golden run given, which is null when there is no golden file
+export class GoldenCheck implements GoldenPlaythrough {
+  private readonly problems: string[];
   private firstDivergence: string | null = null;
   private logDifference: string | null = null;
 
-  // Writing, or checking against the golden run given, which is null when there is no golden file
-  constructor(readonly writing: boolean, private readonly pinned: GoldenRun | null, stages: readonly string[]) {
-    if (writing) {
-      return;
-    }
+  constructor(private readonly pinned: GoldenRun | null, stages: readonly string[]) {
+    this.problems = repeatedStageNames(stages);
 
     if (pinned === null) {
       this.problems.push(NO_GOLDEN_PLAYTHROUGH);
@@ -77,21 +98,9 @@ export class GoldenPlaythrough {
     }
   }
 
-  // The run's golden playthrough: checked against the file, or written, as E2E_WRITE_GOLDEN says
-  static forRun(e2eDirectory: string, stages: readonly string[]): GoldenPlaythrough {
-    const writing = process.env.E2E_WRITE_GOLDEN === "1";
-
-    return new GoldenPlaythrough(writing, writing ? null : readGoldenRun(goldenFile(e2eDirectory)), stages);
-  }
-
-  // Checks a stage's checkpoint, or takes it down when writing. A stage that failed is already failing the run, so its
-  // checkpoint, which differs for that reason alone, isn't named as the first divergence.
-  check(index: number, checkpoint: StageCheckpoint, stageFailed: boolean): CheckpointCheck | undefined {
-    if (this.writing) {
-      this.taken.push(checkpoint);
-      return undefined;
-    }
-
+  // A stage that failed is already failing the run, so its checkpoint, which differs for that reason alone, isn't named
+  // as the first divergence
+  recordStage(index: number, checkpoint: StageCheckpoint, stageFailed: boolean): CheckpointCheck {
     const {stage} = checkpoint;
     const expected = this.pinned?.checkpoints.find((pinned) => pinned.stage === stage) ?? null;
     const differences = expected === null ?
@@ -106,31 +115,46 @@ export class GoldenPlaythrough {
     return {expected, diverged};
   }
 
-  // Checks the run's command log, or takes it down when writing. A log that differs fails the run even where every
-  // hash matches: the run sent other commands, such as one the simulation rejected.
-  checkLog(log: CommandLog): void {
-    if (this.writing) {
-      this.takenLog = log;
-      return;
-    }
-
+  // A log that differs fails the run even where every hash matches: the run sent other commands, such as one the
+  // simulation rejected
+  recordLog(log: CommandLog): void {
     if (this.pinned !== null) {
       const difference = firstDifference(this.pinned.log, log);
       this.logDifference = difference === null ? null : `The run's command log differs from the golden one ${difference}`;
     }
   }
 
-  // Why the golden playthrough fails the run, if it does
   failures(): string[] {
     return [...this.problems, this.firstDivergence, this.logDifference].filter((failure) => failure !== null);
   }
 
-  // Writes the checkpoints and the log taken, which the playthrough does only after a run that passed
-  write(e2eDirectory: string): void {
-    if (!this.writing) {
-      throw new Error("Only a run writing the golden playthrough writes it");
-    }
+  finish(): void {}
+}
 
+// Takes the run's checkpoints and log down, never comparing, and writes them as the golden playthrough
+export class GoldenWriter implements GoldenPlaythrough {
+  private readonly problems: string[];
+  private readonly taken: StageCheckpoint[] = [];
+  private takenLog: CommandLog | null = null;
+
+  constructor(stages: readonly string[]) {
+    this.problems = repeatedStageNames(stages);
+  }
+
+  recordStage(_index: number, checkpoint: StageCheckpoint): undefined {
+    this.taken.push(checkpoint);
+    return undefined;
+  }
+
+  recordLog(log: CommandLog): void {
+    this.takenLog = log;
+  }
+
+  failures(): string[] {
+    return [...this.problems];
+  }
+
+  finish(e2eDirectory: string): void {
     if (this.takenLog === null) {
       throw new Error("The run's command log was never taken");
     }

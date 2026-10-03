@@ -12,6 +12,7 @@
  */
 
 import { cityFromSeed, Level, Simulation as HeadlessSimulation } from "../../headless/city";
+import { stepsPerYear } from "../../src/cityTimeModel";
 import { CommandResult, LOCAL_PLAYER } from "../../src/commands";
 import { GameMap } from "../../src/gameMap.js";
 import { MapGenerator } from "../../src/mapGenerator.js";
@@ -42,8 +43,8 @@ export function applyCommand(simulation: SimulationInstance, command: Command): 
     return (simulation.applyCommands([{player: LOCAL_PLAYER, command}]) as CommandResult[])[0];
 }
 
-// A city year at fast speed, where every step runs a phase: 16 phases advance the city time by 1, and 48 make a year
-export const YEAR = 16 * 48;
+// A city year at fast speed, the speed buildCity's city runs at
+export const YEAR = stepsPerYear(Simulation.SPEED_FAST);
 
 // A city on the map of mapSeed, simulated from simulationSeed at fast speed: a coal plant powering a row of zones along
 // a road, built on ground cleared to dirt so the same tools build it on any map. It has residents within a year.

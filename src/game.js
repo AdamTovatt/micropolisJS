@@ -181,6 +181,7 @@ function Game(simulation, logStart, tileSet, snowTileSet, spriteSheet, name) {
   this.recorder = new CommandRecorder(this.simulation, logStart);
   this.commandQueue = new CommandQueue(this.simulation, this.recorder);
   this.stepDriver = new StepDriver();
+  this.notSteppingReason = notSteppingReason.bind(this);
   this.isStepping = isStepping.bind(this);
   this.stepSimulation = this.commandQueue.step.bind(this.commandQueue);
   attachToTestHook(this);
@@ -594,10 +595,24 @@ Game.prototype.calculateSpritesForPaint = function(canvas) {
 };
 
 
-// The city steps unless it is paused, the screen is too small to play, or the tab is hidden: a hidden tab is not
-// watched, so the city waits rather than running on unseen
+// Why the city isn't stepping, or null when it is. It steps unless it is paused, the screen is too small to play, or
+// the tab is hidden: a hidden tab is not watched, so the city waits rather than running on unseen.
+var notSteppingReason = function() {
+  if (this.simulation.isPaused())
+    return 'it is paused';
+
+  if ($('#tooSmall').is(':visible'))
+    return 'the screen is too small to play';
+
+  if (document.hidden)
+    return 'the page is hidden';
+
+  return null;
+};
+
+
 var isStepping = function() {
-  return !this.simulation.isPaused() && !$('#tooSmall').is(':visible') && !document.hidden;
+  return this.notSteppingReason() === null;
 };
 
 

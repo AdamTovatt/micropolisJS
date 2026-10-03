@@ -16,6 +16,7 @@ import { CommandQueue, StampedCommand } from "../src/commandQueue";
 import { LOCAL_PLAYER } from "../src/commands";
 import { Simulation } from "../src/simulation.js";
 import { StepDriver } from "../src/stepDriver";
+import type { TestHook } from "../src/testHook";
 import { buildCity, simulationFromSeed, SimulationInstance, YEAR } from "./helpers/simulations";
 import { removeWindow, stubWindow } from "./helpers/window";
 
@@ -31,15 +32,21 @@ async function loadTestHook() {
 const STEPS_PER_CITY_TIME = stepsPerCityTime(Simulation.SPEED_MED);
 
 // The game as the hook sees it, around a real simulation and command queue, recording the commands as they apply. A
-// page that is hidden or too small to play holds it, as the game's does. Tool paths the player has drawn wait for the
-// game to send them, as the game's do until its next tick.
+// city that is paused, or on a page that isn't showing, doesn't step, as the game's doesn't, which says why. Tool paths
+// the player has drawn wait for the game to send them, as the game's do until its next tick.
 function gameOf(simulation: SimulationInstance) {
     const applied: StampedCommand[] = [];
     const commandQueue = new CommandQueue(simulation, {applied: (stamped) => applied.push(stamped), beforeStep: () => {}});
     const game = {
         stepDriver: new StepDriver(),
         pageShowing: true,
-        isStepping: () => !simulation.isPaused() && game.pageShowing,
+        notSteppingReason: () => {
+            if (simulation.isPaused()) {
+                return "it is paused";
+            }
+
+            return game.pageShowing ? null : "the page is hidden";
+        },
         toolPaths: [] as unknown[],
         sendToolPaths: () => {
             game.toolPaths.splice(0).forEach((command) => commandQueue.send(LOCAL_PLAYER, command));
@@ -122,14 +129,18 @@ describe("the test hook", () => {
         expect(game.stepDriver.isHeld()).toBe(false);
     });
 
-    it("applies the commands sent, and the tool paths yet to be sent, at once", async () => {
+    // An advance applies them before its first step, as the game's next tick would have, had it run before the advance
+    it.each([
+        ["applyInput", (hook: TestHook) => hook.applyInput()],
+        ["advance", (hook: TestHook) => hook.advance(5)],
+    ])("applies the commands sent, and the tool paths yet to be sent, before any step, through %s", async (_, act) => {
         const {hook, game} = await holdingGame();
         hook.advance(5);
         const road = {type: "tool", tool: "road", path: [{x: 10, y: 10}], autoBulldoze: true};
         game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
         game.toolPaths.push(road);
 
-        hook.applyInput();
+        act(hook);
 
         expect(game.applied.map(({step, command}) => [step, command]))
             .toEqual([[5, {type: "setAutoBudget", on: false}], [5, road]]);
@@ -147,8 +158,9 @@ describe("the test hook", () => {
             expect(hook.stepsTaken()).toBe(10 * STEPS_PER_CITY_TIME);
         });
 
-        // Without auto-budget, the year end of a city with residents offers the budget to review, and the city steps on
-        it("reports a year-end budget review that fell due, and takes every step regardless", async () => {
+        // Without auto-budget, the year end of a city with residents offers the budget to review, and the city steps on.
+        // A hook holding a city with residents, a year in, with auto-budget turned off.
+        async function cityWithoutAutoBudget() {
             const {hook} = await loadTestHook();
             const game = gameOf(buildCity(1, 1));
             hook.attach(game);
@@ -156,29 +168,30 @@ describe("the test hook", () => {
             hook.advance(YEAR);
             game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
 
+            return hook;
+        }
+
+        it("reports a year-end budget review that fell due, and takes every step regardless", async () => {
+            const hook = await cityWithoutAutoBudget();
+
             expect(hook.advance(YEAR)).toEqual({budgetReviewDue: true});
             expect(hook.stepsTaken()).toBe(2 * YEAR);
+        });
+
+        it("reports a review only for the advance it fell due in", async () => {
+            const hook = await cityWithoutAutoBudget();
+            hook.advance(YEAR);
+
             expect(hook.advance(YEAR / 2)).toEqual({budgetReviewDue: false});
         });
 
-        // As the game's next tick would have, had it run before the advance
-        it("applies the commands sent, and the tool paths yet to be sent, before its first step", async () => {
+        // Refused before anything is applied
+        it.each([-1, 1.5, NaN])("takes a whole number of steps, not %s, and applies nothing otherwise", async (steps) => {
             const {hook, game} = await holdingGame();
-            hook.advance(5);
-            const road = {type: "tool", tool: "road", path: [{x: 10, y: 10}], autoBulldoze: true};
             game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
-            game.toolPaths.push(road);
 
-            hook.advance(5);
-
-            expect(game.applied.map(({step, command}) => [step, command]))
-                .toEqual([[5, {type: "setAutoBudget", on: false}], [5, road]]);
-        });
-
-        it.each([-1, 1.5, NaN])("takes a whole number of steps, not %s", async (steps) => {
-            const {hook} = await holdingGame();
-
-            expect(() => hook.advance(steps)).toThrow(`Advance takes a whole number of steps, got ${steps}`);
+            expect(() => hook.advance(steps)).toThrow(`Steps are taken in whole numbers, got ${steps}`);
+            expect(game.applied).toEqual([]);
         });
 
         it("advances only while the driver is held", async () => {
@@ -208,7 +221,7 @@ describe("the test hook", () => {
             const {hook, game} = await holdingGame();
             game.pageShowing = false;
 
-            expect(() => hook.advance(1)).toThrow("The city is not stepping: the page is hidden, or too small to play");
+            expect(() => hook.advance(1)).toThrow("The city is not stepping: the page is hidden");
         });
 
         it("fails when city time falls short of the steps taken", async () => {

@@ -28,7 +28,7 @@ export interface Tile {
 
 // A save, as the game writes it to storage, in the parts the runner reads. The map's tiles are raw tile values, row
 // by row.
-export interface SaveData {
+export interface GameSave {
   map: {width: number, height: number, tiles: number[]};
   budget: {totalFunds: number, cityTax: number, policePercent: number};
   [key: string]: unknown;
@@ -39,7 +39,8 @@ export type Tool = "residential" | "commercial" | "industrial" | "coal" | "nucle
 
 export type Difficulty = "Easy" | "Med" | "Hard";
 
-const CANVAS = "#MicropolisCanvas";
+const CANVAS_ID = "MicropolisCanvas";
+const CANVAS = `#${CANVAS_ID}`;
 
 export class Player {
   // Steps taken through the hook since the count was last read
@@ -146,8 +147,8 @@ export class Player {
     return this.page.evaluate(() => window.micropolisTestHook!.cityTime());
   }
 
-  async save(): Promise<SaveData> {
-    return await this.page.evaluate(() => window.micropolisTestHook!.save()) as SaveData;
+  async save(): Promise<GameSave> {
+    return await this.page.evaluate(() => window.micropolisTestHook!.save()) as GameSave;
   }
 
   // The build the page was served from, as the Settings window shows it
@@ -324,8 +325,8 @@ export class Player {
     const x = canvas.x + (tile.x - view.originX) * view.tileWidth + view.tileWidth / 2;
     const y = canvas.y + (tile.y - view.originY) * view.tileWidth + view.tileWidth / 2;
 
-    const onCanvas = await this.page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.id === "MicropolisCanvas",
-                                              [x, y]);
+    const onCanvas = await this.page.evaluate(({px, py, id}) => document.elementFromPoint(px, py)?.id === id,
+                                              {px: x, py: y, id: CANVAS_ID});
     if (!onCanvas) {
       throw new Error(`Tile (${tile.x}, ${tile.y}) is out of view or under a panel`);
     }

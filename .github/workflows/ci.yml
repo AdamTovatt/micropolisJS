@@ -48,3 +48,10 @@ jobs:
           name: playthrough-report
           path: e2e-report/
           if-no-files-found: error
+      # The trace of each test that failed, which `npx playwright show-trace` opens
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: e2e-traces
+          path: e2e-results/
+          if-no-files-found: ignore

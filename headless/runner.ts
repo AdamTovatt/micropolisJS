@@ -11,7 +11,7 @@
  *
  */
 
-import { clockOf, impliedCityTime } from "../src/cityTimeModel";
+import { takeSteps } from "../src/cityTimeModel";
 import { CommandLog, lastStep } from "../src/commandLog";
 import { CommandQueue } from "../src/commandQueue";
 import { CommandResult } from "../src/commands";
@@ -177,23 +177,9 @@ export async function summarise(city: Simulation): Promise<Summary> {
 // Never steps a paused simulation, and fails rather than stalling: when city time doesn't advance as far as the step
 // count implies, as cityTimeModel.ts models it. Each step is the city's own, or one a command queue takes.
 export function advance(city: Simulation, steps: number, step = () => city.step()): void {
-  if (!Number.isInteger(steps) || steps < 0) {
-    throw new Error(`A run takes a whole number of steps, got ${steps}`);
-  }
-
   if (city.isPaused()) {
     throw new Error("The simulation is paused: a run never steps a paused simulation");
   }
 
-  const startTime = city._cityTime;
-  const expectedTime = impliedCityTime(clockOf(city), steps);
-
-  for (let i = 0; i < steps; i++) {
-    step();
-  }
-
-  if (city._cityTime !== expectedTime) {
-    throw new Error(`The simulation stalled: ${steps} steps should advance city time from ${startTime} to ` +
-                    `${expectedTime}, but it reached ${city._cityTime}`);
-  }
+  takeSteps(city, steps, step);
 }
