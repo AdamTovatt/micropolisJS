@@ -13,18 +13,8 @@
 
 import { Query, QueryAnswer } from "./protocol";
 
-// Where the client's queries are answered: the simulation in the page, or a server
+// Where the client's queries are answered: the city source (citySource.ts)
 export interface QuerySource {
   // Sends a query, and hands its answer to reply when it comes, which may be at once
   ask(query: Query, reply: (answer: QueryAnswer) => void): void;
-}
-
-// The part of the simulation in the page that answers queries
-export interface AnsweringSimulation {
-  answerQuery(query: unknown): QueryAnswer;
-}
-
-// The simulation in the page as a query source: it answers a query at once
-export function pageQuerySource(simulation: AnsweringSimulation): QuerySource {
-  return {ask: (query, reply) => reply(simulation.answerQuery(query))};
 }

@@ -29,8 +29,15 @@ import { CITY_NAME, letTheDriverRun, SEED, STAGES } from "./stages";
 // stage, the run's command log must be the golden one, and the browser's own driver runs the city, which the report
 // shows a screenshot of. What goes wrong in the page fails the stage or the step it went wrong in.
 
+// The page's date, fixed: the tiles the client animates, and the unpowered zones' blink, take their frame from it, so a
+// stage's screenshot shows the same frame on every run, and two runs' screenshots can be compared pixel for pixel. The
+// screenshot after the browser's own driver ran is left out of such a comparison: how far the city got depends on
+// wall time.
+const FIXED_DATE = "2026-01-01T00:00:00Z";
+
 test("the playthrough", async ({page}) => {
   await blockNetwork(page);
+  await page.clock.setFixedTime(FIXED_DATE);
   const problems = collectPageProblems(page);
 
   const e2eDirectory = test.info().config.rootDir;

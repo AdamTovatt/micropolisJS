@@ -11,18 +11,14 @@
  *
  */
 
-import { EventEmitter } from "../src/eventEmitter.js";
-import { SPRITE_DYING, SPRITE_MOVED } from "../src/messages";
-import { SpriteFollower, ViewState, isOutOfView, renderView } from "../src/monsterTV";
-import type { TrackableSprite, ViewElement } from "../src/monsterTV";
+import { SpriteFollower, ViewState, isOutOfView, renderView, spriteTile } from "../src/monsterTV";
+import type { ViewElement } from "../src/monsterTV";
+import { SpriteView } from "../src/protocol";
+import { SPRITE_MONSTER, SPRITE_TORNADO, SPRITE_TRAIN } from "../src/spriteConstants";
 
-// A sprite as the simulation's sprites are: decorated by the event emitter, which they move and die through
-interface EmittingSprite extends TrackableSprite {
-    _emitEvent(event: string, value?: unknown): void;
-}
-
-function newSprite(): EmittingSprite {
-    return EventEmitter({}) as EmittingSprite;
+// A sprite of the type whose square is centred on map tile (x, y), as a sprites message gives it
+function spriteOver(type: number, x: number, y: number): SpriteView {
+    return {type, frame: 1, x: x * 16 + 8 - 24, y: y * 16 + 8 - 24, width: 48};
 }
 
 describe("monsterTV", () => {
@@ -49,6 +45,23 @@ describe("monsterTV", () => {
         });
     });
 
+    describe("the tile a sprite is over", () => {
+
+        it("is the tile under the middle of its square", () => {
+            expect(spriteTile(spriteOver(SPRITE_MONSTER, 30, 40))).toEqual({x: 30, y: 40});
+            expect(spriteTile({type: SPRITE_TRAIN, frame: 1, x: 100, y: 200, width: 32})).toEqual({x: 7, y: 13});
+        });
+
+        // The tornado's funnel is drawn rising from where it is (tornadoSprite.js draws it 40 pixels up and 24 left of
+        // its position): the view centres on the funnel, a tile above the ground it stands on
+        it("is the tile under the tornado's funnel, a tile above its position", () => {
+            const position = {x: 30 * 16 + 8, y: 40 * 16 + 8};
+            const tornado = {type: SPRITE_TORNADO, frame: 1, x: position.x - 24, y: position.y - 40, width: 48};
+
+            expect(spriteTile(tornado)).toEqual({x: 30, y: 39});
+        });
+    });
+
     describe("following a sprite", () => {
 
         function newFollower() {
@@ -57,55 +70,56 @@ describe("monsterTV", () => {
             return {follower: new SpriteFollower(onMove, onLost), onMove, onLost};
         }
 
-        it("reports the sprite's moves", () => {
-            const {follower, onMove} = newFollower();
-            const sprite = newSprite();
-            follower.follow(sprite);
+        it("reports nothing until it follows a sprite", () => {
+            const {follower, onMove, onLost} = newFollower();
 
-            sprite._emitEvent(SPRITE_MOVED, {x: 30, y: 40});
-            sprite._emitEvent(SPRITE_MOVED, {x: 31, y: 40});
+            follower.update([spriteOver(SPRITE_MONSTER, 30, 40)]);
+
+            expect(onMove).not.toHaveBeenCalled();
+            expect(onLost).not.toHaveBeenCalled();
+        });
+
+        it("reports where the sprite of its type is each time the sprites move", () => {
+            const {follower, onMove} = newFollower();
+            follower.follow(SPRITE_MONSTER);
+
+            follower.update([spriteOver(SPRITE_TRAIN, 1, 1), spriteOver(SPRITE_MONSTER, 30, 40)]);
+            follower.update([spriteOver(SPRITE_MONSTER, 31, 40)]);
 
             expect(onMove.mock.calls).toEqual([[{x: 30, y: 40}], [{x: 31, y: 40}]]);
         });
 
-        it("reports the sprite's death once, and nothing after it", () => {
+        it("reports the sprite gone once, and nothing after it", () => {
             const {follower, onMove, onLost} = newFollower();
-            const sprite = newSprite();
-            follower.follow(sprite);
+            follower.follow(SPRITE_MONSTER);
 
-            sprite._emitEvent(SPRITE_DYING);
-            sprite._emitEvent(SPRITE_DYING);
-            sprite._emitEvent(SPRITE_MOVED, {x: 30, y: 40});
+            follower.update([spriteOver(SPRITE_TRAIN, 1, 1)]);
+            follower.update([]);
+            follower.update([spriteOver(SPRITE_MONSTER, 30, 40)]);
 
             expect(onLost).toHaveBeenCalledTimes(1);
             expect(onMove).not.toHaveBeenCalled();
         });
 
-        it("stops hearing a sprite once it follows another", () => {
+        it("follows only the last type it was told to", () => {
             const {follower, onMove, onLost} = newFollower();
-            const first = newSprite();
-            const second = newSprite();
-            follower.follow(first);
-            follower.follow(second);
+            follower.follow(SPRITE_MONSTER);
+            follower.follow(SPRITE_TORNADO);
 
-            first._emitEvent(SPRITE_MOVED, {x: 1, y: 1});
-            first._emitEvent(SPRITE_DYING);
-            second._emitEvent(SPRITE_MOVED, {x: 2, y: 2});
+            follower.update([spriteOver(SPRITE_MONSTER, 1, 1), spriteOver(SPRITE_TORNADO, 2, 2)]);
 
             expect(onMove.mock.calls).toEqual([[{x: 2, y: 2}]]);
             expect(onLost).not.toHaveBeenCalled();
         });
 
-        it("follows a new sprite after the last one died", () => {
+        it("follows a new sprite after the last one was gone", () => {
             const {follower, onMove, onLost} = newFollower();
-            const first = newSprite();
-            const second = newSprite();
-            follower.follow(first);
-            first._emitEvent(SPRITE_DYING);
+            follower.follow(SPRITE_MONSTER);
+            follower.update([]);
 
-            follower.follow(second);
-            second._emitEvent(SPRITE_MOVED, {x: 2, y: 2});
-            second._emitEvent(SPRITE_DYING);
+            follower.follow(SPRITE_TORNADO);
+            follower.update([spriteOver(SPRITE_TORNADO, 2, 2)]);
+            follower.update([]);
 
             expect(onMove.mock.calls).toEqual([[{x: 2, y: 2}]]);
             expect(onLost).toHaveBeenCalledTimes(2);

@@ -12,10 +12,10 @@
  */
 
 import { canonicalJson } from "../src/canonicalJson";
-import { commandRejection, CommandResult, LOCAL_PLAYER } from "../src/commands";
+import { commandRejection } from "../src/commands";
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
-import { Command, TOOL_NAMES } from "../src/protocol";
+import { Command, CommandResult, LOCAL_PLAYER, TOOL_NAMES } from "../src/protocol";
 import { Simulation } from "../src/simulation.js";
 import { SPRITE_MONSTER, SPRITE_TORNADO } from "../src/spriteConstants";
 import { savedState } from "../src/stateHash";

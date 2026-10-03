@@ -13,14 +13,17 @@
 
 import { browserCityEnvironment } from "./browserCityEnvironment";
 import { CityClient } from "./cityClient";
-import { Config } from "./config.js";
+import type { CitySource } from "./citySource";
+import { CityState } from "./cityState";
+import { ClientConfig } from "./clientConfig";
 import { requiredElement } from "./domElements";
 import { showOnlineList } from "./onlineList";
 import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
-import { installTestHook } from "./testHook";
+import { attachDriverToTestHook, installTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
 import { debugOption, seedOption } from "./urlOptions";
+import { WorkerCitySource } from "./workerCitySource";
 
 // The page's entry point: it loads the tile set, waits for the sprites, signs in where a server answers, and shows the
 // splash screen
@@ -85,15 +88,22 @@ async function start(seed: number | null): Promise<void> {
     console.error("Signing in failed", error);
   }
 
-  showSplashScreen(tileSet, sprites, seed);
+  showSplashScreen({source, state, tileSet, spriteSheet: sprites}, seed);
 }
 
-Config.debug = debugOption(window.location.search);
+ClientConfig.debug = debugOption(window.location.search);
 const seed = pageSeed();
 
 // The end-to-end runner drives the game through this
-if (Config.debug) {
+if (ClientConfig.debug) {
   installTestHook();
 }
+
+// The only way the client reaches the city, and the client's copy of it, which follows the source from the start. The
+// city runs in a Web Worker, off the page's thread.
+const source: CitySource = new WorkerCitySource(new Worker(new URL("./cityWorker.ts", import.meta.url)),
+                                                ClientConfig.debug);
+const state = new CityState(source);
+attachDriverToTestHook(source.driver);
 
 void start(seed);

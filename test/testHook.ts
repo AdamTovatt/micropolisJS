@@ -12,54 +12,29 @@
  */
 
 import { stepsPerCityTime } from "../src/cityTimeModel";
-import { CommandQueue, StampedCommand } from "../src/commandQueue";
-import { LOCAL_PLAYER } from "../src/commands";
+import type { AdvanceResult, CityDriver, CityStart } from "../src/citySource";
+import { CityState } from "../src/cityState";
+import { PageCitySource } from "../src/pageCitySource";
+import { Command } from "../src/protocol";
+import { SaveFormat } from "../src/savedGame";
 import { Simulation } from "../src/simulation.js";
-import { StepDriver } from "../src/stepDriver";
-import type { TestHook } from "../src/testHook";
-import { buildCity, simulationFromSeed, SimulationInstance, YEAR } from "./helpers/simulations";
-import { removeWindow, stubWindow } from "./helpers/window";
-
-// The hook saves through storage.ts, which needs a window
-async function loadTestHook() {
-    stubWindow();
-    const {TestHook} = await import("../src/testHook");
-    const {Storage} = await import("../src/storage");
-
-    return {hook: new TestHook(), currentVersion: Storage.CURRENT_VERSION};
-}
+import { plainSavedState } from "../src/stateHash";
+import { TestHook } from "../src/testHook";
+import { ManualTicker } from "./helpers/manualTicker";
+import { buildCity, YEAR } from "./helpers/simulations";
 
 const STEPS_PER_CITY_TIME = stepsPerCityTime(Simulation.SPEED_MED);
 
-// The game as the hook sees it, around a real simulation and command queue, recording the commands as they apply. A
-// city that is paused, or on a page that isn't showing, doesn't step, as the game's doesn't, which says why. Tool paths
-// the player has drawn wait for the game to send them, as the game's do until its next tick.
-function gameOf(simulation: SimulationInstance) {
-    const applied: StampedCommand[] = [];
-    const commandQueue = new CommandQueue(simulation, {applied: (stamped) => applied.push(stamped), beforeStep: () => {}});
+// A game as the hook sees it, around an in-page source and the client's copy of its city. Tool paths the player has
+// drawn wait for the game to send them, as the game's do until its next tick.
+function gameOn(source: PageCitySource, state: CityState) {
     const game = {
-        stepDriver: new StepDriver(),
-        pageShowing: true,
-        notSteppingReason: () => {
-            if (simulation.isPaused()) {
-                return "it is paused";
-            }
-
-            return game.pageShowing ? null : "the page is hidden";
-        },
-        toolPaths: [] as unknown[],
+        toolPaths: [] as Command[],
         sendToolPaths: () => {
-            game.toolPaths.splice(0).forEach((command) => commandQueue.send(LOCAL_PLAYER, command));
+            game.toolPaths.splice(0).forEach((command) => source.send(command));
         },
-        commandQueue,
-        applied,
-        stepSimulation: () => commandQueue.step(),
-        saveData: () => {
-            const saveData = {};
-            simulation.save(saveData);
-            return saveData;
-        },
-        simulation,
+        save: () => source.save(),
+        onCommandResult: (listener: () => void) => state.on("commandResult", listener),
         gameCanvas: {getTileOrigin: () => ({x: 3, y: 4})},
         tileSet: {tileWidth: 16},
     };
@@ -67,66 +42,128 @@ function gameOf(simulation: SimulationInstance) {
     return game;
 }
 
-// A hook holding the driver of a game around a new city
-async function holdingGame() {
-    const {hook} = await loadTestHook();
-    const game = gameOf(simulationFromSeed(1));
-    hook.attach(game);
-    hook.holdDriver();
+// A game with no city behind it, for a hook whose driver is fake
+const IDLE_GAME = {
+    sendToolPaths: () => {},
+    save: async () => "",
+    onCommandResult: () => {},
+    gameCanvas: {getTileOrigin: () => ({x: 0, y: 0})},
+    tileSet: {tileWidth: 16},
+};
 
-    return {hook, game};
+// A hook on an in-page source whose loop the test runs by hand, holding its driver, with a game on a new city. results
+// lists the commands the source has applied, in order.
+async function holdingGame(start: CityStart = {name: "Town", seed: 1, level: 0}) {
+    const ticker = new ManualTicker();
+    const source = new PageCitySource(ticker, false);
+    const state = new CityState(source);
+    const hook = new TestHook();
+    hook.attachDriver(source.driver);
+    await hook.holdDriver();
+    await source.start(start);
+
+    const game = gameOn(source, state);
+    hook.attach(game);
+    const results: unknown[] = [];
+    state.on("commandResult", ({result}) => results.push(result.command));
+
+    return {hook, game, source, state, ticker, results};
+}
+
+// A city with residents, a year in, with auto-budget off, so that its next year end offers the budget to review
+async function cityWithoutAutoBudget() {
+    const city = buildCity(1, 1);
+    const {hook, source} = await holdingGame({save: SaveFormat.serialise({...plainSavedState(city), name: "Town"})});
+    await hook.advance(YEAR);
+    source.send({type: "setAutoBudget", on: false});
+
+    return hook;
+}
+
+// A driver that answers every advance with the result given, and records what it was asked
+class FakeDriver implements CityDriver {
+    readonly advances: number[] = [];
+    private held = false;
+
+    constructor(private readonly result: AdvanceResult) {}
+
+    isHeld(): boolean {
+        return this.held;
+    }
+
+    async hold(): Promise<void> {
+        this.held = true;
+    }
+
+    async release(): Promise<void> {
+        this.held = false;
+    }
+
+    async flush(): Promise<void> {}
+    async cityTime(): Promise<number> {
+        return 0;
+    }
+
+    async advance(steps: number): Promise<AdvanceResult> {
+        this.advances.push(steps);
+        return this.result;
+    }
 }
 
 describe("the test hook", () => {
 
-    afterAll(() => {
-        removeWindow();
-    });
-
     describe("before a game has started", () => {
 
-        it.each(["applyInput", "advance", "save", "view", "cityTime", "commandsApplied"])("can't %s", async (method) => {
-            const {hook} = await loadTestHook();
+        it.each(["applyInput", "advance", "save", "cityTime"])("can't %s", async (method) => {
+            const hook = new TestHook();
+            hook.attachDriver(new FakeDriver({steps: 0, budgetReviewDue: false, error: null}));
             const call = {
                 applyInput: () => hook.applyInput(),
                 advance: () => hook.advance(1),
                 save: () => hook.save(),
-                view: () => hook.view(),
                 cityTime: () => hook.cityTime(),
-                commandsApplied: () => hook.commandsApplied(),
             }[method]!;
+
+            await expect(call()).rejects.toThrow("No game has started");
+        });
+
+        it.each(["view", "commandsApplied"])("can't tell %s", (method) => {
+            const hook = new TestHook();
+            const call = {view: () => hook.view(), commandsApplied: () => hook.commandsApplied()}[method]!;
 
             expect(call).toThrow("No game has started");
         });
 
-        it("holds the driver of a game that starts after the hold", async () => {
-            const {hook} = await loadTestHook();
-            const game = gameOf(simulationFromSeed(1));
+        // The source's first city doesn't step until the runner advances it
+        it("holds the driver of a city that starts after the hold", async () => {
+            const {ticker, source} = await holdingGame();
 
-            hook.holdDriver();
-            hook.attach(game);
+            ticker.run(1000);
 
-            expect(game.stepDriver.isHeld()).toBe(true);
-        });
-
-        it("leaves the driver of a game that starts after a hold and release free", async () => {
-            const {hook} = await loadTestHook();
-            const game = gameOf(simulationFromSeed(1));
-
-            hook.holdDriver();
-            hook.releaseDriver();
-            hook.attach(game);
-
-            expect(game.stepDriver.isHeld()).toBe(false);
+            expect(await source.driver.cityTime()).toBe(0);
+            expect(source.driver.isHeld()).toBe(true);
         });
     });
 
-    it("releases the driver", async () => {
-        const {hook, game} = await holdingGame();
+    it("releases the driver, and the city steps in real time again", async () => {
+        const {hook, ticker, source} = await holdingGame();
 
-        hook.releaseDriver();
+        await hook.releaseDriver();
+        ticker.run();
+        ticker.run(STEPS_PER_CITY_TIME * 1000 / 60);
 
-        expect(game.stepDriver.isHeld()).toBe(false);
+        expect(source.driver.isHeld()).toBe(false);
+        expect(await source.driver.cityTime()).toBe(1);
+    });
+
+    // While the driver is held, the source's loop applies no commands: the runner does
+    it("leaves the commands sent to the runner while it holds the driver", async () => {
+        const {ticker, source, results} = await holdingGame();
+
+        source.send({type: "setAutoBudget", on: false});
+        ticker.run(1000);
+
+        expect(results).toEqual([]);
     });
 
     // An advance applies them before its first step, as the game's next tick would have, had it run before the advance
@@ -134,17 +171,19 @@ describe("the test hook", () => {
         ["applyInput", (hook: TestHook) => hook.applyInput()],
         ["advance", (hook: TestHook) => hook.advance(5)],
     ])("applies the commands sent, and the tool paths yet to be sent, before any step, through %s", async (_, act) => {
-        const {hook, game} = await holdingGame();
-        hook.advance(5);
-        const road = {type: "tool", tool: "road", path: [{x: 10, y: 10}], autoBulldoze: true};
-        game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
+        const {hook, game, source, results} = await holdingGame();
+        await hook.advance(5);
+        const road: Command = {type: "tool", tool: "road", path: [{x: 10, y: 10}], autoBulldoze: true};
+        source.send({type: "setAutoBudget", on: false});
         game.toolPaths.push(road);
 
-        act(hook);
+        await act(hook);
 
-        expect(game.applied.map(({step, command}) => [step, command]))
-            .toEqual([[5, {type: "setAutoBudget", on: false}], [5, road]]);
+        expect(results).toEqual([{type: "setAutoBudget", on: false}, road]);
         expect(game.toolPaths).toEqual([]);
+        expect((await source.commandLog()).log).toMatchObject({entries: [
+            {step: 5, command: {type: "setAutoBudget", on: false}}, {step: 5, command: road},
+        ]});
     });
 
     describe("advancing", () => {
@@ -152,135 +191,134 @@ describe("the test hook", () => {
         it("advances the city by the steps asked, at its own speed", async () => {
             const {hook} = await holdingGame();
 
-            expect(hook.advance(10 * STEPS_PER_CITY_TIME)).toEqual({budgetReviewDue: false});
+            expect(await hook.advance(10 * STEPS_PER_CITY_TIME)).toEqual({budgetReviewDue: false});
 
-            expect(hook.cityTime()).toBe(10);
+            expect(await hook.cityTime()).toBe(10);
             expect(hook.stepsTaken()).toBe(10 * STEPS_PER_CITY_TIME);
         });
-
-        // Without auto-budget, the year end of a city with residents offers the budget to review, and the city steps on.
-        // A hook holding a city with residents, a year in, with auto-budget turned off.
-        async function cityWithoutAutoBudget() {
-            const {hook} = await loadTestHook();
-            const game = gameOf(buildCity(1, 1));
-            hook.attach(game);
-            hook.holdDriver();
-            hook.advance(YEAR);
-            game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
-
-            return hook;
-        }
 
         it("reports a year-end budget review that fell due, and takes every step regardless", async () => {
             const hook = await cityWithoutAutoBudget();
 
-            expect(hook.advance(YEAR)).toEqual({budgetReviewDue: true});
+            expect(await hook.advance(YEAR)).toEqual({budgetReviewDue: true});
             expect(hook.stepsTaken()).toBe(2 * YEAR);
         });
 
         it("reports a review only for the advance it fell due in", async () => {
             const hook = await cityWithoutAutoBudget();
-            hook.advance(YEAR);
+            await hook.advance(YEAR);
 
-            expect(hook.advance(YEAR / 2)).toEqual({budgetReviewDue: false});
+            expect(await hook.advance(YEAR / 2)).toEqual({budgetReviewDue: false});
         });
 
-        // Refused before anything is applied
-        it.each([-1, 1.5, NaN])("takes a whole number of steps, not %s, and applies nothing otherwise", async (steps) => {
-            const {hook, game} = await holdingGame();
-            game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
+        // Refused before anything is sent
+        it.each([-1, 1.5, NaN])("takes a whole number of steps, not %s, and sends nothing otherwise", async (steps) => {
+            const {hook, game, source, results} = await holdingGame();
+            game.toolPaths.push({type: "setAutoBudget", on: false});
 
-            expect(() => hook.advance(steps)).toThrow(`Steps are taken in whole numbers, got ${steps}`);
-            expect(game.applied).toEqual([]);
+            await expect(hook.advance(steps)).rejects.toThrow(`Steps are taken in whole numbers, got ${steps}`);
+
+            expect(game.toolPaths).toEqual([{type: "setAutoBudget", on: false}]);
+            await source.driver.flush();
+            expect(results).toEqual([]);
         });
 
         it("advances only while the driver is held", async () => {
-            const {hook, game} = await holdingGame();
-            hook.releaseDriver();
+            const {hook} = await holdingGame();
+            await hook.releaseDriver();
 
-            expect(() => hook.advance(1)).toThrow("Advance needs the driver held");
-            expect(game.simulation._speedCycle).toBe(0);
-        });
-
-        it("never steps a paused city", async () => {
-            const {hook, game} = await holdingGame();
-            game.simulation.setSpeed(Simulation.SPEED_PAUSED);
-
-            expect(() => hook.advance(1)).toThrow("The city is not stepping: it is paused");
-        });
-
-        it("never steps a city paused by a command not yet applied", async () => {
-            const {hook, game} = await holdingGame();
-            game.commandQueue.send(LOCAL_PLAYER, {type: "setSpeed", speed: Simulation.SPEED_PAUSED});
-
-            expect(() => hook.advance(1)).toThrow("The city is not stepping: it is paused");
+            await expect(hook.advance(1)).rejects.toThrow("Advance needs the driver held");
             expect(hook.stepsTaken()).toBe(0);
         });
 
-        it("never steps a city on a page that isn't showing", async () => {
-            const {hook, game} = await holdingGame();
-            game.pageShowing = false;
+        it("never steps a paused city", async () => {
+            const {hook, source} = await holdingGame();
+            source.send({type: "setSpeed", speed: Simulation.SPEED_PAUSED});
+            await hook.applyInput();
 
-            expect(() => hook.advance(1)).toThrow("The city is not stepping: the page is hidden");
+            await expect(hook.advance(1)).rejects.toThrow("The city is not stepping: it is paused");
         });
 
-        it("fails when city time falls short of the steps taken", async () => {
-            const {hook, game} = await holdingGame();
-            game.stepSimulation = () => undefined;
+        it("never steps a city paused by a command not yet applied", async () => {
+            const {hook, source} = await holdingGame();
+            source.send({type: "setSpeed", speed: Simulation.SPEED_PAUSED});
 
-            expect(() => hook.advance(STEPS_PER_CITY_TIME)).toThrow(
-                `The city stalled: ${STEPS_PER_CITY_TIME} steps should advance city time from 0 to 1, but it reached 0`);
+            await expect(hook.advance(1)).rejects.toThrow("The city is not stepping: it is paused");
+            expect(hook.stepsTaken()).toBe(0);
+        });
+
+        it("never steps a city the player can't see", async () => {
+            const {hook, source} = await holdingGame();
+            source.setViewerVisible(false);
+
+            await expect(hook.advance(1)).rejects.toThrow("The city is not stepping: the player can't see it");
         });
 
         it("counts every step taken, those of a failed advance too", async () => {
-            const {hook, game} = await holdingGame();
-            hook.advance(5);
-            game.stepSimulation = () => undefined;
+            const {hook} = await holdingGame();
+            await hook.advance(5);
+            const stalled = jest.spyOn(Simulation.prototype, "step").mockImplementation(() => undefined);
 
-            expect(() => hook.advance(STEPS_PER_CITY_TIME)).toThrow("The city stalled");
+            try {
+                await expect(hook.advance(STEPS_PER_CITY_TIME)).rejects.toThrow("The city stalled");
+            } finally {
+                stalled.mockRestore();
+            }
+
             expect(hook.stepsTaken()).toBe(5 + STEPS_PER_CITY_TIME);
+        });
+
+        it("counts the steps the driver reports, whatever it says of the advance", async () => {
+            const hook = new TestHook();
+            const driver = new FakeDriver({steps: 7, budgetReviewDue: false, error: "the city stalled"});
+            hook.attachDriver(driver);
+            hook.attach(IDLE_GAME);
+            await hook.holdDriver();
+
+            await expect(hook.advance(9)).rejects.toThrow("the city stalled");
+            expect(driver.advances).toEqual([9]);
+            expect(hook.stepsTaken()).toBe(7);
         });
     });
 
     it("saves what the game writes to storage", async () => {
-        const {hook, currentVersion} = await loadTestHook();
-        const game = gameOf(simulationFromSeed(1));
-        hook.attach(game);
+        const {hook, game} = await holdingGame();
 
-        expect(hook.save()).toEqual({...JSON.parse(JSON.stringify(game.saveData())), version: currentVersion});
+        expect(await hook.save()).toEqual(JSON.parse(await game.save()));
+        expect(await hook.save()).toMatchObject({name: "Town", version: SaveFormat.CURRENT_VERSION});
     });
 
     // A command the simulation rejects is applied, and logged, all the same
     it("counts the commands the game has applied, rejected ones included", async () => {
-        const {hook, game} = await holdingGame();
-        game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
-        game.commandQueue.send(LOCAL_PLAYER, {type: "noSuchCommand"});
+        const {hook, source} = await holdingGame();
+        source.send({type: "setAutoBudget", on: false});
+        source.send({type: "noSuchCommand"} as unknown as Command);
 
-        hook.applyInput();
+        await hook.applyInput();
 
         expect(hook.commandsApplied()).toBe(2);
-        expect(game.applied).toHaveLength(2);
     });
 
     it("counts the commands an advance applies before its first step", async () => {
-        const {hook, game} = await holdingGame();
-        game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
+        const {hook, source} = await holdingGame();
+        source.send({type: "setAutoBudget", on: false});
 
-        hook.advance(1);
+        await hook.advance(1);
 
         expect(hook.commandsApplied()).toBe(1);
     });
 
-    it("counts only the newly started game's commands, from none", async () => {
-        const {hook, game} = await holdingGame();
-        game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
-        hook.applyInput();
+    it("counts only the commands applied since the game it last attached, each once", async () => {
+        const {hook, source, state} = await holdingGame();
+        source.send({type: "setAutoBudget", on: false});
+        await hook.applyInput();
 
-        hook.attach(gameOf(simulationFromSeed(2)));
-        game.commandQueue.send(LOCAL_PLAYER, {type: "setAutoBudget", on: true});
-        game.commandQueue.applyCommands();
-
+        hook.attach(gameOn(source, state));
         expect(hook.commandsApplied()).toBe(0);
+
+        source.send({type: "setAutoBudget", on: true});
+        await hook.applyInput();
+        expect(hook.commandsApplied()).toBe(1);
     });
 
     it("tells where the view is", async () => {

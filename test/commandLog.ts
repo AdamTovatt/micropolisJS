@@ -18,7 +18,7 @@ import {
     CommandLog, CommandRecorder, joinSessions, lastStep, LOG_FORMAT_VERSION, LogStart, parseLog,
 } from "../src/commandLog";
 import { CommandQueue } from "../src/commandQueue";
-import { CommandResult, LOCAL_PLAYER } from "../src/commands";
+import { CommandResult, LOCAL_PLAYER } from "../src/protocol";
 import { hashSavedState, plainSavedState, stateHash } from "../src/stateHash";
 import { InspectedSave } from "./helpers/savedState";
 

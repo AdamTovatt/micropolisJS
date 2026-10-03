@@ -12,7 +12,7 @@
  */
 
 import { placeNewCanvas, requiredElement } from "./domElements";
-import { VALVES_UPDATED } from "./messages";
+import type { DemandMessage } from "./protocol";
 
 // The residential, commercial and industrial demand meter: a bar for each, up for demand and down for none, over a
 // grey box carrying their initials.
@@ -30,17 +30,6 @@ const COLOURS = ["rgb(0,255,0)", "rgb(0, 0, 139)", "rgb(255, 255, 0)"];
 const LABELS = ["R", "C", "I"];
 
 const CANVAS_ID = "RCICanvas";
-
-// The demand for each kind of zone, as the simulation reports it
-export interface Valves {
-  residential: number;
-  commercial: number;
-  industrial: number;
-}
-
-export interface ValveSource {
-  addEventListener(event: typeof VALVES_UPDATED, listener: (valves: Valves) => void): void;
-}
 
 export interface Rect {
   x: number;
@@ -87,12 +76,10 @@ export class RCI {
   // We might be created before our container has appeared on screen, so the canvas takes its size at the first update
   private sized = false;
 
-  constructor(private readonly container: MeterContainer, private readonly canvas: MeterCanvas,
-              eventSource: ValveSource) {
-    eventSource.addEventListener(VALVES_UPDATED, (valves) => this.update(valves));
-  }
+  constructor(private readonly container: MeterContainer, private readonly canvas: MeterCanvas) {}
 
-  update(data: Valves): void {
+  // Draws the demand, as each demand message gives it
+  update(data: Omit<DemandMessage, "type">): void {
     if (!this.sized) {
       // The canvas is assumed to fill its container on-screen
       const rect = this.container.getBoundingClientRect();
@@ -147,7 +134,7 @@ export class RCI {
 }
 
 // The meter on a new canvas, in the element with the parent's id
-export function placeRCI(parentId: string, eventSource: ValveSource): RCI {
+export function placeRCI(parentId: string): RCI {
   const container = requiredElement(parentId);
-  return new RCI(container, placeNewCanvas(container, CANVAS_ID), eventSource);
+  return new RCI(container, placeNewCanvas(container, CANVAS_ID));
 }

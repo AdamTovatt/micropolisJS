@@ -1,6 +1,5 @@
 {
   "messages": {
-    "AUTOBUDGET_CHANGED": "Autobudget changed",
     "BLACKOUTS_REPORTED": "Blackouts reported",
     "BUDGET_REQUESTED": "Budget window requested",
     "BUDGET_REVIEW_DUE": "Year-end budget to review",
@@ -73,8 +72,6 @@
     "SOUND_HONKHONK": "HonkHonk sound",
     "SOUND_MONSTER": "Monster sound",
     "SPEED_CHANGED": "Speed changed",
-    "SPRITE_DYING": "Sprite dying",
-    "SPRITE_MOVED": "Sprite move",
     "TAX_TOO_HIGH": "Tax too high",
     "TOOL_CLICKED": "Tool clicked",
     "TORNADO_SIGHTED": "Tornado sighted",

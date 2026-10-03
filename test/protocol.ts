@@ -15,15 +15,21 @@ import { readdirSync, readFileSync } from "fs";
 import { basename, join } from "path";
 
 import { budgetRecord, type BudgetSource } from "../src/budgetRecord";
+import { newsMessage } from "../src/cityHost";
 import { commandRejection } from "../src/commands";
 import { evaluationRecord, type EvaluationSource } from "../src/evaluationRecord";
 import {
-    type BudgetRecord, commandTypes, type EvaluationRecord, parseErrorResponse, parsePlayerResponse, parseServerMessage,
-    parseSessionResponse, queryTypes, recordTypes, serverMessageTypes, type SettingsRecord, signInRequest,
+    type BudgetRecord, commandTypes, type EvaluationRecord, LOCAL_PLAYER, type NewsMessage, type NewsPlace,
+    parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, queryTypes, recordTypes,
+    serverMessageTypes, type SettingsRecord, signInRequest, type StateMessage, stateMessageTypes,
 } from "../src/protocol";
 import { queryRejection } from "../src/queries";
+import { SaveFormat } from "../src/savedGame";
 import { settingsRecord, type SettingsSource } from "../src/settingsRecord";
+import { plainSavedState } from "../src/stateHash";
+import { hostedCity } from "./helpers/hostedCity";
 import { repositoryPath } from "./helpers/repository";
+import { buildCity, YEAR } from "./helpers/simulations";
 
 // The examples and reader cases are shared with the server's tests: protocol/README.md describes them
 const SOCKET_EXAMPLES = repositoryPath("protocol/examples/socket");
@@ -31,6 +37,7 @@ const SESSION_EXAMPLES = repositoryPath("protocol/examples/session");
 const COMMAND_EXAMPLES = repositoryPath("protocol/examples/commands");
 const QUERY_EXAMPLES = repositoryPath("protocol/examples/queries");
 const RECORD_EXAMPLES = repositoryPath("protocol/examples/records");
+const STATE_EXAMPLES = repositoryPath("protocol/examples/state");
 
 // The game's map, which every command example's tiles lie on
 const MAP_WIDTH = 120;
@@ -201,6 +208,76 @@ describe("the protocol's records", () => {
 
         expect(Object.keys(RECORD_WRITERS).sort()).toEqual(recordTypes().sort());
         expect(exampleTypes.sort()).toEqual(recordTypes().sort());
+    });
+});
+
+// A value's fields, in order, down through objects and the first item of each list, as text
+function shapeOf(value: unknown): string {
+    if (Array.isArray(value)) {
+        return `[${value.length === 0 ? "" : shapeOf(value[0])}]`;
+    }
+
+    if (value !== null && typeof value === "object") {
+        return `{${Object.entries(value).map(([key, field]) => `${key}: ${shapeOf(field)}`).join(", ")}}`;
+    }
+
+    return value === null ? "null" : typeof value;
+}
+
+describe("the protocol's state messages", () => {
+
+    const exampleTypes = () => exampleFiles(STATE_EXAMPLES)
+        .map((file) => JSON.parse(readWireText(join(STATE_EXAMPLES, file))).type as string);
+
+    // A record is a state message too, whose examples are the records'
+    it("has an example of every state message type, the records' among the records", () => {
+        const types = exampleTypes().filter((type, i, all) => all.indexOf(type) === i);
+
+        expect(types.filter((type) => recordTypes().includes(type))).toEqual([]);
+        expect([...types, ...recordTypes()].sort()).toEqual(stateMessageTypes().sort());
+    });
+
+    // What city hosts publish over a year and a half of a town with residents, auto-budget off, a monster, a fire and a
+    // road, and of a new city, whose advisor asks for zones
+    let published: StateMessage[];
+    beforeAll(() => {
+        const town = hostedCity();
+        town.host.start({save: SaveFormat.serialise({...plainSavedState(buildCity(1, 1)), name: "Town"})});
+        town.host.hold();
+        town.host.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
+        town.host.send(LOCAL_PLAYER, {type: "triggerDisaster", kind: "monster"});
+        town.host.send(LOCAL_PLAYER, {type: "triggerDisaster", kind: "fire"});
+        town.host.send(LOCAL_PLAYER, {type: "tool", tool: "road", path: [{x: 40, y: 52}, {x: 41, y: 52}],
+                                      autoBulldoze: true});
+        for (let taken = 0; taken < YEAR * 1.5; taken += 16) {
+            expect(town.host.advance(16).error).toBeNull();
+        }
+
+        const newCity = hostedCity();
+        newCity.host.start({name: "New", seed: 1, level: 0});
+        newCity.host.hold();
+        expect(newCity.host.advance(YEAR).error).toBeNull();
+
+        published = [...town.published, ...newCity.published];
+    });
+
+    // News about a place the TV neither shows nor follows is high pollution's, which neither city reaches, so it is
+    // written straight from the simulation's news
+    const PLACE_NEWS = "news-place.json";
+
+    it.each(exampleFiles(STATE_EXAMPLES).filter((file) => file !== PLACE_NEWS))(
+        "is written by the city host with the fields of the example %s, in order", (file) => {
+            const example = JSON.parse(readWireText(join(STATE_EXAMPLES, file))) as StateMessage;
+            const ofType = published.filter((message) => message.type === example.type).map(shapeOf);
+
+            expect(ofType).toContain(shapeOf(example));
+        });
+
+    it(`writes news about a place with the fields of the example ${PLACE_NEWS}, in order`, () => {
+        const example = JSON.parse(readWireText(join(STATE_EXAMPLES, PLACE_NEWS))) as NewsMessage;
+
+        expect(JSON.stringify(newsMessage({subject: example.subject, data: example.data as NewsPlace})))
+            .toBe(JSON.stringify(example));
     });
 });
 

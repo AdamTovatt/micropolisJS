@@ -11,29 +11,25 @@
  *
  */
 
-import { SPEED_CHANGED } from "./messages";
 import { SPEEDS } from "./protocol";
 
-// The simulation's speed as the speed control reads it: the speed now, and each change to it
-export interface SpeedSource {
-  getSpeed(): number;
-  isPaused(): boolean;
-  addEventListener(event: string, listener: (speed: number) => void): void;
-}
-
 // The game speed as the player sets it, with Pause and Play or from Settings. The player's choices are setSpeed
-// commands, sent with send. The simulation's speed is the only record of whether the game is paused, and the pause
-// button is shown from it whenever it changes, whoever changed it. Play resumes at the running speed: the speed a game
-// was saved at, medium for a new game or one saved paused, the speed Settings last chose, or the speed the city last
-// ran at.
+// commands, sent with send. The city's speed, as each settings record gives it, is the only record of whether the
+// game is paused, and the pause button is shown from it whenever it changes, whoever changed it. Play resumes at the
+// running speed: the speed a game was saved at, medium for a new game or one saved paused, the speed Settings last
+// chose, or the speed the city last ran at.
 export class SpeedControl {
   private runningSpeed: number;
 
-  constructor(private readonly simulation: SpeedSource, private readonly send: (speed: number) => void,
+  // speed is the city's speed as the game starts
+  constructor(private speed: number, private readonly send: (speed: number) => void,
               private readonly showPaused: (paused: boolean) => void) {
-    this.runningSpeed = simulation.isPaused() ? SPEEDS.medium :simulation.getSpeed();
-    simulation.addEventListener(SPEED_CHANGED, this.speedChanged.bind(this));
-    showPaused(simulation.isPaused());
+    this.runningSpeed = this.isPaused() ? SPEEDS.medium : speed;
+    showPaused(this.isPaused());
+  }
+
+  isPaused(): boolean {
+    return this.speed === SPEEDS.paused;
   }
 
   getRunningSpeed(): number {
@@ -41,19 +37,26 @@ export class SpeedControl {
   }
 
   togglePause(): void {
-    this.send(this.simulation.isPaused() ? this.runningSpeed : SPEEDS.paused);
+    this.send(this.isPaused() ? this.runningSpeed : SPEEDS.paused);
   }
 
   // Settings sets the speed the game runs at. A paused game stays paused, and Play resumes it at that speed: the
   // settings window sends its speed whenever it closes, changed or not.
   setRunningSpeed(speed: number): void {
     this.runningSpeed = speed;
-    if (!this.simulation.isPaused() && this.simulation.getSpeed() !== speed) {
+
+    if (!this.isPaused() && this.speed !== speed) {
       this.send(speed);
     }
   }
 
-  private speedChanged(speed: number): void {
+  // The city's speed, from each settings record
+  showSpeed(speed: number): void {
+    if (speed === this.speed) {
+      return;
+    }
+
+    this.speed = speed;
     if (speed !== SPEEDS.paused) {
       this.runningSpeed = speed;
     }

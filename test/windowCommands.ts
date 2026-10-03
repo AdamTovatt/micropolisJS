@@ -11,7 +11,8 @@
  *
  */
 
-import { commandRejection, CommandResult, LOCAL_PLAYER } from "../src/commands";
+import { commandRejection } from "../src/commands";
+import { CommandResult, LOCAL_PLAYER } from "../src/protocol";
 import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "../src/windowCommands";
 
 describe("the settings window's commands", () => {
@@ -50,17 +51,18 @@ describe("the outcome the tool output shows", () => {
         ({player, command, outcome: "noMoney", reason: null});
     const tool = {type: "tool", tool: "road", path: [{x: 1, y: 1}], autoBulldoze: true};
 
-    it("is that of the local player's tool command", () => {
-        expect(toolOutcome(result(LOCAL_PLAYER, tool))).toBe("noMoney");
+    it("is that of the player's own tool command", () => {
+        expect(toolOutcome(result(LOCAL_PLAYER, tool), LOCAL_PLAYER)).toBe("noMoney");
+        expect(toolOutcome(result("a server's player", tool), "a server's player")).toBe("noMoney");
     });
 
     it.each([
         ["another player's tool command", result("someone else", tool)],
-        ["the local player's other commands", result(LOCAL_PLAYER, {type: "addFunds"})],
+        ["the player's other commands", result(LOCAL_PLAYER, {type: "addFunds"})],
         ["a command that isn't an object", result(LOCAL_PLAYER, "tool")],
         ["a command that is nothing", result(LOCAL_PLAYER, null)],
     ])("is none for %s", (_, other) => {
-        expect(toolOutcome(other)).toBeNull();
+        expect(toolOutcome(other, LOCAL_PLAYER)).toBeNull();
     });
 });
 

@@ -14,7 +14,7 @@
 import { takeSteps } from "../src/cityTimeModel";
 import { CommandLog, lastStep } from "../src/commandLog";
 import { CommandQueue } from "../src/commandQueue";
-import { CommandResult } from "../src/commands";
+import { CommandResult } from "../src/protocol";
 import { Random } from "../src/random";
 import { plainSavedState, stateHash } from "../src/stateHash";
 import { cityFromSave, cityFromSeed, Level, RunningSpeed, SaveData, Simulation, Speed } from "./city";

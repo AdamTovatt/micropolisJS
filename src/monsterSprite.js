@@ -12,7 +12,7 @@
  */
 
 import { BaseSprite } from './baseSprite.js';
-import { SPRITE_DYING, SPRITE_MOVED, SOUND_MONSTER } from './messages.ts';
+import { SOUND_MONSTER } from './messages.ts';
 import { MiscUtils } from './miscUtils.js';
 import * as SpriteConstants  from './spriteConstants.ts';
 import { SpriteUtils } from './spriteUtils.js';
@@ -89,7 +89,6 @@ MonsterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
         this.destY = this.origY;
       } else {
         this.frame = 0;
-        this._emitEvent(SPRITE_DYING);
         return;
       }
     }
@@ -161,11 +160,7 @@ MonsterSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
       s.explodeSprite();
   }
 
-  if (this.frame === 0)
-    this._emitEvent(SPRITE_DYING);
-
   SpriteUtils.destroyMapTile(this.spriteManager, this.map, blockMaps, this.x, this.y);
-  this._emitEvent(SPRITE_MOVED, {x: this.worldX, y: this.worldY});
 };
 
 

@@ -297,12 +297,12 @@ export class Player {
 
   // The hook's advance, counting the steps it took even when it fails
   private async hookAdvance(steps: number): Promise<Advanced> {
-    const outcome = await this.page.evaluate((n) => {
+    const outcome = await this.page.evaluate(async (n) => {
       const hook = window.micropolisTestHook!;
       const before = hook.stepsTaken();
 
       try {
-        return {advanced: hook.advance(n), steps: hook.stepsTaken() - before, error: null};
+        return {advanced: await hook.advance(n), steps: hook.stepsTaken() - before, error: null};
       } catch (e) {
         return {advanced: null, steps: hook.stepsTaken() - before, error: (e as Error).message};
       }

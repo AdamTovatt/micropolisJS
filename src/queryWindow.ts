@@ -11,7 +11,7 @@
  *
  */
 
-import { Config } from "./config.js";
+import { ClientConfig } from "./clientConfig";
 import { requiredElement } from "./domElements";
 import { QUERY_WINDOW_CLOSED } from "./messages";
 import { type TileReportAnswer } from "./protocol";
@@ -173,7 +173,7 @@ export class QueryWindow extends ClosableWindow {
   }
 
   open(report: TileReportAnswer): void {
-    render(queryView(report), Config.debug || Config.queryDebug);
+    render(queryView(report), ClientConfig.debug);
     this._toggleDisplay();
   }
 }

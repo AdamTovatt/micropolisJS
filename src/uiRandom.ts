@@ -11,21 +11,19 @@
  *
  */
 
-import { Random } from "./random";
-
-// The UI's own randomness, unseeded, so it never touches a simulation's stream. Simulation code must not import it.
+// The UI's own randomness, unseeded, so it never touches a simulation's stream. No simulation module may import it
+// (CLAUDE.md). The one draw from it on the simulation's side is the seed a save from before seeds gets as it migrates
+// (savedGame.ts).
 
 const UINT32_RANGE = 2 ** 32;
 
-// A fresh game seed, a uint32. The only unseeded read: everything else here derives from it.
+// A fresh game seed, a uint32
 function newSeed(): number {
   return Math.floor(Math.random() * UINT32_RANGE);
 }
 
 const UiRandom = {
   newSeed,
-  // For the UI's cosmetic choices, seeded afresh on each page load
-  stream: Random.fromSeed(newSeed()),
 };
 
 export { UiRandom };

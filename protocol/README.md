@@ -2,8 +2,9 @@
 
 The bodies and messages between the browser and the server, defined by hand on each side: `src/protocol.ts` for the
 client and `server/Micropolis.Rules/Protocol.cs` for the server, and the commands and queries a player sends the
-simulation, with the queries' answers, and the records the simulation produces for the windows to show, defined in
-`src/protocol.ts`. The examples and reader cases here pin the sides together.
+simulation, with the queries' answers, the records the simulation produces for the windows to show, and the state
+messages the city sends the client, defined in `src/protocol.ts`. The examples and reader cases here pin the sides
+together.
 
 ## Transport
 
@@ -79,9 +80,13 @@ command, since replaying it would change nothing.
   that funding and the others at the funding they have: `costs`, what each service would cost, as
   `{"road", "fire", "police"}`; `fundsChange`, the taxes less what the services would be paid; and `fundsAfterYear`,
   the funds it would leave. One answer holds everything a forecast is worked out from, taken at one moment.
+- `mapPreview` names a game `seed`, a uint32, and is answered with the map a new city on that seed starts on: `seed`;
+  `width` and `height`, in tiles; and `tiles`, each tile's raw value with its flags, row by row, top row first, as the
+  `map` state message holds them (see State messages). It is
+  the only query answered before any city has started, which the splash screen asks to show the maps a player chooses
+  from; a query about a city asked before one has started is rejected.
 
-The protocol has no message announcing that a layer was recomputed. In the page, the simulation announces it with the
-`OVERLAY_UPDATED` event (`src/messages.ts`), which is not part of the wire format.
+The `overlayUpdated` state message (see State messages) announces that a layer was recomputed.
 
 ## Records
 
@@ -106,6 +111,46 @@ codes it uses.
   on, and `speed`, the speed the city runs at as `setSpeed` sets it, 0 when paused. The settings a client keeps for
   itself, such as auto-bulldoze, are not part of it.
 
+## State messages
+
+A state message is what the city sends the client about itself: a JSON object whose `type` field names it. The client
+shows the city from these and nothing else, through its city source (`src/citySource.ts`). It keeps its own copy of
+the map, built from the full map the city sends when it starts, and kept up to date by the tile changes after it. The
+city sends what changed in batches, after the steps: one after each turn of its loop that applied commands or took
+steps, however many steps the turn took, and one after each call of the end-to-end runner's driver that applies
+commands or takes steps. The sprites, the date and the records go only when they differ from what it sent last. The
+simulation publishes `status` and `demand` each cycle, and a batch carries only the latest of each it published since
+the batch before. A batch announces each recomputed layer at most once in `overlayUpdated`, however often the turn
+recomputed it. The events, `news`, `commandResult`, `budgetReviewDue` and `overlayUpdated`, go in the order they came.
+A city
+that starts sends the whole map, the sprites, the date and the `evaluation`, `budget` and `settings` records (see
+Records), then the rest as they come.
+
+- `map` is the whole map: `width` and `height`, in tiles, and `tiles`, each tile's raw value with its flags, row by
+  row, top row first.
+- `tiles` lists the tiles whose raw value changed since the last `map` or `tiles` message, in `changes`, each
+  `{"x", "y", "value"}`.
+- `sprites` lists every sprite on the map, in `sprites`, each `{"type", "frame", "x", "y", "width"}`: its type, which
+  is its row of the sprite sheet, and its frame, its column, both counted from 1; and the square it is drawn in,
+  `width` map pixels a side with its top-left corner at map pixel (`x`, `y`). A map pixel is a sixteenth of a tile.
+- `date` is the city's date: `month`, from 0, and `year`.
+- `status` is the conditions that limit the city's growth: `powerCapacity` and `powerLoad`, as of the
+  last power scan; `residentialCapped`, `commercialCapped` and `industrialCapped`, whether that demand is held at zero
+  for want of a stadium, airport or seaport; and `conditions`, the advisor conditions that hold, each named by its
+  message.
+- `demand` is the demand for each zone as the demand valves last set it: `residential`, from -2000 to
+  2000, and `commercial` and `industrial`, from -1500 to 1500.
+- `news` is a message for the player: `subject`, its message, and `data`, where it happened, when it happened
+  somewhere: `{"x", "y"}` in tiles, with `"showable": true` for a place the monster TV shows, or `"trackable": true`
+  and `sprite`, the type of the sprite there for the TV to follow, a monster or a tornado, of which the map holds at
+  most one each.
+- `commandResult` is what came of a command, any player's, in `result`: `player`, who sent it; `command`, as it
+  arrived; `outcome`, one of `ok`, `failed`, `noMoney`, `needsBulldoze` and `rejected`; and `reason`, why it was
+  rejected, or null.
+- `budgetReviewDue` says that the year end paid the budget with values the player should review: auto-budget is off,
+  or couldn't cover the services. The city steps on: nothing waits for the review.
+- `overlayUpdated` names a `layer` the simulation has recomputed, which an overlay showing it asks for again.
+
 ## Examples
 
 Each file in `examples/socket/` is one WebSocket message, each file in `examples/session/` is one body of
@@ -121,6 +166,11 @@ example.
 
 Each file in `examples/records/` is one record, named after its type. The client's tests write each one back through
 the simulation's own code, from the example's fields, and fail on a record type with no example.
+
+Each file in `examples/state/` is one state message other than a record, named after its type, with more than one
+for a message that comes in more than one shape. The client's tests check its shape, not its bytes: that the city host
+(`src/cityHost.ts`) writes each with the example's field names, in the same order, each with a value of the same
+kind. They fail on a state message type with no example among these and the records.
 
 `reader-cases.json` holds the messages both readers must reject, messages they must accept and write back in the
 protocol's order, and session bodies a reader must reject, each tested by the sides that read that body.

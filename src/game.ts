@@ -13,74 +13,60 @@
 
 import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetChoice, BudgetWindow } from "./budgetWindow";
-import { CommandRecorder, LogStart } from "./commandLog";
-import { CommandQueue, CommandTarget } from "./commandQueue";
-import { CommandResult, LOCAL_PLAYER } from "./commands";
-import { Config } from "./config.js";
+import type { CitySource, StartedCity } from "./citySource";
+import { CityState } from "./cityState";
+import { ClientConfig } from "./clientConfig";
 import { DebugAction, DebugWindow } from "./debugWindow";
 import { DisasterWindow } from "./disasterWindow";
 import { isShown, requiredElement, toggleShown } from "./domElements";
 import { ToolPaths } from "./dragPath";
 import { EvaluationWindow } from "./evaluationWindow";
-import { GameCanvas, MouseOutline, PaintableMap, PaintableSprite } from "./gameCanvas";
-import { CityDate, InfoSource, placeInfoBar } from "./infoBar";
+import { GameCanvas, MouseOutline, PaintableSprite, spritesInView } from "./gameCanvas";
+import { InfoBar, placeInfoBar } from "./infoBar";
 import { InputStatus, ToolClick } from "./inputStatus";
 import * as Messages from "./messages";
 import { MonsterTV } from "./monsterTV";
-import { FrontEndMessage, NewsHold, routeMessage } from "./news";
+import { NewsHold, routeMessage } from "./news";
 import { NotificationBar, placeNotificationBar } from "./notification";
-import { OverlayPicker, PageSimulation, pageOverlaySource } from "./overlayPicker";
-import { BudgetRecord, DisasterKind, EvaluationRecord, SettingsRecord, SPEEDS, ToolName } from "./protocol";
-import { pageQuerySource } from "./querySource";
+import { cityOverlaySource, OverlayPicker } from "./overlayPicker";
+import { CommandResult, DisasterKind, NewsMessage, SettingsRecord, ToolName } from "./protocol";
 import { QueryTool } from "./queryTool";
 import { QueryWindow } from "./queryWindow";
-import { placeRCI, RCI, ValveSource } from "./rci";
+import { placeRCI, RCI } from "./rci";
 import { SaveWindow } from "./saveWindow";
 import { ScreenshotLinkWindow } from "./screenshotLinkWindow";
 import { ScreenshotArea, ScreenshotWindow } from "./screenshotWindow";
 import { SettingsChoice, SettingsWindow } from "./settingsWindow";
-import { Simulation } from "./simulation.js";
-import { SpeedControl, SpeedSource } from "./speedControl";
-import { plainSavedState, Saveable } from "./stateHash";
-import { CityStatusSource, StatusPanel } from "./statusPanel";
-import { StepDriver } from "./stepDriver";
-import { SavedGame, Storage } from "./storage";
-import { attachToTestHook, HookedSimulation } from "./testHook";
+import { SpeedControl } from "./speedControl";
+import { StatusPanel } from "./statusPanel";
+import { Storage } from "./storage";
+import { attachToTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
 import { TouchWarnWindow } from "./touchWarnWindow";
 import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
-// What the game reads of the simulation itself, beside what it hands it to
-interface SimulationParts {
-  getMap(): PaintableMap;
-  addEventListener(event: typeof Messages.BUDGET_REVIEW_DUE, listener: () => void): void;
-  addEventListener(event: typeof Messages.FRONT_END_MESSAGE, listener: (message: FrontEndMessage) => void): void;
-  addEventListener(event: typeof Messages.COMMAND_RESULT, listener: (result: CommandResult) => void): void;
-  readonly evaluation: {cityClass: string, cityPop: number, cityScore: number};
-  readonly budget: {totalFunds: number};
-  readonly seed: number;
-  readonly spriteManager: {getSpritesInView(x: number, y: number, width: number, height: number): PaintableSprite[]};
-  getDate(): CityDate;
-  budgetRecord(): BudgetRecord;
-  evaluationRecord(): EvaluationRecord;
-  settingsRecord(): SettingsRecord;
-  isPaused(): boolean;
+// What a game is made from: the city source and the client's copy of its city, and the images the game draws with
+export interface GameParts {
+  source: CitySource;
+  state: CityState;
+  tileSet: TileSet;
+  spriteSheet: HTMLImageElement;
 }
 
-// The simulation the game runs: what it reads itself, and what each part it hands the simulation to reads
-type GameSimulation = SimulationParts & CityStatusSource & PageSimulation & SpeedSource & Saveable & CommandTarget &
-  ValveSource & InfoSource & HookedSimulation;
-
-// A game of the given simulation: Game.newGame and Game.fromSave build one
+// A game of the city a source has started. The game reaches the city only through the source: it sends commands and
+// queries, and shows the city from the client's copy of it, which the source's state messages build.
 export class Game {
-  readonly gameMap: PaintableMap;
   readonly gameCanvas: GameCanvas;
-  readonly commandQueue: CommandQueue;
-  readonly stepDriver: StepDriver;
+  readonly tileSet: TileSet;
 
+  private readonly source: CitySource;
+  private readonly state: CityState;
+  private readonly seed: number;
   private readonly autoBulldoze: AutoBulldozePreference;
   private readonly rci: RCI;
+  private readonly statusPanel: StatusPanel;
+  private readonly infoBar: InfoBar;
   private readonly inputStatus: InputStatus;
   private readonly toolPaths = new ToolPaths();
   private readonly speedControl: SpeedControl;
@@ -97,13 +83,14 @@ export class Game {
   private readonly queryWindow: QueryWindow;
   private readonly queryTool: QueryTool;
   private readonly notificationBar: NotificationBar<HTMLElement>;
-  private readonly recorder: CommandRecorder;
   private readonly tooSmall = requiredElement("tooSmall");
 
   private mouse: MouseOutline | null = null;
   private readonly newsHold = new NewsHold();
   // The city settings as the settings window showed them, which its choices are compared with when it closes
   private settingsShown: SettingsRecord | null = null;
+  // Whether the source was last told the player can see the city
+  private viewerVisible: boolean | null = null;
 
   // Debug mode's frame counter
   private readonly fpsValue = requiredElement("fpsValue");
@@ -120,19 +107,15 @@ export class Game {
   private readonly tick = () => {
     this.handleInput();
 
-    // The tiles clicked or dragged over since the last tick go as tool commands, one per path. The commands sent since
-    // the last tick apply first, whether or not the city is stepping: you can build when paused. While the end-to-end
-    // runner holds the driver, it applies them itself, so that how a drag splits into commands never depends on when
+    // The tiles clicked or dragged over since the last tick go as tool commands, one per path. The source applies the
+    // commands it is sent whether or not the city is stepping: you can build when paused. While the end-to-end runner
+    // holds the source's driver, it sends them itself, so that how a drag splits into commands never depends on when
     // ticks ran.
-    if (!this.stepDriver.isHeld()) {
+    if (!this.source.driver.isHeld()) {
       this.sendToolPaths();
-      this.commandQueue.applyCommands();
     }
 
-    // Run the sim: as many steps as the time since the last tick is due
-    this.stepDriver.run(performance.now(), this.isStepping, this.stepSimulation);
-
-    // A year-end budget review that fell due during those steps, or while a window showed
+    // A year-end budget review that fell due, or fell due while a window showed
     this.windows.openDue();
 
     this.mouse = this.windows.holdsInput() ? null : this.calculateMouseForPaint();
@@ -141,7 +124,7 @@ export class Game {
   };
 
   private readonly commonAnimate = () => {
-    const paused = this.simulation.isPaused();
+    const paused = this.speedControl.isPaused();
     let sprites = this.calculateSpritesForPaint(this.gameCanvas);
     this.gameCanvas.paint(this.mouse, sprites, paused);
 
@@ -165,42 +148,41 @@ export class Game {
 
   private readonly animate: () => void;
 
-  readonly stepSimulation: () => void;
-  readonly isStepping = () => this.notSteppingReason() === null;
-
-  constructor(readonly simulation: GameSimulation, logStart: LogStart, readonly tileSet: TileSet,
-              spriteSheet: HTMLImageElement, private readonly name: string) {
+  // A game of the city the source has started, which the state has followed from its start
+  constructor({source, state, tileSet, spriteSheet}: GameParts, started: StartedCity) {
+    this.source = source;
+    this.state = state;
+    this.tileSet = tileSet;
+    this.seed = started.seed;
     this.autoBulldoze = new AutoBulldozePreference(Storage.canStore ? window.localStorage : null);
-    this.gameMap = simulation.getMap();
 
-    this.rci = placeRCI("RCIContainer", this.simulation);
-    new StatusPanel("statusPanel", this.simulation);
+    this.rci = placeRCI("RCIContainer");
+    this.statusPanel = new StatusPanel("statusPanel");
 
     // Note: must init canvas before inputStatus
     this.gameCanvas = new GameCanvas("canvasContainer");
-    this.gameCanvas.init(this.gameMap, this.tileSet, spriteSheet);
+    this.gameCanvas.init(state.map, this.tileSet, spriteSheet);
     this.inputStatus = new InputStatus(tileSet.tileWidth);
 
-    new OverlayPicker("overlayPanel", pageOverlaySource(this.simulation), this.gameCanvas);
+    new OverlayPicker("overlayPanel", cityOverlaySource(source, state), this.gameCanvas);
 
-    this.speedControl = new SpeedControl(this.simulation, (speed) => {
-      this.commandQueue.send(LOCAL_PLAYER, {type: "setSpeed", speed});
+    this.speedControl = new SpeedControl(state.current("settings").speed, (speed) => {
+      this.source.send({type: "setSpeed", speed});
     }, (paused) => this.inputStatus.showPaused(paused));
 
-    this.monsterTV = new MonsterTV(this.gameMap, tileSet, spriteSheet);
+    this.monsterTV = new MonsterTV(state.map, tileSet, spriteSheet);
 
     const opacityLayerID = "opaque";
 
-    const budgetWindow = new BudgetWindow(opacityLayerID, "budget", pageQuerySource(this.simulation));
+    const budgetWindow = new BudgetWindow(opacityLayerID, "budget", source);
     this.windows = new WindowManager(budgetWindow, () => this.budgetWindowValues());
-    this.simulation.addEventListener(Messages.BUDGET_REVIEW_DUE, () => this.windows.budgetReviewDue());
 
     this.handleWindowClosure = () => this.windows.closed();
 
     this.evalWindow = new EvaluationWindow(opacityLayerID, "evalWindow");
     this.evalWindow.addEventListener(Messages.EVAL_WINDOW_CLOSED, this.handleWindowClosure);
     this.inputStatus.addEventListener(Messages.EVAL_REQUESTED,
-                                      () => this.windows.open(this.evalWindow, this.simulation.evaluationRecord()));
+                                      () => this.windows.open(this.evalWindow, state.current("evaluation")));
 
     budgetWindow.addEventListener(Messages.BUDGET_WINDOW_CLOSED,
                                   (choice: BudgetChoice | null) => this.handleBudgetWindowClosure(choice));
@@ -239,50 +221,42 @@ export class Game {
     // The query window shows the report the query tool asks the simulation for
     this.queryWindow = new QueryWindow(opacityLayerID, "queryWindow");
     this.queryWindow.addEventListener(Messages.QUERY_WINDOW_CLOSED, this.handleWindowClosure);
-    this.queryTool = new QueryTool(pageQuerySource(this.simulation),
-                                   (report) => this.windows.open(this.queryWindow, report));
+    this.queryTool = new QueryTool(source, (report) => this.windows.open(this.queryWindow, report));
 
     // Listen for clicks on the save button
     this.inputStatus.addEventListener(Messages.SAVE_REQUESTED, () => this.handleSave());
 
-    // Listen for front end messages
-    this.simulation.addEventListener(Messages.FRONT_END_MESSAGE, (message) => this.processFrontEndMessage(message));
-
-    // Listen for tool clicks, and how the commands they send went
+    // Listen for tool clicks
     this.inputStatus.addEventListener(Messages.TOOL_CLICKED, (data: ToolClick) => this.handleTool(data));
-    this.simulation.addEventListener(Messages.COMMAND_RESULT, (result) => this.handleCommandResult(result));
 
     // And pauses
     this.inputStatus.addEventListener(Messages.PAUSE_REQUESTED, () => this.speedControl.togglePause());
 
-    const initialValues = {
-      classification: this.simulation.evaluation.cityClass,
-      population: this.simulation.evaluation.cityPop,
-      score: this.simulation.evaluation.cityScore,
-      funds: this.simulation.budget.totalFunds,
-      date: this.simulation.getDate(),
-      name: this.name,
-    };
-    placeInfoBar(this.simulation, initialValues);
+    this.infoBar = placeInfoBar(started.name);
+    this.infoBar.showDate(state.current("date"));
+    this.infoBar.showEvaluation(state.current("evaluation"));
+    this.infoBar.showBudget(state.current("budget"));
 
     this.notificationBar = placeNotificationBar(this.gameCanvas);
+
+    // Unhide controls, before the demand meter first draws: it sizes its canvas to its container on screen
+    this.revealControls();
+
+    // Follow the city as the source's state messages change it
+    this.followCity();
 
     // Listen for touches, so we can warn tablet users
     window.addEventListener("touchstart", this.touchListener, false);
 
-    // Unhide controls
-    this.revealControls();
+    document.addEventListener("visibilitychange", this.updateViewerVisible);
+    window.addEventListener("resize", this.updateViewerVisible);
+    this.updateViewerVisible();
 
-    // Run the sim. Every change the player makes to the city is a command, sent through the queue.
-    this.recorder = new CommandRecorder(this.simulation, logStart);
-    this.commandQueue = new CommandQueue(this.simulation, this.recorder);
-    this.stepDriver = new StepDriver();
-    this.stepSimulation = () => this.commandQueue.step();
     attachToTestHook(this);
     this.tick();
 
     // Paint the map
-    const debug = Config.debug || Config.gameDebug;
+    const debug = ClientConfig.debug;
     if (debug) {
       toggleShown(requiredElement("debug"));
       this.animStart = Date.now();
@@ -292,71 +266,70 @@ export class Game {
     this.animate();
   }
 
-  // A new game on the map generated from the game seed, at the chosen level. The name may be empty: the splash screen
-  // doesn't require one in debug mode.
-  static newGame(map: unknown, seed: number, tileSet: TileSet, spriteSheet: HTMLImageElement, level: number,
-                 name: string): Game {
-    const simulation = new Simulation(map, level, SPEEDS.medium, seed);
-    return new Game(simulation, {seed, level}, tileSet, spriteSheet, name || "MyTown");
+  // The saved game's text
+  save(): Promise<string> {
+    return this.source.save();
   }
 
-  // A game restored from what Game.save wrote
-  static fromSave(savedGame: SavedGame, tileSet: TileSet, spriteSheet: HTMLImageElement): Game {
-    // The session's log starts from the city as loaded
-    const simulation = Simulation.fromSave(savedGame);
-    return new Game(simulation, {save: plainSavedState(simulation)}, tileSet, spriteSheet, savedGame.name as string);
-  }
-
-  // What the game saves, before storage stamps its version
-  saveData(): object {
-    const saveData = {name: this.name};
-    this.simulation.save(saveData);
-
-    return saveData;
-  }
-
-  save(): void {
-    Storage.saveGame(this.saveData());
-  }
-
-  // Why the city isn't stepping, or null when it is. It steps unless it is paused, the screen is too small to play, or
-  // the tab is hidden: a hidden tab is not watched, so the city waits rather than running on unseen.
-  notSteppingReason(): string | null {
-    if (this.simulation.isPaused()) {
-      return "it is paused";
-    }
-
-    if (isShown(this.tooSmall)) {
-      return "the screen is too small to play";
-    }
-
-    if (document.hidden) {
-      return "the page is hidden";
-    }
-
-    return null;
+  // Calls the listener with each command result from now on, any player's
+  onCommandResult(listener: (result: CommandResult) => void): void {
+    this.state.on("commandResult", ({result}) => listener(result));
   }
 
   // Sends each path gathered since the last tick as one tool command: a click, or a drag's latest tiles
   sendToolPaths(): void {
     this.toolPaths.take().forEach((toolPath) => {
-      this.commandQueue.send(LOCAL_PLAYER, {type: "tool", tool: toolPath.tool, path: toolPath.path,
-                                            autoBulldoze: this.autoBulldoze.isOn()});
+      this.source.send({type: "tool", tool: toolPath.tool, path: toolPath.path,
+                        autoBulldoze: this.autoBulldoze.isOn()});
     });
   }
+
+  private followCity(): void {
+    const state = this.state;
+
+    // The demand and status are sent each cycle, and may have come before the game followed the city. Until the valves
+    // first set it, the demand meter shows the original's starting values.
+    this.rci.update(state.latest("demand") ?? {residential: 750, commercial: 750, industrial: 750});
+    const status = state.latest("status");
+    if (status !== null) {
+      this.statusPanel.show(status);
+    }
+
+    state.on("demand", (demand) => this.rci.update(demand));
+    state.on("status", (status) => this.statusPanel.show(status));
+    state.on("date", (date) => this.infoBar.showDate(date));
+    state.on("evaluation", (evaluation) => this.infoBar.showEvaluation(evaluation));
+    state.on("budget", (budget) => this.infoBar.showBudget(budget));
+    state.on("settings", (settings) => this.speedControl.showSpeed(settings.speed));
+    state.on("sprites", ({sprites}) => this.monsterTV.spritesMoved(sprites));
+    state.on("news", (news) => this.showNews(news));
+    state.on("commandResult", ({result}) => this.handleCommandResult(result));
+    state.on("budgetReviewDue", () => this.windows.budgetReviewDue());
+  }
+
+  // Tells the source whenever the player stops or starts being able to see the city: the city steps only while the
+  // player can, unless it is a shared city on a server. It is hidden while the screen is too small to play, which only
+  // a resize changes, or the tab is hidden: a hidden tab is not watched, so the city waits rather than running on
+  // unseen.
+  private readonly updateViewerVisible = (): void => {
+    const visible = !isShown(this.tooSmall) && !document.hidden;
+    if (visible !== this.viewerVisible) {
+      this.viewerVisible = visible;
+      this.source.setViewerVisible(visible);
+    }
+  };
 
   private revealControls(): void {
     document.querySelectorAll(".initialHidden").forEach((element) => element.classList.remove("initialHidden"));
 
     this.notificationBar.show({subject: Messages.WELCOME});
-    this.rci.update({residential: 750, commercial: 750, industrial: 750});
   }
 
   private handleDisasterWindowClosure(kind: DisasterKind | null): void {
     this.windows.closed();
 
     if (kind !== null) {
-      this.commandQueue.send(LOCAL_PLAYER, {type: "triggerDisaster", kind});
+      this.source.send({type: "triggerDisaster", kind});
     }
   }
 
@@ -370,7 +343,7 @@ export class Game {
     this.autoBulldoze.set(choice.autoBulldoze);
     this.speedControl.setRunningSpeed(choice.speed);
     settingsCommands(this.settingsShown!, choice).forEach((command) => {
-      this.commandQueue.send(LOCAL_PLAYER, command);
+      this.source.send(command);
     });
   }
 
@@ -379,7 +352,7 @@ export class Game {
 
     actions.forEach((action) => {
       if (action === "addFunds") {
-        this.commandQueue.send(LOCAL_PLAYER, {type: "addFunds"});
+        this.source.send({type: "addFunds"});
       } else if (action === "downloadLog") {
         this.downloadLog();
       } else {
@@ -389,15 +362,13 @@ export class Game {
   }
 
   // Saves the session's command log as a file, for the headless runner to replay: `npm run simulate -- --log <file>`.
-  // Where the page can't work out state hashes, the log has no checkpoints, and the player is told.
+  // Where the source can't work out state hashes, the log has no checkpoints, and the player is told.
   private downloadLog(): void {
-    const step = this.commandQueue.stepIndex;
-
-    void this.recorder.log().then((recorded) => {
+    void this.source.commandLog().then((recorded) => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(recorded.log)], {type: "application/json"}));
       const link = document.createElement("a");
       link.href = url;
-      link.download = `micropolis-log-${step}.json`;
+      link.download = `micropolis-log-${recorded.step}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -405,7 +376,7 @@ export class Game {
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       if (recorded.unhashed !== null) {
-        console.error(`The command log has no checkpoints: ${recorded.unhashed.message}`);
+        console.error(`The command log has no checkpoints: ${recorded.unhashed}`);
         this.notificationBar.show({subject: Messages.LOG_UNCHECKED});
       }
     });
@@ -426,19 +397,19 @@ export class Game {
     this.windows.closed();
 
     if (choice !== null) {
-      this.commandQueue.send(LOCAL_PLAYER, budgetCommand(choice.funding, choice.tax));
+      this.source.send(budgetCommand(choice.funding, choice.tax));
     }
   }
 
   // The arguments the budget window opens with: the budget record
   private budgetWindowValues(): unknown[] {
-    return [this.simulation.budgetRecord()];
+    return [this.state.current("budget")];
   }
 
   private handleSettingsRequest(): void {
     // The city settings as the window shows them, which its choices are compared with when it closes
-    const shown = this.simulation.settingsRecord();
-    const client = {autoBulldoze: this.autoBulldoze.isOn(), seed: this.simulation.seed,
+    const shown = this.state.current("settings");
+    const client = {autoBulldoze: this.autoBulldoze.isOn(), seed: this.seed,
                     resumeSpeed: this.speedControl.getRunningSpeed()};
 
     if (this.windows.open(this.settingsWindow, shown, client)) {
@@ -459,7 +430,7 @@ export class Game {
 
     // The view may show a margin around the map, where there is no tile to report on
     if (toolName === "query") {
-      if (this.gameMap.testBounds(tileCoords.x, tileCoords.y)) {
+      if (this.state.map.testBounds(tileCoords.x, tileCoords.y)) {
         this.queryTool.query(tileCoords.x, tileCoords.y);
       }
       return;
@@ -470,7 +441,7 @@ export class Game {
 
   // The tool output shows how the player's last tool command went
   private handleCommandResult(result: CommandResult): void {
-    const outcome = toolOutcome(result);
+    const outcome = toolOutcome(result, this.source.player);
     if (outcome === null) {
       return;
     }
@@ -482,9 +453,12 @@ export class Game {
     this.inputStatus.showToolOutput(toolOutputText(outcome));
   }
 
+  // The window opens once the save is written
   private handleSave(): void {
-    this.save();
-    this.windows.open(this.saveWindow);
+    void this.save().then((text) => {
+      Storage.saveText(text);
+      this.windows.open(this.saveWindow);
+    });
   }
 
   private handleInput(): void {
@@ -512,7 +486,7 @@ export class Game {
     }
   }
 
-  private processFrontEndMessage(message: FrontEndMessage): void {
+  private showNews(message: NewsMessage): void {
     const route = routeMessage(message, this.newsHold, Date.now());
 
     if (route.tv !== null) {
@@ -549,8 +523,7 @@ export class Game {
 
   private calculateSpritesForPaint(canvas: GameCanvas): PaintableSprite[] | null {
     const origin = canvas.getTileOrigin();
-    const spriteList = this.simulation.spriteManager.getSpritesInView(origin.x, origin.y, canvas.canvasWidth,
-                                                                      canvas.canvasHeight);
+    const spriteList = spritesInView(this.state.sprites, origin.x, origin.y, canvas.canvasWidth, canvas.canvasHeight);
 
     if (spriteList.length === 0) {
       return null;

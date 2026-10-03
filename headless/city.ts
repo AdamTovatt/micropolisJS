@@ -11,11 +11,11 @@
  *
  */
 
-import { CommandResult, ReceivedCommand } from "../src/commands";
+import { ReceivedCommand } from "../src/commands";
 import type { EvaluationSource } from "../src/evaluationRecord";
 import { GameMap } from "../src/gameMap.js";
 import { MapGenerator } from "../src/mapGenerator.js";
-import { type EvaluationRecord, QueryAnswer } from "../src/protocol";
+import { CommandResult, type EvaluationRecord, QueryAnswer } from "../src/protocol";
 import { Random } from "../src/random";
 import { Simulation as SimulationConstructor } from "../src/simulation.js";
 
@@ -84,8 +84,8 @@ export function cityFromSeed(seed: number, level: number, speed: number): Simula
   return new construct(MapGenerator(Random.mapStream(seed)), level, speed, seed);
 }
 
-// A city restored from what Simulation.save wrote, without storage.ts. Loading copies the saved values, so the
-// caller's object is never shared with the city.
+// A city restored from what Simulation.save wrote, without the save format of savedGame.ts. Loading copies the saved
+// values, so the caller's object is never shared with the city.
 export function cityFromSave(saveData: SaveData): Simulation {
   return construct.fromSave(saveData);
 }

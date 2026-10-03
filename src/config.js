@@ -11,14 +11,11 @@
  *
  */
 
-// All areas of micropolisJS that provide debug options should also check the debug
-// value as well as their individual value. The debug flag is intended to switch on all
-// debug options.
+// The simulation's debug mode, in which an event with no name throws rather than warns (eventEmitter.js). Each city
+// source sets it from the client's debug mode (clientConfig.ts), which the simulation never imports.
 
 var Config = {
-  debug: false,
-  gameDebug: false,
-  queryDebug: false
+  debug: false
 };
 
 

@@ -12,25 +12,7 @@
  */
 
 import * as Messages from "./messages";
-
-// The conditions that limit a city's growth, published by the simulation each cycle as persistent status.
-// The record is derived from the city each cycle and never saved.
-export interface CityStatus {
-  // Power the coal and nuclear plants can deliver, and the power the grid draws, as of the last power scan.
-  // The load is counted in the scan's steps, which revisit branch points, and exceeds the capacity exactly when
-  // that scan reported NOT_ENOUGH_POWER.
-  readonly powerCapacity: number;
-  readonly powerLoad: number;
-
-  // Whether residential, commercial or industrial demand is held at zero for want of a stadium, airport or
-  // seaport.
-  readonly residentialCapped: boolean;
-  readonly commercialCapped: boolean;
-  readonly industrialCapped: boolean;
-
-  // The advisor conditions that hold, named by their message in messages.ts, in the order of ADVISOR_CONDITIONS.
-  readonly conditions: readonly string[];
-}
+import type { StatusRecord } from "./protocol";
 
 // The census figures the advisor conditions read.
 export interface AdvisorCensus {
@@ -155,16 +137,22 @@ export function conditionHolds(condition: string, census: AdvisorCensus, budget:
   throw new Error(`Unknown advisor condition ${condition}`);
 }
 
+// The city status record, which the simulation publishes each cycle: derived from the city each time, and never saved.
+// It is the status message without its type, which the city host adds as it sends it.
+export type CityStatus = Omit<StatusRecord, "type">;
+
+// The power load is counted in the power scan's steps, which revisit branch points, and exceeds the capacity exactly
+// when that scan reported NOT_ENOUGH_POWER. The conditions are in the order of ADVISOR_CONDITIONS.
 export function buildCityStatus(census: AdvisorCensus, budget: AdvisorBudget, power: AdvisorPower,
                                 caps: CapFlags): CityStatus {
   const figures = {budget, census, power};
 
   return {
-    commercialCapped: caps.comCap,
-    conditions: ADVISOR_CONDITIONS.filter((entry) => entry.holds(figures)).map((entry) => entry.condition),
-    industrialCapped: caps.indCap,
     powerCapacity: power.powerCapacity,
     powerLoad: power.powerLoad,
     residentialCapped: caps.resCap,
+    commercialCapped: caps.comCap,
+    industrialCapped: caps.indCap,
+    conditions: ADVISOR_CONDITIONS.filter((entry) => entry.holds(figures)).map((entry) => entry.condition),
   };
 }

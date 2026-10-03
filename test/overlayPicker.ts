@@ -11,10 +11,15 @@
  *
  */
 
-import { OverlaySelection, OverlaySource, pageOverlaySource } from "../src/overlayPicker";
+import { CityState } from "../src/cityState";
+import { cityOverlaySource, OverlaySelection, OverlaySource } from "../src/overlayPicker";
 import { OverlayView } from "../src/overlayRenderer";
+import { PageCitySource } from "../src/pageCitySource";
 import { OverlayLayer, Query, QueryAnswer } from "../src/protocol";
-import { buildCity, SimulationInstance, YEAR } from "./helpers/simulations";
+import { SaveFormat } from "../src/savedGame";
+import { plainSavedState } from "../src/stateHash";
+import { ManualTicker } from "./helpers/manualTicker";
+import { buildCity, YEAR } from "./helpers/simulations";
 
 // A year at fast speed is 48 cycles, and the power scan runs every 5th cycle (speedPowerScan in simulation.js)
 const CYCLES_IN_A_YEAR = 48;
@@ -140,22 +145,27 @@ describe("the overlay selection", () => {
     });
 });
 
-describe("the overlay selection on the simulation in the page", () => {
+describe("the overlay selection on a city source", () => {
 
-    it("shows the simulation's answer, and the new one each time the layer's phase recomputes it", () => {
-        const city: SimulationInstance = buildCity(2026, 7);
+    it("shows the simulation's answer, and the new one each time the layer's phase recomputes it", async () => {
+        const source = new PageCitySource(new ManualTicker(), false);
+        const state = new CityState(source);
+        await source.driver.hold();
+        await source.start({save: SaveFormat.serialise({...plainSavedState(buildCity(2026, 7)), name: "Town"})});
         const shown: (OverlayView | null)[] = [];
-        const overlays = new OverlaySelection(pageOverlaySource(city), (view) => shown.push(view));
+        const overlays = new OverlaySelection(cityOverlaySource(source, state), (view) => shown.push(view));
 
         overlays.select("powerGrid");
         expect(shown.length).toBe(1);
+        // A step at a time, so the source sends the state after each
         for (let i = 0; i < YEAR; i++) {
-            city.step();
+            expect((await source.driver.advance(1)).error).toBeNull();
         }
 
         // Shown once when chosen, then once after each power scan
         expect(shown.length).toBe(1 + Math.floor(CYCLES_IN_A_YEAR / FAST_POWER_SCAN_INTERVAL));
-        expect(shown[shown.length - 1]!.answer).toEqual(city.answerQuery({type: "overlay", layer: "powerGrid"}));
+        const latest = await new Promise((resolve) => source.ask({type: "overlay", layer: "powerGrid"}, resolve));
+        expect(shown[shown.length - 1]!.answer).toEqual(latest);
         expect(shown[shown.length - 1]!.answer).not.toEqual(shown[0]!.answer);
     });
 });

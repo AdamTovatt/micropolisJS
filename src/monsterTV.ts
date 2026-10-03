@@ -12,19 +12,10 @@
  */
 
 import { requiredElement } from "./domElements";
-import { GameCanvas } from "./gameCanvas";
-import type { PaintableMap, PaintableSprite } from "./gameCanvas";
-import { SPRITE_DYING, SPRITE_MOVED } from "./messages";
+import { GameCanvas, type PaintableMap, type PaintableSprite, SPRITE_PIXELS_PER_TILE } from "./gameCanvas";
+import type { SpriteView } from "./protocol";
 import type { TileSet } from "./tileSet";
 import type { TilePoint } from "./viewPosition";
-
-// A sprite the view can follow: it reports each move, as the map tile it is over, and its death
-interface TrackableSprite {
-  addEventListener(event: typeof SPRITE_MOVED, listener: (position: TilePoint) => void): void;
-  addEventListener(event: typeof SPRITE_DYING, listener: () => void): void;
-  removeEventListener(event: typeof SPRITE_MOVED, listener: (position: TilePoint) => void): void;
-  removeEventListener(event: typeof SPRITE_DYING, listener: () => void): void;
-}
 
 // How long the view stays open after the sprite it follows dies
 const TIMEOUT_SECS = 10;
@@ -60,32 +51,41 @@ function isOutOfView(position: TilePoint, min: TilePoint, max: TilePoint): boole
   return position.x < min.x || position.y < min.y || position.x >= max.x || position.y >= max.y;
 }
 
-// Follows one sprite at a time, reporting its moves until it dies or another is followed
+// The map tile under the middle of the square a sprite is drawn in, which the view centres on: what the player sees of
+// the sprite. For most sprites it is the tile the sprite is at; a tornado's funnel rises from its position, and the
+// middle of it is a tile above.
+function spriteTile(sprite: SpriteView): TilePoint {
+  const middle = sprite.width / 2;
+  return {x: Math.floor((sprite.x + middle) / SPRITE_PIXELS_PER_TILE),
+          y: Math.floor((sprite.y + middle) / SPRITE_PIXELS_PER_TILE)};
+}
+
+// Follows one sprite at a time, by its type, of which the map holds at most one: the monster or the tornado. Each time
+// the sprites move, it reports where the sprite is, until the sprite is gone or another is followed.
 class SpriteFollower {
-  private sprite: TrackableSprite | null = null;
+  private type: number | null = null;
 
   constructor(private readonly onMove: (position: TilePoint) => void, private readonly onLost: () => void) {}
 
-  follow(sprite: TrackableSprite): void {
-    this.stop();
-
-    this.sprite = sprite;
-    sprite.addEventListener(SPRITE_MOVED, this.onMove);
-    sprite.addEventListener(SPRITE_DYING, this.died);
+  follow(type: number): void {
+    this.type = type;
   }
 
-  private stop(): void {
-    if (this.sprite !== null) {
-      this.sprite.removeEventListener(SPRITE_MOVED, this.onMove);
-      this.sprite.removeEventListener(SPRITE_DYING, this.died);
-      this.sprite = null;
+  // The sprites as each sprites message places them
+  update(sprites: readonly SpriteView[]): void {
+    if (this.type === null) {
+      return;
     }
-  }
 
-  private readonly died = (): void => {
-    this.stop();
-    this.onLost();
-  };
+    const sprite = sprites.find((candidate) => candidate.type === this.type);
+    if (sprite === undefined) {
+      this.type = null;
+      this.onLost();
+      return;
+    }
+
+    this.onMove(spriteTile(sprite));
+  }
 }
 
 // Whether the view is open, and the timer that closes it a while after the sprite it follows dies. It touches no DOM:
@@ -168,10 +168,15 @@ class MonsterTV {
     this.canvas.paint(null, sprites, isPaused);
   }
 
-  // Shows the sprite, at map tile (x, y), and follows it until it dies
-  track(x: number, y: number, sprite: TrackableSprite): void {
-    this.follower.follow(sprite);
+  // Shows the sprite of the type, at map tile (x, y), and follows it until it is gone
+  track(x: number, y: number, spriteType: number): void {
+    this.follower.follow(spriteType);
     this.show(x, y);
+  }
+
+  // The sprites as each sprites message places them
+  spritesMoved(sprites: readonly SpriteView[]): void {
+    this.follower.update(sprites);
   }
 
   // Shows map tile (x, y)
@@ -187,5 +192,5 @@ class MonsterTV {
   }
 }
 
-export { MonsterTV, SpriteFollower, ViewState, isOutOfView, renderView };
-export type { TrackableSprite, ViewElement };
+export { MonsterTV, SpriteFollower, ViewState, isOutOfView, renderView, spriteTile };
+export type { ViewElement };

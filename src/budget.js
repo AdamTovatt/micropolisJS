@@ -81,14 +81,12 @@ Budget.prototype.load = function(saveData) {
   for (var i = 0, l = saveProps.length; i < l; i++)
     this[saveProps[i]] = saveData.budget[saveProps[i]];
 
-  this._emitEvent(Messages.AUTOBUDGET_CHANGED, this.autoBudget);
   this._emitEvent(Messages.FUNDS_CHANGED, this.totalFunds);
 };
 
 
 Budget.prototype.setAutoBudget = function(value) {
   this.autoBudget = value;
-  this._emitEvent(Messages.AUTOBUDGET_CHANGED, this.autoBudget);
 };
 
 

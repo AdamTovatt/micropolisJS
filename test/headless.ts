@@ -20,7 +20,7 @@ import { run } from "../headless/run";
 import { advance, fixtureSave, replay, Start, startCity, startFromSave, summarise } from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
 import { parseLog } from "../src/commandLog";
-import { LOCAL_PLAYER } from "../src/commands";
+import { LOCAL_PLAYER } from "../src/protocol";
 import { plainSavedState, savedState, stateHash } from "../src/stateHash";
 import { InspectedSave } from "./helpers/savedState";
 
