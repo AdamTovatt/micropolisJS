@@ -151,9 +151,7 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
     const tile = {x: 58, y: 32};
     await player.selectTool("query");
     await player.showTiles([tile]);
-    const {originX, originY} = await player.view();
-    const left = canvas.x + (tile.x - originX) * 16;
-    const top = canvas.y + (tile.y - originY) * 16;
+    const {x: left, y: top} = await player.tileCorner(tile);
     await page.mouse.move(left + 8, top + 8);
     await player.settle();
     const outline = await samplePixels(page, await page.screenshot(), [

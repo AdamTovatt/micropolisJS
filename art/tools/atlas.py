@@ -47,6 +47,11 @@ SPRITE_CELL = 48               # images/sprites.png: a 48 px cell per frame, a r
 # The single-tile sets, each rendered into <set>/<id>, the tile id in four digits
 SINGLE_TILES = ('land', 'water', 'woods', 'parks', 'rubble', 'roads', 'power', 'rail', 'houses')
 
+# The tiles the game draws in place of another asset's tile, which are drawn whole as objects too, opaque, so no
+# shadow darkens them: the warning an unpowered zone or service building blinks in place of its centre (827), where
+# a building's own shadow lies dense under the roof the warning replaces
+OVER_SHADOWS = {827}
+
 
 def _slots(kind, first, grid):
     # A populated zone's designs by slot: the game picks slot = land value * densities + density
@@ -242,6 +247,13 @@ def build(source):
             objects[tile_id] = o
         x, y = column * TILE_PX, row * TILE_PX
         sheet_tiles[tile_id] = frame.composite().crop((x, y, x + TILE_PX, y + TILE_PX))
+    for tile_id in sorted(OVER_SHADOWS):
+        if tile_id not in ground:
+            raise SystemExit(f'tile {tile_id}, drawn over shadows, has no art')
+        o = ground[tile_id].convert('RGBA')
+        if tile_id in objects:
+            o.alpha_composite(objects[tile_id])
+        objects[tile_id] = o
 
     sprites, sheet_sprites = {}, {}
     for vehicle, (sprite_type, square) in SPRITES.items():
