@@ -14,6 +14,7 @@
 using System.Net;
 using System.Text;
 using EasyReasy.Auth;
+using EasyReasy.Database;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -41,10 +42,10 @@ namespace Micropolis.Server
         public const string NoTrustedProxies = "none";
 
         /// <summary>
-        /// The configuration key, and so the environment variable, naming the directory the server keeps its cities in,
-        /// relative to the content root or absolute.
+        /// The configuration key, and so the environment variable, naming the SQLite file the server keeps its cities
+        /// in, relative to the content root or absolute.
         /// </summary>
-        public const string CityStoreKey = "CITY_STORE";
+        public const string CityDatabaseKey = "CITY_DATABASE";
 
         /// <summary>
         /// The configuration key, and so the environment variable, a test server sets to <see cref="ManualClock"/> so
@@ -67,14 +68,17 @@ namespace Micropolis.Server
         /// Configures the services and the request pipeline on the builder and builds the application.
         /// </summary>
         /// <exception cref="InvalidOperationException">
-        /// The configuration has no usable signing secret, or does not say which proxies to trust.
+        /// The configuration has no usable signing secret, does not say which proxies to trust, or names no city database.
         /// </exception>
+        /// <exception cref="CityStoreException">The city database couldn't be made, opened or brought up to date.</exception>
         public static WebApplication Build(WebApplicationBuilder builder)
         {
             string jwtSecret = ReadJwtSecret(builder.Configuration);
             ForwardedHeadersOptions? forwardedHeaders = ReadTrustedProxies(builder.Configuration);
-            string cityStore = ReadCityStore(builder.Configuration, builder.Environment);
+            string cityDatabase = ReadCityDatabase(builder.Configuration, builder.Environment);
             bool manualClock = ReadManualClock(builder.Configuration);
+            // Before the host builds, so a server whose database can't be brought up to date doesn't start
+            IReadOnlyList<string> migrations = CityDatabase.Migrate(cityDatabase);
 
             builder.Services.AddEasyReasyAuth(jwtSecret, options =>
             {
@@ -89,13 +93,20 @@ namespace Micropolis.Server
             // Tests register their own clock first
             builder.Services.TryAddSingleton(TimeProvider.System);
             builder.Services.AddSingleton<PlayerPresence>();
-            builder.Services.AddSingleton(new CityStore(cityStore));
+            builder.Services.AddSingleton(CityDatabase.OpenDataSource(cityDatabase));
+            builder.Services.AddSingleton<IDbSessionFactory, DbSessionFactory>();
+            builder.Services.AddSingleton<CityStore>();
             builder.Services.AddSingleton(services => new ServerClock(services.GetRequiredService<TimeProvider>(), manualClock));
             builder.Services.AddSingleton<CityRegistry>();
             builder.Services.AddSingleton<CityLimits>();
             builder.Services.AddHostedService(services => services.GetRequiredService<CityRegistry>());
 
             WebApplication app = builder.Build();
+
+            foreach (string migration in migrations)
+            {
+                app.Logger.LogInformation("Ran {Migration} on the city database {Database}", migration, cityDatabase);
+            }
 
             // First, so everything after it, the sign-in rate limit included, sees the client's address
             if (forwardedHeaders != null)
@@ -139,16 +150,16 @@ namespace Micropolis.Server
 
         // Required, since where a server keeps its cities is deployment's choice: a default would keep them somewhere no
         // one chose
-        private static string ReadCityStore(IConfiguration configuration, IHostEnvironment environment)
+        private static string ReadCityDatabase(IConfiguration configuration, IHostEnvironment environment)
         {
-            string? directory = configuration[CityStoreKey];
+            string? file = configuration[CityDatabaseKey];
 
-            if (string.IsNullOrWhiteSpace(directory))
+            if (string.IsNullOrWhiteSpace(file))
             {
-                throw new InvalidOperationException($"{CityStoreKey} is required: the directory the server keeps its cities in.");
+                throw new InvalidOperationException($"{CityDatabaseKey} is required: the SQLite file the server keeps its cities in.");
             }
 
-            return Path.GetFullPath(directory, environment.ContentRootPath);
+            return Path.GetFullPath(file, environment.ContentRootPath);
         }
 
         // Only a build with the debug channel can turn its cities' loops, so a release build given the manual clock fails

@@ -11,17 +11,11 @@
  *
  */
 
-namespace Micropolis.Server
-{
-    /// <summary>
-    /// The <see cref="CityStore"/> failed to open, read or write its database, such as on a full disk, in a file the
-    /// server may not write, or in one that isn't a database.
-    /// </summary>
-    internal sealed class CityStoreException : Exception
-    {
-        public CityStoreException(string message, Exception inner)
-            : base(message, inner)
-        {
-        }
-    }
-}
+-- One row per city, by its id: its saved game as the game saves one, when it was last saved, and when it was last
+-- opened, that is loaded from the store for a player entering it, or started. The times are UTC, in ISO 8601.
+CREATE TABLE cities (
+    id TEXT NOT NULL PRIMARY KEY,
+    saved_game TEXT NOT NULL,
+    last_saved_at TEXT NOT NULL,
+    last_opened_at TEXT NOT NULL
+) STRICT;

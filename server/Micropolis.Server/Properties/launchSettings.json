@@ -11,7 +11,7 @@
         "ASPNETCORE_HOSTINGSTARTUPASSEMBLIES": "Microsoft.AspNetCore.SpaProxy",
         "JWT_SECRET": "development-only-signing-secret-never-use-outside-local-development",
         "TRUSTED_PROXIES": "none",
-        "CITY_STORE": "../../.cities"
+        "CITY_DATABASE": "../../.cities/cities.db"
       }
     }
   }

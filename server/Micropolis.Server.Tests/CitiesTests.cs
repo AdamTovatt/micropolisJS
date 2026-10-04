@@ -61,7 +61,7 @@ namespace Micropolis.Server.Tests
 
             string city = await ada.StartAsync();
 
-            Assert.AreEqual(await ada.SaveAsync(), await File.ReadAllTextAsync(server.StoredPathOf(city)));
+            Assert.AreEqual(await ada.SaveAsync(), await server.StoredAsync(city));
         }
 
         [TestMethod]
@@ -185,7 +185,7 @@ namespace Micropolis.Server.Tests
             await ada.StartAsync();
             string before = await ada.SaveAsync();
             string broken = CityId.New();
-            await File.WriteAllTextAsync(server.StoredPathOf(broken), "not a save");
+            await server.Store.WriteAsync(broken, "not a save");
 
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.JoinAsync(broken));
 
@@ -321,7 +321,7 @@ namespace Micropolis.Server.Tests
                 await ada.Socket.CloseAsync();
             }
 
-            await WaitForStoreAsync(server.StoredPathOf(city), saved);
+            await WaitForStoreAsync(server, city, saved);
             await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
             await grace.JoinAsync(city);
 
@@ -335,14 +335,14 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Stop_Server_KeepsItsCitiesForTheNextToLoad()
         {
-            string store = ServerUnderTest.NewStore();
+            string database = TestCityDatabase.NewFile();
 
             try
             {
                 string city;
                 string saved;
 
-                await using (ServerUnderTest first = await ServerUnderTest.StartAsync(manualClock: true, store: store))
+                await using (ServerUnderTest first = await ServerUnderTest.StartAsync(manualClock: true, database: database))
                 {
                     await using TestPlayer ada = await TestPlayer.ConnectAsync(first, "Ada");
                     city = await ada.StartAsync();
@@ -350,7 +350,7 @@ namespace Micropolis.Server.Tests
                     saved = await ada.SaveAsync();
                 }
 
-                await using ServerUnderTest second = await ServerUnderTest.StartAsync(manualClock: true, store: store);
+                await using ServerUnderTest second = await ServerUnderTest.StartAsync(manualClock: true, database: database);
                 await using TestPlayer grace = await TestPlayer.ConnectAsync(second, "Grace");
                 await grace.JoinAsync(city);
 
@@ -358,7 +358,7 @@ namespace Micropolis.Server.Tests
             }
             finally
             {
-                ServerUnderTest.DeleteStore(store);
+                TestCityDatabase.Delete(database);
             }
         }
 
@@ -389,9 +389,7 @@ namespace Micropolis.Server.Tests
             await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
             await ada.StartAsync();
             string before = await ada.SaveAsync();
-            // A file where the store's directory was, which no city can be written into
-            ServerUnderTest.DeleteStore(server.Store);
-            await File.WriteAllTextAsync(server.Store, "");
+            TestCityDatabase.MakeReadOnly(server.Database);
 
             RequestFailedException started = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.StartAsync());
             RequestFailedException uploaded = await Assert.ThrowsExactlyAsync<RequestFailedException>(
@@ -418,15 +416,8 @@ namespace Micropolis.Server.Tests
                 await ada.Socket.CloseAsync();
             }
 
-            await WaitForStoreAsync(server.StoredPathOf(city), saved);
-
-            if (OperatingSystem.IsWindows())
-            {
-                Assert.Inconclusive("The test makes the file unreadable by its Unix mode.");
-                return;
-            }
-
-            File.SetUnixFileMode(server.StoredPathOf(city), UnixFileMode.None);
+            await WaitForStoreAsync(server, city, saved);
+            TestCityDatabase.MakeUnreadable(server.Database);
             await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
 
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => grace.JoinAsync(city));
@@ -776,12 +767,12 @@ namespace Micropolis.Server.Tests
             return JsonNode.Parse(savedGame)!["map"]!["tiles"]!;
         }
 
-        // The city's file in the store once it holds the save, which the server writes as the last player leaves
-        private static async Task WaitForStoreAsync(string path, string saved)
+        // Waits until the store holds the city's save, which the server writes as the last player leaves
+        private static async Task WaitForStoreAsync(ServerUnderTest server, string city, string saved)
         {
             DateTime giveUp = DateTime.UtcNow + ServerWorkTimeout;
 
-            while (!File.Exists(path) || await File.ReadAllTextAsync(path) != saved)
+            while (await server.StoredAsync(city) != saved)
             {
                 if (DateTime.UtcNow > giveUp)
                 {
