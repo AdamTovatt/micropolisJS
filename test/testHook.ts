@@ -12,10 +12,10 @@
  */
 
 import { stepsPerCityTime } from "../src/cityTimeModel";
-import type { AdvanceResult, CityDriver, CityStart } from "../src/citySource";
+import type { CityDriver, CityStart } from "../src/citySource";
 import { CityState } from "../src/cityState";
 import { PageCitySource } from "../src/pageCitySource";
-import { Command } from "../src/protocol";
+import { AdvanceResult, Command } from "../src/protocol";
 import { SaveFormat } from "../src/savedGame";
 import { Simulation } from "../src/simulation.js";
 import { plainSavedState } from "../src/stateHash";

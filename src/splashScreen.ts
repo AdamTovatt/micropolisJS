@@ -141,14 +141,18 @@ class SplashScreen {
   };
 
   // Launches a new game on the chosen map, with the name and level the player gave. The name may be empty: the start
-  // form doesn't require one in debug mode.
+  // form doesn't require one in debug mode. A city the source can't start, such as one on a server that went away, is
+  // said out loud, and the splash screen comes back on the same map.
   private readonly onSubmit = (e: Event) => {
     e.preventDefault();
 
     this.playForm.removeEventListener("submit", this.onSubmit);
     setShown(this.start, false);
 
-    void this.startGame({name: this.nameInput.value || "MyTown", seed: this.seed, level: checkedLevel()});
+    this.startGame({name: this.nameInput.value || "MyTown", seed: this.seed, level: checkedLevel()}).catch((err: unknown) => {
+      alert(`The city could not start: ${err instanceof Error ? err.message : String(err)}`);
+      showSplashScreen(this.parts, this.seed);
+    });
   };
 
   constructor(private readonly parts: GameParts, seed: number | null) {

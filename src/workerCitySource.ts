@@ -11,20 +11,14 @@
  *
  */
 
-import { Subscribers, trackingHold } from "./citySource";
-import type { CityDriver, CitySource, CityStart, SessionLog, StartedCity } from "./citySource";
+import { PendingCalls, Subscribers, trackingHold } from "./citySource";
+import type { CityDriver, CitySource, CityStart, Pending, StartedCity } from "./citySource";
 import { rebuiltError } from "./cityWorkerMessages";
 import type { Call, CallResults, PageMessage, Port, WorkerMessage } from "./cityWorkerMessages";
-import { Command, LOCAL_PLAYER, Query, QueryAnswer, StateMessage } from "./protocol";
+import { Command, LOCAL_PLAYER, Query, QueryAnswer, SessionLog, StateMessage } from "./protocol";
 
 // The Worker source: the simulation runs in a Web Worker (cityWorker.ts), off the page's thread, and the page reaches
 // it only through messages. Every call is answered after the state it changed has been delivered.
-
-// What becomes of a call's answer, or of its failure, once the worker sends it
-interface Pending {
-  resolve(value: unknown): void;
-  reject(error: Error): void;
-}
 
 // The page's end of the channel: the Worker, which also fires an error event when something goes wrong in it, or a
 // test's stand-in
@@ -37,8 +31,7 @@ export class WorkerCitySource implements CitySource {
   readonly driver: CityDriver;
 
   private readonly subscribers = new Subscribers();
-  private readonly pending = new Map<number, Pending>();
-  private nextId = 0;
+  private readonly calls = new PendingCalls("The city's worker answered call");
   // What the worker failed with, once it can never answer
   private failure: Error | null = null;
 
@@ -105,9 +98,7 @@ export class WorkerCitySource implements CitySource {
       return;
     }
 
-    const id = this.nextId++;
-    this.pending.set(id, pending);
-    this.post({type: "call", id, call});
+    this.post({type: "call", id: this.calls.add(pending), call});
   }
 
   private post(message: PageMessage): void {
@@ -121,11 +112,11 @@ export class WorkerCitySource implements CitySource {
         break;
 
       case "answer":
-        this.settle(message.id).resolve(message.value);
+        this.calls.settle(message.id).resolve(message.value);
         break;
 
       case "failed":
-        this.settle(message.id).reject(rebuiltError(message.error));
+        this.calls.settle(message.id).reject(rebuiltError(message.error));
         break;
     }
   }
@@ -143,26 +134,7 @@ export class WorkerCitySource implements CitySource {
 
     const failure = new Error("The city's worker failed: its script didn't load");
     this.failure = failure;
-    const pending = Array.from(this.pending.values());
-    this.pending.clear();
-    pending.forEach(({reject}) => {
-      try {
-        reject(failure);
-      } catch {
-        // A query's reply throws what the query failed with, which is the failure thrown below, once
-      }
-    });
+    this.calls.failAll(failure);
     throw failure;
   };
-
-  // The call the answer is for, no longer pending
-  private settle(id: number): Pending {
-    const pending = this.pending.get(id);
-    if (pending === undefined) {
-      throw new Error(`The city's worker answered call ${id}, which was never made or already answered`);
-    }
-
-    this.pending.delete(id);
-    return pending;
-  }
 }

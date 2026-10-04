@@ -37,4 +37,39 @@ function seedOption(query: string): number | null {
   return Number(value);
 }
 
-export { debugOption, seedOption };
+// ?city=<id> joins the city on the server with that id, which a city started on the server puts in the page's address,
+// so a link to the page invites another player into the city, and loading the page again rejoins it
+
+// The id a city on the server has, as the server writes one: 32 lower-case hexadecimal digits
+const CITY_ID = /^[0-9a-f]{32}$/;
+
+// The city a URL's query string asks to join, or null for none. A value that isn't a city's id is refused.
+function cityOption(query: string): string | null {
+  const value = new URLSearchParams(query).get("city");
+
+  if (value === null) {
+    return null;
+  }
+
+  if (!CITY_ID.test(value)) {
+    throw new Error(`?city must be a city's id, 32 hexadecimal digits, got "${value}"`);
+  }
+
+  return value;
+}
+
+// The URL with the city's id as its ?city, in place of any it had, and its other options as they were
+function withCityOption(url: string, city: string): string {
+  const withCity = new URL(url);
+  withCity.searchParams.set("city", city);
+  return withCity.toString();
+}
+
+// The URL without its ?city, and its other options as they were
+function withoutCityOption(url: string): string {
+  const withoutCity = new URL(url);
+  withoutCity.searchParams.delete("city");
+  return withoutCity.toString();
+}
+
+export { cityOption, debugOption, seedOption, withCityOption, withoutCityOption };

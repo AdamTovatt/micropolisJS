@@ -14,7 +14,7 @@
 import {
     CITY_PATH, CityClient, CityClientEnvironment, CityStatus, ResponseLike, SESSION_PATH, SocketLike, StoredSession,
 } from "../src/cityClient";
-import { ErrorResponse, PlayerResponse, SessionResponse } from "../src/protocol";
+import { CITY_FAILED_CLOSE, CityMessage, ErrorResponse, PlayerResponse, SessionResponse } from "../src/protocol";
 
 interface Request {
     method: string;
@@ -49,16 +49,23 @@ function notJson(status: number): ResponseLike {
 
 class FakeSocket implements SocketLike {
     onmessage: ((event: {data: unknown}) => void) | null = null;
-    onclose: (() => void) | null = null;
+    onclose: ((event: {code: number}) => void) | null = null;
+    // What the client sent, as the wire carried it
+    readonly sent: string[] = [];
 
     constructor(readonly pathAndQuery: string) {}
+
+    send(data: string): void {
+        this.sent.push(data);
+    }
 
     deliver(message: unknown): void {
         this.onmessage?.({data: typeof message === "string" ? message : JSON.stringify(message)});
     }
 
-    drop(): void {
-        this.onclose?.();
+    // A browser gives a connection that went without a close frame 1006
+    drop(code = 1006): void {
+        this.onclose?.({code});
     }
 }
 
@@ -392,6 +399,85 @@ describe("the city client", () => {
             browser.lastSocket().drop();
 
             expect(statuses.map((status) => status.online)).toEqual([false, true, false]);
+        });
+
+        it("says it is welcomed once the hello comes, and at once after", async () => {
+            const {browser, client} = await signedIn();
+            const welcomed = client.welcomed();
+
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
+
+            expect(await welcomed).toBe(true);
+            expect(await client.welcomed()).toBe(true);
+        });
+
+        it("says it is not welcomed once the socket closes before the hello", async () => {
+            const {browser, client} = await signedIn();
+            const welcomed = client.welcomed();
+
+            browser.lastSocket().drop();
+
+            expect(await welcomed).toBe(false);
+        });
+
+        it("says it is not welcomed at once when no socket is opening", async () => {
+            expect(await new CityClient(new FakeBrowser(server([]))).welcomed()).toBe(false);
+        });
+
+        it("tells its city-failed listeners when the server closes the connection because its city failed, before " +
+           "going offline", async () => {
+            const {browser, client} = await signedIn();
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
+            const onlineWhenTold: boolean[] = [];
+            client.onCityFailed(() => onlineWhenTold.push(client.getStatus().online));
+
+            browser.lastSocket().drop(CITY_FAILED_CLOSE);
+
+            expect(onlineWhenTold).toEqual([true]);
+            expect(client.getStatus()).toEqual({online: false});
+            expect(browser.scheduled).toHaveLength(1);
+        });
+
+        it("tells no city-failed listener of any other close", async () => {
+            const {browser, client} = await signedIn();
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
+            const told = jest.fn();
+            client.onCityFailed(told);
+
+            browser.lastSocket().drop(1000);
+
+            expect(told).not.toHaveBeenCalled();
+        });
+
+        it("hands the city's messages to its city listeners, in order", async () => {
+            const {browser, client} = await signedIn();
+            const received: CityMessage[] = [];
+            client.onCityMessage((message) => received.push(message));
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
+
+            browser.lastSocket().deliver({type: "state", messages: [{type: "population", population: 12}]});
+            browser.lastSocket().deliver({type: "answer", id: 0, value: null});
+            browser.lastSocket().deliver({type: "failed", id: 1, error: "No city has started"});
+
+            expect(received).toEqual([
+                {type: "state", messages: [{type: "population", population: 12}]},
+                {type: "answer", id: 0, value: null},
+                {type: "failed", id: 1, error: "No city has started"},
+            ]);
+        });
+
+        it("sends a message once the server has welcomed the socket, and not before or after it closes", async () => {
+            const {browser, client} = await signedIn();
+            const socket = browser.lastSocket();
+
+            const beforeHello = client.send({type: "save", id: 0});
+            socket.deliver(hello("id-Ada", "Ada"));
+            const online = client.send({type: "save", id: 1});
+            socket.drop();
+            const afterClose = client.send({type: "save", id: 2});
+
+            expect([beforeHello, online, afterClose]).toEqual([false, true, false]);
+            expect(socket.sent).toEqual(["{\"type\":\"save\",\"id\":1}"]);
         });
     });
 

@@ -11,8 +11,8 @@
  *
  */
 
-import type { AdvanceResult, CityStart, SessionLog, StartedCity } from "./citySource";
-import type { Command, Query, QueryAnswer, StateMessage } from "./protocol";
+import type { CityStart, StartedCity } from "./citySource";
+import type { AdvanceResult, Command, Query, QueryAnswer, SessionLog, StateMessage } from "./protocol";
 
 // What the page and the city's Web Worker say to each other: the Worker source's side and cityWorker.ts's. Both are in
 // the browser and built together, so this is not part of the protocol: the state messages it carries are.

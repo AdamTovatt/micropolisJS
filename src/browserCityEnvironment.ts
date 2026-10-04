@@ -58,9 +58,9 @@ export function browserCityEnvironment(requestTimeoutMs = REQUEST_TIMEOUT_MS): C
     openSocket: (pathAndQuery) => {
       const scheme = location.protocol === "https:" ? "wss:" : "ws:";
       const socket = new WebSocket(`${scheme}//${location.host}${pathAndQuery}`);
-      const city: SocketLike = {onmessage: null, onclose: null};
+      const city: SocketLike = {onmessage: null, onclose: null, send: (data) => socket.send(data)};
       socket.onmessage = (event) => city.onmessage?.(event);
-      socket.onclose = () => city.onclose?.();
+      socket.onclose = ({code}) => city.onclose?.({code});
       return city;
     },
     store,

@@ -13,6 +13,7 @@
 
 import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetChoice, BudgetWindow } from "./budgetWindow";
+import { linkToCity } from "./cityLink";
 import type { CitySource, StartedCity } from "./citySource";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
@@ -155,6 +156,9 @@ export class Game {
     this.tileSet = tileSet;
     this.seed = started.seed;
     this.autoBulldoze = new AutoBulldozePreference(Storage.canStore ? window.localStorage : null);
+
+    // A city on the server goes in the page's address, so the address invites another player in, and a reload rejoins
+    linkToCity(started, window);
 
     this.rci = placeRCI("RCIContainer");
     this.statusPanel = new StatusPanel("statusPanel");

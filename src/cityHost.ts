@@ -13,14 +13,14 @@
 
 import type { CityStatus } from "./cityStatus";
 import { checkStepCount, ClockedSimulation, takeSteps } from "./cityTimeModel";
-import type { AdvanceResult, CityStart, SessionLog, StartedCity } from "./citySource";
+import type { CityStart, StartedCity } from "./citySource";
 import { CommandRecorder, LogStart } from "./commandLog";
 import { CommandQueue, CommandTarget } from "./commandQueue";
 import { MapGenerator } from "./mapGenerator.js";
 import * as Messages from "./messages";
 import {
-  BudgetRecord, CommandResult, DemandMessage, EvaluationRecord, NewsMessage, OverlayLayer, PlayerId, QueryAnswer,
-  SettingsRecord, SPEEDS, SpriteView, StateMessage, StatusRecord, TileChange,
+  AdvanceResult, BudgetRecord, CommandResult, DemandMessage, EvaluationRecord, NewsMessage, OverlayLayer, PlayerId,
+  QueryAnswer, SessionLog, SettingsRecord, SPEEDS, SpriteView, StateMessage, StatusRecord, TileChange,
 } from "./protocol";
 import { answerQueryWithoutCity } from "./queries";
 import { Random } from "./random";
@@ -219,7 +219,7 @@ function startCity(start: CityStart): {name: string, simulation: HostedSimulatio
 
   const savedGame: SavedGame = SaveFormat.parse(start.save);
   if (typeof savedGame.name !== "string") {
-    throw new Error("The save names no city");
+    throw new Error("The save's name must be a string.");
   }
 
   const simulation: HostedSimulation = Simulation.fromSave(savedGame);
@@ -256,7 +256,7 @@ export class CityHost {
     this.sendState();
     this.wake();
 
-    return {name, seed: simulation.seed};
+    return {name, seed: simulation.seed, city: null};
   }
 
   send(player: PlayerId, command: unknown): void {

@@ -11,7 +11,7 @@
  *
  */
 
-import { debugOption, seedOption } from "../src/urlOptions";
+import { cityOption, debugOption, seedOption, withCityOption, withoutCityOption } from "../src/urlOptions";
 
 describe("the debug option", () => {
 
@@ -36,5 +36,47 @@ describe("the seed option", () => {
 
     it.each(["", "-1", "4294967296", "1.5", "1e3", "0x10", "abc"])("refuses seed=%s", (text) => {
         expect(() => seedOption(`?seed=${text}`)).toThrow("?seed must be a whole number");
+    });
+});
+
+describe("the city option", () => {
+
+    const CITY = "0123456789abcdef0123456789abcdef";
+
+    it("is null when the URL names no city", () => {
+        expect(cityOption("?debug=1")).toBeNull();
+    });
+
+    it("reads a city's id", () => {
+        expect(cityOption(`?debug=1&city=${CITY}`)).toBe(CITY);
+    });
+
+    it.each(["", CITY.toUpperCase(), CITY.slice(1), `${CITY}0`, "../secrets"])("refuses city=%s", (text) => {
+        expect(() => cityOption(`?city=${encodeURIComponent(text)}`)).toThrow("?city must be a city's id");
+    });
+
+    it("is put in an address in place of any city it named, keeping its other options", () => {
+        expect(withCityOption("http://localhost:44903/?debug=1&city=old#top", CITY))
+            .toBe(`http://localhost:44903/?debug=1&city=${CITY}#top`);
+        expect(cityOption(new URL(withCityOption("http://localhost:44903/", CITY)).search)).toBe(CITY);
+    });
+
+    it("reads the first city an address names twice, and is put in it in place of both", () => {
+        const other = "fedcba9876543210fedcba9876543210";
+
+        expect(cityOption(`?city=${CITY}&city=${other}`)).toBe(CITY);
+        expect(withCityOption(`http://localhost:44903/?city=${other}&debug=1&city=${other}`, CITY))
+            .toBe(`http://localhost:44903/?city=${CITY}&debug=1`);
+    });
+
+    it("is put in an address with a fragment and no query before it", () => {
+        expect(withCityOption("http://localhost:44903/#top", CITY)).toBe(`http://localhost:44903/?city=${CITY}#top`);
+    });
+
+    it("is taken out of an address, every time it is named, keeping its other options and its fragment", () => {
+        expect(withoutCityOption(`http://localhost:44903/?city=${CITY}&debug=1&city=${CITY}#top`))
+            .toBe("http://localhost:44903/?debug=1#top");
+        expect(withoutCityOption(`http://localhost:44903/?city=${CITY}`)).toBe("http://localhost:44903/");
+        expect(withoutCityOption("http://localhost:44903/?seed=4")).toBe("http://localhost:44903/?seed=4");
     });
 });
