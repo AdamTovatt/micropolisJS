@@ -24,19 +24,20 @@ namespace Micropolis.Benchmarks
     internal abstract record BenchmarkCase(string Name, Speed Speed)
     {
         /// <summary>
-        /// The name of the speed, as the report and the case list write it.
+        /// The name of the speed, as the report writes it and the headless runner names it (<c>headless/city.ts</c>).
         /// </summary>
-        public string SpeedName => Names.Of(Speed);
+        public string SpeedName => Speed switch
+        {
+            Speed.Slow => "slow",
+            Speed.Medium => "medium",
+            Speed.Fast => "fast",
+            _ => throw new InvalidOperationException($"A benchmark runs a city at a running speed, not {Speed}."),
+        };
 
         /// <summary>
         /// A fresh city, as the case starts it.
         /// </summary>
         public abstract Simulation Start();
-
-        /// <summary>
-        /// The case as the case list writes it, from which the TypeScript measurement starts the same city.
-        /// </summary>
-        public abstract JsonObject ToJson();
     }
 
     /// <summary>
@@ -60,17 +61,6 @@ namespace Micropolis.Benchmarks
 
             return city;
         }
-
-        public override JsonObject ToJson()
-        {
-            return new JsonObject
-            {
-                ["name"] = Name,
-                ["speed"] = SpeedName,
-                ["save"] = SavePath,
-                ["disastersEnabled"] = DisastersEnabled,
-            };
-        }
     }
 
     /// <summary>
@@ -81,45 +71,6 @@ namespace Micropolis.Benchmarks
         public override Simulation Start()
         {
             return Simulation.NewCity(Seed, Level, Speed);
-        }
-
-        public override JsonObject ToJson()
-        {
-            return new JsonObject
-            {
-                ["name"] = Name,
-                ["speed"] = SpeedName,
-                ["seed"] = Seed,
-                ["level"] = Names.Of(Level),
-            };
-        }
-    }
-
-    /// <summary>
-    /// The running speeds and the levels by name, as the headless runner names them (<c>headless/city.ts</c>).
-    /// </summary>
-    internal static class Names
-    {
-        public static string Of(Speed speed)
-        {
-            return speed switch
-            {
-                Speed.Slow => "slow",
-                Speed.Medium => "medium",
-                Speed.Fast => "fast",
-                _ => throw new ArgumentOutOfRangeException(nameof(speed), speed, "A benchmark runs a city at a running speed."),
-            };
-        }
-
-        public static string Of(Level level)
-        {
-            return level switch
-            {
-                Level.Easy => "easy",
-                Level.Medium => "medium",
-                Level.Hard => "hard",
-                _ => throw new ArgumentOutOfRangeException(nameof(level), level, "No such level."),
-            };
         }
     }
 }

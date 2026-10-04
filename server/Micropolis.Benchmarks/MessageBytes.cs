@@ -11,8 +11,8 @@
  *
  */
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Text;
+using Micropolis.Rules;
 
 namespace Micropolis.Benchmarks
 {
@@ -23,80 +23,57 @@ namespace Micropolis.Benchmarks
     internal sealed record CaseBytes(double BytesPerStep, string StateHash);
 
     /// <summary>
-    /// The state-message bytes per step of each case, as <c>headless/messageBytes.ts</c> measures them on the
-    /// TypeScript city host. They must cover every case of the case list and nothing else, over the steps the timing
-    /// measures.
+    /// The state-message bytes per step a player in a city on the server receives: after each turn of its city's loop
+    /// that stepped the city, the server builds a batch of the state messages that changed (<see
+    /// cref="CityStateMessages"/>), and unless it is empty sends every player in the city its text in one WebSocket
+    /// text frame. The loop turns a frame apart, at the 60 steps a second the city runs at, so a turn takes a step on
+    /// average, and the city here sends a batch after each step. A turn that takes several steps sends one batch for
+    /// them all, which can be smaller than theirs one at a time.
     /// </summary>
-    internal sealed class MessageBytes
+    internal static class MessageBytes
     {
         /// <summary>
         /// What the figures measure, as the report says.
         /// </summary>
         public const string Source =
-            "the TypeScript city host's state messages (`src/cityHost.ts`), run headless with one batch after each " +
-            "step, each message counted as the UTF-8 bytes of its JSON text, the payload of one WebSocket text frame";
+            $"the server's state messages (`{nameof(CityStateMessages)}` in `server/Micropolis.Rules`), taking one step " +
+            "a turn of the server's loop, as it does on average at 60 steps a second: a batch after each step unless " +
+            "nothing a player is sent changed, each counted as the UTF-8 bytes of the batch's JSON text, the payload of " +
+            "the WebSocket text frame every player in the city is sent";
 
-        private readonly Dictionary<(string Name, string Speed), CaseBytes> _cases;
-
-        private MessageBytes(Dictionary<(string Name, string Speed), CaseBytes> cases)
+        /// <summary>
+        /// The case's bytes per step over the steps after the warmup, and the state hash its city ends at.
+        /// </summary>
+        public static CaseBytes Measure(BenchmarkCase benchmarkCase, BenchmarkSettings settings)
         {
-            _cases = cases;
+            Simulation city = benchmarkCase.Start();
+            CityStateMessages messages = new CityStateMessages(city);
+
+            for (int step = 0; step < settings.Warmup; step++)
+            {
+                city.Step();
+            }
+
+            // What the warmup changed, which a player would have been sent before the steps measured
+            messages.NewMessages();
+            long bytes = 0;
+
+            for (int step = 0; step < settings.Steps; step++)
+            {
+                city.Step();
+                bytes += BatchBytes(messages.NewMessages());
+            }
+
+            return new CaseBytes((double)bytes / settings.Steps, StateHash.HashSavedState(city.Save()));
         }
 
-        public static MessageBytes Parse(string json, IReadOnlyList<BenchmarkCase> cases, BenchmarkSettings settings)
+        /// <summary>
+        /// The bytes of the frame the server sends a batch of state messages in, or none for no messages, which the
+        /// server doesn't send.
+        /// </summary>
+        internal static int BatchBytes(IReadOnlyList<StateMessage> batch)
         {
-            JsonSerializerOptions options = new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-                RespectNullableAnnotations = true,
-                RespectRequiredConstructorParameters = true,
-            };
-
-            Measured measured = JsonSerializer.Deserialize<Measured>(json, options)
-                ?? throw new InvalidDataException("The message bytes are null.");
-
-            if (measured.Warmup != settings.Warmup || measured.Steps != settings.Steps)
-            {
-                throw new InvalidDataException(
-                    $"The message bytes were measured over {measured.Steps} steps after {measured.Warmup} to warm up, " +
-                    $"but the timing measures {settings.Steps} after {settings.Warmup}.");
-            }
-
-            Dictionary<(string Name, string Speed), CaseBytes> measuredCases = new Dictionary<(string Name, string Speed), CaseBytes>();
-
-            foreach (MeasuredCase measuredCase in measured.Cases)
-            {
-                if (!measuredCases.TryAdd((measuredCase.Name, measuredCase.Speed), new CaseBytes(measuredCase.BytesPerStep, measuredCase.Hash)))
-                {
-                    throw new InvalidDataException($"The message bytes measure {measuredCase.Name} at {measuredCase.Speed} twice.");
-                }
-            }
-
-            foreach (BenchmarkCase benchmarkCase in cases)
-            {
-                if (!measuredCases.ContainsKey((benchmarkCase.Name, benchmarkCase.SpeedName)))
-                {
-                    throw new InvalidDataException(
-                        $"The message bytes don't measure {benchmarkCase.Name} at {benchmarkCase.SpeedName}.");
-                }
-            }
-
-            if (measuredCases.Count != cases.Count)
-            {
-                throw new InvalidDataException("The message bytes measure a case the case list doesn't hold.");
-            }
-
-            return new MessageBytes(measuredCases);
+            return batch.Count == 0 ? 0 : Encoding.UTF8.GetByteCount(ProtocolJson.Serialize(StateBatchMessage.Of(batch)));
         }
-
-        public CaseBytes For(BenchmarkCase benchmarkCase)
-        {
-            return _cases[(benchmarkCase.Name, benchmarkCase.SpeedName)];
-        }
-
-        private sealed record Measured(int Warmup, int Steps, IReadOnlyList<MeasuredCase> Cases);
-
-        private sealed record MeasuredCase(string Name, string Speed, double BytesPerStep, string Hash);
     }
 }

@@ -11,7 +11,7 @@
  *
  */
 
-using System.Text.Json;
+using System.Globalization;
 using Micropolis.Rules;
 
 namespace Micropolis.Benchmarks.Tests
@@ -23,72 +23,42 @@ namespace Micropolis.Benchmarks.Tests
 
         private static readonly IReadOnlyList<BenchmarkCase> Cases = BenchmarkCases.All();
 
-        [TestMethod]
-        public void Run_Cases_WritesTheCaseList()
+        private static readonly FixtureCase Suburb = new FixtureCase("suburb", Speed.Medium, false);
+
+        // One run to standard output, which the tests of what it writes share, since each run takes every case
+        private static string _report = "";
+        private static string _progress = "";
+
+        [ClassInitialize]
+        public static void RunOnce(TestContext _)
         {
             StringWriter output = new StringWriter();
-
-            BenchmarkRunner.Run(new BenchmarkCommandLine(BenchmarkCommand.Cases, Brief, null, null), TextReader.Null, output,
-                                TextWriter.Null);
-
-            Assert.AreEqual(BenchmarkCases.ToJson(Cases, Brief), output.ToString().TrimEnd());
+            StringWriter progress = new StringWriter();
+            BenchmarkRunner.Run(new BenchmarkCommandLine(Brief, null), output, progress);
+            _report = output.ToString();
+            _progress = progress.ToString();
         }
 
         [TestMethod]
-        public void Run_Report_TablesARowEachCaseInOrder()
+        public void Run_Report_TablesEachCaseInOrder()
         {
-            string report = Report(null, TextReader.Null);
-
             CollectionAssert.AreEqual(Cases.Select(c => (c.Name, c.SpeedName)).ToList(),
-                                      TableRows(report).Select(row => (row[0], row[1])).ToList());
+                                      TableRows(_report).Select(row => (row[0], row[1])).ToList());
+        }
+
+        [TestMethod]
+        public void Run_Report_TablesACasesMessageBytes()
+        {
+            string bytes = MessageBytes.Measure(Cases[0], Brief).BytesPerStep.ToString("N1", CultureInfo.InvariantCulture);
+
+            Assert.AreEqual(bytes, TableRows(_report)[0][4]);
         }
 
         [TestMethod]
         public void Run_Report_NamesEachCaseOnProgressAsItStarts()
         {
-            StringWriter progress = new StringWriter();
-
-            BenchmarkRunner.Run(new BenchmarkCommandLine(BenchmarkCommand.Report, Brief, null, null), TextReader.Null,
-                                TextWriter.Null, progress);
-
             CollectionAssert.AreEqual(Cases.Select(c => $"Timing {c.Name} at {c.SpeedName}").ToList(),
-                                      progress.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList());
-        }
-
-        [TestMethod]
-        public void Run_ReportWithBytes_TablesEachCasesBytes()
-        {
-            string report = Report("-", new StringReader(Measured(Cases.Select(c => StateHashAfter(c, Brief)).ToList())));
-
-            CollectionAssert.AreEqual(Cases.Select((_, i) => (10.0 + i).ToString("N1", System.Globalization.CultureInfo.InvariantCulture)).ToList(),
-                                      TableRows(report).Select(row => row[4]).ToList());
-        }
-
-        [TestMethod]
-        public void Run_ReportWithBytesFromAFile_ReadsThem()
-        {
-            string path = Path.Combine(Path.GetTempPath(), $"message-bytes-{Guid.NewGuid()}.json");
-            File.WriteAllText(path, Measured(Cases.Select(c => StateHashAfter(c, Brief)).ToList()));
-
-            try
-            {
-                Assert.AreEqual("10.0", TableRows(Report(path, TextReader.Null))[0][4]);
-            }
-            finally
-            {
-                File.Delete(path);
-            }
-        }
-
-        [TestMethod]
-        public void Run_ReportWithBytesOfAnotherCity_FailsNamingTheCase()
-        {
-            string measured = Measured(Cases.Select(_ => new string('0', 64)).ToList());
-
-            InvalidDataException exception = Assert.ThrowsExactly<InvalidDataException>(
-                () => Report("-", new StringReader(measured)));
-
-            StringAssert.Contains(exception.Message, $"{Cases[0].Name} at {Cases[0].SpeedName} ends at the state hash");
+                                      _progress.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList());
         }
 
         [TestMethod]
@@ -99,8 +69,7 @@ namespace Micropolis.Benchmarks.Tests
 
             try
             {
-                BenchmarkRunner.Run(new BenchmarkCommandLine(BenchmarkCommand.Report, Brief, null, path), TextReader.Null, output,
-                                    TextWriter.Null);
+                BenchmarkRunner.Run(new BenchmarkCommandLine(Brief, path), output, TextWriter.Null);
 
                 Assert.AreEqual("", output.ToString());
                 StringAssert.StartsWith(File.ReadAllText(path), "# Benchmarks\n");
@@ -111,13 +80,20 @@ namespace Micropolis.Benchmarks.Tests
             }
         }
 
-        // The report written to standard output, with the message bytes read from the path given
-        private static string Report(string? messageBytesPath, TextReader input)
+        [TestMethod]
+        public void CheckOneCity_BothEndingAlike_Passes()
         {
-            StringWriter output = new StringWriter();
-            BenchmarkRunner.Run(new BenchmarkCommandLine(BenchmarkCommand.Report, Brief, messageBytesPath, null), input, output,
-                                TextWriter.Null);
-            return output.ToString();
+            BenchmarkRunner.CheckOneCity(Suburb, new CaseMeasurement(new StepTiming(1, 1), "a hash"), new CaseBytes(1, "a hash"));
+        }
+
+        [TestMethod]
+        public void CheckOneCity_BytesOfAnotherCity_FailsNamingTheCase()
+        {
+            InvalidDataException exception = Assert.ThrowsExactly<InvalidDataException>(
+                () => BenchmarkRunner.CheckOneCity(Suburb, new CaseMeasurement(new StepTiming(1, 1), "a hash"),
+                                                   new CaseBytes(1, "another hash")));
+
+            StringAssert.Contains(exception.Message, "suburb at medium ends at the state hash a hash where it was timed");
         }
 
         // The table's rows below its header, each as its cells
@@ -128,28 +104,6 @@ namespace Micropolis.Benchmarks.Tests
                 .Skip(1)
                 .Select(line => line.Trim('|').Split(" | ").Select(cell => cell.Trim()).ToArray())
                 .ToList();
-        }
-
-        // Message bytes for every case, the first measuring 10 bytes a step and each next one more, ending at the hashes given
-        private static string Measured(IReadOnlyList<string> hashes)
-        {
-            return JsonSerializer.Serialize(new
-            {
-                warmup = Brief.Warmup,
-                steps = Brief.Steps,
-                cases = Cases.Select((c, i) => new { name = c.Name, speed = c.SpeedName, bytesPerStep = 10.0 + i, hash = hashes[i] }),
-            });
-        }
-
-        private static string StateHashAfter(BenchmarkCase benchmarkCase, BenchmarkSettings settings)
-        {
-            Simulation city = benchmarkCase.Start();
-            for (int step = 0; step < settings.Warmup + settings.Steps; step++)
-            {
-                city.Step();
-            }
-
-            return StateHash.HashSavedState(city.Save());
         }
     }
 }

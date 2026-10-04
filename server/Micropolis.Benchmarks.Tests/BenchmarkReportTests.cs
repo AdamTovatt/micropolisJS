@@ -25,9 +25,9 @@ namespace Micropolis.Benchmarks.Tests
         private static readonly BenchmarkCase NewCity = new NewCityCase(0, Level.Easy, Speed.Fast);
 
         [TestMethod]
-        public void Write_WithBytes_SaysWhatWasMeasuredAndOnWhat()
+        public void Write_Report_SaysWhatWasMeasuredAndOnWhat()
         {
-            string report = BenchmarkReport.Write(Environment, new BenchmarkSettings(48, 96, 5), [], bytesMeasured: true);
+            string report = BenchmarkReport.Write(Environment, new BenchmarkSettings(48, 96, 5), []);
 
             StringAssert.Contains(report, "- Commit: 0123456789ab\n");
             StringAssert.Contains(report, "- Machine: a machine\n");
@@ -43,11 +43,11 @@ namespace Micropolis.Benchmarks.Tests
         {
             BenchmarkRow[] rows =
             [
-                new BenchmarkRow(Suburb, new StepTiming(1000, 1), null),
-                new BenchmarkRow(new FixtureCase("disasters", Speed.Medium, true), new StepTiming(1000, 1), null),
+                new BenchmarkRow(Suburb, new StepTiming(1000, 1), 10),
+                new BenchmarkRow(new FixtureCase("disasters", Speed.Medium, true), new StepTiming(1000, 1), 10),
             ];
 
-            string report = BenchmarkReport.Write(Environment, new BenchmarkSettings(48, 96, 5), rows, bytesMeasured: false);
+            string report = BenchmarkReport.Write(Environment, new BenchmarkSettings(48, 96, 5), rows);
 
             StringAssert.Contains(report, "at its saved speed; random disasters are on for disasters.");
         }
@@ -61,7 +61,7 @@ namespace Micropolis.Benchmarks.Tests
                 new BenchmarkRow(NewCity, new StepTiming(500, 2), 7),
             ];
 
-            string report = BenchmarkReport.Write(Environment, new BenchmarkSettings(48, 96, 1), rows, bytesMeasured: true);
+            string report = BenchmarkReport.Write(Environment, new BenchmarkSettings(48, 96, 1), rows);
 
             StringAssert.EndsWith(report,
                 "| Fixture | Speed | Steps/s | ms/step | Bytes/step |\n" +
@@ -69,17 +69,6 @@ namespace Micropolis.Benchmarks.Tests
                 "| suburb | medium | 12,346 | 0.0810 | 1,234.6 |\n" +
                 "| new city (seed 0) | fast | 500 | 2.0000 | 7.0 |\n");
             StringAssert.Contains(report, "the median of 1 repeat, ");
-        }
-
-        [TestMethod]
-        public void Write_WithoutBytes_SaysTheyWerentMeasured()
-        {
-            BenchmarkRow[] rows = [new BenchmarkRow(Suburb, new StepTiming(1000, 1), null)];
-
-            string report = BenchmarkReport.Write(Environment, new BenchmarkSettings(48, 96, 5), rows, bytesMeasured: false);
-
-            StringAssert.Contains(report, "- Bytes/step: not measured in this run.\n");
-            StringAssert.EndsWith(report, "| suburb | medium | 1,000 | 1.0000 | – |\n");
         }
     }
 }

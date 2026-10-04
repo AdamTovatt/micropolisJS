@@ -111,13 +111,5 @@ namespace Micropolis.Benchmarks.Tests
 
             StringAssert.Contains(exception.Message, "saved at Medium, but its case runs it at Fast");
         }
-
-        [TestMethod]
-        public void ToJson_ExampleCases_IsTheExampleCaseList()
-        {
-            JsonNode written = JsonNode.Parse(BenchmarkCases.ToJson(Examples.Cases, Examples.Settings))!;
-
-            Assert.IsTrue(JsonNode.DeepEquals(JsonNode.Parse(Examples.Read("caseList.json")), written), written.ToJsonString());
-        }
     }
 }

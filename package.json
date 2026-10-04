@@ -25,7 +25,7 @@
     "fixtures": "tsx headless/buildFixtures.ts",
     "conformance": "tsx conformance/generate.ts",
     "record": "tsx test/recordings/record.ts",
-    "benchmark": "tsx headless/benchmark.ts",
+    "benchmark": "dotnet run --project server/Micropolis.Benchmarks -c Release -- --output docs/benchmarks.md",
     "dev": "webpack serve --mode development",
     "production": "webpack serve --mode production"
   },
