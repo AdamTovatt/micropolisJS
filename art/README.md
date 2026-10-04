@@ -12,6 +12,7 @@ Sources for rendering the game's tile art in Blender, one zone or one set of sin
 - `blender/tilesets.py`: what the single-tile sets share: the land and water, and the shores, roads, rails and power lines that must meet where two tiles touch.
 - `blender/tiles/`: one script per set of single tiles, such as every road piece, rendering each tile id the set covers.
 - `blender/stadium.py`: the stands, pitch and game that the empty and the full stadium share.
+- `blender/vehicles/`: one script per vehicle sprite, rendering each of its frames.
 - `blender/out/`: rendered zones and tiles, one directory of layers each. Ignored by git: a render is rebuilt from its script.
 - `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), and previewing rendered zones side by side (`preview.py`).
 
@@ -59,6 +60,15 @@ blender --background --python art/blender/tiles/roads.py -- art/blender/out/road
 - `houses.py`: the single-tile houses a residential zone grows, 249 to 260.
 
 A set of edge tiles, such as the shores or the road pieces, is one scene with a variant for each pattern of neighbours the game gives it, in which everything that reaches the tile's edge meets it at the same place, width and height, and every ground texture and stain repeats a whole number of times across the tile, so any two tiles side by side join without a seam. Animated tiles are one tile id per frame.
+
+## Rendering a vehicle
+
+A script in `blender/vehicles/` renders a sprite's frames, numbered as the game numbers them (`src/*Sprite.js`), each into `art/blender/out/<vehicle>/<frame>/`, two digits; frame numbers after the directory render only those. A frame is three tiles square, as the original's 48 px cell, with the vehicle standing on its middle, and renders as two layers: `objects.png`, the vehicle over transparency, and `shadow.png`, its shadow on flat ground in the same frame. A vehicle that flies is built above the middle by its height, so the shear draws it up and to the right of where it is and its shadow falls away from it, and it reads as flying.
+
+- `train.py`: the railcar, sprite 1, frames 0 to 4.
+- `helicopter.py`: sprite 2, frames 0 to 7.
+- `airplane.py`: the airliner, sprite 3, frames 0 to 10.
+- `ship.py`: the cargo ship, sprite 4, frames 0 to 7.
 
 ## Layers
 

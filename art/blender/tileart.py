@@ -91,11 +91,11 @@ def concrete_yard(name='yard'):
     return weathered(mottled(name, 'aeaca6', '92908a', 8), dirt=0.25)
 
 
-def haze(name, hex_a, hex_b):
+def haze(name, hex_a, hex_b, alpha=0.8):
     # smoke: two greys in soft patches, and partly see-through, so a puff reads as a cloud and
-    # not as a stone
+    # not as a stone; a lower alpha for a blur barely there, such as a turning rotor
     m = mottled(name, hex_a, hex_b, scale=18, rough=1.0)
-    _bsdf(m).inputs['Alpha'].default_value = 0.8
+    _bsdf(m).inputs['Alpha'].default_value = alpha
     return m
 
 
@@ -322,6 +322,14 @@ def rotated_rect(x, y, width, depth, turn):
     return [(x + u * width / 2 * math.cos(a) - v * depth / 2 * math.sin(a),
              y + u * width / 2 * math.sin(a) + v * depth / 2 * math.cos(a))
             for (u, v) in [(-1, -1), (1, -1), (1, 1), (-1, 1)]]
+
+
+def along_rect(x, y, s0, s1, width, turn):
+    # the corners of a rectangle on a heading through (x, y): from s0 to s1 along the heading,
+    # width across it. turn 0 heads north, turning anticlockwise in degrees, as car() does
+    a = math.radians(turn)
+    s = (s0 + s1) / 2
+    return rotated_rect(x - math.sin(a) * s, y + math.cos(a) * s, width, s1 - s0, turn)
 
 
 def _card(cutout, x, y, height, length, turn=0):
@@ -800,6 +808,8 @@ def spans_edge(ob):
 def _shear_scene(scene, tiles):
     # Shear every point up and to the right by its height, then fail if anything the camera
     # sees stands past the zone's edge: the game draws each tile on its own, so it would be cut off.
+    if not scene.objects:
+        return    # an empty frame, such as the train's while it is under water
     bpy.ops.object.select_all(action='SELECT')
     bpy.context.view_layer.objects.active = bpy.context.selected_objects[0]
     bpy.ops.object.convert(target='MESH')
@@ -891,6 +901,33 @@ def _stage(scene, samples, sun_azimuth, sun_elevation, sun_colour, sun_strength,
     scene.view_settings.view_transform = 'AgX'
     scene.view_settings.look = 'AgX - Punchy'
     return cam
+
+
+def render_sprite(scene, out_dir, tiles=3, samples=192,
+                  sun_azimuth=300, sun_elevation=35, sun_colour=(1.0, 0.88, 0.72), sun_strength=5.5,
+                  sky_strength=0.17):
+    # Render one frame of a vehicle, built round the middle of a frame `tiles` tiles square, lit
+    # and sheared as a zone is, into out_dir as two layers:
+    #   objects.png  the vehicle over transparency
+    #   shadow.png   black whose alpha is the shadow it casts onto flat ground, within the same
+    #                frame: a flying vehicle's falls away from it by its height
+    # The fit check holds the vehicle inside the frame; its shadow must fit as well, which the
+    # scene sees to by how high it flies.
+    _shear_scene(scene, tiles)
+    meshes = [ob for ob in scene.objects if ob.type == 'MESH']
+    cam = _stage(scene, samples, sun_azimuth, sun_elevation, sun_colour, sun_strength, sky_strength)
+    os.makedirs(out_dir, exist_ok=True)
+    _frame(scene, cam, 0, 0, tiles, tiles)
+    scene.render.film_transparent = True
+    _render_to(scene, os.path.join(out_dir, 'objects.png'))
+    for ob in meshes:
+        ob.visible_camera = False
+    catcher = box(-1, -1, -0.01, tiles + 1, tiles + 1, 0.0, plain('catcher', '808080'), name='catcher')
+    catcher.is_shadow_catcher = True
+    _render_to(scene, os.path.join(out_dir, 'shadow.png'))
+    with open(os.path.join(out_dir, 'layers.json'), 'w') as f:
+        json.dump({'tiles': tiles, 'tile_px': TILE_PX}, f, indent=2)
+        f.write('\n')
 
 
 def render(scene, out_dir, tiles, samples=192,
@@ -985,6 +1022,20 @@ def render_tiles(script, builders):
         scene = new_scene()
         build()
         render(scene, os.path.join(out, f'{tile:04d}'), tiles=1)
+
+
+def render_sprites(script, builders, tiles=3):
+    # Render a vehicle's frames: builders maps each frame, numbered as the game numbers the
+    # sprite's frames from 0, to a function that builds it from nothing, standing on the middle
+    # of a frame `tiles` tiles square. Each renders through render_sprite() into
+    # <out>/<frame, two digits>; frame numbers after the directory render only those.
+    out, wanted = out_dir(script), _wanted()
+    for frame, build in sorted(builders.items()):
+        if wanted is not None and frame not in wanted:
+            continue
+        scene = new_scene()
+        build()
+        render_sprite(scene, os.path.join(out, f'{frame:02d}'), tiles=tiles)
 
 
 def render_animated(script, build, frames, tiles=3):
