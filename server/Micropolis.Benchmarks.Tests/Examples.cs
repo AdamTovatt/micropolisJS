@@ -11,8 +11,8 @@
  *
  */
 
-using Micropolis.Repository;
 using Micropolis.Rules;
+using Micropolis.SourceTree;
 
 namespace Micropolis.Benchmarks.Tests
 {

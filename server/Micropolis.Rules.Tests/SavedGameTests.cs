@@ -13,7 +13,7 @@
 
 using System.Globalization;
 using System.Text.Json.Nodes;
-using Micropolis.Repository;
+using Micropolis.SourceTree;
 
 namespace Micropolis.Rules.Tests
 {

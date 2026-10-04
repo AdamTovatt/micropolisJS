@@ -14,7 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Micropolis.Benchmarks\Micropolis.Benchmarks.csproj" />
-    <ProjectReference Include="..\Micropolis.Repository\Micropolis.Repository.csproj" />
+    <ProjectReference Include="..\Micropolis.SourceTree\Micropolis.SourceTree.csproj" />
   </ItemGroup>
 
 </Project>

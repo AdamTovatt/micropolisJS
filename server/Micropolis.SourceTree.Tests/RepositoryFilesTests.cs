@@ -11,7 +11,7 @@
  *
  */
 
-namespace Micropolis.Repository.Tests
+namespace Micropolis.SourceTree.Tests
 {
     [TestClass]
     public sealed class RepositoryFilesTests

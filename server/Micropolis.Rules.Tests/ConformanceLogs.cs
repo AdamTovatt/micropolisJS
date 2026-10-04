@@ -13,7 +13,7 @@
 
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using Micropolis.Repository;
+using Micropolis.SourceTree;
 using static Micropolis.Rules.Tests.ConformanceJson;
 
 namespace Micropolis.Rules.Tests

@@ -13,7 +13,7 @@
 
 using System.Reflection;
 
-namespace Micropolis.Repository
+namespace Micropolis.SourceTree
 {
     /// <summary>
     /// Files of the repository the build was made in, such as those the C# and TypeScript tests share, read in place

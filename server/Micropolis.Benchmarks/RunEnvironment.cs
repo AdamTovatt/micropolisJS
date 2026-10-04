@@ -13,7 +13,7 @@
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using Micropolis.Repository;
+using Micropolis.SourceTree;
 
 namespace Micropolis.Benchmarks
 {
