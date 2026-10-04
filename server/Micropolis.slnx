@@ -1,4 +1,6 @@
 <Solution>
+  <Project Path="Micropolis.Benchmarks/Micropolis.Benchmarks.csproj" />
+  <Project Path="Micropolis.Benchmarks.Tests/Micropolis.Benchmarks.Tests.csproj" />
   <Project Path="Micropolis.Rules/Micropolis.Rules.csproj" />
   <Project Path="Micropolis.Rules.Tests/Micropolis.Rules.Tests.csproj" />
   <Project Path="Micropolis.Server/Micropolis.Server.csproj" />

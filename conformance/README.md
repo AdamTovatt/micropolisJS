@@ -92,6 +92,9 @@ log (`headless/fixtures/`) is replayed: `<fixture>.built.json` at its first chec
 so its SHA-256 is the state hash, and the generator fails unless the replay matches the fixture's golden hashes up to
 that checkpoint. `checkpoints.json` lists the step of each fixture's built and run checkpoints.
 
+The benchmark (`server/Micropolis.Benchmarks`) reads them too: it takes its fixtures from `checkpoints.json`, and runs
+each from its `<fixture>.run.json`.
+
 ### helpers.json
 
 What the helpers the tile handlers share answered in the TypeScript:
