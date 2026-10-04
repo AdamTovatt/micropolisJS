@@ -45,7 +45,6 @@ function barElement() {
     let click: (e: {preventDefault(): void}) => void = () => {};
 
     const element: FakeBar = {
-        textContent: "",
         style: {display: ""},
         ownerDocument: styledBy("block"),
         classList: {
@@ -82,10 +81,26 @@ describe("the notification bar", () => {
 
     function bar() {
         const element = barElement();
+        const text = {textContent: null as string | null};
+        const goThere = barElement().element;
         const centred: {x: number, y: number}[] = [];
-        const notifications = new NotificationBar(element.element, {centreOn: (x, y) => centred.push({x, y})});
-        return {...element, centred, bar: notifications};
+        const notifications = new NotificationBar({bar: element.element, text, goThere},
+                                                  {centreOn: (x, y) => centred.push({x, y})});
+        return {...element, text, goThere, centred, bar: notifications};
     }
+
+    it("says Go there beside a message with a place, and not beside one without or an offer", () => {
+        const {bar: notifications, goThere} = bar();
+
+        notifications.show({subject: Messages.FIRE_REPORTED, data: {x: 31, y: 61}});
+        const linked = goThere.style.display;
+        notifications.show({subject: Messages.NEED_AIRPORT});
+        const unlinked = goThere.style.display;
+        notifications.dismiss();
+        notifications.offer({subject: Messages.FIRE_REPORTED, data: {x: 31, y: 61}}, () => true);
+
+        expect([linked, unlinked, goThere.style.display]).toEqual(["", "none", "none"]);
+    });
 
     it("starts hidden", () => {
         const {element} = bar();
@@ -94,11 +109,11 @@ describe("the notification bar", () => {
     });
 
     it("shows a message's text in its tone alone", () => {
-        const {bar: notifications, element, classes} = bar();
+        const {bar: notifications, element, text, classes} = bar();
 
         notifications.show({subject: Messages.REACHED_TOWN});
 
-        expect([element.textContent, element.style.display, classes()])
+        expect([text.textContent, element.style.display, classes()])
             .toEqual(["Now a town! Population has reached 2,000", "", ["good"]]);
     });
 
@@ -122,11 +137,11 @@ describe("the notification bar", () => {
     });
 
     it("offers an action under a message without a place, and is a pointer", () => {
-        const {bar: notifications, element, classes} = bar();
+        const {bar: notifications, element, text, classes} = bar();
 
         notifications.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => true);
 
-        expect([element.textContent, element.style.display, classes()])
+        expect([text.textContent, element.style.display, classes()])
             .toEqual(["Year-end budget ready: click to review", "", ["neutral", "pointer"]]);
     });
 
@@ -159,24 +174,24 @@ describe("the notification bar", () => {
     });
 
     it("takes no message's place with an offer", () => {
-        const {bar: notifications, element, click} = bar();
+        const {bar: notifications, text, click} = bar();
         let runs = 0;
 
         notifications.show({subject: Messages.NO_MONEY});
         notifications.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => ++runs > 0);
         click();
 
-        expect([element.textContent, runs]).toEqual(["YOUR CITY HAS GONE BROKE", 0]);
+        expect([text.textContent, runs]).toEqual(["YOUR CITY HAS GONE BROKE", 0]);
     });
 
     it("offers once the message before has hidden", () => {
-        const {bar: notifications, element} = bar();
+        const {bar: notifications, element, text} = bar();
 
         notifications.show({subject: Messages.NEED_AIRPORT});
         jest.advanceTimersByTime(30 * 1000);
         notifications.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => true);
 
-        expect([element.textContent, element.style.display])
+        expect([text.textContent, element.style.display])
             .toEqual(["Year-end budget ready: click to review", ""]);
     });
 

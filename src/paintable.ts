@@ -12,6 +12,7 @@
  */
 
 import type { SpriteView } from "./protocol";
+import type { TilePoint } from "./viewPosition";
 
 // What the views of the map read of it and of its sprites: the map's canvas and the monster TV's
 
@@ -51,6 +52,15 @@ export function spriteTiles(sprite: PaintableSprite, originX: number, originY: n
     y: Math.floor(top / SPRITE_PIXELS_PER_TILE),
     yBound: Math.ceil((top + sprite.width) / SPRITE_PIXELS_PER_TILE),
   };
+}
+
+// The map tile under the middle of the square a sprite is drawn in, which a view centres on: what the player sees of
+// the sprite. For most sprites it is the tile the sprite is at; a tornado's funnel rises from its position, and the
+// middle of it is a tile above.
+export function spriteTile(sprite: PaintableSprite): TilePoint {
+  const middle = sprite.width / 2;
+  return {x: Math.floor((sprite.x + middle) / SPRITE_PIXELS_PER_TILE),
+          y: Math.floor((sprite.y + middle) / SPRITE_PIXELS_PER_TILE)};
 }
 
 // The sprites any part of whose square shows in the view whose top-left tile is (originX, originY), pixelWidth by

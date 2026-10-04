@@ -21,6 +21,8 @@
 /* How far the top panels sit below the map's top edge, and the notification bar above its bottom edge */
 :root {
   --panel-margin: 40px;
+  /* The demand meter's top, which the minimap goes under */
+  --rci-top: 472px;
 }
 
 @font-face {
@@ -475,7 +477,7 @@ main {
 
 #RCIContainer {
   position: absolute;
-  top: 472px;
+  top: var(--rci-top);
   width: 140px;
   height: 140px;
   margin: 0px;
@@ -819,6 +821,7 @@ main {
 @media (max-height: 702px) {
   :root {
     --panel-margin: 30px;
+    --rci-top: 442px;
   }
 
   #debug {
@@ -833,10 +836,6 @@ main {
     top: 230px;
   }
 
-  #RCIContainer {
-    top: 442px;
-  }
-
   #statusPanel {
     top: 310px;
   }
@@ -845,6 +844,7 @@ main {
 @media (max-height: 672px) {
   :root {
     --panel-margin: 20px;
+    --rci-top: 412px;
   }
 
   #debug {
@@ -857,10 +857,6 @@ main {
 
   #miscButtons {
     top: 210px;
-  }
-
-  #RCIContainer {
-    top: 412px;
   }
 
   #statusPanel {
@@ -878,6 +874,7 @@ main {
 
   :root {
     --panel-margin: 10px;
+    --rci-top: 382px;
   }
 
   #debug {
@@ -892,10 +889,6 @@ main {
     top: 274px;
   }
 
-  #RCIContainer {
-    top: 382px;
-  }
-
   #statusPanel {
     top: 270px;
     max-height: 160px;
@@ -905,6 +898,7 @@ main {
 @media (max-height: 612px) {
   :root {
     --panel-margin: 0px;
+    --rci-top: 352px;
   }
 
   #debug {
@@ -917,10 +911,6 @@ main {
 
   #monstertv {
     top: 220px;
-  }
-
-  #RCIContainer {
-    top: 352px;
   }
 
   #statusPanel {
@@ -1136,4 +1126,111 @@ footer a, footer a:link, footer a:visited, footer a:hover {
    tops instead */
 #evalWindow .evalItem {
   vertical-align: top;
+}
+
+/* Getting around the map: the minimap under the demand meter, the "Go there" of news with a place, and the Last event
+   button beside the notification bar */
+
+:root {
+  /* The minimap's top: 20px under the demand meter, which is 140px tall with 10px of padding each side and moves up
+     as the window gets shorter */
+  --minimap-top: calc(var(--rci-top) + 180px);
+}
+
+#minimap {
+  position: absolute;
+  top: var(--minimap-top);
+  width: 140px;
+  padding: 6px 10px 10px;
+}
+
+#minimapHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+#minimapToggle {
+  width: auto;
+  padding: 0 8px;
+  background-color: darkslategray;
+  color: white;
+  font-size: 12px;
+}
+
+/* Wrapped close round the canvas, so the view's rectangle is placed in fractions of the canvas */
+#minimapFrame {
+  position: relative;
+  width: fit-content;
+  margin: 6px auto 0;
+  line-height: 0;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+/* The canvas has two pixels a tile, scaled down to the column's width without smoothing, and further, keeping its
+   shape, where the window is too short for it */
+#minimapCanvas {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 140px;
+  max-height: calc(100vh - var(--minimap-top) - 50px);
+  image-rendering: pixelated;
+}
+
+#minimapView {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid white;
+  outline: 1px solid black;
+  pointer-events: none;
+}
+
+#notifications {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#notifications .notificationText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#notifications .notificationGoThere {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-family: sans-serif;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+/* Shown once some news has had a place. The bar is 400px wide, with 10px of padding and a border each side. */
+#lastEvent {
+  display: none;
+  position: absolute;
+  bottom: var(--panel-margin);
+  left: calc(50% + 221px);
+  width: 100px;
+  height: 41px;
+  border: 1px solid black;
+  background-color: mintcream;
+  color: black;
+}
+
+/* The bar keeps to the right of a narrow window, and the button sits over it */
+@media (max-width: 850px) {
+  #lastEvent {
+    left: unset;
+    right: 0;
+    bottom: calc(var(--panel-margin) + 51px);
+  }
 }

@@ -29,6 +29,34 @@ export interface MapArt {
   atlases: ReadonlyMap<string, AtlasImage>;
 }
 
+// An image's pixels, row by row, four bytes each: red, green, blue and alpha
+export interface Pixels {
+  readonly data: Uint8ClampedArray;
+  readonly width: number;
+  readonly height: number;
+}
+
+// The pixels of the 16 px tile set, images/tiles.png, which the art holds as its fallback tiles' atlas
+export function tileSetPixels(mapArt: MapArt): Pixels {
+  const tiles = mapArt.atlases.get(FALLBACK_TILES);
+  if (tiles === undefined) {
+    throw new Error("The map's art holds no tile set");
+  }
+
+  const image = tiles.image;
+  if (image instanceof ImageData) {
+    return image;
+  }
+
+  // Read through a canvas
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext("2d")!;
+  context.drawImage(image, 0, 0);
+  return context.getImageData(0, 0, image.width, image.height);
+}
+
 async function loadImage(url: URL): Promise<HTMLImageElement> {
   const image = new Image();
   image.src = url.href;

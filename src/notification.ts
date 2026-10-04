@@ -11,13 +11,13 @@
  *
  */
 
-import { Displayable, requiredElement, setShown } from "./domElements";
+import { Displayable, appendElement, requiredElement, setShown } from "./domElements";
 import { MessageTone, Text } from "./text";
 import type { TilePoint } from "./viewPosition";
 
 // The bar along the bottom of the map that announces a message for a while, coloured by its tone. A message about a
-// place on the map is a link: clicking the bar centres the map there. An offer, such as the year-end budget's, is a
-// message with an action of its own, which clicking the bar runs instead.
+// place on the map is a link, which the bar says beside the text: clicking the bar centres the map there. An offer,
+// such as the year-end budget's, is a message with an action of its own, which clicking the bar runs instead.
 
 const ELEMENT_ID = "notifications";
 const TIMEOUT_SECS = 30;
@@ -41,9 +41,16 @@ export interface CentringMap {
   centreOn(x: number, y: number): void;
 }
 
+// The parts of the bar: its element, an E, the element its text shows in, and the "Go there" the bar shows beside the
+// text of a message that links to a place
+export interface BarParts<E extends BarElement<E>> {
+  bar: E;
+  text: {textContent: string | null};
+  goThere: E;
+}
+
 // What the bar reads and writes of its element, an E
 export interface BarElement<E> extends Displayable<E> {
-  textContent: string | null;
   readonly classList: {
     add(token: string): void;
     remove(...tokens: string[]): void;
@@ -71,8 +78,8 @@ export class NotificationBar<E extends BarElement<E>> {
   // What a click on an offer does, which says whether it was done, or null when the bar shows news
   private action: (() => boolean) | null = null;
 
-  constructor(private readonly element: E, private readonly map: CentringMap) {
-    this.element.addEventListener("click", (e) => {
+  constructor(private readonly parts: BarParts<E>, private readonly map: CentringMap) {
+    this.parts.bar.addEventListener("click", (e) => {
       e.preventDefault();
 
       if (this.action !== null) {
@@ -112,14 +119,15 @@ export class NotificationBar<E extends BarElement<E>> {
 
     this.cancelTimeout();
 
-    this.element.classList.remove(...TONES);
-    this.element.classList.add(view.tone);
-    this.element.classList.toggle("pointer", action !== null || view.link !== null);
-    this.element.textContent = view.text;
+    this.parts.bar.classList.remove(...TONES);
+    this.parts.bar.classList.add(view.tone);
+    this.parts.bar.classList.toggle("pointer", action !== null || view.link !== null);
+    this.parts.text.textContent = view.text;
+    setShown(this.parts.goThere, action === null && view.link !== null);
     this.link = view.link;
     this.action = action;
 
-    setShown(this.element, true);
+    setShown(this.parts.bar, true);
 
     this.timeout = setTimeout(() => {
       this.timeout = null;
@@ -135,11 +143,15 @@ export class NotificationBar<E extends BarElement<E>> {
   }
 
   private close(): void {
-    setShown(this.element, false);
+    setShown(this.parts.bar, false);
   }
 }
 
-// The bar in the page's notification element
+// The bar in the page's notification element, its text and "Go there" made in it
 export function placeNotificationBar(map: CentringMap): NotificationBar<HTMLElement> {
-  return new NotificationBar(requiredElement(ELEMENT_ID), map);
+  const bar = requiredElement(ELEMENT_ID);
+  const text = appendElement(bar, "span", "notificationText");
+  const goThere = appendElement(bar, "span", "notificationGoThere");
+  goThere.textContent = "Go there";
+  return new NotificationBar({bar, text, goThere}, map);
 }

@@ -11,7 +11,8 @@
  *
  */
 
-import { SpriteFollower, ViewState, isOutOfView, renderView, spriteTile } from "../src/monsterTV";
+import { SpriteFollower, ViewState, isOutOfView, renderView } from "../src/monsterTV";
+import { spriteTile } from "../src/paintable";
 import type { ViewElement } from "../src/monsterTV";
 import { SpriteView } from "../src/protocol";
 import { SPRITE_MONSTER, SPRITE_TORNADO, SPRITE_TRAIN } from "../src/spriteConstants";

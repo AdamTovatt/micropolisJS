@@ -12,8 +12,8 @@
  */
 
 import * as Messages from "../src/messages";
-import { NewsHold, routeMessage } from "../src/news";
-import { SPRITE_MONSTER } from "../src/spriteConstants";
+import { LastEvent, NewsHold, routeMessage } from "../src/news";
+import { SPRITE_MONSTER, SPRITE_TORNADO } from "../src/spriteConstants";
 
 const SECOND = 1000;
 const HOLD = 20 * SECOND;
@@ -148,5 +148,52 @@ describe("where a message goes", () => {
 
         expect(routeMessage({type: "news", subject: "noSuchSubject", data}, new NewsHold(), 0))
             .toEqual({notify: false, tv: data, unknown: true});
+    });
+});
+
+describe("the last event", () => {
+
+    // A sprite of the type, drawn in a square of 48 map pixels from (x, y), 16 a tile
+    const spriteAt = (type: number, x: number, y: number) => ({type, frame: 1, x, y, width: 48});
+
+    it("knows no place before any news has one", () => {
+        const last = new LastEvent();
+        last.heard({type: "news", subject: Messages.NEED_STADIUM});
+
+        expect([last.known, last.where([])]).toEqual([false, null]);
+    });
+
+    it("is the place of the latest news that had one", () => {
+        const last = new LastEvent();
+        last.heard({type: "news", subject: Messages.FIRE_REPORTED, data: {x: 1, y: 2, showable: true}});
+        last.heard({type: "news", subject: Messages.HIGH_POLLUTION, data: {x: 30, y: 40}});
+        last.heard({type: "news", subject: Messages.NEED_STADIUM});
+
+        expect([last.known, last.where([])]).toEqual([true, {x: 30, y: 40}]);
+    });
+
+    it("is where the sprite the news follows is now, while one of its type is on the map", () => {
+        const last = new LastEvent();
+        last.heard({type: "news", subject: Messages.MONSTER_SIGHTED,
+                    data: {x: 1, y: 2, trackable: true, sprite: SPRITE_MONSTER}});
+
+        // The middle of the monster's square, (100 + 24, 200 + 24) map pixels
+        expect(last.where([spriteAt(SPRITE_TORNADO, 0, 0), spriteAt(SPRITE_MONSTER, 100, 200)]))
+            .toEqual({x: 7, y: 14});
+    });
+
+    it("is the news's place once no sprite of the type it follows is on the map", () => {
+        const last = new LastEvent();
+        last.heard({type: "news", subject: Messages.MONSTER_SIGHTED,
+                    data: {x: 1, y: 2, trackable: true, sprite: SPRITE_MONSTER}});
+
+        expect(last.where([spriteAt(SPRITE_TORNADO, 0, 0)])).toEqual({x: 1, y: 2});
+    });
+
+    it("follows no sprite for news that only shows a place", () => {
+        const last = new LastEvent();
+        last.heard({type: "news", subject: Messages.FIRE_REPORTED, data: {x: 1, y: 2, showable: true}});
+
+        expect(last.where([spriteAt(SPRITE_MONSTER, 100, 200)])).toEqual({x: 1, y: 2});
     });
 });

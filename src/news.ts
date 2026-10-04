@@ -12,8 +12,10 @@
  */
 
 import { CRASHES, DISASTER_MESSAGES, EXPLOSION_REPORTED } from "./messages";
-import type { NewsMessage, ShowablePlace, TrackablePlace } from "./protocol";
+import { spriteTile } from "./paintable";
+import type { NewsMessage, NewsPlace, ShowablePlace, SpriteView, TrackablePlace } from "./protocol";
 import { MessageTone, Text } from "./text";
+import type { TilePoint } from "./viewPosition";
 
 // What becomes of a message the simulation sends for the player: whether the notification bar announces it, and
 // whether the monster TV shows where it happened
@@ -81,4 +83,39 @@ export function routeMessage(message: NewsMessage, hold: NewsHold, now: number):
   }
 
   return {notify: hold.shows(subject, tone, now), tv, unknown: false};
+}
+
+// Where the last news with a place happened, which the Last event button takes the view to, so the player finds it
+// again after the notification bar has moved on: the place, and the type of the sprite the news follows, a monster or a
+// tornado, or null
+export class LastEvent {
+  private place: NewsPlace | null = null;
+  private sprite: number | null = null;
+
+  // Remembers the message's place, if it has one, in place of the last
+  heard(message: NewsMessage): void {
+    const data = message.data;
+    if (data === undefined) {
+      return;
+    }
+
+    this.place = {x: data.x, y: data.y};
+    this.sprite = "trackable" in data ? data.sprite : null;
+  }
+
+  // Whether any news has had a place
+  get known(): boolean {
+    return this.place !== null;
+  }
+
+  // The tile to centre the view on, or null before any news with a place: where the sprite the news follows is now,
+  // while one of its type is on the map, and otherwise where the news happened
+  where(sprites: readonly SpriteView[]): TilePoint | null {
+    if (this.place === null) {
+      return null;
+    }
+
+    const sprite = this.sprite === null ? undefined : sprites.find((candidate) => candidate.type === this.sprite);
+    return sprite === undefined ? this.place : spriteTile(sprite);
+  }
 }

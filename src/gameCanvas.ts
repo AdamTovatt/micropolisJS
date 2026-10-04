@@ -149,6 +149,11 @@ class GameCanvas {
     return this.painter.current;
   }
 
+  // The tiles the view shows across and down, those at its far edges in part
+  get tilesInView(): TilePoint {
+    return {x: this.width / this.zoom, y: this.height / this.zoom};
+  }
+
   // The map pixels the view shows across and down, at 16 a tile, as sprites are positioned
   get mapPixelWidth(): number {
     return this.width * SPRITE_PIXELS_PER_TILE / this.zoom;
@@ -158,20 +163,9 @@ class GameCanvas {
     return this.height * SPRITE_PIXELS_PER_TILE / this.zoom;
   }
 
-  moveNorth(): void {
-    this.position.moveNorth();
-  }
-
-  moveEast(): void {
-    this.position.moveEast();
-  }
-
-  moveSouth(): void {
-    this.position.moveSouth();
-  }
-
-  moveWest(): void {
-    this.position.moveWest();
+  // Moves the view the whole tiles given across and down, as far as the map's edges
+  scrollBy(tilesX: number, tilesY: number): void {
+    this.position.scrollBy(tilesX, tilesY);
   }
 
   centreOn(x: number, y: number): void {
@@ -254,8 +248,8 @@ class GameCanvas {
 
   // Paints the map, then the outlines in order, each over the last, then the sprites
   paint(outlines: readonly MouseOutline[], sprites: readonly PaintableSprite[], isPaused?: boolean): void {
-    // Recompute our dimensions if there has been a resize since last paint. The origin stays where it is until it next
-    // moves.
+    // Recompute our dimensions if there has been a resize since last paint. The origin stays where it is, as far as the
+    // new size's limits allow.
     if (this.pendingDimensionChange) {
       this.fitContainer();
       this.position.viewport = this.viewportAt(this.zoom);
@@ -308,7 +302,7 @@ class GameCanvas {
   }
 
   private viewportAt(zoom: number): Viewport {
-    return viewport(this.width, this.height, zoom, this.map.width, this.map.height, true);
+    return viewport(this.width, this.height, zoom, this.map.width, this.map.height);
   }
 
   // Sizes the canvases to fill their container on-screen

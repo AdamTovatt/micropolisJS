@@ -137,6 +137,16 @@
           </div>
         </div>
         <div id="RCIContainer" class="controlShadow leftedge width140 padding10 mintcream z1 initialHidden"></div>
+        <div id="minimap" class="controlShadow leftedge mintcream z1 open initialHidden">
+          <div id="minimapHeader">
+            <span>Map</span>
+            <button id="minimapToggle" title="Hide or show the map (M)" aria-controls="minimapFrame">Hide</button>
+          </div>
+          <div id="minimapFrame" title="Click or drag to move the view">
+            <canvas id="minimapCanvas"></canvas>
+            <div id="minimapView"></div>
+          </div>
+        </div>
         <div id="controls" class="controlShadow mintcream z1 initialHidden rightedge open">
           <div id="toolInfo" class="alignCenter">Tools</div>
           <div id="buttons">
@@ -178,6 +188,7 @@
         </div>
         <div id="toolToast" class="initialHidden" role="status" aria-live="polite"></div>
         <div id="notifications" class="initialHidden centredAcross neutral z1 alignCenter elided padding10 controlShadow"></div>
+        <button id="lastEvent" class="z1 open controlShadow" title="Centre the view on the last news that happened somewhere">Last event</button>
         <div id="tooSmall" data-hasscript="false" class="mintcream open"><div id="tooSmallInner" class="alignCenter padding10"><h2 class="chunk">Uh-oh!</h2><p>This screen is too small&mdash;I won't be able to fit in all the controls, buttons and gizmos! Sorry!</p></div></div>
         <noscript>
           <div id="noscript" class="open mintcream centred padding10">
