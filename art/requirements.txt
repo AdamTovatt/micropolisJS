@@ -1,0 +1,7 @@
+# The art tools' packages (art/tools/), at the versions they are built and tested with, installed
+# into a virtual environment with pip install -r art/requirements.txt. The atlas build's committed
+# output is checked against these: another Pillow may resample differently.
+pillow==12.3.0
+numpy==2.5.3
+scipy==1.18.1
+pytest==9.1.1

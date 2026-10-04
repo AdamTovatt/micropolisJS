@@ -10,7 +10,7 @@ The pipeline's layout, conventions and tools are in `art/README.md`, the texture
 ## Setup
 
 - **Blender.** On an ARM Linux machine, install Ubuntu's package (`sudo apt install blender`): Blender ships no ARM Linux build, and the `bpy` wheel and the snap have none either. That build lacks OpenImageDenoise, so `render()` turns denoising off; never turn it on.
-- **Python tools.** `art/tools/*.py` need Pillow, NumPy and SciPy, which neither the system Python nor Blender's own has. Make a virtualenv in the scratchpad (`python3 -m venv`, `pip install pillow numpy scipy`) and run the tools with it.
+- **Python tools.** `art/tools/*.py` need the packages pinned in `art/requirements.txt`, which neither the system Python nor Blender's own has. Make a virtualenv in the scratchpad (`python3 -m venv`, `pip install -r art/requirements.txt`) and run the tools and their tests with it.
 - **Image generation.** `art/tools/generate.py` makes textures, sprite sheets and reference sheets from a prompt with Gemini's image model, and reads the API key from `GEMINI_API_KEY`. On Adam's machine the key is in `~/.config/gemini.env`: `set -a; . ~/.config/gemini.env; set +a` before running it, and never print the key or put it in the repository.
 - **Time.** A zone takes from half a minute to a minute and a half on 16 cores; the shadow pass of a tall building is the slow part.
 
@@ -56,6 +56,6 @@ The pipeline's layout, conventions and tools are in `art/README.md`, the texture
 
 ## Where this leads
 
-The layers are made for the client to composite: every zone's ground, then the shadows merged by their darkest value, then every zone's objects. The client draws them from a manifest and atlases in `images/render/`, which `docs/render-assets.md` specifies: how a zone's layers are cut into tiles, and how its `shadow_margin` becomes the shadow's reach. `art/tools/atlas.py` builds them (`art/README.md`); a new design gets its tile ids in its `ZONES`, and a new animation its frames' ids in `FRAMES`.
+The layers are made for the client to composite: every zone's ground, then the shadows merged by their darkest value, then every zone's objects. The client draws them from a manifest and atlases in `images/render/`, which `docs/render-assets.md` specifies: how a zone's layers are cut into tiles, and how its `shadow_margin` becomes the shadow's reach. `art/tools/atlas.py` builds them (`art/README.md`); a new design gets its tile ids in `ZONES` in `art/tools/designs.py`, and a new animation its frames' ids in `FRAMES` there.
 
 The original's zone tiles map onto these scenes as follows. A 3×3 zone is nine consecutive tile ids, in rows from its top-left (`src/buildingTool.js`). The populated residential zones start at 261, the populated commercial zones at 432, nine ids apart (names in `src/tileValues.ts`), and the single-tile houses are 249 to 260.

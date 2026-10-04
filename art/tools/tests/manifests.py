@@ -1,0 +1,33 @@
+# micropolisJS. Adapted by Graeme McCutcheon from Micropolis.
+#
+# This code is released under the GNU GPL v3, with some additional terms.
+# Please see the files LICENSE and COPYING for details. Alternatively,
+# consult http://micropolisjs.graememcc.co.uk/LICENSE and
+# http://micropolisjs.graememcc.co.uk/COPYING
+#
+# The name/term "MICROPOLIS" is a registered trademark of Micropolis (https://www.micropolis.com) GmbH
+# (Micropolis Corporation, the "licensor") and is licensed here to the authors/publishers of the "Micropolis"
+# city simulation game and its source code (the project or "licensee(s)") as a courtesy of the owner.
+#
+
+"""Reading a manifest (docs/render-assets.md) for the tests."""
+
+import json
+import os
+
+
+def read(render):
+    # the manifest in a directory of atlases
+    with open(os.path.join(render, 'manifest.json')) as f:
+        return json.load(f)
+
+
+def rectangles(manifest):
+    # every rectangle the manifest names, with what it draws: 'tile <id> <layer>' or
+    # 'sprite <type> frame <frame>'
+    for tile, layers in manifest['tiles'].items():
+        for layer, rect in layers.items():
+            yield f'tile {tile} {layer}', rect
+    for sprite_type, frames in manifest['sprites'].items():
+        for frame, rect in frames.items():
+            yield f'sprite {sprite_type} frame {frame}', rect

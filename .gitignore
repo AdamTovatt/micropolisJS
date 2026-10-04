@@ -13,3 +13,4 @@ server/**/obj/
 conformance/random
 art/blender/out/
 __pycache__/
+.pytest_cache/

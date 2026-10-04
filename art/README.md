@@ -4,7 +4,7 @@ Sources for rendering the game's tile art in Blender, one zone or one set of sin
 
 - `references/`: concept sheets of whole zones that the scenes are modelled on, described in `references/README.md`.
 - `textures/`: seamless surface textures (roofs, paving, glass, grass). Their rules and provenance are in `textures/README.md`.
-- `sheets/`: sprite sheets of whole objects drawn on black, seen from above.
+- `sheets/`: sprite sheets of whole objects drawn on black, seen from above, and the game's original 16 px sheets, `tiles-original.png` and `sprites-original.png`, as they were before any art was painted into them.
 - `cutouts/`: each object cut from a sheet into its own transparent PNG by `tools/cutout.py`.
 - `fonts/`: the typeface of the zone letters, with its licence.
 - `blender/tileart.py`: the shared module: materials, shapes, cutout cards, and the render.
@@ -15,7 +15,18 @@ Sources for rendering the game's tile art in Blender, one zone or one set of sin
 - `blender/vehicles/`: one script per vehicle sprite, rendering each of its frames.
 - `blender/out/`: rendered zones and tiles, one directory of layers each. Ignored by git: a render is rebuilt from its script.
 - `painted/`: the renders repainted as oil paintings, in the same layers, described in `painted/README.md`.
-- `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), previewing rendered zones side by side (`preview.py`), repainting renders (`paint.py`, as the art-painting skill describes), and building the game's atlases from them (`atlas.py`).
+- `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), previewing rendered zones side by side (`preview.py`), repainting renders (`paint.py`, as the art-painting skill describes), and building the game's atlases from them (`atlas.py`). `designs.py` is what they share: which design fills which tile ids and sprite frames, and the one way to load an asset's layers. `tools/tests/` checks the atlas build's committed output (see Building the atlases).
+
+## The Python tools
+
+The tools need the packages in `requirements.txt`, at the versions it pins, which neither the system Python nor Blender's own has. Install them into a virtual environment, whose Python is the `python` in every command in the READMEs under `art/`:
+
+```bash
+python3 -m venv <env>
+<env>/bin/pip install -r art/requirements.txt
+<env>/bin/python art/tools/preview.py ...
+<env>/bin/pytest art/tools/tests
+```
 
 ## Rendering a zone
 
@@ -29,17 +40,7 @@ This writes the zone's layers into `art/blender/out/commercial_glass_tower/`. Pa
 
 A zone with animated tiles, such as a factory whose chimney smokes, renders through `render_animated()`: the still zone as above, then the whole zone again for each frame into `frame-<n>` inside its directory, from which the atlas build cuts the animated tiles. Whatever moves stays inside its tile in every frame. Frame numbers after the directory (`-- <directory> 0,4`) render the still zone and only those frames.
 
-The service buildings and the hospital are zones, each listed by the tiles it renders and, for an animated one, the tiles whose frames it renders into `frame-<n>`:
-
-- `seaport.py`: 693 to 708.
-- `airport.py`: 709 to 744; the radar at 711 turns through 832 to 839.
-- `coal_power_plant.py`: 745 to 760; the stacks at 747, 748, 751 and 752 smoke through 916 to 931.
-- `fire_station.py`: 761 to 769.
-- `police_station.py`: 770 to 778.
-- `stadium_empty.py`: 779 to 794.
-- `stadium_full.py`: 795 to 810; the game at 801 and 805 plays through 932 to 939 and 940 to 947.
-- `nuclear_power_plant.py`: 811 to 826; the atom at 820 turns through 952 to 955.
-- `hospital.py`: 405 to 413.
+The service buildings and the hospital are zones too: the seaport, the airport, whose radar turns, the coal power plant, whose stacks smoke, the fire and police stations, the empty and the full stadium, whose game plays, the nuclear power plant, whose atom turns, and the hospital. Which tile ids each zone fills is `ZONES` in `tools/designs.py`, and which tiles an animated one renders frames of, with each frame's id, is `FRAMES` beside it.
 
 ## Rendering a set of tiles
 
@@ -50,15 +51,17 @@ blender --background --python art/blender/tiles/roads.py
 blender --background --python art/blender/tiles/roads.py -- art/blender/out/roads 66,80-83
 ```
 
-- `land.py`: bare land, tile 0.
-- `water.py`: open water and the river's shores, 2 to 20.
-- `woods.py`: woods and their edges, 21 to 37.
-- `parks.py`: what the park tool lays: the gardens, 40 to 43, and the fountain, 840.
-- `rubble.py`: rubble, 44 to 47, and the bulldozer's small explosion, 860 to 867.
-- `roads.py`: road pieces, bridges, roads under power lines and the traffic on them, 64 to 207 and 239, and the open drawbridges, 828 to 831 and 948 to 951.
-- `power.py`: power lines, 208 to 220, and the unpowered zone's warning, 827.
-- `rail.py`: rail, its bridges and crossings, 221, 222 and 224 to 238.
-- `houses.py`: the single-tile houses a residential zone grows, 249 to 260.
+- `land.py`: bare land.
+- `water.py`: open water and the river's shores.
+- `woods.py`: woods and their edges.
+- `parks.py`: what the park tool lays: the gardens and the fountain.
+- `rubble.py`: rubble, and the bulldozer's small explosion.
+- `roads.py`: road pieces, bridges, roads under power lines and the traffic on them, and the open drawbridges.
+- `power.py`: power lines, and the unpowered zone's warning.
+- `rail.py`: rail, its bridges and crossings.
+- `houses.py`: the single-tile houses a residential zone grows.
+
+Which tile ids each set renders, in named groups such as a road piece's traffic frames, is `SINGLE_TILES` in `tools/designs.py`.
 
 A set of edge tiles, such as the shores or the road pieces, is one scene with a variant for each pattern of neighbours the game gives it, in which everything that reaches the tile's edge meets it at the same place, width and height, and every ground texture and stain repeats a whole number of times across the tile, so any two tiles side by side join without a seam. Animated tiles are one tile id per frame.
 
@@ -66,10 +69,12 @@ A set of edge tiles, such as the shores or the road pieces, is one scene with a 
 
 A script in `blender/vehicles/` renders a sprite's frames, numbered as the game numbers them (`src/*Sprite.js`), each into `art/blender/out/<vehicle>/<frame>/`, two digits; frame numbers after the directory render only those. A frame is three tiles square, as the original's 48 px cell, with the vehicle standing on its middle, and renders as two layers: `objects.png`, the vehicle over transparency, and `shadow.png`, its shadow on flat ground in the same frame. A vehicle that flies is built above the middle by its height, so the shear draws it up and to the right of where it is and its shadow falls away from it, and it reads as flying. The game draws the train and the helicopter into a square of two tiles, as the original's 32 px sprites, so the atlas build crops their frames to the middle two tiles, and everything of theirs, shadow included, stays inside it.
 
-- `train.py`: the railcar, sprite 1, frames 0 to 4.
-- `helicopter.py`: sprite 2, frames 0 to 7.
-- `airplane.py`: the airliner, sprite 3, frames 0 to 10.
-- `ship.py`: the cargo ship, sprite 4, frames 0 to 7.
+- `train.py`: the railcar.
+- `helicopter.py`: the traffic helicopter.
+- `airplane.py`: the airliner.
+- `ship.py`: the cargo ship.
+
+Each vehicle's sprite type, the square the game draws it into and its number of frames are `SPRITES` in `tools/designs.py`.
 
 ## Building the atlases
 
@@ -79,7 +84,9 @@ The game draws the map from the atlases and manifest in `images/render/`, in the
 python art/tools/atlas.py --source art/painted/out
 ```
 
-It cuts every asset's ground and objects into a rectangle per tile id and keeps its shadow whole on the zone's centre, gives each tile drawn over shadows its whole tile, opaque, as objects too, packs them with the gutters the format asks for, and writes the manifest. It also writes the cells of `images/tiles.png` and `images/sprites.png` it has art for, scaled down to 16 px, for what the game still draws from them, the splash screen's map and the monster TV, and the page background, `images/dirtbg.png`, from the bare land tile. Which design fills which tile ids, which frames each animated tile cycles through, and which tiles are drawn over shadows, is in `ZONES`, `FRAMES`, `SPRITES` and `OVER_SHADOWS` at its top. It runs by hand, and its output is committed: the renders it would need are not, and CI has no Blender. It needs Pillow and NumPy.
+It cuts every asset's ground and objects into a rectangle per tile id and keeps its shadow whole on the zone's centre, gives each tile drawn over shadows its whole tile, opaque, as objects too, packs them with the gutters the format asks for, and writes the manifest. It also writes `images/tiles.png` and `images/sprites.png`, for what the game still draws from them, the splash screen's map and the monster TV: the original sheets in `sheets/`, with each tile id and sprite frame it has art for scaled down to 16 px into its cell, so a cell whose art is removed goes back to the original. Last it writes the page background, `images/dirtbg.png`, from the bare land tile. It reads nothing under `images/`, and `--out <directory>` writes all of it into that directory instead. So a change to the game's own 16 px art, such as one picked up from the upstream repository, goes into `sheets/tiles-original.png` or `sheets/sprites-original.png`, and then the build runs again: the next build writes over a change made in `images/`. Which design fills which tile ids, which frames each animated tile cycles through, and which tiles are drawn over shadows, is in `tools/designs.py`: `SINGLE_TILES`, `ZONES`, `FRAMES`, `SPRITES` and `OVER_SHADOWS`.
+
+It runs by hand, and its output is committed: the renders it would need are not, and CI has no Blender. `pytest art/tools/tests` builds again from `painted/out` into a temporary directory and fails unless the committed manifest is the build's exactly and every committed image is the build's pixel for pixel, naming the tile ids or sprite frames of a sheet that differ. So a painted layer committed without the build it changes fails, as does an image edited by hand. The tests also check the tables in `designs.py` against `painted/out`, a design for every asset they name and every painted asset named, each with its three layers but a vehicle's frame, which has no ground, and no tile id twice; and the build's atlases against the format's size, gutters and shadow sizes. The tools load an asset's layers through `designs.py`, which fails on any missing layer but a vehicle's ground.
 
 ## Layers
 
@@ -97,7 +104,7 @@ The game draws every zone's ground, then the shadow layers merged by taking the 
 python art/tools/preview.py city.png commercial_glass_tower,residential_apartment_slabs commercial_office_park,
 ```
 
-Each argument after the output is a row of zone names; an empty name is bare lawn. A number is a single tile's id, so a grid of ids previews a strip of map, and `--original` also writes the same grid from the game's 16 px tiles, to `<out>-original.png`. Every entry in one preview must be the same size, so a grid holds tiles or zones, not both. It needs Pillow.
+Each argument after the output is a row of zone names; an empty name is bare lawn. A number is a single tile's id, so a grid of ids previews a strip of map, and `--original` also writes the same grid from the game's original 16 px tiles, `sheets/tiles-original.png`, to `<out>-original.png`. Every entry in one preview must be the same size, so a grid holds tiles or zones, not both.
 
 ## Conventions
 
@@ -120,7 +127,7 @@ A cutout goes into a scene through `car()`, `tree()` or `shrub()` in `tileart`. 
 python art/tools/cutout.py art/sheets/<sheet>.png art/cutouts/<sheet> <prefix>
 ```
 
-The tool needs Pillow, NumPy and SciPy. It counts near-black area joined to the sheet's border as background, so a sheet's objects must not touch each other or the border.
+It counts near-black area joined to the sheet's border as background, so a sheet's objects must not touch each other or the border.
 
 - **`sheets/cars.png`** → `cutouts/cars/car-01` to `car-21`: cars, nose up, in three rows of seven. The last two in each row are larger: estates and vans (`car-06`, `car-07`, `car-13`, `car-21`) and pickups (`car-14`, `car-20`).
 - **`sheets/plants.png`** → `cutouts/plants/plant-01` to `plant-40`: trees (`01` to `11`), small trees and flowering shrubs (`12` to `19`), hedges and bushes (`20` to `29`, with `20` and `21` hedge-shaped), and small plants (`30` to `40`). `plant-34`, `plant-36` and `plant-40` show black from the sheet between their leaves and twigs.
