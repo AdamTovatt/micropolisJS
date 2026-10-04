@@ -26,7 +26,7 @@ import os
 from PIL import Image, ImageDraw
 
 from preview import preview
-from reference import crop
+from reference import GRIDS, crop
 
 
 def compare(zone, sheet, row, col, out_path):
@@ -52,7 +52,7 @@ def compare(zone, sheet, row, col, out_path):
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     p.add_argument('zone', help='a zone rendered into art/blender/out')
-    p.add_argument('sheet', choices=['residential', 'commercial'])
+    p.add_argument('sheet', choices=sorted(GRIDS))
     p.add_argument('row', type=int)
     p.add_argument('col', type=int)
     p.add_argument('out')

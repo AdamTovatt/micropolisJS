@@ -24,6 +24,8 @@ blender --background --python art/blender/zones/commercial_glass_tower.py
 
 This writes the zone's layers into `art/blender/out/commercial_glass_tower/`. Passing `-- <directory>` after the script name writes there instead.
 
+A zone with animated tiles, such as a factory whose chimney smokes, renders through `render_animated()`: the still zone as above, then the whole zone again for each frame into `frame-<n>` inside its directory, from which the atlas build cuts the animated tiles. Whatever moves stays inside its tile in every frame. Frame numbers after the directory (`-- <directory> 0,4`) render the still zone and only those frames.
+
 ## Rendering a set of tiles
 
 A script in `blender/tiles/` renders a set of single tiles, each as a zone of one tile, into `art/blender/out/<set>/<id>/`, the id as `src/tileValues.ts` numbers it, in four digits. Ids after the directory render only those:

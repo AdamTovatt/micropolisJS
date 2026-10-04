@@ -85,6 +85,12 @@ def mottled(name, hex_a, hex_b, scale=12, rough=0.9):
     return m
 
 
+def concrete_yard(name='yard'):
+    # a works yard: pale grey concrete worn in broad stains. The asphalt texture is too dark to
+    # lighten this far, as the tone mapping flattens a raised shade
+    return weathered(mottled(name, 'aeaca6', '92908a', 8), dirt=0.25)
+
+
 def haze(name, hex_a, hex_b):
     # smoke: two greys in soft patches, and partly see-through, so a puff reads as a cloud and
     # not as a stone
@@ -93,8 +99,19 @@ def haze(name, hex_a, hex_b):
     return m
 
 
-def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue=0.0):
-    # an image from art/textures spanning width x height world units, repeating beyond.
+def chimney_smoke():
+    # the smoke of every works chimney, a mid grey: paler smoke vanishes against pale roofs
+    return bpy.data.materials.get('chimney_smoke') or haze('chimney_smoke', '9c9892', '6e6a64')
+
+
+def stack_brick():
+    # a brick chimney: brick-wall.png wrapped round a narrow cylinder comes out as stripes
+    return bpy.data.materials.get('stack_brick') or mottled('stack_brick', '9a4a34', '74382a', 20)
+
+
+def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue=0.0, turned=False):
+    # an image from art/textures spanning width x height world units, repeating beyond, or
+    # with turned=True a quarter turn round, so a roof's ribs can run down either slope.
     # Its hue turns by `hue`, a fraction of the colour wheel, so blue glass can become green
     # without losing its brightness; then it is multiplied by tint and by shade, so a grey
     # texture can be coloured and darkened
@@ -103,6 +120,8 @@ def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue
     uv = nt.nodes.new('ShaderNodeTexCoord')
     span = nt.nodes.new('ShaderNodeMapping')
     span.inputs['Scale'].default_value = (1 / width, 1 / height, 1)
+    if turned:
+        span.inputs['Rotation'].default_value = (0, 0, math.pi / 2)
     nt.links.new(uv.outputs['UV'], span.inputs['Vector'])
     img = nt.nodes.new('ShaderNodeTexImage')
     img.image = bpy.data.images.load(os.path.join(TEXTURES, file), check_existing=True)
@@ -254,6 +273,14 @@ def sphere(x, y, z, r, material, shadow=True):
     return ob
 
 
+def mound(x, y, rx, ry, height, material):
+    # a heap of loose stuff, such as gravel or coal: half a ball squashed to rx by ry across and
+    # height high, centred on (x, y) on the ground
+    ob = sphere(x, y, 0, 1, material)
+    ob.scale = (rx, ry, height)
+    return ob
+
+
 def keep_inside(x, y, reach, height, tiles, margin=0.02):
     # move a point in so that something reaching `reach` from it at `height` stays inside
     # the zone once sheared: the shear carries its top up and to the right
@@ -343,6 +370,95 @@ def car(name, x, y, turn, base=0.0):
     body = prism(rotated_rect(x, y, w * 0.85, d * 0.92, turn), base, base + height - 0.002,
                  _shadow_material(), name='car_body')
     _shadow_only(body)
+
+
+def lorry(x, y, turn, cab, body=None, kind='box', load=None, length=0.54):
+    # a lorry centred on (x, y): a cab and, behind it, a box body or a flat bed carrying `load`
+    # (a material for the crates on it, or None for an empty bed); turn 0 points its nose north,
+    # turning anticlockwise in degrees, as car() does. A shorter length is a smaller lorry, its
+    # cab scaled with it
+    a = math.radians(turn)
+    ux, uy = -math.sin(a), math.cos(a)         # forward
+
+    def part(s0, s1, width, z0, z1, side, top=None, name='lorry'):
+        s = (s0 + s1) / 2
+        return prism(rotated_rect(x + ux * s, y + uy * s, width, s1 - s0, turn), z0, z1, side, top, name=name)
+
+    k = length / 0.44
+    half, width, cab_length = length / 2, 0.095 * k, 0.095 * k
+    glass = bpy.data.materials.get('lorry_glass') or plain('lorry_glass', '1c2228', 0.2)
+    chassis = bpy.data.materials.get('lorry_chassis') or plain('lorry_chassis', '2a2a2c', 0.7)
+    part(half - cab_length, half, width, 0.015 * k, 0.095 * k, cab, name='cab')
+    part(half - 0.02 * k, half - 0.005 * k, width * 0.86, 0.062 * k, 0.097 * k, glass, name='windscreen')
+    part(-half, half - cab_length, width * 0.9, 0.0, 0.028 * k, chassis, name='chassis')
+    rear = half - cab_length - 0.01 * k
+    if kind == 'box':
+        part(-half, rear, width, 0.028 * k, 0.125 * k, body or cab, name='lorry_body')
+    else:
+        part(-half, rear, width, 0.028 * k, 0.038 * k, body or chassis, name='bed')
+        if load is not None:
+            span = (rear + half) / 3
+            for i in range(3):
+                s0 = -half + i * span
+                part(s0 + 0.006, s0 + span - 0.006, width * 0.8, 0.038 * k, 0.075 * k, load, name='load')
+
+
+def excavator(x, y, turn, paint, reach=0.3, size=1.0):
+    # a tracked excavator centred on (x, y), its boom reaching `reach` ahead, the way turn 0
+    # points north, and bending down to a bucket on the ground; size scales it
+    a = math.radians(turn)
+    ux, uy = -math.sin(a), math.cos(a)         # forward
+    dark = bpy.data.materials.get('track') or plain('track', '262626', 0.8)
+    glass = bpy.data.materials.get('lorry_glass') or plain('lorry_glass', '1c2228', 0.2)
+    k = size
+    for side in (-1, 1):
+        cx, cy = x + uy * side * 0.04 * k, y - ux * side * 0.04 * k
+        prism(rotated_rect(cx, cy, 0.026 * k, 0.15 * k, turn), 0, 0.025 * k, dark, name='track')
+    prism(rotated_rect(x, y, 0.1 * k, 0.11 * k, turn), 0.025 * k, 0.06 * k, paint, name='excavator')
+    cab = (x + uy * 0.022 * k + ux * 0.015 * k, y - ux * 0.022 * k + uy * 0.015 * k)
+    prism(rotated_rect(*cab, 0.045 * k, 0.055 * k, turn), 0.06 * k, 0.1 * k, paint, glass, name='cab')
+    root = (x - uy * 0.02 * k + ux * 0.04 * k, y + ux * 0.02 * k + uy * 0.04 * k, 0.07 * k)
+    elbow = (root[0] + ux * reach * 0.6, root[1] + uy * reach * 0.6, 0.17 * k)
+    tip = (root[0] + ux * reach, root[1] + uy * reach, 0.03 * k)
+    strut(root, elbow, 0.012 * k, paint)
+    strut(elbow, tip, 0.009 * k, paint)
+    prism(rotated_rect(tip[0], tip[1], 0.05 * k, 0.035 * k, turn), 0, 0.035 * k, dark, name='bucket')
+
+
+def crates(x0, y0, x1, y1, material, rng, size=0.075, height=0.045, fill=0.8):
+    # pallets of crates in rows over the rectangle, some stacked two high and some places empty
+    nx, ny = max(1, int((x1 - x0) / size)), max(1, int((y1 - y0) / size))
+    for i in range(nx):
+        for j in range(ny):
+            if rng.random() > fill:
+                continue
+            cx, cy = x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny
+            h = height * (2 if rng.random() < 0.3 else 1)
+            s = size * rng.uniform(0.78, 0.9) / 2
+            box(cx - s, cy - s, 0, cx + s, cy + s, h, material, name='crate')
+
+
+def barrels(x0, y0, x1, y1, material, rng, r=0.022, height=0.042, fill=0.85):
+    # drums standing in rows over the rectangle
+    step = r * 2.3
+    for i in range(max(1, int((x1 - x0) / step))):
+        for j in range(max(1, int((y1 - y0) / step))):
+            if rng.random() < fill:
+                cylinder(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step, 0, height, r, material, 12)
+
+
+def smoke(x, y, z, frame, frames, material, puffs=4, rise=0.07, size=0.03, drift=(0.012, 0.02), seed=0):
+    # A plume from a chimney's mouth at (x, y, z), in one of `frames` frames of a loop: puffs a
+    # rise apart up the plume, each growing as it climbs, and each frame lifts every puff a
+    # fraction of a rise, so the last frame runs on into the first. The plume leans with the
+    # wind by drift per rise, and wavers as a smooth function of its height, so that too runs on
+    # from frame to frame. It casts no shadow, as a thin plume barely does.
+    for k in range(puffs):
+        u = k + frame / frames               # the puff's height in rises
+        r = size * (0.7 + 0.45 * u)
+        jx, jy = 0.3 * math.sin(2.1 * u + seed), 0.3 * math.cos(1.7 * u + seed)
+        sphere(x + drift[0] * u + jx * r, y + drift[1] * u + jy * r, z + r * 0.6 + rise * u, r, material,
+               shadow=False)
 
 
 def tree(name, x, y, size, turn=0):
@@ -823,3 +939,19 @@ def render_tiles(script, builders):
         scene = new_scene()
         build()
         render(scene, os.path.join(out, f'{tile:04d}'), tiles=1)
+
+
+def render_animated(script, build, frames, tiles=3):
+    # Render a zone with animated tiles, such as a factory's smoking chimney: build(frame)
+    # builds the scene from nothing, frame None for the zone as it stands still and 0 to
+    # frames - 1 for each frame of its animation. The still zone renders into out_dir(script),
+    # each frame into frame-<n> inside it, from which the atlas build cuts the animated tiles.
+    # Frame numbers after the directory on the command line render the still zone and only
+    # those frames.
+    out, wanted = out_dir(script), _wanted()
+    for frame in [None] + list(range(frames)):
+        if frame is not None and wanted is not None and frame not in wanted:
+            continue
+        scene = new_scene()
+        build(frame)
+        render(scene, out if frame is None else os.path.join(out, f'frame-{frame}'), tiles=tiles)
