@@ -43,16 +43,6 @@ namespace Micropolis.Rules
             new OverlayLayer("powerGrid", null, 0, 1, 11),
         ];
 
-        /// <summary>
-        /// What the query tool calls a tile, as <c>ZONE_CATEGORIES</c> in <c>src/protocol.ts</c> lists them.
-        /// </summary>
-        public static readonly IReadOnlyList<string> ZoneCategories =
-        [
-            "CLEAR", "WATER", "TREES", "RUBBLE", "FLOOD", "RADIOACTIVE_WASTE", "FIRE", "ROAD", "POWER", "RAIL",
-            "RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL", "SEAPORT", "AIRPORT", "COAL_POWER", "FIRE_STATION",
-            "POLICE_STATION", "STADIUM", "NUCLEAR_POWER", "DRAWBRIDGE", "RADAR", "FOUNTAIN", "FOOTBALL_GAME", "URANIUM",
-        ];
-
         // Each query's fields but its type, required or optional, as FIELDS in src/queries.ts
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> QueryFields =
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.Ordinal)
@@ -82,6 +72,13 @@ namespace Micropolis.Rules
             (TileValues.FOOTBALLGAME1, "FOOTBALL_GAME"), (TileValues.VBRDG0, "DRAWBRIDGE"),
             (TileValues.NUKESWIRL1, "URANIUM"),
         ];
+
+        // Declared after CategoryStarts, since static fields are initialised in the order they are declared
+        /// <summary>
+        /// What the query tool calls a tile, as <c>ZONE_CATEGORIES</c> in <c>src/protocol.ts</c> lists them: each
+        /// category once, in the order of the first tile it names.
+        /// </summary>
+        public static readonly IReadOnlyList<string> ZoneCategories = CategoryStarts.Select(start => start.Category).Distinct().ToList();
 
         /// <summary>
         /// Why the simulation rejects this query on a map of this size, or null when it is valid: exactly its type's
