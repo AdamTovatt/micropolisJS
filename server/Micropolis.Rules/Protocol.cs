@@ -84,7 +84,16 @@ namespace Micropolis.Rules
     /// <c>src/protocol.ts</c> defines each: every player in the city receives the same batches.
     /// </summary>
     public sealed record StateBatchMessage(
-        [property: JsonPropertyName("messages")] JsonArray Messages) : ServerMessage;
+        [property: JsonPropertyName("messages")] JsonArray Messages) : ServerMessage
+    {
+        /// <summary>
+        /// The batch of the state messages given, in their order.
+        /// </summary>
+        public static StateBatchMessage Of(IReadOnlyList<StateMessage> messages)
+        {
+            return new StateBatchMessage(new JsonArray(messages.Select(message => (JsonNode?)ProtocolJson.ToNode(message)).ToArray()));
+        }
+    }
 
     /// <summary>
     /// The answer to the player's request with the given id, sent after any state the request changed. What the value

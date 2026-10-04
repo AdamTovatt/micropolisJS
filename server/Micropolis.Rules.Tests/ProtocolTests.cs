@@ -248,6 +248,13 @@ namespace Micropolis.Rules.Tests
                 $"Answer types [{string.Join(", ", declaredTypes.Order())}].");
         }
 
+        [TestMethod]
+        public void Of_StateMessages_WritesTheSharedStateExample()
+        {
+            AssertRoundTrip(Path.Combine(ExamplesDirectory(SocketExamples), "state.json"),
+                _ => ProtocolJson.Serialize(StateBatchMessage.Of([new DateMessage(3, 1901), new PopulationMessage(1240)])));
+        }
+
         // A rejected command's result echoes the command to every player, inside a state batch
         [TestMethod]
         public void Serialize_ValueAsDeepAsAPlayerMaySend_IsWrittenInsideABatch()

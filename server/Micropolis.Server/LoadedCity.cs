@@ -116,7 +116,7 @@ namespace Micropolis.Server
                 }
 
                 _members.Add(joining.Connection);
-                joining.Connection.Send(ProtocolJson.Serialize(Batch(host.FullState())));
+                joining.Connection.Send(ProtocolJson.Serialize(StateBatchMessage.Of(host.FullState())));
                 joining.Connection.Answer(joining.RequestId, ProtocolJson.ToNode(Joined(host)));
             });
         }
@@ -176,13 +176,8 @@ namespace Micropolis.Server
 
         private void Publish(IReadOnlyList<StateMessage> messages)
         {
-            string batch = ProtocolJson.Serialize(Batch(messages));
+            string batch = ProtocolJson.Serialize(StateBatchMessage.Of(messages));
             _members.ForEach(member => member.Send(batch));
-        }
-
-        private static StateBatchMessage Batch(IReadOnlyList<StateMessage> messages)
-        {
-            return new StateBatchMessage(new JsonArray(messages.Select(message => (JsonNode?)ProtocolJson.ToNode(message)).ToArray()));
         }
 
         // Runs the work one piece at a time, off the thread of whoever gave it, until the city stops or its work throws
