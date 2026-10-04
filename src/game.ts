@@ -133,9 +133,6 @@ export class Game {
       this.sendToolPaths();
     }
 
-    // A year-end budget review that fell due, or fell due while a window showed
-    this.windows.openDue();
-
     this.mouse = this.windows.holdsInput() ? null : this.calculateMouseForPaint();
     this.reportCursor();
 
@@ -195,7 +192,9 @@ export class Game {
     const opacityLayerID = "opaque";
 
     const budgetWindow = new BudgetWindow(opacityLayerID, "budget", source);
-    this.windows = new WindowManager(budgetWindow, () => this.budgetWindowValues());
+    const budgetButton = requiredElement("budgetRequest");
+    this.windows = new WindowManager(budgetWindow, () => this.budgetWindowValues(),
+                                     {setLit: (lit) => budgetButton.classList.toggle("reviewDue", lit)});
 
     this.handleWindowClosure = () => this.windows.closed();
 
@@ -333,7 +332,12 @@ export class Game {
       this.handleCommandResult(result);
       this.otherPlayers.commandResult(result);
     });
-    state.on("budgetReviewDue", () => this.windows.budgetReviewDue());
+    // The Budget button marks the review due until the player opens the budget, and the notification bar offers it, if
+    // no news shows: the year end's own news, such as the city going broke, comes before the review
+    state.on("budgetReviewDue", () => {
+      this.windows.budgetReviewDue();
+      this.notificationBar.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => this.windows.openBudget());
+    });
   }
 
   // Tells the source whenever the player stops or starts being able to see the city: the city steps only while the

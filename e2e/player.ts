@@ -153,8 +153,9 @@ export class Player {
     return this.commandsBefore + await this.page.evaluate(() => window.micropolisTestHook!.commandsApplied());
   }
 
-  // Takes exactly this many steps. A year-end budget review falling due on the way fails the run, since its window
-  // would take the input meant for the city: with auto-budget on, one falls due only when the city can't pay.
+  // Takes exactly this many steps. A year-end budget review falling due on the way fails the run: with auto-budget on,
+  // one falls due only when the city couldn't pay for its services, which turns auto-budget off, and no stage plans
+  // for that.
   async advance(steps: number): Promise<void> {
     const advanced = await this.hookAdvance(steps);
 
@@ -163,13 +164,18 @@ export class Player {
     }
   }
 
-  // Steps chunk steps at a time until the year-end budget review falls due, then waits for the game to open it. The
-  // city steps on through the year end, and stops at the end of the chunk it fell in, the same step on every run.
-  // Fails if it hasn't fallen due within maxSteps.
+  // Steps chunk steps at a time until the year-end budget review falls due, then opens it from the Budget button, which
+  // marks it due until it opens. The city steps on through the year end, and stops at the end of the chunk it fell in,
+  // the same step on every run. Fails if it hasn't fallen due within maxSteps. The notification bar's offer of the
+  // review is no way in: whether it shows depends on the news the year end brings.
   async advanceUntilBudgetReview(maxSteps: number, chunk: number): Promise<void> {
     for (let taken = 0; taken < maxSteps; taken += chunk) {
       if ((await this.hookAdvance(chunk)).budgetReviewDue) {
+        const budgetButton = this.page.locator("#budgetRequest");
+        await expect(budgetButton, "the Budget button, marking the review due").toHaveClass(/\breviewDue\b/);
+        await budgetButton.click();
         await this.page.locator("#budget").waitFor();
+        await expect(budgetButton, "the Budget button, once the budget opened").not.toHaveClass(/\breviewDue\b/);
         return;
       }
     }

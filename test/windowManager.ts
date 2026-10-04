@@ -14,7 +14,7 @@
 import { GameWindow, WindowManager } from "../src/windowManager";
 
 // A window that records what it was opened with. Closing it runs onClose, as the game's closed handler does: the
-// handler tells the manager the window closed, then may open another.
+// handler tells the manager the window closed.
 class FakeWindow implements GameWindow {
     opened: unknown[][] = [];
     onClose: () => void = () => {};
@@ -33,14 +33,14 @@ const BUDGET_VALUES = {taxRate: 7};
 function setUp() {
     const budget = new FakeWindow();
     const other = new FakeWindow();
-    const followUp = new FakeWindow();
-    const windows = new WindowManager(budget, () => [BUDGET_VALUES]);
+    const marker = {lit: false, setLit(lit: boolean) { this.lit = lit; }};
+    const windows = new WindowManager(budget, () => [BUDGET_VALUES], marker);
 
-    for (const window of [budget, other, followUp]) {
+    for (const window of [budget, other]) {
         window.onClose = () => windows.closed();
     }
 
-    return {windows, budget, other, followUp};
+    return {windows, budget, other, marker};
 }
 
 describe("the window manager", () => {
@@ -57,10 +57,21 @@ describe("the window manager", () => {
     it("opens the budget window with the budget's values", () => {
         const {windows, budget} = setUp();
 
-        windows.openBudget();
+        const opened = windows.openBudget();
 
+        expect(opened).toBe(true);
         expect(budget.opened).toEqual([[BUDGET_VALUES]]);
         expect(windows.holdsInput()).toBe(true);
+    });
+
+    it("opens no budget window over another", () => {
+        const {windows, budget, other} = setUp();
+        windows.open(other);
+
+        const opened = windows.openBudget();
+
+        expect(opened).toBe(false);
+        expect(budget.opened).toEqual([]);
     });
 
     it("holds nothing once the window closes", () => {
@@ -81,64 +92,41 @@ describe("the window manager", () => {
         expect(other.opened).toEqual([]);
     });
 
-    it("opens a budget review that falls due as soon as no window shows", () => {
-        const {windows, budget} = setUp();
+    it("marks a year-end budget review due without opening the budget window", () => {
+        const {windows, budget, marker} = setUp();
+
         windows.budgetReviewDue();
 
-        windows.openDue();
-
-        expect(budget.opened).toEqual([[BUDGET_VALUES]]);
-    });
-
-    it("opens a budget review that falls due behind a window when that window closes", () => {
-        const {windows, budget, other} = setUp();
-        windows.open(other);
-        windows.budgetReviewDue();
-
-        windows.openDue();
+        expect(marker.lit).toBe(true);
         expect(budget.opened).toEqual([]);
-
-        windows.closeShown();
-        windows.openDue();
-        expect(budget.opened).toEqual([[BUDGET_VALUES]]);
+        expect(windows.holdsInput()).toBe(false);
     });
 
-    it("waits for a window that a closing window opens in its place", () => {
-        const {windows, budget, other, followUp} = setUp();
-        other.onClose = () => {
-            windows.closed();
-            windows.open(followUp);
-        };
-        windows.open(other);
+    it("keeps the review marked when another falls due", () => {
+        const {windows, marker} = setUp();
         windows.budgetReviewDue();
 
-        windows.closeShown();
-        windows.openDue();
-        expect(followUp.opened).toEqual([[]]);
-        expect(budget.opened).toEqual([]);
+        windows.budgetReviewDue();
 
-        windows.closeShown();
-        windows.openDue();
-        expect(budget.opened).toEqual([[BUDGET_VALUES]]);
+        expect(marker.lit).toBe(true);
     });
 
-    it("opens a review once, whether the player or the manager opens it first", () => {
-        const {windows, budget} = setUp();
+    it("clears the review's mark when the budget window opens", () => {
+        const {windows, marker} = setUp();
         windows.budgetReviewDue();
 
         windows.openBudget();
-        windows.closeShown();
-        windows.openDue();
 
-        expect(budget.opened).toHaveLength(1);
+        expect(marker.lit).toBe(false);
     });
 
-    it("opens no budget that isn't due", () => {
-        const {windows, budget} = setUp();
+    it("keeps the review marked while the budget window can't open over another", () => {
+        const {windows, other, marker} = setUp();
+        windows.budgetReviewDue();
+        windows.open(other);
 
-        windows.openDue();
+        windows.openBudget();
 
-        expect(budget.opened).toEqual([]);
-        expect(windows.holdsInput()).toBe(false);
+        expect(marker.lit).toBe(true);
     });
 });

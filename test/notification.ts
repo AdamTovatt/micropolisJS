@@ -120,6 +120,85 @@ describe("the notification bar", () => {
         expect([classes(), centred]).toEqual([["neutral"], []]);
     });
 
+    it("offers an action under a message without a place, and is a pointer", () => {
+        const {bar: notifications, element, classes} = bar();
+
+        notifications.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => true);
+
+        expect([element.textContent, element.style.display, classes()])
+            .toEqual(["Year-end budget ready: click to review", "", ["neutral", "pointer"]]);
+    });
+
+    it("runs an offer's action when clicked, in place of centring on its message's place", () => {
+        const {bar: notifications, click, centred} = bar();
+        let runs = 0;
+
+        notifications.offer({subject: Messages.FIRE_REPORTED, data: {x: 31, y: 61}}, () => ++runs > 0);
+        click();
+
+        expect([runs, centred]).toEqual([1, []]);
+    });
+
+    it("hides once an offer's action was done, leaving no timer behind", () => {
+        const {bar: notifications, element, click} = bar();
+
+        notifications.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => true);
+        click();
+
+        expect([element.style.display, jest.getTimerCount()]).toEqual(["none", 0]);
+    });
+
+    it("stays shown when an offer's action wasn't done", () => {
+        const {bar: notifications, element, click} = bar();
+
+        notifications.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => false);
+        click();
+
+        expect(element.style.display).toBe("");
+    });
+
+    it("takes no message's place with an offer", () => {
+        const {bar: notifications, element, click} = bar();
+        let runs = 0;
+
+        notifications.show({subject: Messages.NO_MONEY});
+        notifications.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => ++runs > 0);
+        click();
+
+        expect([element.textContent, runs]).toEqual(["YOUR CITY HAS GONE BROKE", 0]);
+    });
+
+    it("offers once the message before has hidden", () => {
+        const {bar: notifications, element} = bar();
+
+        notifications.show({subject: Messages.NEED_AIRPORT});
+        jest.advanceTimersByTime(30 * 1000);
+        notifications.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => true);
+
+        expect([element.textContent, element.style.display])
+            .toEqual(["Year-end budget ready: click to review", ""]);
+    });
+
+    it("runs no earlier offer's action when clicked on news", () => {
+        const {bar: notifications, classes, click} = bar();
+        let runs = 0;
+
+        notifications.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => ++runs > 0);
+        notifications.show({subject: Messages.NEED_AIRPORT});
+        click();
+
+        expect([runs, classes()]).toEqual([0, ["neutral"]]);
+    });
+
+    it("stays shown when clicked on a message with a place", () => {
+        const {bar: notifications, element, click} = bar();
+
+        notifications.show({subject: Messages.FIRE_REPORTED, data: {x: 31, y: 61}});
+        click();
+
+        expect(element.style.display).toBe("");
+    });
+
     it("hides 30 seconds after the latest message", () => {
         const {bar: notifications, element} = bar();
 

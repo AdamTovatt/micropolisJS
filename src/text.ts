@@ -119,6 +119,7 @@ const messages: {[subject: string]: MessageText} = {
   [Messages.ROAD_NEEDS_FUNDING]: {text: "Roads deteriorating, due to lack of funds", tone: "neutral"},
   [Messages.POLICE_NEEDS_FUNDING]: {text: "Police departments need funding", tone: "neutral"},
   [Messages.WELCOME]: {text: "Welcome to micropolisJS", tone: "neutral"},
+  [Messages.BUDGET_REVIEW_DUE]: {text: "Year-end budget ready: click to review", tone: "neutral"},
   [Messages.BLACKOUTS_REPORTED]: {text: "Brownouts, build another Power Plant", tone: "bad"},
   [Messages.EARTHQUAKE]: {text: "Major earthquake reported !!", tone: "bad"},
   [Messages.EXPLOSION_REPORTED]: {text: "Explosion detected ", tone: "bad"},

@@ -22,12 +22,17 @@ interface GameWindow {
   close(): void;
 }
 
+// The mark on the Budget button that a year-end budget review is due
+interface ReviewMarker {
+  setLit(lit: boolean): void;
+}
+
 class WindowManager {
   private shown: GameWindow | null = null;
-  private reviewDue = false;
 
   // budgetValues gives the arguments the budget window opens with
-  constructor(private readonly budgetWindow: GameWindow, private readonly budgetValues: () => unknown[]) {}
+  constructor(private readonly budgetWindow: GameWindow, private readonly budgetValues: () => unknown[],
+              private readonly reviewMarker: ReviewMarker) {}
 
   // Opens a window unless one is already showing, and says whether it did. A window that opens unasked, such as the
   // touch warning, is not shown at all when another is showing.
@@ -40,9 +45,21 @@ class WindowManager {
     return true;
   }
 
-  openBudget(): void {
-    if (this.open(this.budgetWindow, ...this.budgetValues()))
-      this.reviewDue = false;
+  // Opens the budget window unless another is showing, and says whether it did. Opening it, however the player asked,
+  // is the review of any that fell due.
+  openBudget(): boolean {
+    if (!this.open(this.budgetWindow, ...this.budgetValues()))
+      return false;
+
+    this.reviewMarker.setLit(false);
+    return true;
+  }
+
+  // The year end paid for the services with the player's values, which the player is offered to review. The budget
+  // window never opens unasked, since in a shared city it would open for every player at once: the marker shows until
+  // this player opens it.
+  budgetReviewDue(): void {
+    this.reviewMarker.setLit(true);
   }
 
   closed(): void {
@@ -58,20 +75,8 @@ class WindowManager {
   holdsInput(): boolean {
     return this.shown !== null;
   }
-
-  // The year-end budget was paid with the player's values, which the player is offered to review. It falls due during
-  // a step, maybe while another window shows.
-  budgetReviewDue(): void {
-    this.reviewDue = true;
-  }
-
-  // Called after each run of steps: opens a budget review that has fallen due once no window shows
-  openDue(): void {
-    if (this.reviewDue)
-      this.openBudget();
-  }
 }
 
 
-export type { GameWindow };
+export type { GameWindow, ReviewMarker };
 export { WindowManager };

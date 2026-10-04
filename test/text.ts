@@ -24,7 +24,7 @@ const MILESTONES = [
 // other events it announces, and the client's own messages
 const SHOWN_SUBJECTS = [
     ...ADVISOR_SUBJECTS, ...Messages.DISASTER_MESSAGES, ...Messages.CRASHES, ...MILESTONES, Messages.NO_MONEY,
-    Messages.HEAVY_TRAFFIC, Messages.WELCOME, Messages.LOG_UNCHECKED,
+    Messages.HEAVY_TRAFFIC, Messages.WELCOME, Messages.LOG_UNCHECKED, Messages.BUDGET_REVIEW_DUE,
 ];
 
 function subjectsWithTone(tone: string): string[] {
