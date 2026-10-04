@@ -52,6 +52,35 @@ export function heldKey(keyCode: number): HeldKey | null {
   }
 }
 
+// The keys that scroll the map, in the order the game takes the first held when several are
+export type ScrollKey = Exclude<HeldKey, "escape">;
+const SCROLL_KEYS: readonly ScrollKey[] = ["left", "up", "right", "down"];
+
+// The scroll keys held, and those pressed since the game last took a scroll. The game takes one on each of its ticks
+// and moves the view a tile for it: a key held moves it on every tick, and a press that comes and goes between two
+// ticks still moves it a tile.
+export class ScrollKeys {
+  private readonly held = new Set<ScrollKey>();
+  private readonly pressed = new Set<ScrollKey>();
+
+  press(key: ScrollKey): void {
+    this.held.add(key);
+    this.pressed.add(key);
+  }
+
+  release(key: ScrollKey): void {
+    this.held.delete(key);
+  }
+
+  // The way to scroll on this tick, the first held or pressed in SCROLL_KEYS' order, or null for none. The presses
+  // are forgotten, so the next tick scrolls only for the keys held then, or pressed since.
+  take(): ScrollKey | null {
+    const scroll = SCROLL_KEYS.find((key) => this.held.has(key) || this.pressed.has(key)) ?? null;
+    this.pressed.clear();
+    return scroll;
+  }
+}
+
 // Whether a mouse press is the primary button's alone, without a modifier key, which is the only press a tool takes
 export function isToolPress(e: {button: number, shiftKey: boolean, altKey: boolean, ctrlKey: boolean,
                                 metaKey: boolean}): boolean {
@@ -88,10 +117,7 @@ export interface ToolClick {
 
 export class InputStatus extends Emitter {
   // Keyboard Movement
-  up = false;
-  down = false;
-  left = false;
-  right = false;
+  readonly scrollKeys = new ScrollKeys();
   escape = false;
 
   // Mouse movement: -1 while the mouse is off the canvas
@@ -180,16 +206,23 @@ export class InputStatus extends Emitter {
 
   private onKeyDown(e: KeyboardEvent): void {
     const key = heldKey(e.keyCode);
+    // A key held repeats its keydown, which is no new press
+    if (key === "escape") {
+      this.escape = true;
+    } else if (key !== null && !e.repeat) {
+      this.scrollKeys.press(key);
+    }
     if (key !== null) {
-      this[key] = true;
       e.preventDefault();
     }
   }
 
   private onKeyUp(e: KeyboardEvent): void {
     const key = heldKey(e.keyCode);
-    if (key !== null) {
-      this[key] = false;
+    if (key === "escape") {
+      this.escape = false;
+    } else if (key !== null) {
+      this.scrollKeys.release(key);
     }
   }
 

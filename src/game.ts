@@ -482,16 +482,16 @@ export class Game {
   }
 
   private handleInput(): void {
+    // Keyboard movement. A press taken while a window holds the keyboard is dropped.
+    const scroll = this.inputStatus.scrollKeys.take();
     if (!this.windows.holdsInput()) {
-      // Handle keyboard movement
-
-      if (this.inputStatus.left) {
+      if (scroll === "left") {
         this.gameCanvas.moveWest();
-      } else if (this.inputStatus.up) {
+      } else if (scroll === "up") {
         this.gameCanvas.moveNorth();
-      } else if (this.inputStatus.right) {
+      } else if (scroll === "right") {
         this.gameCanvas.moveEast();
-      } else if (this.inputStatus.down) {
+      } else if (scroll === "down") {
         this.gameCanvas.moveSouth();
       }
     }

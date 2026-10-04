@@ -384,11 +384,12 @@ export class Player {
   }
 
   // Scrolls the view along the axis until its origin is the stop given, which is within the view's limits. The view
-  // moves a tile on each of the game's ticks while a key is down, and how many ticks a press spans depends on timing,
-  // so the view is brought to the stop, never moved a number of tiles: it comes to rest there on every run, and the
-  // screenshot that follows shows the same frame. While the view is far from the stop and has not yet passed it, a key
-  // is held until the view moves. Otherwise a key is let go as soon as it is pressed, which moves the view a tile when a
-  // tick falls between and seldom more, so a hold that carried the view past the stop is undone a tile at a time.
+  // moves a tile on each of the game's ticks while a key is down, and a tile for a press no tick saw, and how many ticks
+  // a press spans depends on timing, so the view is brought to the stop, never moved a number of tiles: it comes to rest
+  // there on every run, and the screenshot that follows shows the same frame. While the view is far from the stop and
+  // has not yet passed it, a key is held until the view moves. Otherwise a key is let go as soon as it is pressed, and
+  // the view waited for to move, a tile and seldom more, so a hold that carried the view past the stop is undone a tile
+  // at a time.
   private async scrollTo(axis: Axis, stop: number): Promise<void> {
     const start = await this.origin(axis);
 
@@ -408,7 +409,7 @@ export class Player {
       if (!passed && Math.abs(stop - origin) > NEAR_ENOUGH_TO_TAP) {
         await this.holdUntilTheViewMoves(key, axis, origin);
       } else {
-        await this.page.keyboard.press(key);
+        await this.tapUntilTheViewMoves(key, axis, origin);
       }
     }
   }
@@ -420,34 +421,47 @@ export class Player {
   private async holdUntilTheViewMoves(key: string, axis: Axis, origin: number): Promise<void> {
     await this.page.keyboard.down(key);
     try {
-      const moved = await this.page.evaluate(({along, from, stallMs}) => new Promise<boolean>((resolve) => {
-        let stalled = false;
-        const giveUp = window.setTimeout(() => {
-          stalled = true;
-          resolve(false);
-        }, stallMs);
-        const look = () => {
-          if (stalled) {
-            return;
-          }
-
-          const view = window.micropolisTestHook!.view();
-          if ((along === "x" ? view.originX : view.originY) !== from) {
-            window.clearTimeout(giveUp);
-            resolve(true);
-          } else {
-            window.setTimeout(look, 0);
-          }
-        };
-        look();
-      }), {along: axis, from: origin, stallMs: HOLD_STALL_MS});
-
-      if (!moved) {
+      if (!await this.viewMovesFrom(axis, origin)) {
         throw new Error(`Holding ${key} left the view's origin at ${origin} along ${axis} for ${HOLD_STALL_MS} ms`);
       }
     } finally {
       await this.page.keyboard.up(key);
     }
+  }
+
+  // Presses the key and lets it go, then waits until the page sees the view's origin on the axis move from the one
+  // given. The game moves the view for a press on its next tick, which may come after the key is up: the origin read
+  // before then would be the one the press is about to move, and a press made on it would move the view a tile too far.
+  private async tapUntilTheViewMoves(key: string, axis: Axis, origin: number): Promise<void> {
+    await this.page.keyboard.press(key);
+    if (!await this.viewMovesFrom(axis, origin)) {
+      throw new Error(`Pressing ${key} left the view's origin at ${origin} along ${axis} for ${HOLD_STALL_MS} ms`);
+    }
+  }
+
+  // Whether the page sees the view's origin on the axis move from the one given within HOLD_STALL_MS
+  private async viewMovesFrom(axis: Axis, origin: number): Promise<boolean> {
+    return this.page.evaluate(({along, from, stallMs}) => new Promise<boolean>((resolve) => {
+      let stalled = false;
+      const giveUp = window.setTimeout(() => {
+        stalled = true;
+        resolve(false);
+      }, stallMs);
+      const look = () => {
+        if (stalled) {
+          return;
+        }
+
+        const view = window.micropolisTestHook!.view();
+        if ((along === "x" ? view.originX : view.originY) !== from) {
+          window.clearTimeout(giveUp);
+          resolve(true);
+        } else {
+          window.setTimeout(look, 0);
+        }
+      };
+      look();
+    }), {along: axis, from: origin, stallMs: HOLD_STALL_MS});
   }
 
   private async view(): Promise<View> {

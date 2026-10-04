@@ -11,7 +11,7 @@
  *
  */
 
-import { cursorClass, heldKey, isToolPress } from "../src/inputStatus";
+import { ScrollKeys, cursorClass, heldKey, isToolPress } from "../src/inputStatus";
 
 describe("the keys the game follows", () => {
 
@@ -55,5 +55,36 @@ describe("the canvas's cursor", () => {
     // Clearing a tool, the query tool's included, gives the canvas back the cursor it had before any was chosen
     it("is the default while no tool is chosen", () => {
         expect(cursorClass(null)).toBeNull();
+    });
+});
+
+describe("scrolling with the keyboard", () => {
+
+    it("scrolls on every tick while a key is held, and on none once it is let go", () => {
+        const keys = new ScrollKeys();
+        keys.press("left");
+
+        const held = [keys.take(), keys.take()];
+        keys.release("left");
+
+        expect([...held, keys.take()]).toEqual(["left", "left", null]);
+    });
+
+    it("scrolls once for a press let go before any tick took it", () => {
+        const keys = new ScrollKeys();
+        keys.press("up");
+        keys.release("up");
+
+        expect([keys.take(), keys.take()]).toEqual(["up", null]);
+    });
+
+    it("takes the first of several keys, left, up, right then down, and forgets the other presses", () => {
+        const keys = new ScrollKeys();
+        keys.press("down");
+        keys.press("right");
+        keys.release("down");
+        keys.release("right");
+
+        expect([keys.take(), keys.take()]).toEqual(["right", null]);
     });
 });
