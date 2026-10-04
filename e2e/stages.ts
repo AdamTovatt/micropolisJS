@@ -35,6 +35,8 @@ import { buildStation, planStation, savedFireCover, STRONGEST_COVER } from "./st
 
 export const SEED = 23;
 export const CITY_NAME = "Playthrough";
+// The name the player signs in to the game server under
+export const PLAYER_NAME = "Mayor";
 
 // The steps in a year at the city's speed, medium
 const YEAR = stepsPerYear(Simulation.SPEED_MED);
@@ -271,8 +273,8 @@ export const STAGES: Stage[] = [
   },
 ];
 
-// After the stages, the browser's own driver runs the city. It waits on city time, never on wall time, and how many
-// steps it takes depends on wall time, so its state is not reproducible.
+// After the stages, the server's own driver runs the city, on the server's clock. It waits on city time, never on wall
+// time, and how many steps it takes depends on wall time, so its state is not reproducible.
 export async function letTheDriverRun(player: Player): Promise<void> {
   // A month is four units of city time
   const start = await player.cityTime();

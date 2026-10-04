@@ -16,34 +16,52 @@ import { writeFileSync } from "fs";
 import { join } from "path";
 
 import { gameSaveHash } from "../src/gameSaveHash";
-import { GoldenPlaythrough, goldenPlaythroughFor } from "./goldenPlaythrough";
-import { blockNetwork, collectPageProblems } from "./page";
+import { GameServer } from "./gameServer";
+import { GoldenPlaythrough, goldenPlaythroughFor, namedByAppearance } from "./goldenPlaythrough";
+import { collectPageProblems } from "./page";
 import { Player } from "./player";
 import { DriverRun, Report, StageResult } from "./report";
-import { CITY_NAME, letTheDriverRun, SEED, STAGES } from "./stages";
+import { CITY_NAME, letTheDriverRun, PLAYER_NAME, SEED, STAGES } from "./stages";
 
 // Plays the city through every stage, taking a checkpoint after each: the stage's step count, the commands applied so
 // far, its state hash, a screenshot of the whole game and the save. The checkpoint is the pass or fail
 // (goldenPlaythrough.ts): one that differs from its golden checkpoint fails the run, which carries on so the report is
 // complete, and the failure names the first stage that diverged. A stage that fails ends the run there. After the last
-// stage, the run's command log must be the golden one, and the browser's own driver runs the city, which the report
+// stage, the run's command log must be the golden one, and the server's own driver runs the city, which the report
 // shows a screenshot of. What goes wrong in the page fails the stage or the step it went wrong in.
+//
+// The city runs on the game server (gameServer.ts), whose debug channel the test hook drives: its cities run on the
+// server's clock, so that once the runner lets go of the city after the stages, the server steps it in real time.
 
 // The page's date, fixed: the tiles the client animates, and the unpowered zones' blink, take their frame from it. With
 // the view scrolled to the same place on every run (Player.showTiles), and whatever on screen closes on wall time left
 // to close before each screenshot, a stage's screenshot shows the same frame on every run, and two runs' screenshots
-// can be compared pixel for pixel. The screenshot after the browser's own driver ran is left out of such a comparison:
+// can be compared pixel for pixel. The screenshot after the server's own driver ran is left out of such a comparison:
 // how far the city got depends on wall time.
 const FIXED_DATE = "2026-01-01T00:00:00Z";
 
+let server: GameServer;
+
+test.beforeAll(async () => {
+  server = await GameServer.start("server");
+});
+
+test.afterAll(async () => {
+  await server?.stop();
+});
+
+test.afterEach(async () => {
+  await server.stopForwarding();
+});
+
 test("the playthrough", async ({page}) => {
-  await blockNetwork(page);
+  await server.forward(page);
   await page.clock.setFixedTime(FIXED_DATE);
   const problems = collectPageProblems(page);
 
   const e2eDirectory = test.info().config.rootDir;
   const report = new Report(join(e2eDirectory, "..", "e2e-report"), SEED);
-  const player = new Player(page);
+  const player = new Player(page, PLAYER_NAME);
   let golden: GoldenPlaythrough | null = null;
   let totalSteps = 0;
   const failures: string[] = [];
@@ -116,9 +134,10 @@ test("the playthrough", async ({page}) => {
     }
 
     if (!stageFailed) {
-      // The run's log, which replays to every stage's checkpoint (test/playthroughReplay.ts)
+      // The run's log, which replays to every stage's checkpoint (GoldenPlaythroughTests in Micropolis.Headless.Tests),
+      // its players named so that it is the same on every run
       const {value: log, error} = await outcomeOf(async () => {
-        const runLog = await player.runLog();
+        const runLog = namedByAppearance(await player.runLog());
         report.log = "command-log.json";
         writeFileSync(join(report.directory, report.log), JSON.stringify(runLog));
         return runLog;
@@ -137,11 +156,11 @@ test("the playthrough", async ({page}) => {
       report.driverRun = driverRun;
       const driverError = (await outcomeOf(() => letTheDriverRun(player))).error;
       await player.holdDriver();
-      driverRun.screenshot = await screenshot(report.fileStem(STAGES.length, "the browser's own driver"));
+      driverRun.screenshot = await screenshot(report.fileStem(STAGES.length, "the server's own driver"));
       driverRun.error = withPageProblems(driverError);
 
       if (driverRun.error) {
-        failures.push(`The browser's own driver failed: ${driverRun.error}`);
+        failures.push(`The server's own driver failed: ${driverRun.error}`);
       }
     }
   } finally {

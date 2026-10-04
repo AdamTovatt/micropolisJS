@@ -33,9 +33,11 @@ namespace Micropolis.Server
         private readonly CityHost _host;
         private readonly Task _working;
 
+        /// <param name="held">Whether the debug channel of the connection the city loads for holds it: it is then held
+        /// from before its first turn, so it takes no step before that connection joins it.</param>
         /// <param name="failed">Called, once, when the city's work throws: the city is then in no state to save, and
         /// takes no more work.</param>
-        public LoadedCity(string id, StartingCity start, ServerClock clock, Action<LoadedCity, Exception> failed)
+        public LoadedCity(string id, StartingCity start, ServerClock clock, bool held, Action<LoadedCity, Exception> failed)
         {
             Id = id;
             MapWidth = start.City.Map.Width;
@@ -53,6 +55,12 @@ namespace Micropolis.Server
             }
 
             _host = new CityHost(start, ticker, Publish);
+            // Before the city's work runs, so before any turn of its loop can
+            if (held)
+            {
+                _host.Hold();
+            }
+
             _working = WorkAsync(failed);
             Post(host => host.Start());
         }

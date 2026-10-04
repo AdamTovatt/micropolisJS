@@ -97,7 +97,7 @@ namespace Micropolis.Server.Tests
 
         private static LoadedCity NewCity(Action<LoadedCity, Exception> failed)
         {
-            return new LoadedCity(CityId.New(), StartingCity.New("Town", 2026, Level.Easy), new ServerClock(TimeProvider.System, Manual: true), failed);
+            return new LoadedCity(CityId.New(), StartingCity.New("Town", 2026, Level.Easy), new ServerClock(TimeProvider.System, Manual: true), held: false, failed);
         }
     }
 }

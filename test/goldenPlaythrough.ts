@@ -16,8 +16,8 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 import {
-    GoldenCheck, GoldenPlaythrough, goldenPlaythroughFor, GoldenRun, goldenText, GoldenWriter, readGoldenRun,
-    StageCheckpoint,
+    GoldenCheck, GoldenPlaythrough, goldenPlaythroughFor, GoldenRun, goldenText, GoldenWriter, namedByAppearance,
+    readGoldenRun, StageCheckpoint,
 } from "../e2e/goldenPlaythrough";
 import { CommandLog } from "../src/commandLog";
 
@@ -248,6 +248,27 @@ describe("the golden playthrough", () => {
 
             expect(goldenPlaythroughFor(directory, STAGES)).toBeInstanceOf(GoldenWriter);
             expect(readFileSync(join(directory, "goldenPlaythrough.json"), "utf8")).toBe("not JSON");
+        });
+    });
+
+    describe("naming a run's players", () => {
+
+        it("names each player by when it first appears, leaving the rest of the log as it was", () => {
+            const ada = "0123456789abcdef0123456789abcdef";
+            const grace = "fedcba9876543210fedcba9876543210";
+            const command = {type: "setSpeed", speed: 0};
+            const log: CommandLog = {
+                ...LOG,
+                entries: [{step: 0, player: grace, command}, {step: 5, player: ada, command},
+                          {step: 9, player: grace, command}],
+            };
+
+            expect(namedByAppearance(log)).toEqual({
+                ...LOG,
+                entries: [{step: 0, player: "player 1", command}, {step: 5, player: "player 2", command},
+                          {step: 9, player: "player 1", command}],
+            });
+            expect(log.entries.map((entry) => entry.player)).toEqual([grace, ada, grace]);
         });
     });
 });

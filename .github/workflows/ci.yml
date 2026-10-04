@@ -73,14 +73,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      # The page online plays against the server's Debug build (e2e/onlineCity.spec.ts)
+      # The playthrough and the page online play against the server's Debug build (e2e/gameServer.ts)
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet build server/Micropolis.slnx
       - run: npm run e2e
-        env:
-          MICROPOLIS_SERVER_TESTS: "1"
       # The report shows every stage of the playthrough, so it is kept on every run, not only on failure
       - uses: actions/upload-artifact@v7
         if: always()

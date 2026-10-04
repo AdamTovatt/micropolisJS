@@ -435,7 +435,7 @@ namespace Micropolis.Server.Tests
             await ada.StartAsync();
             string city = await grace.StartAsync("Stopping");
             // Counted in, so the registry keeps it listed while it stops
-            LoadedCity stopping = (await server.App.Services.GetRequiredService<CityRegistry>().EnterAsync(city))!;
+            LoadedCity stopping = (await server.App.Services.GetRequiredService<CityRegistry>().EnterAsync(city, held: false))!;
             await stopping.StopAsync();
 
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.JoinAsync(city));

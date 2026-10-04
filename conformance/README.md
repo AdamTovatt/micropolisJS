@@ -2,8 +2,8 @@
 
 Data that the C# implementation of the game rules tests against, read from here rather than copied: the random
 stream's vectors, which the TypeScript tests read too, and files the TypeScript reference writes, among them the
-end-to-end playthrough's log, which the browser recorded and the generator copies, and the command logs, which the C#
-fixture tool must write the same.
+end-to-end playthrough's log, which the game server recorded and the generator copies, and the command logs, which the
+C# fixture tool must write the same.
 
 ## random.json
 
@@ -217,9 +217,9 @@ each checkpoint, so a diff shows which moved:
 - `playthrough.log.json`: the end-to-end playthrough's log, from `e2e/goldenPlaythrough.json`, with the game's own
   checkpoints. `npm run e2e:golden` rewrites the golden file, and the generator copies its log, so a change that moves
   the playthrough runs `npm run e2e:golden` first: until then the generator fails, since the golden log no longer
-  replays, and the end-to-end run needs Chromium. The generator fails too when there is no golden file. A stage's
-  checkpoint is not a checkpoint of the log, since a stage may end partway through a step's commands, so only
-  `test/playthroughReplay.ts` checks those.
+  replays, and the end-to-end run needs Chromium and the server's Debug build. The generator fails too when there is
+  no golden file. A stage's checkpoint is not a checkpoint of the log, since a stage may end partway through a step's
+  commands, so only `GoldenPlaythroughTests` in `server/Micropolis.Headless.Tests` checks those.
 
 The generator reads each file back as a replayer reads it, and fails unless it replays to every checkpoint. It fails
 too unless one log starts from a seed and another from a save. `npm run simulate -- --log

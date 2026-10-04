@@ -67,7 +67,7 @@ describeOnServer("a city two players share", () => {
     let players: Player[] = [];
 
     beforeAll(async () => {
-        server = await startTestServer();
+        server = await startTestServer("manual");
     }, START_SERVER_TIMEOUT_MS);
 
     afterAll(async () => {

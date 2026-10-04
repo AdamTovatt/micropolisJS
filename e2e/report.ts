@@ -38,7 +38,7 @@ export interface StageResult {
   error?: string;
 }
 
-// The browser's own driver, run after the stages: as many steps as wall time allowed, so a screenshot and no save
+// The server's own driver, run after the stages: as many steps as wall time allowed, so a screenshot and no save
 export interface DriverRun {
   screenshot?: string;
   error?: string;
@@ -97,10 +97,10 @@ export class Report {
 
     const driverRun = this.driverRun === null ? "" : `
       <section class="stage${this.driverRun.error ? " failed" : ""}">
-        <h2>Then the browser's own driver runs the city</h2>
+        <h2>Then the server's own driver runs the city</h2>
         <p>It took as many steps as wall time allowed, so its city is not reproducible and has no save.</p>
         ${errorBlock(this.driverRun.error)}
-        ${screenshotBlock(this.driverRun.screenshot, "the browser's own driver ran it")}
+        ${screenshotBlock(this.driverRun.screenshot, "the server's own driver ran it")}
       </section>`;
 
     return `<!doctype html>

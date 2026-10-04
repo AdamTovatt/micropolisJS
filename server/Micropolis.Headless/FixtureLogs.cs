@@ -11,7 +11,6 @@
  *
  */
 
-using System.Text.Json;
 using Micropolis.Rules;
 using Micropolis.SourceTree;
 
@@ -27,8 +26,8 @@ namespace Micropolis.Headless
     internal static class FixtureLogs
     {
         /// <summary>
-        /// The end-to-end playthrough's log, which no script builds: the browser recorded it, and the tool copies it from
-        /// the golden playthrough, as the generator does.
+        /// The end-to-end playthrough's log, which no script builds: the game server recorded it as the browser played,
+        /// and the tool copies it from the golden playthrough, as the generator does.
         /// </summary>
         public const string Playthrough = "playthrough";
 
@@ -45,25 +44,13 @@ namespace Micropolis.Headless
         /// <summary>
         /// The playthrough's log, as the golden playthrough at <paramref name="goldenPlaythrough"/> holds it, once its
         /// replay has matched every checkpoint, as the generator checks it. An <see cref="InvalidDataException"/> names
-        /// the file when it holds no log, and a <see cref="ReplayDiffersException"/> asks for the playthrough to be
-        /// pinned again when its log no longer replays.
+        /// the file when it is no golden playthrough (<see cref="GoldenPlaythrough.Read"/>), and a
+        /// <see cref="ReplayDiffersException"/> asks for the playthrough to be pinned again when its log no longer
+        /// replays.
         /// </summary>
         public static CommandLog CopyPlaythrough(string goldenPlaythrough)
         {
-            CommandLog log;
-
-            try
-            {
-                log = CommandLog.Read(JsonText.Parse(File.ReadAllText(goldenPlaythrough))?["log"]);
-            }
-            catch (JsonException exception)
-            {
-                throw new InvalidDataException($"The golden playthrough {goldenPlaythrough} is not JSON: {exception.Message}");
-            }
-            catch (InvalidDataException exception)
-            {
-                throw new InvalidDataException($"The golden playthrough {goldenPlaythrough} holds no log: {exception.Message}");
-            }
+            CommandLog log = GoldenPlaythrough.Read(goldenPlaythrough).Log;
 
             try
             {
