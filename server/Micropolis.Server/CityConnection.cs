@@ -13,6 +13,7 @@
 
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Micropolis.Rules;
 
@@ -35,6 +36,7 @@ namespace Micropolis.Server
         private readonly object _closeLock = new object();
         private WebSocketCloseStatus _closeStatus = WebSocketCloseStatus.NormalClosure;
         private string? _closeDescription;
+        private volatile bool _closing;
 
         public CityConnection(PlayerInfo player)
         {
@@ -42,6 +44,27 @@ namespace Micropolis.Server
         }
 
         public PlayerInfo Player { get; }
+
+        /// <summary>
+        /// Whether the connection is closing, for whatever reason: what the client sends from then on is not read.
+        /// </summary>
+        public bool IsClosing => _closing;
+
+        /// <summary>
+        /// Queues the answer to the client's request with the id.
+        /// </summary>
+        public void Answer(long requestId, JsonNode? value)
+        {
+            Send(ProtocolJson.Serialize(new AnswerMessage(requestId, value)));
+        }
+
+        /// <summary>
+        /// Queues why the client's request with the id failed.
+        /// </summary>
+        public void Fail(long requestId, string error)
+        {
+            Send(ProtocolJson.Serialize(new FailedMessage(requestId, error)));
+        }
 
         /// <summary>
         /// Queues a message, already written as the wire carries it. A closed connection drops it, and a full one
@@ -57,16 +80,19 @@ namespace Micropolis.Server
         }
 
         /// <summary>
-        /// Sends what is queued, then closes with the given status. The first close wins.
+        /// Sends what is queued, then closes with the given status. The first close wins. A description longer than a
+        /// close frame holds is cut short.
         /// </summary>
         public void Close(WebSocketCloseStatus status, string? description)
         {
             lock (_closeLock)
             {
+                _closing = true;
+
                 if (_outbox.Writer.TryComplete())
                 {
                     _closeStatus = status;
-                    _closeDescription = description;
+                    _closeDescription = description is null ? null : CutToCloseFrame(description);
                 }
             }
         }
@@ -95,5 +121,28 @@ namespace Micropolis.Server
                 await socket.CloseOutputAsync(status, description, cancellationToken);
             }
         }
+
+        // The description as a close frame holds it: at most 123 bytes of UTF-8, cut between characters
+        private static string CutToCloseFrame(string description)
+        {
+            int bytes = 0;
+            int length = 0;
+
+            foreach (Rune character in description.EnumerateRunes())
+            {
+                bytes += character.Utf8SequenceLength;
+
+                if (bytes > MaxCloseDescriptionBytes)
+                {
+                    break;
+                }
+
+                length += character.Utf16SequenceLength;
+            }
+
+            return description[..length];
+        }
+
+        private const int MaxCloseDescriptionBytes = 123;
     }
 }
