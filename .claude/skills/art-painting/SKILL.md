@@ -22,25 +22,39 @@ These are Adam's decisions. Don't reopen them.
 
 ## The steps
 
-1. **Lay out the canvas** (`paint.py prep <job>`). A job is one asset, such as a zone, or several laid out in a grid on one canvas, such as the single-tile houses: one painting for a set keeps its members alike, and costs one painting instead of one each. Each asset gets a square cell: its side is the larger of `tiles + left + right` and `tiles + top + bottom` from `shadow_margin`, the footprint at (`left`, `top`). The model paints only squares, and gets a shadow right only when it can see where the shadow falls.
+1. **Lay out the canvas** (`paint.py prep <job>`). A job is one asset, such as a zone, or several laid out in a grid on one canvas, such as the single-tile houses, four to a canvas: one painting for a set keeps its members alike, and four houses paint at about a zone's scale. Each asset gets a square cell: its side is the larger of `tiles + left + right` and `tiles + top + bottom` from `shadow_margin`, plus half a tile of border all round, the footprint at the border plus (`left`, `top`). The model paints only squares, gets a shadow right only when it can see where the shadow falls, and paints frames and vignettes along a canvas's edge, which the border keeps off the footprint.
 2. **Write three model inputs**, each the canvas scaled up to 1024 × 1024:
    - *full*: the asset as the game draws it, ground, then shadow, then objects, on plain grass outside the footprint.
-   - *ground*: the ground alone, on the same grass.
+   - *ground*: the ground alone, mirrored outward to fill its cell. Against plain grass the model paints a kerb along the footprint's edge; mirrored, the ground runs on past the edge with nothing there to outline.
    - *shadow*: the shadow's alpha as grey on white (`255 − alpha`).
 3. **Paint each input once** (`paint.py paint <job>`), through `art/tools/generate.py --reference <input>`, with the prompts below. *full* gives the objects, *ground* the ground and *shadow* the shadow's brushwork.
 4. **Look at each painting beside its input**, and paint again the one that fails (`paint.py paint <job> --only ground`):
    - The paving and grass end where they ended in the input.
    - Nothing is added: no trees, sky, crates or roads.
    - In the full painting the objects keep their shapes.
+
+   A plain yard is the hardest ground: with nothing in the input to hold on to, the model invents lawns, roads and ponds, or hands the input back barely painted. Retry it with `--paving` naming its surfaces, and with `--style-from-full`, which gives the ground the job's full painting as a second reference so it copies the brushwork of the ground there.
 5. **Build the layers** (`paint.py build <job>`), each painting scaled down to the canvas at `tile_px`:
    - *objects*: the full painting cropped to the footprint, with Blender's objects alpha. Blender's outline is the stencil, so the objects line up with their shadows, and whatever the model added outside it is cut away.
    - *ground*: the painted ground cropped to the footprint, then held to Blender's own grass and paving (below).
    - *shadow*: the painting's darkness (`255 − luminance`), histogram-matched over the canvas to Blender's shadow alpha, written as black with that alpha at the size and offset of Blender's `shadow.png`. The brushwork stays and the strength is Blender's: left alone, the model paints a tower's faint long shadow nearly black.
+   - *letters*: the render's own pixels wherever its letter mask shows a zone letter (below), the roof letters into the objects and the empty zones' ground letters into the ground.
 6. **Preview it among neighbours**: `art/tools/preview.py --root art/painted/out` composites as the game does. Look at the joins between assets and at shadows crossing into the next tile.
 
 ## The ground seam
 
-The painted ground drifts by a few pixels, and where it meets a neighbour's ground that drift is a line across the map: a sliver of grass along the edge of a concrete yard that should run to the edge. `build` holds the painted ground to Blender's: it sorts every pixel of both grounds into grass and not grass, and where the painting disagrees with the render it takes the colour of the nearest painted pixel that agrees. The brushwork stays, and the boundary between grass and paving is Blender's to the pixel.
+Where one asset's ground meets its neighbour's, any difference is a line across the map. Three things make one: the painted ground drifts by a few pixels, such as a sliver of grass along the edge of a concrete yard that should run to the edge; the model outlines the footprint with a kerb; and each painting takes its own colours, such as concrete drifting toward sand. The mirrored ground input stops the kerb. `build` holds the painted ground to Blender's for the rest:
+
+- It sorts every pixel of both grounds into grass and not grass, and where the painting disagrees with the render it takes the colour of the nearest painted pixel that agrees. The boundary between grass and paving is Blender's to the pixel.
+- It moves the painted grass to the render's average grass colour, and the rest to the render's average colour of the rest, keeping the brushwork round each. Every lawn then meets its neighbour's in one green.
+
+`build` prints the share of pixels whose kind it replaced. A large share means the painting moved or invented ground, such as a road across a plain yard: paint it again rather than keep the patched one.
+
+## Zone letters come from the render
+
+A zone's letter (R, C, I, and the stations' FD and PD) is how a player tells the zones apart, and the model does not keep it, whatever the prompt says: it turned an I into an H painted as a helipad, another into an R, and bent a third out of shape through three retries. So the letters are never painted. `render()` in `tileart.py` writes, after the three layers, `<layer>-letters.png` for each layer that holds a letter, whose alpha is where the camera sees the letters, and `build` puts the render's pixels back there. A letter the model mangled into a bigger shape can leave paint round the pasted letter; retry that full painting. Retrying for the letter itself is wasted.
+
+A re-render never reproduces a render's file bytes, because Blender stamps the date and the render time into each PNG: compare renders by their decoded pixels.
 
 ## Prompts
 
@@ -50,13 +64,15 @@ The style sentence, shared by all three:
 
 The keep sentence, after the style in the *full* and *ground* prompts:
 
-> Keep the exact composition: every shape, every tree and every boundary between paving and grass in the same position, size and outline, the same straight-down camera angle. Do not add trees, bushes, sky or anything else. No text, no borders.
+> Keep the exact composition: every shape, every tree and every boundary between paving and grass in the same position, size and outline, the same straight-down camera angle. Keep every big letter on a roof or on the ground, such as a green R, C or I, exactly as it is: the same letter, shape, size and colour, crisp and flat, never turned into a sign, a helipad or another letter. Do not add trees, bushes, sky or anything else. No other text, no borders.
+
+The letters come from the render whatever the painting does; the letter sentence keeps the painting from leaving a bigger shape round them.
 
 - *full*: "Repaint this top-down render of {what it is} {style} {paving} {keep}"
 - *ground*: "This is the bare ground of {what it is} seen from directly above: {what is on it}, with no buildings and no shadows. Repaint it {style} {paving} Paint only the ground: no buildings, objects or shadows. {keep}"
 - *shadow*: "This shows only the shadows cast on the ground by buildings, as dark grey shapes on a pure white background. Repaint the shadows as soft, dark, painterly oil-paint brushstrokes in neutral grey, matching a cosy oil painting of a summer day. Keep the background pure flat white and keep every shadow shape in the same place and outline, with no buildings, objects, colour or ground. No text, no borders."
 
-`{paving}` says what the ground is made of, and that it stays that: without it, the summer wording turns concrete into lawn. `paint.py` writes a general one; name the asset's own surfaces when a painting greens one anyway, such as "The grey concrete yard stays grey concrete paving; the strip of grass along the right and bottom edges stays green summer grass."
+`{paving}` says what the ground is made of, and that it stays that: without it, the summer wording turns concrete into lawn, and a plain yard gets roads and lawns it never had. `paint.py` writes a general one; `--paving` names the asset's own surfaces when a painting changes one anyway, such as "The whole square is one plain grey concrete yard from edge to edge, and stays grey concrete paving: no roads, kerbs, grass or markings."
 
 ## Traps
 

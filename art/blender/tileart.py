@@ -995,6 +995,26 @@ def render(scene, out_dir, tiles, samples=192,
         json.dump({'tiles': tiles, 'tile_px': TILE_PX, 'shadow_margin': margin}, f, indent=2)
         f.write('\n')
 
+    # the zone letters of each layer that holds any, as a mask whose alpha is where the camera
+    # sees them, into <layer>-letters.png: a painting of the zone takes its letters from the
+    # render through it (art/tools/paint.py). Rendered after the layers, so they come out exactly
+    # as they would without it
+    letters = [ob for ob in meshes if ob.name.startswith('letter_')]
+    for layer, members in (('ground', ground), ('objects', standing)):
+        mine = [ob for ob in letters if ob in members]
+        if not mine:
+            continue
+        for ob in meshes:
+            ob.hide_render = ob not in members
+            ob.is_holdout = ob not in mine
+        scene.cycles.samples = 16
+        scene.render.film_transparent = True
+        _frame(scene, cam, 0, 0, tiles, tiles)
+        _render_to(scene, os.path.join(out_dir, f'{layer}-letters.png'))
+    for ob in meshes:
+        ob.hide_render = False
+        ob.is_holdout = False
+
 
 def _wanted():
     # the numbers listed after the output directory on the command line (`-- <directory>

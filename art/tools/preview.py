@@ -25,7 +25,8 @@ set (art/blender/tiles/) into art/blender/out/<set>/<id>, so a row of ids is a s
     python art/tools/preview.py map.png 0,13,13,0 9,2,2,17 0,5,5,0 --original
 
 --original also writes <out>-original.png, the same grid from the game's 16 px tiles
-(images/tiles.png) scaled up to the same size. Needs Pillow.
+(images/tiles.png) scaled up to the same size. --root draws from another directory of layers in
+the same layout, such as the painted ones in art/painted/out. Needs Pillow.
 """
 
 import argparse
@@ -39,10 +40,10 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'blender', 
 TILES = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'images', 'tiles.png')
 
 
-def _directory(name):
+def _directory(name, root):
     if not name.isdigit():
-        return os.path.join(OUT, name)
-    found = glob.glob(os.path.join(OUT, '*', f'{int(name):04d}'))
+        return os.path.join(root, name)
+    found = glob.glob(os.path.join(root, '*', f'{int(name):04d}'))
     if len(found) != 1:
         raise ValueError(f'tile {name} is rendered by {len(found)} sets, not one: {found}')
     return found[0]
@@ -63,16 +64,16 @@ def original(rows, out_path, tile_px):
     grid.save(out_path)
 
 
-def zone(name):
-    d = _directory(name)
+def zone(name, root=OUT):
+    d = _directory(name, root)
     with open(os.path.join(d, 'layers.json')) as f:
         info = json.load(f)
     layers = {k: Image.open(os.path.join(d, k + '.png')).convert('RGBA') for k in ('ground', 'shadow', 'objects')}
     return info, layers
 
 
-def preview(rows, out_path, empty=(86, 118, 52)):
-    grid = [[zone(n) if n else None for n in row] for row in rows]
+def preview(rows, out_path, empty=(86, 118, 52), root=OUT):
+    grid = [[zone(n, root) if n else None for n in row] for row in rows]
     sizes = {info['tiles'] * info['tile_px'] for row in grid for z in row if z for info in [z[0]]}
     if len(sizes) != 1:
         raise ValueError('the zones must all be one size')
@@ -106,9 +107,10 @@ if __name__ == '__main__':
     p.add_argument('out')
     p.add_argument('rows', nargs='+', help='comma-separated zone names or tile ids, one argument per row')
     p.add_argument('--original', action='store_true', help="also write <out>-original.png from the game's tiles")
+    p.add_argument('--root', default=OUT, help='the directory of layers to draw from, such as art/painted/out')
     a = p.parse_args()
     rows = [row.split(',') for row in a.rows]
-    tile_px = preview(rows, a.out)
+    tile_px = preview(rows, a.out, root=a.root)
     if a.original:
         stem, _ = os.path.splitext(a.out)
         original(rows, stem + '-original.png', tile_px)

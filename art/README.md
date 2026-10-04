@@ -14,7 +14,8 @@ Sources for rendering the game's tile art in Blender, one zone or one set of sin
 - `blender/stadium.py`: the stands, pitch and game that the empty and the full stadium share.
 - `blender/vehicles/`: one script per vehicle sprite, rendering each of its frames.
 - `blender/out/`: rendered zones and tiles, one directory of layers each. Ignored by git: a render is rebuilt from its script.
-- `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), and previewing rendered zones side by side (`preview.py`).
+- `painted/`: the renders repainted as oil paintings, in the same layers, described in `painted/README.md`.
+- `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), previewing rendered zones side by side (`preview.py`), and repainting renders (`paint.py`, as the art-painting skill describes).
 
 ## Rendering a zone
 
@@ -77,6 +78,8 @@ A zone renders as three layers, so its shadows can fall across its neighbours wi
 - `ground.png`: everything that lies on the ground (no taller than `GROUND_TOP`), with no shadow on it.
 - `shadow.png`: black, whose alpha is the shadow everything standing casts onto flat ground. It reaches past the zone, by whole tiles, as far as the zone's longest shadow does; `layers.json` records how far on each side.
 - `objects.png`: everything standing (buildings, trees, cars) over transparency, with the shadows the zone casts on its own objects.
+
+Beside them, `<layer>-letters.png` masks the zone letters of each layer that holds any, its alpha where the camera sees them: the painted layers take their letters from the render through it (`painted/README.md`). It is rendered after the layers, which come out exactly as without it.
 
 The game draws every zone's ground, then the shadow layers merged by taking the darkest at each pixel, so overlapping shadows never darken twice, then every zone's objects. A shadow therefore falls across a neighbour's ground but never on its buildings, trees or cars. `tools/preview.py` composites rendered zones in that order, in a grid:
 
