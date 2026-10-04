@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.SourceTree;
 
 namespace Micropolis.Rules.Tests
 {

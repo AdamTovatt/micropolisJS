@@ -13,15 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Micropolis.Rules\Micropolis.Rules.csproj" />
-  </ItemGroup>
-
-  <!-- The tests read the files they share with the TypeScript tests in place, from the repository root, so a copy
-       in the build output can never go stale -->
-  <ItemGroup>
-    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-      <_Parameter1>RepositoryRoot</_Parameter1>
-      <_Parameter2>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))</_Parameter2>
-    </AssemblyAttribute>
+    <ProjectReference Include="..\Micropolis.SourceTree\Micropolis.SourceTree.csproj" />
   </ItemGroup>
 
 </Project>

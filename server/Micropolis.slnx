@@ -5,4 +5,6 @@
   <Project Path="Micropolis.Rules.Tests/Micropolis.Rules.Tests.csproj" />
   <Project Path="Micropolis.Server/Micropolis.Server.csproj" />
   <Project Path="Micropolis.Server.Tests/Micropolis.Server.Tests.csproj" />
+  <Project Path="Micropolis.SourceTree/Micropolis.SourceTree.csproj" />
+  <Project Path="Micropolis.SourceTree.Tests/Micropolis.SourceTree.Tests.csproj" />
 </Solution>
