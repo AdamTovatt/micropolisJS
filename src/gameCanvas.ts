@@ -107,6 +107,8 @@ class GameCanvas {
   // What the map and the marks were last drawn from, so a paint that would draw the same again doesn't
   private readonly drawn = new FrameRecord();
   private marksDrawn = "";
+  // Whether the last paint left the map as it was, the GPU still drawing the frame before
+  private mapBehind = false;
 
   // The CSS pixels a tile is drawn
   private zoom = ZOOM_STEPS[0];
@@ -154,6 +156,12 @@ class GameCanvas {
   // The CSS pixels a tile is drawn, at the zoom the view is at
   get tileWidth(): number {
     return this.zoom;
+  }
+
+  // Whether the map shows what the last paint read, drawn to the end: the last paint drew it, or found it drawn
+  // already, and the GPU has finished drawing it
+  get mapCurrent(): boolean {
+    return !this.mapBehind && !this.renderer.busy;
   }
 
   // The map pixels the view shows across and down, at 16 a tile, as sprites are positioned
@@ -254,8 +262,7 @@ class GameCanvas {
     picture.width = this.canvas.width;
     picture.height = this.canvas.height;
 
-    // The map's drawing buffer isn't kept once the page has shown it, so the last frame is drawn again to be read
-    this.renderer.draw(this.frame);
+    // The map's drawing buffer is kept from frame to frame, so it holds the map as it shows
     const ctx = picture.getContext("2d")!;
     ctx.drawImage(this.canvas, 0, 0);
     ctx.drawImage(this.marks, 0, 0);
@@ -270,17 +277,28 @@ class GameCanvas {
       this.fitContainer();
       this.position.viewport = this.viewportAt(this.zoom);
       this.pendingDimensionChange = false;
+      // Sizing a canvas clears it, at the same size too
+      this.drawn.invalidate();
+      this.marksDrawn = "";
     }
 
+    // While the GPU is still drawing the last frame, the map is left as it is, and the paint after it catches up
     const origin = this.position.origin;
-    const tiles = this.readTiles(origin, isPaused);
-    const overlay = this.overlay;
-    const view = {originX: origin.x, originY: origin.y, tilePixels: this.zoom * this.pixelRatio,
-                  width: this.canvas.width, height: this.canvas.height};
-    if (this.drawn.changed(view, tiles, sprites ?? [])) {
-      buildMapFrame(this.frame, this.art, tiles, view.tilePixels,
-                    overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites ?? []);
-      this.renderer.draw(this.frame);
+    this.mapBehind = this.renderer.busy;
+    if (!this.mapBehind) {
+      const tiles = this.readTiles(origin, isPaused);
+      const overlay = this.overlay;
+      const view = {originX: origin.x, originY: origin.y, tilePixels: this.zoom * this.pixelRatio,
+                    width: this.canvas.width, height: this.canvas.height};
+      const damage = this.drawn.damage(view, tiles, sprites ?? []);
+      if (damage !== null) {
+        const pixels = view.tilePixels;
+        buildMapFrame(this.frame, this.art, tiles, pixels,
+                      overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites ?? [], damage);
+        this.renderer.draw(this.frame, damage === "all" ? null : damage.map(({x, y, width, height}) => ({
+          x: x * pixels, y: y * pixels, width: width * pixels, height: height * pixels,
+        })));
+      }
     }
 
     const boxes = outlines.map((outline) => ({

@@ -183,35 +183,150 @@ function sameView(a: FrameView, b: FrameView): boolean {
          a.height === b.height;
 }
 
-// What the last frame drawn was built from, so a paint whose frame would come out the same draws nothing. A frame
-// drawn hands the compositor a new picture of the whole canvas, which on software WebGL holds the page's thread for
-// most of a frame's time, and leaves the game's ticks, which read the keyboard, too little of it.
+// A rectangle of the view's tiles, in tiles from its origin
+export interface TileRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// The part of the view a frame draws: all of it, or the tiles in the rectangles, which don't overlap
+export type Damage = "all" | readonly TileRect[];
+
+// The tiles a sprite's square covers, from the view's origin at map pixel (originX, originY), inclusive
+function spriteTiles(sprite: PaintableSprite, originX: number,
+                     originY: number): {left: number, top: number, right: number, bottom: number} {
+  return {
+    left: Math.floor((sprite.x - originX) / SPRITE_PIXELS_PER_TILE),
+    top: Math.floor((sprite.y - originY) / SPRITE_PIXELS_PER_TILE),
+    right: Math.floor((sprite.x + sprite.width - 1 - originX) / SPRITE_PIXELS_PER_TILE),
+    bottom: Math.floor((sprite.y + sprite.width - 1 - originY) / SPRITE_PIXELS_PER_TILE),
+  };
+}
+
+// The view is drawn again in square blocks of this many tiles a side, the blocks of a row that touch as one rectangle
+export const DAMAGE_BLOCK = 8;
+// A frame that would draw more than this share of the view's blocks draws all of it
+const DAMAGE_ALL_SHARE = 0.5;
+
+// The view's blocks a frame draws again, as tiles from the view's origin are marked
+class DamagedBlocks {
+  private readonly across: number;
+  private readonly down: number;
+  private readonly marked: Uint8Array;
+  private count = 0;
+
+  // A view of width by height tiles
+  constructor(private readonly width: number, private readonly height: number) {
+    this.across = Math.ceil(width / DAMAGE_BLOCK);
+    this.down = Math.ceil(height / DAMAGE_BLOCK);
+    this.marked = new Uint8Array(this.across * this.down);
+  }
+
+  // Marks the blocks of the tiles from (left, top) to (right, bottom), inclusive, that are in view
+  mark(left: number, top: number, right: number, bottom: number): void {
+    const fromX = Math.max(left, 0);
+    const fromY = Math.max(top, 0);
+    const toX = Math.min(right, this.width - 1);
+    const toY = Math.min(bottom, this.height - 1);
+    for (let y = Math.floor(fromY / DAMAGE_BLOCK); y <= Math.floor(toY / DAMAGE_BLOCK) && fromY <= toY; y++) {
+      for (let x = Math.floor(fromX / DAMAGE_BLOCK); x <= Math.floor(toX / DAMAGE_BLOCK) && fromX <= toX; x++) {
+        if (this.marked[y * this.across + x] === 0) {
+          this.marked[y * this.across + x] = 1;
+          this.count++;
+        }
+      }
+    }
+  }
+
+  // The damage: none, all of the view past the share, or a rectangle for each run of marked blocks along a row
+  damage(): Damage | null {
+    if (this.count === 0) {
+      return null;
+    }
+    if (this.count > DAMAGE_ALL_SHARE * this.marked.length) {
+      return "all";
+    }
+
+    const rects: TileRect[] = [];
+    for (let y = 0; y < this.down; y++) {
+      for (let x = 0; x < this.across; x++) {
+        if (this.marked[y * this.across + x] === 0) {
+          continue;
+        }
+
+        let end = x;
+        while (end + 1 < this.across && this.marked[y * this.across + end + 1] === 1) {
+          end++;
+        }
+        const left = x * DAMAGE_BLOCK;
+        const top = y * DAMAGE_BLOCK;
+        rects.push({x: left, y: top, width: Math.min((end + 1) * DAMAGE_BLOCK, this.width) - left,
+                    height: Math.min(top + DAMAGE_BLOCK, this.height) - top});
+        x = end;
+      }
+    }
+
+    return rects;
+  }
+}
+
+// What the last frame drawn was built from, so a paint draws only the part of the view whose picture would differ
+// from it. A frame drawn on software WebGL costs the GPU's threads time in proportion to the pixels it draws, and the
+// page waits for it before drawing another.
 export class FrameRecord {
   private view: FrameView | null = null;
   private values: number[] = [];
   private frames: number[] = [];
-  private sprites = "";
+  private sprites: PaintableSprite[] = [];
+  private spriteText = "";
 
-  // Whether a frame of the view, the tiles and the sprites differs from the last one recorded; if so, it is recorded
-  // as the last
-  changed(view: FrameView, tiles: FrameTiles, sprites: readonly PaintableSprite[]): boolean {
+  // The part of the view a frame of the view, the tiles and the sprites would draw differently from the last one
+  // recorded, or null for none; the frame is recorded as the last. A tile whose value changed may have changed its
+  // shadow, which reaches no farther than the tiles' margin; a sprite that changed is drawn again where it was and
+  // where it is.
+  damage(view: FrameView, tiles: FrameTiles, sprites: readonly PaintableSprite[]): Damage | null {
     const count = tiles.width * tiles.height;
     const spriteText = JSON.stringify(sprites);
-    let same = this.view !== null && sameView(view, this.view) && spriteText === this.sprites &&
-               this.values.length === count;
-    for (let i = 0; same && i < count; i++) {
-      same = tiles.values[i] === this.values[i] && tiles.frames[i] === this.frames[i];
+    const {margin} = tiles;
+    let damage: Damage | null = "all";
+
+    if (this.view !== null && sameView(view, this.view) && this.values.length === count) {
+      const blocks = new DamagedBlocks(tiles.width - 2 * margin, tiles.height - 2 * margin);
+      for (let i = 0; i < count; i++) {
+        // From the view's origin
+        const column = i % tiles.width - margin;
+        const row = Math.floor(i / tiles.width) - margin;
+        if (tiles.values[i] !== this.values[i]) {
+          blocks.mark(column - margin, row - margin, column + margin, row + margin);
+        } else if (tiles.frames[i] !== this.frames[i]) {
+          blocks.mark(column, row, column, row);
+        }
+      }
+
+      if (spriteText !== this.spriteText) {
+        const originX = (tiles.x + margin) * SPRITE_PIXELS_PER_TILE;
+        const originY = (tiles.y + margin) * SPRITE_PIXELS_PER_TILE;
+        for (const sprite of this.sprites.concat(sprites)) {
+          const {left, top, right, bottom} = spriteTiles(sprite, originX, originY);
+          blocks.mark(left, top, right, bottom);
+        }
+      }
+
+      damage = blocks.damage();
     }
 
-    if (same) {
-      return false;
+    if (damage === null) {
+      return null;
     }
 
     this.view = {...view};
-    this.sprites = spriteText;
+    this.sprites = sprites.map((sprite) => ({...sprite}));
+    this.spriteText = spriteText;
     this.values = tiles.values.slice(0, count);
     this.frames = tiles.frames.slice(0, count);
-    return true;
+    return damage;
   }
 
   // Forgets the last frame, so the next differs from it: for a change the record doesn't hold, such as the overlay
@@ -222,15 +337,21 @@ export class FrameRecord {
 }
 
 // Fills the frame with the quads that draw the area's tiles, tilePixels device pixels a side, with the view's origin
-// margin tiles in from the area's top-left; then the tints of the tiles in view; then the sprites given.
+// margin tiles in from the area's top-left; then the tints of the tiles in view; then the sprites given. Of the
+// damage's rectangles, only the quads that reach into one are added: the renderer draws no further than they reach.
 //
 // A shadow comes from its anchor's raw value, not from the frame the animation manager chose: an unpowered zone's centre
 // blinks to the lightning bolt, and its shadow would blink with it.
 export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles, tilePixels: number,
                               tint: (x: number, y: number) => Tint | null,
-                              sprites: readonly PaintableSprite[]): void {
+                              sprites: readonly PaintableSprite[], damage: Damage = "all"): void {
   frame.clear();
   const {margin, width, height} = tiles;
+
+  // Whether the tiles from (left, top) to (right, bottom), inclusive, from the view's origin, reach into the damage
+  const damaged = (left: number, top: number, right: number, bottom: number) => damage === "all" ||
+    damage.some((rect) => left < rect.x + rect.width && right >= rect.x && top < rect.y + rect.height &&
+                          bottom >= rect.y);
 
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
@@ -247,12 +368,14 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
       const shadow = art.tile(value & BIT_MASK).shadow;
       if (shadow !== null) {
         const {left, top, right, bottom} = shadow.reach;
-        frame.shadows.add(shadow.atlas, x - left * tilePixels, y - top * tilePixels,
-                          (left + 1 + right) * tilePixels, (top + 1 + bottom) * tilePixels, shadow);
+        if (damaged(column - margin - left, row - margin - top, column - margin + right, row - margin + bottom)) {
+          frame.shadows.add(shadow.atlas, x - left * tilePixels, y - top * tilePixels,
+                            (left + 1 + right) * tilePixels, (top + 1 + bottom) * tilePixels, shadow);
+        }
       }
 
       const inView = column >= margin && column < width - margin && row >= margin && row < height - margin;
-      if (!inView) {
+      if (!inView || !damaged(column - margin, row - margin, column - margin, row - margin)) {
         continue;
       }
 
@@ -279,6 +402,11 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
     const rect = art.sprite(sprite.type, sprite.frame);
     if (rect === null) {
       throw new Error(`No art draws sprite ${sprite.type} frame ${sprite.frame}`);
+    }
+
+    const {left, top, right, bottom} = spriteTiles(sprite, originX, originY);
+    if (!damaged(left, top, right, bottom)) {
+      continue;
     }
 
     frame.sprites.add(rect.atlas, (sprite.x - originX) * scale, (sprite.y - originY) * scale, sprite.width * scale,

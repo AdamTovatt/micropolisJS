@@ -82,5 +82,12 @@ test("a sprite is drawn from its art, filling its square", async ({page}) => {
   const box = {width: Math.max(...xs) - Math.min(...xs) + 1, height: Math.max(...ys) - Math.min(...ys) + 1};
   expect(box, "the red square's size").toEqual({width: TORNADO_SIDE, height: TORNADO_SIDE});
   expect(red.length, "the red pixels, which fill it").toBe(TORNADO_SIDE * TORNADO_SIDE);
+
+  // The tornado moves on, and the map is drawn again where it was and where it is, as the map drawn whole shows it
+  await player.advance(8);
+  const inPart = await player.mapScreenshot();
+  // Sizing the canvas draws all of it again
+  await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+  expect(inPart.equals(await player.mapScreenshot()), "the map drawn in part, as drawn whole").toBe(true);
   expect(problems).toEqual([]);
 });

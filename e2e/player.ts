@@ -330,11 +330,13 @@ export class Player {
     await this.page.click("#saveOK");
   }
 
-  // Waits for the canvas to be painted as the city now stands
+  // Waits for the canvas to be painted as the city now stands: a paint after now, then the map drawn to the end, which
+  // a paint leaves for a later one while the GPU is still drawing the frame before
   async settle(): Promise<void> {
     await this.page.evaluate(() => new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     }));
+    await this.page.waitForFunction(() => window.micropolisTestHook!.mapCurrent());
   }
 
   // A screenshot of the page showing nothing but the map's canvas: the panels over it, the marks and the panels' drop

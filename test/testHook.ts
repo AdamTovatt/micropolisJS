@@ -36,7 +36,8 @@ function gameOn(source: CitySource, state: CityState) {
         save: () => source.save(),
         onCommandResult: (listener: () => void) => state.on("commandResult", listener),
         // Not the tile set's 16 pixels, so the view's tile width is seen to be the canvas's
-        gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS, tileWidth: 32},
+        gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS, tileWidth: 32,
+                     mapCurrent: false},
         dismissals: 0,
         notificationBar: {dismiss: () => {
             game.dismissals++;
@@ -51,7 +52,7 @@ const IDLE_GAME = {
     sendToolPaths: () => {},
     save: async () => "",
     onCommandResult: () => {},
-    gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16},
+    gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true},
     notificationBar: {dismiss: () => {}},
 };
 
@@ -136,10 +137,11 @@ describe("the test hook", () => {
             await expect(call()).rejects.toThrow("No game has started");
         });
 
-        it.each(["view", "commandsApplied", "dismissNotification"])("can't %s", (method) => {
+        it.each(["view", "commandsApplied", "dismissNotification", "mapCurrent"])("can't %s", (method) => {
             const hook = new TestHook();
             const call = {view: () => hook.view(), commandsApplied: () => hook.commandsApplied(),
-                          dismissNotification: () => hook.dismissNotification()}[method]!;
+                          dismissNotification: () => hook.dismissNotification(),
+                          mapCurrent: () => hook.mapCurrent()}[method]!;
 
             expect(call).toThrow("No game has started");
         });
@@ -297,6 +299,14 @@ describe("the test hook", () => {
         const {hook} = await holdingGame("nothing");
 
         expect(hook.view()).toEqual({originX: 3, originY: 4, limits: LIMITS, tileWidth: 32});
+    });
+
+    it("tells whether the canvas's map is current", async () => {
+        const {hook, game} = await holdingGame("nothing");
+        const behind = hook.mapCurrent();
+        game.gameCanvas.mapCurrent = true;
+
+        expect([behind, hook.mapCurrent()]).toEqual([false, true]);
     });
 
     it("dismisses the game's notification bar", async () => {

@@ -13,11 +13,12 @@
 
 import { expect, test } from "@playwright/test";
 
+import { DAMAGE_BLOCK } from "../src/mapFrame";
 import { collectPageProblems } from "./page";
 import { startGame, Tile } from "./player";
 import { png, samplePixels } from "./png";
-import { inBounds, tileAt } from "./savedMap";
-import { SEED } from "./stages";
+import { inBounds, tileAt, tilesIn } from "./savedMap";
+import { SEED, SITE } from "./stages";
 import { everyTile, serveTestArt } from "./testArt";
 
 // Shadows merge by their darkest value. A test atlas gives every tile id white ground, and dirt, tile 0, a shadow of
@@ -89,5 +90,42 @@ test("overlapping shadows show the darker value, not their sum", async ({page}) 
   expect(wrong.slice(0, 10), `${wrong.length} tiles wrong`).toEqual([]);
   // The view holds tiles under no shadow, under one, and under several
   expect(Array.from(seen).sort()).toEqual([0, 1, 2]);
+  expect(problems).toEqual([]);
+});
+
+// The same atlas, but every tile id except dirt's casts the shadow, and dirt none
+function shadowsButDirt(): object {
+  const ground = {atlas: "test", x: 0, y: 0, width: 16, height: 16};
+  const tiles = everyTile({ground, shadow: {atlas: "test", x: 16, y: 0, width: 16, height: 16,
+                                            reach: {left: 1, top: 1, right: 1, bottom: 1}}});
+  tiles[0] = {ground};
+  return {version: 1, atlases: {test: ATLAS_PATH}, tiles, sprites: {}};
+}
+
+test("the map drawn again in part, around tiles that changed, shows what the map drawn whole does", async ({page}) => {
+  const problems = collectPageProblems(page);
+  await serveTestArt(page, shadowsButDirt(), {[ATLAS_PATH]: atlas()});
+  const player = await startGame(page, SEED, "Redrawn");
+  const site = SITE[0];
+  await player.showTiles(tilesIn(site));
+  const before = await player.mapScreenshot();
+
+  // A road tile on the building site's dirt, on a corner of the blocks the map is drawn again in: its shadow falls
+  // on the dirt around it, in the blocks beside its own
+  const {originX, originY} = await player.view();
+  const onEdge = (offset: number) => offset % DAMAGE_BLOCK === 0 || offset % DAMAGE_BLOCK === DAMAGE_BLOCK - 1;
+  const x = tilesIn({...site, left: site.left + 1, right: site.right - 1, bottom: site.top})
+    .find((tile) => onEdge(tile.x - originX))!.x;
+  const y = tilesIn({...site, left: site.left, right: site.left, top: site.top + 1, bottom: site.bottom - 1})
+    .find((tile) => onEdge(tile.y - originY))!.y;
+  await player.selectTool("road");
+  await player.clickTile({x, y});
+  const inPart = await player.mapScreenshot();
+  // Sizing the canvas draws all of it again
+  await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+  const whole = await player.mapScreenshot();
+
+  expect(inPart.equals(before), "the map with the road tile, unlike without it").toBe(false);
+  expect(inPart.equals(whole), "the map drawn in part, as drawn whole").toBe(true);
   expect(problems).toEqual([]);
 });

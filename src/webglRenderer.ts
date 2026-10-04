@@ -31,6 +31,14 @@ interface Texture {
   height: number;
 }
 
+// A rectangle of a target, in device pixels from its top-left
+export interface Area {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 // Where a pass draws: the canvas, or an offscreen framebuffer, width by height device pixels
 interface Target {
   framebuffer: WebGLFramebuffer | null;
@@ -150,13 +158,16 @@ export class WebGLRenderer {
   private resources: Resources | null = null;
   // The quad the shadow buffer darkens the target through
   private readonly compositeQuad = new QuadRun("shadow buffer");
+  // Signalled once the GPU has drawn the last frame drawn on the canvas, or null once it has been seen to
+  private drawing: WebGLSync | null = null;
 
   // Draws on the canvas from the atlases, which loadMapArt has checked fit the browser's texture limit. onRestored is
   // called once a context the browser lost is restored, which leaves the canvas to be drawn again.
   constructor(canvas: HTMLCanvasElement, private readonly atlases: ReadonlyMap<string, AtlasImage>,
               onRestored: () => void) {
+    // The drawing buffer is kept from frame to frame, so a frame draws only the part of the map that changed
     const gl = canvas.getContext("webgl2", {alpha: false, antialias: false, depth: false, stencil: false,
-                                            premultipliedAlpha: true, preserveDrawingBuffer: false});
+                                            premultipliedAlpha: true, preserveDrawingBuffer: true});
     if (gl === null) {
       throw new Error("WebGL2 is not available");
     }
@@ -166,6 +177,8 @@ export class WebGLRenderer {
     canvas.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();
       this.resources = null;
+      // Lost with the context, as everything it held
+      this.drawing = null;
     });
     canvas.addEventListener("webglcontextrestored", () => {
       this.resources = this.createResources();
@@ -175,15 +188,39 @@ export class WebGLRenderer {
     this.resources = this.createResources();
   }
 
-  // Draws the frame on the canvas, over its whole drawing buffer
-  draw(frame: MapFrame): void {
+  // Draws the frame on the canvas within each area, leaving the rest as it was drawn last, or over the whole of its
+  // drawing buffer for none
+  draw(frame: MapFrame, areas: readonly Area[] | null): void {
     const resources = this.resources;
     if (resources === null) {
       return;
     }
 
     this.drawFrame(resources, frame, {framebuffer: null, width: this.gl.drawingBufferWidth,
-                                      height: this.gl.drawingBufferHeight});
+                                      height: this.gl.drawingBufferHeight}, areas);
+    if (this.drawing !== null) {
+      this.gl.deleteSync(this.drawing);
+    }
+    this.drawing = this.gl.fenceSync(this.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+  }
+
+  // Whether the GPU is still drawing the last frame drawn on the canvas. A frame drawn while it is queues behind it:
+  // on a GPU slower than the frames come, software WebGL on a busy machine say, the queue grows, and the page's
+  // thread waits on it, holding up the game's ticks and everything else the page does.
+  get busy(): boolean {
+    const gl = this.gl;
+    if (this.drawing === null) {
+      return false;
+    }
+
+    // Without waiting: the status changes between the page's tasks, not within one
+    if (gl.clientWaitSync(this.drawing, 0, 0) === gl.TIMEOUT_EXPIRED) {
+      return true;
+    }
+
+    gl.deleteSync(this.drawing);
+    this.drawing = null;
+    return false;
   }
 
   // Draws the frame offscreen, width by height device pixels, and returns its pixels, RGBA, from the top row down, or
@@ -205,7 +242,7 @@ export class WebGLRenderer {
     let framebuffer: WebGLFramebuffer | null = null;
     try {
       framebuffer = this.createFramebuffer(texture);
-      this.drawFrame(resources, frame, {framebuffer, width, height});
+      this.drawFrame(resources, frame, {framebuffer, width, height}, null);
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
       gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     } finally {
@@ -217,7 +254,27 @@ export class WebGLRenderer {
     return flipRows(pixels, width, height);
   }
 
-  private drawFrame(resources: Resources, frame: MapFrame, target: Target): void {
+  // Draws the frame on the target within each area, or over the whole of it for none
+  private drawFrame(resources: Resources, frame: MapFrame, target: Target, areas: readonly Area[] | null): void {
+    const gl = this.gl;
+    if (areas === null) {
+      this.drawPasses(resources, frame, target);
+      return;
+    }
+
+    gl.enable(gl.SCISSOR_TEST);
+    try {
+      for (const area of areas) {
+        // The scissor's rows count from the bottom
+        gl.scissor(area.x, target.height - area.y - area.height, area.width, area.height);
+        this.drawPasses(resources, frame, target);
+      }
+    } finally {
+      gl.disable(gl.SCISSOR_TEST);
+    }
+  }
+
+  private drawPasses(resources: Resources, frame: MapFrame, target: Target): void {
     const gl = this.gl;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
@@ -225,11 +282,13 @@ export class WebGLRenderer {
     gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.bindVertexArray(resources.vertexArray);
+
+    // The ground is opaque, so it is written without blending, which software WebGL pays for at every pixel
+    gl.disable(gl.BLEND);
+    this.drawList(resources, resources.textured, frame.ground, target);
     gl.enable(gl.BLEND);
     gl.blendEquation(gl.FUNC_ADD);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-
-    this.drawList(resources, resources.textured, frame.ground, target);
 
     if (frame.shadows.count > 0) {
       const shadowBuffer = this.shadowBufferFor(resources, target);
