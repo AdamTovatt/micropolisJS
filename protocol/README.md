@@ -19,8 +19,8 @@ show, and the state messages the city sends the client; the server defines those
 - `GET /api/session` with the token as a bearer answers `{"playerId", "name"}` while the token is valid, and 401 when
   it is not or when there is no token. The browser asks it first, with any token it has stored, to find out whether a
   server answers: a 401 or a player is this server's answer, and anything else, such as a static host's page, means
-  the game runs single-player. A token is refused from the second it expires: the server that issues tokens is the
-  one that checks them, so it allows no clock skew.
+  no server answers, and the page offers no game. A token is refused from the second it expires: the server that
+  issues tokens is the one that checks them, so it allows no clock skew.
 - `/ws/city` is one plain WebSocket carrying one JSON message per text message, of one frame or more. The browser
   cannot set an `Authorization` header on a WebSocket, so the token travels in the `access_token` query parameter. A
   connection without a valid token is refused. The server closes a connection with status 1008 when its token expires,

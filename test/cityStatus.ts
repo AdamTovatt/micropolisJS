@@ -209,7 +209,9 @@ describe("the advisor conditions", () => {
     it("rejects an unknown condition", () => {
         const {budget, census, power} = city({});
 
-        expect(() => conditionHolds(Messages.WELCOME, census, budget, power)).toThrow(Messages.WELCOME);
+        const notACondition = "Not a condition";
+
+        expect(() => conditionHolds(notACondition, census, budget, power)).toThrow(notACondition);
     });
 });
 

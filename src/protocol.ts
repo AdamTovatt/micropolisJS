@@ -817,6 +817,9 @@ export function clientMessageTypes(): string[] {
   return Object.keys(CLIENT_MESSAGE_TYPES);
 }
 
+// The id a city on the server has, as the server writes one: 32 lower-case hexadecimal digits
+export const CITY_ID = /^[0-9a-f]{32}$/;
+
 // The answer to a start, an upload or a join: the city's id, by which any player joins it, its name, and its game seed
 export interface CityJoined {
   city: string;

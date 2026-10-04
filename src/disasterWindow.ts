@@ -12,7 +12,7 @@
  */
 
 import { requiredElement } from "./domElements";
-import { DISASTER_WINDOW_CLOSED } from "./messages";
+import { DISASTER_WINDOW_CLOSED } from "./uiMessages";
 import { DISASTER_KINDS, type DisasterKind } from "./protocol";
 import { ClosableWindow } from "./windowBase";
 

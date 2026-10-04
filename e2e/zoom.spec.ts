@@ -13,6 +13,7 @@
 
 import { expect, test } from "@playwright/test";
 
+import { serverForTests } from "./gameServer";
 import { collectPageProblems } from "./page";
 import { startGame } from "./player";
 import { tileAt, tilesIn } from "./savedMap";
@@ -21,9 +22,11 @@ import { SEED } from "./stages";
 // Zooming where the playthrough's stage doesn't: with the pointer off the map, while a window holds the input, and
 // in the middle of a drag
 
+const server = serverForTests("manual");
+
 test("a zoom key with the pointer off the map zooms around the middle of the view", async ({page}) => {
   const problems = collectPageProblems(page);
-  const player = await startGame(page, SEED, "Middle");
+  const player = await startGame(server(), page, SEED, "Middle");
   const canvas = await player.canvasBox();
   // Over a tool's button, off the map's canvas
   const button = (await page.locator("#roadButton").boundingBox())!;
@@ -42,7 +45,7 @@ test("a zoom key with the pointer off the map zooms around the middle of the vie
 
 test("a window holding the keyboard and mouse holds back the zoom keys", async ({page}) => {
   const problems = collectPageProblems(page);
-  const player = await startGame(page, SEED, "Held");
+  const player = await startGame(server(), page, SEED, "Held");
   await page.click("#budgetRequest");
   await page.locator("#budget").waitFor();
 
@@ -57,7 +60,7 @@ test("a window holding the keyboard and mouse holds back the zoom keys", async (
 
 test("a zoom in the middle of a drag is held back, and the drag lays only the tiles it reached", async ({page}) => {
   const problems = collectPageProblems(page);
-  const player = await startGame(page, SEED, "Dragged");
+  const player = await startGame(server(), page, SEED, "Dragged");
   const row = {left: 50, top: 30, right: 54, bottom: 30};
   await player.selectTool("road");
   await player.showTiles(tilesIn(row));

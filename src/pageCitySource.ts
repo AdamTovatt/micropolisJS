@@ -14,11 +14,10 @@
 import { CityHost, Ticker } from "./cityHost";
 import { Subscribers, trackingHold } from "./citySource";
 import type { CityDriver, CitySource, StartedCity, CityStart } from "./citySource";
-import { Config } from "./config.js";
 import { Command, LOCAL_PLAYER, Query, QueryAnswer, SessionLog, StateMessage } from "./protocol";
 
-// The in-page source: the simulation runs in the same thread as the client, and answers at once. The page plays
-// through the Worker source; the contract tests run this one too, on the test's own thread, beside the Worker source.
+// The in-page source: the simulation runs in the same thread as the client, and answers at once. The page plays only
+// on the server; the contract tests run this source on the test's own thread, beside the WebSocket source.
 
 export class PageCitySource implements CitySource {
   readonly player = LOCAL_PLAYER;
@@ -27,9 +26,7 @@ export class PageCitySource implements CitySource {
   private readonly subscribers = new Subscribers();
   private readonly host: CityHost;
 
-  // debug is whether the client is in debug mode, which the simulation takes on
-  constructor(ticker: Ticker, debug: boolean) {
-    Config.debug = debug;
+  constructor(ticker: Ticker) {
     const host = new CityHost((messages) => this.subscribers.deliver(messages), ticker);
     this.host = host;
 

@@ -11,31 +11,21 @@
  *
  */
 
-import { AUTO_BULLDOZE_KEY, AutoBulldozePreference, PreferenceStore } from "../src/autoBulldozePreference";
-
-// A store over a plain map, as localStorage keeps strings by key
-function store(entries: Record<string, string> = {}): PreferenceStore & {entries: Record<string, string>} {
-    return {
-        entries,
-        getItem: (key) => (key in entries ? entries[key] : null),
-        setItem: (key, value) => {
-            entries[key] = value;
-        },
-    };
-}
+import { AUTO_BULLDOZE_KEY, AutoBulldozePreference } from "../src/autoBulldozePreference";
+import { FakeStore } from "./helpers/fakeStore";
 
 describe("the auto-bulldoze preference", () => {
 
     it("is on for a player who has never set it", () => {
-        expect(new AutoBulldozePreference(store()).isOn()).toBe(true);
+        expect(new AutoBulldozePreference(new FakeStore()).isOn()).toBe(true);
     });
 
     it.each([true, false])("keeps %s under its own key, for the next game", (on) => {
-        const kept = store();
+        const kept = new FakeStore();
 
         new AutoBulldozePreference(kept).set(on);
 
-        expect(kept.entries).toEqual({[AUTO_BULLDOZE_KEY]: String(on)});
+        expect(Object.fromEntries(kept.items)).toEqual({[AUTO_BULLDOZE_KEY]: String(on)});
         expect(new AutoBulldozePreference(kept).isOn()).toBe(on);
     });
 
@@ -49,10 +39,8 @@ describe("the auto-bulldoze preference", () => {
 
     // As localStorage does when it is full or disabled
     it("holds the setting for this game when the store throws", () => {
-        const failing = {
-            getItem: () => { throw new Error("disabled"); },
-            setItem: () => { throw new Error("full"); },
-        };
+        const failing = new FakeStore();
+        failing.failing = true;
 
         const preference = new AutoBulldozePreference(failing);
         expect(preference.isOn()).toBe(true);

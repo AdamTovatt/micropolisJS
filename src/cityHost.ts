@@ -228,8 +228,8 @@ function startCity(start: CityStart): {name: string, simulation: HostedSimulatio
   return {name: savedGame.name, simulation, logStart: {save: plainSavedState(simulation)}};
 }
 
-// What drives the host's loop: the time now, in milliseconds, and a way to run a callback again soon. The browser's
-// is performance.now and setTimeout (cityWorker.ts); a test's runs the loop by hand.
+// What drives the host's loop: the time now, in milliseconds, and a way to run a callback again soon. A test's runs the
+// loop by hand.
 export interface Ticker {
   now(): number;
   later(callback: () => void): void;
@@ -293,8 +293,8 @@ export class CityHost {
 
   // One turn of the host's loop, which runs for as long as the ticker calls back: the commands sent since the last turn,
   // then the steps due by now, then the state they changed. A held driver leaves the commands and the steps to the
-  // end-to-end runner. While the city isn't stepping, the loop waits rather than turn for nothing: a worker's timers run
-  // at full rate in a hidden tab. A command, the player seeing the city again or the runner's release wakes it.
+  // end-to-end runner. While the city isn't stepping, the loop waits rather than turn for nothing. A command, the
+  // player seeing the city again or the runner's release wakes it.
   private readonly loop = (): void => {
     this.turnDue = false;
     this.turn(this.ticker.now());

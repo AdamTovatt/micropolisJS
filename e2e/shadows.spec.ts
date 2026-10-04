@@ -15,6 +15,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { DAMAGE_BLOCK } from "../src/mapDamage";
+import { serverForTests } from "./gameServer";
 import { collectPageProblems } from "./page";
 import { startGame, Tile } from "./player";
 import { png, samplePixels } from "./png";
@@ -29,6 +30,8 @@ import { everyTile, serveTestArt } from "./testArt";
 // The atlas: a white square, then a black square of the darkness's alpha, each 16 pixels
 const DARKNESS = 128;
 const ATLAS_PATH = "test-atlas.png";
+
+const server = serverForTests("manual");
 
 function atlas(): Buffer {
   const pixels: number[] = [];
@@ -52,7 +55,7 @@ test("overlapping shadows show the darker value, not their sum", async ({page}) 
   const problems = collectPageProblems(page);
   await serveTestArt(page, manifest(), {[ATLAS_PATH]: atlas()});
 
-  const player = await startGame(page, SEED, "Shadows");
+  const player = await startGame(server(), page, SEED, "Shadows");
   const save = await player.save();
   const view = await player.view();
   const canvas = await player.canvasBox();
@@ -108,7 +111,7 @@ const REDRAWN = "the map drawn again in part, around tiles that changed, shows w
 async function redrawnInPart(page: Page): Promise<void> {
   const problems = collectPageProblems(page);
   await serveTestArt(page, shadowsButDirt(), {[ATLAS_PATH]: atlas()});
-  const player = await startGame(page, SEED, "Redrawn");
+  const player = await startGame(server(), page, SEED, "Redrawn");
   const site = SITE[0];
   await player.showTiles(tilesIn(site));
   const before = await player.mapScreenshot();

@@ -12,7 +12,7 @@
  */
 
 import { isChecked, requiredElement } from "./domElements";
-import { DEBUG_WINDOW_CLOSED } from "./messages";
+import { DEBUG_WINDOW_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // What the player chose in the window

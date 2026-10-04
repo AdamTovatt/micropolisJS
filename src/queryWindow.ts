@@ -13,7 +13,7 @@
 
 import { ClientConfig } from "./clientConfig";
 import { requiredElement } from "./domElements";
-import { QUERY_WINDOW_CLOSED } from "./messages";
+import { QUERY_WINDOW_CLOSED } from "./uiMessages";
 import { type TileReportAnswer } from "./protocol";
 import { Text } from "./text";
 import { ClosableWindow } from "./windowBase";

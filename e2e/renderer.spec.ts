@@ -17,6 +17,7 @@ import { join } from "path";
 
 import { ANIMBIT } from "../src/tileFlags";
 import { tileImageOrigin } from "../src/tileSet";
+import { serverForTests } from "./gameServer";
 import { collectPageProblems, contextLoss } from "./page";
 import { GameSave, Player, startGame, Tile } from "./player";
 import { samplePixels } from "./png";
@@ -29,6 +30,8 @@ import { serveNoArt } from "./testArt";
 // the driver is held from the start and no stage has run.
 
 const CANVAS = "#MicropolisCanvas";
+
+const server = serverForTests("manual");
 
 // images/tiles.png, from the e2e directory the config is in
 function tileImage(): Buffer {
@@ -93,7 +96,7 @@ test("the Screenshot window's picture of the whole map draws every tile at 16 pi
      async ({page}) => {
   const problems = collectPageProblems(page);
   await serveNoArt(page);
-  const player = await startGame(page, SEED, "Whole");
+  const player = await startGame(server(), page, SEED, "Whole");
   const save = await player.save();
 
   const picture = await takePicture(page, "whole");
@@ -114,7 +117,7 @@ test("the Screenshot window's picture of the whole map draws every tile at 16 pi
 test("the Screenshot window's picture of the visible map shows the view as it is drawn", async ({page}) => {
   const problems = collectPageProblems(page);
   await serveNoArt(page);
-  const player = await startGame(page, SEED, "Visible");
+  const player = await startGame(server(), page, SEED, "Visible");
   const save = await player.save();
   const canvas = await player.canvasBox();
 
@@ -134,7 +137,7 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
        async ({page}) => {
     const problems = collectPageProblems(page);
     await serveNoArt(page);
-    const player = await startGame(page, SEED, "Dense");
+    const player = await startGame(server(), page, SEED, "Dense");
     const save = await player.save();
     const canvas = await player.canvasBox();
 
@@ -167,7 +170,7 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
 
   test("the pointer finds tiles in CSS pixels", async ({page}) => {
     const problems = collectPageProblems(page);
-    const player = await startGame(page, SEED, "Dense");
+    const player = await startGame(server(), page, SEED, "Dense");
 
     const tile = {x: 47, y: 30};
     await player.selectTool("road");
@@ -180,7 +183,7 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
 
 test("a WebGL context the browser loses is drawn again once it is restored", async ({page}) => {
   const problems = collectPageProblems(page);
-  const player = await startGame(page, SEED, "Restored");
+  const player = await startGame(server(), page, SEED, "Restored");
   const before = await player.mapScreenshot();
 
   const context = await contextLoss(page, CANVAS);

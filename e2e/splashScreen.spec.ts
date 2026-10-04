@@ -13,50 +13,15 @@
 
 import { expect, Page, test } from "@playwright/test";
 
+import { CITY_LINK, serverForTests } from "./gameServer";
 import { blockNetwork, collectPageProblems } from "./page";
-import { Player } from "./player";
+import { Player, TESTER } from "./player";
 import { png } from "./png";
 import { SEED } from "./stages";
 
-// The splash screen: where the page starts, and what it asks before a new game
-
-test("a screen too small to play waits for a resize, then offers the URL's seed", async ({page}) => {
-  await blockNetwork(page);
-  const problems = collectPageProblems(page);
-  // The stylesheet shows #tooSmall on a window under 583 pixels high
-  await page.setViewportSize({width: 1440, height: 500});
-
-  await page.goto(`/?seed=${SEED}`);
-  await expect(page.locator("#tooSmall")).toBeVisible();
-  // The page has loaded and is waiting: the splash screen would show by now
-  await expect(page.locator("#loadingBanner")).toBeHidden();
-  await page.waitForTimeout(1000);
-  await expect(page.locator("#splash")).toBeHidden();
-
-  await page.setViewportSize({width: 1440, height: 900});
-  await expect(page.locator("#splash")).toBeVisible();
-  await expect(page.locator("#splashSeed")).toHaveText(String(SEED));
-
-  // A resize once the splash screen shows builds no second one
-  await page.setViewportSize({width: 1400, height: 880});
-  await page.waitForTimeout(500);
-  await expect(page.locator("#SplashCanvas")).toHaveCount(1);
-  expect(problems).toEqual([]);
-});
-
-test("the page waits for a slow tile image before it starts", async ({page}) => {
-  await blockNetwork(page);
-  const problems = collectPageProblems(page);
-  await page.route("**/images/tiles.png", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    await route.continue();
-  });
-
-  await page.goto("/");
-
-  await expect(page.locator("#splash")).toBeVisible({timeout: 30 * 1000});
-  expect(problems).toEqual([]);
-});
+// The splash screen: where the page starts, and what it asks before a new game. The page signs in to the game server
+// before it shows the splash screen: what goes wrong before then is tested with no server answering, and the rest with
+// the page signed in to a game server of the spec's.
 
 test("a tile image that fails to load is reported, and the page goes no further", async ({page}) => {
   await blockNetwork(page);
@@ -162,38 +127,98 @@ test.describe("art that fails to load is reported, naming what failed, and the p
   });
 });
 
-test("a seed that isn't a uint32 is refused out loud, and the map is picked at random", async ({page}) => {
+test("with no server answering, the page says so in place of the game, and trying again keeps the city's link",
+     async ({page}) => {
   await blockNetwork(page);
   const problems = collectPageProblems(page);
+  const link = `city=${"0".repeat(32)}`;
 
-  await page.goto("/?seed=-1");
-  await expect(page.locator("#splash")).toBeVisible();
+  await page.goto(`/?${link}`);
+  await expect(page.locator("#noServer")).toBeVisible();
+  await expect(page.locator("#signIn")).toBeHidden();
+  await expect(page.locator("#splash")).toBeHidden();
+  await expect(page).toHaveURL(CITY_LINK);
 
-  expect(problems).toEqual(['Alert: ?seed must be a whole number from 0 to 4294967295, got "-1"']);
-  await expect(page.locator("#splashSeed")).toHaveText(/^\d+$/);
-});
-
-test("debug mode starts a city given no name as MyTown", async ({page}) => {
-  await blockNetwork(page);
-  const problems = collectPageProblems(page);
-  const player = new Player(page);
-
-  await player.open(`seed=${SEED}`);
-  await page.click("#splashPlay");
-  await page.click("#playit");
-  await player.waitForGame();
-
-  await expect(page.locator("#name")).toHaveText("MyTown");
+  await Promise.all([page.waitForEvent("load"), page.click("#noServerRetry")]);
+  await expect(page.locator("#noServer")).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(link));
   expect(problems).toEqual([]);
 });
 
-test("outside debug mode, the start form needs a name", async ({page}) => {
-  await blockNetwork(page);
+test.describe("signed in to a game server", () => {
+  const server = serverForTests("manual");
 
-  await page.goto(`/?seed=${SEED}`);
-  await page.click("#splashPlay");
-  await page.click("#playit");
+  test("a screen too small to play waits for a resize, then offers the URL's seed", async ({page}) => {
+    await server().forward(page, TESTER);
+    const problems = collectPageProblems(page);
+    // The stylesheet shows #tooSmall on a window under 583 pixels high
+    await page.setViewportSize({width: 1440, height: 500});
 
-  await expect(page.locator("#start")).toBeVisible();
-  expect(await page.locator("#nameForm").evaluate((input: HTMLInputElement) => input.validity.valueMissing)).toBe(true);
+    await page.goto(`/?seed=${SEED}`);
+    await expect(page.locator("#tooSmall")).toBeVisible();
+    // The page has loaded and is waiting: the splash screen would show by now
+    await expect(page.locator("#loadingBanner")).toBeHidden();
+    await page.waitForTimeout(1000);
+    await expect(page.locator("#splash")).toBeHidden();
+
+    await page.setViewportSize({width: 1440, height: 900});
+    await expect(page.locator("#splash")).toBeVisible();
+    await expect(page.locator("#splashSeed")).toHaveText(String(SEED));
+
+    // A resize once the splash screen shows builds no second one
+    await page.setViewportSize({width: 1400, height: 880});
+    await page.waitForTimeout(500);
+    await expect(page.locator("#SplashCanvas")).toHaveCount(1);
+    expect(problems).toEqual([]);
+  });
+
+  test("the page waits for a slow tile image before it starts", async ({page}) => {
+    await server().forward(page, TESTER);
+    const problems = collectPageProblems(page);
+    await page.route("**/images/tiles.png", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await route.continue();
+    });
+
+    await page.goto("/");
+
+    await expect(page.locator("#splash")).toBeVisible({timeout: 30 * 1000});
+    expect(problems).toEqual([]);
+  });
+
+  test("a seed that isn't a uint32 is refused out loud, and the map is picked at random", async ({page}) => {
+    await server().forward(page, TESTER);
+    const problems = collectPageProblems(page);
+
+    await page.goto("/?seed=-1");
+    await expect(page.locator("#splash")).toBeVisible();
+
+    expect(problems).toEqual(['Alert: ?seed must be a whole number from 0 to 4294967295, got "-1"']);
+    await expect(page.locator("#splashSeed")).toHaveText(/^\d+$/);
+  });
+
+  test("debug mode starts a city given no name as MyTown", async ({page}) => {
+    const player = await Player.onServer(server(), page, TESTER);
+    const problems = collectPageProblems(page);
+
+    await player.open(`seed=${SEED}`);
+    await page.click("#splashPlay");
+    await page.click("#playit");
+    await player.waitForGame();
+
+    await expect(page.locator("#name")).toHaveText("MyTown");
+    expect(problems).toEqual([]);
+  });
+
+  test("outside debug mode, the start form needs a name", async ({page}) => {
+    await server().forward(page, TESTER);
+
+    await page.goto(`/?seed=${SEED}`);
+    await page.click("#splashPlay");
+    await page.click("#playit");
+
+    await expect(page.locator("#start")).toBeVisible();
+    expect(await page.locator("#nameForm").evaluate((input: HTMLInputElement) => input.validity.valueMissing))
+      .toBe(true);
+  });
 });

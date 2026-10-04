@@ -3,9 +3,6 @@ module.exports = {
   collectCoverageFrom: [
     "src/**/*.ts",
     "test/**/*.ts",
-    // The page's entry point starts the city's worker through import.meta, which only an ES module may use: webpack
-    // builds it as one, and ts-jest, compiling to CommonJS, can't. No test runs it.
-    "!src/micropolis.ts",
   ],
   coverageReporters: ["json", "lcov", "text", "html"],
   moduleFileExtensions: [

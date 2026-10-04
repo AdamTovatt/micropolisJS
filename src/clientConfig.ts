@@ -11,8 +11,8 @@
  *
  */
 
-// The client's debug mode, which ?debug=1 turns on (micropolis.ts). The simulation keeps its own (config.js), which
-// each city source sets from this when it is made.
+// The client's debug mode, which ?debug=1 turns on (micropolis.ts). It is the client's alone: a city on the server
+// has no debug mode of the client's.
 export const ClientConfig = {
   debug: false,
 };

@@ -11,7 +11,7 @@
  *
  */
 
-import { MAX_SEED } from "./protocol";
+import { CITY_ID, MAX_SEED } from "./protocol";
 
 // The options a page's URL can carry, read from its query string
 
@@ -38,9 +38,6 @@ function seedOption(query: string): number | null {
 }
 
 // ?city=<id> names a city on the server, which cityLink.ts follows
-
-// The id a city on the server has, as the server writes one: 32 lower-case hexadecimal digits
-const CITY_ID = /^[0-9a-f]{32}$/;
 
 // The city a URL's query string asks to join, or null for none. A value that isn't a city's id is refused.
 function cityOption(query: string): string | null {
@@ -71,4 +68,4 @@ function withoutCityOption(url: string): string {
   return withoutCity.toString();
 }
 
-export { CITY_ID, cityOption, debugOption, seedOption, withCityOption, withoutCityOption };
+export { cityOption, debugOption, seedOption, withCityOption, withoutCityOption };

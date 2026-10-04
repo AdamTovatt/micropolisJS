@@ -14,8 +14,8 @@
 import { modulesReachedFrom, SIMULATION_ROOTS } from "./helpers/importGraph";
 
 // The client reaches the city only through a city source: the page imports no module of the simulation's but the
-// vocabulary the two share, which CLAUDE.md lists with the reason for each. The worker the page starts is not an
-// import, so the simulation it runs is outside the page's graph.
+// vocabulary the two share, which CLAUDE.md lists with the reason for each. The page plays through the server, so no
+// simulation runs in it.
 
 const PAGE = "micropolis.ts";
 
@@ -28,7 +28,7 @@ describe("the page's import graph", () => {
 
     // So the check below compares graphs that are there: each holds its own, and they meet at the vocabulary
     it("reaches the client's modules from the page, and meets the simulation only at the shared vocabulary", () => {
-        expect(page).toEqual(expect.arrayContaining(["game.ts", "workerCitySource.ts", "cityState.ts", "splashScreen.ts"]));
+        expect(page).toEqual(expect.arrayContaining(["game.ts", "webSocketCitySource.ts", "cityState.ts", "splashScreen.ts"]));
         expect(SHARED_VOCABULARY.filter((name) => simulation.includes(name) && page.includes(name)))
             .toEqual(SHARED_VOCABULARY);
     });
