@@ -308,17 +308,57 @@ describe("the city client", () => {
             expect(await client.welcomed()).toBe(true);
         });
 
-        it("says it is not welcomed once the socket closes before the hello", async () => {
+        it("says it is welcomed once the socket it opens again after one closed before the hello is", async () => {
             const {browser, client} = await signedIn();
-            const welcomed = client.welcomed();
+            let welcomed: boolean | null = null;
+            void client.welcomed().then((online) => {
+                welcomed = online;
+            });
 
             browser.lastSocket().drop();
+            await browser.runScheduled();
+            expect(welcomed).toBeNull();
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
 
-            expect(await welcomed).toBe(false);
+            await Promise.resolve();
+            expect(welcomed).toBe(true);
         });
 
-        it("says it is not welcomed at once when no socket is opening", async () => {
-            expect(await new CityClient(new FakeBrowser(server([]))).welcomed()).toBe(false);
+        it("says it is not welcomed at once when no server has answered", async () => {
+            const browser = new FakeBrowser(noServer);
+            const client = new CityClient(browser);
+
+            expect(await client.welcomed()).toBe(false);
+            expect(await client.start()).toBe("offline");
+            expect(await client.welcomed()).toBe(false);
+        });
+
+        it("says it is welcomed once a sign-in over the server's limit succeeds on a later try", async () => {
+            const browser = new FakeBrowser(rejectingTokensAndAnswering(refusal(429, {error: "Too many sign-ins."})));
+            browser.stored = {token: "expired", name: "Ada"};
+            const client = new CityClient(browser);
+            expect(await client.start()).toBe("offline");
+            const welcomed = client.welcomed();
+
+            browser.handler = server([]);
+            await browser.runScheduled();
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
+
+            expect(await welcomed).toBe(true);
+        });
+
+        it("says it is not welcomed once it stops trying, on a name the server refuses", async () => {
+            const browser = new FakeBrowser(rejectingTokensAndAnswering(new TypeError("Failed to fetch")));
+            const client = new CityClient(browser);
+            expect(await client.start()).toBe("needs-name");
+            expect(await client.signIn("Ada")).toEqual({outcome: "offline"});
+            const welcomed = client.welcomed();
+
+            browser.handler = server([], "token", ["Ada"]);
+            await browser.runScheduled();
+
+            expect(await welcomed).toBe(false);
+            expect(browser.scheduled).toHaveLength(0);
         });
 
         it("tells its city-failed listeners when the server closes the connection because its city failed, before " +

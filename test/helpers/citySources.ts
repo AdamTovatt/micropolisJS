@@ -11,13 +11,9 @@
  *
  */
 
-import { MessageChannel } from "worker_threads";
 import type { CitySource } from "../../src/citySource";
-import type { Port } from "../../src/cityWorkerMessages";
-import { serveCity } from "../../src/cityWorkerHost";
 import { PageCitySource } from "../../src/pageCitySource";
 import { WebSocketCitySource } from "../../src/webSocketCitySource";
-import { WorkerCitySource, WorkerPort } from "../../src/workerCitySource";
 import { ManualTicker } from "./manualTicker";
 import { memorySessionStore, signedInClient, startTestServer, TestServer } from "./testServer";
 
@@ -32,55 +28,21 @@ export interface SourceUnderTest {
     lost(): Error[];
 }
 
-// create's debug is whether the client is in debug mode. onServer is whether the city runs on the server, which steps a
-// shared city whether or not a player sees it, has no client debug mode, and reports a failure in words alone.
+// onServer is whether the city runs on the server, which steps a shared city whether or not a player sees it, and
+// reports a failure in words alone
 export interface SourceFactory {
     name: string;
     onServer: boolean;
-    create(debug?: boolean): Promise<SourceUnderTest>;
+    create(): Promise<SourceUnderTest>;
 }
 
 export const pageSource: SourceFactory = {
     name: "the in-page source",
     onServer: false,
-    create: async (debug = false) => {
+    create: async () => {
         const ticker = new ManualTicker();
-        return {source: new PageCitySource(ticker, debug), run: async (milliseconds) => ticker.run(milliseconds),
+        return {source: new PageCitySource(ticker), run: async (milliseconds) => ticker.run(milliseconds),
                 close: () => {}, lost: () => []};
-    },
-};
-
-// The Worker source, with the worker's side served over a channel in the same thread, as cityWorker.ts serves it in a
-// Web Worker
-export const workerSource: SourceFactory = {
-    name: "the Worker source",
-    onServer: false,
-    create: async (debug = false) => {
-        // Node types a port's onmessage with its own event, not the DOM's MessageEvent, though what it reads of it,
-        // the data, is the same. A port takes error listeners, as the Worker does, and fires no error event.
-        const {port1, port2} = new MessageChannel();
-        const ticker = new ManualTicker();
-        serveCity(port1 as unknown as Port, ticker);
-        const source = new WorkerCitySource(port2 as unknown as WorkerPort, debug);
-        // Each end reads what came before a call before it answers the call, so once a call is answered, the worker
-        // has had everything the page sent before it, and the page everything the worker sent. Before a city starts,
-        // the call fails, and that is its answer.
-        const roundTrip = () => source.driver.cityTime().then(() => {}, () => {});
-
-        return {
-            source,
-            // A worker takes in the messages that came before its next turn, as it would in the browser
-            run: async (milliseconds) => {
-                await roundTrip();
-                ticker.run(milliseconds);
-                await roundTrip();
-            },
-            close: () => {
-                port1.close();
-                port2.close();
-            },
-            lost: () => [],
-        };
     },
 };
 
@@ -101,7 +63,6 @@ export class WebSocketSourceFactory implements SourceFactory {
         await this.server?.stop();
     }
 
-    // The server has no client debug mode
     async create(): Promise<SourceUnderTest> {
         if (this.server === null) {
             throw new Error("The test server hasn't started");

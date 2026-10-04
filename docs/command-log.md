@@ -38,9 +38,9 @@ Each entry is `{"step", "player", "command"}`:
   when the command applied. Steps are counted as the simulation takes them, so a paused city, which never steps,
   stays on the same index however long it is paused. Entries are in order of step, and entries with the same step
   are in the order they applied.
-- `player` is the id of the player who sent it, a string. A city in the browser has the one player, `"local"`; on
-  the game server it is the id the server gave the player as it signed in. The simulation never branches on the
-  player.
+- `player` is the id of the player who sent it, a string: on the server, the id the server gave the player as it
+  signed in, and in a city the browser runs for the client's tests or the headless runner, the one player there is,
+  `"local"`. The simulation never branches on the player.
 - `command` is the command as it arrived. `src/protocol.ts` defines the commands, and `src/commands.ts` how they are
   validated. A log holds every command the city was sent, rejected ones included: a rejected command changes nothing,
   and a replay rejects it again, which checks that the validation agrees. A command nesting objects and lists deeper

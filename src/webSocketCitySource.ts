@@ -13,7 +13,8 @@
 
 import type { CityClient, CityStatus } from "./cityClient";
 import { PendingCalls, queryReply, Subscribers, trackingHold } from "./citySource";
-import type { CityDriver, CitySource, CityStart, Pending, StartedCity } from "./citySource";
+import type { ServerCity } from "./cityLink";
+import type { CityDriver, CitySource, CityStart, Pending } from "./citySource";
 import { errorMessage } from "./errorMessage";
 import type {
   CityJoined, CityMessage, ClientRequest, Command, PlayerId, Query, QueryAnswer, RequestAnswer, RequestAnswers, SessionLog,
@@ -72,14 +73,14 @@ export class WebSocketCitySource implements CitySource {
   }
 
   // A new city starts on the server, and a saved game is uploaded to start there, under a new id
-  async start(start: CityStart): Promise<StartedCity> {
+  async start(start: CityStart): Promise<ServerCity> {
     return this.joined(await ("seed" in start
       ? this.request((id) => ({type: "start", id, name: start.name, seed: start.seed, level: start.level}))
       : this.request((id) => ({type: "upload", id, save: start.save}))));
   }
 
   // Joins the city with the id, as another player started it, once its whole state has been delivered
-  async join(city: string): Promise<StartedCity> {
+  async join(city: string): Promise<ServerCity> {
     return this.joined(await this.request((id) => ({type: "join", id, city})));
   }
 
@@ -117,7 +118,7 @@ export class WebSocketCitySource implements CitySource {
     return this.done((id) => ({type: "turn", id, milliseconds}));
   }
 
-  private joined({city, name, seed}: CityJoined): StartedCity {
+  private joined({city, name, seed}: CityJoined): ServerCity {
     this.current = city;
     return {name, seed, city};
   }

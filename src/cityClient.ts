@@ -17,7 +17,7 @@ import {
 } from "./protocol";
 
 // The browser's side of the server, as protocol/README.md describes it: signing in and the city's WebSocket. When no
-// server answers, the game runs single-player and the client stays offline. Once online, it reconnects after any drop
+// server answers, the client stays offline, and the page has no game to offer. Once online, it reconnects after any drop
 // with growing delays, and signs in again under the stored name when the server rejects its token, which gives the
 // player a new id.
 
@@ -89,9 +89,10 @@ export class CityClient implements Presence {
   private readonly cityFailedListeners: (() => void)[] = [];
   // The socket, once the server has welcomed it, until it closes
   private socket: SocketLike | null = null;
-  // Whether a socket is opening or open, which the server will welcome or close
-  private hasSocket = false;
-  // What waits for the socket opening to be welcomed or closed
+  // Whether the client is trying to be welcomed: from when a server of ours first answers, until the client gives up
+  // on a name the server refuses. While it is, it connects or signs in again until the server welcomes it.
+  private trying = false;
+  // What waits for the server to welcome the client, or for the client to stop trying
   private welcomes: ((online: boolean) => void)[] = [];
   private readonly cursorListeners: ((message: CursorMessage) => void)[] = [];
 
@@ -107,10 +108,11 @@ export class CityClient implements Presence {
     listener(this.status);
   }
 
-  // Whether the server welcomes this client: at once when it has, and otherwise once the socket opening is welcomed or
-  // closes. False at once when no socket is opening, as when no server answered.
+  // Whether the server welcomes this client: at once when it has, and otherwise once it does, however many tries that
+  // takes, as when a sign-in is over the server's limit or a socket closes before the server's hello. False when no
+  // server of ours has answered, and once the client stops trying.
   welcomed(): Promise<boolean> {
-    if (this.status.online || !this.hasSocket) {
+    if (this.status.online || !this.trying) {
       return Promise.resolve(this.status.online);
     }
 
@@ -151,8 +153,8 @@ export class CityClient implements Presence {
 
   // Finds out whether a server answers, and connects with the stored session when it does. The stored name signs in
   // again when the server rejects the stored token; when the server refuses that name too, the player gives a new one.
-  // With no server answering the game is single-player, and nothing is retried; once one has answered, a sign-in
-  // that fails is retried until it succeeds.
+  // With no server answering nothing is retried; once one has answered, a sign-in that fails is retried until it
+  // succeeds.
   async start(): Promise<StartResult> {
     const stored = this.environment.store.load();
     const check = await this.checkSession(stored?.token ?? null);
@@ -185,7 +187,7 @@ export class CityClient implements Presence {
 
   // Signs in as a new player under the name, and connects, unless another tab of the browser has signed in since:
   // tabs share the stored session, so this one joins as that player. When the server has stopped answering, the
-  // game starts single-player and the sign-in is retried.
+  // sign-in is retried.
   async signIn(name: string): Promise<SignInResult> {
     const result = await this.signInOnce(name, null);
 
@@ -258,11 +260,13 @@ export class CityClient implements Presence {
       const response = await this.environment.request(SESSION_PATH, {method: "GET", headers});
 
       if (response.status === 401) {
+        this.trying = true;
         return "rejected";
       }
 
       if (response.status === 200) {
         parsePlayerResponse(await response.json());
+        this.trying = true;
         return "valid";
       }
     } catch {
@@ -275,14 +279,13 @@ export class CityClient implements Presence {
   private connect(session: StoredSession): void {
     this.session = session;
     const socket = this.environment.openSocket(`${CITY_PATH}?access_token=${encodeURIComponent(session.token)}`);
-    this.hasSocket = true;
+    this.trying = true;
 
     socket.onmessage = (event) => this.receive(socket, event.data);
     socket.onclose = ({code}) => {
       socket.onmessage = null;
       socket.onclose = null;
       this.socket = null;
-      this.hasSocket = false;
       if (code === CITY_FAILED_CLOSE) {
         this.cityFailedListeners.forEach((listener) => listener());
       }
@@ -355,9 +358,15 @@ export class CityClient implements Presence {
       result = await this.signInOnce(this.pendingName, null);
     }
 
-    // A name the server refuses is refused every time, so the client stays offline until the page loads again and
-    // asks for a new one
-    if (result?.outcome === "signed-in" || result?.outcome === "rejected") {
+    if (result?.outcome === "signed-in") {
+      return;
+    }
+
+    // A name the server refuses is refused every time, so the client stops trying and stays offline until the page
+    // loads again and asks for a new one
+    if (result?.outcome === "rejected") {
+      this.trying = false;
+      this.settleWelcomes(false);
       return;
     }
 
@@ -368,8 +377,14 @@ export class CityClient implements Presence {
     this.status = status;
     this.listeners.forEach((listener) => listener(status));
 
+    if (status.online) {
+      this.settleWelcomes(true);
+    }
+  }
+
+  private settleWelcomes(online: boolean): void {
     const welcomes = this.welcomes;
     this.welcomes = [];
-    welcomes.forEach((welcome) => welcome(status.online));
+    welcomes.forEach((welcome) => welcome(online));
   }
 }

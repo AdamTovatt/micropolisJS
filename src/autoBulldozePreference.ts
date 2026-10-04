@@ -11,23 +11,20 @@
  *
  */
 
-// Where the preference is kept: localStorage in the browser, or nowhere when the browser has none
-export type PreferenceStore = Pick<Storage, "getItem" | "setItem">;
+import { PageStore, StoredText } from "./storage";
 
 export const AUTO_BULLDOZE_KEY = "micropolisJSAutoBulldoze";
 
 // The player's auto-bulldoze setting, on until the player turns it off. It belongs to the player, not the city: it is
 // kept under its own key, never in a city save, and sent with each tool command. A store that can't be read or written,
-// such as one that is full or disabled, leaves the setting held for this game only.
+// such as one that is full or disabled, leaves the setting held for this game only (StoredText).
 export class AutoBulldozePreference {
-  private on = true;
+  private readonly text: StoredText;
+  private on: boolean;
 
-  constructor(private readonly store: PreferenceStore | null) {
-    try {
-      this.on = store?.getItem(AUTO_BULLDOZE_KEY) !== "false";
-    } catch {
-      // Held for this game only, as the store can't be read
-    }
+  constructor(store: PageStore | null) {
+    this.text = new StoredText(store, AUTO_BULLDOZE_KEY);
+    this.on = this.text.read() !== "false";
   }
 
   isOn(): boolean {
@@ -36,11 +33,6 @@ export class AutoBulldozePreference {
 
   set(on: boolean): void {
     this.on = on;
-
-    try {
-      this.store?.setItem(AUTO_BULLDOZE_KEY, String(on));
-    } catch {
-      // Held for this game only, as the store can't be written
-    }
+    this.text.write(String(on));
   }
 }

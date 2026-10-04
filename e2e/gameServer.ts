@@ -15,7 +15,9 @@ import { Page, test, WebSocketRoute } from "@playwright/test";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "path";
 
-import type { CityClient } from "../src/cityClient";
+import { SESSION_STORAGE_KEY } from "../src/browserCityEnvironment";
+import { CityClient, SESSION_PATH, StoredSession } from "../src/cityClient";
+import { parseSessionResponse, signInRequest } from "../src/protocol";
 import {
   memorySessionStore, NodeCityEnvironment, signedInClient, START_SERVER_TIMEOUT_MS, startTestServer, TestServer,
   TestServerClock,
@@ -57,6 +59,8 @@ export class GameServer {
   // A client signed in to watch who is online, once a spec has asked. It stays signed in until the server stops, so the
   // players' online lists show it from then on, the same on every run.
   private observer: Promise<Observer> | null = null;
+  // The session each player name signed in to, once, for every page that plays as that player
+  private readonly sessions = new Map<string, Promise<StoredSession>>();
 
   private constructor(private readonly server: TestServer) {}
 
@@ -134,8 +138,20 @@ export class GameServer {
   }
 
   // Sends the page's requests to the game server's API and its city's socket to this server, and refuses anything else
-  // that leaves the page's host
-  async forward(page: Page): Promise<Forwarded> {
+  // that leaves the page's host. A page signed in as a player opens with the player's session stored, as one signed in
+  // before, so it asks for no name: the player signs in once for every page of the spec's, which keeps a spec's
+  // sign-ins within the server's limit on them from one address. Without one, the page asks for a name.
+  async forward(page: Page, signedInAs: string | null = null): Promise<Forwarded> {
+    if (signedInAs !== null) {
+      const stored = JSON.stringify(await this.session(signedInAs));
+      // Only on the game's pages: a page such as about:blank, which the runner leaves a city through, has no storage
+      await page.addInitScript(([key, session]) => {
+        if (location.protocol === "http:") {
+          localStorage.setItem(key, session);
+        }
+      }, [SESSION_STORAGE_KEY, stored]);
+    }
+
     const origin = this.server.origin;
     const upstreams: WebSocket[] = [];
     const stopForwarding = async () => {
@@ -186,6 +202,56 @@ export class GameServer {
 
     return forwarded;
   }
+
+  // The player's session, signed in to once, as the page signs in
+  private session(name: string): Promise<StoredSession> {
+    let session = this.sessions.get(name);
+    if (session === undefined) {
+      session = fetch(`${this.server.origin}${SESSION_PATH}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(signInRequest(name)),
+      }).then(async (response) => {
+        if (response.status !== 200) {
+          throw new Error(`Signing in as ${name} answered ${response.status}: ${await response.text()}`);
+        }
+
+        const {token, name: signedIn} = parseSessionResponse(await response.json());
+        return {token, name: signedIn};
+      });
+      this.sessions.set(name, session);
+    }
+
+    return session;
+  }
+}
+
+// The game server the tests of a spec file, or of a describe block it is called in, play against: started on the clock
+// given before the first test, stopped after the last, with each test's forwarding stopped as the test ends. Each file
+// starts its own, which keeps the sign-ins its tests make within the server's limit on them from one address. Gives the
+// server once it has started.
+export function serverForTests(clock: TestServerClock): () => GameServer {
+  let server: GameServer | null = null;
+
+  test.beforeAll(async () => {
+    server = await GameServer.start(clock);
+  });
+
+  test.afterAll(async () => {
+    await server?.stop();
+  });
+
+  test.afterEach(async () => {
+    await server?.stopForwarding();
+  });
+
+  return () => {
+    if (server === null) {
+      throw new Error("The game server is asked for before it has started");
+    }
+
+    return server;
+  };
 }
 
 // A city's link in the page's address, as a city on the game server puts it there

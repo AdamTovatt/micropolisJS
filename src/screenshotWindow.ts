@@ -12,7 +12,7 @@
  */
 
 import { isChecked, requiredElement } from "./domElements";
-import { SCREENSHOT_WINDOW_CLOSED } from "./messages";
+import { SCREENSHOT_WINDOW_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // What the picture shows: the part of the map in view, or all of it

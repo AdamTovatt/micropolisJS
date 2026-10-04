@@ -16,6 +16,7 @@ import { expect, Page, test } from "@playwright/test";
 import { BLINK_PERIOD } from "../src/animationManager";
 import { POWERBIT, ZONEBIT } from "../src/tileFlags";
 import { ZOOM_STEPS } from "../src/viewPosition";
+import { serverForTests } from "./gameServer";
 import { collectPageProblems } from "./page";
 import { Player, startGame, Tile, Tool } from "./player";
 import { samplePixels } from "./png";
@@ -45,6 +46,8 @@ const SERVICES: Building[] = [
 
 const START = Date.parse("2026-01-01T00:00:00Z");
 
+const server = serverForTests("manual");
+
 // Every pixel of a tile on the screen, row by row, as RGB
 async function tilePixels(page: Page, player: Player, tile: Tile): Promise<number[][]> {
   await player.showTiles([tile]);
@@ -68,7 +71,7 @@ function differing(a: number[][], b: number[][]): number {
 test("an unpowered service building blinks the lightning bolt an unpowered zone does", async ({page}) => {
   const problems = collectPageProblems(page);
   await page.clock.setFixedTime(START);
-  const player = await startGame(page, SEED, "Blink");
+  const player = await startGame(server(), page, SEED, "Blink");
 
   for (const {tool, tile} of [ZONE, ...SERVICES]) {
     await player.selectTool(tool);

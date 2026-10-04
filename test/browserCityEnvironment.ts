@@ -12,43 +12,18 @@
  */
 
 
-import { browserCityEnvironment } from "../src/browserCityEnvironment";
+import { browserCityEnvironment, SESSION_STORAGE_KEY } from "../src/browserCityEnvironment";
 import { CITY_PATH, StoredSession } from "../src/cityClient";
+import { FakeStore } from "./helpers/fakeStore";
+import { removeGlobal, restoreGlobals, stubGlobal } from "./helpers/globals";
 
 // The environment reads the browser's globals, so each test stands in for the ones it needs
-const replaced: {name: string; descriptor: PropertyDescriptor | undefined}[] = [];
-
-function stubGlobal(name: string, value: unknown): void {
-    replaced.push({name, descriptor: Object.getOwnPropertyDescriptor(globalThis, name)});
-    Object.defineProperty(globalThis, name, {value, configurable: true, writable: true});
-}
-
-function removeGlobal(name: string): void {
-    replaced.push({name, descriptor: Object.getOwnPropertyDescriptor(globalThis, name)});
-    delete (globalThis as Record<string, unknown>)[name];
-}
-
-// Storage as a browser's, shared by every environment as by every tab
-function storage(): Storage {
-    const items = new Map<string, string>();
-    return {
-        getItem: (key: string) => items.get(key) ?? null,
-        setItem: (key: string, value: string) => { items.set(key, value); },
-    } as Storage;
-}
-
 const ADA: StoredSession = {token: "token-1", name: "Ada"};
 
 describe("the browser's city environment", () => {
 
     afterEach(() => {
-        for (let entry = replaced.pop(); entry !== undefined; entry = replaced.pop()) {
-            if (entry.descriptor === undefined) {
-                delete (globalThis as Record<string, unknown>)[entry.name];
-            } else {
-                Object.defineProperty(globalThis, entry.name, entry.descriptor);
-            }
-        }
+        restoreGlobals();
     });
 
     it("gives up on a request the server never answers", async () => {
@@ -63,8 +38,9 @@ describe("the browser's city environment", () => {
 
     describe("the stored session", () => {
 
+        // Storage as a browser's, shared by every environment as by every tab
         it("is shared through storage with every other tab", () => {
-            stubGlobal("localStorage", storage());
+            stubGlobal("localStorage", new FakeStore());
 
             browserCityEnvironment().store.save(ADA);
 
@@ -72,7 +48,9 @@ describe("the browser's city environment", () => {
         });
 
         it("is kept for the page when storage refuses to write", () => {
-            stubGlobal("localStorage", {getItem: () => null, setItem: () => { throw new Error("QuotaExceededError"); }});
+            const refusing = new FakeStore();
+            refusing.failsToWrite = true;
+            stubGlobal("localStorage", refusing);
             const environment = browserCityEnvironment();
 
             environment.store.save(ADA);
@@ -94,7 +72,9 @@ describe("the browser's city environment", () => {
             ["a session without its name", "{\"token\":\"token-1\"}"],
             ["a token that is not text", "{\"token\":1,\"name\":\"Ada\"}"],
         ])("is none when storage holds %s", (_, text) => {
-            stubGlobal("localStorage", {getItem: () => text, setItem: () => undefined});
+            const holding = new FakeStore();
+            holding.items.set(SESSION_STORAGE_KEY, text);
+            stubGlobal("localStorage", holding);
 
             expect(browserCityEnvironment().store.load()).toBeNull();
         });

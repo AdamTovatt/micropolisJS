@@ -17,8 +17,9 @@ import { SPRITE_SHEET } from "../src/renderManifest";
 import { PREVIEW_TILE_SIZE, SplashCanvas } from "../src/splashCanvas";
 import { SPRITE_TORNADO } from "../src/spriteConstants";
 import { WATER_HIGH, WATER_LOW, WOODS_HIGH, WOODS_LOW } from "../src/tileValues";
-import { blockNetwork, collectPageProblems, contextLoss, isContextLost } from "./page";
-import { Player, startGame } from "./player";
+import { serverForTests } from "./gameServer";
+import { collectPageProblems, contextLoss, isContextLost } from "./page";
+import { Player, startGame, TESTER } from "./player";
 import { tileAt } from "./savedMap";
 import { SEED } from "./stages";
 import { everyTile, serveTestArt, solidAtlas } from "./testArt";
@@ -31,6 +32,8 @@ const TV_CANVAS = "#tvCanvas";
 const PREVIEW_CANVAS = "#SplashCanvas";
 
 const TORNADO_SIDE = SPRITE_SHEET[SPRITE_TORNADO - 1].width;
+
+const server = serverForTests("manual");
 
 type Colour = "white" | "blue" | "green" | "red";
 const COLOURS: Record<Colour, [number, number, number, number]> = {
@@ -115,9 +118,8 @@ for (const scale of [1, 2]) {
     test("the splash screen's preview draws each tile from its art, and lets go of its context once it closes",
          async ({page}) => {
       const problems = collectPageProblems(page);
-      await blockNetwork(page);
+      const player = await Player.onServer(server(), page, TESTER);
       await serveColouredArt(page);
-      const player = new Player(page);
       await player.open(`seed=${SEED}`);
       await expect(page.locator("#splashSeed")).toHaveText(String(SEED));
 
@@ -139,7 +141,8 @@ for (const scale of [1, 2]) {
       }, "the colours of the tiles' middles").toEqual(["blue", "green", "white"]);
 
       // The new city starts on the map the preview showed
-      const save = await (await startGame(page, SEED, "Preview")).save();
+      await player.startNewGame(SEED, "Preview", "Easy");
+      const save = await player.save();
       const wrong = [];
       for (let y = 0; y < save.map.height; y++) {
         for (let x = 0; x < save.map.width; x++) {
@@ -161,7 +164,7 @@ for (const scale of [1, 2]) {
          "a lost context is restored, and lets go of its context as it closes", async ({page}) => {
       const problems = collectPageProblems(page);
       await serveColouredArt(page);
-      const player = await startGame(page, SEED, "Television");
+      const player = await startGame(server(), page, SEED, "Television");
 
       // The disaster's command places the tornado; the city takes no step, so it stays where it was placed
       await player.triggerDisaster("Tornado");

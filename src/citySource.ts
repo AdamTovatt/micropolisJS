@@ -17,7 +17,7 @@ import type { QuerySource } from "./querySource";
 // The only way the client reaches the city. A source sends the city commands and queries, and delivers the state
 // messages the city sends back to its subscribers, in the order it sent them. The simulation behind it steps itself,
 // at the speed the city was set to: the client sends speed and pause as commands, and paints whatever state came
-// last. Where the simulation runs is the source's business: in the page, in a Web Worker, or on a server.
+// last. Where the simulation runs is the source's business: in the page or on a server.
 
 // Where a city starts: a new city, under the name the player gave it, on the map a game seed generates, at a level, by
 // its number in GAME_LEVELS; or a saved game, as the text save gave

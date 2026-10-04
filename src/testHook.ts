@@ -146,8 +146,8 @@ class TestHook {
     return this.steps;
   }
 
-  // The save, as the object the game writes to storage, which is kept nowhere: online the Save button keeps the city in
-  // the server's store, past a limit on how often
+  // The save, as the object a save file holds, which is kept nowhere: the Save button keeps the city in the server's
+  // store, past a limit on how often
   async save(): Promise<object> {
     this.requireGame();
     return JSON.parse(await this.attachedDriver().savedGame()) as object;

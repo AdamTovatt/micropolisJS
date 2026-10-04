@@ -14,8 +14,8 @@
 import { requiredElement } from "./domElements";
 import { Emitter } from "./emitter";
 import { GameCanvas } from "./gameCanvas";
-import * as Messages from "./messages";
 import { Text } from "./text";
+import * as UiMessages from "./uiMessages";
 import type { PixelPoint } from "./viewPosition";
 
 // The player's input as the game reads it each tick: the keys held, where the mouse is over the canvas and the tool
@@ -233,14 +233,14 @@ export class InputStatus extends Emitter {
     });
 
     const requests: [HTMLElement, string][] = [
-      [requiredElement("budgetRequest"), Messages.BUDGET_REQUESTED],
-      [requiredElement("evalRequest"), Messages.EVAL_REQUESTED],
-      [requiredElement("disasterRequest"), Messages.DISASTER_REQUESTED],
-      [this.pauseButton, Messages.PAUSE_REQUESTED],
-      [requiredElement("screenshotRequest"), Messages.SCREENSHOT_WINDOW_REQUESTED],
-      [requiredElement("settingsRequest"), Messages.SETTINGS_WINDOW_REQUESTED],
-      [requiredElement("saveRequest"), Messages.SAVE_REQUESTED],
-      [requiredElement("debugRequest"), Messages.DEBUG_WINDOW_REQUESTED],
+      [requiredElement("budgetRequest"), UiMessages.BUDGET_REQUESTED],
+      [requiredElement("evalRequest"), UiMessages.EVAL_REQUESTED],
+      [requiredElement("disasterRequest"), UiMessages.DISASTER_REQUESTED],
+      [this.pauseButton, UiMessages.PAUSE_REQUESTED],
+      [requiredElement("screenshotRequest"), UiMessages.SCREENSHOT_WINDOW_REQUESTED],
+      [requiredElement("settingsRequest"), UiMessages.SETTINGS_WINDOW_REQUESTED],
+      [requiredElement("saveRequest"), UiMessages.SAVE_REQUESTED],
+      [requiredElement("debugRequest"), UiMessages.DEBUG_WINDOW_REQUESTED],
     ];
     for (const [button, message] of requests) {
       button.addEventListener("click", () => this.emit(message));
@@ -290,7 +290,7 @@ export class InputStatus extends Emitter {
     if (steps !== null) {
       e.preventDefault();
       if (!this.dragging) {
-        this.emit(Messages.ZOOM_REQUESTED, {steps, point: this.pointer} satisfies ZoomRequest);
+        this.emit(UiMessages.ZOOM_REQUESTED, {steps, point: this.pointer} satisfies ZoomRequest);
       }
     }
   }
@@ -300,7 +300,7 @@ export class InputStatus extends Emitter {
     const steps = this.wheelZoom.steps(e.deltaY, e.deltaMode);
     // Not mid-drag, as for the zoom keys
     if (steps !== 0 && !this.dragging) {
-      this.emit(Messages.ZOOM_REQUESTED, {steps, point: this.relativeCoordinates(e)} satisfies ZoomRequest);
+      this.emit(UiMessages.ZOOM_REQUESTED, {steps, point: this.relativeCoordinates(e)} satisfies ZoomRequest);
     }
   }
 
@@ -342,7 +342,7 @@ export class InputStatus extends Emitter {
     this.mouseY = coords.y;
 
     this.dragging = true;
-    this.emit(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
+    this.emit(UiMessages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
 
     this.lastDragX = Math.floor(this.mouseX / this.tileWidth());
     this.lastDragY = Math.floor(this.mouseY / this.tileWidth());
@@ -389,7 +389,7 @@ export class InputStatus extends Emitter {
       const y = Math.floor(this.mouseY / this.tileWidth());
 
       if (x !== this.lastDragX || y !== this.lastDragY) {
-        this.emit(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: false} satisfies ToolClick);
+        this.emit(UiMessages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: false} satisfies ToolClick);
         this.lastDragX = x;
         this.lastDragY = y;
       }
@@ -401,7 +401,7 @@ export class InputStatus extends Emitter {
       return;
     }
 
-    this.emit(Messages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
+    this.emit(UiMessages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
     e.preventDefault();
   }
 

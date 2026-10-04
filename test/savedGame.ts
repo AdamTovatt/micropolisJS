@@ -22,7 +22,8 @@ import { Simulation } from "../src/simulation.js";
 import { plainSavedState } from "../src/stateHash";
 import { ANIMBIT, CONDBIT } from "../src/tileFlags";
 import { FIRE, POWERPLANT } from "../src/tileValues";
-import { removeWindow, stubWindow } from "./helpers/window";
+import { FakeStore } from "./helpers/fakeStore";
+import { restoreGlobals, stubGlobal } from "./helpers/globals";
 
 // The save format: the text a game is saved as, and how a save of an older version is migrated to the current one
 
@@ -315,7 +316,9 @@ describe("the save format", () => {
         // The save is migrated on every load, so a setting it held must never overwrite the one the player chose
         it.each([true, false])("leaves the player's auto-bulldoze preference as it is, the save holding %s",
                                async (on) => {
-            const localStorage = stubWindow();
+            // The browser's localStorage, as the page reads it (pageStore)
+            const localStorage = new FakeStore();
+            stubGlobal("localStorage", localStorage);
             try {
                 localStorage.setItem(AUTO_BULLDOZE_KEY, String(!on));
 
@@ -323,7 +326,7 @@ describe("the save format", () => {
 
                 expect(localStorage.getItem(AUTO_BULLDOZE_KEY)).toBe(String(!on));
             } finally {
-                removeWindow();
+                restoreGlobals();
             }
         });
 

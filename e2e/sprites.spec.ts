@@ -14,6 +14,7 @@
 import { expect, test } from "@playwright/test";
 
 import { SPRITE_SHEET } from "../src/renderManifest";
+import { serverForTests } from "./gameServer";
 import { collectPageProblems } from "./page";
 import { startGame } from "./player";
 import { samplePixels } from "./png";
@@ -32,6 +33,8 @@ const TORNADO_SIDE = SPRITE_SHEET[TORNADO - 1].width;
 // offset is within it
 const SEARCH = 64;
 
+const server = serverForTests("manual");
+
 function isRed([r, g, b]: number[]): boolean {
   return r > 200 && g < 60 && b < 60;
 }
@@ -49,7 +52,7 @@ test("a sprite is drawn from its art, filling its square", async ({page}) => {
   await serveTestArt(page, {version: 1, atlases: {white: "white.png", red: "red.png"},
                             tiles: everyTile({ground: {atlas: "white", ...square}}), sprites},
                      {"white.png": solidAtlas([255, 255, 255, 255]), "red.png": solidAtlas([255, 0, 0, 255])});
-  const player = await startGame(page, SEED, "Sprites");
+  const player = await startGame(server(), page, SEED, "Sprites");
 
   // The disaster's command places the tornado; the city takes no step, so it stays where it was placed
   await player.triggerDisaster("Tornado");

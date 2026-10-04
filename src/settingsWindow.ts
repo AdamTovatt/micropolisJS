@@ -12,7 +12,7 @@
  */
 
 import { isChecked, requiredElement } from "./domElements";
-import { SETTINGS_WINDOW_CLOSED } from "./messages";
+import { SETTINGS_WINDOW_CLOSED } from "./uiMessages";
 import { type SettingsRecord, SPEEDS } from "./protocol";
 import { ClosableWindow } from "./windowBase";
 

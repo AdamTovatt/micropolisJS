@@ -167,12 +167,6 @@ main {
   color: white;
 }
 
-.loadSave:disabled {
-  background-color: darkgray;
-  color: silver;
-  cursor: not-allowed;
-}
-
 .margin10 {
   margin: 10px 0;
 }
@@ -492,6 +486,13 @@ main {
   color: dodgerblue;
 }
 
+#noServer {
+  display: none;
+  text-align: center;
+  font-size: 18px;
+  max-width: 400px;
+}
+
 #signIn {
   display: none;
   text-align: center;
@@ -524,6 +525,38 @@ main {
 
 #splashButtons {
   margin-left: 20px;
+}
+
+#splashCities {
+  margin: 15px 10px 0;
+}
+
+/* A long list scrolls, so the splash still fits a small screen */
+#splashCityList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 7.5em;
+  overflow-y: auto;
+}
+
+#splashCityList li {
+  display: flex;
+  gap: 10px;
+  margin: 4px 0;
+}
+
+.splashRejoin {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.splashCityId {
+  margin-left: 10px;
+  color: gray;
+  font-family: monospace;
 }
 
 #splashContainer canvas {

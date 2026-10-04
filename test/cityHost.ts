@@ -67,7 +67,7 @@ describe("a city host", () => {
         expect(batches[0]!.map((message) => message.type)).toEqual(["settings", "commandResult"]);
     });
 
-    // A worker's timers run at full rate in a hidden tab, so a loop with nothing to do would spin
+    // A loop with nothing to do waits rather than spin
     describe("its loop", () => {
 
         // A host on a new city, running, with the first turn of its loop taken

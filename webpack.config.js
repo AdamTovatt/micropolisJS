@@ -16,14 +16,9 @@ const SUPPORT_FULLY_QUALIFIED_TS_ESM_IMPORTS = {
   ".cjs": [".cjs", ".cts"],
   ".mjs": [".mjs", ".mts"],
 };
-// The bundle is built from ES modules: the page starts the city's worker with new Worker(new URL(..., import.meta.url)),
-// which webpack bundles as a worker, and import.meta is only allowed in an ES module. tsconfig.json stays on CommonJS
-// for ts-jest, which never compiles the page's entry point. Modules resolve as under CommonJS, from node_modules: an
-// ES module target alone would resolve them the classic way, which finds no package.
 const HANDLE_TYPESCRIPT_WITH_TS_LOADER = {
   test: /\.([cm]?ts|tsx)$/,
   loader: "ts-loader",
-  options: {compilerOptions: {module: "es2020", moduleResolution: "node"}},
 };
 
 const OUTPUT_DIRECTORY = 'dist';
@@ -107,12 +102,9 @@ export default {
   output: {
     path: path.resolve(__dirname, OUTPUT_DIRECTORY),
     filename: 'src/micropolis.js',
-    // The city's worker is a chunk the page loads by its URL, which HtmlWebpackPlugin's hash never reaches. Its content
-    // hash is in its name, so a browser that kept an old worker never runs it against a newer page.
-    chunkFilename: 'src/[name].[contenthash].js',
   },
-  // Sign-in and the city's WebSocket go to the server. With no server running they fail, and the game starts
-  // single-player. Any Host header is allowed, so a reverse proxy under another name can front the dev server.
+  // Sign-in and the city's WebSocket go to the server. With no server running they fail, and the page says no server
+  // answers. Any Host header is allowed, so a reverse proxy under another name can front the dev server.
   devServer: {
     port: 44903,
     allowedHosts: 'all',
