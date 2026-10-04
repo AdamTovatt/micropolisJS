@@ -128,13 +128,14 @@ SUBJECTS = [
     ('roads', 'pieces of road, with their junctions, bridges and traffic, on grassy land'),
     ('power', 'power lines on wooden poles over grassy land and water'),
     ('rail', 'pieces of railway track, with its junctions, bridges and crossings, on grassy land'),
-    ('train', 'one railcar, seen from directly above, in each of the directions it runs, on plain grass'),
-    ('helicopter', 'one traffic helicopter flying, seen from directly above, in each of the directions it '
-                   'heads, with its shadow on the plain grass below'),
-    ('airplane', 'one airliner flying low, seen from directly above, in each of the directions it heads, with '
-                 'its shadow on the plain grass below'),
-    ('ship', 'one cargo ship at sea, seen from directly above, in each of the directions it heads, on plain '
-             'open water'),
+    ('train', 'one light grey railcar with a pale grey roof, seen from directly above, in each of the directions '
+              'it runs, on plain grass'),
+    ('helicopter', 'one white and grey traffic helicopter with a dark cockpit and a red tail, flying, seen from '
+                   'directly above, in each of the directions it heads, with its shadow on the plain grass below'),
+    ('airplane', 'one pale grey airliner with blue engines and tail tips, flying low, seen from directly above, in '
+                 'each of the directions it heads, with its shadow on the plain grass below'),
+    ('ship', 'one cargo ship with a brown hull and blue containers, at sea, seen from directly above, in each of '
+             'the directions it heads, on plain open water'),
     ('residential', 'a residential city zone'),
     ('commercial', 'a commercial city zone'),
     ('industrial', 'an industrial city zone'),
@@ -267,18 +268,66 @@ def prep(job):
     dark.putalpha(shadow)
     full.alpha_composite(dark)
     full.alpha_composite(objects)
+    pack = None
+    vehicle = all(info.get('vehicle') for _, info, _ in renders)
+    if vehicle:
+        # A vehicle stands in the middle of its frame, so its frames go to the model cut down to
+        # the box that holds whatever is painted in any of them, and the model paints it larger:
+        # at the frame's size it paints a railcar with strokes as wide as the car
+        content = (np.asarray(objects.getchannel('A')) > 0) | (np.asarray(shadow) >= SHADOW_FLOOR)
+        local = np.zeros((cell, cell), bool)
+        for i in range(cols * cols):
+            cx, cy = (i % cols) * cell, (i // cols) * cell
+            local |= content[cy:cy + cell, cx:cx + cell]
+        ys, xs = np.nonzero(local)
+        size = min(cell, max(xs.max() - xs.min(), ys.max() - ys.min()) + 1 + border)
+        bx = min(max((xs.min() + xs.max() + 1) // 2 - size // 2, 0), cell - size)
+        by = min(max((ys.min() + ys.max() + 1) // 2 - size // 2, 0), cell - size)
+        pack = {'cell': cell, 'cols': cols, 'box': [int(bx), int(by), int(size)]}
     out = os.path.join(RAW, job)
     os.makedirs(out, exist_ok=True)
     for name, im in (('full', full), ('ground', ground), ('shadow', Image.eval(shadow, lambda v: 255 - v))):
-        im.convert('RGB').resize((SIZE, SIZE), Image.LANCZOS).save(os.path.join(out, f'in-{name}.png'))
+        packed(im.convert('RGB'), pack).resize((SIZE, SIZE), Image.LANCZOS).save(os.path.join(out, f'in-{name}.png'))
     # the paintings the job needs: none of the objects where nothing stands, none of the shadow
-    # where nothing casts one, and none of the ground where another tile's gives it all
+    # where nothing casts one, and none of the ground where another tile's gives it all. Nor a
+    # vehicle's shadow: a small silhouette that moves over everything, which painting only roughens,
+    # and the model paints a helicopter's faint rotor disc as dark as its body
     needs = [layer for layer, wanted in (('full', np.asarray(objects.getchannel('A')).max() > 0),
                                          ('ground', ground_painted(job)),
-                                         ('shadow', np.asarray(shadow).max() >= SHADOW_FLOOR)) if wanted]
+                                         ('shadow', not vehicle and np.asarray(shadow).max() >= SHADOW_FLOOR))
+             if wanted]
     with open(os.path.join(out, 'canvas.json'), 'w') as f:
-        json.dump({'side': side, 'tile_px': px, 'members': layout, 'paint': needs}, f, indent=2)
+        json.dump({'side': side, 'tile_px': px, 'members': layout, 'paint': needs, 'pack': pack}, f, indent=2)
     print(f'{job}: {len(layout)} asset(s) on a canvas of {side // px} tiles, painting {", ".join(needs)}')
+
+
+def _boxes(pack):
+    # each cell's packed box: where it is on the canvas, and where on the packed canvas
+    cell, cols, (bx, by, size) = pack['cell'], pack['cols'], pack['box']
+    for i in range(cols * cols):
+        cx, cy = (i % cols) * cell + bx, (i // cols) * cell + by
+        yield (cx, cy, cx + size, cy + size), ((i % cols) * size, (i // cols) * size)
+
+
+def packed(image, pack):
+    # the canvas with each cell cut down to its packed box (prep()), the boxes in the same grid
+    if pack is None:
+        return image
+    side = pack['cols'] * pack['box'][2]
+    out = Image.new(image.mode, (side, side))
+    for box, at in _boxes(pack):
+        out.paste(image.crop(box), at)
+    return out
+
+
+def unpacked(painting, pack, side):
+    # a painting of a packed canvas laid back over a canvas of `side`, white round the boxes,
+    # where nothing is painted: no objects stand there, and white is no shadow
+    small = painting.resize((pack['cols'] * pack['box'][2],) * 2, Image.LANCZOS)
+    out = Image.new('RGB', (side, side), (255, 255, 255))
+    for (x0, y0, x1, y1), (px, py) in _boxes(pack):
+        out.paste(small.crop((px, py, px + x1 - x0, py + y1 - y0)), (x0, y0))
+    return out
 
 
 def paint(job, only, paving, model, style_from_full=False):
@@ -411,13 +460,17 @@ def build(job):
     record_path = os.path.join(raw, 'prompts.json')
     record = json.load(open(record_path)) if os.path.exists(record_path) else {}    # a job that paints nothing
     side, px = canvas['side'], canvas['tile_px']
-    painted = [layer for layer in LAYERS if os.path.exists(os.path.join(raw, f'out-{layer}.png'))]
+    # the paintings the job needs and has (a job laid out before prep listed them has all three)
+    painted = [layer for layer in canvas.get('paint', LAYERS) if os.path.exists(os.path.join(raw, f'out-{layer}.png'))]
 
     def painting(layer):
         # a layer the job did not paint is taken from the render, as preview.py would draw it
         if layer not in painted:
             return None
-        return Image.open(os.path.join(raw, f'out-{layer}.png')).convert('RGB').resize((side, side), Image.LANCZOS)
+        image = Image.open(os.path.join(raw, f'out-{layer}.png')).convert('RGB')
+        if canvas.get('pack'):
+            return unpacked(image, canvas['pack'], side)
+        return image.resize((side, side), Image.LANCZOS)
 
     full, ground = painting('full'), painting('ground')
     renders = {m['asset']: render(m['asset']) for m in canvas['members']}
