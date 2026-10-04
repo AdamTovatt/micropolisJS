@@ -169,22 +169,36 @@ export interface FrameTiles {
   frames: readonly number[];
 }
 
+// Where a frame is drawn: the view's origin, the device pixels a tile is drawn, and the target's size in device pixels
+export interface FrameView {
+  originX: number;
+  originY: number;
+  tilePixels: number;
+  width: number;
+  height: number;
+}
+
+function sameView(a: FrameView, b: FrameView): boolean {
+  return a.originX === b.originX && a.originY === b.originY && a.tilePixels === b.tilePixels && a.width === b.width &&
+         a.height === b.height;
+}
+
 // What the last frame drawn was built from, so a paint whose frame would come out the same draws nothing. A frame
 // drawn hands the compositor a new picture of the whole canvas, which on software WebGL holds the page's thread for
 // most of a frame's time, and leaves the game's ticks, which read the keyboard, too little of it.
 export class FrameRecord {
-  private view = "";
+  private view: FrameView | null = null;
   private values: number[] = [];
   private frames: number[] = [];
   private sprites = "";
 
-  // Whether a frame of the tiles and sprites, with the view described by view, differs from the last one recorded;
-  // if so, it is recorded as the last. view stands for everything else a frame depends on, as a string that changes
-  // when any of it does.
-  changed(view: string, tiles: FrameTiles, sprites: readonly PaintableSprite[]): boolean {
+  // Whether a frame of the view, the tiles and the sprites differs from the last one recorded; if so, it is recorded
+  // as the last
+  changed(view: FrameView, tiles: FrameTiles, sprites: readonly PaintableSprite[]): boolean {
     const count = tiles.width * tiles.height;
     const spriteText = JSON.stringify(sprites);
-    let same = view === this.view && spriteText === this.sprites && this.values.length === count;
+    let same = this.view !== null && sameView(view, this.view) && spriteText === this.sprites &&
+               this.values.length === count;
     for (let i = 0; same && i < count; i++) {
       same = tiles.values[i] === this.values[i] && tiles.frames[i] === this.frames[i];
     }
@@ -193,11 +207,17 @@ export class FrameRecord {
       return false;
     }
 
-    this.view = view;
+    this.view = {...view};
     this.sprites = spriteText;
     this.values = tiles.values.slice(0, count);
     this.frames = tiles.frames.slice(0, count);
     return true;
+  }
+
+  // Forgets the last frame, so the next differs from it: for a change the record doesn't hold, such as the overlay
+  // shown, or a canvas whose drawing was lost
+  invalidate(): void {
+    this.view = null;
   }
 }
 

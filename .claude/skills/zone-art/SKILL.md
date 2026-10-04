@@ -56,6 +56,6 @@ The pipeline's layout, conventions and tools are in `art/README.md`, the texture
 
 ## Where this leads
 
-The layers are made for the client to composite: every zone's ground, then the shadows merged by their darkest value, then every zone's objects. Before planning work that assumes the game draws them, check what `src/gameCanvas.ts` and `src/tileSet.ts` actually load and draw.
+The layers are made for the client to composite: every zone's ground, then the shadows merged by their darkest value, then every zone's objects. The client draws them from a manifest and atlases in `images/render/`, which `docs/render-assets.md` specifies: how a zone's layers are cut into tiles, and how its `shadow_margin` becomes the shadow's reach.
 
 The original's zone tiles map onto these scenes as follows. A 3×3 zone is nine consecutive tile ids, in rows from its top-left (`src/buildingTool.js`). The populated residential zones start at 261, the populated commercial zones at 432, nine ids apart (names in `src/tileValues.ts`), and the single-tile houses are 249 to 260.

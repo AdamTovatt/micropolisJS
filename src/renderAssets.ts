@@ -12,7 +12,8 @@
  */
 
 import {
-  FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, RenderManifest, checkRectsInAtlases, parseRenderManifest,
+  FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, RenderManifest, checkAtlasSizes, checkRectsInAtlases,
+  parseRenderManifest,
 } from "./renderManifest";
 import type { AtlasImage } from "./webglRenderer";
 
@@ -49,8 +50,10 @@ async function loadManifest(url: URL): Promise<RenderManifest> {
 }
 
 // The map's art, from the rendered art's manifest and the 16 px sheets, images/tiles.png and images/sprites.png, which
-// have loaded. Fails naming what failed to load, or what in the manifest is wrong.
-export async function loadMapArt(tiles: HTMLImageElement, sprites: HTMLImageElement): Promise<MapArt> {
+// have loaded. Fails naming what failed to load, what in the manifest is wrong, or an atlas past textureLimit pixels
+// a side, the largest texture the browser draws.
+export async function loadMapArt(tiles: HTMLImageElement, sprites: HTMLImageElement,
+                                 textureLimit: number): Promise<MapArt> {
   const manifestUrl = new URL(MANIFEST_PATH, document.baseURI);
   const manifest = await loadManifest(manifestUrl);
 
@@ -68,6 +71,7 @@ export async function loadMapArt(tiles: HTMLImageElement, sprites: HTMLImageElem
 
   const sizes = new Map<string, {width: number, height: number}>();
   atlases.forEach(({image}, name) => sizes.set(name, {width: image.width, height: image.height}));
+  checkAtlasSizes(sizes, textureLimit);
   checkRectsInAtlases(manifest, sizes);
 
   return {art: new RenderArt(manifest), atlases};

@@ -43,8 +43,7 @@ function spriteDamage(sprite: PaintableSprite, originX: number, originY: number,
 
 // Paints the map's tiles and the sprites from the 16 px sheets with Canvas 2D, on a canvas that fills its container
 // and keeps to the map: the monster TV's view. It repaints only the tiles that changed since the last paint, or that a
-// sprite drew over. Issue #66 keeps the monster TV on its 2D drawing, out of the WebGL renderer's scope, so it shows
-// the 16 px art whatever rendered art the map draws.
+// sprite drew over. The monster TV draws the 16 px art with Canvas 2D, whatever rendered art the map draws.
 class TileCanvas {
   private readonly canvas: HTMLCanvasElement;
   private readonly record = new PaintRecord();

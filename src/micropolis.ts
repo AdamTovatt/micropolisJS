@@ -27,7 +27,7 @@ import { showSplashScreen } from "./splashScreen";
 import { attachDriverToTestHook, installTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
 import { debugOption, seedOption } from "./urlOptions";
-import { hasWebGL2 } from "./webglRenderer";
+import { webGL2TextureLimit } from "./webglRenderer";
 import { WebSocketCitySource } from "./webSocketCitySource";
 import { WorkerCitySource } from "./workerCitySource";
 
@@ -77,7 +77,8 @@ async function loadTileSet(): Promise<TileSet | null> {
 // to join (?city=<id>), or null to choose one on the splash screen
 async function start(seed: number | null, city: string | null): Promise<void> {
   // The map is drawn with WebGL2: without it, the page says so instead of starting
-  if (!hasWebGL2()) {
+  const textureLimit = webGL2TextureLimit();
+  if (textureLimit === null) {
     setShown(requiredElement("loadingBanner"), false);
     setShown(requiredElement("noWebGL"), true);
     return;
@@ -96,7 +97,7 @@ async function start(seed: number | null, city: string | null): Promise<void> {
 
   let mapArt: MapArt;
   try {
-    mapArt = await loadMapArt(tiles, sprites);
+    mapArt = await loadMapArt(tiles, sprites, textureLimit);
   } catch (error) {
     console.error(error);
     alert(`Failed to load the map's art: ${error instanceof Error ? error.message : String(error)}`);

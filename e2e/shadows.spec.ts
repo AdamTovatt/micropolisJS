@@ -13,12 +13,12 @@
 
 import { expect, test } from "@playwright/test";
 
-import { blockNetwork, collectPageProblems } from "./page";
-import { Player, Tile } from "./player";
-import { TILE_COUNT } from "../src/tileValues";
+import { collectPageProblems } from "./page";
+import { startGame, Tile } from "./player";
 import { png, samplePixels } from "./png";
 import { inBounds, tileAt } from "./savedMap";
 import { SEED } from "./stages";
+import { everyTile, serveTestArt } from "./testArt";
 
 // Shadows merge by their darkest value. A test atlas gives every tile id white ground, and dirt, tile 0, a shadow of
 // half darkness reaching a tile past it on every side. Where shadows overlap, the map shows the darkness of one, not
@@ -40,48 +40,35 @@ function atlas(): Buffer {
 
 function manifest(): object {
   const ground = {atlas: "test", x: 0, y: 0, width: 16, height: 16};
-  const tiles: Record<string, object> = {};
-  for (let id = 0; id < TILE_COUNT; id++) {
-    tiles[id] = {ground};
-  }
+  const tiles = everyTile({ground});
   tiles[0] = {ground, shadow: {atlas: "test", x: 16, y: 0, width: 16, height: 16,
                                reach: {left: 1, top: 1, right: 1, bottom: 1}}};
   return {version: 1, atlases: {test: ATLAS_PATH}, tiles, sprites: {}};
 }
 
 test("overlapping shadows show the darker value, not their sum", async ({page}) => {
-  await blockNetwork(page);
   const problems = collectPageProblems(page);
-  await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: manifest()}));
-  await page.route(`**/images/render/${ATLAS_PATH}`,
-                   (route) => route.fulfill({body: atlas(), contentType: "image/png"}));
+  await serveTestArt(page, manifest(), {[ATLAS_PATH]: atlas()});
 
-  // The driver is held from the start, so the map is the seed's, with no sprites
-  const player = new Player(page);
-  await player.startNewGame(SEED, "Shadows", "Easy");
-  await page.evaluate(() => window.micropolisTestHook!.dismissNotification());
-  await player.settle();
+  const player = await startGame(page, SEED, "Shadows");
   const save = await player.save();
-  const view = await page.evaluate(() => window.micropolisTestHook!.view());
-  const canvas = (await page.locator("#MicropolisCanvas").boundingBox())!;
+  const view = await player.view();
+  const canvas = await player.canvasBox();
 
   // Each tile in view, with the dirt tiles whose shadows reach it, itself included
   const sampled: {tile: Tile, shadows: number, x: number, y: number}[] = [];
-  for (let row = 0; row < Math.floor(canvas.height / view.tileWidth); row++) {
-    for (let column = 0; column < Math.floor(canvas.width / view.tileWidth); column++) {
-      const tile = {x: view.originX + column, y: view.originY + row};
-      let shadows = 0;
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const near = {x: tile.x + dx, y: tile.y + dy};
-          if (inBounds(save, near) && tileAt(save, near) === 0) {
-            shadows++;
-          }
+  for (const {tile, column, row} of await player.wholeTilesInView()) {
+    let shadows = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const near = {x: tile.x + dx, y: tile.y + dy};
+        if (inBounds(save, near) && tileAt(save, near) === 0) {
+          shadows++;
         }
       }
-      sampled.push({tile, shadows, x: Math.floor(canvas.x + (column + 0.5) * view.tileWidth),
-                    y: Math.floor(canvas.y + (row + 0.5) * view.tileWidth)});
     }
+    sampled.push({tile, shadows, x: Math.floor(canvas.x + (column + 0.5) * view.tileWidth),
+                  y: Math.floor(canvas.y + (row + 0.5) * view.tileWidth)});
   }
 
   // The middle pixel of each tile

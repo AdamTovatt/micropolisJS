@@ -18,6 +18,7 @@ import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
 import type { Advanced, View } from "../src/testHook";
 import { steppedZoom } from "../src/viewPosition";
 import { CITY_LINK, signIn } from "./gameServer";
+import { blockNetwork } from "./page";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
 // step driver, and moves the city on only through the hook's advance. Every input lands between the same two steps on
@@ -514,8 +515,23 @@ export class Player {
     }), {along: axis, from: origin, stallMs: HOLD_STALL_MS});
   }
 
-  private async view(): Promise<View> {
+  // The view's origin and tile width, in CSS pixels, as the hook reports them
+  async view(): Promise<View> {
     return await this.page.evaluate(() => window.micropolisTestHook!.view());
+  }
+
+  // Each tile whose whole square is on the canvas, by its column and row from the view's origin
+  async wholeTilesInView(): Promise<{tile: Tile, column: number, row: number}[]> {
+    const view = await this.view();
+    const canvas = await this.canvasBox();
+    const tiles: {tile: Tile, column: number, row: number}[] = [];
+    for (let row = 0; row < Math.floor(canvas.height / view.tileWidth); row++) {
+      for (let column = 0; column < Math.floor(canvas.width / view.tileWidth); column++) {
+        tiles.push({tile: {x: view.originX + column, y: view.originY + row}, column, row});
+      }
+    }
+
+    return tiles;
   }
 
   private async origin(axis: Axis): Promise<number> {
@@ -523,7 +539,8 @@ export class Player {
     return axis === "x" ? view.originX : view.originY;
   }
 
-  private async canvasBox(): Promise<{x: number, y: number, width: number, height: number}> {
+  // The map's canvas on the page, in CSS pixels
+  async canvasBox(): Promise<{x: number, y: number, width: number, height: number}> {
     const canvas = await this.page.locator(CANVAS).boundingBox();
     if (canvas === null) {
       throw new Error("The game canvas is not on screen");
@@ -554,4 +571,14 @@ export class Player {
 
     return point;
   }
+}
+
+// A player of a new Easy game of the name on the seed's map, off the network, with the notification bar dismissed.
+// The driver is held from the start, so the map is the seed's, with no sprites, until the player moves the city on.
+export async function startGame(page: Page, seed: number, name: string): Promise<Player> {
+  await blockNetwork(page);
+  const player = new Player(page);
+  await player.startNewGame(seed, name, "Easy");
+  await player.dismissNotification();
+  return player;
 }

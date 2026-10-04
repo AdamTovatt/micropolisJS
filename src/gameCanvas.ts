@@ -104,9 +104,6 @@ class GameCanvas {
   private readonly frame = new MapFrame();
   // The map overlay tinting each tile, under the sprites
   private overlay: OverlayView | null = null;
-  // Counts the overlays shown, so a frame is drawn again for each
-  private overlaysShown = 0;
-  private ready = false;
   // What the map and the marks were last drawn from, so a paint that would draw the same again doesn't
   private readonly drawn = new FrameRecord();
   private marksDrawn = "";
@@ -123,22 +120,35 @@ class GameCanvas {
   private readonly values: number[] = [];
   private readonly frames: number[] = [];
 
-  // Set by init, before which ready is false and nothing reads them
-  private map!: PaintableMap;
-  private art!: RenderArt;
-  private renderer!: WebGLRenderer;
-  private animationManager!: AnimationManager;
-  private position!: ViewPosition;
+  private readonly art: RenderArt;
+  private readonly renderer: WebGLRenderer;
+  // The canvas's own: the manager remembers what this view painted last
+  private readonly animationManager: AnimationManager;
+  private readonly position: ViewPosition;
 
   // Has the window been resized since the last paint?
   private pendingDimensionChange = false;
 
-  // Creates the canvases in the container with the given id, replacing elements of the canvases' ids there
-  constructor(parentId: string) {
+  // Creates the canvases in the container with the given id, replacing elements of the canvases' ids there, and draws
+  // the map on them from the art, centred
+  constructor(parentId: string, private readonly map: PaintableMap, {art, atlases}: MapArt) {
     const parentNode = requiredElement(parentId);
     this.canvas = placeLayer(parentNode, GameCanvas.DEFAULT_ID, parentNode.firstChild);
     this.marks = placeLayer(parentNode, GameCanvas.MARKS_ID, this.canvas.nextSibling);
     this.marks.style.pointerEvents = "none";
+
+    this.art = art;
+    this.renderer = new WebGLRenderer(this.canvas, atlases, () => this.drawn.invalidate());
+    this.animationManager = new AnimationManager(map);
+
+    this.fitContainer();
+    this.position = new ViewPosition(this.viewportAt(this.zoom));
+    window.addEventListener("resize", () => {
+      this.pendingDimensionChange = true;
+    }, false);
+
+    this.centreOn(Math.floor(map.width / 2), Math.floor(map.height / 2));
+    this.paint([], null);
   }
 
   // The CSS pixels a tile is drawn, at the zoom the view is at
@@ -155,56 +165,29 @@ class GameCanvas {
     return this.height * SPRITE_PIXELS_PER_TILE / this.zoom;
   }
 
-  init(map: PaintableMap, {art, atlases}: MapArt): void {
-    this.art = art;
-    this.map = map;
-    this.renderer = new WebGLRenderer(this.canvas, atlases);
-    // Each canvas has its own: the manager remembers what this view painted last
-    this.animationManager = new AnimationManager(map);
-
-    this.calculateDimensions();
-
-    // Recompute canvas dimensions on resize
-    window.addEventListener("resize", () => {
-      this.pendingDimensionChange = true;
-    }, false);
-
-    // Order is important here. ready must be set before the call to centreOn below
-    this.ready = true;
-    this.centreOn(Math.floor(map.width / 2), Math.floor(map.height / 2));
-
-    this.paint([], null);
-  }
-
   moveNorth(): void {
-    this.requireReady();
     this.position.moveNorth();
   }
 
   moveEast(): void {
-    this.requireReady();
     this.position.moveEast();
   }
 
   moveSouth(): void {
-    this.requireReady();
     this.position.moveSouth();
   }
 
   moveWest(): void {
-    this.requireReady();
     this.position.moveWest();
   }
 
   centreOn(x: number, y: number): void {
-    this.requireReady();
     this.position.centreOn(x, y);
   }
 
   // Zooms in (a positive steps) or out (a negative one) through the zoom steps, keeping the tile under a point of the
   // canvas, in CSS pixels, under it: the pointer, or the middle of the view when it is null
   zoomBy(steps: number, point: PixelPoint | null): void {
-    this.requireReady();
     const zoom = steppedZoom(this.zoom, steps);
     if (zoom === this.zoom) {
       return;
@@ -216,41 +199,35 @@ class GameCanvas {
   }
 
   getTileOrigin(): TilePoint {
-    this.requireReady();
     return this.position.origin;
   }
 
   getMaxTile(): TilePoint {
-    this.requireReady();
     return this.position.maxTile;
   }
 
   getOriginLimits(): OriginLimits {
-    this.requireReady();
     const {minX, maxX, minY, maxY} = this.position.viewport;
     return {minX, maxX, minY, maxY};
   }
 
   canvasCoordinateToTileOffset(x: number, y: number): TilePoint {
-    this.requireReady();
     return {x: Math.floor(x / this.zoom), y: Math.floor(y / this.zoom)};
   }
 
   canvasCoordinateToTileCoordinate(x: number, y: number): TilePoint | null {
-    this.requireReady();
     return canvasPointToTile(x, y, this.position.origin, this.zoom, this.width, this.height);
   }
 
   // Shows an overlay view, or none
   setOverlay(view: OverlayView | null): void {
     this.overlay = view;
-    this.overlaysShown++;
+    this.drawn.invalidate();
   }
 
   // The whole map at 16 pixels a tile, as a PNG's data URI: each tile's own value, unanimated, with no sprites or
   // overlay, drawn offscreen
   screenshotMap(): string {
-    this.requireReady();
     const {width, height} = this.map;
     const values = this.map.getTileValuesForPainting(0, 0, width, height, []);
     const tiles: FrameTiles = {x: 0, y: 0, width, height, margin: 0, values, frames: values.map((value) => value & BIT_MASK)};
@@ -273,7 +250,6 @@ class GameCanvas {
 
   // The view as it shows, the marks over the map, at the zoom and the backing store's pixels, as a PNG's data URI
   screenshotVisible(): string {
-    this.requireReady();
     const picture = document.createElement("canvas");
     picture.width = this.canvas.width;
     picture.height = this.canvas.height;
@@ -288,21 +264,21 @@ class GameCanvas {
 
   // Paints the map, then the outlines in order, each over the last, then the sprites
   paint(outlines: readonly MouseOutline[], sprites: ReadonlyArray<PaintableSprite> | null, isPaused?: boolean): void {
-    this.requireReady();
-
-    // Recompute our dimensions if there has been a resize since last paint
+    // Recompute our dimensions if there has been a resize since last paint. The origin stays where it is until it next
+    // moves.
     if (this.pendingDimensionChange) {
-      this.calculateDimensions();
+      this.fitContainer();
+      this.position.viewport = this.viewportAt(this.zoom);
       this.pendingDimensionChange = false;
     }
 
     const origin = this.position.origin;
     const tiles = this.readTiles(origin, isPaused);
     const overlay = this.overlay;
-    const view = [origin.x, origin.y, this.zoom, this.canvas.width, this.canvas.height, this.overlaysShown,
-                  this.renderer.contextRestores].join();
+    const view = {originX: origin.x, originY: origin.y, tilePixels: this.zoom * this.pixelRatio,
+                  width: this.canvas.width, height: this.canvas.height};
     if (this.drawn.changed(view, tiles, sprites ?? [])) {
-      buildMapFrame(this.frame, this.art, tiles, this.zoom * this.pixelRatio,
+      buildMapFrame(this.frame, this.art, tiles, view.tilePixels,
                     overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites ?? []);
       this.renderer.draw(this.frame);
     }
@@ -353,18 +329,12 @@ class GameCanvas {
     return {x, y, width, height, margin, values, frames};
   }
 
-  private requireReady(): void {
-    if (!this.ready) {
-      throw new Error("Not ready!");
-    }
-  }
-
   private viewportAt(zoom: number): Viewport {
     return viewport(this.width, this.height, zoom, this.map.width, this.map.height, true);
   }
 
-  private calculateDimensions(): void {
-    // The canvases fill their container on-screen
+  // Sizes the canvases to fill their container on-screen
+  private fitContainer(): void {
     const parentNode = this.canvas.parentNode as HTMLElement;
     this.width = parentNode.clientWidth;
     this.height = parentNode.clientHeight;
@@ -375,14 +345,6 @@ class GameCanvas {
       canvas.height = Math.round(this.height * this.pixelRatio);
       canvas.style.width = `${this.width}px`;
       canvas.style.height = `${this.height}px`;
-    }
-
-    // The origin stays where it is until it next moves
-    const view = this.viewportAt(this.zoom);
-    if (this.position === undefined) {
-      this.position = new ViewPosition(view);
-    } else {
-      this.position.viewport = view;
     }
   }
 }

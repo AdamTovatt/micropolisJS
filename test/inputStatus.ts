@@ -109,7 +109,7 @@ describe("scrolling with the keyboard", () => {
 
     it("scrolls on every tick while a key is held, and on none once it is let go", () => {
         const keys = new ScrollKeys();
-        keys.press("left");
+        keys.press("left", false);
 
         const held = [keys.take(), keys.take()];
         keys.release("left");
@@ -119,16 +119,26 @@ describe("scrolling with the keyboard", () => {
 
     it("scrolls once for a press let go before any tick took it", () => {
         const keys = new ScrollKeys();
-        keys.press("up");
+        keys.press("up", false);
         keys.release("up");
 
         expect([keys.take(), keys.take()]).toEqual(["up", null]);
     });
 
+    it("scrolls no further for a key's repeated keydown after a tick, when the key is let go before the next", () => {
+        const keys = new ScrollKeys();
+        keys.press("up", false);
+        const first = keys.take();
+        keys.press("up", true);
+        keys.release("up");
+
+        expect([first, keys.take()]).toEqual(["up", null]);
+    });
+
     it("takes the first of several keys, left, up, right then down, and forgets the other presses", () => {
         const keys = new ScrollKeys();
-        keys.press("down");
-        keys.press("right");
+        keys.press("down", false);
+        keys.press("right", false);
         keys.release("down");
         keys.release("right");
 

@@ -136,6 +136,30 @@ test.describe("art that fails to load is reported, naming what failed, and the p
       .toEqual([`${ART_FAILED} Render manifest: rectangles run past their atlas: tile 7 ground (zones)`]);
     await expect(page.locator("#splash")).toBeHidden();
   });
+
+  test("an atlas wider than the browser's largest texture", async ({page}) => {
+    await blockNetwork(page);
+    const problems = collectPageProblems(page);
+    // A browser whose largest texture is 1024 pixels a side, which the 16 px sheets fit
+    await page.addInitScript(() => {
+      const getParameter = WebGL2RenderingContext.prototype.getParameter;
+      WebGL2RenderingContext.prototype.getParameter = function(this: WebGL2RenderingContext, name: number) {
+        return name === this.MAX_TEXTURE_SIZE ? 1024 : getParameter.call(this, name);
+      };
+    });
+    await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: {
+      version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {},
+    }}));
+    await page.route("**/images/render/zones.png", (route) => route.fulfill({
+      body: png(1025, 1, new Array<number>(1025 * 4).fill(255)), contentType: "image/png",
+    }));
+
+    await page.goto("/");
+
+    await expect.poll(() => problems)
+      .toEqual([`${ART_FAILED} Atlases are past this browser's 1024 pixels a side: zones is 1025 by 1`]);
+    await expect(page.locator("#splash")).toBeHidden();
+  });
 });
 
 test("a seed that isn't a uint32 is refused out loud, and the map is picked at random", async ({page}) => {

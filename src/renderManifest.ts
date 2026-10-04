@@ -276,6 +276,20 @@ export function checkRectsInAtlases(manifest: Pick<RenderManifest, "tiles" | "sp
   }
 }
 
+// Fails naming each atlas, given each one's size in pixels, wider or higher than the largest texture the browser draws
+export function checkAtlasSizes(sizes: ReadonlyMap<string, {width: number, height: number}>, limit: number): void {
+  const tooBig: string[] = [];
+  sizes.forEach(({width, height}, name) => {
+    if (width > limit || height > limit) {
+      tooBig.push(`${name} is ${width} by ${height}`);
+    }
+  });
+
+  if (tooBig.length > 0) {
+    throw new Error(`Atlases are past this browser's ${limit} pixels a side: ${tooBig.join(", ")}`);
+  }
+}
+
 // The art the map draws with: the rendered manifest's, and the fallback's for every tile id and sprite frame it leaves
 // out
 export class RenderArt {

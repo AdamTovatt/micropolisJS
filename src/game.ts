@@ -180,8 +180,7 @@ export class Game {
     this.statusPanel = new StatusPanel("statusPanel");
 
     // Note: must init canvas before inputStatus
-    this.gameCanvas = new GameCanvas("canvasContainer");
-    this.gameCanvas.init(state.map, mapArt);
+    this.gameCanvas = new GameCanvas("canvasContainer", state.map, mapArt);
     this.inputStatus = new InputStatus(() => this.gameCanvas.tileWidth);
 
     new OverlayPicker("overlayPanel", cityOverlaySource(source, state), this.gameCanvas);

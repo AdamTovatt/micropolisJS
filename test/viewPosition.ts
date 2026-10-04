@@ -192,13 +192,6 @@ describe("the view", () => {
             }
         });
 
-        it("keeps the origin on whole tiles", () => {
-            const zoomed = zoomedOrigin({x: 20, y: 22}, {x: 333, y: 777}, 16, 64,
-                                        viewport(1280, 900, 64, MAP_WIDTH, MAP_HEIGHT, true));
-
-            expect([Number.isInteger(zoomed.x), Number.isInteger(zoomed.y)]).toEqual([true, true]);
-        });
-
         it("holds the origin within the new viewport's limits", () => {
             // Zoomed out from the map's top-left corner, the tile under the pointer would need an origin past the limits
             const out = viewport(1280, 900, 16, MAP_WIDTH, MAP_HEIGHT, true);

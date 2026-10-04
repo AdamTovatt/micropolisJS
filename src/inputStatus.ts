@@ -64,9 +64,13 @@ export class ScrollKeys {
   private readonly held = new Set<ScrollKey>();
   private readonly pressed = new Set<ScrollKey>();
 
-  press(key: ScrollKey): void {
+  // A key's keydown. A key held repeats its keydown, which is no new press: a repeat that comes after the last tick
+  // took a scroll, of a key let go before the next, scrolls no further.
+  press(key: ScrollKey, repeat: boolean): void {
     this.held.add(key);
-    this.pressed.add(key);
+    if (!repeat) {
+      this.pressed.add(key);
+    }
   }
 
   release(key: ScrollKey): void {
@@ -271,11 +275,10 @@ export class InputStatus extends Emitter {
 
   private onKeyDown(e: KeyboardEvent): void {
     const key = heldKey(e.keyCode);
-    // A key held repeats its keydown, which is no new press
     if (key === "escape") {
       this.escape = true;
-    } else if (key !== null && !e.repeat) {
-      this.scrollKeys.press(key);
+    } else if (key !== null) {
+      this.scrollKeys.press(key, e.repeat);
     }
     if (key !== null) {
       e.preventDefault();

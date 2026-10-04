@@ -201,34 +201,69 @@ describe("a frame of the map", () => {
     describe("the record of the frame drawn last", () => {
 
         const train = {type: 1, frame: 2, x: 180, y: 340, width: 32};
+        const view = {originX: 11, originY: 21, tilePixels: 16, width: 640, height: 480};
 
-        it("tells a first frame from nothing, and the same frame again from a new one", () => {
+        // A record of a frame of the view, the zone at index 5 and the train
+        function recorded(): FrameRecord {
             const record = new FrameRecord();
+            record.changed(view, tilesWith(5, ZONE), [train]);
+            return record;
+        }
 
-            expect([record.changed("v", tilesWith(5, ZONE), [train]), record.changed("v", tilesWith(5, ZONE), [train])])
+        it("tells a first frame from nothing", () => {
+            expect(new FrameRecord().changed(view, tilesWith(5, ZONE), [train])).toBe(true);
+        });
+
+        it("tells the same frame again, in a view of the same values, from a new one", () => {
+            expect(recorded().changed({...view}, tilesWith(5, ZONE), [{...train}])).toBe(false);
+        });
+
+        it.each([
+            ["origin's column", {originX: 12}],
+            ["origin's row", {originY: 22}],
+            ["pixels a tile", {tilePixels: 32}],
+            ["width", {width: 641}],
+            ["height", {height: 481}],
+        ])("draws again when the view's %s changes", (_, change) => {
+            expect(recorded().changed({...view, ...change}, tilesWith(5, ZONE), [train])).toBe(true);
+        });
+
+        it("draws again when a tile's value changes, though its frame doesn't", () => {
+            expect(recorded().changed(view, tilesWith(5, ZONE | ZONEBIT, ZONE), [train])).toBe(true);
+        });
+
+        it("draws again when a tile's frame changes, though its value doesn't", () => {
+            expect(recorded().changed(view, tilesWith(5, ZONE, LIGHTNINGBOLT), [train])).toBe(true);
+        });
+
+        it("draws again when a sprite changes", () => {
+            expect(recorded().changed(view, tilesWith(5, ZONE), [{...train, frame: 3}])).toBe(true);
+        });
+
+        it("draws again after it is invalidated, then not again", () => {
+            const record = recorded();
+            record.invalidate();
+
+            expect([record.changed(view, tilesWith(5, ZONE), [train]), record.changed(view, tilesWith(5, ZONE), [train])])
                 .toEqual([true, false]);
         });
 
-        it("draws again when the view, a tile's value, a tile's frame or a sprite changes", () => {
+        it("keeps its own copy of the view", () => {
             const record = new FrameRecord();
-            record.changed("v", tilesWith(5, ZONE), [train]);
+            const shown = {...view};
+            record.changed(shown, tilesWith(5, ZONE), []);
+            shown.originX = 12;
 
-            expect([
-                record.changed("w", tilesWith(5, ZONE), [train]),
-                record.changed("w", tilesWith(5, ZONE | ZONEBIT, ZONE), [train]),
-                record.changed("w", tilesWith(5, ZONE | ZONEBIT, LIGHTNINGBOLT), [train]),
-                record.changed("w", tilesWith(5, ZONE | ZONEBIT, LIGHTNINGBOLT), [{...train, frame: 3}]),
-                record.changed("w", tilesWith(5, ZONE | ZONEBIT, LIGHTNINGBOLT), [{...train, frame: 3}]),
-            ]).toEqual([true, true, true, true, false]);
+            expect(record.changed(shown, tilesWith(5, ZONE), [])).toBe(true);
         });
 
         it("keeps its own copy of the tiles, which the canvas fills again on each paint", () => {
             const record = new FrameRecord();
             const area = tilesWith(5, ZONE);
-            record.changed("v", area, []);
+            record.changed(view, area, []);
             (area.values as number[])[5] = LAWN;
 
-            expect(record.changed("v", area, [])).toBe(true);
+            expect(record.changed(view, area, [])).toBe(true);
         });
     });
 
@@ -248,6 +283,18 @@ describe("a frame of the map", () => {
             ["a", "a", "b", "a"].forEach((atlas) => list.add(atlas, 0, 0, 1, 1, box));
 
             expect(list.runs.map((run) => [run.atlas, run.count])).toEqual([["a", 3], ["b", 1]]);
+        });
+
+        it.each([["an ordered", true], ["an unordered", false]])(
+            "draws %s list's next frame from its own atlas, in a run kept from one of another atlas", (_, ordered) => {
+            const list = new QuadList(ordered);
+            list.add("a", 0, 0, 1, 1, box);
+            const kept = list.runs[0];
+            list.clear();
+            list.add("b", 0, 0, 1, 1, box);
+
+            expect(list.runs.map((run) => [run.atlas, run.count])).toEqual([["b", 1]]);
+            expect(list.runs[0]).toBe(kept);
         });
 
         it("grows its buffers to hold every quad", () => {

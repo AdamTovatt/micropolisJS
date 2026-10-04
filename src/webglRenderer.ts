@@ -126,12 +126,23 @@ export function flipRows(pixels: Uint8Array, width: number, height: number): Uin
   return rows;
 }
 
-// Whether the browser draws with WebGL2, which the map needs
-export function hasWebGL2(): boolean {
+// The deepest mip level a rendered atlas is sampled at. Its rectangles' 4 pixel gutters (docs/render-assets.md) keep
+// their neighbours out of two levels below the art, where a 4 pixel gutter has shrunk to one; past that the art is
+// minified from this level instead.
+const DEEPEST_MIP_LEVEL = 2;
+
+// The largest texture the browser draws, in pixels a side, or null when it doesn't draw with WebGL2, which the map
+// needs
+export function webGL2TextureLimit(): number | null {
   const gl = document.createElement("canvas").getContext("webgl2");
+  if (gl === null) {
+    return null;
+  }
+
+  const limit = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
   // The context is let go at once: a page may hold only a few
-  gl?.getExtension("WEBGL_lose_context")?.loseContext();
-  return gl !== null;
+  gl.getExtension("WEBGL_lose_context")?.loseContext();
+  return limit;
 }
 
 export class WebGLRenderer {
@@ -139,14 +150,11 @@ export class WebGLRenderer {
   private resources: Resources | null = null;
   // The quad the shadow buffer darkens the target through
   private readonly compositeQuad = new QuadRun("shadow buffer");
-  private restores = 0;
 
-  // How many times the context has been restored after a loss, which leaves the canvas to be drawn again
-  get contextRestores(): number {
-    return this.restores;
-  }
-
-  constructor(canvas: HTMLCanvasElement, private readonly atlases: ReadonlyMap<string, AtlasImage>) {
+  // Draws on the canvas from the atlases, which loadMapArt has checked fit the browser's texture limit. onRestored is
+  // called once a context the browser lost is restored, which leaves the canvas to be drawn again.
+  constructor(canvas: HTMLCanvasElement, private readonly atlases: ReadonlyMap<string, AtlasImage>,
+              onRestored: () => void) {
     const gl = canvas.getContext("webgl2", {alpha: false, antialias: false, depth: false, stencil: false,
                                             premultipliedAlpha: true, preserveDrawingBuffer: false});
     if (gl === null) {
@@ -161,7 +169,7 @@ export class WebGLRenderer {
     });
     canvas.addEventListener("webglcontextrestored", () => {
       this.resources = this.createResources();
-      this.restores++;
+      onRestored();
     });
 
     this.resources = this.createResources();
@@ -314,15 +322,8 @@ export class WebGLRenderer {
     }
     gl.bindVertexArray(null);
 
-    const limit = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
     const textures = new Map<string, Texture>();
-    this.atlases.forEach((atlas, name) => {
-      if (atlas.image.width > limit || atlas.image.height > limit) {
-        throw new Error(`Atlas ${name} is ${atlas.image.width} by ${atlas.image.height} pixels, past this browser's ` +
-                        `${limit}`);
-      }
-      textures.set(name, this.uploadAtlas(atlas));
-    });
+    this.atlases.forEach((atlas, name) => textures.set(name, this.uploadAtlas(atlas)));
     textures.set(WHITE, this.uploadWhite());
 
     return {
@@ -349,6 +350,7 @@ export class WebGLRenderer {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     } else {
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, DEEPEST_MIP_LEVEL);
       gl.generateMipmap(gl.TEXTURE_2D);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);

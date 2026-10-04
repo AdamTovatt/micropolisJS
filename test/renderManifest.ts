@@ -19,7 +19,8 @@ import { CopterSprite } from "../src/copterSprite.js";
 import { ExplosionSprite } from "../src/explosionSprite.js";
 import { MonsterSprite } from "../src/monsterSprite.js";
 import {
-    FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, RenderManifest, SPRITE_SHEET, WHITE, checkRectsInAtlases,
+    FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, RenderManifest, SPRITE_SHEET, WHITE, checkAtlasSizes,
+    checkRectsInAtlases,
     fallbackManifest, fallbackSpriteRect, parseRenderManifest, spriteKey,
 } from "../src/renderManifest";
 import { repositoryPath } from "./helpers/repository";
@@ -172,6 +173,15 @@ describe("the render manifest", () => {
             expect(() => checkRectsInAtlases(manifest, new Map([["zones", {width: 100, height: 64}]])))
                 .toThrow("rectangles run past their atlas: tile 3 objects (zones)");
             expect(() => checkRectsInAtlases(manifest, new Map([["zones", {width: 128, height: 64}]]))).not.toThrow();
+        });
+
+        it("refuses each atlas wider or higher than the browser's largest texture, naming it", () => {
+            const sizes = new Map([["wide", {width: 4097, height: 64}], ["high", {width: 64, height: 4097}],
+                                   ["fits", {width: 4096, height: 4096}]]);
+
+            expect(() => checkAtlasSizes(sizes, 4096))
+                .toThrow("Atlases are past this browser's 4096 pixels a side: wide is 4097 by 64, high is 64 by 4097");
+            expect(() => checkAtlasSizes(sizes, 4097)).not.toThrow();
         });
     });
 

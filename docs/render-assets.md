@@ -1,13 +1,13 @@
 # Render assets
 
-The map is drawn with WebGL2 from a manifest and the atlases it names, in `images/render/`. This document specifies the manifest: what an atlas build writes from the zones' rendered layers (`art/README.md`), and what the client (`renderManifest.ts`, `renderAssets.ts`) reads. A tile id or sprite frame the manifest leaves out is drawn from the 16 px sheets, `images/tiles.png` and `images/sprites.png`, so a manifest of no entries draws the game as those sheets always have.
+The map is drawn with WebGL2 from a manifest and the atlases it names, in `images/render/`. This document specifies the manifest: what an atlas build must write from the zones' rendered layers (`art/README.md`), and what the client (`renderManifest.ts`, `renderAssets.ts`) reads. A tile id or sprite frame the manifest leaves out is drawn from the 16 px sheets, `images/tiles.png` and `images/sprites.png`, so a manifest of no entries draws the game as those sheets always have.
 
 ## How the map is drawn
 
-Each frame draws the tiles in view and, around them, as many tiles as the farthest shadow reaches, in this order:
+Each frame draws the tiles in view, in this order:
 
 1. every tile's ground;
-2. every anchor's shadow, merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
+2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
 3. every tile's objects;
 4. the map overlay's tint;
 5. the sprites.
@@ -60,7 +60,7 @@ A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atla
 
 ### Cutting an asset into tiles
 
-A zone renders as one image per layer (`art/README.md`). The atlas build cuts its ground and objects into one tile-sized rectangle per tile id, so a zone that loses an edge tile to fire or the bulldozer still draws right. Its shadow stays whole, on the anchor's entry only: the zone's centre, the tile `ZONEBIT` marks, one tile in from the zone's top-left corner whatever its size, or the tile itself for a one-tile asset. A zone that has lost its centre is no longer a zone, and its shadow goes with it.
+A zone renders as one image per layer (`art/README.md`). An atlas build must cut its ground and objects into one tile-sized rectangle per tile id, so a zone that loses an edge tile to fire or the bulldozer still draws right. Its shadow stays whole, on the anchor's entry only: the zone's centre, the tile `ZONEBIT` marks, one tile in from the zone's top-left corner whatever its size, or the tile itself for a one-tile asset. A zone that has lost its centre is no longer a zone, and its shadow goes with it.
 
 The shadow's `reach` counts from the anchor. For a zone `tiles` wide with its anchor at column `ax` and row `ay` from its top-left, and the `shadow_margin` its `layers.json` records:
 
@@ -74,8 +74,8 @@ The shadow image is then `left` + 1 + `right` tiles wide and `top` + 1 + `bottom
 ### Atlases
 
 - PNG, with straight (not premultiplied) alpha. The client premultiplies on upload.
-- At most 4096 pixels a side. WebGL2 guarantees only 2048, but practically every device draws 4096; the client refuses an atlas past the browser's own limit, naming it.
-- Rendered atlases are mipmapped and filtered trilinearly, so the art scales smoothly down to 16 px a tile. A rectangle's neighbours bleed into it at the smaller mip levels unless each rectangle starts on a multiple of 4 pixels and is surrounded by a gutter of its own edge pixels repeated 4 pixels outward, which at 64 px a tile covers the two mip levels down to 16 px. The 16 px sheets are drawn with nearest-neighbour filtering, so they stay crisp at every zoom.
+- At most 4096 pixels a side. WebGL2 guarantees only 2048, but practically every device draws 4096; an atlas past the browser's own limit fails the page's start as a broken manifest does, naming it.
+- Rendered atlases are mipmapped and filtered trilinearly, so the art scales smoothly down to 16 px a tile. A rectangle's neighbours bleed into it at the smaller mip levels unless each rectangle starts on a multiple of 4 pixels and is surrounded by a gutter of its own edge pixels repeated 4 pixels outward, which at 64 px a tile covers the two mip levels down to 16 px. The client samples no level past those two, so the art drawn smaller still, such as on a page zoomed out, is minified from the second rather than bled into. The 16 px sheets are drawn with nearest-neighbour filtering, so they stay crisp at every zoom.
 
 ## The fallback
 

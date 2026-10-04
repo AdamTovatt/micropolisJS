@@ -17,15 +17,15 @@ import { join } from "path";
 
 import { ANIMBIT } from "../src/tileFlags";
 import { tileImageOrigin } from "../src/tileSet";
-import { blockNetwork, collectPageProblems } from "./page";
-import { GameSave, Player, Tile } from "./player";
+import { collectPageProblems } from "./page";
+import { GameSave, Player, startGame, Tile } from "./player";
 import { samplePixels } from "./png";
 import { rawTileAt, tileAt } from "./savedMap";
 import { SEED } from "./stages";
 
 // The map's canvas as the WebGL renderer draws it: the pictures the Screenshot window takes, the backing store on a
-// dense screen, and a WebGL context the browser takes away and gives back. The map is the seed's, unanimated and with
-// no sprites, as the driver is held from the start and no stage has run.
+// dense screen, and a WebGL context the browser takes away and gives back. The map is the seed's, with no sprites, as
+// the driver is held from the start and no stage has run.
 
 const CANVAS = "#MicropolisCanvas";
 
@@ -37,12 +37,14 @@ function tileImage(): Buffer {
 // Two pixels of each tile, at offsets that tell a tile from its mirror image either way
 const OFFSETS = [{x: 3, y: 1}, {x: 12, y: 14}];
 
-async function startGame(page: Page, name: string): Promise<Player> {
-  await blockNetwork(page);
-  const player = new Player(page);
-  await player.startNewGame(SEED, name, "Easy");
-  await page.evaluate(() => window.micropolisTestHook!.dismissNotification());
-  return player;
+// Each whole tile in view that isn't animated, which a picture shows at the frame it was taken, and where its top-left
+// corner is drawn in a picture of the canvas at scale picture pixels to the CSS pixel, from (left, top)
+async function stillTilesInView(player: Player, save: GameSave, scale: number, left = 0,
+                                top = 0): Promise<{tile: Tile, x: number, y: number}[]> {
+  const {tileWidth} = await player.view();
+  return (await player.wholeTilesInView())
+    .filter(({tile}) => (rawTileAt(save, tile) & ANIMBIT) === 0)
+    .map(({tile, column, row}) => ({tile, x: scale * (left + column * tileWidth), y: scale * (top + row * tileWidth)}));
 }
 
 // Where each tile given draws in a picture, and the pixels of its art there: an OFFSETS pixel of the tile in
@@ -87,7 +89,7 @@ async function takePicture(page: Page, area: "visible" | "whole"): Promise<strin
 test("the Screenshot window's picture of the whole map draws every tile at 16 pixels, the right way up",
      async ({page}) => {
   const problems = collectPageProblems(page);
-  const player = await startGame(page, "Whole");
+  const player = await startGame(page, SEED, "Whole");
   const save = await player.save();
 
   const picture = await takePicture(page, "whole");
@@ -107,26 +109,15 @@ test("the Screenshot window's picture of the whole map draws every tile at 16 pi
 
 test("the Screenshot window's picture of the visible map shows the view as it is drawn", async ({page}) => {
   const problems = collectPageProblems(page);
-  const player = await startGame(page, "Visible");
+  const player = await startGame(page, SEED, "Visible");
   const save = await player.save();
-  const view = await page.evaluate(() => window.micropolisTestHook!.view());
-  const canvas = (await page.locator(CANVAS).boundingBox())!;
+  const canvas = await player.canvasBox();
 
   const picture = await takePicture(page, "visible");
 
   const size = await samplePixels(page, picture, []);
   expect([size.width, size.height]).toEqual([canvas.width, canvas.height]);
-  // Each whole tile in view that isn't animated, which the picture shows at the frame it was taken
-  const tiles: {tile: Tile, x: number, y: number}[] = [];
-  for (let row = 0; row < Math.floor(canvas.height / view.tileWidth); row++) {
-    for (let column = 0; column < Math.floor(canvas.width / view.tileWidth); column++) {
-      const tile = {x: view.originX + column, y: view.originY + row};
-      if ((rawTileAt(save, tile) & ANIMBIT) === 0) {
-        tiles.push({tile, x: column * view.tileWidth, y: row * view.tileWidth});
-      }
-    }
-  }
-  const wrong = await wrongTiles(page, picture, save, tiles, 1);
+  const wrong = await wrongTiles(page, picture, save, await stillTilesInView(player, save, 1), 1);
   expect(wrong.slice(0, 10), `${wrong.length} tiles wrong`).toEqual([]);
   expect(problems).toEqual([]);
 });
@@ -137,25 +128,16 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
   test("the map is drawn at two device pixels to the art's, and an outline at two to the CSS pixel",
        async ({page}) => {
     const problems = collectPageProblems(page);
-    const player = await startGame(page, "Dense");
+    const player = await startGame(page, SEED, "Dense");
     const save = await player.save();
-    const view = await page.evaluate(() => window.micropolisTestHook!.view());
-    const canvas = (await page.locator(CANVAS).boundingBox())!;
+    const canvas = await player.canvasBox();
 
     const backing = await page.locator(CANVAS).evaluate((element: HTMLCanvasElement) => [element.width,
                                                                                           element.height]);
     expect(backing).toEqual([canvas.width * 2, canvas.height * 2]);
-    expect(view.tileWidth, "the tile width, in CSS pixels").toBe(16);
+    expect((await player.view()).tileWidth, "the tile width, in CSS pixels").toBe(16);
 
-    const tiles: {tile: Tile, x: number, y: number}[] = [];
-    for (let row = 0; row < Math.floor(canvas.height / view.tileWidth); row++) {
-      for (let column = 0; column < Math.floor(canvas.width / view.tileWidth); column++) {
-        const tile = {x: view.originX + column, y: view.originY + row};
-        if ((rawTileAt(save, tile) & ANIMBIT) === 0) {
-          tiles.push({tile, x: 2 * (canvas.x + column * 16), y: 2 * (canvas.y + row * 16)});
-        }
-      }
-    }
+    const tiles = await stillTilesInView(player, save, 2, canvas.x, canvas.y);
     const wrong = await wrongTiles(page, await player.mapScreenshot(), save, tiles, 2);
     expect(wrong.slice(0, 10), `${wrong.length} tiles wrong`).toEqual([]);
 
@@ -163,7 +145,7 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
     const tile = {x: 58, y: 32};
     await player.selectTool("query");
     await player.showTiles([tile]);
-    const {originX, originY} = await page.evaluate(() => window.micropolisTestHook!.view());
+    const {originX, originY} = await player.view();
     const left = canvas.x + (tile.x - originX) * 16;
     const top = canvas.y + (tile.y - originY) * 16;
     await page.mouse.move(left + 8, top + 8);
@@ -181,7 +163,7 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
 
   test("the pointer finds tiles in CSS pixels", async ({page}) => {
     const problems = collectPageProblems(page);
-    const player = await startGame(page, "Dense");
+    const player = await startGame(page, SEED, "Dense");
 
     const tile = {x: 47, y: 30};
     await player.selectTool("road");
@@ -194,7 +176,7 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
 
 test("a WebGL context the browser loses is drawn again once it is restored", async ({page}) => {
   const problems = collectPageProblems(page);
-  const player = await startGame(page, "Restored");
+  const player = await startGame(page, SEED, "Restored");
   const before = await player.mapScreenshot();
 
   // The extension is taken while the context is there, and kept for the restore
