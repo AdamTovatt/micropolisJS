@@ -13,7 +13,9 @@
 
 import { BudgetForecasts, budgetView, type BudgetView, forecastQuery, sliderPositions, taxLabel } from "../src/budgetWindow";
 import { type BudgetForecastAnswer, type BudgetRecord, type Query, type QueryAnswer } from "../src/protocol";
-import { queryRejection } from "../src/queries";
+import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
+import { answerOfType } from "./helpers/queryAnswers";
+import { openNewCity } from "./recordings/scenarios";
 
 // Roads funded in full, the fire department scaled back to $140 of $300 at a year end, and police at 75%
 const RECORD: BudgetRecord = {
@@ -32,12 +34,14 @@ const FORECAST: BudgetForecastAnswer = {
 
 describe("the budget window's forecast query", () => {
 
-    it("names the services whose sliders moved, and only those", () => {
+    it("names the services whose sliders moved, and only those, as the city answers", async () => {
         const query = forecastQuery({road: 50});
 
         expect(query).toEqual({type: "budgetForecast", road: 50});
-        // A forecast names no tile, so the map's size plays no part
-        expect(queryRejection(query, 120, 100)).toBeNull();
+        const source = playback("newCity", "budget forecast");
+        await openNewCity(source);
+        await answerOfType(source, query, "budgetForecast");
+        expectPlayedThrough();
     });
 
     it("names no service when no slider moved", () => {

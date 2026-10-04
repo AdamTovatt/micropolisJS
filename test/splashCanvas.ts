@@ -11,11 +11,14 @@
  *
  */
 
-import { MapGenerator } from "../src/mapGenerator.js";
-import { Random } from "../src/random";
 import { PREVIEW_TILE_SIZE, SplashCanvas, previewTileOrigin } from "../src/splashCanvas";
+import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
+import { answerOfType } from "./helpers/queryAnswers";
+import { SEED } from "./recordings/scenarios";
 
 describe("the splash screen's map preview", () => {
+
+    afterEach(expectPlayedThrough);
 
     it("draws the first tile at the canvas' origin", () => {
         expect(previewTileOrigin(0, 0)).toEqual({x: 0, y: 0});
@@ -26,10 +29,11 @@ describe("the splash screen's map preview", () => {
         expect(previewTileOrigin(0, 5)).toEqual({x: 0, y: 5 * PREVIEW_TILE_SIZE});
     });
 
-    it("fills the canvas with a map the splash screen generates", () => {
-        // As the splash screen makes the map it previews
-        const map = MapGenerator(Random.mapStream(1));
-        const last = previewTileOrigin(map.width - 1, map.height - 1);
+    it("fills the canvas with the map the city source previews", async () => {
+        // As the splash screen asks for the map it previews
+        const preview = await answerOfType(playback("noCity", "map preview"), {type: "mapPreview", seed: SEED},
+                                           "mapPreview");
+        const last = previewTileOrigin(preview.width - 1, preview.height - 1);
 
         expect(last.x + PREVIEW_TILE_SIZE).toBe(SplashCanvas.DEFAULT_WIDTH);
         expect(last.y + PREVIEW_TILE_SIZE).toBe(SplashCanvas.DEFAULT_HEIGHT);
