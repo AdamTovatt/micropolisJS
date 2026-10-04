@@ -11,6 +11,8 @@
  *
  */
 
+using System.Text.Json.Nodes;
+
 namespace Micropolis.Rules.Tests
 {
     [TestClass]
@@ -57,6 +59,30 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual("{\"simulation\":{}}", ((SaveStart)log.Start).Save.ToJsonString());
         }
 
+        // The server counts steps as a long, which a log holds up to the largest safe integer, CommandLog.MaxStep
+        [TestMethod]
+        [DataRow(2147483648L, DisplayName = "past int")]
+        [DataRow(CommandLog.MaxStep, DisplayName = "2^53 - 1")]
+        public void Parse_StepPastInt_ReadsIt(long step)
+        {
+            CommandLog log = CommandLog.Parse(ValidLog.Replace("{\"step\":3,", $"{{\"step\":{step},"));
+
+            Assert.AreEqual(step, log.Checkpoints.Single().Step);
+            Assert.AreEqual(step, log.LastStep);
+        }
+
+        [TestMethod]
+        public void ToJson_Log_ReadsBackAsTheLogItWrites()
+        {
+            CommandLog log = CommandLog.Parse(ValidLog);
+
+            JsonObject json = log.ToJson();
+
+            Assert.AreEqual(ValidLog, json.ToJsonString());
+            // Read from the object as built, whose numbers are ints and longs rather than parsed text, as the server's are
+            Assert.AreEqual(log.Write(), CommandLog.Read(json).Write());
+        }
+
         [TestMethod]
         public void Write_LogWithNoEntries_WritesAnEmptyList()
         {
@@ -84,6 +110,8 @@ namespace Micropolis.Rules.Tests
         [DataRow("an entry without a player", "\"player\":\"local\",", "", "Entry 0 of the command log is not a {step, player, command}")]
         [DataRow("an entry before step 0", "{\"step\":0,\"player\"", "{\"step\":-1,\"player\"", "Entry 0 of the command log is not a {step, player, command}")]
         [DataRow("an entry between steps", "{\"step\":0,\"player\"", "{\"step\":0.5,\"player\"", "Entry 0 of the command log is not a {step, player, command}")]
+        [DataRow("a checkpoint past 2^53 - 1", "{\"step\":3,\"hash\"", "{\"step\":9007199254740992,\"hash\"",
+                 "Checkpoint 0 of the command log is not a {step, hash}")]
         [DataRow("an entry without a command", ",\"command\":{\"type\":\"addFunds\"}", "", "Entry 0 of the command log is not a {step, player, command}")]
         [DataRow("an entry before the one above it", "{\"step\":0,\"player\"",
                  "{\"step\":1,\"player\":\"local\",\"command\":null},{\"step\":0,\"player\"", "Entry 1 of the command log, at step 0, comes before")]

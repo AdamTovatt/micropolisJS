@@ -251,6 +251,38 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        public async Task CommandLog_TwoPlayersPastACheckpointInterval_ReplaysInTheRulesToEveryCheckpoint()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
+            string city = await ada.StartAsync();
+            await ada.RequestAsync(id => new HoldRequest(id));
+            await grace.JoinAsync(city);
+            const long graceStep = 1000;
+            const long lastStep = graceStep + CommandLog.CheckpointInterval;
+
+            // An advance applies the commands its player sent before it, then steps
+            await ada.SendAsync(Road(ClearX, ClearY));
+            await ada.RequestAsync(id => new AdvanceRequest(id, graceStep));
+            await grace.SendAsync(Road(ClearX + 1, ClearY));
+            await grace.RequestAsync(id => new AdvanceRequest(id, lastStep - graceStep));
+            await ada.SendAsync(new JsonObject { ["type"] = "setBudget", ["tax"] = 9 });
+            await ada.RequestAsync(id => new FlushRequest(id));
+
+            CommandLog log = CommandLog.Read(await grace.CommandLogAsync());
+            Replay replay = LogReplay.Verify(log);
+
+            CollectionAssert.AreEqual(
+                new[] { $"0 {ada.Session.PlayerId}", $"{graceStep} {grace.Session.PlayerId}", $"{lastStep} {ada.Session.PlayerId}" },
+                log.Entries.Select(entry => $"{entry.Step} {entry.Player}").ToArray());
+            CollectionAssert.AreEqual(new long[] { 0, CommandLog.CheckpointInterval, lastStep },
+                log.Checkpoints.Select(checkpoint => checkpoint.Step).ToArray());
+            CollectionAssert.AreEqual(log.Checkpoints.ToArray(), replay.Hashed.ToArray());
+            CollectionAssert.AreEqual(new[] { Outcome.Ok, Outcome.Ok, Outcome.Ok }, replay.Results.Select(result => result.Outcome).ToArray());
+        }
+
+        [TestMethod]
         public async Task Send_DeepestCommandAllowed_IsRejectedAndEchoedToEveryPlayer()
         {
             await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);

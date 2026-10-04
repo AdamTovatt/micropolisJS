@@ -30,12 +30,12 @@ namespace Micropolis.Rules
     /// <summary>
     /// A logged command: the step it preceded, the player who sent it, and the command as it arrived, any JSON.
     /// </summary>
-    public sealed record LoggedCommand(int Step, string Player, JsonNode? Command);
+    public sealed record LoggedCommand(long Step, string Player, JsonNode? Command);
 
     /// <summary>
     /// The city's state hash at a step: after that many steps, and after every command stamped with that step.
     /// </summary>
-    public sealed record Checkpoint(int Step, string Hash);
+    public sealed record Checkpoint(long Step, string Hash);
 
     /// <summary>
     /// A command log (<c>docs/command-log.md</c>), as <c>src/commandLog.ts</c> reads it, and written as the
@@ -54,6 +54,12 @@ namespace Micropolis.Rules
         public const int CheckpointInterval = 3600;
 
         /// <summary>
+        /// The last step a log can name: 2^53 - 1, JavaScript's largest safe integer, past which two whole numbers in
+        /// the text can parse to the same double.
+        /// </summary>
+        public const long MaxStep = (1L << 53) - 1;
+
+        /// <summary>
         /// How a command log's file name ends.
         /// </summary>
         public const string FileExtension = ".log.json";
@@ -61,7 +67,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// The step a replay ends at: its last entry's or its last checkpoint's, whichever is later.
         /// </summary>
-        public int LastStep => Math.Max(Entries.Count == 0 ? 0 : Entries[^1].Step, Checkpoints.Count == 0 ? 0 : Checkpoints[^1].Step);
+        public long LastStep => Math.Max(Entries.Count == 0 ? 0 : Entries[^1].Step, Checkpoints.Count == 0 ? 0 : Checkpoints[^1].Step);
 
         /// <summary>
         /// A log read from a file's text, checked as <c>parseLog</c> checks it, or an <see cref="InvalidDataException"/>
@@ -135,78 +141,91 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The log's text, ending in a newline.
+        /// The log as a JSON object, its members in the order a log lays them out, as the server sends a session log
+        /// and <see cref="Write"/> writes one.
         /// </summary>
-        public string Write()
+        public JsonObject ToJson()
         {
-            List<string> lines = ["{", Member("formatVersion", FormatVersion)];
+            JsonObject log = new JsonObject { ["formatVersion"] = FormatVersion };
 
             if (Description != null)
             {
-                lines.Add(Member("description", Description));
+                log["description"] = Description;
             }
 
             switch (Start)
             {
                 case SeedStart seed:
-                    lines.Add(Member("seed", seed.Seed));
-                    lines.Add(Member("level", (int)seed.Level));
+                    log["seed"] = seed.Seed;
+                    log["level"] = (int)seed.Level;
                     break;
                 case SaveStart save:
-                    lines.Add(Member("save", save.Save));
+                    log["save"] = save.Save.DeepClone();
                     break;
                 default:
                     throw new InvalidOperationException($"No log start {Start.GetType().Name}.");
             }
 
-            lines.AddRange(ListLines("entries", Entries.Select(entry => new JsonObject
+            log["entries"] = new JsonArray(Entries.Select(entry => (JsonNode?)new JsonObject
             {
                 ["step"] = entry.Step,
                 ["player"] = entry.Player,
                 ["command"] = entry.Command?.DeepClone(),
-            }).ToList(), false));
+            }).ToArray());
 
-            lines.AddRange(ListLines("checkpoints", Checkpoints.Select(checkpoint => new JsonObject
+            log["checkpoints"] = new JsonArray(Checkpoints.Select(checkpoint => (JsonNode?)new JsonObject
             {
                 ["step"] = checkpoint.Step,
                 ["hash"] = checkpoint.Hash,
-            }).ToList(), true));
+            }).ToArray());
 
-            lines.Add("}");
-
-            StringBuilder text = new StringBuilder();
-            foreach (string line in lines)
-            {
-                text.Append(line).Append('\n');
-            }
-
-            return text.ToString();
+            return log;
         }
 
-        private static string Member(string key, JsonNode? value)
+        /// <summary>
+        /// The log's text, ending in a newline: <see cref="ToJson"/> with a line to each member, and to each value of a
+        /// list.
+        /// </summary>
+        public string Write()
         {
-            return $"  {CanonicalJson.Stringify(key)}: {CanonicalJson.Stringify(value)},";
+            JsonObject log = ToJson();
+            StringBuilder text = new StringBuilder("{\n");
+            int member = 0;
+
+            foreach ((string key, JsonNode? value) in log)
+            {
+                string end = ++member < log.Count ? "," : "";
+
+                if (value is JsonArray list)
+                {
+                    AppendList(text, key, list, end);
+                }
+                else
+                {
+                    text.Append($"  {CanonicalJson.Stringify(key)}: {CanonicalJson.Stringify(value)}{end}\n");
+                }
+            }
+
+            return text.Append("}\n").ToString();
         }
 
         // One JSON value per line, in a list
-        private static List<string> ListLines(string key, IReadOnlyList<JsonObject> values, bool last)
+        private static void AppendList(StringBuilder text, string key, JsonArray values, string end)
         {
-            string end = last ? "" : ",";
-
             if (values.Count == 0)
             {
-                return [$"  {CanonicalJson.Stringify(key)}: []{end}"];
+                text.Append($"  {CanonicalJson.Stringify(key)}: []{end}\n");
+                return;
             }
 
-            List<string> lines = [$"  {CanonicalJson.Stringify(key)}: ["];
+            text.Append($"  {CanonicalJson.Stringify(key)}: [\n");
 
             for (int i = 0; i < values.Count; i++)
             {
-                lines.Add($"    {CanonicalJson.Stringify(values[i])}{(i < values.Count - 1 ? "," : "")}");
+                text.Append($"    {CanonicalJson.Stringify(values[i])}{(i < values.Count - 1 ? "," : "")}\n");
             }
 
-            lines.Add($"  ]{end}");
-            return lines;
+            text.Append($"  ]{end}\n");
         }
 
         private static List<LoggedCommand> ReadEntries(JsonNode? node)
@@ -220,7 +239,7 @@ namespace Micropolis.Rules
 
             for (int i = 0; i < list.Count; i++)
             {
-                if (list[i] is not JsonObject entry || !TryGetStep(entry["step"], out int step) ||
+                if (list[i] is not JsonObject entry || !TryGetStep(entry["step"], out long step) ||
                     !Validation.TryGetString(entry["player"], out string? player) || !entry.ContainsKey("command"))
                 {
                     throw new InvalidDataException($"Entry {i} of the command log is not a {{step, player, command}}");
@@ -248,7 +267,7 @@ namespace Micropolis.Rules
 
             for (int i = 0; i < list.Count; i++)
             {
-                if (list[i] is not JsonObject checkpoint || !TryGetStep(checkpoint["step"], out int step) ||
+                if (list[i] is not JsonObject checkpoint || !TryGetStep(checkpoint["step"], out long step) ||
                     !Validation.TryGetString(checkpoint["hash"], out string? hash) || !IsSha256Hex(hash!))
                 {
                     throw new InvalidDataException($"Checkpoint {i} of the command log is not a {{step, hash}}");
@@ -265,12 +284,10 @@ namespace Micropolis.Rules
             return checkpoints;
         }
 
-        // A step the replay can count to: a whole number from 0, which a log the game wrote never takes past int
-        private static bool TryGetStep(JsonNode? node, out int step)
+        // A step: a whole number from 0 to MaxStep
+        private static bool TryGetStep(JsonNode? node, out long step)
         {
-            bool isStep = Validation.TryGetWholeNumberIn(node, 0, int.MaxValue, out long value);
-            step = (int)value;
-            return isStep;
+            return Validation.TryGetWholeNumberIn(node, 0, MaxStep, out step);
         }
 
         // A SHA-256 in lower-case hex, as /^[0-9a-f]{64}$/ matches one

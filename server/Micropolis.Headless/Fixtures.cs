@@ -25,7 +25,7 @@ namespace Micropolis.Headless
     /// log there.
     /// </summary>
     internal sealed record Fixture(string Name, string Description, Func<string, LogStart> Start, IReadOnlyList<LoggedCommand> Entries,
-                                   IReadOnlyList<int> CheckpointSteps)
+                                   IReadOnlyList<long> CheckpointSteps)
     {
         public override string ToString()
         {
@@ -294,7 +294,7 @@ namespace Micropolis.Headless
         private static Fixture MidRunLog(string name, Fixture fixture, string purpose, IReadOnlyList<LoggedCommand> added, int steps)
         {
             return new Fixture(name, $"The {fixture.Name} fixture's log {purpose}", fixture.Start, [.. fixture.Entries, .. added],
-                               [.. new[] { 0 }.Concat(added.Select(command => command.Step)).Append(steps).Distinct()]);
+                               [.. new[] { 0L }.Concat(added.Select(command => command.Step)).Append(steps).Distinct()]);
         }
 
         // The plant's 16 tiles and 720 of wire are more than the 700 a coal plant powers
