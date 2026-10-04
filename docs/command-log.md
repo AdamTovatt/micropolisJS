@@ -3,9 +3,10 @@
 A command log records a city's session: where the city started, every command it was sent, and the state hashes it
 reached along the way. Replaying a log reproduces the city, so logs are the end-to-end suite and the conformance
 suite (`CLAUDE.md`, Direction 3): replayed headless and in the browser while the TypeScript simulation exists, and on
-the server after. `src/commandLog.ts` reads and writes them, and `headless/runner.ts` replays them. In C#,
-`CommandLog` and `LogReplay` in `server/Micropolis.Rules` read, write and replay them: the C# headless runner replays
-any log, and the game-rules tests every log under `conformance/logs/` (`conformance/README.md`).
+the server after. `src/commandLog.ts` reads and writes them, `CommandRecorder` in `server/Micropolis.Server` writes
+the logs of the cities on the server, and `headless/runner.ts` replays them. In C#, `CommandLog` and `LogReplay` in
+`server/Micropolis.Rules` read, write and replay them: the C# headless runner replays any log, and the game-rules
+tests every log under `conformance/logs/` (`conformance/README.md`).
 
 ## The file
 
@@ -43,7 +44,8 @@ Each entry is `{"step", "player", "command"}`:
   validated. A log holds every command the city was sent, rejected ones included: a rejected command changes nothing,
   and a replay rejects it again, which checks that the validation agrees. A command nesting objects and lists deeper
   than `MAX_COMMAND_DEPTH`, or longer than `maxCommandLength` allows, room for a tool command over every tile of the
-  map, is rejected before anything else is read, which bounds an entry.
+  map, is rejected before anything else is read, which bounds an entry. The server never logs one: it closes the
+  connection that sent it, since the game sends none.
 
 The commands, by `type`, with what their fields mean. `Command` in `src/protocol.ts` gives their exact fields,
 `commandRejection` in `src/commands.ts` the values each accepts, and `protocol/examples/commands/` an example of each.
@@ -78,6 +80,12 @@ fails.
   minute of play, from step 0, and one more of the city as the log is downloaded. A browser offers the Web Crypto
   the hash needs only to a page served over https or from localhost; elsewhere the log downloads without
   checkpoints, and the game says so.
+- **The server.** A city on the server keeps one log of every player's commands, each entry with the id of the
+  player who sent it, in the order the server received them, and the C# rules work out its checkpoints' hashes. A
+  new city's log starts from its seed and level; an uploaded city's, and a city's each time the server loads it
+  again, from its saved state. The debug window downloads it as the browser's. `test/sharedCity.ts` replays the log
+  of a city two players ran headless in TypeScript, and every checkpoint must match: the end-to-end conformance check
+  of the server's rules and step loop.
 - **Fixtures.** Each fixture in `headless/fixtures/` is a log whose checkpoints are its golden hashes: one at step 0,
   of the city as its log builds it, and one after a fixed run. A fixture that needs what no command places starts
   from a save instead: the city another fixture's commands build, with its script's writes. `npm run fixtures`

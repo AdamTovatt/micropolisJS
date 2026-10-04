@@ -45,9 +45,9 @@ jobs:
           cat "$RUNNER_TEMP/benchmarks.md"
           grep -q '^| Fixture | Speed | Steps/s | ms/step | Bytes/step |$' "$RUNNER_TEMP/benchmarks.md"
       - run: npm ci
-      # The client's tests that start the server just built: the city sources' contract
+      # The client's tests that start the server just built: the city sources' contract and the city two players share
       - name: Run the client's tests against the real server
-        run: npx jest --coverage=false test/citySource.ts
+        run: npx jest --coverage=false test/citySource.ts test/sharedCity.ts
         env:
           MICROPOLIS_SERVER_TESTS: "1"
 
