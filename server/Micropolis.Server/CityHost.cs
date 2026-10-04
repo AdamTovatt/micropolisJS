@@ -44,6 +44,14 @@ namespace Micropolis.Server
         public uint Seed => _city.Simulation.Seed;
 
         /// <summary>
+        /// How many steps the city has taken and commands it has applied, which only grows: a save taken at one count
+        /// holds every change up to it, and a city whose count still stands there hasn't changed since. A command the
+        /// rules reject counts too, though it changes nothing: the count says the city may have changed, and an extra
+        /// save of one that hasn't is harmless.
+        /// </summary>
+        public long ChangeCount { get; private set; }
+
+        /// <summary>
         /// Starts the loop.
         /// </summary>
         public void Start()
@@ -102,7 +110,7 @@ namespace Micropolis.Server
 
         public void Flush()
         {
-            _city.Queue.ApplyCommands();
+            ApplyCommands();
             SendState();
         }
 
@@ -128,7 +136,7 @@ namespace Micropolis.Server
                 }
 
                 // Before the check that the city steps: the commands may be the Pause button's
-                _city.Queue.ApplyCommands();
+                ApplyCommands();
 
                 if (NotSteppingReason() is string notStepping)
                 {
@@ -141,7 +149,7 @@ namespace Micropolis.Server
                 {
                     CityTimeModel.TakeSteps(_city.Simulation, count, () =>
                     {
-                        _city.Queue.Step();
+                        Step();
                         taken++;
                     });
                 }
@@ -198,12 +206,12 @@ namespace Micropolis.Server
 
             if (!_driver.IsHeld)
             {
-                changed = _city.Queue.ApplyCommands() > 0;
+                changed = ApplyCommands() > 0;
             }
 
             _driver.Run(now, () => NotSteppingReason() is null, () =>
             {
-                _city.Queue.Step();
+                Step();
                 changed = true;
             });
 
@@ -211,6 +219,20 @@ namespace Micropolis.Server
             {
                 SendState();
             }
+        }
+
+        // The commands sent since they last applied, each counted among the city's changes
+        private int ApplyCommands()
+        {
+            int applied = _city.Queue.ApplyCommands();
+            ChangeCount += applied;
+            return applied;
+        }
+
+        private void Step()
+        {
+            _city.Queue.Step();
+            ChangeCount++;
         }
 
         // Why the city isn't stepping, or null when it is. A shared city steps unless it is paused: no one player's view
