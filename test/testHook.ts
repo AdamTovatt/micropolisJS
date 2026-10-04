@@ -43,6 +43,10 @@ function gameOn(source: CitySource, state: CityState) {
         notificationBar: {dismiss: () => {
             game.dismissals++;
         }},
+        toastDismissals: 0,
+        toolToast: {dismiss: () => {
+            game.toastDismissals++;
+        }},
     };
 
     return game;
@@ -55,6 +59,7 @@ const IDLE_GAME = {
     gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true},
     monsterTV: {current: true},
     notificationBar: {dismiss: () => {}},
+    toolToast: {dismiss: () => {}},
 };
 
 // The hook on the source, with its driver attached, and the client's copy of the source's city. What the hook sends,
@@ -369,11 +374,11 @@ describe("the test hook", () => {
         expect([bothBehind, tvBehind, both, hook.viewsCurrent()]).toEqual([false, false, true, false]);
     });
 
-    it("dismisses the game's notification bar", async () => {
+    it("dismisses the game's notification bar and tool toast", async () => {
         const {hook, game} = await holdingGame("nothing");
 
         hook.dismissNotification();
 
-        expect(game.dismissals).toBe(1);
+        expect([game.dismissals, game.toastDismissals]).toEqual([1, 1]);
     });
 });

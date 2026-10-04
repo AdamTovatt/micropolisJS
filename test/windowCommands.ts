@@ -12,22 +12,30 @@
  */
 
 import { commandRejection } from "../src/commands";
-import { CommandResult, LOCAL_PLAYER } from "../src/protocol";
-import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "../src/windowCommands";
+import { CommandResult, LOCAL_PLAYER, SPEEDS } from "../src/protocol";
+import { budgetCommand, settingsCommands, toolOutcome } from "../src/windowCommands";
 
 describe("the settings window's commands", () => {
 
-    const shown = {autoBudget: true, disasters: false};
+    const shown = {autoBudget: true, disasters: false, speed: SPEEDS.medium};
 
     it("are none when the player changed nothing", () => {
         expect(settingsCommands(shown, shown)).toEqual([]);
     });
 
     it("set each setting the player changed", () => {
-        expect(settingsCommands(shown, {autoBudget: false, disasters: true})).toEqual([
+        expect(settingsCommands(shown, {autoBudget: false, disasters: true, speed: SPEEDS.fast})).toEqual([
             {type: "setAutoBudget", on: false},
             {type: "setDisasters", on: true},
+            {type: "setSpeed", speed: SPEEDS.fast},
         ]);
+    });
+
+    it.each([
+        ["pause a running city", SPEEDS.medium, SPEEDS.paused],
+        ["run a paused city at the speed chosen", SPEEDS.paused, SPEEDS.slow],
+    ])("%s", (_, shownSpeed, speed) => {
+        expect(settingsCommands({...shown, speed: shownSpeed}, {...shown, speed})).toEqual([{type: "setSpeed", speed}]);
     });
 });
 
@@ -45,7 +53,7 @@ describe("the budget window's command", () => {
     });
 });
 
-describe("the outcome the tool output shows", () => {
+describe("the outcome the player is told of", () => {
 
     const result = (player: string, command: unknown): CommandResult =>
         ({player, command, outcome: "noMoney", reason: null});
@@ -63,18 +71,5 @@ describe("the outcome the tool output shows", () => {
         ["a command that is nothing", result(LOCAL_PLAYER, null)],
     ])("is none for %s", (_, other) => {
         expect(toolOutcome(other, LOCAL_PLAYER)).toBeNull();
-    });
-});
-
-describe("the tool output's text", () => {
-
-    it.each([
-        ["needsBulldoze", "Area must be bulldozed first"],
-        ["noMoney", "Insufficient funds to build that"],
-        ["ok", "Tools"],
-        ["failed", "Tools"],
-        ["rejected", "Tools"],
-    ] as const)("for an outcome of %s is %p", (outcome, text) => {
-        expect(toolOutputText(outcome)).toBe(text);
     });
 });

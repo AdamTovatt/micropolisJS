@@ -48,10 +48,12 @@ import { SpeedControl } from "./speedControl";
 import { StatusPanel } from "./statusPanel";
 import { pageStore } from "./storage";
 import { attachToTestHook } from "./testHook";
+import { Text } from "./text";
+import { placeToolToast, PlacedToast, toastedFailure } from "./toolToast";
 import { TouchWarnWindow } from "./touchWarnWindow";
 import * as UiMessages from "./uiMessages";
 import type { TilePoint } from "./viewPosition";
-import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "./windowCommands";
+import { budgetCommand, settingsCommands, toolOutcome } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
 // What a game is made from: the city source and the client's copy of its city, the server's word of the other players,
@@ -99,6 +101,7 @@ export class Game {
   private readonly queryTool: QueryTool;
   private readonly otherPlayers: OtherPlayers;
   readonly notificationBar: NotificationBar<HTMLElement>;
+  readonly toolToast: PlacedToast;
   private readonly tooSmall = requiredElement("tooSmall");
 
   private mouse: MouseOutline | null = null;
@@ -263,6 +266,7 @@ export class Game {
     this.infoBar.showBudget(state.current("budget"));
 
     this.notificationBar = placeNotificationBar(this.gameCanvas);
+    this.toolToast = placeToolToast();
 
     this.otherPlayers = new OtherPlayers(presence, requiredElement("activityList"));
 
@@ -372,7 +376,6 @@ export class Game {
     }
 
     this.autoBulldoze.set(choice.autoBulldoze);
-    this.speedControl.setRunningSpeed(choice.speed);
     settingsCommands(this.settingsShown!, choice).forEach((command) => {
       this.source.send(command);
     });
@@ -433,8 +436,7 @@ export class Game {
   private handleSettingsRequest(): void {
     // The city settings as the window shows them, which its choices are compared with when it closes
     const shown = this.state.current("settings");
-    const client = {autoBulldoze: this.autoBulldoze.isOn(), seed: this.seed,
-                    resumeSpeed: this.speedControl.getRunningSpeed()};
+    const client = {autoBulldoze: this.autoBulldoze.isOn(), seed: this.seed};
 
     if (this.windows.open(this.settingsWindow, shown, client)) {
       this.settingsShown = shown;
@@ -463,18 +465,18 @@ export class Game {
     this.toolPaths.reached(toolName as ToolName, {x: tileCoords.x, y: tileCoords.y}, data.start);
   }
 
-  // The tool output shows how the player's last tool command went
+  // A toast at the pointer says why the player's own tool command built nothing
   private handleCommandResult(result: CommandResult): void {
-    const outcome = toolOutcome(result, this.source.player);
-    if (outcome === null) {
+    const failure = toastedFailure(toolOutcome(result, this.source.player));
+    if (failure === null) {
       return;
     }
 
-    if (outcome === "rejected") {
+    if (failure === "rejected") {
       console.warn(`Tool command rejected: ${result.reason}`);
     }
 
-    this.inputStatus.showToolOutput(toolOutputText(outcome));
+    this.toolToast.show(Text.toolFailures[failure]);
   }
 
   // The server keeps the city in its store, and the window opens once it has. A save the server refuses, or one on a

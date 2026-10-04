@@ -11,6 +11,18 @@
  *
  */
 
+// How the game writes a sum of money and a count: in whole numbers with a comma between each group of three digits, a
+// sum of money after a dollar sign, and below zero after a single minus sign. The same in every browser, whatever the
+// player's locale.
+
 export function formatMoney(amount: number): string {
-  return (amount < 0 ? '-$' : '$') + Math.abs(amount);
+  return (amount < 0 ? "-$" : "$") + groupThousands(Math.abs(amount));
+}
+
+export function formatCount(count: number): string {
+  return (count < 0 ? "-" : "") + groupThousands(Math.abs(count));
+}
+
+function groupThousands(whole: number): string {
+  return String(whole).replace(/\B(?=(\d{3})+$)/g, ",");
 }

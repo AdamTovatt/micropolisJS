@@ -14,7 +14,6 @@
 import { requiredElement } from "./domElements";
 import { Emitter } from "./emitter";
 import { GameCanvas } from "./gameCanvas";
-import { Text } from "./text";
 import * as UiMessages from "./uiMessages";
 import type { PixelPoint } from "./viewPosition";
 
@@ -192,7 +191,6 @@ export class InputStatus extends Emitter {
 
   private readonly canvas: HTMLElement;
   private readonly pauseButton: HTMLElement;
-  private readonly toolOutput: HTMLElement;
 
   // Mouse drags: the tile a drag last reported, as a column and row
   private dragging = false;
@@ -213,7 +211,6 @@ export class InputStatus extends Emitter {
     super();
     this.canvas = requiredElement(GameCanvas.DEFAULT_ID);
     this.pauseButton = requiredElement("pauseRequest");
-    this.toolOutput = requiredElement("toolOutput");
 
     // Add the listeners
     document.addEventListener("keydown", (e) => this.onKeyDown(e));
@@ -250,11 +247,6 @@ export class InputStatus extends Emitter {
   // The pause button offers whatever the simulation isn't doing
   showPaused(paused: boolean): void {
     this.pauseButton.textContent = paused ? "Play" : "Pause";
-  }
-
-  // The tool output shows its label while a tool is chosen, and how the tool's last command went once one has
-  showToolOutput(text: string): void {
-    this.toolOutput.textContent = text;
   }
 
   clearTool(): void {
@@ -419,7 +411,6 @@ export class InputStatus extends Emitter {
 
     this.toolName = button.dataset.tool ?? null;
     this.toolWidth = Number(button.dataset.size);
-    this.showToolOutput(Text.toolMessages.label);
 
     this.showCursor();
 

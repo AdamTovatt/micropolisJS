@@ -73,10 +73,6 @@
 {"call":"send","arguments":[{"type":"setSpeed","speed":2}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":2},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":2},"outcome":"ok","reason":null}}]}
 ],
-"fast, flush": [
-{"call":"send","arguments":[{"type":"setSpeed","speed":3}]},
-{"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":3},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":3},"outcome":"ok","reason":null}}]}
-],
 "slow, flush, pause, flush, slow, flush": [
 {"call":"send","arguments":[{"type":"setSpeed","speed":1}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":1},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":1},"outcome":"ok","reason":null}}]},
@@ -84,13 +80,6 @@
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":0},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":0},"outcome":"ok","reason":null}}]},
 {"call":"send","arguments":[{"type":"setSpeed","speed":1}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":1},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":1},"outcome":"ok","reason":null}}]}
-],
-"pause, flush, flush, fast, flush": [
-{"call":"send","arguments":[{"type":"setSpeed","speed":0}]},
-{"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":0},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":0},"outcome":"ok","reason":null}}]},
-{"call":"flush","arguments":[],"messages":[]},
-{"call":"send","arguments":[{"type":"setSpeed","speed":3}]},
-{"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":3},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":3},"outcome":"ok","reason":null}}]}
 ],
 "another player's slow, flush, another player's pause, flush, slow, flush": [
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":1},{"type":"commandResult","result":{"player":"another player","command":{"type":"setSpeed","speed":1},"outcome":"ok","reason":null}}]},

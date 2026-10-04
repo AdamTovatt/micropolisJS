@@ -98,7 +98,7 @@
               <span id="date">Jan 1900</span>
             </div>
             <div class="elided">
-              Funds $<span id="funds">20000</span>
+              Funds <span id="funds">$20,000</span>
             </div>
             <div class="elided">
               Score: <span id="score">0</span>
@@ -138,7 +138,7 @@
         </div>
         <div id="RCIContainer" class="controlShadow leftedge width140 padding10 mintcream z1 initialHidden"></div>
         <div id="controls" class="controlShadow mintcream z1 initialHidden rightedge open">
-          <div id="toolInfo" class="alignCenter"><span id="toolOutput">Tools</span></div>
+          <div id="toolInfo" class="alignCenter">Tools</div>
           <div id="buttons">
             <button id="residentialButton" data-size="3" data-tool="residential" data-colour="lime" class="toolButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block.">Residential $100</button>
             <button id="nuclearButton" data-size="4" data-tool="nuclear" data-colour="mistyrose" class="toolButton unselected">Nuclear $5000</button>
@@ -176,6 +176,7 @@
             <button id="debugRequest">Debug</button>
           </div>
         </div>
+        <div id="toolToast" class="initialHidden" role="status" aria-live="polite"></div>
         <div id="notifications" class="initialHidden centredAcross neutral z1 alignCenter elided padding10 controlShadow"></div>
         <div id="tooSmall" data-hasscript="false" class="mintcream open"><div id="tooSmallInner" class="alignCenter padding10"><h2 class="chunk">Uh-oh!</h2><p>This screen is too small&mdash;I won't be able to fit in all the controls, buttons and gizmos! Sorry!</p></div></div>
         <noscript>
@@ -307,6 +308,7 @@
               <dt class="queryItem">Crime</dt><dd class="queryItem queryRight" id="queryCrime"></dd>
               <dt class="queryItem">Pollution</dt><dd class="queryItem queryRight" id="queryPollution"></dd>
               <dt class="queryItem">Growth</dt><dd class="queryItem queryRight" id="queryRate"></dd>
+              <dt class="queryItem queryPowered">Powered</dt><dd class="queryItem queryRight queryPowered" id="queryPowered"></dd>
             </dl>
             <div id="queryDebugList" class="queryDebug hidden">
               <dl>
@@ -415,6 +417,7 @@
               </div>
               <div id="speedSelect" class="padding10">
                 Speed:
+                <input type="radio" name="speedSetting" id="speedPaused"><label for="speedPaused">Paused</label>
                 <input type="radio" name="speedSetting" id="speedSlow" checked="checked"><label for="speedSlow">Slow</label>
                 <input type="radio" name="speedSetting" id="speedMed"><label for="speedMed">Medium</label>
                 <input type="radio" name="speedSetting" id="speedFast"><label for="speedFast">Fast</label>

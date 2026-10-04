@@ -12,6 +12,7 @@
  */
 
 import { requiredElement } from "./domElements";
+import { formatCount, formatMoney } from "./money";
 import { EVAL_WINDOW_CLOSED } from "./uiMessages";
 import { CITY_PROBLEMS, type EvaluationRecord, GAME_LEVELS, MAX_RANKED_PROBLEMS } from "./protocol";
 import { scoreBreakdownRows, signedPoints, type ScoreRow } from "./scoreBreakdownView";
@@ -40,9 +41,9 @@ export function evaluationView(record: EvaluationRecord): EvaluationView {
     yes: `${record.approval}`,
     no: `${100 - record.approval}`,
     problems: record.problems.map((problem) => Text.problems[CITY_PROBLEMS[problem]]),
-    population: `${record.population}`,
-    migration: `${record.migration}`,
-    assessedValue: `${record.assessedValue}`,
+    population: formatCount(record.population),
+    migration: formatCount(record.migration),
+    assessedValue: formatMoney(record.assessedValue),
     level: Text.gameLevel[GAME_LEVELS[record.level]],
     cityClass: Text.cityClass[record.cityClass],
     score: `${record.score}`,

@@ -13,11 +13,11 @@
 
 import { SPEEDS } from "./protocol";
 
-// The game speed as the player sets it, with Pause and Play or from Settings. The player's choices are setSpeed
-// commands, sent with send. The city's speed, as each settings record gives it, is the only record of whether the
-// game is paused, and the pause button is shown from it whenever it changes, whoever changed it. Play resumes at the
-// running speed: the speed a game was saved at, medium for a new game or one saved paused, the speed Settings last
-// chose, or the speed the city last ran at.
+// The game speed as the player sets it with Pause and Play, which send setSpeed commands with send; Settings sets it by
+// the commands of windowCommands.ts. The city's speed, as each settings record gives it, is the only record of whether
+// the game is paused, and the pause button is shown from it whenever it changes, whoever changed it. Play resumes at
+// the running speed: the speed a game was saved at, medium for a new game or one saved paused, or the speed the city
+// last ran at.
 export class SpeedControl {
   private runningSpeed: number;
 
@@ -32,22 +32,8 @@ export class SpeedControl {
     return this.speed === SPEEDS.paused;
   }
 
-  getRunningSpeed(): number {
-    return this.runningSpeed;
-  }
-
   togglePause(): void {
     this.send(this.isPaused() ? this.runningSpeed : SPEEDS.paused);
-  }
-
-  // Settings sets the speed the game runs at. A paused game stays paused, and Play resumes it at that speed: the
-  // settings window sends its speed whenever it closes, changed or not.
-  setRunningSpeed(speed: number): void {
-    this.runningSpeed = speed;
-
-    if (!this.isPaused() && this.speed !== speed) {
-      this.send(speed);
-    }
   }
 
   // The city's speed, from each settings record

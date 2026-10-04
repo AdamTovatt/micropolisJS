@@ -173,11 +173,8 @@ export const SCENARIOS = {
             "auto-budget off, flush": sending(AUTO_BUDGET_OFF, "flush"),
             "pause": sending(speed(SPEEDS.paused)),
             "pause, flush, medium, flush": sending(speed(SPEEDS.paused), "flush", speed(SPEEDS.medium), "flush"),
-            "fast, flush": sending(speed(SPEEDS.fast), "flush"),
             "slow, flush, pause, flush, slow, flush":
                 sending(speed(SPEEDS.slow), "flush", speed(SPEEDS.paused), "flush", speed(SPEEDS.slow), "flush"),
-            "pause, flush, flush, fast, flush":
-                sending(speed(SPEEDS.paused), "flush", "flush", speed(SPEEDS.fast), "flush"),
             "another player's slow, flush, another player's pause, flush, slow, flush": async (session) => {
                 await session.fromAnotherPlayer(speed(SPEEDS.slow));
                 await session.source.driver.flush();

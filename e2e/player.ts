@@ -377,8 +377,8 @@ export class Player {
     }
   }
 
-  // Dismisses the notification bar through the hook. It closes on wall time, and has no control a player could close it
-  // with: a click on it centres the map on the place it names.
+  // Dismisses the notification bar and the tool toast through the hook. Each closes on wall time, and has no control a
+  // player could close it with: a click on the bar centres the map on the place it names.
   async dismissNotification(): Promise<void> {
     await this.page.evaluate(() => window.micropolisTestHook!.dismissNotification());
   }

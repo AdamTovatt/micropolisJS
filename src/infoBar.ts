@@ -12,6 +12,7 @@
  */
 
 import { requiredElement } from "./domElements";
+import { formatMoney } from "./money";
 import type { BudgetRecord, DateMessage, EvaluationRecord, PopulationMessage } from "./protocol";
 import { Text } from "./text";
 
@@ -60,7 +61,7 @@ export class InfoBar {
   }
 
   showBudget(budget: Pick<BudgetRecord, "funds">): void {
-    this.elements.funds.textContent = String(budget.funds);
+    this.elements.funds.textContent = formatMoney(budget.funds);
   }
 }
 

@@ -1099,3 +1099,41 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   left: 5px;
   bottom: 5px;
 }
+
+/* Player feedback: the tool toast, the evaluation's figures beside their labels */
+
+/* Why the player's tool command built nothing, beside the pointer. It sits over the map's panels and under the
+   windows, and the pointer's events pass through it. toolToast.ts gives the fade its duration, the toast's whole
+   time, and the keyframes fade it over the last sixth. */
+#toolToast {
+  animation-name: toolToastFade;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+  position: fixed;
+  z-index: 15;
+  max-width: 280px;
+  padding: 6px 10px;
+  border: 1px solid black;
+  background-color: lightyellow;
+  color: black;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 13px;
+  pointer-events: none;
+  box-shadow: 2px 2px 6px rgba(31, 28, 31, 0.5);
+}
+
+@keyframes toolToastFade {
+  0%, 83% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* An elided figure's overflow puts its baseline at its bottom edge, which lifts it above its label: both align by their
+   tops instead */
+#evalWindow .evalItem {
+  vertical-align: top;
+}

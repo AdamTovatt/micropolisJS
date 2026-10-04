@@ -65,10 +65,14 @@ function rateOfGrowthBand(rateOfGrowth: number): number {
 }
 
 // What the window shows for one tile report: its text, field by field. A field named after one of the report's shows
-// that field, and a field named after one with Band added shows the band it falls in. The fields from position on are
-// the debug rows, which show only in debug mode.
+// that field, and a field named after one with Band added shows the band it falls in. hasPower says in words whether
+// the tile had power at the map scan's last pass over it, so a power line just laid reads no until the scan reaches
+// it; it is null for a tile power means nothing to, neither a zone nor conductive, such as water or a park, whose row
+// the window leaves out. It is not named powered: that is the debug table's flag. The fields from position on are the
+// debug rows, which show only in debug mode.
 export interface QueryView {
   category: string;
+  hasPower: string | null;
   populationDensityBand: string;
   landValueBand: string;
   crimeBand: string;
@@ -96,8 +100,12 @@ export interface QueryView {
   zoneCentre: string;
 }
 
-// The element each field of the view is written into
-const ELEMENT_IDS: Record<keyof QueryView, string> = {
+// The element hasPower is written into, and the class of its row's label and value, which hide without it
+const POWERED_ID = "queryPowered";
+const POWERED_ROW_CLASS = "queryPowered";
+
+// The element each field of the view that always shows is written into
+const ELEMENT_IDS: Record<Exclude<keyof QueryView, "hasPower">, string> = {
   category: "queryZoneType",
   populationDensityBand: "queryDensity",
   landValueBand: "queryLandValue",
@@ -132,11 +140,21 @@ function flag(set: boolean): string {
   return set ? "✔" : "✘";
 }
 
+// Power means something to a zone and to a tile that conducts it, which the power scan powers wherever it reaches
+function hasPowerText(report: TileReportAnswer): string | null {
+  if (!report.zoneCentre && !report.conductive) {
+    return null;
+  }
+
+  return report.powered ? Text.poweredStrings.yes : Text.poweredStrings.no;
+}
+
 // Every decision about what the window shows is made here, so it is tested under node. The window only writes the
 // view into the DOM. A code without text is a defect the tests catch, so there is no fallback.
 export function queryView(report: TileReportAnswer): QueryView {
   return {
     category: categoryText[report.category],
+    hasPower: hasPowerText(report),
     populationDensityBand: Text.densityStrings[populationDensityBand(report.populationDensity)],
     landValueBand: Text.landValueStrings[landValueBand(report.landValue)],
     crimeBand: Text.crimeStrings[crimeBand(report.crime)],
@@ -179,9 +197,14 @@ export class QueryWindow extends ClosableWindow {
 }
 
 function render(view: QueryView, debug: boolean): void {
-  for (const field of Object.keys(ELEMENT_IDS) as (keyof QueryView)[]) {
+  for (const field of Object.keys(ELEMENT_IDS) as (keyof typeof ELEMENT_IDS)[]) {
     requiredElement(ELEMENT_IDS[field]).textContent = view[field];
   }
+
+  requiredElement(POWERED_ID).textContent = view.hasPower;
+  document.querySelectorAll<HTMLElement>(`.${POWERED_ROW_CLASS}`).forEach((element) => {
+    element.style.display = view.hasPower === null ? "none" : "";
+  });
 
   document.querySelectorAll(".queryDebug").forEach((element) => element.classList.toggle("hidden", !debug));
 }

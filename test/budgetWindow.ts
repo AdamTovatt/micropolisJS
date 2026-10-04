@@ -65,9 +65,9 @@ describe("the budget window's view", () => {
        "whose slider hasn't moved", () => {
         expect(budgetView({road: 50}, FORECAST)).toEqual({
             taxesCollected: "$186",
-            funds: "$4703",
+            funds: "$4,703",
             cashFlow: "-$158",
-            fundsAfterYear: "$4545",
+            fundsAfterYear: "$4,545",
             labels: {road: "50% of $108 = $54", fire: "46.7% of $300 = $140", police: "75% of $200 = $150"},
         });
     });
@@ -83,7 +83,7 @@ describe("the budget window's view", () => {
         const view = budgetView({}, {...FORECAST, budget: later});
 
         expect([view.taxesCollected, view.funds, view.labels.road, view.labels.police])
-            .toEqual(["$220", "$3900", "100% of $120 = $54", "50% of $200 = $150"]);
+            .toEqual(["$220", "$3,900", "100% of $120 = $54", "50% of $200 = $150"]);
     });
 
     it("shows the tax rate", () => {

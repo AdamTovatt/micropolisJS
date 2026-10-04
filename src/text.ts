@@ -16,6 +16,7 @@ import {
   CITY_PROBLEMS, CityClass, DisasterKind, GameLevel, OverlayLayer, ScoreReason, ServiceAmounts, SPEEDS, ToolName,
   ZoneCategory,
 } from "./protocol";
+import type { ToastedFailure } from "./toolToast";
 import * as UiMessages from "./uiMessages";
 
 // TODO Some kind of rudimentary L20N based on navigator.language?
@@ -26,6 +27,8 @@ const landValueStrings: readonly string[] = ["Slum", "Lower Class", "Middle Clas
 const crimeStrings: readonly string[] = ["Safe", "Light", "Moderate", "Dangerous"];
 const pollutionStrings: readonly string[] = ["None", "Moderate", "Heavy", "Very Heavy"];
 const rateStrings: readonly string[] = ["Declining", "Stable", "Slow Growth", "Fast Growth"];
+// Whether a zone or a conductive tile has power
+const poweredStrings = {yes: "Yes", no: "No"};
 const zoneCategories: Record<ZoneCategory, string> = {
   CLEAR: "Clear", WATER: "Water", TREES: "Trees", RUBBLE: "Rubble", FLOOD: "Flood",
   RADIOACTIVE_WASTE: "Radioactive Waste", FIRE: "Fire", ROAD: "Road", POWER: "Power", RAIL: "Rail",
@@ -87,11 +90,37 @@ const scoreBreakdown = {
 const months: readonly string[] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// What the tool output shows: its label, or how the player's last tool command went
-const toolMessages = {
-  label: "Tools",
+// What the toast at the pointer says when the player's tool command built nothing, for each outcome it tells of
+// (toolToast.ts). A rejection's own reason is written by whichever rules ran the command, for a developer: the console
+// has it.
+const toolFailures: Record<ToastedFailure, string> = {
+  needsBulldoze: "Area must be bulldozed first",
   noMoney: "Insufficient funds to build that",
-  needsDoze: "Area must be bulldozed first",
+  rejected: "That can't be done here",
+};
+
+// A map overlay layer's name, and the words for its low and high ends
+interface LayerText {
+  name: string;
+  low: string;
+  high: string;
+}
+
+// Map overlay strings: the picker, and each layer's text
+const overlays: {label: string, none: string, layers: Record<OverlayLayer, LayerText>} = {
+  label: "Map overlay",
+  none: "None",
+  layers: {
+    landValue: {name: "Land value", low: "Low", high: "High"},
+    pollution: {name: "Pollution", low: "None", high: "Heavy"},
+    crime: {name: "Crime", low: "None", high: "High"},
+    trafficDensity: {name: "Traffic", low: "None", high: "Jammed"},
+    populationDensity: {name: "Population density", low: "Empty", high: "Dense"},
+    policeCoverage: {name: "Police coverage", low: "None", high: "Full"},
+    fireCoverage: {name: "Fire coverage", low: "None", high: "Full"},
+    rateOfGrowth: {name: "Rate of growth", low: "Declining", high: "Growing"},
+    powerGrid: {name: "Power grid", low: "Unpowered", high: "Powered"},
+  },
 };
 
 // How a notification announces a message: good news is a milestone, bad news a disaster or a problem, and neutral
@@ -121,7 +150,12 @@ const messages: {[subject: string]: MessageText} = {
   [Messages.POLICE_NEEDS_FUNDING]: {text: "Police departments need funding", tone: "neutral"},
   [UiMessages.WELCOME]: {text: "Welcome to micropolisJS", tone: "neutral"},
   [Messages.BUDGET_REVIEW_DUE]: {text: "Year-end budget ready: click to review", tone: "neutral"},
-  [Messages.BLACKOUTS_REPORTED]: {text: "Brownouts, build another Power Plant", tone: "bad"},
+  // Under 70% of zones have power while the city has a plant, so what they lack is a connection, not capacity: the
+  // not-enough-power condition says when a plant is needed. Short enough for the notification bar's width.
+  [Messages.BLACKOUTS_REPORTED]: {
+    text: `Unpowered zones: run power lines (${overlays.layers.powerGrid.name} overlay)`,
+    tone: "bad",
+  },
   [Messages.EARTHQUAKE]: {text: "Major earthquake reported !!", tone: "bad"},
   [Messages.EXPLOSION_REPORTED]: {text: "Explosion detected ", tone: "bad"},
   [Messages.FLOODING_REPORTED]: {text: "Flooding reported !", tone: "bad"},
@@ -163,30 +197,6 @@ const statusPanel = {
   residentialCapTitle: "Residential demand can't rise above zero until the city has a stadium",
 };
 
-// A map overlay layer's name, and the words for its low and high ends
-interface LayerText {
-  name: string;
-  low: string;
-  high: string;
-}
-
-// Map overlay strings: the picker, and each layer's text
-const overlays: {label: string, none: string, layers: Record<OverlayLayer, LayerText>} = {
-  label: "Map overlay",
-  none: "None",
-  layers: {
-    landValue: {name: "Land value", low: "Low", high: "High"},
-    pollution: {name: "Pollution", low: "None", high: "Heavy"},
-    crime: {name: "Crime", low: "None", high: "High"},
-    trafficDensity: {name: "Traffic", low: "None", high: "Jammed"},
-    populationDensity: {name: "Population density", low: "Empty", high: "Dense"},
-    policeCoverage: {name: "Police coverage", low: "None", high: "Full"},
-    fireCoverage: {name: "Fire coverage", low: "None", high: "Full"},
-    rateOfGrowth: {name: "Rate of growth", low: "Declining", high: "Growing"},
-    powerGrid: {name: "Power grid", low: "Unpowered", high: "Powered"},
-  },
-};
-
 // What the activity list says another player did, after their name, for each command that went through
 const playerActions = {
   tools: {
@@ -225,9 +235,10 @@ export const Text = {
   playerActions,
   problems,
   pollutionStrings,
+  poweredStrings,
   rateStrings,
   scoreBreakdown,
   statusPanel,
-  toolMessages,
+  toolFailures,
   zoneCategories,
 };

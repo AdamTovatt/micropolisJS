@@ -17,8 +17,8 @@ import { Text } from "./text";
 
 // What the activity list says of the other players in a shared city: a line for each command of theirs that went
 // through, such as "Ana built a road". The naming is the client's alone: a command result carries the sender's id,
-// which the client names from the players the server lists. A failed command is shown only to its sender, in the
-// tool output, and the player's own commands are not listed, nor is anything in a city no server shares.
+// which the client names from the players the server lists. A failed tool command is shown only to its sender, in the
+// tool toast (toolToast.ts), and the player's own commands are not listed, nor is anything in a city no server shares.
 
 // How long a line shows after the command it last told of, in milliseconds
 export const LINE_LIFETIME_MS = 10000;

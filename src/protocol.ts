@@ -365,7 +365,7 @@ export type PlayerId = string;
 export const LOCAL_PLAYER: PlayerId = "local";
 
 // What came of a command. A tool command is ok when the tool succeeded at every tile of its path, and otherwise takes
-// the outcome of the first tile where it didn't, which the tool output shows.
+// the outcome of the first tile where it didn't, which its player is told of.
 export const OUTCOMES = ["ok", "failed", "noMoney", "needsBulldoze", "rejected"] as const;
 
 export type Outcome = typeof OUTCOMES[number];

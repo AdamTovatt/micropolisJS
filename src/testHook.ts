@@ -28,6 +28,7 @@ interface HookedGame {
                readonly mapCurrent: boolean};
   monsterTV: {readonly current: boolean};
   notificationBar: {dismiss(): void};
+  toolToast: {dismiss(): void};
 }
 
 export interface Advanced {
@@ -135,10 +136,12 @@ class TestHook {
     return {budgetReviewDue: result.budgetReviewDue};
   }
 
-  // Hides the notification bar, which closes on wall time, so a screenshot shows the same frame however long the run
-  // took. It has no control a player could close it with.
+  // Hides the notification bar and the tool toast, which close on wall time, so a screenshot shows the same frame
+  // however long the run took. Neither has a control a player could close it with.
   dismissNotification(): void {
-    this.attachedGame().notificationBar.dismiss();
+    const game = this.attachedGame();
+    game.notificationBar.dismiss();
+    game.toolToast.dismiss();
   }
 
   // Every step advance has taken, including those of an advance that then failed
