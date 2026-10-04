@@ -41,6 +41,20 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(TypeScript[name].GetString(), value);
         }
 
+        // An event is known by its string alone: a listener, a front-end message's subject and a recorded event all
+        // name it so, and two names sharing one string would be one event, as test/messages.ts checks the TypeScript's
+        [TestMethod]
+        public void Messages_EachName_HasAStringNoOtherNameShares()
+        {
+            List<string> shared = Strings.GroupBy(name => (string)name[1], name => (string)name[0])
+                .Where(sharing => sharing.Count() > 1)
+                .Select(sharing => $"{string.Join(" and ", sharing)} share \"{sharing.Key}\"")
+                .ToList();
+
+            Assert.IsNotEmpty(Strings);
+            Assert.AreEqual("", string.Join("; ", shared));
+        }
+
         [TestMethod]
         [DynamicData(nameof(Lists))]
         public void MessageList_ComparedWithTypeScript_HasTheSameStringsInOrder(string name, string[] values)

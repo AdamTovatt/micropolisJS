@@ -1,0 +1,15 @@
+{
+  "formatVersion": 1,
+  "description": "A residential zone in the woods with a coal plant against each side, and nothing else",
+  "seed": 8,
+  "level": 0,
+  "entries": [
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":45,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"coal","path":[{"x":41,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"coal","path":[{"x":48,"y":13}],"autoBulldoze":true}}
+  ],
+  "checkpoints": [
+    {"step":0,"hash":"4cfd24968b2d0db433740b5c5a01edaf7161797c4b9f5b329c6df22043e3950a"},
+    {"step":6912,"hash":"793f772726b736de5921749a481957d9c6e80eec8040afa83898b3fbab22ae33"}
+  ]
+}

@@ -152,20 +152,21 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
-        [DataRow("a log of another version", "\"formatVersion\":1", "\"formatVersion\":2", "not a version 1 command log")]
-        [DataRow("a log whose description is no string", "\"formatVersion\":1,", "\"formatVersion\":1,\"description\":2,", "description is not a string")]
-        [DataRow("a log from a seed and a save", "\"level\":0,", "\"level\":0,\"save\":{},", "a seed or from a save: exactly one")]
+        [DataRow("a log of another version", "\"formatVersion\":1", "\"formatVersion\":2", "This is a version 2 command log")]
+        [DataRow("a log whose description is no string", "\"formatVersion\":1,", "\"formatVersion\":1,\"description\":2,", "description is a string")]
+        [DataRow("a log from a seed and a save", "\"level\":0,", "\"level\":0,\"save\":{},", "exactly one of seed or save")]
         [DataRow("a log from a seed at no level", "\"level\":0,", "", "a level with a seed, and only then")]
         [DataRow("a log from a save at a level", "\"seed\":0,", "\"save\":{},", "a level with a seed, and only then")]
-        [DataRow("a log from a save that is no object", "\"seed\":0,\"level\":0,", "\"save\":[],", "save is not an object")]
-        [DataRow("a log at a level past hard", "\"level\":0", "\"level\":3", "level is not a whole number from 0 to 2")]
+        [DataRow("a log from a save that is no object", "\"seed\":0,\"level\":0,", "\"save\":[],", "save is an object")]
+        [DataRow("a log at a level past hard", "\"level\":0", "\"level\":3", "the seed, a uint32, and the level, 0 to 2")]
         [DataRow("a log with an unknown member", "\"seed\":0,", "\"seed\":0,\"speed\":2,", "unknown member speed")]
         [DataRow("an entry without its player", "\"player\":\"local\",\"command\":{\"type\":\"addFunds\"}", "\"command\":{\"type\":\"addFunds\"}", "an entry lacks player")]
-        [DataRow("an entry before step 0", "\"entries\":[{\"step\":0", "\"entries\":[{\"step\":-1", "step is not a whole number")]
-        [DataRow("an entry between steps", "\"entries\":[{\"step\":0", "\"entries\":[{\"step\":0.5", "step is not a whole number")]
+        [DataRow("an entry with an unknown member", "\"player\":\"local\",", "\"player\":\"local\",\"at\":1,", "an entry has an unknown member at")]
+        [DataRow("an entry before step 0", "\"entries\":[{\"step\":0", "\"entries\":[{\"step\":-1", "Entry 0 of the command log is not a {step, player, command}")]
+        [DataRow("an entry between steps", "\"entries\":[{\"step\":0", "\"entries\":[{\"step\":0.5", "Entry 0 of the command log is not a {step, player, command}")]
         [DataRow("entries out of order", "\"entries\":[{\"step\":0", "\"entries\":[{\"step\":1", "comes before the entry above it")]
         [DataRow("checkpoints at one step", "{\"step\":2,", "{\"step\":0,", "is not after the one above it")]
-        [DataRow("a hash that is not one", "\"},{\"step\":2", "0\"},{\"step\":2", "is not a SHA-256 in hex")]
+        [DataRow("a hash that is not one", "\"},{\"step\":2", "0\"},{\"step\":2", "Checkpoint 0 of the command log is not a {step, hash}")]
         public void Parse_BrokenLog_Throws(string description, string replaced, string replacement, string message)
         {
             string json = ValidLog.Replace(replaced, replacement);
@@ -180,7 +181,7 @@ namespace Micropolis.Rules.Tests
             JsonObject log = JsonNode.Parse(ValidLog)!.AsObject();
             log["entries"] = new JsonObject();
 
-            ConformanceAssert.Broken(() => ConformanceLogs.Parse("broken", log.ToJsonString()), "entries that are no list", "entries is not a list");
+            ConformanceAssert.Broken(() => ConformanceLogs.Parse("broken", log.ToJsonString()), "entries that are no list", "entries are a list");
         }
 
         [TestMethod]

@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace Micropolis.Rules.Tests
 {
@@ -20,8 +21,38 @@ namespace Micropolis.Rules.Tests
     /// gave it, the rejection's reason word for word included, and each case must leave the state hash it did.
     /// </summary>
     [TestClass]
-    public sealed class ConformanceCommandsTests
+    public sealed partial class ConformanceCommandsTests
     {
+        // The reasons a command is rejected with, each number they quote written #, as REJECTION_REASONS in
+        // conformance/generate.ts lists the TypeScript's
+        private static readonly string[] RejectionReasons =
+        [
+            "a command nests objects and lists at most # deep",
+            "a command is at most # characters of JSON",
+            "not a command",
+            "the tool command has exactly the fields type, autoBulldoze, path, tool",
+            "the setBudget command has exactly the fields type, tax, and may have fire, police, road",
+            "the setSpeed command has exactly the fields type, speed",
+            "the setAutoBudget command has exactly the fields type, on",
+            "the setDisasters command has exactly the fields type, on",
+            "the triggerDisaster command has exactly the fields type, kind",
+            "the addFunds command has exactly the fields type",
+            $"the tool is one of {string.Join(", ", ProtocolJson.Names<ToolName>())}",
+            "autoBulldoze is true or false",
+            "a tool's path is a list of # to # tiles",
+            "tile # of the path is not an {x, y} of whole numbers",
+            "tile # of the path, (#, #), is off the #x# map",
+            "tile # of the path, (#, #), is not next to the tile before it, (#, #)",
+            "road funding is a whole percent from # to #",
+            "fire funding is a whole percent from # to #",
+            "police funding is a whole percent from # to #",
+            "the tax rate is a whole percent from # to #",
+            "the speed is a whole number from # to #",
+            "setAutoBudget takes on, true or false",
+            "setDisasters takes on, true or false",
+            $"the disaster is one of {string.Join(", ", ProtocolJson.Names<DisasterKind>())}",
+        ];
+
         public static IEnumerable<object[]> Cases => ConformanceCommands.Load().Select(commandCase => new object[] { commandCase });
 
         public static string DisplayName(System.Reflection.MethodInfo method, object[] data)
@@ -52,6 +83,26 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(commandCase.Hash, StateHash.HashSavedState(city.Save()));
         }
 
+        // The cases reach every reason listed, as the generator checks the TypeScript's: the reasons the C# gives them,
+        // told apart by their words with each number they quote written #, are the list. So a case dropped from the file
+        // can't leave a reason untested, and a reason a case reaches that isn't listed fails too. The list is kept by
+        // hand: a reason the C# gains that no case reaches is in neither set, so it is listed, with a case, when it is
+        // added, as REJECTION_REASONS is
+        [TestMethod]
+        public void ApplyCommands_SharedCases_GiveEveryRejectionReason()
+        {
+            HashSet<string> given = Cases.Select(data => (CommandCase)data[0])
+                .SelectMany(commandCase => Simulation.FromSave(commandCase.ReadStartText()).ApplyCommands(commandCase.Results
+                    .Select(result => new ReceivedCommand((string)result["player"]!, result["command"]?.DeepClone()))
+                    .ToList()))
+                .Where(result => result.Reason != null)
+                .Select(result => QuotedNumber().Replace(result.Reason!, "#"))
+                .ToHashSet();
+
+            Assert.AreEqual("", string.Join("; ", RejectionReasons.Where(reason => !given.Contains(reason))), "Reasons no case reaches.");
+            Assert.AreEqual("", string.Join("; ", given.Where(reason => !RejectionReasons.Contains(reason))), "Reasons reached but not listed.");
+        }
+
         [TestMethod]
         public void Load_SharedFile_CoversEveryOutcome()
         {
@@ -78,5 +129,9 @@ namespace Micropolis.Rules.Tests
         {
             ConformanceAssert.Broken(() => ConformanceCommands.Parse(json), description, message);
         }
+
+        // A number as a reason quotes it, as the generator's /[0-9-][0-9e+.-]*/g finds one
+        [GeneratedRegex("[0-9-][0-9e+.-]*")]
+        private static partial Regex QuotedNumber();
     }
 }

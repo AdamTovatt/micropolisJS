@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The headless runner and the fixture tool, from the game rules alone: runs a city from a seed or a fixture,
+       replays a command log, and writes every fixture's log with its checkpoints -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Micropolis.Headless.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Micropolis.Rules\Micropolis.Rules.csproj" />
+    <ProjectReference Include="..\Micropolis.SourceTree\Micropolis.SourceTree.csproj" />
+  </ItemGroup>
+
+</Project>
