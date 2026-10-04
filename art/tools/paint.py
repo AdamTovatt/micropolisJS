@@ -60,7 +60,7 @@ def _tile_sets():
     # The single tiles, four to a canvas, so each is painted at about the scale of a zone and the
     # members of a canvas come out alike. An animated tile's frames share a canvas, so they are
     # one painting and don't flicker: a road piece's four frames of light traffic, then of heavy
-    # (art/blender/tiles/roads.py), the fountain's four, the explosion's eight in two.
+    # (art/blender/tiles/roads.py), the explosion's eight in two.
     def tiles(name, ids):
         return [f'{name}/{t:04d}' for t in ids]
 
@@ -74,7 +74,7 @@ def _tile_sets():
     sets.update(fours('water', range(2, 21)))
     sets.update(fours('woods', range(21, 38)))
     sets.update(fours('parks', [40, 41, 42, 43]))
-    sets['parks-fountain'] = tiles('parks', range(840, 844))
+    sets['parks-fountain'] = tiles('parks', [840])
     sets.update(fours('rubble', range(44, 48)))
     sets.update({f'rubble-explosion-{k + 1}': tiles('rubble', range(860 + 4 * k, 864 + 4 * k)) for k in range(2)})
     sets.update(fours('roads', list(range(64, 79)) + [239]))

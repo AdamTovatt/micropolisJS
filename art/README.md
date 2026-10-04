@@ -53,7 +53,7 @@ blender --background --python art/blender/tiles/roads.py -- art/blender/out/road
 - `land.py`: bare land, tile 0.
 - `water.py`: open water and the river's shores, 2 to 20.
 - `woods.py`: woods and their edges, 21 to 37.
-- `parks.py`: what the park tool lays: the gardens, 40 to 43, and the fountain, 840 to 843.
+- `parks.py`: what the park tool lays: the gardens, 40 to 43, and the fountain, 840.
 - `rubble.py`: rubble, 44 to 47, and the bulldozer's small explosion, 860 to 867.
 - `roads.py`: road pieces, bridges, roads under power lines and the traffic on them, 64 to 207 and 239, and the open drawbridges, 828 to 831 and 948 to 951.
 - `power.py`: power lines, 208 to 220, and the unpowered zone's warning, 827.

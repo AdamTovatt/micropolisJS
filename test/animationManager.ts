@@ -52,6 +52,10 @@ describe("the animation frames", () => {
         expect(nextAnimationFrame(LASTTINYEXP)).toBe(LASTTINYEXP);
     });
 
+    it("follow the fountain with itself", () => {
+        expect(nextAnimationFrame(FOUNTAIN)).toBe(FOUNTAIN);
+    });
+
     it("know each frame of a tile's sequence", () => {
         for (let frame = FIRE + 1; frame <= LASTFIRE; frame++) {
             expect(isInSequence(FIRE, frame)).toBe(true);
@@ -67,6 +71,10 @@ describe("the animation frames", () => {
     it("know a tile that isn't animated has no sequence", () => {
         expect(isInSequence(DIRT, DIRT)).toBe(false);
         expect(isInSequence(DIRT, FIRE)).toBe(false);
+    });
+
+    it("know the tile after the fountain isn't one of its frames", () => {
+        expect(isInSequence(FOUNTAIN, FOUNTAIN + 1)).toBe(false);
     });
 });
 
@@ -120,7 +128,7 @@ describe("the animation manager", () => {
             const animationManager = newManager();
             // A view three tiles wide and two high
             const view = [FIRE | ANIMBIT, DIRT | BULLBIT, RADAR0 | ANIMBIT,
-                          FREEZ | ZONEBIT | POWERBIT, LASTFIRE | ANIMBIT, FOUNTAIN | ANIMBIT];
+                          FREEZ | ZONEBIT | POWERBIT, LASTFIRE | ANIMBIT, TINYEXP | ANIMBIT];
 
             const first = view.slice();
             animationManager.getTiles(first, 0, 0, 3, 2);
@@ -128,8 +136,8 @@ describe("the animation manager", () => {
             const second = view.slice();
             animationManager.getTiles(second, 0, 0, 3, 2);
 
-            expect(first).toEqual([FIRE + 1, DIRT, RADAR0 + 1, FREEZ, FIRE, FOUNTAIN + 1]);
-            expect(second).toEqual([FIRE + 2, DIRT, RADAR0 + 2, FREEZ, FIRE + 1, FOUNTAIN + 2]);
+            expect(first).toEqual([FIRE + 1, DIRT, RADAR0 + 1, FREEZ, FIRE, TINYEXP + 1]);
+            expect(second).toEqual([FIRE + 2, DIRT, RADAR0 + 2, FREEZ, FIRE + 1, TINYEXP + 2]);
         });
 
         it("advances an animation once per period", () => {
@@ -159,6 +167,19 @@ describe("the animation manager", () => {
             jest.advanceTimersByTime(ANIMATION_PERIOD + 1);
 
             expect(paintOne(animationManager, RADAR0 | ANIMBIT)).toBe(RADAR0 + 1);
+        });
+
+        it("paints a fountain as one still frame", () => {
+            const animationManager = newManager();
+            const painted = [paintOne(animationManager, FOUNTAIN | ANIMBIT | BULLBIT)];
+
+            // Four periods, so the paints span every frame of the four-frame cycle the original gave the fountain
+            for (let period = 0; period < 4; period++) {
+                jest.advanceTimersByTime(ANIMATION_PERIOD + 1);
+                painted.push(paintOne(animationManager, FOUNTAIN | ANIMBIT | BULLBIT));
+            }
+
+            expect(painted).toEqual([FOUNTAIN, FOUNTAIN, FOUNTAIN, FOUNTAIN, FOUNTAIN]);
         });
 
         it("blinks an unpowered zone's centre with the lightning bolt", () => {

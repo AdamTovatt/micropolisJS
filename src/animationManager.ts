@@ -71,7 +71,7 @@ const ANIMATIONS: ReadonlyArray<ReadonlyArray<number>> = [
   [752, 928, 929, 930, 931, 928],
   [820, 952, 953, 954, 955, 952],
   [832, 833, 834, 835, 836, 837, 838, 839, 832],
-  [840, 841, 842, 843, 840],
+  // The fountain, 840, has no sequence: it is drawn as one still frame
   [844, 845, 846, 847, 848, 849, 850, 851, 844],
   // An explosion holds its last frame until the simulation's scan turns the tile to rubble
   [860, 861, 862, 863, 864, 865, 866, 867],
