@@ -38,12 +38,13 @@ from PIL import Image
 from scipy import ndimage
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ART = os.path.join(HERE, '..')
-RENDERS = os.path.join(ART, 'blender', 'out')
-PAINTED = os.path.join(ART, 'painted', 'out')
-RAW = os.path.join(ART, 'painted', 'raw')
 sys.path.insert(0, HERE)
+from designs import (ART, DIRT, HBRIDGE, HPOWER, HRAIL, LHPOWER, LHRAIL, LVPOWER, LVRAIL, PAINTED,  # noqa: E402
+                     RENDERS, RIVER, ROADS, ROADS2, SINGLE_TILES, SPRITES, VBRIDGE, VPOWER, VRAIL, WOODS, load,
+                     single_tile, single_tile_ids, sprite_frame, tile_asset, zone_frame, zone_frames)
 from generate import MODEL  # noqa: E402
+
+RAW = os.path.join(ART, 'painted', 'raw')
 
 LAYERS = ('full', 'ground', 'shadow')
 SIZE = 1024                    # the side of every model input
@@ -62,33 +63,36 @@ def _tile_sets():
     # one painting and don't flicker: a road piece's four frames of light traffic, then of heavy
     # (art/blender/tiles/roads.py), the explosion's eight in two.
     def tiles(name, ids):
-        return [f'{name}/{t:04d}' for t in ids]
+        return [tile_asset(name, t) for t in ids]
 
-    def fours(name, ids):
+    def fours(name, ids, prefix=None):
         ids = list(ids)
-        return {f'{name}-{k // 4 + 1}': tiles(name, ids[k:k + 4]) for k in range(0, len(ids), 4)}
+        return {f'{prefix or name}-{k // 4 + 1}': tiles(name, ids[k:k + 4]) for k in range(0, len(ids), 4)}
 
+    parks, rubble, roads = SINGLE_TILES['parks'], SINGLE_TILES['rubble'], SINGLE_TILES['roads']
     sets = {}
-    sets.update(fours('houses', range(249, 261)))
-    sets.update(fours('land', [0]))
-    sets.update(fours('water', range(2, 21)))
-    sets.update(fours('woods', range(21, 38)))
-    sets.update(fours('parks', [40, 41, 42, 43]))
-    sets['parks-fountain'] = tiles('parks', [840])
-    sets.update(fours('rubble', range(44, 48)))
-    sets.update({f'rubble-explosion-{k + 1}': tiles('rubble', range(860 + 4 * k, 864 + 4 * k)) for k in range(2)})
-    sets.update(fours('roads', list(range(64, 79)) + [239]))
-    for piece in range(64, 79):
-        for density, first in (('light', 16), ('heavy', 80)):
-            sets[f'roads-{piece}-{density}'] = tiles('roads', range(piece + first, piece + first + 64, 16))
-    sets.update({f'roads-drawbridge-{k + 1}': tiles('roads', ids) for k, ids in
-                 enumerate((range(828, 832), range(948, 952)))})
-    sets['roads-open-water'] = tiles('roads', range(79, 208, 16))
+    sets.update(fours('houses', single_tile_ids('houses')))
+    sets.update(fours('land', single_tile_ids('land')))
+    sets.update(fours('water', single_tile_ids('water')))
+    sets.update(fours('woods', single_tile_ids('woods')))
+    sets.update(fours('parks', parks['gardens']))
+    sets['parks-fountain'] = tiles('parks', parks['fountain'])
+    sets.update(fours('rubble', rubble['rubble']))
+    sets.update(fours('rubble', rubble['explosion'], 'rubble-explosion'))
+    sets.update(fours('roads', [*roads['pieces'], *roads['second_road_under_power']]))
+    # a piece's traffic frames: each frame's ids run in the order of the pieces
+    pieces = roads['pieces']
+    for k, piece in enumerate(pieces):
+        sets[f'roads-{piece}-light'] = tiles('roads', roads['light_traffic'][k::len(pieces)])
+        sets[f'roads-{piece}-heavy'] = tiles('roads', roads['heavy_traffic'][k::len(pieces)])
+    sets['roads-drawbridge-1'] = tiles('roads', roads['drawbridge_h'])
+    sets['roads-drawbridge-2'] = tiles('roads', roads['drawbridge_v'])
+    sets['roads-open-water'] = tiles('roads', roads['open_water'])
     # every frame of a vehicle on one canvas, so its turns and climbs are one painting of one vehicle
-    for vehicle, frames in (('train', 5), ('helicopter', 8), ('airplane', 11), ('ship', 8)):
-        sets[vehicle] = [f'{vehicle}/{k:02d}' for k in range(frames)]
-    sets.update(fours('power', list(range(208, 221)) + [827]))
-    sets.update(fours('rail', [221, 222] + list(range(224, 239))))
+    for vehicle, sprite in SPRITES.items():
+        sets[vehicle] = [sprite_frame(vehicle, k) for k in range(sprite['frames'])]
+    sets.update(fours('power', single_tile_ids('power')))
+    sets.update(fours('rail', single_tile_ids('rail')))
     return sets
 
 
@@ -106,14 +110,15 @@ def ground_painted(job):
 # tiles side by side join as their renders do (join()). Each is wrapped first along the axes its
 # surface runs on, so it joins itself: land and water every way, a straight road, rail, wire or
 # bridge along its length. Then every road piece gives its traffic frames its ground.
-DONORS = ([('land/0000', 'xy', ('ground',)), ('water/0002', 'xy', ('ground',)), ('woods/0037', 'xy', ('ground',)),
-           ('roads/0066', 'x', ('ground',)), ('roads/0067', 'y', ('ground',)),
-           ('roads/0064', 'x', ('objects',)), ('roads/0065', 'y', ('objects',)),
-           ('rail/0226', 'x', ('ground', 'objects')), ('rail/0227', 'y', ('ground', 'objects')),
-           ('rail/0224', 'x', ('objects',)), ('rail/0225', 'y', ('objects',)),
-           ('power/0210', 'x', ('objects',)), ('power/0211', 'y', ('objects',)),
-           ('power/0208', 'x', ('objects',)), ('power/0209', 'y', ('objects',))]
-          + [(f'roads/{t:04d}', '', ('ground',)) for t in range(64, 79)])
+DONORS = ([(single_tile(t), axes, layers) for t, axes, layers in (
+    (DIRT, 'xy', ('ground',)), (RIVER, 'xy', ('ground',)), (WOODS, 'xy', ('ground',)),
+    (ROADS, 'x', ('ground',)), (ROADS2, 'y', ('ground',)),
+    (HBRIDGE, 'x', ('objects',)), (VBRIDGE, 'y', ('objects',)),
+    (LHRAIL, 'x', ('ground', 'objects')), (LVRAIL, 'y', ('ground', 'objects')),
+    (HRAIL, 'x', ('objects',)), (VRAIL, 'y', ('objects',)),
+    (LHPOWER, 'x', ('objects',)), (LVPOWER, 'y', ('objects',)),
+    (HPOWER, 'x', ('objects',)), (VPOWER, 'y', ('objects',)))]
+          + [(single_tile(t), '', ('ground',)) for t in SINGLE_TILES['roads']['pieces']])
 WRAP_BAND = 12                 # pixels from a donor's edge over which it fades into its half-shifted copy
 FLATTEN = 2                    # pixels: the blur that finds a surface donor's broad patches (flattened())
 
@@ -205,24 +210,17 @@ def prompts(job, paving, style_from_full=False):
 
 
 def render(asset):
-    # an asset's layers.json and layers. A vehicle's frame has no ground and no shadow margin: it
-    # is given the plain ground it travels over, which is painted round it but never written
-    d = os.path.join(RENDERS, asset)
-    with open(os.path.join(d, 'layers.json')) as f:
-        info = json.load(f)
-    info.setdefault('shadow_margin', {'left': 0, 'right': 0, 'top': 0, 'bottom': 0})
-    layers = {k: Image.open(os.path.join(d, k + '.png')).convert('RGBA')
-              for k in ('ground', 'shadow', 'objects') if os.path.exists(os.path.join(d, k + '.png'))}
-    if 'ground' not in layers:
-        size = info['tiles'] * info['tile_px']
-        layers['ground'] = Image.new('RGBA', (size, size), (*(WATER if asset.startswith('ship') else GRASS), 255))
-        info['vehicle'] = True
-    return info, layers
+    # an asset as Blender rendered it. A vehicle's frame has no ground: it is given the plain
+    # ground it travels over, which is painted round it but never written
+    a = load(RENDERS, asset)
+    if a.vehicle:
+        a.layers['ground'] = Image.new('RGBA', (a.size, a.size), (*(WATER if asset.startswith('ship') else GRASS), 255))
+    return a
 
 
-def cell_tiles(info):
+def cell_tiles(a):
     # an asset's square cell: room for its footprint and its shadow on every side
-    n, m = info['tiles'], info['shadow_margin']
+    n, m = a.tiles, a.margin
     return max(n + m['left'] + m['right'], n + m['top'] + m['bottom'])
 
 
@@ -242,10 +240,10 @@ def prep(job):
     # member's x and y are where its shadow.png starts on the canvas
     if job.endswith(FRAMES):
         return prep_frames(job)
-    renders =[(a, *render(a)) for a in members(job)]
-    px = renders[0][1]['tile_px']
+    renders = [(name, render(name)) for name in members(job)]
+    px = renders[0][1].tile_px
     border = int(BORDER * px)
-    cell = max(cell_tiles(info) for _, info, _ in renders) * px + 2 * border
+    cell = max(cell_tiles(r) for _, r in renders) * px + 2 * border
     cols = math.ceil(math.sqrt(len(renders)))
     side = cols * cell
     full = Image.new('RGBA', (side, side), (*GRASS, 255))
@@ -253,10 +251,11 @@ def prep(job):
     shadow = Image.new('L', (side, side), 0)
     objects = Image.new('RGBA', (side, side), (0, 0, 0, 0))
     layout = []
-    for i, (asset, info, layers) in enumerate(renders):
+    for i, (asset, r) in enumerate(renders):
+        layers = r.layers
         cx, cy = (i % cols) * cell, (i // cols) * cell
         x, y = cx + border, cy + border
-        m = info['shadow_margin']
+        m = r.margin
         fx, fy = x + m['left'] * px, y + m['top'] * px
         full.alpha_composite(layers['ground'], (fx, fy))
         ground.alpha_composite(extended(layers['ground'], fx - cx, fy - cy, cell), (cx, cy))
@@ -270,7 +269,7 @@ def prep(job):
     full.alpha_composite(dark)
     full.alpha_composite(objects)
     pack = None
-    vehicle = all(info.get('vehicle') for _, info, _ in renders)
+    vehicle = all(r.vehicle for _, r in renders)
     if vehicle:
         # A vehicle stands in the middle of its frame, so its frames go to the model cut down to
         # the box that holds whatever is painted in any of them, and the model paints it larger:
@@ -493,14 +492,13 @@ def build(job):
     blender = np.zeros((side, side), np.float32)
     covered = np.zeros((side, side), bool)
     for m in canvas['members']:
-        info, layers = renders[m['asset']]
-        a = np.asarray(layers['shadow'].getchannel('A')).astype(np.float32)
+        r = renders[m['asset']]
+        a = np.asarray(r.layers['shadow'].getchannel('A')).astype(np.float32)
         h, w = min(a.shape[0], side - m['y']), min(a.shape[1], side - m['x'])
         region = blender[m['y']:m['y'] + h, m['x']:m['x'] + w]
         np.maximum(region, a[:h, :w], out=region)
-        fx, fy, n = m['x'] + info['shadow_margin']['left'] * px, m['y'] + info['shadow_margin']['top'] * px, \
-            info['tiles'] * px
-        covered[fy:fy + n, fx:fx + n] |= np.asarray(layers['objects'].getchannel('A')) >= 128
+        fx, fy, n = m['x'] + r.margin['left'] * px, m['y'] + r.margin['top'] * px, r.tiles * px
+        covered[fy:fy + n, fx:fx + n] |= np.asarray(r.layers['objects'].getchannel('A')) >= 128
     shadow = None
     if 'shadow' in painted:
         darkness = 255 - np.asarray(painting('shadow').convert('L')).astype(np.float32)
@@ -514,8 +512,8 @@ def build(job):
         shadow = Image.fromarray(np.clip(matched, 0, 255).round().astype(np.uint8))
 
     for m in canvas['members']:
-        info, layers = renders[m['asset']]
-        margin, size = info['shadow_margin'], info['tiles'] * px
+        r = renders[m['asset']]
+        layers, margin, size = r.layers, r.margin, r.tiles * px
         fx, fy = m['x'] + margin['left'] * px, m['y'] + margin['top'] * px
         box = (fx, fy, fx + size, fy + size)
         out = os.path.join(PAINTED, m['asset'])
@@ -535,7 +533,7 @@ def build(job):
         # it, however the prompt asks, and a letter is how a player tells the zones apart
         g = with_letters(g.convert('RGBA'), layers['ground'], m['asset'], 'ground')
         o = with_letters(o, layers['objects'], m['asset'], 'objects')
-        if not info.get('vehicle'):
+        if not r.vehicle:
             g.convert('RGB').save(os.path.join(out, 'ground.png'))
         o.save(os.path.join(out, 'objects.png'))
         if shadow is not None:
@@ -549,7 +547,7 @@ def build(job):
         with open(os.path.join(out, 'painting.json'), 'w') as f:
             json.dump({'job': job, 'paintings': {k: record[k] for k in painted}}, f, indent=2)
             f.write('\n')
-        if '/' in m['asset'] and not info.get('vehicle'):
+        if '/' in m['asset'] and not r.vehicle:
             # a single tile's: join() works from these, so it can run again without wrapping a donor twice
             kept = os.path.join(RAW, 'built', m['asset'])
             os.makedirs(kept, exist_ok=True)
@@ -599,8 +597,9 @@ def join(tolerance=3):
         if asset not in tiles:
             print(f'{asset}: not painted yet, so no donor')
             continue
+        rendered = load(RENDERS, asset)
         for layer in layers:
-            blender = np.asarray(Image.open(os.path.join(RENDERS, asset, f'{layer}.png')).convert('RGBA')).astype(int)
+            blender = np.asarray(rendered.layers[layer]).astype(int)
             painted = wrapped(Image.open(os.path.join(kept, asset, f'{layer}.png')).convert('RGBA'), axes)
             if axes == 'xy':
                 painted = flattened(painted)
@@ -608,8 +607,9 @@ def join(tolerance=3):
     for asset in tiles:
         out = os.path.join(PAINTED, asset)
         shares = []
+        rendered = load(RENDERS, asset)
         for layer in ('ground', 'objects'):
-            mine = np.asarray(Image.open(os.path.join(RENDERS, asset, f'{layer}.png')).convert('RGBA')).astype(int)
+            mine = np.asarray(rendered.layers[layer]).astype(int)
             result = np.asarray(Image.open(os.path.join(kept, asset, f'{layer}.png')).convert('RGBA')).copy()
             free = np.ones(mine.shape[:2], bool)
             for given, blender, painted in donors:
@@ -627,32 +627,15 @@ def join(tolerance=3):
         print(f'{asset}: {shares[0]:.0%} of the ground and {shares[1]:.0%} of the objects from donors')
 
 
-def _frame_dirs(zone):
-    d = os.path.join(RENDERS, zone)
-    return sorted((int(f.split('-')[1]), f) for f in os.listdir(d) if f.startswith('frame-'))
-
-
-def _composite(ground, shadow, objects, margin, px):
-    # a zone's footprint as the game draws it: its ground, its own shadow over it, its objects
-    image = ground.convert('RGBA').copy()
-    a = Image.new('L', image.size, 0)
-    a.paste(shadow.getchannel('A'), (-margin['left'] * px, -margin['top'] * px))
-    dark = Image.new('RGBA', image.size, (0, 0, 0, 255))
-    dark.putalpha(a)
-    image.alpha_composite(dark)
-    image.alpha_composite(objects)
-    return image
-
-
 def _moving(zone):
     # where any frame's objects differ from the still zone's, the render's pixels: the smoke, the
     # aerial, the players
-    still = np.asarray(render(zone)[1]['objects']).astype(int)
+    still = np.asarray(render(zone).layers['objects']).astype(int)
     moving = np.zeros(still.shape[:2], bool)
     frames = {}
-    for k, d in _frame_dirs(zone):
-        frames[k] = render(f'{zone}/{d}')
-        moving |= np.abs(np.asarray(frames[k][1]['objects']).astype(int) - still).max(axis=-1) > 6
+    for k in range(zone_frames(zone)):
+        frames[k] = render(zone_frame(zone, k))
+        moving |= np.abs(np.asarray(frames[k].layers['objects']).astype(int) - still).max(axis=-1) > 6
     return still, frames, moving
 
 
@@ -661,16 +644,14 @@ def prep_frames(job):
     # laid out in a grid as the first model input, and the same grid of the painted still zone as
     # the second, so the painting changes only what moves and the frames don't flicker
     zone = job[:-len(FRAMES)]
-    info, layers = render(zone)
-    px, n = info['tile_px'], info['tiles'] * info['tile_px']
+    still = render(zone)
+    px, n = still.tile_px, still.size
     _, frames, moving = _moving(zone)
     ys, xs = np.nonzero(moving)
     pad = px // 4
     box = [max(0, int(xs.min()) - pad), max(0, int(ys.min()) - pad), min(n, int(xs.max()) + 1 + pad),
            min(n, int(ys.max()) + 1 + pad)]
-    painted_dir = os.path.join(PAINTED, zone)
-    painted = _composite(*(Image.open(os.path.join(painted_dir, f'{k}.png')).convert('RGBA')
-                           for k in ('ground', 'shadow', 'objects')), info['shadow_margin'], px).crop(box)
+    painted = load(PAINTED, zone).composite().crop(box)
     w, h = box[2] - box[0], box[3] - box[1]
     gap = px // 8
     cell = max(w, h) + gap
@@ -678,10 +659,9 @@ def prep_frames(job):
     side = cols * cell
     first = Image.new('RGBA', (side, side), (*GRASS, 255))
     second = first.copy()
-    for i, (k, (finfo, flayers)) in enumerate(sorted(frames.items())):
+    for i, k in enumerate(sorted(frames)):
         x, y = (i % cols) * cell + gap // 2, (i // cols) * cell + gap // 2
-        first.paste(_composite(flayers['ground'], flayers['shadow'], flayers['objects'], finfo['shadow_margin'],
-                               px).crop(box), (x, y))
+        first.paste(frames[k].composite().crop(box), (x, y))
         second.paste(painted, (x, y))
     out = os.path.join(RAW, job)
     os.makedirs(out, exist_ok=True)
@@ -703,18 +683,16 @@ def build_frames(job):
         canvas = json.load(f)
     with open(os.path.join(raw, 'prompts.json')) as f:
         record = json.load(f)
-    info, layers = render(zone)
+    rendered = render(zone)
     px, box, cell, gap, cols = canvas['tile_px'], canvas['box'], canvas['cell'], canvas['gap'], canvas['cols']
     w, h = box[2] - box[0], box[3] - box[1]
     painting = Image.open(os.path.join(raw, 'out-full.png')).convert('RGB').resize((canvas['side'],) * 2,
                                                                                       Image.LANCZOS)
-    painted_dir = os.path.join(PAINTED, zone)
-    painted = {k: Image.open(os.path.join(painted_dir, f'{k}.png')).convert('RGBA')
-               for k in ('ground', 'shadow', 'objects')}
+    painted = load(PAINTED, zone).layers
     still, frames, _ = _moving(zone)
-    still_shadow = np.asarray(layers['shadow'].getchannel('A')).astype(int)
+    still_shadow = np.asarray(rendered.layers['shadow'].getchannel('A')).astype(int)
     painted_shadow = np.asarray(painted['shadow'].getchannel('A'))
-    sm = info['shadow_margin']
+    sm = rendered.margin
     # A mark that moves, such as the nuclear plant's turning atom, comes from each frame's render
     # as a letter does: painted, it changes shape from frame to frame. Where the still's mark
     # stood and the frame's doesn't, the frame shows the surface under it, the nearest painted
@@ -726,13 +704,14 @@ def build_frames(job):
                                                      return_indices=True)
         surface[..., :3] = surface[iy, ix, :3]
     for i, k in enumerate(canvas['frames']):
-        finfo, flayers = frames[k]
+        frame = zone_frame(zone, k)
+        flayers = frames[k].layers
         x, y = (i % cols) * cell + gap // 2, (i // cols) * cell + gap // 2
         crop = np.asarray(painting.crop((x, y, x + w, y + h)))
         mine = np.asarray(flayers['objects']).astype(int)
         moves = ndimage.binary_dilation(np.abs(mine - still).max(axis=-1) > 6)
         # with the pixels round them, where the mark's own small shadows move with it
-        marked = ndimage.binary_dilation(still_marks | _marks(f'{zone}/frame-{k}', still.shape[:2]),
+        marked = ndimage.binary_dilation(still_marks | _marks(frame, still.shape[:2]),
                                          iterations=MARK_MARGIN)
         objects = np.asarray(painted['objects']).copy()
         objects[marked, :3] = surface[marked, :3]
@@ -740,10 +719,9 @@ def build_frames(job):
         inside = (moves & ~marked)[box[1]:box[3], box[0]:box[2]]
         region[inside, :3] = crop[inside]
         objects[..., 3] = mine[..., 3]
-        objects = np.asarray(with_letters(Image.fromarray(objects, 'RGBA'), flayers['objects'],
-                                          f'{zone}/frame-{k}', 'objects'))
+        objects = np.asarray(with_letters(Image.fromarray(objects, 'RGBA'), flayers['objects'], frame, 'objects'))
         # the frame's shadow, pixel by pixel against the still's, lined up by their margins
-        fm = finfo['shadow_margin']
+        fm = frames[k].margin
         frame_shadow = np.asarray(flayers['shadow'].getchannel('A')).astype(int)
         shadow = frame_shadow.copy()
         dy, dx = (sm['top'] - fm['top']) * px, (sm['left'] - fm['left']) * px
@@ -754,18 +732,18 @@ def build_frames(job):
         same = np.zeros_like(inside)
         same[inside] = np.abs(frame_shadow[inside] - still_shadow[sy[inside], sx[inside]]) <= 4
         shadow[same] = painted_shadow[sy[same], sx[same]]
-        out = os.path.join(PAINTED, zone, f'frame-{k}')
+        out = os.path.join(PAINTED, frame)
         os.makedirs(out, exist_ok=True)
         painted['ground'].convert('RGB').save(os.path.join(out, 'ground.png'))
         Image.fromarray(objects, 'RGBA').save(os.path.join(out, 'objects.png'))
         s = Image.new('RGBA', (fw, fh), (0, 0, 0, 255))
         s.putalpha(Image.fromarray(shadow.astype(np.uint8)))
         s.save(os.path.join(out, 'shadow.png'))
-        shutil.copy(os.path.join(RENDERS, zone, f'frame-{k}', 'layers.json'), os.path.join(out, 'layers.json'))
+        shutil.copy(os.path.join(RENDERS, frame, 'layers.json'), os.path.join(out, 'layers.json'))
         with open(os.path.join(out, 'painting.json'), 'w') as f:
             json.dump({'job': job, 'still': zone, 'paintings': {'full': record['full']}}, f, indent=2)
             f.write('\n')
-        print(f'{zone}/frame-{k}: {(moves & ~marked).mean():.1%} of the zone from the frames\' painting, '
+        print(f'{frame}: {(moves & ~marked).mean():.1%} of the zone from the frames\' painting, '
               f'{marked.mean():.1%} from its marks')
 
 

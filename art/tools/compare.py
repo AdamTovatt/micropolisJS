@@ -25,6 +25,7 @@ import os
 
 from PIL import Image, ImageDraw
 
+from designs import RENDERS, load
 from preview import preview
 from reference import GRIDS, crop
 
@@ -35,9 +36,9 @@ def compare(zone, sheet, row, col, out_path):
     city = Image.open(city_path).convert('RGB')
     os.remove(city_path)
     size = 384
+    alone = load(RENDERS, zone).composite().convert('RGB')
     panels = [('Reference: %s (%d, %d)' % (sheet, row, col), crop(sheet, row, col, size)),
-              (zone + ', shown at 2x', city.crop((0, 0, city.width // 2, city.height // 2)).resize((size, size),
-                                                                                                Image.NEAREST)),
+              (zone + ', shown at 2x', alone.resize((size, size), Image.NEAREST)),
               ('With empty neighbours', city.resize((size, size), Image.LANCZOS))]
     gap = 12
     img = Image.new('RGB', (gap + len(panels) * (size + gap), size + 44), (40, 40, 40))

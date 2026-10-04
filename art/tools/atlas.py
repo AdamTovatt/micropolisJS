@@ -16,11 +16,12 @@ art/blender/out, which are laid out alike.
 
     python art/tools/atlas.py --source art/painted/out
 
-Writes images/render/ (the manifest and its atlases, replacing the atlases it wrote before), the
-cells of images/tiles.png and images/sprites.png for every tile id and sprite frame it has art
-for, and images/dirtbg.png. Every tile id's art and where it comes from is in this file: the
-single-tile sets by their directories' ids, the zones by ZONES, their animations by FRAMES, the
-vehicles by SPRITES. Needs Pillow and NumPy.
+Writes render/ (the manifest and its atlases, replacing the atlases it wrote before), tiles.png and
+sprites.png, and dirtbg.png into images/, or the directory --out names. The 16 px sheets are the
+original ones in art/sheets/ with every tile id and sprite frame it has art for drawn into its
+cell, so the build reads nothing it wrote. Which design fills which tile ids is in designs.py: the
+single-tile sets by SINGLE_TILES, the zones by ZONES, their animations by FRAMES, the vehicles by
+SPRITES. Needs Pillow and NumPy.
 """
 
 import argparse
@@ -31,115 +32,13 @@ import re
 import numpy as np
 from PIL import Image
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.join(HERE, '..', '..')
-IMAGES = os.path.join(REPO, 'images')
-RENDER = os.path.join(IMAGES, 'render')
+from designs import (DIRT, FRAMES, IMAGES, ORIGINAL_SPRITES, ORIGINAL_TILES, SHEET_COLUMNS, SHEET_PX,
+                     OVER_SHADOWS, SINGLE_TILES, SPRITE_CELL, SPRITES, TILE_PX, ZONES, load, single_tile,
+                     single_tile_ids, sprite_frame, tile_asset, zone_frame)
 
-TILE_PX = 64                   # the art's pixels a tile (TILE_PX in art/blender/tileart.py)
 GUTTER = 4                     # each rectangle's edge pixels repeated this far outward, from a multiple of 4,
                                # so the two mip levels down to 16 px a tile don't bleed (docs/render-assets.md)
 ATLAS_SIDE = 4096              # the largest atlas the format allows
-SHEET_PX = 16                  # images/tiles.png: 16 px tiles, 32 a row
-SHEET_COLUMNS = 32
-SPRITE_CELL = 48               # images/sprites.png: a 48 px cell per frame, a row per sprite type
-
-# The single-tile sets, each rendered into <set>/<id>, the tile id in four digits
-SINGLE_TILES = ('land', 'water', 'woods', 'parks', 'rubble', 'roads', 'power', 'rail', 'houses')
-
-# The tiles the game draws in place of another asset's tile, which are drawn whole as objects too, opaque, so no
-# shadow darkens them: the warning an unpowered zone or service building blinks in place of its centre (827), where
-# a building's own shadow lies dense under the roof the warning replaces
-OVER_SHADOWS = {827}
-
-
-def _slots(kind, first, grid):
-    # A populated zone's designs by slot: the game picks slot = land value * densities + density
-    # (placeResidential, placeCommercial, placeIndustrial), nine ids each from `first`. `grid`
-    # has a row per land value, low to high, and in it a design per density, low to high
-    return {f'{kind}_{design}': first + 9 * slot
-            for slot, design in enumerate(design for row in grid for design in row)}
-
-
-# Each zone's first tile id, its top-left, from which its ids run in rows (src/buildingTool.js).
-# A populated zone's design is chosen by what it shows: denser across a row, from bare ground and
-# car parks to gardens, plazas and glass down the rows.
-ZONES = {
-    'residential_empty': 240,
-    **_slots('residential', 261, [
-        ('grey_l_on_bare_ground', 'red_blue_over_car_park', 'blue_c_block', 'grey_ring'),
-        ('blue_and_green_houses', 'domed_hall_and_blocks', 'blue_l_tall_wing', 'three_towers'),
-        ('red_and_blue', 'brick_s_block_and_blue_roofs', 'courtyard_block', 'white_blocks_and_terraces'),
-        ('apartment_slabs', 'green_l_block', 'grey_blocks_and_fountain', 'round_towers'),
-    ]),
-    'hospital': 405,
-    'commercial_empty': 423,
-    **_slots('commercial', 432, [
-        ('tank_under_construction', 'long_block_and_parking_court', 'brick_l_and_grey_tower', 'round_tower',
-         'glass_tower'),
-        ('radio_mast_and_car_park', 'offices_and_store', 'green_l_and_tower', 'blue_tower_wings', 'twin_towers'),
-        ('strip_mall_and_car_park', 'office_park', 'green_red_glass_court', 'green_tower', 'dark_glass_tower'),
-        ('long_store_and_car_park', 'offices_and_fountain_plaza', 'domes_and_l_block', 'stepped_terrace',
-         'white_tower_on_pyramids'),
-    ]),
-    'industrial_empty': 612,
-    **_slots('industrial', 621, [
-        ('workshop_yard', 'scrapyard', 'brick_factory', 'steel_mill'),
-        ('warehouse', 'chemical_works', 'large_factory', 'sawtooth_plant'),
-    ]),
-    'seaport': 693,
-    'airport': 709,
-    'coal_power_plant': 745,
-    'fire_station': 761,
-    'police_station': 770,
-    'stadium_empty': 779,
-    'stadium_full': 795,
-    'nuclear_power_plant': 811,
-}
-
-# The tiles of a zone the game animates, each with its frames' ids in the order src/animationManager.ts
-# cycles them, which the zone renders into frame-<n> (render_animated() in art/blender/tileart.py)
-FRAMES = {
-    'industrial_workshop_yard': {621: range(852, 860)},
-    'industrial_brick_factory': {641: range(884, 888), 644: range(888, 892)},
-    'industrial_steel_mill': {649: range(892, 896), 650: range(896, 900)},
-    'industrial_large_factory': {676: range(900, 904), 677: range(904, 908)},
-    'industrial_sawtooth_plant': {686: range(908, 912), 689: range(912, 916)},
-    'coal_power_plant': {747: range(916, 920), 748: range(920, 924), 751: range(924, 928), 752: range(928, 932)},
-    'airport': {711: range(832, 840)},
-    'stadium_full': {801: range(932, 940), 805: range(940, 948)},
-    'nuclear_power_plant': {820: range(952, 956)},
-}
-
-# Each vehicle's sprite type (src/spriteConstants.ts) and the tiles a side of the square the game
-# draws it into (SPRITE_SHEET in src/renderManifest.ts): a vehicle renders at three tiles a frame,
-# standing on its middle, and is cropped to the middle of it
-SPRITES = {'train': (1, 2), 'helicopter': (2, 2), 'airplane': (3, 3), 'ship': (4, 3)}
-
-
-class Asset:
-    # One rendered asset's layers, its size in tiles and its shadow margin
-    def __init__(self, directory):
-        with open(os.path.join(directory, 'layers.json')) as f:
-            info = json.load(f)
-        self.tiles = info['tiles']
-        self.margin = info.get('shadow_margin', {'left': 0, 'top': 0, 'right': 0, 'bottom': 0})
-        self.layers = {k: Image.open(os.path.join(directory, f'{k}.png')).convert('RGBA')
-                       for k in ('ground', 'shadow', 'objects') if os.path.exists(os.path.join(directory, f'{k}.png'))}
-
-    def tile(self, layer, column, row):
-        x, y = column * TILE_PX, row * TILE_PX
-        return self.layers[layer].crop((x, y, x + TILE_PX, y + TILE_PX))
-
-    def composite(self):
-        # the asset as the game draws it alone: ground, its shadow, objects, the size of its footprint
-        left, top = self.margin['left'] * TILE_PX, self.margin['top'] * TILE_PX
-        size = self.tiles * TILE_PX
-        image = Image.new('RGBA', self.layers['shadow'].size)
-        image.alpha_composite(self.layers['ground'], (left, top))
-        image.alpha_composite(self.layers['shadow'])
-        image.alpha_composite(self.layers['objects'], (left, top))
-        return image.crop((left, top, left + size, top + size))
 
 
 def visible(image):
@@ -150,16 +49,16 @@ def assets(source):
     # Every asset with its first tile id, and the frames of each animated tile: (id, asset, column, row)
     found, frames = [], []
     for name in SINGLE_TILES:
-        for tile in sorted(os.listdir(os.path.join(source, name))):
-            found.append((int(tile), Asset(os.path.join(source, name, tile))))
+        for tile in single_tile_ids(name):
+            found.append((tile, load(source, tile_asset(name, tile))))
     for name, first in ZONES.items():
-        found.append((first, Asset(os.path.join(source, name))))
+        found.append((first, load(source, name)))
     for name, tiles in FRAMES.items():
-        size = Asset(os.path.join(source, name)).tiles
+        size = load(source, name).tiles
         for tile, ids in tiles.items():
             offset = tile - ZONES[name]
             for k, frame_id in enumerate(ids):
-                frame = Asset(os.path.join(source, name, f'frame-{k}'))
+                frame = load(source, zone_frame(name, k))
                 frames.append((frame_id, frame, offset % size, offset // size))
     return found, frames
 
@@ -206,8 +105,9 @@ class Atlases:
         return names
 
 
-def build(source):
+def build(source, out=IMAGES):
     found, frames = assets(source)
+    render = os.path.join(out, 'render')
     ground, shadows, objects = {}, {}, {}
     reach = {}
     sheet_tiles = {}
@@ -255,30 +155,29 @@ def build(source):
             o.alpha_composite(objects[tile_id])
         objects[tile_id] = o
 
-    sprites, sheet_sprites = {}, {}
-    for vehicle, (sprite_type, square) in SPRITES.items():
-        frame_dirs = sorted(d for d in os.listdir(os.path.join(source, vehicle)) if d.isdigit())
-        for d in frame_dirs:
-            frame = Asset(os.path.join(source, vehicle, d))
+    sprites = {}
+    for vehicle, sprite in SPRITES.items():
+        for k in range(sprite['frames']):
+            frame = load(source, sprite_frame(vehicle, k))
             image = frame.layers['shadow'].copy()
             image.alpha_composite(frame.layers['objects'])
+            square = sprite['square']
             inset = (frame.tiles - square) * TILE_PX // 2
             image = image.crop((inset, inset, inset + square * TILE_PX, inset + square * TILE_PX))
             # the game counts a sprite's frames from 1, the renders from 0
-            sprites[(sprite_type, int(d) + 1)] = image
-            sheet_sprites[(sprite_type, int(d) + 1)] = image
+            sprites[(sprite['type'], k + 1)] = image
 
-    os.makedirs(RENDER, exist_ok=True)
-    for old in os.listdir(RENDER):
+    os.makedirs(render, exist_ok=True)
+    for old in os.listdir(render):
         if re.fullmatch(r'(ground|shadow|objects|sprites)-\d+\.png', old):
-            os.remove(os.path.join(RENDER, old))
+            os.remove(os.path.join(render, old))
     packed = {}
     atlases = {}
     for kind, mode, images in (('ground', 'RGB', ground), ('objects', 'RGBA', objects),
                                ('shadow', 'RGBA', shadows), ('sprites', 'RGBA', sprites)):
         pages = Atlases(kind, mode)
         packed[kind] = pages.pack(images)
-        atlases.update(pages.save(RENDER))
+        atlases.update(pages.save(render))
 
     tiles = {}
     for tile_id in sorted(ground):
@@ -292,36 +191,37 @@ def build(source):
     for (sprite_type, frame), rect in sorted(packed['sprites'].items()):
         sprite_entries.setdefault(str(sprite_type), {})[str(frame)] = rect
     manifest = {'version': 1, 'atlases': atlases, 'tiles': tiles, 'sprites': sprite_entries}
-    with open(os.path.join(RENDER, 'manifest.json'), 'w') as f:
+    with open(os.path.join(render, 'manifest.json'), 'w') as f:
         json.dump(manifest, f, indent=1)
         f.write('\n')
 
     # the 16 px sheets, for what the game still draws from them (the splash screen's map and the
-    # monster TV): each tile as the game draws its asset alone, scaled down into its id's cell, and
-    # each vehicle frame into its cell; every other cell stays as it was
-    sheet = Image.open(os.path.join(IMAGES, 'tiles.png')).convert('RGBA')
+    # monster TV): the original sheet, with each tile as the game draws its asset alone, scaled down
+    # into its id's cell, and each vehicle frame into its cell
+    sheet = Image.open(ORIGINAL_TILES).convert('RGBA')
     for tile_id, image in sheet_tiles.items():
         x, y = tile_id % SHEET_COLUMNS * SHEET_PX, tile_id // SHEET_COLUMNS * SHEET_PX
         sheet.paste(image.resize((SHEET_PX, SHEET_PX), Image.LANCZOS), (x, y))
-    sheet.save(os.path.join(IMAGES, 'tiles.png'), optimize=True)
-    sprite_sheet = Image.open(os.path.join(IMAGES, 'sprites.png')).convert('RGBA')
-    for (sprite_type, frame), image in sheet_sprites.items():
+    sheet.save(os.path.join(out, 'tiles.png'), optimize=True)
+    sprite_sheet = Image.open(ORIGINAL_SPRITES).convert('RGBA')
+    for (sprite_type, frame), image in sprites.items():
         side = image.width * SHEET_PX // TILE_PX
         x, y = (frame - 1) * SPRITE_CELL, (sprite_type - 1) * SPRITE_CELL
         sprite_sheet.paste(Image.new('RGBA', (side, side)), (x, y))
         sprite_sheet.paste(image.resize((side, side), Image.LANCZOS), (x, y))
-    sprite_sheet.save(os.path.join(IMAGES, 'sprites.png'), optimize=True)
+    sprite_sheet.save(os.path.join(out, 'sprites.png'), optimize=True)
 
     # the page's background: bare land, which repeats without a seam as every land tile on the map does
-    Image.open(os.path.join(source, 'land', '0000', 'ground.png')).convert('RGB').save(
-        os.path.join(IMAGES, 'dirtbg.png'), optimize=True)
+    load(source, single_tile(DIRT)).layers['ground'].convert('RGB').save(os.path.join(out, 'dirtbg.png'), optimize=True)
 
     print(f'{len(tiles)} tile ids, {len(shadows)} shadows and {len(sprites)} sprite frames from {source}, in '
-          f'{len(atlases)} atlases: ' + ', '.join(f'{n} {Image.open(os.path.join(RENDER, p)).size}'
+          f'{len(atlases)} atlases: ' + ', '.join(f'{n} {Image.open(os.path.join(render, p)).size}'
                                                  for n, p in atlases.items()))
 
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     p.add_argument('--source', required=True, help='the layers to build from: art/painted/out or art/blender/out')
-    build(p.parse_args().source)
+    p.add_argument('--out', default=IMAGES, help='the directory to write into, images/ by default')
+    a = p.parse_args()
+    build(a.source, a.out)

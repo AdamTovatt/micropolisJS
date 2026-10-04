@@ -19,62 +19,53 @@ each pixel, so overlapping shadows never darken twice, then every zone's objects
         commercial_office_park,residential_courtyard_block
 
 Each argument after the output is a row, west to east, of zone names under art/blender/out;
-an empty name leaves a bare lawn. A number names a single tile by its id, rendered by a tile
-set (art/blender/tiles/) into art/blender/out/<set>/<id>, so a row of ids is a strip of map:
+an empty name leaves a bare lawn. A number names a single tile by its id, rendered by the tile
+set (art/blender/tiles/) that designs.py gives it into art/blender/out/<set>/<id>, so a row of
+ids is a strip of map:
 
     python art/tools/preview.py map.png 0,13,13,0 9,2,2,17 0,5,5,0 --original
 
---original also writes <out>-original.png, the same grid from the game's 16 px tiles
-(images/tiles.png) scaled up to the same size. --root draws from another directory of layers in
-the same layout, such as the painted ones in art/painted/out. Needs Pillow.
+--original also writes <out>-original.png, the same grid from the game's original 16 px tiles
+(art/sheets/tiles-original.png) scaled up to the same size. --root draws from another directory of
+layers in the same layout, such as the painted ones in art/painted/out. Needs Pillow.
 """
 
 import argparse
-import glob
-import json
 import os
 
 from PIL import Image, ImageChops
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'blender', 'out')
-TILES = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'images', 'tiles.png')
-
-
-def _directory(name, root):
-    if not name.isdigit():
-        return os.path.join(root, name)
-    found = glob.glob(os.path.join(root, '*', f'{int(name):04d}'))
-    if len(found) != 1:
-        raise ValueError(f'tile {name} is rendered by {len(found)} sets, not one: {found}')
-    return found[0]
+from designs import ORIGINAL_TILES, RENDERS, SHEET_COLUMNS, SHEET_PX, load, single_tile
 
 
 def original(rows, out_path, tile_px):
-    # the grid as the game's 16 px tiles draw it, each scaled up to tile_px; a name that is not
-    # a tile id is left black
-    sheet = Image.open(TILES).convert('RGB')
+    # the grid as the game's original 16 px tiles draw it, each scaled up to tile_px; a name that
+    # is not a tile id is left black
+    sheet = Image.open(ORIGINAL_TILES).convert('RGB')
     w, h = tile_px * max(len(r) for r in rows), tile_px * len(rows)
     grid = Image.new('RGB', (w, h))
     for r, row in enumerate(rows):
         for c, name in enumerate(row):
             if name.isdigit():
-                t = int(name)
-                tile = sheet.crop(((t % 32) * 16, (t // 32) * 16, (t % 32) * 16 + 16, (t // 32) * 16 + 16))
+                x, y = int(name) % SHEET_COLUMNS * SHEET_PX, int(name) // SHEET_COLUMNS * SHEET_PX
+                tile = sheet.crop((x, y, x + SHEET_PX, y + SHEET_PX))
                 grid.paste(tile.resize((tile_px, tile_px), Image.NEAREST), (c * tile_px, r * tile_px))
     grid.save(out_path)
 
 
-def zone(name, root=OUT):
-    d = _directory(name, root)
-    with open(os.path.join(d, 'layers.json')) as f:
-        info = json.load(f)
-    layers = {k: Image.open(os.path.join(d, k + '.png')).convert('RGBA') for k in ('ground', 'shadow', 'objects')}
-    return info, layers
+def zone(name, root=RENDERS):
+    # a zone by its name, or a single tile by its id
+    if not name.isdigit():
+        return load(root, name)
+    asset = single_tile(int(name))
+    if asset is None:
+        raise ValueError(f'no tile set renders tile {name} (SINGLE_TILES in designs.py)')
+    return load(root, asset)
 
 
-def preview(rows, out_path, empty=(86, 118, 52), root=OUT):
+def preview(rows, out_path, empty=(86, 118, 52), root=RENDERS):
     grid = [[zone(n, root) if n else None for n in row] for row in rows]
-    sizes = {info['tiles'] * info['tile_px'] for row in grid for z in row if z for info in [z[0]]}
+    sizes = {z.size for row in grid for z in row if z}
     if len(sizes) != 1:
         raise ValueError('the zones must all be one size')
     zpx = sizes.pop()
@@ -86,20 +77,19 @@ def preview(rows, out_path, empty=(86, 118, 52), root=OUT):
         for c, z in enumerate(row):
             if z is None:
                 continue
-            info, layers = z
             x, y = c * zpx, r * zpx
-            ground.alpha_composite(layers['ground'], (x, y))
-            objects.alpha_composite(layers['objects'], (x, y))
-            m, px = info['shadow_margin'], info['tile_px']
+            ground.alpha_composite(z.layers['ground'], (x, y))
+            objects.alpha_composite(z.layers['objects'], (x, y))
+            m, px = z.margin, z.tile_px
             alpha = Image.new('L', (w, h), 0)
-            alpha.paste(layers['shadow'].getchannel('A'), (x - m['left'] * px, y - m['top'] * px))
+            alpha.paste(z.layers['shadow'].getchannel('A'), (x - m['left'] * px, y - m['top'] * px))
             shadow = ImageChops.lighter(shadow, alpha)
     dark = Image.new('RGBA', (w, h), (0, 0, 0, 255))
     dark.putalpha(shadow)
     ground.alpha_composite(dark)
     ground.alpha_composite(objects)
     ground.convert('RGB').save(out_path)
-    return next(z[0]['tile_px'] for row in grid for z in row if z)
+    return next(z.tile_px for row in grid for z in row if z)
 
 
 if __name__ == '__main__':
@@ -107,7 +97,7 @@ if __name__ == '__main__':
     p.add_argument('out')
     p.add_argument('rows', nargs='+', help='comma-separated zone names or tile ids, one argument per row')
     p.add_argument('--original', action='store_true', help="also write <out>-original.png from the game's tiles")
-    p.add_argument('--root', default=OUT, help='the directory of layers to draw from, such as art/painted/out')
+    p.add_argument('--root', default=RENDERS, help='the directory of layers to draw from, such as art/painted/out')
     a = p.parse_args()
     rows = [row.split(',') for row in a.rows]
     tile_px = preview(rows, a.out, root=a.root)
