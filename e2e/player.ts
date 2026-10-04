@@ -16,6 +16,7 @@ import { readFileSync } from "fs";
 
 import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
 import type { Advanced, View } from "../src/testHook";
+import { steppedZoom } from "../src/viewPosition";
 import { CITY_LINK, signIn } from "./gameServer";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
@@ -58,6 +59,9 @@ const NEAR_ENOUGH_TO_TAP = 3;
 const MAX_SCROLL_PRESSES = 500;
 // The longest a held key may leave the view where it was
 const HOLD_STALL_MS = 1000;
+
+// The pixels a notch of a mouse wheel turns, as Chromium reports it
+const WHEEL_NOTCH = 100;
 
 export class Player {
   // Steps taken through the hook since the count was last read
@@ -220,6 +224,40 @@ export class Player {
     await this.page.mouse.move(end.x, end.y, {steps: moves ?? Math.max(tiles, 1)});
     await this.page.mouse.up();
     await this.applyInput();
+  }
+
+  // Zooms with the mouse wheel over a tile, a notch a step: up to zoom in, down to zoom out. Fails unless the view
+  // comes to the zoom step the notches lead to with the tile still under the pointer, as it does away from the view's
+  // limits.
+  async zoomWithWheel(tile: Tile, steps: number): Promise<void> {
+    const point = await this.tilePoint(tile);
+    const expected = steppedZoom((await this.view()).tileWidth, steps);
+    await this.page.mouse.move(point.x, point.y);
+    for (let notch = 0; notch < Math.abs(steps); notch++) {
+      await this.page.mouse.wheel(0, steps > 0 ? -WHEEL_NOTCH : WHEEL_NOTCH);
+    }
+
+    await expect.poll(async () => (await this.view()).tileWidth, "the zoom the wheel led to").toBe(expected);
+    const view = await this.view();
+    const canvas = await this.canvasBox();
+    expect({x: view.originX + Math.floor((point.x - canvas.x) / view.tileWidth),
+            y: view.originY + Math.floor((point.y - canvas.y) / view.tileWidth)}, "the tile under the pointer")
+      .toEqual(tile);
+  }
+
+  // Zooms with the + and - keys, a press a step. Fails unless the view comes to the zoom step the presses lead to.
+  async zoomWithKeys(steps: number): Promise<void> {
+    const expected = steppedZoom((await this.view()).tileWidth, steps);
+    for (let press = 0; press < Math.abs(steps); press++) {
+      await this.page.keyboard.press(steps > 0 ? "+" : "-");
+    }
+
+    await expect.poll(async () => (await this.view()).tileWidth, "the zoom the keys led to").toBe(expected);
+  }
+
+  // A tile's width on the canvas, in CSS pixels, at the zoom the view is at
+  async tileWidth(): Promise<number> {
+    return (await this.view()).tileWidth;
   }
 
   // Queries a tile with the query tool and reads one of the debug figures the query window shows, by the id of its

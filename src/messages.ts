@@ -93,6 +93,7 @@ export const TRAFFIC_JAMS = "Traffic jams reported";
 export const TRAIN_CRASHED = "Train crashed";
 export const VALVES_UPDATED = "Valves updated";
 export const WELCOME = "Welcome to micropolisJS";
+export const ZOOM_REQUESTED = "Zoom requested";
 
 export const DISASTER_MESSAGES = [
   EARTHQUAKE,

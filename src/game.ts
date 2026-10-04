@@ -26,7 +26,7 @@ import { errorMessage } from "./errorMessage";
 import { EvaluationWindow } from "./evaluationWindow";
 import { GameCanvas, MouseOutline } from "./gameCanvas";
 import { InfoBar, placeInfoBar } from "./infoBar";
-import { InputStatus, ToolClick } from "./inputStatus";
+import { InputStatus, ToolClick, ZoomRequest } from "./inputStatus";
 import * as Messages from "./messages";
 import { MonsterTV } from "./monsterTV";
 import { NewsHold, routeMessage } from "./news";
@@ -182,7 +182,7 @@ export class Game {
     // Note: must init canvas before inputStatus
     this.gameCanvas = new GameCanvas("canvasContainer");
     this.gameCanvas.init(state.map, mapArt);
-    this.inputStatus = new InputStatus(this.gameCanvas.tileWidth);
+    this.inputStatus = new InputStatus(() => this.gameCanvas.tileWidth);
 
     new OverlayPicker("overlayPanel", cityOverlaySource(source, state), this.gameCanvas);
 
@@ -251,6 +251,13 @@ export class Game {
 
     // And pauses
     this.inputStatus.addEventListener(Messages.PAUSE_REQUESTED, () => this.speedControl.togglePause());
+
+    // And zooms, which a window holding the keyboard and mouse holds back, as it holds back scrolling
+    this.inputStatus.addEventListener(Messages.ZOOM_REQUESTED, ({steps, point}: ZoomRequest) => {
+      if (!this.windows.holdsInput()) {
+        this.gameCanvas.zoomBy(steps, point);
+      }
+    });
 
     this.infoBar = placeInfoBar(started.name);
     this.infoBar.showDate(state.current("date"));

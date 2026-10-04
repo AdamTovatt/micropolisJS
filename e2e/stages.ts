@@ -271,6 +271,30 @@ export const STAGES: Stage[] = [
       await player.advance(YEAR / 2);
     },
   },
+  {
+    name: "Zoom in, build, and zoom out",
+    async play(player) {
+      // A road dragged at the closest zoom, so the zoomed pointer's tiles are the ones built on. The game opens at 16
+      // pixels a tile, which a reload starts again from. Zooming takes no steps and sends no commands.
+      const row = {left: 50, top: 30, right: 56, bottom: 30};
+      expect(await player.tileWidth(), "the zoom a loaded game opens at").toBe(16);
+      await player.showTiles(tilesIn(row));
+      await player.zoomWithWheel({x: 53, y: 30}, 1);
+      await player.zoomWithKeys(1);
+
+      await player.selectTool("road");
+      await player.showTiles(tilesIn(row));
+      await player.dragTiles({x: row.left, y: row.top}, {x: row.right, y: row.top});
+      const save = await player.save();
+      const notRoad = tilesIn(row).filter((tile) => !TileUtils.isRoad(tileAt(save, tile)));
+      expect(notRoad, "tiles of the zoomed drag that are not road").toEqual([]);
+      expect(TileUtils.isRoad(tileAt(save, {x: row.left - 1, y: row.top})), "the tile before the drag").toBe(false);
+      expect(TileUtils.isRoad(tileAt(save, {x: row.right + 1, y: row.top})), "the tile after the drag").toBe(false);
+
+      await player.zoomWithKeys(-1);
+      await player.zoomWithWheel({x: 53, y: 30}, -1);
+    },
+  },
 ];
 
 // After the stages, the server's own driver runs the city, on the server's clock. It waits on city time, never on wall

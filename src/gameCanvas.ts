@@ -22,8 +22,8 @@ import type { PaintableMap, PaintableSprite } from "./paintable";
 import type { MapArt } from "./renderAssets";
 import type { RenderArt } from "./renderManifest";
 import { BIT_MASK } from "./tileFlags";
-import { ViewPosition, canvasPointToTile, viewport } from "./viewPosition";
-import type { OriginLimits, PixelPoint, TilePoint } from "./viewPosition";
+import { ViewPosition, ZOOM_STEPS, canvasPointToTile, steppedZoom, viewport } from "./viewPosition";
+import type { OriginLimits, PixelPoint, TilePoint, Viewport } from "./viewPosition";
 import { WebGLRenderer } from "./webglRenderer";
 
 // A tool's outline. x and y are the tile under the mouse, in tile offsets from the view's origin: the top-left of a
@@ -89,13 +89,10 @@ function placeLayer(parent: HTMLElement, id: string, before: Node | null): HTMLC
   return canvas;
 }
 
-// The CSS pixels a tile is drawn
-const TILE_WIDTH = 16;
-
-// Draws the map with WebGL on a canvas that fills its container, with a 2D canvas over it for the marks the player's
-// interface draws: the tools' outlines, other players' named. Each canvas's backing store has devicePixelRatio pixels
-// for each CSS pixel, so the art is sharp on a dense screen, while positions on the canvas and the tile width are CSS
-// pixels.
+// Draws the map with WebGL on a canvas that fills its container, zoomed to one of the zoom steps, with a 2D canvas over
+// it for the marks the player's interface draws: the tools' outlines, other players' named. Each canvas's backing
+// store has devicePixelRatio pixels for each CSS pixel, so the art is sharp on a dense screen, while positions on the
+// canvas, the tile width and the zoom are CSS pixels.
 class GameCanvas {
   static readonly DEFAULT_ID = "MicropolisCanvas";
   static readonly MARKS_ID = "MicropolisMarks";
@@ -113,6 +110,9 @@ class GameCanvas {
   // What the map and the marks were last drawn from, so a paint that would draw the same again doesn't
   private readonly drawn = new FrameRecord();
   private marksDrawn = "";
+
+  // The CSS pixels a tile is drawn
+  private zoom = ZOOM_STEPS[0];
 
   // The canvas' size in CSS pixels, and its backing store's pixels for each, as of the last change of dimensions
   private width = 0;
@@ -141,18 +141,18 @@ class GameCanvas {
     this.marks.style.pointerEvents = "none";
   }
 
-  // The CSS pixels a tile is drawn
+  // The CSS pixels a tile is drawn, at the zoom the view is at
   get tileWidth(): number {
-    return TILE_WIDTH;
+    return this.zoom;
   }
 
   // The map pixels the view shows across and down, at 16 a tile, as sprites are positioned
   get mapPixelWidth(): number {
-    return this.width * SPRITE_PIXELS_PER_TILE / TILE_WIDTH;
+    return this.width * SPRITE_PIXELS_PER_TILE / this.zoom;
   }
 
   get mapPixelHeight(): number {
-    return this.height * SPRITE_PIXELS_PER_TILE / TILE_WIDTH;
+    return this.height * SPRITE_PIXELS_PER_TILE / this.zoom;
   }
 
   init(map: PaintableMap, {art, atlases}: MapArt): void {
@@ -201,6 +201,20 @@ class GameCanvas {
     this.position.centreOn(x, y);
   }
 
+  // Zooms in (a positive steps) or out (a negative one) through the zoom steps, keeping the tile under a point of the
+  // canvas, in CSS pixels, under it: the pointer, or the middle of the view when it is null
+  zoomBy(steps: number, point: PixelPoint | null): void {
+    this.requireReady();
+    const zoom = steppedZoom(this.zoom, steps);
+    if (zoom === this.zoom) {
+      return;
+    }
+
+    const around = point ?? {x: Math.floor(this.width / 2), y: Math.floor(this.height / 2)};
+    this.position.zoom(this.viewportAt(zoom), around, this.zoom, zoom);
+    this.zoom = zoom;
+  }
+
   getTileOrigin(): TilePoint {
     this.requireReady();
     return this.position.origin;
@@ -219,12 +233,12 @@ class GameCanvas {
 
   canvasCoordinateToTileOffset(x: number, y: number): TilePoint {
     this.requireReady();
-    return {x: Math.floor(x / TILE_WIDTH), y: Math.floor(y / TILE_WIDTH)};
+    return {x: Math.floor(x / this.zoom), y: Math.floor(y / this.zoom)};
   }
 
   canvasCoordinateToTileCoordinate(x: number, y: number): TilePoint | null {
     this.requireReady();
-    return canvasPointToTile(x, y, this.position.origin, TILE_WIDTH, this.width, this.height);
+    return canvasPointToTile(x, y, this.position.origin, this.zoom, this.width, this.height);
   }
 
   // Shows an overlay view, or none
@@ -257,7 +271,7 @@ class GameCanvas {
     return picture.toDataURL();
   }
 
-  // The view as it shows, the marks over the map, at the backing store's pixels, as a PNG's data URI
+  // The view as it shows, the marks over the map, at the zoom and the backing store's pixels, as a PNG's data URI
   screenshotVisible(): string {
     this.requireReady();
     const picture = document.createElement("canvas");
@@ -285,16 +299,16 @@ class GameCanvas {
     const origin = this.position.origin;
     const tiles = this.readTiles(origin, isPaused);
     const overlay = this.overlay;
-    const view = [origin.x, origin.y, TILE_WIDTH, this.canvas.width, this.canvas.height, this.overlaysShown,
+    const view = [origin.x, origin.y, this.zoom, this.canvas.width, this.canvas.height, this.overlaysShown,
                   this.renderer.contextRestores].join();
     if (this.drawn.changed(view, tiles, sprites ?? [])) {
-      buildMapFrame(this.frame, this.art, tiles, TILE_WIDTH * this.pixelRatio,
+      buildMapFrame(this.frame, this.art, tiles, this.zoom * this.pixelRatio,
                     overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites ?? []);
       this.renderer.draw(this.frame);
     }
 
     const boxes = outlines.map((outline) => ({
-      outline, box: mouseOutlineLayout(outline, origin.x, origin.y, this.map.width, this.map.height, TILE_WIDTH),
+      outline, box: mouseOutlineLayout(outline, origin.x, origin.y, this.map.width, this.map.height, this.zoom),
     }));
     const marks = JSON.stringify([this.marks.width, this.marks.height, boxes]);
     if (marks === this.marksDrawn) {
@@ -345,6 +359,10 @@ class GameCanvas {
     }
   }
 
+  private viewportAt(zoom: number): Viewport {
+    return viewport(this.width, this.height, zoom, this.map.width, this.map.height, true);
+  }
+
   private calculateDimensions(): void {
     // The canvases fill their container on-screen
     const parentNode = this.canvas.parentNode as HTMLElement;
@@ -360,7 +378,7 @@ class GameCanvas {
     }
 
     // The origin stays where it is until it next moves
-    const view = viewport(this.width, this.height, TILE_WIDTH, this.map.width, this.map.height, true);
+    const view = this.viewportAt(this.zoom);
     if (this.position === undefined) {
       this.position = new ViewPosition(view);
     } else {

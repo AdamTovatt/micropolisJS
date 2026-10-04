@@ -11,7 +11,9 @@
  *
  */
 
-import { ViewPosition, canvasPointToTile, centredOrigin, viewport } from "../src/viewPosition";
+import {
+    ViewPosition, ZOOM_STEPS, canvasPointToTile, centredOrigin, steppedZoom, viewport, zoomedOrigin,
+} from "../src/viewPosition";
 
 const TILE_WIDTH = 16;
 const MAP_WIDTH = 120;
@@ -138,6 +140,84 @@ describe("the view", () => {
         it("finds no tile past the canvas' right or bottom edge", () => {
             expect(canvasPointToTile(1280, 10, {x: 20, y: 22}, TILE_WIDTH, 1280, 900)).toBeNull();
             expect(canvasPointToTile(10, 900, {x: 20, y: 22}, TILE_WIDTH, 1280, 900)).toBeNull();
+        });
+
+        it.each(ZOOM_STEPS)("finds each tile of the view under every point of its square at %i pixels a tile",
+                            (zoom) => {
+            const origin = {x: 20, y: 22};
+            const view = viewport(1280, 900, zoom, MAP_WIDTH, MAP_HEIGHT, true);
+            const wrong: string[] = [];
+
+            for (let column = 0; column < view.wholeTilesInViewX; column++) {
+                for (let row = 0; row < view.wholeTilesInViewY; row++) {
+                    // The tile's square on the canvas, from its corner to the pixel before the next tile's
+                    for (const [x, y] of [[0, 0], [zoom - 1, 0], [0, zoom - 1], [zoom - 1, zoom - 1], [zoom / 2, 3]]) {
+                        const found = canvasPointToTile(column * zoom + x, row * zoom + y, origin, zoom, 1280, 900);
+                        if (found?.x !== origin.x + column || found.y !== origin.y + row) {
+                            wrong.push(`(${column}, ${row}) at +(${x}, ${y})`);
+                        }
+                    }
+                }
+            }
+
+            expect(wrong).toEqual([]);
+        });
+    });
+
+    describe("zooming", () => {
+
+        it("steps in and out through the zoom steps, held at the ends", () => {
+            expect(ZOOM_STEPS[0]).toBe(16);
+            expect([steppedZoom(16, 1), steppedZoom(32, 1), steppedZoom(64, 1)]).toEqual([32, 64, 64]);
+            expect([steppedZoom(64, -1), steppedZoom(32, -1), steppedZoom(16, -1)]).toEqual([32, 16, 16]);
+        });
+
+        it("refuses a zoom that is not a step", () => {
+            expect(() => steppedZoom(24, 1)).toThrow("24 is not a zoom step");
+        });
+
+        // Every pair of steps, either way, at points across the canvas
+        const pairs = ZOOM_STEPS.flatMap((from) => ZOOM_STEPS.filter((to) => to !== from).map((to) => [from, to]));
+        const points = [{x: 0, y: 0}, {x: 640, y: 450}, {x: 17, y: 899}, {x: 1279, y: 31}, {x: 333, y: 777}];
+
+        it.each(pairs)("keeps the tile under the pointer under it from %i to %i pixels a tile", (from, to) => {
+            const origin = {x: 20, y: 22};
+            const after = viewport(1280, 900, to, MAP_WIDTH, MAP_HEIGHT, true);
+
+            for (const point of points) {
+                const zoomed = zoomedOrigin(origin, point, from, to, after);
+
+                expect(canvasPointToTile(point.x, point.y, zoomed, to, 1280, 900))
+                    .toEqual(canvasPointToTile(point.x, point.y, origin, from, 1280, 900));
+            }
+        });
+
+        it("keeps the origin on whole tiles", () => {
+            const zoomed = zoomedOrigin({x: 20, y: 22}, {x: 333, y: 777}, 16, 64,
+                                        viewport(1280, 900, 64, MAP_WIDTH, MAP_HEIGHT, true));
+
+            expect([Number.isInteger(zoomed.x), Number.isInteger(zoomed.y)]).toEqual([true, true]);
+        });
+
+        it("holds the origin within the new viewport's limits", () => {
+            // Zoomed out from the map's top-left corner, the tile under the pointer would need an origin past the limits
+            const out = viewport(1280, 900, 16, MAP_WIDTH, MAP_HEIGHT, true);
+            const zoomed = zoomedOrigin({x: -10, y: -7}, {x: 1279, y: 899}, 64, 16, out);
+
+            expect(zoomed).toEqual({x: out.minX, y: out.minY});
+        });
+
+        it("moves the view's position to the zoomed origin and viewport", () => {
+            const position = new ViewPosition(MAIN);
+            position.centreOn(60, 50);
+            expect(position.origin).toEqual({x: 20, y: 22});
+            const after = viewport(1280, 900, 32, MAP_WIDTH, MAP_HEIGHT, true);
+
+            position.zoom(after, {x: 640, y: 450}, 16, 32);
+
+            // The tile under (640, 450) is (20 + 40, 22 + 28): at 32 pixels a tile it is 20 and 14 tiles in
+            expect(position.viewport).toBe(after);
+            expect(position.origin).toEqual({x: 40, y: 36});
         });
     });
 });
