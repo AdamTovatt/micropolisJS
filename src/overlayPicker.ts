@@ -19,7 +19,8 @@ import { QuerySource } from "./querySource";
 import { Text } from "./text";
 
 // The player's choice of map overlay: asks the simulation for the chosen layer, asks again each time the simulation
-// announces it recomputed, and shows each answer.
+// announces it recomputed, has the map drawn with each answer, and shows the legend of the overlay the map was drawn
+// with.
 
 // Where the overlay's data comes from: the city source's answers, and its overlayUpdated messages
 export interface OverlaySource extends QuerySource {
@@ -35,13 +36,15 @@ export function cityOverlaySource(source: QuerySource, state: Pick<CityState, "o
   };
 }
 
-// Where the overlay is drawn
+// Where the overlay is drawn, which may draw it some frames after it is set
 export interface OverlayCanvas {
   setOverlay(view: OverlayView | null): void;
+  // Calls the listener with the overlay of each frame drawn with another overlay than the frame before, null for none
+  onOverlayDrawn(listener: (view: OverlayView | null) => void): void;
 }
 
-// Every decision about which answer shows is made here, so it is tested under node. OverlayPicker only builds the
-// picker and legend in the DOM.
+// Every decision about which answer the map is given is made here, so it is tested under node. OverlayPicker only
+// builds the picker and legend in the DOM, and the legend follows the overlay the canvas says it drew.
 export class OverlaySelection {
   private layer: OverlayLayer | null = null;
 
@@ -119,10 +122,10 @@ export class OverlayPicker {
     this.legendHigh = appendElement(ends, "span", "overlayLegendHigh");
     this.legend.hidden = true;
 
-    this.selection = new OverlaySelection(source, (view) => {
-      canvas.setOverlay(view);
-      this.renderLegend(view);
-    });
+    this.selection = new OverlaySelection(source, (view) => canvas.setOverlay(view));
+    // The legend shows the overlay the canvas drew, not the one chosen, so it never names another layer than the
+    // tint showing while the canvas is still to draw the new one
+    canvas.onOverlayDrawn((view) => this.renderLegend(view));
 
     select.addEventListener("change", () => {
       this.selection.select(select.value === "" ? null : select.value as OverlayLayer);
@@ -139,7 +142,8 @@ export class OverlayPicker {
 
     const legend = legendView(view.answer);
     this.legendTitle.textContent = legend.title;
-    this.legendBar.style.background = legend.gradient;
+    // Over the bar's own neutral background, which the stylesheet sets
+    this.legendBar.style.backgroundImage = legend.gradient;
     this.legendLow.textContent = legend.lowLabel;
     this.legendHigh.textContent = legend.highLabel;
   }

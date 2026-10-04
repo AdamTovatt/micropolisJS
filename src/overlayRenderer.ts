@@ -24,9 +24,10 @@ type Rgb = readonly [number, number, number];
 // bare ground where red would not
 const HARM: Rgb = [190, 0, 150];
 
-// The colour of each layer's high end. A value at the low end is left untinted, so the overlay marks where a layer
-// has something to show and the tiles stay readable elsewhere.
-const HIGH_COLOURS: Record<OverlayLayer, Rgb> = {
+// The colour of each layer's tint. A layer's ramp is its colour throughout, only its opacity growing, from none at the
+// low end to MAX_ALPHA at the high end (see opacity), so the overlay marks where a layer has something to show, each
+// level of it tells from the next by how strongly it shows, and the tiles stay readable elsewhere.
+const LAYER_COLOURS: Record<OverlayLayer, Rgb> = {
   landValue: [0, 150, 60],
   pollution: HARM,
   crime: HARM,
@@ -35,17 +36,30 @@ const HIGH_COLOURS: Record<OverlayLayer, Rgb> = {
   policeCoverage: [0, 80, 220],
   fireCoverage: [230, 90, 0],
   powerGrid: [240, 200, 0],
-  // A layer whose range runs both sides of zero, such as the rate of growth, is tinted from zero both ways: toward
-  // this colour above it, and toward DECLINE below
+  // A layer whose range runs both sides of zero, such as the rate of growth, is untinted at zero and fades in from
+  // there both ways: in this colour above it, and in DECLINE below
   rateOfGrowth: [0, 150, 60],
 };
 
 const DECLINE = HARM;
 
-// The tint of a value just past the low end: pale, and faint
-const PALE: Rgb = [255, 250, 190];
-const MIN_ALPHA = 0.25;
+// The opacity of a ramp's high end
 const MAX_ALPHA = 0.75;
+
+// The share of MAX_ALPHA a value just above the low end is tinted at
+const FLOOR = 1 / 3;
+
+// The opacity of a value at place t of its ramp, from 0, the low end, to 1, the high end: none at the low end, and
+// above it from FLOOR of the full opacity, growing with the square root of t. The values real cities reach are a
+// small part of some layers' range, as fire coverage peaks around 50 to 110 of its 1000, and a tint that grew with t
+// would leave them all but invisible.
+function opacity(t: number): number {
+  return t === 0 ? 0 : MAX_ALPHA * (FLOOR + (1 - FLOOR) * Math.sqrt(t));
+}
+
+// The places along a ramp the legend's gradient draws the opacity at, going straight between them, close enough to
+// the curve, and with room at the low end for the bar to read as none there
+const LEGEND_PLACES = [0, 0.04, 0.1, 0.2, 0.35, 0.5, 0.7, 1];
 
 // A tint: red, green and blue from 0 to 255, and its alpha from 0 to 1, rounded to thousandths as CSS writes it
 export interface Tint {
@@ -55,32 +69,24 @@ export interface Tint {
   a: number;
 }
 
-// A colour as CSS writes it, which the legend's gradient takes
+// A colour as CSS writes it, which the legend's gradient takes, its alpha rounded to thousandths as a tint's is
 function css([r, g, b]: Rgb, alpha: number): string {
-  return tintCss({r, g, b, a: Math.round(alpha * 1000) / 1000});
+  return `rgba(${r}, ${g}, ${b}, ${Math.round(alpha * 1000) / 1000})`;
 }
 
-export function tintCss({r, g, b, a}: Tint): string {
-  return `rgba(${r}, ${g}, ${b}, ${a})`;
-}
-
-function mix(from: Rgb, to: Rgb, t: number): Rgb {
-  return [0, 1, 2].map((i) => Math.round(from[i] + (to[i] - from[i]) * t)) as unknown as Rgb;
-}
-
-// How far toward its colour a value is tinted, from 0, untinted, to 1. A value past an end of the range, as several
-// stations' coverage can be, is tinted as that end.
+// A value's place along its ramp, from 0, the low end, to 1, the high end, which opacity turns into the tint's alpha.
+// A value past an end of the range, as several stations' coverage can be, is placed at that end.
 function strength(value: number, from: number, to: number): number {
   return Math.min(Math.max((value - from) / (to - from), 0), 1);
 }
 
-function tint(colour: Rgb, t: number): Tint | null {
+// The colour at place t of its ramp, or null for none, which leaves the tile untinted
+function tint([r, g, b]: Rgb, t: number): Tint | null {
   if (t === 0) {
     return null;
   }
 
-  const [r, g, b] = mix(PALE, colour, t);
-  return {r, g, b, a: Math.round((MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * t) * 1000) / 1000};
+  return {r, g, b, a: Math.round(opacity(t) * 1000) / 1000};
 }
 
 function isDiverging(answer: OverlayAnswer): boolean {
@@ -89,7 +95,7 @@ function isDiverging(answer: OverlayAnswer): boolean {
 
 // The tint of a value of the answer's layer, or null to leave the tile untinted
 export function rampColour(answer: OverlayAnswer, value: number): Tint | null {
-  const colour = HIGH_COLOURS[answer.layer];
+  const colour = LAYER_COLOURS[answer.layer];
 
   if (isDiverging(answer)) {
     return value < 0 ? tint(DECLINE, strength(-value, 0, -answer.low)) : tint(colour, strength(value, 0, answer.high));
@@ -99,7 +105,8 @@ export function rampColour(answer: OverlayAnswer, value: number): Tint | null {
 }
 
 // What the legend shows for an answer: the layer's name, the words for its low and high ends, and the colour ramp
-// between them as a CSS gradient
+// between them as a CSS gradient, which the legend lays over a neutral background, as the tint lies over the map, so
+// its untinted end reads as none
 export interface LegendView {
   title: string;
   lowLabel: string;
@@ -120,10 +127,16 @@ export function layerName(layer: OverlayLayer): string {
 }
 
 export function legendView(answer: OverlayAnswer): LegendView {
-  const colour = HIGH_COLOURS[answer.layer];
-  const stops = isDiverging(answer) ?
-    [css(DECLINE, MAX_ALPHA), css(PALE, 0), css(colour, MAX_ALPHA)] :
-    [css(PALE, 0), css(mix(PALE, colour, 0.5), (MIN_ALPHA + MAX_ALPHA) / 2), css(colour, MAX_ALPHA)];
+  const colour = LAYER_COLOURS[answer.layer];
+  // The stop of place t of a ramp in the colour, drawn from 0 to 1 at the fraction of the bar given
+  const stop = (rgb: Rgb, t: number, at: number) => `${css(rgb, opacity(t))} ${Math.round(at * 1000) / 10}%`;
+
+  // A diverging ramp fades out to zero in each of its colours, so neither colour's hue tints the other's side
+  const zero = isDiverging(answer) ? -answer.low / (answer.high - answer.low) : 0;
+  const stops = [
+    ...(zero > 0 ? [...LEGEND_PLACES].reverse().map((t) => stop(DECLINE, t, zero * (1 - t))) : []),
+    ...LEGEND_PLACES.map((t) => stop(colour, t, zero + (1 - zero) * t)),
+  ];
   const text = layerText[answer.layer];
 
   return {

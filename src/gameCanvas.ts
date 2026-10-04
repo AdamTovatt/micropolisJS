@@ -105,6 +105,9 @@ class GameCanvas {
   private readonly frame = new MapFrame();
   // The map overlay tinting each tile, under the sprites
   private overlay: OverlayView | null = null;
+  // The overlay of the last frame drawn, and who hears of each new one
+  private overlayDrawn: OverlayView | null = null;
+  private readonly overlayDrawnListeners: ((view: OverlayView | null) => void)[] = [];
   // What the map and the marks were last drawn from, so a paint that would draw the same again doesn't
   private readonly drawn = new FrameRecord();
   private marksDrawn = "";
@@ -228,10 +231,15 @@ class GameCanvas {
     return canvasPointToTile(x, y, this.position.origin, this.zoom, this.width, this.height);
   }
 
-  // Shows an overlay view, or none
+  // Shows an overlay view, or none, from the next frame drawn
   setOverlay(view: OverlayView | null): void {
     this.overlay = view;
     this.drawn.invalidate();
+  }
+
+  // Calls the listener with the overlay of each frame drawn with another overlay than the frame before, null for none
+  onOverlayDrawn(listener: (view: OverlayView | null) => void): void {
+    this.overlayDrawnListeners.push(listener);
   }
 
   // The whole map at 16 pixels a tile, as a PNG's data URI: each tile's own value, unanimated, with no sprites or
@@ -297,6 +305,15 @@ class GameCanvas {
         buildMapFrame(this.frame, this.art, tiles, view.tilePixels,
                       overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites ?? [], areas);
         this.renderer.draw(this.frame, areas);
+
+        // Setting the overlay forgets the frame drawn, so the first frame drawn after it is drawn whole, with it. While
+        // the WebGL context is lost the renderer draws nothing and this still reports the overlay, but the map is
+        // blank then, so no other layer's tint shows under the legend, and the restored context's first frame draws
+        // the map whole with the overlay reported
+        if (overlay !== this.overlayDrawn) {
+          this.overlayDrawn = overlay;
+          this.overlayDrawnListeners.forEach((listener) => listener(overlay));
+        }
       }
     }
 

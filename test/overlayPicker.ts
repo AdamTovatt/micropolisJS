@@ -12,45 +12,21 @@
  */
 
 import { CityState } from "../src/cityState";
-import { cityOverlaySource, OverlaySelection, OverlaySource } from "../src/overlayPicker";
+import { cityOverlaySource, OverlaySelection } from "../src/overlayPicker";
 import { OverlayView } from "../src/overlayRenderer";
-import { OverlayLayer, Query, QueryAnswer } from "../src/protocol";
+import { OverlayLayer, QueryAnswer } from "../src/protocol";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
+import { FakeOverlaySource } from "./helpers/fakeOverlaySource";
 import { answerTo } from "./helpers/queryAnswers";
 import { CYCLES_IN_A_YEAR, FAST_CYCLE } from "./helpers/cityTimes";
 import { openTown, TOWN_OVERLAY } from "./recordings/scenarios";
-
-// A source that answers each query when the test says, as a server would some time after it was asked
-class FakeSource implements OverlaySource {
-    readonly asked: Query[] = [];
-    private readonly pending: ((answer: QueryAnswer) => void)[] = [];
-    private readonly listeners: ((layer: OverlayLayer) => void)[] = [];
-
-    onLayerUpdated(listener: (layer: OverlayLayer) => void): void {
-        this.listeners.push(listener);
-    }
-
-    ask(query: Query, reply: (answer: QueryAnswer) => void): void {
-        this.asked.push(query);
-        this.pending.push(reply);
-    }
-
-    // Answers the oldest query not yet answered
-    answer(answer: QueryAnswer): void {
-        this.pending.shift()!(answer);
-    }
-
-    announce(layer: OverlayLayer): void {
-        this.listeners.forEach((listener) => listener(layer));
-    }
-}
 
 function answerFor(layer: OverlayLayer, values = [1, 2, 3, 4]): QueryAnswer {
     return {type: "overlay", layer, blockSize: 2, width: 2, height: 2, low: 0, high: 4, values};
 }
 
 function selection() {
-    const source = new FakeSource();
+    const source = new FakeOverlaySource();
     const shown: (OverlayView | null)[] = [];
     const overlays = new OverlaySelection(source, (view) => shown.push(view));
     return {source, shown, overlays};

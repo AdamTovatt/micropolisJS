@@ -464,6 +464,7 @@ main {
   height: 12px;
   margin: 4px 0;
   border: 1px solid black;
+  background-color: white;
 }
 
 #overlayPanel .overlayLegendEnds {
