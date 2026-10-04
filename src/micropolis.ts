@@ -108,7 +108,7 @@ async function start(seed: number | null, city: string | null): Promise<void> {
     attachDriverToTestHook(source.driver);
   }
 
-  const parts = {source, state, tileSet, spriteSheet: sprites};
+  const parts = {source, state, presence: cityClient, tileSet, spriteSheet: sprites};
   if (city !== null && await joinLinkedCity(city, webSocketSource, (started) => new Game(parts, started), window)) {
     return;
   }

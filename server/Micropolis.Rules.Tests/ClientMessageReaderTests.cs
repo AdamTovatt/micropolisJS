@@ -47,6 +47,15 @@ namespace Micropolis.Rules.Tests
         [DataRow("{\"type\":\"advance\",\"id\":1,\"steps\":1e400}", "The steps is a number.", DisplayName = "steps past any double")]
         [DataRow("{\"type\":\"turn\",\"id\":1}", "the turn message has exactly the fields type, id, milliseconds", DisplayName = "a turn without its time")]
         [DataRow("{\"type\":\"command\"}", "the command message has exactly the fields type, command", DisplayName = "a command message without its command")]
+        [DataRow("{\"type\":\"cursor\"}", "the cursor message has exactly the fields type, cursor", DisplayName = "a cursor message without its box")]
+        [DataRow("{\"type\":\"cursor\",\"cursor\":[]}", "A hover box is null or has exactly the fields tool, x, y, size.", DisplayName = "a hover box that is a list")]
+        [DataRow("{\"type\":\"cursor\",\"cursor\":{\"tool\":\"road\",\"x\":1,\"y\":1}}", "A hover box is null or has exactly the fields tool, x, y, size.", DisplayName = "a hover box without its size")]
+        [DataRow("{\"type\":\"cursor\",\"cursor\":{\"tool\":\"road\",\"x\":1,\"y\":1,\"size\":1,\"colour\":\"red\"}}", "A hover box is null or has exactly the fields tool, x, y, size.", DisplayName = "a hover box with a field it doesn't have")]
+        [DataRow("{\"type\":\"cursor\",\"cursor\":{\"tool\":\"crane\",\"x\":1,\"y\":1,\"size\":1}}", "A hover box's tool is one of airport", DisplayName = "a hover box whose tool no tool names")]
+        [DataRow("{\"type\":\"cursor\",\"cursor\":{\"tool\":\"road, rail\",\"x\":1,\"y\":1,\"size\":1}}", "A hover box's tool is one of airport", DisplayName = "a hover box whose tool is two tool names")]
+        [DataRow("{\"type\":\"cursor\",\"cursor\":{\"tool\":\"road\",\"x\":1.5,\"y\":1,\"size\":1}}", "A hover box's x is a whole number.", DisplayName = "a hover box on a tile that isn't whole")]
+        [DataRow("{\"type\":\"cursor\",\"cursor\":{\"tool\":\"road\",\"x\":1,\"y\":\"1\",\"size\":1}}", "A hover box's y is a whole number.", DisplayName = "a hover box whose row is a string")]
+        [DataRow("{\"type\":\"cursor\",\"cursor\":{\"tool\":\"road\",\"x\":1,\"y\":1,\"size\":2147483648}}", "A hover box's size is a whole number.", DisplayName = "a hover box past an int")]
         public void Read_NoMessageAPlayerSends_IsRefusedSayingWhy(string text, string reason)
         {
             // The JSON reader's own exceptions are JsonExceptions of a type of its own
@@ -80,6 +89,20 @@ namespace Micropolis.Rules.Tests
             CommandMessage read = (CommandMessage)ClientMessageReader.Read($"{{\"type\":\"command\",\"command\":{command}}}");
 
             Assert.AreEqual(CanonicalJson.Write(JsonText.Parse(command)), CanonicalJson.Write(read.Command));
+        }
+
+        // Whether the box fits the city's map, and has a size a tool has, is the city's to say
+        [TestMethod]
+        public void Read_HoverBoxOffAnyMap_IsTheReport()
+        {
+            Assert.AreEqual(new CursorReport(new Cursor(CursorTool.Airport, -1, 100000, 0)),
+                ClientMessageReader.Read("{\"type\":\"cursor\",\"cursor\":{\"tool\":\"airport\",\"x\":-1,\"y\":100000,\"size\":0}}"));
+        }
+
+        [TestMethod]
+        public void Read_NullHoverBox_IsTheReportThatItWent()
+        {
+            Assert.AreEqual(new CursorReport(null), ClientMessageReader.Read("{\"type\":\"cursor\",\"cursor\":null}"));
         }
 
         [TestMethod]

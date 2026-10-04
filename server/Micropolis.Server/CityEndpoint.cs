@@ -73,7 +73,7 @@ namespace Micropolis.Server
                 () => connection.Close(WebSocketCloseStatus.EndpointUnavailable, "server stopping"));
 
             // The address as the server resolves it from any trusted proxy, as the sign-in rate limit takes it
-            CitySession session = new CitySession(connection, registry, limits, context.Connection.RemoteIpAddress?.ToString() ?? "", logger);
+            CitySession session = new CitySession(connection, registry, limits, context.Connection.RemoteIpAddress?.ToString() ?? "", time, logger);
             presence.Connect(connection);
             Task sending = SendAsync();
 

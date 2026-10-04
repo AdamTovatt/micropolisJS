@@ -38,6 +38,15 @@ export interface PlayersMessage {
   players: PlayerInfo[];
 }
 
+// Another player in the city moved their hover box, or it went: null when no connection of theirs in the city shows
+// one any longer. The server passes it on to every other player in the city, and to nothing else: the simulation
+// never sees it, and no log keeps it. A player joining a city is sent the boxes showing in it.
+export interface CursorMessage {
+  type: "cursor";
+  player: PlayerId;
+  cursor: Cursor | null;
+}
+
 // The state messages the city sent in one batch, in the order it sent them: every player in the city receives the
 // same batches
 export interface StateBatchMessage {
@@ -60,10 +69,11 @@ export interface FailedMessage {
   error: string;
 }
 
-export type ServerMessage = HelloMessage | PlayersMessage | StateBatchMessage | AnswerMessage | FailedMessage;
+export type ServerMessage =
+  HelloMessage | PlayersMessage | CursorMessage | StateBatchMessage | AnswerMessage | FailedMessage;
 
 // What the server sends about the city a connection is in, which the city source reads
-export type CityMessage = Exclude<ServerMessage, HelloMessage | PlayersMessage>;
+export type CityMessage = Exclude<ServerMessage, HelloMessage | PlayersMessage | CursorMessage>;
 
 // The status the server closes a connection with when the city it is in fails: the server unloads the city without
 // saving it, so the store keeps it as it was last saved
@@ -72,7 +82,7 @@ export const CITY_FAILED_CLOSE = 1011;
 // Every message type, as the compiler checks against the union: a type added to ServerMessage and not here fails to
 // compile, and the tests fail on a type with no example.
 const SERVER_MESSAGE_TYPES: Record<ServerMessage["type"], true> = {
-  hello: true, players: true, state: true, answer: true, failed: true,
+  hello: true, players: true, cursor: true, state: true, answer: true, failed: true,
 };
 
 export function serverMessageTypes(): string[] {
@@ -159,6 +169,34 @@ export function parseErrorResponse(value: unknown): ErrorResponse {
   return {error: stringField(body, "error", "an error")};
 }
 
+// A whole number, from the least given if one is
+function wholeNumberField(object: JsonObject, field: string, what: string, least?: number): number {
+  const value = object[field];
+
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || (least !== undefined && value < least)) {
+    fail(`${what}.${field} must be a whole number${least === undefined ? "" : ` from ${least}`}`);
+  }
+
+  return value;
+}
+
+// The kinds of a hover box's values are checked, not their ranges: the server checks those of the box it passes on
+function parseCursor(value: unknown): Cursor {
+  const cursor = objectWithFields(value, ["tool", "x", "y", "size"], "a hover box");
+  const tool = cursor.tool;
+
+  if (!isCursorTool(tool)) {
+    fail("a hover box's tool must be one of CURSOR_TOOLS");
+  }
+
+  return {
+    tool,
+    x: wholeNumberField(cursor, "x", "a hover box"),
+    y: wholeNumberField(cursor, "y", "a hover box"),
+    size: wholeNumberField(cursor, "size", "a hover box"),
+  };
+}
+
 function parsePlayers(value: unknown): PlayerInfo[] {
   if (!Array.isArray(value)) {
     fail("players must be an array");
@@ -172,12 +210,7 @@ function parsePlayers(value: unknown): PlayerInfo[] {
 
 // A request's id: a whole number from 0
 function requestId(object: JsonObject, what: string): number {
-  const id = object.id;
-  if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 0) {
-    fail(`${what}.id must be a whole number from 0`);
-  }
-
-  return id;
+  return wholeNumberField(object, "id", what, 0);
 }
 
 // Reads one message from the server. The result is built field by field in the protocol's order, so writing it
@@ -198,6 +231,12 @@ export function parseServerMessage(text: string): ServerMessage {
     case "players": {
       const message = objectWithFields(value, ["type", "players"], "players");
       return {type: "players", players: parsePlayers(message.players)};
+    }
+
+    case "cursor": {
+      const message = objectWithFields(value, ["type", "player", "cursor"], "cursor");
+      return {type: "cursor", player: stringField(message, "player", "cursor"),
+              cursor: message.cursor === null ? null : parseCursor(message.cursor)};
     }
 
     // The batch's messages are each a state message the examples pin on both sides, so each is checked to be one of
@@ -245,6 +284,35 @@ export const TOOL_NAMES = [
 ] as const;
 
 export type ToolName = typeof TOOL_NAMES[number];
+
+// The tools a hover box shows: those that change the city, and the query tool
+export const CURSOR_TOOLS = [...TOOL_NAMES, "query"] as const;
+
+export type CursorTool = typeof CURSOR_TOOLS[number];
+
+export function isCursorTool(tool: unknown): tool is CursorTool {
+  return typeof tool === "string" && (CURSOR_TOOLS as readonly string[]).includes(tool);
+}
+
+// A player's hover box on the map: the tool they hold, the map tile under their pointer, where a click applies the
+// tool, and the box's side in tiles
+export interface Cursor {
+  tool: CursorTool;
+  x: number;
+  y: number;
+  size: number;
+}
+
+// What a player's browser sends the server as their hover box moves over the map, or leaves it: null when it does.
+// The server passes it on, from that player, as a CursorMessage.
+export interface CursorReport {
+  type: "cursor";
+  cursor: Cursor | null;
+}
+
+export function cursorReport(cursor: Cursor | null): CursorReport {
+  return {type: "cursor", cursor};
+}
 
 export const DISASTER_KINDS = ["monster", "fire", "flood", "crash", "meltdown", "tornado", "earthquake"] as const;
 
@@ -691,8 +759,9 @@ export function stateMessageTypes(): string[] {
 }
 
 // The messages a player's browser sends the server on the city's WebSocket, which protocol/README.md specifies: each a
-// request carrying an id, which the server's answer to it, or its failure, carries back, but a command
+// request carrying an id, which the server's answer to it, or its failure, carries back, but a command and a hover box
 export type ClientMessage =
+  | CursorReport
   | {type: "start", id: number, name: string, seed: number, level: number}
   | {type: "upload", id: number, save: string}
   | {type: "join", id: number, city: string}
@@ -711,7 +780,7 @@ export type ClientMessage =
 export type ClientMessageType = ClientMessage["type"];
 
 // The messages the server answers
-export type ClientRequest = Exclude<ClientMessage, {type: "command"}>;
+export type ClientRequest = Exclude<ClientMessage, {type: "command"} | CursorReport>;
 
 // The answer to each request, by its type. A request type missing here fails to compile where its answer is read.
 export interface RequestAnswers {
@@ -737,8 +806,8 @@ export type RequestAnswer<Request extends ClientRequest> = RequestAnswers[Reques
 // Every message type a player sends, as the compiler checks against the union: a type added to ClientMessage and not
 // here fails to compile, and the tests fail on a type with no example.
 const CLIENT_MESSAGE_TYPES: Record<ClientMessageType, true> = {
-  start: true, upload: true, join: true, command: true, query: true, save: true, commandLog: true, hold: true,
-  release: true, flush: true, advance: true, cityTime: true, turn: true,
+  cursor: true, start: true, upload: true, join: true, command: true, query: true, save: true, commandLog: true,
+  hold: true, release: true, flush: true, advance: true, cityTime: true, turn: true,
 };
 
 export function clientMessageTypes(): string[] {

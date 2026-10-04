@@ -7,6 +7,16 @@
     {"case": "players that are not a list", "text": "{\"type\":\"players\",\"players\":{}}"},
     {"case": "null players", "text": "{\"type\":\"players\",\"players\":null}"},
     {"case": "a hello without you", "text": "{\"type\":\"hello\",\"players\":[]}"},
+    {"case": "a hover box whose tool no tool names", "text": "{\"type\":\"cursor\",\"player\":\"a\",\"cursor\":{\"tool\":\"crane\",\"x\":1,\"y\":1,\"size\":1}}"},
+    {"case": "a hover box whose tool is a number", "text": "{\"type\":\"cursor\",\"player\":\"a\",\"cursor\":{\"tool\":12,\"x\":1,\"y\":1,\"size\":1}}"},
+    {"case": "a hover box whose tool is two tool names", "text": "{\"type\":\"cursor\",\"player\":\"a\",\"cursor\":{\"tool\":\"road, rail\",\"x\":1,\"y\":1,\"size\":1}}"},
+    {"case": "a hover box whose tool has a space before it", "text": "{\"type\":\"cursor\",\"player\":\"a\",\"cursor\":{\"tool\":\" road\",\"x\":1,\"y\":1,\"size\":1}}"},
+    {"case": "a hover box whose tool is a number in a string", "text": "{\"type\":\"cursor\",\"player\":\"a\",\"cursor\":{\"tool\":\"12\",\"x\":1,\"y\":1,\"size\":1}}"},
+    {"case": "a hover box on a tile that is not whole", "text": "{\"type\":\"cursor\",\"player\":\"a\",\"cursor\":{\"tool\":\"road\",\"x\":1.5,\"y\":1,\"size\":1}}"},
+    {"case": "a hover box whose size is a string", "text": "{\"type\":\"cursor\",\"player\":\"a\",\"cursor\":{\"tool\":\"road\",\"x\":1,\"y\":1,\"size\":\"1\"}}"},
+    {"case": "a hover box without a size", "text": "{\"type\":\"cursor\",\"player\":\"a\",\"cursor\":{\"tool\":\"road\",\"x\":1,\"y\":1}}"},
+    {"case": "a cursor message without its box", "text": "{\"type\":\"cursor\",\"player\":\"a\"}"},
+    {"case": "a cursor message with a null player", "text": "{\"type\":\"cursor\",\"player\":null,\"cursor\":null}"},
     {"case": "an unknown type", "text": "{\"type\":\"goodbye\"}"},
     {"case": "no type", "text": "{\"players\":[]}"},
     {"case": "null", "text": "null"}
@@ -16,6 +26,11 @@
       "case": "the type after the other fields",
       "text": "{\"players\":[{\"name\":\"Ada\",\"id\":\"a\"}],\"type\":\"players\"}",
       "canonical": "{\"type\":\"players\",\"players\":[{\"id\":\"a\",\"name\":\"Ada\"}]}"
+    },
+    {
+      "case": "a hover box's fields in another order",
+      "text": "{\"cursor\":{\"size\":4,\"y\":7,\"tool\":\"query\",\"x\":3},\"player\":\"a\",\"type\":\"cursor\"}",
+      "canonical": "{\"type\":\"cursor\",\"player\":\"a\",\"cursor\":{\"tool\":\"query\",\"x\":3,\"y\":7,\"size\":4}}"
     }
   ],
   "rejectedSessionBodies": [

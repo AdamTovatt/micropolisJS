@@ -26,6 +26,7 @@ namespace Micropolis.Rules
     /// <see cref="ClientMessageReader"/>; writing one puts its fields in the protocol's order.
     /// </summary>
     [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+    [JsonDerivedType(typeof(CursorReport), "cursor")]
     [JsonDerivedType(typeof(StartRequest), "start")]
     [JsonDerivedType(typeof(UploadRequest), "upload")]
     [JsonDerivedType(typeof(JoinRequest), "join")]
@@ -40,6 +41,14 @@ namespace Micropolis.Rules
     [JsonDerivedType(typeof(CityTimeRequest), "cityTime")]
     [JsonDerivedType(typeof(TurnRequest), "turn")]
     public abstract record ClientMessage;
+
+    /// <summary>
+    /// The player's hover box, or null once it left the map, which the server passes on to the city's other players as
+    /// a <see cref="CursorMessage"/> and to nothing else. The server doesn't answer it. Its values are read for their
+    /// kinds; whether its tile is on the city's map is the city's to say.
+    /// </summary>
+    public sealed record CursorReport(
+        [property: JsonPropertyName("cursor")] Cursor? Cursor) : ClientMessage;
 
     /// <summary>
     /// A message the server answers, by its id.
@@ -147,6 +156,7 @@ namespace Micropolis.Rules
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> MessageFields =
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.Ordinal)
             {
+                ["cursor"] = Fields(required: ["cursor"]),
                 ["start"] = Fields(required: ["id", "name", "seed", "level"]),
                 ["upload"] = Fields(required: ["id", "save"]),
                 ["join"] = Fields(required: ["id", "city"]),
@@ -184,6 +194,11 @@ namespace Micropolis.Rules
                 return new CommandMessage(message["command"]?.DeepClone());
             }
 
+            if (type == "cursor")
+            {
+                return new CursorReport(message["cursor"] is null ? null : ReadCursor(message["cursor"]));
+            }
+
             long id = TryGetWholeNumberIn(message["id"], 0, MaxId, out long whole)
                 ? whole
                 : throw new JsonException("A request's id is a whole number from 0.");
@@ -206,6 +221,33 @@ namespace Micropolis.Rules
                 "turn" => new TurnRequest(id, Number(message, "milliseconds")),
                 _ => throw new InvalidOperationException($"The {type} message has fields but no reading."),
             };
+        }
+
+        // A hover box's fields, all required, in the protocol's order
+        private static readonly string[] CursorFieldNames = ["tool", "x", "y", "size"];
+        private static readonly IReadOnlyDictionary<string, bool> CursorFields = Fields(required: CursorFieldNames);
+
+        // FieldsReason names a message's type among its fields, which a hover box doesn't have, and can't say a value
+        // may be null
+        private static Cursor ReadCursor(JsonNode? value)
+        {
+            if (value is not JsonObject cursor || !HasFields(cursor, CursorFields, null))
+            {
+                throw new JsonException($"A hover box is null or has exactly the fields {string.Join(", ", CursorFieldNames)}.");
+            }
+
+            return new Cursor(
+                TryGetName(cursor["tool"], out CursorTool tool) ? tool : throw new JsonException($"A hover box's tool is one of {string.Join(", ", ProtocolJson.Names<CursorTool>())}."),
+                CursorNumber(cursor, "x"),
+                CursorNumber(cursor, "y"),
+                CursorNumber(cursor, "size"));
+        }
+
+        private static int CursorNumber(JsonObject cursor, string field)
+        {
+            return TryGetWholeNumberIn(cursor[field], int.MinValue, int.MaxValue, out long number)
+                ? (int)number
+                : throw new JsonException($"A hover box's {field} is a whole number.");
         }
 
         private static string String(JsonObject message, string field)

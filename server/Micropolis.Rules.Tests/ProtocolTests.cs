@@ -142,6 +142,13 @@ namespace Micropolis.Rules.Tests
                 $"Command types [{string.Join(", ", declaredTypes.Order())}], example types [{string.Join(", ", exampleTypes.Order())}].");
         }
 
+        // CURSOR_TOOLS in src/protocol.ts is built from TOOL_NAMES the same way
+        [TestMethod]
+        public void CursorToolNames_AreTheToolNamesThenQuery()
+        {
+            CollectionAssert.AreEqual(ProtocolJson.Names<ToolName>().Append("query").ToList(), ProtocolJson.Names<CursorTool>().ToList());
+        }
+
         [TestMethod]
         [DynamicData(nameof(ClientExamples))]
         public void RoundTrip_SharedClientMessageExample_WritesIdenticalBytes(string fileName)

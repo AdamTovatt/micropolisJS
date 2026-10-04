@@ -13,7 +13,8 @@
 
 import { AnimationManager } from "./animationManager";
 import { placeNewCanvas, requiredElement } from "./domElements";
-import { drawMouseBox } from "./mouseBox";
+import { drawBoxLabel, drawMouseBox } from "./mouseBox";
+import type { MouseBoxRect } from "./mouseBox";
 import { CanvasOverlay } from "./overlayRenderer";
 import type { OverlayView } from "./overlayRenderer";
 import { PaintRecord } from "./paintRecord";
@@ -39,13 +40,16 @@ interface PaintableMap {
 type PaintableSprite = Readonly<SpriteView>;
 
 // A tool's outline. x and y are the tile under the mouse, in tile offsets from the view's origin: the top-left of a
-// tool up to 2x2, and one tile in from the top-left of a bigger one. width and height are tiles.
+// tool up to 2x2, and one tile in from the top-left of a bigger one. width and height are tiles. label is the name of
+// the player whose outline it is, written beside it on a tag of the label's colour, a "#rrggbb", or null for this
+// player's own.
 interface MouseOutline {
   x: number;
   y: number;
   width: number;
   height: number;
   colour: string;
+  label: {name: string, colour: string} | null;
 }
 
 // Where a tool's outline is drawn, or null if it is off the map, and the tiles it covers
@@ -93,6 +97,16 @@ function spritesInView(sprites: readonly PaintableSprite[], originX: number, ori
                                     (inY(sprite.y) || inY(sprite.y + sprite.width)));
 }
 
+// The tiles a rectangle of canvas pixels covers, any part of them
+function pixelDamage(rect: MouseBoxRect, tileWidth: number): TileRect {
+  return {
+    x: Math.floor(rect.x / tileWidth),
+    xBound: Math.ceil((rect.x + rect.width) / tileWidth),
+    y: Math.floor(rect.y / tileWidth),
+    yBound: Math.ceil((rect.y + rect.height) / tileWidth),
+  };
+}
+
 // The layout of the outline, or null for an outline of no tiles, which draws nothing
 function mouseOutlineLayout(mouse: MouseOutline, originX: number, originY: number, mapWidth: number,
                             mapHeight: number, tileWidth: number): MouseOutlineLayout | null {
@@ -123,8 +137,9 @@ function mouseOutlineLayout(mouse: MouseOutline, originX: number, originY: numbe
   };
 }
 
-// Paints the map's tiles, the sprites and a tool's outline on a canvas that fills its container. It repaints only the
-// tiles that changed since the last paint, or that a sprite or the outline drew over.
+// Paints the map's tiles, the sprites and the tools' outlines, other players' named, on a canvas that fills its
+// container. It repaints only the tiles that changed since the last paint, or that a sprite, an outline or a name
+// drew over.
 class GameCanvas {
   static readonly DEFAULT_ID = "MicropolisCanvas";
 
@@ -204,7 +219,7 @@ class GameCanvas {
     this.ready = true;
     this.centreOn(Math.floor(map.width / 2), Math.floor(map.height / 2));
 
-    this.paint(null, null);
+    this.paint([], null);
   }
 
   // NOTE: Canvas must be visible when this is called
@@ -288,7 +303,8 @@ class GameCanvas {
     return this.canvas.toDataURL();
   }
 
-  paint(mouse: MouseOutline | null, sprites: ReadonlyArray<PaintableSprite> | null, isPaused?: boolean): void {
+  // Paints the map, then the outlines in order, each over the last, then the sprites
+  paint(outlines: readonly MouseOutline[], sprites: ReadonlyArray<PaintableSprite> | null, isPaused?: boolean): void {
     this.requireReady();
 
     const ctx = this.canvas.getContext("2d")!;
@@ -322,16 +338,25 @@ class GameCanvas {
     this.lastCanvasWidth = this.width;
     this.lastCanvasHeight = this.height;
 
-    // What the outline and the sprites draw over is repainted next time
-    if (mouse) {
-      const layout = mouseOutlineLayout(mouse, origin.x, origin.y, this.map.width, this.map.height,
+    // What the outlines, their labels and the sprites draw over is repainted next time
+    for (const outline of outlines) {
+      const layout = mouseOutlineLayout(outline, origin.x, origin.y, this.map.width, this.map.height,
                                         this.tileSet.tileWidth);
-      if (layout !== null) {
-        if (layout.box !== null) {
-          drawMouseBox(this.canvas, layout.box.pos, layout.box.width, layout.box.height, mouse.colour);
-        }
-        this.record.markForRepaint(layout.damage);
+      if (layout === null) {
+        continue;
       }
+
+      if (layout.box !== null) {
+        const box = layout.box;
+        drawMouseBox(this.canvas, box.pos, box.width, box.height, outline.colour);
+
+        if (outline.label !== null) {
+          const label = drawBoxLabel(this.canvas, {x: box.pos.x + box.width, y: box.pos.y}, outline.label.name,
+                                     outline.label.colour);
+          this.record.markForRepaint(pixelDamage(label, this.tileSet.tileWidth));
+        }
+      }
+      this.record.markForRepaint(layout.damage);
     }
 
     if (sprites) {
@@ -421,5 +446,7 @@ class GameCanvas {
   }
 }
 
-export { GameCanvas, SPRITE_PIXELS_PER_TILE, mouseOutlineLayout, mustRepaintAll, spriteDamage, spritesInView };
+export {
+  GameCanvas, SPRITE_PIXELS_PER_TILE, mouseOutlineLayout, mustRepaintAll, pixelDamage, spriteDamage, spritesInView,
+};
 export type { MouseOutline, PaintableMap, PaintableSprite };

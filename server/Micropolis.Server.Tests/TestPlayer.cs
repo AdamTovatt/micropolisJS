@@ -41,6 +41,11 @@ namespace Micropolis.Server.Tests
         public List<string> Batches { get; } = new List<string>();
 
         /// <summary>
+        /// Every other player's hover box passed on, as the wire carried it, in order.
+        /// </summary>
+        public List<string> Cursors { get; } = new List<string>();
+
+        /// <summary>
         /// Every state message received, in order.
         /// </summary>
         public IEnumerable<JsonObject> StateMessages => Batches.SelectMany(batch => JsonNode.Parse(batch, documentOptions: DeepDocuments)!["messages"]!
@@ -51,7 +56,19 @@ namespace Micropolis.Server.Tests
 
         public static async Task<TestPlayer> ConnectAsync(ServerUnderTest city, string name)
         {
-            SignedIn session = await city.SignInAsync(name);
+            return await ConnectAsync(city, await city.SignInAsync(name));
+        }
+
+        /// <summary>
+        /// Another connection of the same player, as another of their browser's tabs makes.
+        /// </summary>
+        public async Task<TestPlayer> ConnectAgainAsync(ServerUnderTest city)
+        {
+            return await ConnectAsync(city, Session);
+        }
+
+        private static async Task<TestPlayer> ConnectAsync(ServerUnderTest city, SignedIn session)
+        {
             TestSocket socket = await city.ConnectAsync(session.Token);
             await socket.ReceiveAsync<HelloMessage>();
             return new TestPlayer(session, socket);
@@ -73,6 +90,11 @@ namespace Micropolis.Server.Tests
         public async Task SendAsync(JsonObject command)
         {
             await Socket.SendAsync(new CommandMessage(command));
+        }
+
+        public async Task ReportCursorAsync(Cursor? cursor)
+        {
+            await Socket.SendAsync(new CursorReport(cursor));
         }
 
         /// <summary>
@@ -101,6 +123,10 @@ namespace Micropolis.Server.Tests
                 {
                     case StateBatchMessage:
                         Batches.Add(text);
+                        break;
+
+                    case CursorMessage:
+                        Cursors.Add(text);
                         break;
 
                     case AnswerMessage answer when answer.Id == id:

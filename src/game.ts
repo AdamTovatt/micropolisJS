@@ -13,6 +13,7 @@
 
 import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetChoice, BudgetWindow } from "./budgetWindow";
+import type { Presence } from "./cityClient";
 import { linkToCity } from "./cityLink";
 import type { CitySource, StartedCity } from "./citySource";
 import { CityState } from "./cityState";
@@ -30,6 +31,7 @@ import * as Messages from "./messages";
 import { MonsterTV } from "./monsterTV";
 import { NewsHold, routeMessage } from "./news";
 import { NotificationBar, placeNotificationBar } from "./notification";
+import { OtherPlayers } from "./otherPlayers";
 import { cityOverlaySource, OverlayPicker } from "./overlayPicker";
 import { CommandResult, DisasterKind, NewsMessage, SettingsRecord, ToolName } from "./protocol";
 import { QueryTool } from "./queryTool";
@@ -48,10 +50,12 @@ import { TouchWarnWindow } from "./touchWarnWindow";
 import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
-// What a game is made from: the city source and the client's copy of its city, and the images the game draws with
+// What a game is made from: the city source and the client's copy of its city, the server's word of the other players,
+// and the images the game draws with
 export interface GameParts {
   source: CitySource;
   state: CityState;
+  presence: Presence;
   tileSet: TileSet;
   spriteSheet: HTMLImageElement;
 }
@@ -84,6 +88,7 @@ export class Game {
   private readonly touchWindow: TouchWarnWindow;
   private readonly queryWindow: QueryWindow;
   private readonly queryTool: QueryTool;
+  private readonly otherPlayers: OtherPlayers;
   readonly notificationBar: NotificationBar<HTMLElement>;
   private readonly tooSmall = requiredElement("tooSmall");
 
@@ -121,6 +126,7 @@ export class Game {
     this.windows.openDue();
 
     this.mouse = this.windows.holdsInput() ? null : this.calculateMouseForPaint();
+    this.reportCursor();
 
     window.setTimeout(this.tick, 0);
   };
@@ -128,7 +134,7 @@ export class Game {
   private readonly commonAnimate = () => {
     const paused = this.speedControl.isPaused();
     let sprites = this.calculateSpritesForPaint(this.gameCanvas);
-    this.gameCanvas.paint(this.mouse, sprites, paused);
+    this.gameCanvas.paint(this.outlinesForPaint(), sprites, paused);
 
     sprites = this.calculateSpritesForPaint(this.monsterTV.canvas);
     this.monsterTV.paint(sprites, paused);
@@ -151,7 +157,7 @@ export class Game {
   private readonly animate: () => void;
 
   // A game of the city the source has started, which the state has followed from its start
-  constructor({source, state, tileSet, spriteSheet}: GameParts, started: StartedCity) {
+  constructor({source, state, presence, tileSet, spriteSheet}: GameParts, started: StartedCity) {
     this.source = source;
     this.state = state;
     this.tileSet = tileSet;
@@ -245,6 +251,8 @@ export class Game {
 
     this.notificationBar = placeNotificationBar(this.gameCanvas);
 
+    this.otherPlayers = new OtherPlayers(presence, requiredElement("activityList"));
+
     // Unhide controls, before the demand meter first draws: it sizes its canvas to its container on screen
     this.revealControls();
 
@@ -310,7 +318,10 @@ export class Game {
     state.on("settings", (settings) => this.speedControl.showSpeed(settings.speed));
     state.on("sprites", ({sprites}) => this.monsterTV.spritesMoved(sprites));
     state.on("news", (news) => this.showNews(news));
-    state.on("commandResult", ({result}) => this.handleCommandResult(result));
+    state.on("commandResult", ({result}) => {
+      this.handleCommandResult(result);
+      this.otherPlayers.commandResult(result);
+    });
     state.on("budgetReviewDue", () => this.windows.budgetReviewDue());
   }
 
@@ -527,7 +538,30 @@ export class Game {
     }
 
     return {x: tileCoords.x, y: tileCoords.y, width: this.inputStatus.toolWidth, height: this.inputStatus.toolWidth,
-            colour: this.inputStatus.toolColour || "yellow"};
+            colour: this.inputStatus.toolColourOf(this.inputStatus.toolName ?? ""), label: null};
+  }
+
+  // Tells the others where this player's hover box is: nowhere while it isn't drawn, a window holding the mouse, or
+  // while the player can't see the city, such as in a hidden tab, where the pointer may never leave the canvas
+  private reportCursor(): void {
+    const shown = this.mouse !== null && this.viewerVisible === true;
+    const tile = shown
+      ? this.gameCanvas.canvasCoordinateToTileCoordinate(this.inputStatus.mouseX, this.inputStatus.mouseY)
+      : null;
+
+    this.otherPlayers.reportCursor(this.inputStatus.toolName, this.inputStatus.toolWidth, tile,
+                                   (x, y) => this.state.map.testBounds(x, y));
+  }
+
+  // The other players' hover boxes, named, under this player's own
+  private outlinesForPaint(): MouseOutline[] {
+    const outlines = this.otherPlayers.outlines(this.gameCanvas.getTileOrigin(), (tool) => this.inputStatus.toolColourOf(tool));
+
+    if (this.mouse !== null) {
+      outlines.push(this.mouse);
+    }
+
+    return outlines;
   }
 
   private calculateSpritesForPaint(canvas: GameCanvas): PaintableSprite[] | null {

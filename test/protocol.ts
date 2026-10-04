@@ -19,9 +19,9 @@ import { newsMessage } from "../src/cityHost";
 import { commandRejection } from "../src/commands";
 import { evaluationRecord, type EvaluationSource } from "../src/evaluationRecord";
 import {
-    type BudgetRecord, clientMessageTypes, commandTypes, type EvaluationRecord, LOCAL_PLAYER, type NewsMessage, type NewsPlace,
-    parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, queryAnswerTypes, queryTypes,
-    recordTypes,
+    type BudgetRecord, clientMessageTypes, commandTypes, cursorReport, type EvaluationRecord, LOCAL_PLAYER,
+    type NewsMessage, type NewsPlace, parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse,
+    queryAnswerTypes, queryTypes, recordTypes,
     serverMessageTypes, type SettingsRecord, signInRequest, type StateMessage, stateMessageTypes,
 } from "../src/protocol";
 import { answerQueryWithoutCity, queryRejection } from "../src/queries";
@@ -34,13 +34,13 @@ import { buildCity, YEAR } from "./helpers/simulations";
 
 // The examples and reader cases are shared with the server's tests: protocol/README.md describes them
 const SOCKET_EXAMPLES = repositoryPath("protocol/examples/socket");
+const CLIENT_EXAMPLES = repositoryPath("protocol/examples/client");
 const SESSION_EXAMPLES = repositoryPath("protocol/examples/session");
 const COMMAND_EXAMPLES = repositoryPath("protocol/examples/commands");
 const QUERY_EXAMPLES = repositoryPath("protocol/examples/queries");
 const RECORD_EXAMPLES = repositoryPath("protocol/examples/records");
 const STATE_EXAMPLES = repositoryPath("protocol/examples/state");
 const ANSWER_EXAMPLES = repositoryPath("protocol/examples/answers");
-const CLIENT_EXAMPLES = repositoryPath("protocol/examples/client");
 
 // The game's map, which every command example's tiles lie on
 const MAP_WIDTH = 120;
@@ -121,12 +121,19 @@ describe("the protocol", () => {
 
 describe("the protocol's messages a player sends", () => {
 
-    // test/webSocketCitySource.ts checks that the source writes each with the example's fields, in order
+    // test/webSocketCitySource.ts checks that the source writes each of its messages with the example's fields, in
+    // order. A message may have an example of each of its shapes.
     it("has an example of every message type a player sends, and no other", () => {
         const exampleTypes = exampleFiles(CLIENT_EXAMPLES).map((file) => JSON.parse(readWireText(join(CLIENT_EXAMPLES, file))).type);
 
-        expect(exampleTypes.sort()).toEqual(clientMessageTypes().sort());
+        expect(Array.from(new Set(exampleTypes)).sort()).toEqual(clientMessageTypes().sort());
     });
+
+    // The city client, not the source, writes a hover box, so the protocol's own writer pins its bytes
+    it.each(exampleFiles(CLIENT_EXAMPLES).filter((file) => file.startsWith("cursor")))(
+        "writes the hover box %s to identical bytes", (file) => {
+            expectRoundTrip(join(CLIENT_EXAMPLES, file), (wire) => JSON.stringify(cursorReport(JSON.parse(wire).cursor)));
+        });
 });
 
 describe("the protocol's commands", () => {

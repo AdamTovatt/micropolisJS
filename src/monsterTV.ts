@@ -165,7 +165,7 @@ class MonsterTV {
       return;
     }
 
-    this.canvas.paint(null, sprites, isPaused);
+    this.canvas.paint([], sprites, isPaused);
   }
 
   // Shows the sprite of the type, at map tile (x, y), and follows it until it is gone

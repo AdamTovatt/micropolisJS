@@ -11,7 +11,7 @@
  *
  */
 
-import { mouseOutlineLayout, mustRepaintAll, spriteDamage, spritesInView } from "../src/gameCanvas";
+import { mouseOutlineLayout, mustRepaintAll, pixelDamage, spriteDamage, spritesInView } from "../src/gameCanvas";
 import type { MouseOutline, PaintableSprite } from "../src/gameCanvas";
 
 const TILE_WIDTH = 16;
@@ -79,7 +79,7 @@ describe("the game canvas", () => {
 
         // The layout of a lime outline for a tool of the given size with the mouse over (x, y)
         function outlineAt(x: number, y: number, width: number, height: number, originX = 0, originY = 0) {
-            const tool: MouseOutline = {x, y, width, height, colour: "lime"};
+            const tool: MouseOutline = {x, y, width, height, colour: "lime", label: null};
             return mouseOutlineLayout(tool, originX, originY, MAP_WIDTH, MAP_HEIGHT, TILE_WIDTH);
         }
 
@@ -127,6 +127,14 @@ describe("the game canvas", () => {
         it("draws nothing for a tool of no tiles in either direction", () => {
             expect(outlineAt(10, 5, 0, 1)).toBeNull();
             expect(outlineAt(10, 5, 1, 0)).toBeNull();
+        });
+    });
+
+    describe("the damage of a rectangle of pixels", () => {
+
+        it("covers every tile any part of it lies over", () => {
+            expect(pixelDamage({x: 31.5, y: 16, width: 20, height: 16}, TILE_WIDTH)).toEqual(
+                {x: 1, xBound: 4, y: 1, yBound: 2});
         });
     });
 });

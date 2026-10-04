@@ -43,6 +43,8 @@ Every message is a JSON object whose `type` field names it. The server sends:
 - `hello`: the first message on every connection. `you` is the connecting player's id and `players` lists everyone
   online, the connecting player included, in the order they came online.
 - `players`: someone came online or went offline. `players` lists everyone now online, in the same order.
+- `cursor`: another player in the city moved their hover box. `player` is their id, and `cursor` is the box, or null
+  when no connection of theirs in the city shows one any longer.
 - `state`: a batch of state messages from the city the connection is in, in `messages`, in the order the city sent
   them (see State messages). Every connection in the city receives the same batches.
 - `answer`: the answer to the request with the `id` given, in `value`, sent after any state the request changed.
@@ -52,7 +54,25 @@ A player is `{"id", "name"}`. A player with several connections, such as two tab
 once, comes online with the first connection and goes offline with the last.
 
 A player's browser sends these, each a request carrying an `id`, a whole number from 0 that the answer carries back,
-but `command`:
+but `command` and `cursor`:
+
+- `cursor`, with `cursor`: the player's hover box, `{"tool", "x", "y", "size"}`, or null once when it goes. The box
+  holds the tool the player holds, one of the tools a tool command names or `query`; the map tile under their
+  pointer, where a click applies the tool; and the box's side in tiles. The browser sends it as the box moves, at most
+  5 times a second, and again every 2 seconds while it holds still. The server doesn't answer it: it passes each on
+  to the city's other players as a `cursor` message from the sender's player, and to nothing else, so the simulation
+  never sees it and no log keeps it. It drops a box whose tile is off the city's map or whose size isn't its tool's
+  (the side of what a building tool puts down, and 1 for the rest), passes on at most 20 of the others in any second
+  from one connection and drops the rest, and passes on nothing from a connection in no city, all without failing or
+  closing the connection; one that isn't a `cursor` message at all is as any other message a player sends that the
+  server can't read. A player has one box however many of their connections are in the city, and a connection's box
+  shows from the box it sends until the null it sends or until it leaves the city. When a connection's box stops
+  showing, the server passes on the box another of the player's connections in the city shows, or null when none
+  does; a null from a connection whose box isn't showing passes on nothing. A connection that joins a city is sent,
+  after the whole city and before the join's answer, a `cursor` message for each other player whose box shows there,
+  with the box last passed on for them. A browser drops another player's box 5 seconds after the last `cursor`
+  message for it, and when its player goes offline; its reader checks the kinds of a box's values, not their ranges,
+  which are the server's to check.
 
 - `start`, with `name`, `seed` and `level`: starts a new city on the server, on the map the seed generates, at the level
   by its number in `GAME_LEVELS`, under a new id, and joins it.

@@ -12,7 +12,9 @@
  */
 
 import { CITY_PATH, CityClient, CityStatus, ResponseLike, SESSION_PATH } from "../src/cityClient";
-import { CITY_FAILED_CLOSE, CityMessage, ErrorResponse, PlayerResponse, SessionResponse } from "../src/protocol";
+import {
+    CITY_FAILED_CLOSE, CityMessage, CursorMessage, CursorReport, ErrorResponse, PlayerResponse, SessionResponse,
+} from "../src/protocol";
 import { FakeBrowser, Handler, respond } from "./helpers/fakeBrowser";
 
 // The server's bodies, typed by the protocol, so a field renamed there fails to compile here
@@ -373,6 +375,58 @@ describe("the city client", () => {
 
             expect([beforeHello, online, afterClose]).toEqual([false, true, false]);
             expect(socket.sent).toEqual(["{\"type\":\"save\",\"id\":1}"]);
+        });
+
+        it("passes on the other players' hover boxes once welcomed, and not to its city listeners", async () => {
+            const {browser, client} = await signedIn();
+            const cursors: CursorMessage[] = [];
+            const city = jest.fn();
+            client.onCursor((message) => cursors.push(message));
+            client.onCityMessage(city);
+            const moved: CursorMessage = {type: "cursor", player: "id-Bo", cursor: {tool: "road", x: 4, y: 5, size: 1}};
+            const gone: CursorMessage = {type: "cursor", player: "id-Bo", cursor: null};
+
+            browser.lastSocket().deliver(moved);
+            browser.lastSocket().deliver(hello("id-Ada", "Ada", "Bo"));
+            browser.lastSocket().deliver(moved);
+            browser.lastSocket().deliver(gone);
+
+            expect(cursors).toEqual([moved, gone]);
+            expect(city).not.toHaveBeenCalled();
+        });
+
+        it("reports this player's hover box only while welcomed", async () => {
+            const {browser, client} = await signedIn();
+            const socket = browser.lastSocket();
+            const box = {tool: "query", x: 0, y: 99, size: 1} as const;
+
+            client.reportCursor(box);
+            socket.deliver(hello("id-Ada", "Ada"));
+            client.reportCursor(box);
+            client.reportCursor(null);
+            socket.drop();
+            client.reportCursor(box);
+
+            const report: CursorReport = {type: "cursor", cursor: box};
+            const cleared: CursorReport = {type: "cursor", cursor: null};
+            expect(socket.sent).toEqual([JSON.stringify(report), JSON.stringify(cleared)]);
+        });
+
+        it("reports on the new socket after a reconnect, and never on the old one", async () => {
+            const {browser, client} = await signedIn();
+            const first = browser.lastSocket();
+            first.deliver(hello("id-Ada", "Ada"));
+            first.drop();
+            await browser.runScheduled();
+            const second = browser.lastSocket();
+
+            client.reportCursor(null);
+            second.deliver(hello("id-Ada", "Ada"));
+            client.reportCursor(null);
+
+            expect(second).not.toBe(first);
+            expect(first.sent).toEqual([]);
+            expect(second.sent).toEqual([JSON.stringify({type: "cursor", cursor: null} satisfies CursorReport)]);
         });
     });
 
