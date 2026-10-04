@@ -12,8 +12,10 @@
  */
 
 import { requiredElement } from "./domElements";
-import { GameCanvas, type PaintableMap, type PaintableSprite, SPRITE_PIXELS_PER_TILE } from "./gameCanvas";
+import { SPRITE_PIXELS_PER_TILE } from "./paintable";
+import type { PaintableMap, PaintableSprite } from "./paintable";
 import type { SpriteView } from "./protocol";
+import { TileCanvas } from "./tileCanvas";
 import type { TileSet } from "./tileSet";
 import type { TilePoint } from "./viewPosition";
 
@@ -134,7 +136,7 @@ class ViewState {
 
 // The small view that shows a disaster, and follows a monster or tornado around the map
 class MonsterTV {
-  readonly canvas: GameCanvas;
+  readonly canvas: TileCanvas;
   private readonly element: HTMLElement;
   private readonly follower: SpriteFollower;
   private readonly state: ViewState;
@@ -142,13 +144,11 @@ class MonsterTV {
   constructor(map: PaintableMap, tileSet: TileSet, spriteSheet: HTMLImageElement) {
     this.element = requiredElement(MONSTER_TV_ID);
 
-    // Need to quickly flick on the canvas container so the canvas picks up the correct dimensions (this is a bit of a
-    // hack as we're reusing the same GameCanvas that paints the main map, but it avoids a lot of duplication)
+    // The view is shown for a moment, so the canvas can measure its container
     setVisible(this.element, true);
 
-    this.canvas = new GameCanvas(CONTAINER_ID, CANVAS_ID);
+    this.canvas = new TileCanvas(CONTAINER_ID, CANVAS_ID);
     this.canvas.init(map, tileSet, spriteSheet);
-    this.canvas.disallowOffMap();
 
     setVisible(this.element, false);
 
@@ -165,7 +165,7 @@ class MonsterTV {
       return;
     }
 
-    this.canvas.paint([], sprites, isPaused);
+    this.canvas.paint(sprites, isPaused);
   }
 
   // Shows the sprite of the type, at map tile (x, y), and follows it until it is gone

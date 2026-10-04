@@ -16,7 +16,9 @@ import { readFileSync } from "fs";
 
 import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
 import type { Advanced, View } from "../src/testHook";
+import { steppedZoom } from "../src/viewPosition";
 import { CITY_LINK, signIn } from "./gameServer";
+import { blockNetwork } from "./page";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
 // step driver, and moves the city on only through the hook's advance. Every input lands between the same two steps on
@@ -58,6 +60,9 @@ const NEAR_ENOUGH_TO_TAP = 3;
 const MAX_SCROLL_PRESSES = 500;
 // The longest a held key may leave the view where it was
 const HOLD_STALL_MS = 1000;
+
+// The pixels a notch of a mouse wheel turns, as Chromium reports it
+const WHEEL_NOTCH = 100;
 
 export class Player {
   // Steps taken through the hook since the count was last read
@@ -222,6 +227,40 @@ export class Player {
     await this.applyInput();
   }
 
+  // Zooms with the mouse wheel over a tile, a notch a step: up to zoom in, down to zoom out. Fails unless the view
+  // comes to the zoom step the notches lead to with the tile still under the pointer, as it does away from the view's
+  // limits.
+  async zoomWithWheel(tile: Tile, steps: number): Promise<void> {
+    const point = await this.tilePoint(tile);
+    const expected = steppedZoom((await this.view()).tileWidth, steps);
+    await this.page.mouse.move(point.x, point.y);
+    for (let notch = 0; notch < Math.abs(steps); notch++) {
+      await this.page.mouse.wheel(0, steps > 0 ? -WHEEL_NOTCH : WHEEL_NOTCH);
+    }
+
+    await expect.poll(async () => (await this.view()).tileWidth, "the zoom the wheel led to").toBe(expected);
+    const view = await this.view();
+    const canvas = await this.canvasBox();
+    expect({x: view.originX + Math.floor((point.x - canvas.x) / view.tileWidth),
+            y: view.originY + Math.floor((point.y - canvas.y) / view.tileWidth)}, "the tile under the pointer")
+      .toEqual(tile);
+  }
+
+  // Zooms with the + and - keys, a press a step. Fails unless the view comes to the zoom step the presses lead to.
+  async zoomWithKeys(steps: number): Promise<void> {
+    const expected = steppedZoom((await this.view()).tileWidth, steps);
+    for (let press = 0; press < Math.abs(steps); press++) {
+      await this.page.keyboard.press(steps > 0 ? "+" : "-");
+    }
+
+    await expect.poll(async () => (await this.view()).tileWidth, "the zoom the keys led to").toBe(expected);
+  }
+
+  // A tile's width on the canvas, in CSS pixels, at the zoom the view is at
+  async tileWidth(): Promise<number> {
+    return (await this.view()).tileWidth;
+  }
+
   // Queries a tile with the query tool and reads one of the debug figures the query window shows, by the id of its
   // field, then closes the window
   async queryDebugFigure(tile: Tile, fieldId: string): Promise<number> {
@@ -291,11 +330,25 @@ export class Player {
     await this.page.click("#saveOK");
   }
 
-  // Waits for the canvas to be painted as the city now stands
+  // Waits for the canvas to be painted as the city now stands: a paint after now, then the map drawn to the end, which
+  // a paint leaves for a later one while the GPU is still drawing the frame before
   async settle(): Promise<void> {
     await this.page.evaluate(() => new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     }));
+    await this.page.waitForFunction(() => window.micropolisTestHook!.mapCurrent());
+  }
+
+  // A screenshot of the page showing nothing but the map's canvas: the panels over it, the marks and the panels' drop
+  // shadows hidden for it
+  async mapScreenshot(): Promise<Buffer> {
+    const style = await this.page.addStyleTag({content: `body * { visibility: hidden; } ${CANVAS} { visibility: visible; }`});
+    try {
+      await this.settle();
+      return await this.page.screenshot();
+    } finally {
+      await style.evaluate((element) => (element as Element).remove());
+    }
   }
 
   // Dismisses the notification bar through the hook. It closes on wall time, and has no control a player could close it
@@ -384,11 +437,12 @@ export class Player {
   }
 
   // Scrolls the view along the axis until its origin is the stop given, which is within the view's limits. The view
-  // moves a tile on each of the game's ticks while a key is down, and how many ticks a press spans depends on timing,
-  // so the view is brought to the stop, never moved a number of tiles: it comes to rest there on every run, and the
-  // screenshot that follows shows the same frame. While the view is far from the stop and has not yet passed it, a key
-  // is held until the view moves. Otherwise a key is let go as soon as it is pressed, which moves the view a tile when a
-  // tick falls between and seldom more, so a hold that carried the view past the stop is undone a tile at a time.
+  // moves a tile on each of the game's ticks while a key is down, and a tile for a press no tick saw, and how many ticks
+  // a press spans depends on timing, so the view is brought to the stop, never moved a number of tiles: it comes to rest
+  // there on every run, and the screenshot that follows shows the same frame. While the view is far from the stop and
+  // has not yet passed it, a key is held until the view moves. Otherwise a key is let go as soon as it is pressed, and
+  // the view waited for to move, a tile and seldom more, so a hold that carried the view past the stop is undone a tile
+  // at a time.
   private async scrollTo(axis: Axis, stop: number): Promise<void> {
     const start = await this.origin(axis);
 
@@ -408,7 +462,7 @@ export class Player {
       if (!passed && Math.abs(stop - origin) > NEAR_ENOUGH_TO_TAP) {
         await this.holdUntilTheViewMoves(key, axis, origin);
       } else {
-        await this.page.keyboard.press(key);
+        await this.tapUntilTheViewMoves(key, axis, origin);
       }
     }
   }
@@ -420,29 +474,7 @@ export class Player {
   private async holdUntilTheViewMoves(key: string, axis: Axis, origin: number): Promise<void> {
     await this.page.keyboard.down(key);
     try {
-      const moved = await this.page.evaluate(({along, from, stallMs}) => new Promise<boolean>((resolve) => {
-        let stalled = false;
-        const giveUp = window.setTimeout(() => {
-          stalled = true;
-          resolve(false);
-        }, stallMs);
-        const look = () => {
-          if (stalled) {
-            return;
-          }
-
-          const view = window.micropolisTestHook!.view();
-          if ((along === "x" ? view.originX : view.originY) !== from) {
-            window.clearTimeout(giveUp);
-            resolve(true);
-          } else {
-            window.setTimeout(look, 0);
-          }
-        };
-        look();
-      }), {along: axis, from: origin, stallMs: HOLD_STALL_MS});
-
-      if (!moved) {
+      if (!await this.viewMovesFrom(axis, origin)) {
         throw new Error(`Holding ${key} left the view's origin at ${origin} along ${axis} for ${HOLD_STALL_MS} ms`);
       }
     } finally {
@@ -450,8 +482,58 @@ export class Player {
     }
   }
 
-  private async view(): Promise<View> {
+  // Presses the key and lets it go, then waits until the page sees the view's origin on the axis move from the one
+  // given. The game moves the view for a press on its next tick, which may come after the key is up: the origin read
+  // before then would be the one the press is about to move, and a press made on it would move the view a tile too far.
+  private async tapUntilTheViewMoves(key: string, axis: Axis, origin: number): Promise<void> {
+    await this.page.keyboard.press(key);
+    if (!await this.viewMovesFrom(axis, origin)) {
+      throw new Error(`Pressing ${key} left the view's origin at ${origin} along ${axis} for ${HOLD_STALL_MS} ms`);
+    }
+  }
+
+  // Whether the page sees the view's origin on the axis move from the one given within HOLD_STALL_MS
+  private async viewMovesFrom(axis: Axis, origin: number): Promise<boolean> {
+    return this.page.evaluate(({along, from, stallMs}) => new Promise<boolean>((resolve) => {
+      let stalled = false;
+      const giveUp = window.setTimeout(() => {
+        stalled = true;
+        resolve(false);
+      }, stallMs);
+      const look = () => {
+        if (stalled) {
+          return;
+        }
+
+        const view = window.micropolisTestHook!.view();
+        if ((along === "x" ? view.originX : view.originY) !== from) {
+          window.clearTimeout(giveUp);
+          resolve(true);
+        } else {
+          window.setTimeout(look, 0);
+        }
+      };
+      look();
+    }), {along: axis, from: origin, stallMs: HOLD_STALL_MS});
+  }
+
+  // The view's origin and tile width, in CSS pixels, as the hook reports them
+  async view(): Promise<View> {
     return await this.page.evaluate(() => window.micropolisTestHook!.view());
+  }
+
+  // Each tile whose whole square is on the canvas, by its column and row from the view's origin
+  async wholeTilesInView(): Promise<{tile: Tile, column: number, row: number}[]> {
+    const view = await this.view();
+    const canvas = await this.canvasBox();
+    const tiles: {tile: Tile, column: number, row: number}[] = [];
+    for (let row = 0; row < Math.floor(canvas.height / view.tileWidth); row++) {
+      for (let column = 0; column < Math.floor(canvas.width / view.tileWidth); column++) {
+        tiles.push({tile: {x: view.originX + column, y: view.originY + row}, column, row});
+      }
+    }
+
+    return tiles;
   }
 
   private async origin(axis: Axis): Promise<number> {
@@ -459,7 +541,8 @@ export class Player {
     return axis === "x" ? view.originX : view.originY;
   }
 
-  private async canvasBox(): Promise<{x: number, y: number, width: number, height: number}> {
+  // The map's canvas on the page, in CSS pixels
+  async canvasBox(): Promise<{x: number, y: number, width: number, height: number}> {
     const canvas = await this.page.locator(CANVAS).boundingBox();
     if (canvas === null) {
       throw new Error("The game canvas is not on screen");
@@ -490,4 +573,14 @@ export class Player {
 
     return point;
   }
+}
+
+// A player of a new Easy game of the name on the seed's map, off the network, with the notification bar dismissed.
+// The driver is held from the start, so the map is the seed's, with no sprites, until the player moves the city on.
+export async function startGame(page: Page, seed: number, name: string): Promise<Player> {
+  await blockNetwork(page);
+  const player = new Player(page);
+  await player.startNewGame(seed, name, "Easy");
+  await player.dismissNotification();
+  return player;
 }

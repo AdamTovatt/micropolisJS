@@ -66,26 +66,36 @@ function viewport(canvasWidth: number, canvasHeight: number, tileWidth: number, 
   };
 }
 
-// The origin that puts the tile at (x, y) in the middle of the view, held within the origin's limits. Where the limits
-// cross, as on a view wider than the map that can't scroll off it, the minimum wins.
+// The origin (x, y) held within the viewport's limits. Where the limits cross, as on a view wider than the map that
+// can't scroll off it, the minimum wins.
+function heldOrigin(x: number, y: number, view: Viewport): TilePoint {
+  return {x: Math.max(view.minX, Math.min(view.maxX, x)), y: Math.max(view.minY, Math.min(view.maxY, y))};
+}
+
+// The origin that puts the tile at (x, y) in the middle of the view, held within the origin's limits
 function centredOrigin(x: number, y: number, view: Viewport): TilePoint {
-  let originX = Math.floor(x) - Math.ceil(view.wholeTilesInViewX / 2);
-  let originY = Math.floor(y) - Math.ceil(view.wholeTilesInViewY / 2);
+  return heldOrigin(Math.floor(x) - Math.ceil(view.wholeTilesInViewX / 2),
+                    Math.floor(y) - Math.ceil(view.wholeTilesInViewY / 2), view);
+}
 
-  if (originX > view.maxX) {
-    originX = view.maxX;
-  }
-  if (originX < view.minX) {
-    originX = view.minX;
-  }
-  if (originY > view.maxY) {
-    originY = view.maxY;
-  }
-  if (originY < view.minY) {
-    originY = view.minY;
+// The zoom steps, in CSS pixels a tile is drawn on the canvas, from the farthest out. The view opens at the first.
+const ZOOM_STEPS: readonly number[] = [16, 32, 64];
+
+// The zoom step steps in (a positive steps) or out (a negative one) from the zoom given, held at the first and last
+function steppedZoom(zoom: number, steps: number): number {
+  const index = ZOOM_STEPS.indexOf(zoom);
+  if (index === -1) {
+    throw new Error(`${zoom} is not a zoom step`);
   }
 
-  return {x: originX, y: originY};
+  return ZOOM_STEPS[Math.max(0, Math.min(ZOOM_STEPS.length - 1, index + steps))];
+}
+
+// The origin that keeps the tile under a point of the canvas, in CSS pixels, under it as the zoom changes from one tile
+// width to another, with the origin on whole tiles and held within the new viewport's limits
+function zoomedOrigin(origin: TilePoint, point: PixelPoint, from: number, to: number, view: Viewport): TilePoint {
+  return heldOrigin(origin.x + Math.floor(point.x / from) - Math.floor(point.x / to),
+                    origin.y + Math.floor(point.y / from) - Math.floor(point.y / to), view);
 }
 
 // The map tile under a point of the canvas, or null past the canvas' right or bottom edge
@@ -152,7 +162,16 @@ class ViewPosition {
     this.originX = origin.x;
     this.originY = origin.y;
   }
+
+  // The tile width changed from one zoom step to another, to the viewport given: the tile under the point of the
+  // canvas, in CSS pixels, stays under it as far as the limits allow
+  zoom(view: Viewport, point: PixelPoint, from: number, to: number): void {
+    const origin = zoomedOrigin(this.origin, point, from, to, view);
+    this.view = view;
+    this.originX = origin.x;
+    this.originY = origin.y;
+  }
 }
 
-export { ViewPosition, canvasPointToTile, centredOrigin, viewport };
+export { ViewPosition, ZOOM_STEPS, canvasPointToTile, centredOrigin, steppedZoom, viewport, zoomedOrigin };
 export type { OriginLimits, PixelPoint, TilePoint, Viewport };

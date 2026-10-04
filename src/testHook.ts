@@ -26,9 +26,9 @@ interface HookedGame {
   // The saved game's text
   save(): Promise<string>;
   onCommandResult(listener: () => void): void;
-  gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits};
+  gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits, readonly tileWidth: number,
+               readonly mapCurrent: boolean};
   notificationBar: {dismiss(): void};
-  tileSet: {tileWidth: number};
 }
 
 export interface Advanced {
@@ -43,7 +43,7 @@ export interface View {
   originY: number;
   // How far the origin may move each way
   limits: OriginLimits;
-  // A tile's width and height on the canvas, in pixels
+  // A tile's width and height on the canvas, in CSS pixels, at the zoom the view is at
   tileWidth: number;
 }
 
@@ -148,7 +148,13 @@ class TestHook {
     const origin = game.gameCanvas.getTileOrigin();
 
     return {originX: origin.x, originY: origin.y, limits: game.gameCanvas.getOriginLimits(),
-            tileWidth: game.tileSet.tileWidth};
+            tileWidth: game.gameCanvas.tileWidth};
+  }
+
+  // Whether the map shows what the canvas last painted from, drawn to the end. A paint leaves the map as it is while
+  // the GPU is still drawing the frame before, so a runner that waits for the paint waits for this too.
+  mapCurrent(): boolean {
+    return this.attachedGame().gameCanvas.mapCurrent;
   }
 
   private attachedGame(): HookedGame {

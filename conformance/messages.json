@@ -79,6 +79,7 @@
     "TRAFFIC_JAMS": "Traffic jams reported",
     "TRAIN_CRASHED": "Train crashed",
     "VALVES_UPDATED": "Valves updated",
-    "WELCOME": "Welcome to micropolisJS"
+    "WELCOME": "Welcome to micropolisJS",
+    "ZOOM_REQUESTED": "Zoom requested"
   }
 }

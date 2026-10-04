@@ -17,15 +17,17 @@ import { joinLinkedCity, leaveLostCity, linkedCity } from "./cityLink";
 import type { CitySource } from "./citySource";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
-import { requiredElement } from "./domElements";
+import { requiredElement, setShown } from "./domElements";
 import { errorMessage } from "./errorMessage";
 import { Game } from "./game";
 import { showOnlineList } from "./onlineList";
+import { loadMapArt, MapArt } from "./renderAssets";
 import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
 import { attachDriverToTestHook, installTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
 import { debugOption, seedOption } from "./urlOptions";
+import { webGL2TextureLimit } from "./webglRenderer";
 import { WebSocketCitySource } from "./webSocketCitySource";
 import { WorkerCitySource } from "./workerCitySource";
 
@@ -74,6 +76,14 @@ async function loadTileSet(): Promise<TileSet | null> {
 // Starts the page: the game seed to offer first (?seed=<n>), or null to pick one at random, and the city on the server
 // to join (?city=<id>), or null to choose one on the splash screen
 async function start(seed: number | null, city: string | null): Promise<void> {
+  // The map is drawn with WebGL2: without it, the page says so instead of starting
+  const textureLimit = webGL2TextureLimit();
+  if (textureLimit === null) {
+    setShown(requiredElement("loadingBanner"), false);
+    setShown(requiredElement("noWebGL"), true);
+    return;
+  }
+
   const tileSet = await loadTileSet();
   if (tileSet === null) {
     // XXX Replace with an error dialog
@@ -81,9 +91,19 @@ async function start(seed: number | null, city: string | null): Promise<void> {
     return;
   }
 
+  const tiles = requiredElement("tiles", HTMLImageElement);
   const sprites = requiredElement("sprites", HTMLImageElement);
   await settled(sprites);
-  requiredElement("loadingBanner").style.display = "none";
+
+  let mapArt: MapArt;
+  try {
+    mapArt = await loadMapArt(tiles, sprites, textureLimit);
+  } catch (error) {
+    console.error(error);
+    alert(`Failed to load the map's art: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
+  setShown(requiredElement("loadingBanner"), false);
 
   // Sign in first when a server answers. The game starts whatever happens, single-player when it must.
   const cityClient = new CityClient(browserCityEnvironment());
@@ -108,7 +128,7 @@ async function start(seed: number | null, city: string | null): Promise<void> {
     attachDriverToTestHook(source.driver);
   }
 
-  const parts = {source, state, presence: cityClient, tileSet, spriteSheet: sprites};
+  const parts = {source, state, presence: cityClient, mapArt, tileSet, spriteSheet: sprites};
   if (city !== null && await joinLinkedCity(city, webSocketSource, (started) => new Game(parts, started), window)) {
     return;
   }

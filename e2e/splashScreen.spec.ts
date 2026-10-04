@@ -11,10 +11,11 @@
  *
  */
 
-import { expect, test } from "@playwright/test";
+import { expect, Page, test } from "@playwright/test";
 
 import { blockNetwork, collectPageProblems } from "./page";
 import { Player } from "./player";
+import { png } from "./png";
 import { SEED } from "./stages";
 
 // The splash screen: where the page starts, and what it asks before a new game
@@ -66,6 +67,99 @@ test("a tile image that fails to load is reported, and the page goes no further"
 
   await expect.poll(() => problems).toEqual(["Alert: Failed to load tileset!"]);
   await expect(page.locator("#splash")).toBeHidden();
+});
+
+test("a browser without WebGL2 is told the game needs it, and the page goes no further", async ({page}) => {
+  await blockNetwork(page);
+  const problems = collectPageProblems(page);
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function(this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+      return type === "webgl2" ? null : (getContext as (...args: unknown[]) => unknown).call(this, type, ...rest);
+    } as typeof getContext;
+  });
+
+  await page.goto(`/?seed=${SEED}`);
+
+  await expect(page.locator("#noWebGL")).toBeVisible();
+  await expect(page.locator("#noWebGL")).toContainText("WebGL2");
+  await expect(page.locator("#loadingBanner")).toBeHidden();
+  // As in the test of a screen too small to play, a while for the splash screen to show, had the page gone on: it
+  // shows the message instead of loading anything, so nothing marks the moment it would have shown
+  await page.waitForTimeout(1000);
+  await expect(page.locator("#splash")).toBeHidden();
+  expect(problems).toEqual([]);
+});
+
+// The render manifest given, and a 2 by 2 PNG for every atlas image it names
+async function serveArt(page: Page, manifest: object, atlasFails = false): Promise<void> {
+  await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: manifest}));
+  await page.route("**/images/render/*.png", (route) => atlasFails ? route.abort() :
+    route.fulfill({body: png(2, 2, new Array<number>(16).fill(255)), contentType: "image/png"}));
+}
+
+const ART_FAILED = "Alert: Failed to load the map's art:";
+
+test.describe("art that fails to load is reported, naming what failed, and the page goes no further", () => {
+
+  test("a render manifest that is broken", async ({page}) => {
+    await blockNetwork(page);
+    const problems = collectPageProblems(page);
+    await serveArt(page, {version: 1, atlases: {}, tiles: {"7": {}}, sprites: {}});
+
+    await page.goto("/");
+
+    await expect.poll(() => problems).toEqual([`${ART_FAILED} Render manifest: tiles.7 lacks ground`]);
+    await expect(page.locator("#splash")).toBeHidden();
+  });
+
+  test("an atlas image that fails to load", async ({page}) => {
+    await blockNetwork(page);
+    const problems = collectPageProblems(page);
+    await serveArt(page, {version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {}}, true);
+
+    await page.goto("/");
+
+    await expect.poll(() => problems).toEqual([`${ART_FAILED} The atlas /images/render/zones.png failed to load`]);
+    await expect(page.locator("#splash")).toBeHidden();
+  });
+
+  test("a rectangle running past its atlas image", async ({page}) => {
+    await blockNetwork(page);
+    const problems = collectPageProblems(page);
+    await serveArt(page, {version: 1, atlases: {zones: "zones.png"},
+                          tiles: {"7": {ground: {atlas: "zones", x: 0, y: 0, width: 4, height: 2}}}, sprites: {}});
+
+    await page.goto("/");
+
+    await expect.poll(() => problems)
+      .toEqual([`${ART_FAILED} Render manifest: rectangles run past their atlas: tile 7 ground (zones)`]);
+    await expect(page.locator("#splash")).toBeHidden();
+  });
+
+  test("an atlas wider than the browser's largest texture", async ({page}) => {
+    await blockNetwork(page);
+    const problems = collectPageProblems(page);
+    // A browser whose largest texture is 1024 pixels a side, which the 16 px sheets fit
+    await page.addInitScript(() => {
+      const getParameter = WebGL2RenderingContext.prototype.getParameter;
+      WebGL2RenderingContext.prototype.getParameter = function(this: WebGL2RenderingContext, name: number) {
+        return name === this.MAX_TEXTURE_SIZE ? 1024 : getParameter.call(this, name);
+      };
+    });
+    await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: {
+      version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {},
+    }}));
+    await page.route("**/images/render/zones.png", (route) => route.fulfill({
+      body: png(1025, 1, new Array<number>(1025 * 4).fill(255)), contentType: "image/png",
+    }));
+
+    await page.goto("/");
+
+    await expect.poll(() => problems)
+      .toEqual([`${ART_FAILED} Atlases are past this browser's 1024 pixels a side: zones is 1025 by 1`]);
+    await expect(page.locator("#splash")).toBeHidden();
+  });
 });
 
 test("a seed that isn't a uint32 is refused out loud, and the map is picked at random", async ({page}) => {
