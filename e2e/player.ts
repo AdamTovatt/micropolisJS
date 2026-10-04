@@ -590,14 +590,23 @@ export class Player {
     return canvas;
   }
 
-  // The centre of a tile on the screen, worked out from the view's origin rather than from the game's own mapping of
-  // pointer to tile, which is the thing under test, or null when the tile is out of view or under a panel
-  private async onCanvas(tile: Tile): Promise<{x: number, y: number} | null> {
+  // The top-left corner of a tile on the page, in CSS pixels, worked out from the view's origin and tile width rather
+  // than from the game's own mapping of pointer to tile, which is under test. The tile may be out of view.
+  async tileCorner(tile: Tile): Promise<{x: number, y: number}> {
     const view = await this.view();
     const canvas = await this.canvasBox();
 
-    const x = canvas.x + (tile.x - view.originX) * view.tileWidth + view.tileWidth / 2;
-    const y = canvas.y + (tile.y - view.originY) * view.tileWidth + view.tileWidth / 2;
+    return {x: canvas.x + (tile.x - view.originX) * view.tileWidth,
+            y: canvas.y + (tile.y - view.originY) * view.tileWidth};
+  }
+
+  // The centre of a tile on the screen, or null when the tile is out of view or under a panel
+  private async onCanvas(tile: Tile): Promise<{x: number, y: number} | null> {
+    const {tileWidth} = await this.view();
+    const corner = await this.tileCorner(tile);
+
+    const x = corner.x + tileWidth / 2;
+    const y = corner.y + tileWidth / 2;
 
     const shown = await this.page.evaluate(({px, py, id}) => document.elementFromPoint(px, py)?.id === id,
                                            {px: x, py: y, id: CANVAS_ID});

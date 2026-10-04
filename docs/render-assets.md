@@ -14,7 +14,7 @@ The map is drawn in this order:
 
 The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as their shadows reach.
 
-A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. A shadow is drawn from the anchor's own tile id, so it doesn't blink.
+A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. A shadow is drawn from the anchor's own tile id, so it doesn't blink. The bolt's entry has objects as well as ground, the whole tile, opaque, which no shadow darkens: the bolt replaces the centre tile of a zone or a service building, whose own shadow lies dense under the roof the bolt replaces.
 
 ## The manifest
 
@@ -52,7 +52,7 @@ A frame draws the tile id the animation manager picks for each tile (`animationM
 - `atlases` names each atlas image, by a path relative to the manifest. A name may not start `fallback:`: the client keeps those names for its own atlases, the 16 px sheets (`fallback:tiles`, `fallback:sprites`) and the white pixel the overlay's tints are drawn from (`fallback:white`).
 - `tiles` maps a tile id, from 0 to 1023 (`tileValues.ts`), to its layers:
   - `ground`, required: everything that lies on the ground, opaque, drawn into the tile.
-  - `objects`, optional: everything standing, over transparency, drawn into the tile over the shadows.
+  - `objects`, optional: everything standing, over transparency, drawn into the tile over the shadows. A tile the game draws in place of another asset's tile has the whole tile here, opaque, so no shadow darkens it.
   - `shadow`, optional, and only on an asset's anchor: black whose alpha is the shadow's darkness, drawn over the anchor and `reach` whole tiles past it on each side.
 - `sprites` maps a sprite type, from 1 to 7, and a frame, from 1 to that type's last, to its rectangle, drawn into the sprite's square. The types are, in order: train (5 frames, 32 px square), helicopter (8, 32 px), airplane (11, 48 px), ship (8, 48 px), monster (16, 48 px), tornado (3, 48 px) and explosion (6, 48 px), the square's side measured at 16 px a tile (`SPRITE_SHEET` in `renderManifest.ts`).
 

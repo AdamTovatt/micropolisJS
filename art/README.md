@@ -79,7 +79,7 @@ The game draws the map from the atlases and manifest in `images/render/`, in the
 python art/tools/atlas.py --source art/painted/out
 ```
 
-It cuts every asset's ground and objects into a rectangle per tile id and keeps its shadow whole on the zone's centre, packs them with the gutters the format asks for, and writes the manifest. It also writes the cells of `images/tiles.png` and `images/sprites.png` it has art for, scaled down to 16 px, for what the game still draws from them, the splash screen's map and the monster TV, and the page background, `images/dirtbg.png`, from the bare land tile. Which design fills which tile ids, and which frames each animated tile cycles through, is in `ZONES`, `FRAMES` and `SPRITES` at its top. It runs by hand, and its output is committed: the renders it would need are not, and CI has no Blender. It needs Pillow and NumPy.
+It cuts every asset's ground and objects into a rectangle per tile id and keeps its shadow whole on the zone's centre, gives each tile drawn over shadows its whole tile, opaque, as objects too, packs them with the gutters the format asks for, and writes the manifest. It also writes the cells of `images/tiles.png` and `images/sprites.png` it has art for, scaled down to 16 px, for what the game still draws from them, the splash screen's map and the monster TV, and the page background, `images/dirtbg.png`, from the bare land tile. Which design fills which tile ids, which frames each animated tile cycles through, and which tiles are drawn over shadows, is in `ZONES`, `FRAMES`, `SPRITES` and `OVER_SHADOWS` at its top. It runs by hand, and its output is committed: the renders it would need are not, and CI has no Blender. It needs Pillow and NumPy.
 
 ## Layers
 
