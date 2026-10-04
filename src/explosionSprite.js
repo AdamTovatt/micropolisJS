@@ -52,6 +52,7 @@ ExplosionSprite.prototype.move = function(spriteCycle) {
   if ((spriteCycle & 1) === 0) {
     if (this.frame === 1) {
       this._emitEvent(SOUND_EXPLOSIONHIGH);
+      // The original reports the explosion without a picture, so the monster TV is left as it is
       this._emitEvent(EXPLOSION_REPORTED, {x: (this.x >> 4) + 3, y: this.y >> 4});
     }
 

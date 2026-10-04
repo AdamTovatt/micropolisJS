@@ -14,7 +14,8 @@
 import { fixtureSave } from "../headless/runner";
 import { CityHost } from "../src/cityHost";
 import { stepsPerCityTime } from "../src/cityTimeModel";
-import { LOCAL_PLAYER, OVERLAY_LAYERS, SPEEDS, StateMessage } from "../src/protocol";
+import * as Messages from "../src/messages";
+import { LOCAL_PLAYER, OVERLAY_LAYERS, SPEEDS, StateMessage, StateMessageType } from "../src/protocol";
 import { SaveFormat } from "../src/savedGame";
 import { ManualTicker } from "./helpers/manualTicker";
 
@@ -38,7 +39,9 @@ function heldCity() {
     return {host, batches};
 }
 
-const ofType = (batch: StateMessage[], type: StateMessage["type"]) => batch.filter((message) => message.type === type);
+function ofType<T extends StateMessageType>(batch: StateMessage[], type: T) {
+    return batch.filter((message): message is Extract<StateMessage, {type: T}> => message.type === type);
+}
 
 describe("a city host", () => {
 
@@ -150,6 +153,23 @@ describe("a city host", () => {
         expect(sent().every((population, i, all) => i === 0 || population !== all[i - 1])).toBe(true);
     });
 
+    // The crashed plane's explosion is reported on the crash's tile or the one east of it, one row north, without a
+    // place for the monster TV to show
+    it("sends the news of an explosion with where it happened", () => {
+        const {host, batches} = heldCity();
+        host.send(LOCAL_PLAYER, {type: "triggerDisaster", kind: "crash"});
+
+        expect(host.advance(2).error).toBeNull();
+
+        const news = batches.flatMap((batch) => ofType(batch, "news"));
+        expect(news.map((message) => message.subject)).toEqual([Messages.PLANE_CRASHED, Messages.EXPLOSION_REPORTED]);
+        const crash = news[0]!.data!;
+        const explosion = news[1]!.data!;
+        expect(explosion).toEqual({x: expect.any(Number), y: expect.any(Number)});
+        expect([crash.x, crash.x + 1]).toContain(explosion.x);
+        expect(explosion.y).toBe(crash.y - 1);
+    });
+
     // A turn of several cycles publishes once: what holds at the end of it, and each event in the order it came
     describe("publishing several cycles at once", () => {
 
@@ -180,8 +200,7 @@ describe("a city host", () => {
         });
 
         it("announces each layer recomputed once, however many times it was", () => {
-            const layers = (batch: StateMessage[]) => ofType(batch, "overlayUpdated")
-                .map((message) => message.type === "overlayUpdated" && message.layer);
+            const layers = (batch: StateMessage[]) => ofType(batch, "overlayUpdated").map((message) => message.layer);
             const announced = layers(whole);
 
             // Ten cycles run every phase that recomputes a layer, the slowest included

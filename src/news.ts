@@ -11,7 +11,7 @@
  *
  */
 
-import { DISASTER_MESSAGES } from "./messages";
+import { CRASHES, DISASTER_MESSAGES, EXPLOSION_REPORTED } from "./messages";
 import type { NewsMessage, ShowablePlace, TrackablePlace } from "./protocol";
 import { MessageTone, Text } from "./text";
 
@@ -20,22 +20,38 @@ import { MessageTone, Text } from "./text";
 
 const DISASTER_HOLD = 20 * 1000;
 
-// Holds neutral news back while a disaster is recent: for DISASTER_HOLD after the last one reported. Good news is a
-// milestone, which shows even over a recent disaster, as the notification is the only place the player learns of it.
+// Holds news back while a disaster is recent: for DISASTER_HOLD after the last one reported. Neutral news waits behind
+// any disaster's news. An explosion's report waits behind a crash's or another disaster's news, since a crash and a
+// meltdown end in explosions, whose reports would otherwise replace their news at once. Good news is a milestone, which
+// shows even over a recent disaster, as the notification is the only place the player learns of it.
 export class NewsHold {
   private lastDisaster: number | null = null;
+  private lastCalamity: number | null = null;
 
-  // Whether a message in the tone shows at the time, in milliseconds. A disaster's news starts the hold again.
-  shows(tone: MessageTone, isDisaster: boolean, now: number): boolean {
+  // Whether a message about the subject, in the tone, shows at the time, in milliseconds. A disaster's or crash's news
+  // that shows starts its hold again.
+  shows(subject: string, tone: MessageTone, now: number): boolean {
+    if (subject === EXPLOSION_REPORTED && isRecent(this.lastCalamity, now)) {
+      return false;
+    }
+
     if (tone === "bad") {
+      const isDisaster = DISASTER_MESSAGES.indexOf(subject) !== -1;
       if (isDisaster) {
         this.lastDisaster = now;
+      }
+      if (subject !== EXPLOSION_REPORTED && (isDisaster || CRASHES.indexOf(subject) !== -1)) {
+        this.lastCalamity = now;
       }
       return true;
     }
 
-    return tone !== "neutral" || this.lastDisaster === null || now - this.lastDisaster > DISASTER_HOLD;
+    return tone !== "neutral" || !isRecent(this.lastDisaster, now);
   }
+}
+
+function isRecent(time: number | null, now: number): boolean {
+  return time !== null && now - time <= DISASTER_HOLD;
 }
 
 // What the game does with a message
@@ -64,5 +80,5 @@ export function routeMessage(message: NewsMessage, hold: NewsHold, now: number):
     return {notify: false, tv, unknown: true};
   }
 
-  return {notify: hold.shows(tone, DISASTER_MESSAGES.indexOf(subject) !== -1, now), tv, unknown: false};
+  return {notify: hold.shows(subject, tone, now), tv, unknown: false};
 }
