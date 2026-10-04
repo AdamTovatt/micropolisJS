@@ -11,15 +11,17 @@
  *
  */
 
-import type { Ticker } from "./cityHost";
-import type { Port } from "./cityWorkerMessages";
-import { raiseUnhandledRejections, serveCity } from "./cityWorkerHost";
+// Files the page gives the player to keep, such as the debug window's command log
 
-// The city's Web Worker, which the page starts (micropolis.ts): the simulation runs here, off the page's thread. The
-// compiler's DOM library types the worker's scope as a window, so it is named by the port it is.
-
-// The browser's ticker, which runs the host's loop
-const ticker: Ticker = {now: () => performance.now(), later: (callback) => setTimeout(callback, 0)};
-
-raiseUnhandledRejections(self);
-serveCity(self as unknown as Port, ticker);
+// Has the browser save the JSON text as a file under the name
+export function downloadJson(fileName: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], {type: "application/json"}));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoked once the download has had time to start: revoking at once can cancel it
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

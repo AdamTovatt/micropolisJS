@@ -17,7 +17,8 @@ import { requiredElement } from "./domElements";
 export type FormStep = {done: true} | {done: false; error: string};
 
 // What the form does after a sign-in, decided here so it is tested under node: a refusal shows the server's reason
-// and keeps the form open for another try, and anything else lets the game start, signed in or not
+// and keeps the form open for another try, and anything else moves on, signed in or not: the page then plays once the
+// server welcomes the player, which the client keeps trying for (CityClient.welcomed)
 export function formStep(result: SignInResult): FormStep {
   switch (result.outcome) {
     case "rejected":
@@ -29,7 +30,7 @@ export function formStep(result: SignInResult): FormStep {
 }
 
 // Before the splash screen: connects to the server when one answers, asking for a display name when no session is
-// stored or the server refuses the stored name. Resolves once the game can start, online or not.
+// stored or the server refuses the stored name. Resolves once signing in is over, online or not.
 export async function signInIfServerAnswers(client: CityClient): Promise<void> {
   const started = await client.start();
 

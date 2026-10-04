@@ -11,7 +11,7 @@
  *
  */
 
-import { TOUCH_WINDOW_CLOSED } from "./messages";
+import { TOUCH_WINDOW_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // Warns a player on a touch device that the game is made for a mouse

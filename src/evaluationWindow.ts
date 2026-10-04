@@ -12,7 +12,7 @@
  */
 
 import { requiredElement } from "./domElements";
-import { EVAL_WINDOW_CLOSED } from "./messages";
+import { EVAL_WINDOW_CLOSED } from "./uiMessages";
 import { CITY_PROBLEMS, type EvaluationRecord, GAME_LEVELS, MAX_RANKED_PROBLEMS } from "./protocol";
 import { scoreBreakdownRows, signedPoints, type ScoreRow } from "./scoreBreakdownView";
 import { Text } from "./text";

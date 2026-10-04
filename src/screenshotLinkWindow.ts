@@ -12,7 +12,7 @@
  */
 
 import { requiredElement } from "./domElements";
-import { SCREENSHOT_LINK_CLOSED } from "./messages";
+import { SCREENSHOT_LINK_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // Shows the link to a picture of the map the player took

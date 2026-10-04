@@ -11,7 +11,7 @@
  *
  */
 
-import { SAVE_WINDOW_CLOSED } from "./messages";
+import { SAVE_WINDOW_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // Tells the player the game was saved

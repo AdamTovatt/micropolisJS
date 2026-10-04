@@ -16,7 +16,7 @@ import { CityState } from "../src/cityState";
 import { AdvanceResult, Command, SPEEDS } from "../src/protocol";
 import { attachDriverToTestHook, installTestHook, TestHook } from "../src/testHook";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
-import { removeWindow, stubWindow } from "./helpers/window";
+import { restoreGlobals, stubGlobal } from "./helpers/globals";
 import { STEPS_PER_CITY_TIME, YEAR } from "./helpers/cityTimes";
 import { BranchName, NEW_CITY, openTown, ROAD, UNKNOWN_COMMAND } from "./recordings/scenarios";
 
@@ -132,12 +132,12 @@ describe("the test hook", () => {
     describe("as the page starts", () => {
 
         afterEach(() => {
-            removeWindow();
+            restoreGlobals();
         });
 
         // The page's window, with the runner's request to hold, if it made one, and the hook the page installs on it
         function startingPage(holdRequested: boolean, driver: CityDriver): TestHook {
-            stubWindow();
+            stubGlobal("window", {});
             if (holdRequested) {
                 window.micropolisHoldDriverAtStart = true;
             }

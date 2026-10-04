@@ -15,6 +15,7 @@ import { expect, test } from "@playwright/test";
 
 import { rampColour } from "../src/overlayRenderer";
 import type { OverlayAnswer } from "../src/protocol";
+import { serverForTests } from "./gameServer";
 import { collectPageProblems } from "./page";
 import { startGame } from "./player";
 import { samplePixels } from "./png";
@@ -33,12 +34,14 @@ const STEPS = 1000;
 const LAND_VALUE: OverlayAnswer = {type: "overlay", layer: "landValue", blockSize: 2, width: 0, height: 0, low: 0,
                                    high: 250, values: []};
 
+const server = serverForTests("manual");
+
 test("the overlay tints each tile by its value over the map, and goes again with the overlay", async ({page}) => {
   const problems = collectPageProblems(page);
   const ground = {atlas: "white", x: 0, y: 0, width: 16, height: 16};
   await serveTestArt(page, {version: 1, atlases: {white: "white.png"}, tiles: everyTile({ground}), sprites: {}},
                      {"white.png": solidAtlas([255, 255, 255, 255])});
-  const player = await startGame(page, SEED, "Overlay");
+  const player = await startGame(server(), page, SEED, "Overlay");
 
   // A road along the building site's top row: the scan values developed land only
   const road = {left: 47, top: 30, right: 69, bottom: 30};

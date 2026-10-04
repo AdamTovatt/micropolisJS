@@ -13,6 +13,7 @@
 
 import * as Messages from "../src/messages";
 import { BarElement, NotificationBar, notificationView } from "../src/notification";
+import { WELCOME } from "../src/uiMessages";
 import { styledBy } from "./helpers/stylingWindow";
 
 describe("a notification's view", () => {
@@ -29,8 +30,8 @@ describe("a notification's view", () => {
 
     // The simulation wraps a message it sends without a place in data that is undefined
     it.each([
-        ["data left undefined", {subject: Messages.WELCOME, data: undefined}],
-        ["data without a y", {subject: Messages.WELCOME, data: {x: 4}}],
+        ["data left undefined", {subject: Messages.HIGH_POLLUTION, data: undefined}],
+        ["data without a y", {subject: Messages.HIGH_POLLUTION, data: {x: 4}}],
     ])("is no link with %s", (_, message) => {
         expect(notificationView(message).link).toBeNull();
     });
@@ -123,7 +124,7 @@ describe("the notification bar", () => {
     it("hides 30 seconds after the latest message", () => {
         const {bar: notifications, element} = bar();
 
-        notifications.show({subject: Messages.WELCOME});
+        notifications.show({subject: WELCOME});
         jest.advanceTimersByTime(20 * 1000);
         notifications.show({subject: Messages.NEED_AIRPORT});
         jest.advanceTimersByTime(29 * 1000);
@@ -136,7 +137,7 @@ describe("the notification bar", () => {
     it("hides at once when dismissed, leaving no timer behind", () => {
         const {bar: notifications, element} = bar();
 
-        notifications.show({subject: Messages.WELCOME});
+        notifications.show({subject: WELCOME});
         notifications.dismiss();
 
         expect([element.style.display, jest.getTimerCount()]).toEqual(["none", 0]);

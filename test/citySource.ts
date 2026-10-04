@@ -15,16 +15,14 @@ import { replay } from "../headless/runner";
 import type { CityStart } from "../src/citySource";
 import { CityState } from "../src/cityState";
 import { CommandLog } from "../src/commandLog";
-import { Config } from "../src/config.js";
 import { MapGenerator } from "../src/mapGenerator.js";
-import { Query, QueryAnswer, SPEEDS, StateMessage } from "../src/protocol";
+import { CITY_ID, Query, QueryAnswer, SPEEDS, StateMessage } from "../src/protocol";
 import { Random } from "../src/random";
 import { SaveFormat } from "../src/savedGame";
 import { Simulation } from "../src/simulation.js";
 import { STEPS_PER_SECOND } from "../src/stepDriver";
 import { BIT_MASK } from "../src/tileFlags";
-import { CITY_ID } from "../src/urlOptions";
-import { pageSource, SourceFactory, SourceUnderTest, WebSocketSourceFactory, workerSource } from "./helpers/citySources";
+import { pageSource, SourceFactory, SourceUnderTest, WebSocketSourceFactory } from "./helpers/citySources";
 import { STEPS_PER_CITY_TIME } from "./helpers/cityTimes";
 import { answerTo } from "./helpers/queryAnswers";
 import { serverTestsEnabled, START_SERVER_TIMEOUT_MS } from "./helpers/testServer";
@@ -36,7 +34,7 @@ const SEED = 2026;
 // The milliseconds a number of steps takes in real time
 const millisecondsFor = (steps: number) => steps * 1000 / STEPS_PER_SECOND;
 
-describe.each([pageSource, workerSource])("$name", (factory) => contract(factory));
+describe(pageSource.name, () => contract(pageSource));
 
 // The WebSocket source runs against the real server, which only CI's server job tests against (testServer.ts)
 const webSocketSource = new WebSocketSourceFactory();
@@ -428,29 +426,14 @@ function contract(factory: SourceFactory): void {
         }
     });
 
-    // The simulation's debug mode is a module both sides share under Jest, so the test puts it back. The server's
-    // simulation has no debug mode of the client's.
-    if (!factory.onServer) {
-        it("passes the client's debug mode on to the simulation", async () => {
-            const debugging = await factory.create(true);
-            try {
-                await debugging.run();
-                expect(Config.debug).toBe(true);
-            } finally {
-                debugging.close();
-                Config.debug = false;
-            }
-        });
-    }
-
     it("gives a save whose text is the save format's", async () => {
         await startNewCity();
 
         expect(SaveFormat.parse(await tested.source.driver.savedGame())).toMatchObject({name: "Town"});
     });
 
-    // The server's store keeps a city on the server, as Micropolis.Server.Tests checks, and the page keeps a city in the
-    // browser, as the text its source gives
+    // The server's store keeps a city on the server, as Micropolis.Server.Tests checks, and a source in the browser
+    // gives its city's save as text
     it(factory.onServer ? "saves the city in the server's store, giving no text" : "saves the city as its save's text",
        async () => {
         await startNewCity();

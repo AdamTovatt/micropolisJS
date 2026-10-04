@@ -16,6 +16,7 @@ import {
   CITY_PROBLEMS, CityClass, DisasterKind, GameLevel, OverlayLayer, ScoreReason, ServiceAmounts, SPEEDS, ToolName,
   ZoneCategory,
 } from "./protocol";
+import * as UiMessages from "./uiMessages";
 
 // TODO Some kind of rudimentary L20N based on navigator.language?
 
@@ -118,7 +119,7 @@ const messages: {[subject: string]: MessageText} = {
   [Messages.NEED_STADIUM]: {text: "Residents demand a Stadium", tone: "neutral"},
   [Messages.ROAD_NEEDS_FUNDING]: {text: "Roads deteriorating, due to lack of funds", tone: "neutral"},
   [Messages.POLICE_NEEDS_FUNDING]: {text: "Police departments need funding", tone: "neutral"},
-  [Messages.WELCOME]: {text: "Welcome to micropolisJS", tone: "neutral"},
+  [UiMessages.WELCOME]: {text: "Welcome to micropolisJS", tone: "neutral"},
   [Messages.BLACKOUTS_REPORTED]: {text: "Brownouts, build another Power Plant", tone: "bad"},
   [Messages.EARTHQUAKE]: {text: "Major earthquake reported !!", tone: "bad"},
   [Messages.EXPLOSION_REPORTED]: {text: "Explosion detected ", tone: "bad"},
@@ -144,7 +145,7 @@ const messages: {[subject: string]: MessageText} = {
   [Messages.REACHED_METROPOLIS]: {text: "Now a metropolis! Population has reached 100,000", tone: "good"},
   [Messages.REACHED_TOWN]: {text: "Now a town! Population has reached 2,000", tone: "good"},
   // The debug window's download, where the page can't work out state hashes
-  [Messages.LOG_UNCHECKED]: {text: "Command log saved without checkpoints: this page can't work out state hashes",
+  [UiMessages.LOG_UNCHECKED]: {text: "Command log saved without checkpoints: this page can't work out state hashes",
                              tone: "bad"},
 };
 

@@ -11,27 +11,35 @@
  *
  */
 
-import { expect, Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { writeFileSync } from "fs";
 
-import { blockNetwork, collectPageProblems } from "./page";
-import { Player } from "./player";
+import { CITY_LINK, serverForTests } from "./gameServer";
+import { collectPageProblems } from "./page";
+import { Player, TESTER } from "./player";
 import { SEED, SITE } from "./stages";
 
-// A checkpoint's save opens in debug mode, so the city a stage left can be reproduced directly
+// Load on the splash screen starts a save file on the game server as a new city, so a checkpoint's save, or any city
+// saved as a file, can be played again
 
-async function chooseSaveFile(page: Page, file: string): Promise<void> {
-  const chooser = page.waitForEvent("filechooser");
-  await page.click("#splashLoadFile");
-  await (await chooser).setFiles(file);
+const server = serverForTests("manual");
+
+// The id in the city's link in the page's address
+function linkedCity(url: string): string {
+  const link = CITY_LINK.exec(url);
+  if (link === null) {
+    throw new Error(`${url} has no city's link`);
+  }
+
+  return link[1];
 }
 
-test("debug mode loads a save file as the city it saved", async ({page}) => {
-  await blockNetwork(page);
+test("Load starts a save file as a new city, the city it saved", async ({page}) => {
+  const player = await Player.onServer(server(), page, TESTER);
   const problems = collectPageProblems(page);
-  const player = new Player(page);
 
   await player.startNewGame(SEED, "Saved", "Easy");
+  const savedCity = linkedCity(page.url());
   // A row of the playthrough's building site, clear land on the seed's map
   const site = SITE[0];
   await player.selectTool("road");
@@ -42,36 +50,35 @@ test("debug mode loads a save file as the city it saved", async ({page}) => {
   writeFileSync(file, JSON.stringify(saved));
 
   await player.open();
-  await chooseSaveFile(page, file);
+  await player.loadSaveFile(file);
   await player.waitForGame();
 
+  expect(linkedCity(page.url())).not.toBe(savedCity);
   expect(await player.save()).toEqual(saved);
   await expect(page.locator("#name")).toHaveText("Saved");
   expect(problems).toEqual([]);
 });
 
-test("debug mode refuses a file that isn't a save, as often as it is chosen", async ({page}) => {
-  await blockNetwork(page);
+test("Load refuses a file that isn't a save, as often as it is chosen", async ({page}) => {
+  const player = await Player.onServer(server(), page, TESTER);
   const problems = collectPageProblems(page);
-  const player = new Player(page);
   const file = test.info().outputPath("notes.json");
   writeFileSync(file, "not a save");
 
   await player.open();
-  await chooseSaveFile(page, file);
+  await player.loadSaveFile(file);
   await expect.poll(() => problems.length).toBe(1);
-  await chooseSaveFile(page, file);
+  await player.loadSaveFile(file);
   await expect.poll(() => problems.length).toBe(2);
 
-  expect(problems.every((problem) => problem.startsWith("Alert: Could not read notes.json:")), problems.join("\n"))
+  expect(problems.every((problem) => problem.startsWith("Alert: Could not start notes.json:")), problems.join("\n"))
     .toBe(true);
   await expect(page.locator("#splash")).toBeVisible();
 });
 
-test("debug mode refuses a file that reads as a save but won't load, and stays on the splash screen", async ({page}) => {
-  await blockNetwork(page);
+test("Load refuses a file that reads as a save but won't start, and stays on the splash screen", async ({page}) => {
+  const player = await Player.onServer(server(), page, TESTER);
   const problems = collectPageProblems(page);
-  const player = new Player(page);
 
   await player.startNewGame(SEED, "Saved", "Easy");
   const mapless: Record<string, unknown> = {...await player.save()};
@@ -80,17 +87,16 @@ test("debug mode refuses a file that reads as a save but won't load, and stays o
   writeFileSync(file, JSON.stringify(mapless));
 
   await player.open();
-  await chooseSaveFile(page, file);
+  await player.loadSaveFile(file);
   await expect.poll(() => problems.length).toBe(1);
 
-  expect(problems[0]).toMatch(/^Alert: Could not read mapless.json:/);
+  expect(problems[0]).toMatch(/^Alert: Could not start mapless.json:/);
   await expect(page.locator("#splash")).toBeVisible();
 });
 
-test("debug mode ignores a save file that finishes reading after the player started a new game", async ({page}) => {
-  await blockNetwork(page);
+test("Load ignores a save file that finishes reading after the player started a new city", async ({page}) => {
+  const player = await Player.onServer(server(), page, TESTER);
   const problems = collectPageProblems(page);
-  const player = new Player(page);
 
   await player.startNewGame(SEED, "Saved", "Easy");
   const file = test.info().outputPath("city.json");
@@ -117,7 +123,7 @@ test("debug mode ignores a save file that finishes reading after the player star
   });
 
   await player.open();
-  await chooseSaveFile(page, file);
+  await player.loadSaveFile(file);
   await page.click("#splashPlay");
   await page.fill("#nameForm", "Started");
   await page.click("#playit");
@@ -129,16 +135,11 @@ test("debug mode ignores a save file that finishes reading after the player star
   expect(problems).toEqual([]);
 });
 
-test("the save file button is only in debug mode", async ({page}) => {
-  await blockNetwork(page);
-  const button = page.locator("#splashLoadFile");
-
-  await page.goto("/?debug=1");
-  await page.locator("#splashPlay").waitFor();
-  await expect(button).toBeVisible();
+test("Load is offered outside debug mode", async ({page}) => {
+  await server().forward(page, TESTER);
 
   await page.goto("/");
-  await page.locator("#splashPlay").waitFor();
-  await expect(button).toHaveCount(1);
-  await expect(button).toBeHidden();
+
+  await expect(page.locator("#splashLoad")).toBeVisible();
+  await expect(page.locator("#splashLoad")).toBeEnabled();
 });

@@ -14,13 +14,13 @@
 import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetChoice, BudgetWindow } from "./budgetWindow";
 import type { Presence } from "./cityClient";
-import { linkToCity } from "./cityLink";
-import { saveCity } from "./citySave";
-import type { CitySource, StartedCity } from "./citySource";
+import { linkToCity, ServerCity } from "./cityLink";
+import type { CitySource } from "./citySource";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { DebugAction, DebugWindow } from "./debugWindow";
 import { DisasterWindow } from "./disasterWindow";
+import { downloadJson } from "./download";
 import { isShown, requiredElement, toggleShown } from "./domElements";
 import { ToolPaths } from "./dragPath";
 import { errorMessage } from "./errorMessage";
@@ -28,7 +28,6 @@ import { EvaluationWindow } from "./evaluationWindow";
 import { GameCanvas, MouseOutline } from "./gameCanvas";
 import { InfoBar, placeInfoBar } from "./infoBar";
 import { InputStatus, ToolClick, ZoomRequest } from "./inputStatus";
-import * as Messages from "./messages";
 import { MonsterTV } from "./monsterTV";
 import { NewsHold, routeMessage } from "./news";
 import { NotificationBar, placeNotificationBar } from "./notification";
@@ -46,10 +45,11 @@ import { ScreenshotArea, ScreenshotWindow } from "./screenshotWindow";
 import { SettingsChoice, SettingsWindow } from "./settingsWindow";
 import { SpeedControl } from "./speedControl";
 import { StatusPanel } from "./statusPanel";
-import { Storage } from "./storage";
+import { pageStore } from "./storage";
 import { attachToTestHook } from "./testHook";
 import type { TileSet } from "./tileSet";
 import { TouchWarnWindow } from "./touchWarnWindow";
+import * as UiMessages from "./uiMessages";
 import type { TilePoint } from "./viewPosition";
 import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "./windowCommands";
 import { WindowManager } from "./windowManager";
@@ -168,11 +168,11 @@ export class Game {
   private readonly animate: () => void;
 
   // A game of the city the source has started, which the state has followed from its start
-  constructor({source, state, presence, mapArt, tileSet, spriteSheet}: GameParts, started: StartedCity) {
+  constructor({source, state, presence, mapArt, tileSet, spriteSheet}: GameParts, started: ServerCity) {
     this.source = source;
     this.state = state;
     this.seed = started.seed;
-    this.autoBulldoze = new AutoBulldozePreference(Storage.canStore ? window.localStorage : null);
+    this.autoBulldoze = new AutoBulldozePreference(pageStore());
 
     // A city on the server goes in the page's address, so the address invites another player in, and a reload rejoins
     linkToCity(started, window);
@@ -200,60 +200,60 @@ export class Game {
     this.handleWindowClosure = () => this.windows.closed();
 
     this.evalWindow = new EvaluationWindow(opacityLayerID, "evalWindow");
-    this.evalWindow.addEventListener(Messages.EVAL_WINDOW_CLOSED, this.handleWindowClosure);
-    this.inputStatus.addEventListener(Messages.EVAL_REQUESTED,
+    this.evalWindow.addEventListener(UiMessages.EVAL_WINDOW_CLOSED, this.handleWindowClosure);
+    this.inputStatus.addEventListener(UiMessages.EVAL_REQUESTED,
                                       () => this.windows.open(this.evalWindow, state.current("evaluation")));
 
-    budgetWindow.addEventListener(Messages.BUDGET_WINDOW_CLOSED,
+    budgetWindow.addEventListener(UiMessages.BUDGET_WINDOW_CLOSED,
                                   (choice: BudgetChoice | null) => this.handleBudgetWindowClosure(choice));
-    this.inputStatus.addEventListener(Messages.BUDGET_REQUESTED, () => this.windows.openBudget());
+    this.inputStatus.addEventListener(UiMessages.BUDGET_REQUESTED, () => this.windows.openBudget());
 
     this.disasterWindow = new DisasterWindow(opacityLayerID, "disasterWindow");
-    this.disasterWindow.addEventListener(Messages.DISASTER_WINDOW_CLOSED,
+    this.disasterWindow.addEventListener(UiMessages.DISASTER_WINDOW_CLOSED,
                                          (kind: DisasterKind | null) => this.handleDisasterWindowClosure(kind));
-    this.inputStatus.addEventListener(Messages.DISASTER_REQUESTED, () => this.windows.open(this.disasterWindow));
+    this.inputStatus.addEventListener(UiMessages.DISASTER_REQUESTED, () => this.windows.open(this.disasterWindow));
 
     this.debugWindow = new DebugWindow(opacityLayerID, "debugWindow");
-    this.debugWindow.addEventListener(Messages.DEBUG_WINDOW_CLOSED,
+    this.debugWindow.addEventListener(UiMessages.DEBUG_WINDOW_CLOSED,
                                       (actions: DebugAction[]) => this.handleDebugWindowClosure(actions));
-    this.inputStatus.addEventListener(Messages.DEBUG_WINDOW_REQUESTED, () => this.windows.open(this.debugWindow));
+    this.inputStatus.addEventListener(UiMessages.DEBUG_WINDOW_REQUESTED, () => this.windows.open(this.debugWindow));
 
     this.settingsWindow = new SettingsWindow(opacityLayerID, "settingsWindow");
-    this.settingsWindow.addEventListener(Messages.SETTINGS_WINDOW_CLOSED,
+    this.settingsWindow.addEventListener(UiMessages.SETTINGS_WINDOW_CLOSED,
                                          (choice: SettingsChoice | null) => this.handleSettingsWindowClosure(choice));
-    this.inputStatus.addEventListener(Messages.SETTINGS_WINDOW_REQUESTED, () => this.handleSettingsRequest());
+    this.inputStatus.addEventListener(UiMessages.SETTINGS_WINDOW_REQUESTED, () => this.handleSettingsRequest());
 
     this.screenshotWindow = new ScreenshotWindow(opacityLayerID, "screenshotWindow");
-    this.screenshotWindow.addEventListener(Messages.SCREENSHOT_WINDOW_CLOSED,
+    this.screenshotWindow.addEventListener(UiMessages.SCREENSHOT_WINDOW_CLOSED,
                                            (area: ScreenshotArea | null) => this.handleScreenshotWindowClosure(area));
-    this.inputStatus.addEventListener(Messages.SCREENSHOT_WINDOW_REQUESTED,
+    this.inputStatus.addEventListener(UiMessages.SCREENSHOT_WINDOW_REQUESTED,
                                       () => this.windows.open(this.screenshotWindow));
 
     this.screenshotLinkWindow = new ScreenshotLinkWindow(opacityLayerID, "screenshotLinkWindow");
-    this.screenshotLinkWindow.addEventListener(Messages.SCREENSHOT_LINK_CLOSED, this.handleWindowClosure);
+    this.screenshotLinkWindow.addEventListener(UiMessages.SCREENSHOT_LINK_CLOSED, this.handleWindowClosure);
 
     this.saveWindow = new SaveWindow(opacityLayerID, "saveWindow");
-    this.saveWindow.addEventListener(Messages.SAVE_WINDOW_CLOSED, this.handleWindowClosure);
+    this.saveWindow.addEventListener(UiMessages.SAVE_WINDOW_CLOSED, this.handleWindowClosure);
 
     this.touchWindow = new TouchWarnWindow(opacityLayerID, "touchWarnWindow");
-    this.touchWindow.addEventListener(Messages.TOUCH_WINDOW_CLOSED, this.handleWindowClosure);
+    this.touchWindow.addEventListener(UiMessages.TOUCH_WINDOW_CLOSED, this.handleWindowClosure);
 
     // The query window shows the report the query tool asks the simulation for
     this.queryWindow = new QueryWindow(opacityLayerID, "queryWindow");
-    this.queryWindow.addEventListener(Messages.QUERY_WINDOW_CLOSED, this.handleWindowClosure);
+    this.queryWindow.addEventListener(UiMessages.QUERY_WINDOW_CLOSED, this.handleWindowClosure);
     this.queryTool = new QueryTool(source, (report) => this.windows.open(this.queryWindow, report));
 
     // Listen for clicks on the save button
-    this.inputStatus.addEventListener(Messages.SAVE_REQUESTED, () => this.handleSave());
+    this.inputStatus.addEventListener(UiMessages.SAVE_REQUESTED, () => this.handleSave());
 
     // Listen for tool clicks
-    this.inputStatus.addEventListener(Messages.TOOL_CLICKED, (data: ToolClick) => this.handleTool(data));
+    this.inputStatus.addEventListener(UiMessages.TOOL_CLICKED, (data: ToolClick) => this.handleTool(data));
 
     // And pauses
-    this.inputStatus.addEventListener(Messages.PAUSE_REQUESTED, () => this.speedControl.togglePause());
+    this.inputStatus.addEventListener(UiMessages.PAUSE_REQUESTED, () => this.speedControl.togglePause());
 
     // And zooms, which a window holding the keyboard and mouse holds back, as it holds back scrolling
-    this.inputStatus.addEventListener(Messages.ZOOM_REQUESTED, ({steps, point}: ZoomRequest) => {
+    this.inputStatus.addEventListener(UiMessages.ZOOM_REQUESTED, ({steps, point}: ZoomRequest) => {
       if (!this.windows.holdsInput()) {
         this.gameCanvas.zoomBy(steps, point);
       }
@@ -351,7 +351,7 @@ export class Game {
   private revealControls(): void {
     document.querySelectorAll(".initialHidden").forEach((element) => element.classList.remove("initialHidden"));
 
-    this.notificationBar.show({subject: Messages.WELCOME});
+    this.notificationBar.show({subject: UiMessages.WELCOME});
   }
 
   private handleDisasterWindowClosure(kind: DisasterKind | null): void {
@@ -395,19 +395,11 @@ export class Game {
   // can't give is said out loud, as a save is.
   private downloadLog(): void {
     this.source.commandLog().then((recorded) => {
-      const url = URL.createObjectURL(new Blob([JSON.stringify(recorded.log)], {type: "application/json"}));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `micropolis-log-${recorded.step}.json`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      // Revoked once the download has had time to start: revoking at once can cancel it
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      downloadJson(`micropolis-log-${recorded.step}.json`, JSON.stringify(recorded.log));
 
       if (recorded.unhashed !== null) {
         console.error(`The command log has no checkpoints: ${recorded.unhashed}`);
-        this.notificationBar.show({subject: Messages.LOG_UNCHECKED});
+        this.notificationBar.show({subject: UiMessages.LOG_UNCHECKED});
       }
     }, (error: unknown) => window.alert(`The command log couldn't be downloaded: ${errorMessage(error)}`));
   }
@@ -483,10 +475,10 @@ export class Game {
     this.inputStatus.showToolOutput(toolOutputText(outcome));
   }
 
-  // The window opens once the save is written. A save the source can't give, such as one on a server the connection
-  // to is down, is said out loud.
+  // The server keeps the city in its store, and the window opens once it has. A save the server refuses, or one on a
+  // server the connection to is down, is said out loud.
   private handleSave(): void {
-    saveCity(this.source, Storage).then(() => {
+    this.source.save().then(() => {
       this.windows.open(this.saveWindow);
     }, (error: unknown) => window.alert(`The city couldn't be saved: ${errorMessage(error)}`));
   }

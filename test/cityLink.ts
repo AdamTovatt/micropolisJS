@@ -11,8 +11,7 @@
  *
  */
 
-import type { StartedCity } from "../src/citySource";
-import { joinLinkedCity, leaveLostCity, linkedCity, linkToCity, PageWindow } from "../src/cityLink";
+import { joinLinkedCity, leaveLostCity, linkedCity, linkToCity, PageWindow, ServerCity } from "../src/cityLink";
 
 const CITY = "0123456789abcdef0123456789abcdef";
 
@@ -39,11 +38,11 @@ class FakePage implements PageWindow {
 
 describe("a city's link", () => {
 
-    const started: StartedCity = {name: "Town", seed: 2026, city: CITY};
+    const started: ServerCity = {name: "Town", seed: 2026, city: CITY};
 
     it("joins the city it names and plays it", async () => {
         const page = new FakePage(`http://localhost:44903/?city=${CITY}`);
-        const played: StartedCity[] = [];
+        const played: ServerCity[] = [];
         const joined: string[] = [];
 
         const result = await joinLinkedCity(CITY, {join: async (city) => {
@@ -55,17 +54,6 @@ describe("a city's link", () => {
         expect(joined).toEqual([CITY]);
         expect(played).toEqual([started]);
         expect(page.alerts).toEqual([]);
-    });
-
-    it("says why it can't join when no server answers, and plays nothing", async () => {
-        const page = new FakePage(`http://localhost:44903/?city=${CITY}`);
-        const play = jest.fn();
-
-        expect(await joinLinkedCity(CITY, null, play, page)).toBe(false);
-        expect(page.alerts).toEqual(["The city in this link is on the server, which isn't answering, so the game plays " +
-                                     "in the browser: choose a city to start."]);
-        expect(play).not.toHaveBeenCalled();
-        expect(page.replaced).toEqual([{data: {entry: 1}, url: "http://localhost:44903/"}]);
     });
 
     it("says why the server refused the join, in its words, and plays nothing", async () => {
@@ -107,14 +95,6 @@ describe("a city's link", () => {
         linkToCity(started, page);
 
         expect(page.replaced).toEqual([{data: {entry: 1}, url: `http://localhost:44903/?debug=1&city=${CITY}`}]);
-    });
-
-    it("is not put in the address of a city the browser runs, which has no id", () => {
-        const page = new FakePage("http://localhost:44903/");
-
-        linkToCity({...started, city: null}, page);
-
-        expect(page.replaced).toEqual([]);
     });
 
     it("says why a lost city is no longer open, and goes to the page without the link", () => {

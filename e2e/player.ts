@@ -17,8 +17,7 @@ import { readFileSync } from "fs";
 import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
 import type { Advanced, View } from "../src/testHook";
 import { steppedZoom } from "../src/viewPosition";
-import { CITY_LINK, GameServer, signIn } from "./gameServer";
-import { blockNetwork } from "./page";
+import { CITY_LINK, GameServer } from "./gameServer";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
 // step driver, and moves the city on only through the hook's advance. Every input lands between the same two steps on
@@ -29,7 +28,7 @@ export interface Tile {
   y: number;
 }
 
-// A save, as the game writes it to storage, in the parts the runner reads. The map's tiles are raw tile values, row
+// A save, as the object the game's save file holds, in the parts the runner reads. The map's tiles are raw tile values, row
 // by row.
 export interface GameSave {
   map: {width: number, height: number, tiles: number[]};
@@ -72,25 +71,23 @@ export class Player {
   private readonly sessionLogs: CommandLog[] = [];
   // The commands those sessions applied
   private commandsBefore = 0;
-  // Whether the player has signed in to the game server: the session the page then stores signs it in from then on
-  private signedIn = false;
   // Whether each page opened holds its driver as it starts
   private holdingAtStart = false;
 
-  // A player of a city on the game server signs in under its name, the first time the page opens; with none, the page
-  // plays single-player in the browser
-  constructor(readonly page: Page, private readonly online: {signInAs: string, server: GameServer} | null = null) {}
+  private constructor(readonly page: Page, private readonly server: GameServer, private readonly name: string) {}
 
-  // Opens the page in debug mode, with more of a query string if given, signs in if the player has yet to, and holds
-  // the driver before the game exists, so it never steps unasked
+  // A player who plays on the game server under the name, which the page's requests go to, and which the page opens
+  // signed in to (GameServer.forward)
+  static async onServer(server: GameServer, page: Page, name: string): Promise<Player> {
+    await server.forward(page, name);
+    return new Player(page, server, name);
+  }
+
+  // Opens the page in debug mode, with more of a query string if given, and holds the driver before the game exists, so
+  // it never steps unasked
   async open(query = ""): Promise<void> {
     await this.holdEachPageAtStart();
     await this.page.goto(`/?debug=1${query === "" ? "" : `&${query}`}`);
-    if (this.online !== null && !this.signedIn) {
-      await signIn(this.page, this.online.signInAs);
-      this.signedIn = true;
-    }
-
     await this.holdOnceHooked();
   }
 
@@ -110,26 +107,26 @@ export class Player {
   // again only once the player is offline, so the server has unloaded the city: a join before the city was unloaded
   // would find it still loaded, and its log would go on from where the session before began.
   async reloadCity(): Promise<void> {
-    if (this.online === null) {
-      throw new Error("Only a city on the game server has a link to join it again by");
-    }
-
     await this.endSession();
     const address = this.page.url();
     await this.page.goto("about:blank");
-    await this.online.server.untilOffline(this.online.signInAs);
+    await this.server.untilOffline(this.name);
     await this.page.goto(address);
     await this.holdOnceHooked();
     await this.waitForGame();
   }
 
-  // Waits for the game to show. A player signed in to the game server plays a city there, which puts its link in the
-  // page's address: without one, the page would be playing single-player in the browser.
-  async waitForGame(): Promise<void> {
-    if (this.online !== null) {
-      await expect(this.page, "the city's link, of a city on the game server").toHaveURL(CITY_LINK);
-    }
+  // Chooses the file with the splash screen's Load
+  async loadSaveFile(file: string): Promise<void> {
+    const chooser = this.page.waitForEvent("filechooser");
+    await this.page.click("#splashLoad");
+    await (await chooser).setFiles(file);
+  }
 
+  // Waits for the game to show: the city's link in the page's address, as a city on the game server puts it there, and
+  // the map
+  async waitForGame(): Promise<void> {
+    await expect(this.page, "the city's link, of a city on the game server").toHaveURL(CITY_LINK);
     await this.page.locator(CANVAS).waitFor();
     await this.page.waitForFunction(() => {
       try {
@@ -199,11 +196,11 @@ export class Player {
   // The save the game server's store keeps for the city the page plays, which the Save button writes
   storedSave(): GameSave {
     const city = CITY_LINK.exec(this.page.url())?.[1];
-    if (this.online === null || city === undefined) {
-      throw new Error("Only a city on the game server, whose link the page's address holds, is kept in its store");
+    if (city === undefined) {
+      throw new Error("Only a city whose link the page's address holds is kept in the game server's store");
     }
 
-    const stored = this.online.server.storedCity(city);
+    const stored = this.server.storedCity(city);
     if (stored === null) {
       throw new Error(`The game server's store keeps no city ${city}`);
     }
@@ -608,11 +605,13 @@ export class Player {
   }
 }
 
-// A player of a new Easy game of the name on the seed's map, off the network, with the notification bar dismissed.
+// The player a spec's pages play as when the spec has no need of another
+export const TESTER = "Tester";
+
+// A player of a new Easy city of the name on the seed's map, on the game server, with the notification bar dismissed.
 // The driver is held from the start, so the map is the seed's, with no sprites, until the player moves the city on.
-export async function startGame(page: Page, seed: number, name: string): Promise<Player> {
-  await blockNetwork(page);
-  const player = new Player(page);
+export async function startGame(server: GameServer, page: Page, seed: number, name: string): Promise<Player> {
+  const player = await Player.onServer(server, page, TESTER);
   await player.startNewGame(seed, name, "Easy");
   await player.dismissNotification();
   return player;

@@ -11,21 +11,25 @@
  *
  */
 
-import type { StartedCity } from "./citySource";
+import type { ServerCities, ServerCity } from "./cityLink";
+import { CityListView } from "./cityListView";
 import { ClientMap } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { isChecked, isShown, requiredElement, setShown } from "./domElements";
 import { errorMessage } from "./errorMessage";
-import { Game, GameParts } from "./game";
 import { GAME_LEVELS, GameLevel } from "./protocol";
+import type { QuerySource } from "./querySource";
 import { SplashCanvas } from "./splashCanvas";
-import { Storage } from "./storage";
+import type { CityList } from "./storage";
+import type { TileSet } from "./tileSet";
 import { UiRandom } from "./uiRandom";
 
-// The splash screen is the first screen the player sees, once the tiles and sprites have loaded. It shows maps for the
-// player to choose from, or loads a saved game; for a new game it then asks for the city's name and level, and
-// launches the game. Generating a map belongs to the simulation, so each map comes from the city source, as the answer
-// to a map preview query, which it answers before any city has started.
+// The splash screen is the first screen the player sees, once the tiles and sprites have loaded and the server has
+// welcomed the player. It shows maps for the player to choose from, for a new city on the server; the cities this
+// browser started or joined, to join again (cityListView.ts); and Load, which starts a saved game's file on the server
+// as a new city. For a new city it then asks for the city's name and level. Generating a map belongs to the
+// simulation, so each map comes from the city source, as the answer to a map preview query, which it answers before
+// any city has started.
 
 // The radio button of each level a new city can start at
 const LEVEL_RADIOS: {level: GameLevel, id: string}[] = [
@@ -33,6 +37,9 @@ const LEVEL_RADIOS: {level: GameLevel, id: string}[] = [
   {level: "MED", id: "difficultyMed"},
   {level: "HARD", id: "difficultyHard"},
 ];
+
+// What the player is told on choosing a city while another is starting
+const STILL_STARTING = "Another city is starting: wait for it, then choose again.";
 
 // The number of the level checked
 function checkedLevel(): number {
@@ -44,17 +51,32 @@ function checkedLevel(): number {
   return GAME_LEVELS.indexOf(radio.level);
 }
 
+// What the splash screen is made from: the source, which answers the map previews and starts and joins cities on the
+// server, and the tile set the previews are drawn with
+export interface SplashParts {
+  source: ServerCities & QuerySource;
+  tileSet: TileSet;
+}
+
+// What becomes of the city the player chooses
+export interface Lobby {
+  // The cities this browser started or joined
+  cities: CityList;
+  // Plays the city that started or was joined
+  play(started: ServerCity): void;
+}
+
 // Shows the splash screen, first offering the map of the seed, or of a new one when given none. While the screen is too
 // small to play, it waits until a resize makes room.
-export function showSplashScreen(parts: GameParts, seed: number | null): void {
+export function showSplashScreen(parts: SplashParts, seed: number | null, lobby: Lobby): void {
   if (!isShown(requiredElement("tooSmall"))) {
-    new SplashScreen(parts, seed);
+    new SplashScreen(parts, seed, lobby);
     return;
   }
 
   const onResize = () => {
     window.removeEventListener("resize", onResize);
-    showSplashScreen(parts, seed);
+    showSplashScreen(parts, seed, lobby);
   };
   window.addEventListener("resize", onResize);
 }
@@ -64,9 +86,8 @@ class SplashScreen {
   private readonly seedText = requiredElement("splashSeed");
   private readonly generateButton = requiredElement("splashGenerate");
   private readonly playButton = requiredElement("splashPlay");
-  private readonly loadButton = requiredElement("splashLoad", HTMLButtonElement);
-  private readonly loadFileButton = requiredElement("splashLoadFile");
-  private readonly fileInput = requiredElement("splashLoadFileInput", HTMLInputElement);
+  private readonly loadButton = requiredElement("splashLoad");
+  private readonly fileInput = requiredElement("splashLoadInput", HTMLInputElement);
   // The form asking for a new city's name and level
   private readonly start = requiredElement("start");
   private readonly playForm = requiredElement("playForm");
@@ -75,9 +96,10 @@ class SplashScreen {
   // The game seed of the map the player has chosen, whose preview may yet be on its way
   private seed: number;
   private readonly splashCanvas: SplashCanvas;
-  // Whether the player has moved on, to a new game or a saved one
+  private readonly cityList: CityListView;
+  // Whether the player has moved on, to a new city or another
   private departed = false;
-  // Whether a saved game is being started, which the player waits for
+  // Whether a city is starting or being joined, which the player waits for
   private loading = false;
 
   private readonly onGenerate = (e: Event) => {
@@ -85,22 +107,12 @@ class SplashScreen {
     this.choose(UiRandom.newSeed());
   };
 
-  // Fetches the saved game from storage, and launches it
   private readonly onLoad = (e: Event) => {
-    e.preventDefault();
-
-    const text = Storage.getSavedText();
-    if (text !== null) {
-      this.launchSavedGame(text, (err) => alert(`The saved game would not load: ${err}`));
-    }
-  };
-
-  private readonly onChooseFile = (e: Event) => {
     e.preventDefault();
     this.fileInput.click();
   };
 
-  // Launches the game saved in the chosen file. The file holds the text the game saves to storage.
+  // Starts the game saved in the chosen file as a new city. The file holds a saved game's text.
   private readonly onFileChosen = () => {
     const file = this.fileInput.files?.[0];
     // Choosing the same file again, after it failed, is a change too
@@ -115,8 +127,9 @@ class SplashScreen {
         return;
       }
 
-      // A file that reads as a save can still fail to load
-      this.launchSavedGame(text, (err) => alert(`Could not read ${file.name}: ${err}`));
+      // A file that reads as a save can still fail to start
+      void this.launch(() => this.parts.source.start({save: text}),
+                       (reason) => alert(`Could not start ${file.name}: ${reason}`));
     });
   };
 
@@ -124,8 +137,8 @@ class SplashScreen {
   private readonly onPlay = (e: Event) => {
     e.preventDefault();
 
-    // A saved game is starting
     if (this.loading) {
+      alert(STILL_STARTING);
       return;
     }
 
@@ -141,7 +154,7 @@ class SplashScreen {
     this.nameInput.focus();
   };
 
-  // Launches a new game on the chosen map, with the name and level the player gave. The name may be empty: the start
+  // Starts a new city on the chosen map, with the name and level the player gave. The name may be empty: the start
   // form doesn't require one in debug mode. A city the source can't start, such as one on a server that went away, is
   // said out loud, and the splash screen comes back on the same map.
   private readonly onSubmit = (e: Event) => {
@@ -151,13 +164,13 @@ class SplashScreen {
     setShown(this.start, false);
 
     const start = {name: this.nameInput.value || "MyTown", seed: this.seed, level: checkedLevel()};
-    this.parts.source.start(start).then((started) => this.play(started), (err: unknown) => {
-      alert(`The city could not start: ${errorMessage(err)}`);
-      showSplashScreen(this.parts, this.seed);
+    void this.launch(() => this.parts.source.start(start), (reason) => {
+      alert(`The city could not start: ${reason}`);
+      showSplashScreen(this.parts, this.seed, this.lobby);
     });
   };
 
-  constructor(private readonly parts: GameParts, seed: number | null) {
+  constructor(private readonly parts: SplashParts, seed: number | null, private readonly lobby: Lobby) {
     this.splashCanvas = new SplashCanvas("splashContainer", parts.tileSet);
     this.seed = seed === null ? UiRandom.newSeed() : seed;
     this.choose(this.seed);
@@ -165,17 +178,12 @@ class SplashScreen {
     this.generateButton.addEventListener("click", this.onGenerate);
     this.playButton.addEventListener("click", this.onPlay);
     this.loadButton.addEventListener("click", this.onLoad);
+    this.fileInput.addEventListener("change", this.onFileChosen);
 
-    // Debug mode can open a save file, such as an end-to-end checkpoint's, to reproduce what it shows
-    if (ClientConfig.debug) {
-      requiredElement("splashLoadFileContainer").classList.remove("hidden");
-      this.loadFileButton.addEventListener("click", this.onChooseFile);
-      this.fileInput.addEventListener("change", this.onFileChosen);
-    }
-
-    // Saving needs storage, and loading needs a game saved there
-    requiredElement("saveRequest", HTMLButtonElement).disabled = !Storage.canStore;
-    this.loadButton.disabled = !(Storage.canStore && Storage.getSavedText() !== null);
+    // A city that can't be joined stays on the list, as a server that couldn't reach its store may yet join it: the
+    // player forgets it once it's gone for good
+    this.cityList = new CityListView(lobby.cities, (known) => void this.launch(() => parts.source.join(known.city),
+      (reason) => alert(`${known.name} can't be joined: ${reason}`)));
 
     setShown(this.splash, true);
     this.playButton.focus();
@@ -201,36 +209,39 @@ class SplashScreen {
   // Removes the splash screen's listeners and hides it
   private leave(): void {
     this.loadButton.removeEventListener("click", this.onLoad);
-    this.loadFileButton.removeEventListener("click", this.onChooseFile);
     this.fileInput.removeEventListener("change", this.onFileChosen);
     this.generateButton.removeEventListener("click", this.onGenerate);
     this.playButton.removeEventListener("click", this.onPlay);
+    this.cityList.withdraw();
 
     setShown(this.splash, false);
     this.departed = true;
   }
 
-  // The game starts before the splash screen goes, so a save that won't load leaves it showing, and the player can
-  // choose again. Only one saved game starts at a time, and no new one while it does.
-  private launchSavedGame(text: string, failed: (reason: string) => void): void {
+  // Starts or joins a city, and plays it. Every city the player chooses starts here. The city plays before the splash
+  // screen goes, so one loaded or joined from it that won't start or can't be joined leaves it showing, and the player
+  // can choose again; a new city has left it for the start form already, so its failure brings it back. Only one city
+  // starts or is joined at a time, and no new one starts while it does, which the player is told. Only the start is
+  // caught here: a game that fails to build is a defect, which goes unhandled rather than being taken for a city that
+  // couldn't start.
+  private async launch(starting: () => Promise<ServerCity>, failed: (reason: string) => void): Promise<void> {
     if (this.loading) {
+      alert(STILL_STARTING);
       return;
     }
 
     this.loading = true;
-    this.parts.source.start({save: text}).then((started) => {
-      this.loading = false;
-      this.play(started);
-      this.leave();
-    }, (err: unknown) => {
-      this.loading = false;
+    let started: ServerCity;
+    try {
+      started = await starting();
+    } catch (err) {
       failed(errorMessage(err));
-    });
-  }
+      return;
+    } finally {
+      this.loading = false;
+    }
 
-  // Plays the city the source started. Only the start is caught where it is asked for: a game that fails to build is
-  // a defect, which goes unhandled rather than being taken for a city that couldn't start.
-  private play(started: StartedCity): void {
-    new Game(this.parts, started);
+    this.lobby.play(started);
+    this.leave();
   }
 }

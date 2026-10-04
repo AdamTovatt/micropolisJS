@@ -13,7 +13,7 @@
 
 import { requiredElement } from "./domElements";
 import { percentLabel, wholePercent } from "./fundingDisplay";
-import { BUDGET_WINDOW_CLOSED } from "./messages";
+import { BUDGET_WINDOW_CLOSED } from "./uiMessages";
 import { formatMoney } from "./money";
 import { type BudgetForecastAnswer, type BudgetRecord, type Query, SERVICES, type ServiceAmounts } from "./protocol";
 import type { QuerySource } from "./querySource";

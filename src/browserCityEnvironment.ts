@@ -12,43 +12,35 @@
  */
 
 import { CityClientEnvironment, SessionStore, SocketLike, StoredSession } from "./cityClient";
+import { isObject, pageStore, parseStored, StoredText } from "./storage";
 
 // The city client's environment in the browser: fetch, WebSocket, localStorage, the Web Locks API and timers
 
-const SESSION_STORAGE_KEY = "micropolisJSSession";
+export const SESSION_STORAGE_KEY = "micropolisJSSession";
 const SESSION_LOCK = "micropolisJSSession";
 
 // The game waits on the server's first answer before its splash screen, so a server that never answers counts as none
 export const REQUEST_TIMEOUT_MS = 5000;
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+// The session in the text, or null when the text holds none
+function parseSession(text: string): StoredSession | null {
+  const value = parseStored(text);
+  return isObject(value) && typeof value.token === "string" && typeof value.name === "string"
+    ? {token: value.token, name: value.name}
+    : null;
 }
 
-// Without storage the session lasts as long as the page
+// Without storage the session lasts as long as the page (StoredText)
 export function browserCityEnvironment(requestTimeoutMs = REQUEST_TIMEOUT_MS): CityClientEnvironment {
-  let memory: StoredSession | null = null;
+  const kept = new StoredText(pageStore(), SESSION_STORAGE_KEY);
 
   const store: SessionStore = {
     load() {
-      try {
-        const text = localStorage.getItem(SESSION_STORAGE_KEY);
-        const value: unknown = text === null ? null : JSON.parse(text);
-        return isObject(value) && typeof value.token === "string" && typeof value.name === "string"
-          ? {token: value.token, name: value.name}
-          : memory;
-      } catch {
-        return memory;
-      }
+      const text = kept.read();
+      return text === null ? null : parseSession(text);
     },
     save(session) {
-      memory = session;
-
-      try {
-        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
-      } catch {
-        // Kept in memory instead
-      }
+      kept.write(JSON.stringify(session));
     },
   };
 

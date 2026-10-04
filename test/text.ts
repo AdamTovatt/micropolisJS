@@ -14,6 +14,7 @@
 import { ADVISOR_SUBJECTS } from "../src/cityStatus";
 import * as Messages from "../src/messages";
 import { Text } from "../src/text";
+import * as UiMessages from "../src/uiMessages";
 
 const MILESTONES = [
     Messages.REACHED_CAPITAL, Messages.REACHED_CITY, Messages.REACHED_MEGALOPOLIS, Messages.REACHED_METROPOLIS,
@@ -24,7 +25,7 @@ const MILESTONES = [
 // other events it announces, and the client's own messages
 const SHOWN_SUBJECTS = [
     ...ADVISOR_SUBJECTS, ...Messages.DISASTER_MESSAGES, ...Messages.CRASHES, ...MILESTONES, Messages.NO_MONEY,
-    Messages.HEAVY_TRAFFIC, Messages.WELCOME, Messages.LOG_UNCHECKED,
+    Messages.HEAVY_TRAFFIC, UiMessages.WELCOME, UiMessages.LOG_UNCHECKED,
 ];
 
 function subjectsWithTone(tone: string): string[] {

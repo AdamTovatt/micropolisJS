@@ -16,7 +16,7 @@ import { writeFileSync } from "fs";
 import { join } from "path";
 
 import { gameSaveHash } from "../src/gameSaveHash";
-import { GameServer } from "./gameServer";
+import { serverForTests } from "./gameServer";
 import { GoldenPlaythrough, goldenPlaythroughFor, namedByAppearance } from "./goldenPlaythrough";
 import { collectPageProblems } from "./page";
 import { Player } from "./player";
@@ -40,28 +40,15 @@ import { CITY_NAME, letTheDriverRun, PLAYER_NAME, SEED, STAGES } from "./stages"
 // how far the city got depends on wall time.
 const FIXED_DATE = "2026-01-01T00:00:00Z";
 
-let server: GameServer;
-
-test.beforeAll(async () => {
-  server = await GameServer.start("server");
-});
-
-test.afterAll(async () => {
-  await server?.stop();
-});
-
-test.afterEach(async () => {
-  await server.stopForwarding();
-});
+const server = serverForTests("server");
 
 test("the playthrough", async ({page}) => {
-  await server.forward(page);
+  const player = await Player.onServer(server(), page, PLAYER_NAME);
   await page.clock.setFixedTime(FIXED_DATE);
   const problems = collectPageProblems(page);
 
   const e2eDirectory = test.info().config.rootDir;
   const report = new Report(join(e2eDirectory, "..", "e2e-report"), SEED);
-  const player = new Player(page, {signInAs: PLAYER_NAME, server});
   let golden: GoldenPlaythrough | null = null;
   let totalSteps = 0;
   const failures: string[] = [];

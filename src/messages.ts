@@ -13,24 +13,17 @@
 
 // CLASSIFICATION_UPDATED, DATE_UPDATED, FUNDS_CHANGED, POPULATION_UPDATED, SCORE_UPDATED and SPEED_CHANGED are
 // simulation behaviour, which the C# port mirrors, and which the client doesn't read: it shows the date, the speed and
-// the city's figures from the state messages the city host sends.
+// the city's figures from the state messages the city host sends. The client's own events and notices, which no city
+// sends, are in uiMessages.ts.
 
 export const BUDGET_REVIEW_DUE = "Year-end budget to review";
-export const BUDGET_REQUESTED = "Budget window requested";
-export const BUDGET_WINDOW_CLOSED = "Budget window closed";
 export const BLACKOUTS_REPORTED = "Blackouts reported";
 export const CITY_STATUS_UPDATED = "City status updated";
 export const CLASSIFICATION_UPDATED = "Classification updated";
 export const COMMAND_RESULT = "Command result";
 export const DATE_UPDATED = "Date changed";
-export const DEBUG_WINDOW_REQUESTED = "Debug Window Requested";
-export const DEBUG_WINDOW_CLOSED = "Debug Window Closed";
-export const DISASTER_REQUESTED = "Disaster Requested";
-export const DISASTER_WINDOW_CLOSED = "Disaster window closed";
 export const EARTHQUAKE = "Earthquake";
-export const EVAL_REQUESTED = "Evaluation Requested";
 export const EVAL_UPDATED = "Evaluation Updated";
-export const EVAL_WINDOW_CLOSED = "Eval window closed";
 export const EXPLOSION_REPORTED = "Explosion Reported";
 export const FIRE_REPORTED = "Fire!";
 export const FIRE_STATION_NEEDS_FUNDING = "Fire station needs funding";
@@ -41,7 +34,6 @@ export const HEAVY_TRAFFIC = "Heavy traffic reported";
 export const HELICOPTER_CRASHED = "Helicopter crashed";
 export const HIGH_CRIME = "High crime";
 export const HIGH_POLLUTION = "High pollution";
-export const LOG_UNCHECKED = "Command log saved without checkpoints";
 export const MONSTER_SIGHTED = "Monster sighted";
 export const NEED_AIRPORT = "Airport needed";
 export const NEED_ELECTRICITY = "More power needed";
@@ -58,11 +50,9 @@ export const NO_MONEY = "No money";
 export const NOT_ENOUGH_POWER = "Not enough power";
 export const NUCLEAR_MELTDOWN = "Nuclear Meltdown";
 export const OVERLAY_UPDATED = "Overlay layer updated";
-export const PAUSE_REQUESTED = "Pause requested";
 export const PLANE_CRASHED = "Plane crashed";
 export const POLICE_NEEDS_FUNDING = "Police need funding";
 export const POPULATION_UPDATED = "Population updated";
-export const QUERY_WINDOW_CLOSED = "Query window closed";
 export const REACHED_CAPITAL = "Now a capital";
 export const REACHED_CITY = "Now a city";
 export const REACHED_METROPOLIS = "Now a metropolis";
@@ -70,14 +60,7 @@ export const REACHED_MEGALOPOLIS = "Now a megalopolis";
 export const REACHED_TOWN = "Now a town";
 export const REACHED_VILLAGE = "Now a village";
 export const ROAD_NEEDS_FUNDING = "Roads need funding";
-export const SAVE_REQUESTED = "Save requested";
-export const SAVE_WINDOW_CLOSED = "Save window closed";
 export const SCORE_UPDATED = "Scoe updated";
-export const SCREENSHOT_LINK_CLOSED = "Screenshot link closed";
-export const SCREENSHOT_WINDOW_CLOSED = "Screenshot window closed";
-export const SCREENSHOT_WINDOW_REQUESTED = "Screenshot window requested";
-export const SETTINGS_WINDOW_CLOSED = "Settings window closed";
-export const SETTINGS_WINDOW_REQUESTED = "Settings window requested";
 export const SHIP_CRASHED = "Shipwrecked";
 export const SOUND_EXPLOSIONHIGH = "Explosion! Bang!";
 export const SOUND_EXPLOSIONLOW = "Explosion! Boom!";
@@ -86,14 +69,10 @@ export const SOUND_HONKHONK = "HonkHonk sound";
 export const SOUND_MONSTER = "Monster sound";
 export const SPEED_CHANGED = "Speed changed";
 export const TAX_TOO_HIGH = "Tax too high";
-export const TOOL_CLICKED = "Tool clicked";
 export const TORNADO_SIGHTED = "Tornado sighted";
-export const TOUCH_WINDOW_CLOSED = "Touch Window closed";
 export const TRAFFIC_JAMS = "Traffic jams reported";
 export const TRAIN_CRASHED = "Train crashed";
 export const VALVES_UPDATED = "Valves updated";
-export const WELCOME = "Welcome to micropolisJS";
-export const ZOOM_REQUESTED = "Zoom requested";
 
 export const DISASTER_MESSAGES = [
   EARTHQUAKE,

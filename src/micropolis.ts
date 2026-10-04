@@ -13,8 +13,7 @@
 
 import { browserCityEnvironment } from "./browserCityEnvironment";
 import { CityClient } from "./cityClient";
-import { joinLinkedCity, leaveLostCity, linkedCity } from "./cityLink";
-import type { CitySource } from "./citySource";
+import { joinLinkedCity, leaveLostCity, linkedCity, ServerCity } from "./cityLink";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { requiredElement, setShown } from "./domElements";
@@ -24,15 +23,15 @@ import { showOnlineList } from "./onlineList";
 import { loadMapArt, MapArt } from "./renderAssets";
 import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
+import { CityList, pageStore } from "./storage";
 import { attachDriverToTestHook, installTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
 import { debugOption, seedOption } from "./urlOptions";
 import { webGL2TextureLimit } from "./webglRenderer";
 import { WebSocketCitySource } from "./webSocketCitySource";
-import { WorkerCitySource } from "./workerCitySource";
 
-// The page's entry point: it loads the tile set, waits for the sprites, signs in where a server answers, and joins the
-// city the page was opened with, or shows the splash screen
+// The page's entry point: it loads the tile set, waits for the sprites, signs in to the server, and joins the city the
+// page was opened with, or shows the splash screen. With no server answering, it says so, and offers no game.
 
 // The game seed the page was opened with, or null for none. One that isn't a seed is refused out loud, and the map is
 // picked at random.
@@ -105,7 +104,7 @@ async function start(seed: number | null, city: string | null): Promise<void> {
   }
   setShown(requiredElement("loadingBanner"), false);
 
-  // Sign in first when a server answers. The game starts whatever happens, single-player when it must.
+  // Every city runs on the server, so the player signs in first. With no server answering, there is no game to play.
   const cityClient = new CityClient(browserCityEnvironment());
   showOnlineList(requiredElement("onlineList"), cityClient);
   try {
@@ -114,12 +113,14 @@ async function start(seed: number | null, city: string | null): Promise<void> {
     console.error("Signing in failed", error);
   }
 
-  // The only way the client reaches the city, and the client's copy of it, which follows the source from the start.
-  // The city runs on the server when it welcomes the player, and otherwise in a Web Worker, off the page's thread.
-  const online = await cityClient.welcomed();
-  const webSocketSource = online ? new WebSocketCitySource(cityClient, (error) => leaveLostCity(error, window)) : null;
-  const source: CitySource = webSocketSource ??
-    new WorkerCitySource(new Worker(new URL("./cityWorker.ts", import.meta.url)), ClientConfig.debug);
+  // A server that answered welcomes the player in the end, however many tries signing in or connecting takes
+  if (!await cityClient.welcomed()) {
+    showNoServer();
+    return;
+  }
+
+  // The only way the client reaches the city, and the client's copy of it, which follows the source from the start
+  const source = new WebSocketCitySource(cityClient, (error) => leaveLostCity(error, window));
   const state = new CityState(source);
 
   // The end-to-end runner drives the game through this, once there is a source to drive
@@ -128,12 +129,27 @@ async function start(seed: number | null, city: string | null): Promise<void> {
     attachDriverToTestHook(source.driver);
   }
 
+  // A city played goes on the list of cities this browser started or joined, which the splash screen offers to join
+  // again
+  const cities = new CityList(pageStore());
   const parts = {source, state, presence: cityClient, mapArt, tileSet, spriteSheet: sprites};
-  if (city !== null && await joinLinkedCity(city, webSocketSource, (started) => new Game(parts, started), window)) {
+  const play = (started: ServerCity) => {
+    cities.remember({city: started.city, name: started.name});
+    new Game(parts, started);
+  };
+
+  if (city !== null && await joinLinkedCity(city, source, play, window)) {
     return;
   }
 
-  showSplashScreen(parts, seed);
+  showSplashScreen(parts, seed, {cities, play});
+}
+
+// Says the server isn't answering, in place of the game, and loads the page again when the player tries again. The
+// page's address keeps any city's link, so trying again joins it.
+function showNoServer(): void {
+  requiredElement("noServerRetry").addEventListener("click", () => window.location.reload());
+  setShown(requiredElement("noServer"), true);
 }
 
 ClientConfig.debug = debugOption(window.location.search);
