@@ -11,6 +11,8 @@
  *
  */
 
+using System.Text.Json.Nodes;
+
 namespace Micropolis.Rules
 {
     /// <summary>
@@ -27,6 +29,12 @@ namespace Micropolis.Rules
         {
             if ((manager.SpriteCycle & 1) == 0)
             {
+                if (sprite.Frame == 1)
+                {
+                    // The original reports the explosion without a picture, so the monster TV is left as it is
+                    manager.Events.Emit(Messages.EXPLOSION_REPORTED, new JsonObject { ["x"] = (sprite.X >> 4) + 3, ["y"] = sprite.Y >> 4 });
+                }
+
                 sprite.Frame++;
             }
 

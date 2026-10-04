@@ -23,8 +23,7 @@ namespace Micropolis.Rules
     /// <remarks>
     /// A sprite that dies stays in the list, at frame 0, until the next pass of <see cref="MoveObjects"/> reaches it,
     /// and a new sprite of its type takes its place rather than joining the list. Explosions are the one type the list
-    /// holds any number of. The sounds the sprites make and the explosion's report, which nothing in the TypeScript
-    /// hears, aren't raised.
+    /// holds any number of. The sounds the sprites make, which nothing in the TypeScript hears, aren't raised.
     /// </remarks>
     public sealed class SpriteManager
     {
@@ -50,7 +49,8 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Raises the <see cref="Messages.DISASTER_MESSAGES"/>, the <see cref="Messages.CRASHES"/> and
-        /// <see cref="Messages.HEAVY_TRAFFIC"/>, as <c>src/spriteManager.js</c> passes them on from its sprites.
+        /// <see cref="Messages.HEAVY_TRAFFIC"/>, as <c>src/spriteManager.js</c> raises them and passes them on from its
+        /// sprites.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 

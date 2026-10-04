@@ -168,6 +168,10 @@ SpriteManager.prototype._listenTo = function(sprite) {
 
   if (sprite.type == SpriteConstants.SPRITE_HELICOPTER)
     sprite.addEventListener(Messages.HEAVY_TRAFFIC, MiscUtils.reflectEvent.bind(this, Messages.HEAVY_TRAFFIC));
+
+  if (sprite.type == SpriteConstants.SPRITE_EXPLOSION)
+    sprite.addEventListener(Messages.EXPLOSION_REPORTED,
+                            MiscUtils.reflectEvent.bind(this, Messages.EXPLOSION_REPORTED));
 };
 
 

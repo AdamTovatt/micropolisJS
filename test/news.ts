@@ -18,40 +18,82 @@ import { SPRITE_MONSTER } from "../src/spriteConstants";
 const SECOND = 1000;
 const HOLD = 20 * SECOND;
 
+// A message of each tone, and a disaster's, whose tone is bad
+const neutral = (hold: NewsHold, now: number) => hold.shows(Messages.NEED_STADIUM, "neutral", now);
+const bad = (hold: NewsHold, now: number) => hold.shows(Messages.HIGH_CRIME, "bad", now);
+const good = (hold: NewsHold, now: number) => hold.shows(Messages.REACHED_TOWN, "good", now);
+const disaster = (hold: NewsHold, now: number) => hold.shows(Messages.FIRE_REPORTED, "bad", now);
+const explosion = (hold: NewsHold, now: number) => hold.shows(Messages.EXPLOSION_REPORTED, "bad", now);
+
 describe("news held after a disaster", () => {
 
     it("shows every tone while no disaster has been reported", () => {
         const hold = new NewsHold();
 
-        expect([hold.shows("neutral", false, 0), hold.shows("bad", false, 0), hold.shows("good", false, 0)])
-            .toEqual([true, true, true]);
+        expect([neutral(hold, 0), bad(hold, 0), good(hold, 0)]).toEqual([true, true, true]);
     });
 
     it("holds neutral news for 20 seconds after a disaster, then shows it", () => {
         const hold = new NewsHold();
 
-        hold.shows("bad", true, 0);
+        disaster(hold, 0);
 
-        expect([hold.shows("neutral", false, HOLD), hold.shows("neutral", false, HOLD + 1)]).toEqual([false, true]);
+        expect([neutral(hold, HOLD), neutral(hold, HOLD + 1)]).toEqual([false, true]);
     });
 
     it("starts the hold again at each disaster, but not at other bad news", () => {
         const hold = new NewsHold();
 
-        hold.shows("bad", true, 0);
-        hold.shows("bad", true, 15 * SECOND);
-        hold.shows("bad", false, 30 * SECOND);
+        disaster(hold, 0);
+        disaster(hold, 15 * SECOND);
+        bad(hold, 30 * SECOND);
 
-        expect([hold.shows("neutral", false, 15 * SECOND + HOLD), hold.shows("neutral", false, 15 * SECOND + HOLD + 1)])
-            .toEqual([false, true]);
+        expect([neutral(hold, 15 * SECOND + HOLD), neutral(hold, 15 * SECOND + HOLD + 1)]).toEqual([false, true]);
     });
 
     it("shows good news and bad news over a recent disaster", () => {
         const hold = new NewsHold();
 
-        hold.shows("bad", true, 0);
+        disaster(hold, 0);
 
-        expect([hold.shows("good", false, SECOND), hold.shows("bad", false, SECOND)]).toEqual([true, true]);
+        expect([good(hold, SECOND), bad(hold, SECOND)]).toEqual([true, true]);
+    });
+});
+
+// A crash and a meltdown end in explosions, whose reports would replace their news
+describe("an explosion's report", () => {
+
+    it.each([
+        ["a crash", Messages.PLANE_CRASHED],
+        ["another disaster", Messages.NUCLEAR_MELTDOWN],
+    ])("waits 20 seconds behind %s's news, then shows", (_, subject) => {
+        const hold = new NewsHold();
+
+        hold.shows(subject, "bad", 0);
+
+        expect([explosion(hold, HOLD), explosion(hold, HOLD + 1)]).toEqual([false, true]);
+    });
+
+    it("shows when nothing else is recent, and holds neutral news as a disaster's does", () => {
+        const hold = new NewsHold();
+
+        expect([explosion(hold, 0), explosion(hold, SECOND), neutral(hold, HOLD)]).toEqual([true, true, false]);
+    });
+
+    it("starts no hold while it waits", () => {
+        const hold = new NewsHold();
+        disaster(hold, 0);
+
+        explosion(hold, HOLD);
+
+        expect(neutral(hold, HOLD + 1)).toBe(true);
+    });
+
+    it("holds neither crash news nor bad news", () => {
+        const hold = new NewsHold();
+        explosion(hold, 0);
+
+        expect([hold.shows(Messages.PLANE_CRASHED, "bad", SECOND), bad(hold, SECOND)]).toEqual([true, true]);
     });
 });
 
@@ -89,6 +131,16 @@ describe("where a message goes", () => {
         routeMessage({type: "news", subject: Messages.FIRE_REPORTED, data: {x: 1, y: 2, showable: true}}, hold, 0);
 
         expect(routeMessage({type: "news", subject: Messages.NEED_STADIUM}, hold, SECOND).notify).toBe(false);
+    });
+
+    it("leaves a crash's news on the bar when its explosion is reported", () => {
+        const hold = new NewsHold();
+
+        const crash = routeMessage({type: "news", subject: Messages.PLANE_CRASHED, data: {x: 5, y: 6, showable: true}},
+                                   hold, 0);
+        const report = routeMessage({type: "news", subject: Messages.EXPLOSION_REPORTED, data: {x: 5, y: 5}}, hold, 33);
+
+        expect([crash.notify, report]).toEqual([true, {notify: false, tv: null, unknown: false}]);
     });
 
     it("announces nothing for a subject there is no text for, but still shows its place", () => {

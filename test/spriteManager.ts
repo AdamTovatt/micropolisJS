@@ -179,6 +179,34 @@ describe("the sprite list", () => {
         passes(manager, 1);
         expect(manager.spriteList).toEqual([]);
     });
+
+    // The explosion over tile (10, 10) has its corner at pixel (128, 152). It reports once in its life: on its first
+    // move with a frame to advance, the second pass, three tiles east of its corner, without a picture, as the
+    // original's doExplosionSprite. A restored explosion reports too. Its life, six frames at two passes a frame, is
+    // checked by its being gone at the end, so the test covers the whole of it.
+    const EXPLOSION_PASSES = 12;
+    it.each([
+        ["new", false],
+        ["restored", true],
+    ])("passes on the report of a %s explosion", (_, restored) => {
+        let manager = newManager();
+        manager.makeExplosion(10, 10);
+        if (restored) {
+            const saveData = saved(manager);
+            manager = newManager();
+            manager.load(saveData);
+        }
+        const reports = listening(manager, Messages.EXPLOSION_REPORTED);
+
+        passes(manager, 1);
+        expect(reports).toEqual([]);
+        passes(manager, 1);
+        expect(reports).toEqual([{x: 11, y: 9}]);
+        passes(manager, EXPLOSION_PASSES - 2);
+
+        expect(reports).toHaveLength(1);
+        expect(manager.getLiveSprites()).toEqual([]);
+    });
 });
 
 describe("getDir", () => {
