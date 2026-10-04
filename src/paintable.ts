@@ -32,6 +32,27 @@ export type PaintableSprite = Readonly<SpriteView>;
 // Sprites are positioned in map pixels, at 16 a tile whatever the tiles are drawn at
 export const SPRITE_PIXELS_PER_TILE = 16;
 
+// An area of a view in tiles from its origin: x and y inclusive, xBound and yBound exclusive
+export interface TileBounds {
+  x: number;
+  xBound: number;
+  y: number;
+  yBound: number;
+}
+
+// The tiles a sprite's square covers, in the view whose top-left tile is (originX, originY)
+export function spriteTiles(sprite: PaintableSprite, originX: number, originY: number): TileBounds {
+  const left = sprite.x - originX * SPRITE_PIXELS_PER_TILE;
+  const top = sprite.y - originY * SPRITE_PIXELS_PER_TILE;
+
+  return {
+    x: Math.floor(left / SPRITE_PIXELS_PER_TILE),
+    xBound: Math.ceil((left + sprite.width) / SPRITE_PIXELS_PER_TILE),
+    y: Math.floor(top / SPRITE_PIXELS_PER_TILE),
+    yBound: Math.ceil((top + sprite.width) / SPRITE_PIXELS_PER_TILE),
+  };
+}
+
 // The sprites any part of whose square shows in the view whose top-left tile is (originX, originY), pixelWidth by
 // pixelHeight map pixels, as the original's sprite manager chose the sprites to draw
 export function spritesInView(sprites: readonly PaintableSprite[], originX: number, originY: number,

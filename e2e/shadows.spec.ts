@@ -12,8 +12,9 @@
  */
 
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
-import { DAMAGE_BLOCK } from "../src/mapFrame";
+import { DAMAGE_BLOCK } from "../src/mapDamage";
 import { collectPageProblems } from "./page";
 import { startGame, Tile } from "./player";
 import { png, samplePixels } from "./png";
@@ -102,7 +103,9 @@ function shadowsButDirt(): object {
   return {version: 1, atlases: {test: ATLAS_PATH}, tiles, sprites: {}};
 }
 
-test("the map drawn again in part, around tiles that changed, shows what the map drawn whole does", async ({page}) => {
+const REDRAWN = "the map drawn again in part, around tiles that changed, shows what the map drawn whole does";
+
+async function redrawnInPart(page: Page): Promise<void> {
   const problems = collectPageProblems(page);
   await serveTestArt(page, shadowsButDirt(), {[ATLAS_PATH]: atlas()});
   const player = await startGame(page, SEED, "Redrawn");
@@ -128,4 +131,13 @@ test("the map drawn again in part, around tiles that changed, shows what the map
   expect(inPart.equals(before), "the map with the road tile, unlike without it").toBe(false);
   expect(inPart.equals(whole), "the map drawn in part, as drawn whole").toBe(true);
   expect(problems).toEqual([]);
+}
+
+test(REDRAWN, async ({page}) => redrawnInPart(page));
+
+// Where a tile's edges fall between device pixels, as at a browser zoom of 110%
+test.describe("on a screen of 1.1 device pixels to the CSS pixel", () => {
+  test.use({deviceScaleFactor: 1.1});
+
+  test(REDRAWN, async ({page}) => redrawnInPart(page));
 });

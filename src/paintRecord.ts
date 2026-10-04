@@ -11,13 +11,7 @@
  *
  */
 
-// An area of the view in tile offsets from its origin: x and y inclusive, xBound and yBound exclusive
-interface TileRect {
-  x: number;
-  xBound: number;
-  y: number;
-  yBound: number;
-}
+import type { TileBounds } from "./paintable";
 
 // A value no tile has, written over the tiles last painted to force their repaint. TILE_INVALID would not do: it is
 // the black void.
@@ -70,7 +64,7 @@ function forEachTileToPaint(lastPainted: ReadonlyArray<number> | null, lastWidth
 }
 
 // Marks the area's tiles in a width by height view's last painted tiles for repaint, clipped to the view
-function markAreaForRepaint(lastPainted: number[], area: TileRect, width: number, height: number): void {
+function markAreaForRepaint(lastPainted: number[], area: TileBounds, width: number, height: number): void {
   for (let y = Math.max(0, area.y), yBound = Math.min(height, area.yBound); y < yBound; y++) {
     for (let x = Math.max(0, area.x), xBound = Math.min(width, area.xBound); x < xBound; x++) {
       lastPainted[y * width + x] = REPAINT;
@@ -105,7 +99,7 @@ class PaintRecord {
   }
 
   // The area was drawn over since it was painted, so its tiles are repainted next time
-  markForRepaint(area: TileRect): void {
+  markForRepaint(area: TileBounds): void {
     if (this.lastPainted !== null) {
       markAreaForRepaint(this.lastPainted, area, this.lastWidth, this.lastHeight);
     }
@@ -125,4 +119,3 @@ class PaintRecord {
 }
 
 export { PaintRecord, REPAINT, forEachTileToPaint, markAreaForRepaint };
-export type { TileRect };

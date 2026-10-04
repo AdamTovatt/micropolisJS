@@ -12,6 +12,7 @@
  */
 
 import { MapFrame, QUAD_FLOATS, QuadList, QuadRun } from "./mapFrame";
+import type { Rect } from "./rect";
 import { WHITE } from "./renderManifest";
 
 // Draws a map frame with WebGL2, in three passes: every tile's ground; every shadow, merged by the darkest value into a
@@ -31,14 +32,6 @@ interface Texture {
   height: number;
 }
 
-// A rectangle of a target, in device pixels from its top-left
-export interface Area {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 // Where a pass draws: the canvas, or an offscreen framebuffer, width by height device pixels
 interface Target {
   framebuffer: WebGLFramebuffer | null;
@@ -48,6 +41,12 @@ interface Target {
 
 // The quad's corners, as a triangle strip over the unit square
 const CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
+
+// The bytes of a quad in the instance buffer
+const QUAD_BYTES = QUAD_FLOATS * Float32Array.BYTES_PER_ELEMENT;
+
+// The composite reads the shadow buffer by its pixels, so its quad comes from no source
+const NO_SOURCE: Rect = {x: 0, y: 0, width: 0, height: 0};
 
 const VERTEX_SHADER = `#version 300 es
 layout(location = 0) in vec2 corner;
@@ -158,7 +157,9 @@ export class WebGLRenderer {
   private resources: Resources | null = null;
   // The quad the shadow buffer darkens the target through
   private readonly compositeQuad = new QuadRun("shadow buffer");
-  // Signalled once the GPU has drawn the last frame drawn on the canvas, or null once it has been seen to
+  // A frame's quads, every run's one after another, as they are uploaded; kept from frame to frame, so it grows once
+  private staged = new Float32Array(0);
+  // Signalled once the GPU has drawn the last frame drawn on the canvas, or null before the first
   private drawing: WebGLSync | null = null;
 
   // Draws on the canvas from the atlases, which loadMapArt has checked fit the browser's texture limit. onRestored is
@@ -188,9 +189,9 @@ export class WebGLRenderer {
     this.resources = this.createResources();
   }
 
-  // Draws the frame on the canvas within each area, leaving the rest as it was drawn last, or over the whole of its
-  // drawing buffer for none
-  draw(frame: MapFrame, areas: readonly Area[] | null): void {
+  // Draws the frame on the canvas within each area, in device pixels from its top-left, leaving the rest as it was
+  // drawn last, or over the whole of its drawing buffer for none
+  draw(frame: MapFrame, areas: readonly Rect[] | null): void {
     const resources = this.resources;
     if (resources === null) {
       return;
@@ -198,6 +199,7 @@ export class WebGLRenderer {
 
     this.drawFrame(resources, frame, {framebuffer: null, width: this.gl.drawingBufferWidth,
                                       height: this.gl.drawingBufferHeight}, areas);
+    // The last frame's fence, signalled or not, is let go as this one's replaces it
     if (this.drawing !== null) {
       this.gl.deleteSync(this.drawing);
     }
@@ -208,19 +210,8 @@ export class WebGLRenderer {
   // on a GPU slower than the frames come, software WebGL on a busy machine say, the queue grows, and the page's
   // thread waits on it, holding up the game's ticks and everything else the page does.
   get busy(): boolean {
-    const gl = this.gl;
-    if (this.drawing === null) {
-      return false;
-    }
-
     // Without waiting: the status changes between the page's tasks, not within one
-    if (gl.clientWaitSync(this.drawing, 0, 0) === gl.TIMEOUT_EXPIRED) {
-      return true;
-    }
-
-    gl.deleteSync(this.drawing);
-    this.drawing = null;
-    return false;
+    return this.drawing !== null && this.gl.clientWaitSync(this.drawing, 0, 0) === this.gl.TIMEOUT_EXPIRED;
   }
 
   // Draws the frame offscreen, width by height device pixels, and returns its pixels, RGBA, from the top row down, or
@@ -254,11 +245,14 @@ export class WebGLRenderer {
     return flipRows(pixels, width, height);
   }
 
-  // Draws the frame on the target within each area, or over the whole of it for none
-  private drawFrame(resources: Resources, frame: MapFrame, target: Target, areas: readonly Area[] | null): void {
+  // Draws the frame on the target within each area, or over the whole of it for none. The quads are uploaded once,
+  // then every pass is drawn within one area after another: areas that share pixels draw them whole each time, the
+  // later over the earlier, as each starts by clearing its own.
+  private drawFrame(resources: Resources, frame: MapFrame, target: Target, areas: readonly Rect[] | null): void {
     const gl = this.gl;
+    const firsts = this.upload(resources, frame, target);
     if (areas === null) {
-      this.drawPasses(resources, frame, target);
+      this.drawPasses(resources, frame, target, firsts);
       return;
     }
 
@@ -267,14 +261,45 @@ export class WebGLRenderer {
       for (const area of areas) {
         // The scissor's rows count from the bottom
         gl.scissor(area.x, target.height - area.y - area.height, area.width, area.height);
-        this.drawPasses(resources, frame, target);
+        this.drawPasses(resources, frame, target, firsts);
       }
     } finally {
       gl.disable(gl.SCISSOR_TEST);
     }
   }
 
-  private drawPasses(resources: Resources, frame: MapFrame, target: Target): void {
+  // Uploads every run of the frame's quads, and the composite's over the target if the frame has shadows, into the
+  // instance buffer, and returns the quad each run starts at in it
+  private upload(resources: Resources, frame: MapFrame, target: Target): Map<QuadRun, number> {
+    const gl = this.gl;
+    const composite = this.compositeQuad;
+    composite.count = 0;
+    if (frame.shadows.count > 0) {
+      composite.add(0, 0, target.width, target.height, NO_SOURCE, 1, 1, 1, 1);
+    }
+
+    const runs = [frame.ground, frame.shadows, frame.objects, frame.tints, frame.sprites]
+      .flatMap((list) => list.runs).concat(composite.count > 0 ? [composite] : []);
+    const firsts = new Map<QuadRun, number>();
+    let quads = 0;
+    for (const run of runs) {
+      firsts.set(run, quads);
+      quads += run.count;
+    }
+
+    if (this.staged.length < quads * QUAD_FLOATS) {
+      this.staged = new Float32Array(quads * QUAD_FLOATS * 2);
+    }
+    for (const run of runs) {
+      this.staged.set(run.floats, firsts.get(run)! * QUAD_FLOATS);
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, resources.instances);
+    gl.bufferData(gl.ARRAY_BUFFER, this.staged.subarray(0, quads * QUAD_FLOATS), gl.STREAM_DRAW);
+    return firsts;
+  }
+
+  private drawPasses(resources: Resources, frame: MapFrame, target: Target, firsts: ReadonlyMap<QuadRun, number>): void {
     const gl = this.gl;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
@@ -285,7 +310,7 @@ export class WebGLRenderer {
 
     // The ground is opaque, so it is written without blending, which software WebGL pays for at every pixel
     gl.disable(gl.BLEND);
-    this.drawList(resources, resources.textured, frame.ground, target);
+    this.drawList(resources, resources.textured, frame.ground, target, firsts);
     gl.enable(gl.BLEND);
     gl.blendEquation(gl.FUNC_ADD);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -296,7 +321,7 @@ export class WebGLRenderer {
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.blendEquation(gl.MAX);
-      this.drawList(resources, resources.shadow, frame.shadows, target);
+      this.drawList(resources, resources.shadow, frame.shadows, target, firsts);
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
       gl.blendEquation(gl.FUNC_ADD);
@@ -304,19 +329,17 @@ export class WebGLRenderer {
       gl.uniform2f(resources.composite.targetSize, target.width, target.height);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, shadowBuffer.texture);
-      // One quad over the whole target, which reads the buffer by its pixels, not by its source
-      const quad = this.compositeQuad;
-      quad.count = 0;
-      quad.add(0, 0, target.width, target.height, {x: 0, y: 0, width: 1, height: 1}, 1, 1, 1, 1);
-      this.drawInstances(resources, quad);
+      // One quad over the whole target
+      this.drawInstances(this.compositeQuad, firsts);
     }
 
-    this.drawList(resources, resources.textured, frame.objects, target);
-    this.drawList(resources, resources.textured, frame.tints, target);
-    this.drawList(resources, resources.textured, frame.sprites, target);
+    this.drawList(resources, resources.textured, frame.objects, target, firsts);
+    this.drawList(resources, resources.textured, frame.tints, target, firsts);
+    this.drawList(resources, resources.textured, frame.sprites, target, firsts);
   }
 
-  private drawList(resources: Resources, program: Program, list: QuadList, target: Target): void {
+  private drawList(resources: Resources, program: Program, list: QuadList, target: Target,
+                   firsts: ReadonlyMap<QuadRun, number>): void {
     const gl = this.gl;
     gl.useProgram(program.program);
     gl.uniform2f(program.targetSize, target.width, target.height);
@@ -330,15 +353,28 @@ export class WebGLRenderer {
 
       gl.bindTexture(gl.TEXTURE_2D, texture.texture);
       gl.uniform2f(program.atlasSize, texture.width, texture.height);
-      this.drawInstances(resources, run);
+      this.drawInstances(run, firsts);
     }
   }
 
-  private drawInstances(resources: Resources, run: QuadRun): void {
+  // Draws the run's quads from where upload put them in the instance buffer
+  private drawInstances(run: QuadRun, firsts: ReadonlyMap<QuadRun, number>): void {
+    const first = firsts.get(run);
+    if (first === undefined) {
+      throw new Error(`The quads from ${run.atlas} were not uploaded`);
+    }
+
+    this.pointInstances(first);
+    this.gl.drawArraysInstanced(this.gl.TRIANGLE_STRIP, 0, 4, run.count);
+  }
+
+  // Points the quad's attributes, read once per instance, at the instance buffer from its quad first. The vertex array
+  // and the instance buffer must be bound.
+  private pointInstances(first: number): void {
     const gl = this.gl;
-    gl.bindBuffer(gl.ARRAY_BUFFER, resources.instances);
-    gl.bufferData(gl.ARRAY_BUFFER, run.floats, gl.STREAM_DRAW);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, run.count);
+    for (let attribute = 1; attribute <= 3; attribute++) {
+      gl.vertexAttribPointer(attribute, 4, gl.FLOAT, false, QUAD_BYTES, first * QUAD_BYTES + (attribute - 1) * 16);
+    }
   }
 
   // The shadow buffer at the target's size, made again when the size changes
@@ -373,12 +409,11 @@ export class WebGLRenderer {
 
     const instances = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, instances);
-    const stride = QUAD_FLOATS * 4;
     for (let attribute = 1; attribute <= 3; attribute++) {
       gl.enableVertexAttribArray(attribute);
-      gl.vertexAttribPointer(attribute, 4, gl.FLOAT, false, stride, (attribute - 1) * 16);
       gl.vertexAttribDivisor(attribute, 1);
     }
+    this.pointInstances(0);
     gl.bindVertexArray(null);
 
     const textures = new Map<string, Texture>();

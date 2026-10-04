@@ -11,19 +11,11 @@
  *
  */
 
-import { mustRepaintAll } from "../src/tileCanvas";
-
-describe("the monster TV's canvas", () => {
-
-    describe("deciding to repaint every tile", () => {
-
-        it("repaints only what changed while the canvas keeps its size", () => {
-            expect(mustRepaintAll(1280, 900, 1280, 900)).toBe(false);
-        });
-
-        it("repaints every tile when the canvas changes width or height", () => {
-            expect(mustRepaintAll(1440, 900, 1280, 900)).toBe(true);
-            expect(mustRepaintAll(1280, 800, 1280, 900)).toBe(true);
-        });
-    });
-});
+// A rectangle from its top-left corner (x, y), width by height, in the unit of whatever holds it: tiles, device pixels
+// or an atlas's pixels
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}

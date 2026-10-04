@@ -11,6 +11,7 @@
  *
  */
 
+import type { Rect } from "./rect";
 import { tileImageOrigin } from "./tileSet";
 import { TILE_COUNT } from "./tileValues";
 
@@ -20,12 +21,8 @@ import { TILE_COUNT } from "./tileValues";
 // sheets the game has always drawn with.
 
 // A rectangle of an atlas, in the atlas's pixels
-export interface AtlasRect {
+export interface AtlasRect extends Rect {
   atlas: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 }
 
 // The whole tiles a shadow reaches past its anchor tile on each side

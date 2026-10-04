@@ -13,10 +13,9 @@
 
 import { AnimationManager } from "./animationManager";
 import { placeNewCanvas, requiredElement } from "./domElements";
-import { SPRITE_PIXELS_PER_TILE } from "./paintable";
+import { SPRITE_PIXELS_PER_TILE, spriteTiles } from "./paintable";
 import type { PaintableMap, PaintableSprite } from "./paintable";
 import { PaintRecord } from "./paintRecord";
-import type { TileRect } from "./paintRecord";
 import { fallbackSpriteRect } from "./renderManifest";
 import type { TileSet } from "./tileSet";
 import { TILE_INVALID } from "./tileValues";
@@ -26,19 +25,6 @@ import type { TilePoint } from "./viewPosition";
 // Whether a paint must clear the canvas and repaint every tile: the canvas changed size since the last paint
 function mustRepaintAll(width: number, height: number, lastWidth: number, lastHeight: number): boolean {
   return width !== lastWidth || height !== lastHeight;
-}
-
-// The tiles a sprite drawn with the view's origin at (originX, originY) covers, so they are repainted next time
-function spriteDamage(sprite: PaintableSprite, originX: number, originY: number, tileWidth: number): TileRect {
-  const left = sprite.x - originX * SPRITE_PIXELS_PER_TILE;
-  const top = sprite.y - originY * SPRITE_PIXELS_PER_TILE;
-
-  return {
-    x: Math.floor(left / tileWidth),
-    xBound: Math.ceil((left + sprite.width) / tileWidth),
-    y: Math.floor(top / tileWidth),
-    yBound: Math.ceil((top + sprite.width) / tileWidth),
-  };
 }
 
 // Paints the map's tiles and the sprites from the 16 px sheets with Canvas 2D, on a canvas that fills its container
@@ -153,11 +139,12 @@ class TileCanvas {
     this.lastCanvasWidth = this.width;
     this.lastCanvasHeight = this.height;
 
-    // What the sprites draw over is repainted next time
+    // What the sprites draw over is repainted next time. The tiles are drawn from the 16 px sheet, at the 16 map pixels
+    // a tile sprites are positioned in.
     if (sprites) {
       for (const sprite of sprites) {
         this.paintSprite(ctx, sprite, origin);
-        this.record.markForRepaint(spriteDamage(sprite, origin.x, origin.y, this.tileSet.tileWidth));
+        this.record.markForRepaint(spriteTiles(sprite, origin.x, origin.y));
       }
     }
   }
@@ -219,4 +206,4 @@ class TileCanvas {
   }
 }
 
-export { TileCanvas, mustRepaintAll, spriteDamage };
+export { TileCanvas, mustRepaintAll };

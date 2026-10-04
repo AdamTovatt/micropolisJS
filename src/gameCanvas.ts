@@ -13,7 +13,8 @@
 
 import { AnimationManager } from "./animationManager";
 import { placeNewCanvas, requiredElement } from "./domElements";
-import { FrameRecord, MapFrame, buildMapFrame } from "./mapFrame";
+import { FrameRecord, damagedPixels } from "./mapDamage";
+import { MapFrame, buildMapFrame } from "./mapFrame";
 import type { FrameTiles } from "./mapFrame";
 import { drawBoxLabel, drawMouseBox } from "./mouseBox";
 import type { OverlayView } from "./overlayRenderer";
@@ -292,12 +293,10 @@ class GameCanvas {
                     width: this.canvas.width, height: this.canvas.height};
       const damage = this.drawn.damage(view, tiles, sprites ?? []);
       if (damage !== null) {
-        const pixels = view.tilePixels;
-        buildMapFrame(this.frame, this.art, tiles, pixels,
-                      overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites ?? [], damage);
-        this.renderer.draw(this.frame, damage === "all" ? null : damage.map(({x, y, width, height}) => ({
-          x: x * pixels, y: y * pixels, width: width * pixels, height: height * pixels,
-        })));
+        const areas = damage === "all" ? null : damagedPixels(damage, view.tilePixels);
+        buildMapFrame(this.frame, this.art, tiles, view.tilePixels,
+                      overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites ?? [], areas);
+        this.renderer.draw(this.frame, areas);
       }
     }
 

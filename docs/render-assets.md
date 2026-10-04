@@ -4,7 +4,7 @@ The map is drawn with WebGL2 from a manifest and the atlases it names, in `image
 
 ## How the map is drawn
 
-Each frame draws the tiles in view, in this order:
+The map is drawn in this order:
 
 1. every tile's ground;
 2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
@@ -12,7 +12,7 @@ Each frame draws the tiles in view, in this order:
 4. the map overlay's tint;
 5. the sprites.
 
-The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in.
+The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as their shadows reach.
 
 A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. A shadow is drawn from the anchor's own tile id, so it doesn't blink.
 
