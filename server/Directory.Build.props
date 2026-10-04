@@ -5,6 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The style .editorconfig states, checked by every build, not only the IDE -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- The compiler checks every doc comment and cref that exists, and asks for none that don't: CS1591 is a public
+         member without a comment, and CS1573 a parameter without a param tag where others of its member have one -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+    <!-- The documentation file is generated for the check alone, so publishing leaves it out -->
+    <PublishDocumentationFiles>false</PublishDocumentationFiles>
   </PropertyGroup>
 
 </Project>

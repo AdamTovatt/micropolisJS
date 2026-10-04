@@ -1,0 +1,15 @@
+# The C# style CLAUDE.md states, which the build enforces through EnforceCodeStyleInBuild in Directory.Build.props.
+# It is the root, so an .editorconfig above the repository can't change what the build accepts on one machine.
+root = true
+
+[*.cs]
+# Explicit types rather than var
+csharp_style_var_for_built_in_types = false:error
+csharp_style_var_when_type_is_apparent = false:error
+csharp_style_var_elsewhere = false:error
+# Block-scoped namespaces
+csharp_style_namespace_declarations = block_scoped:error
+
+# The command-line build ignores the :error suffixes above, so the rules' severities are set again here
+dotnet_diagnostic.IDE0008.severity = error
+dotnet_diagnostic.IDE0160.severity = error

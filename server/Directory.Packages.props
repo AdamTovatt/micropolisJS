@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- Every package version the solution uses: no project names one -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="dbup-core" Version="6.1.1" />
+    <PackageVersion Include="dbup-sqlite" Version="6.0.4" />
+    <PackageVersion Include="EasyReasy.Auth" Version="5.9.0" />
+    <PackageVersion Include="EasyReasy.Database" Version="2.0.0" />
+    <PackageVersion Include="EasyReasy.Database.Mapping" Version="1.3.0" />
+    <PackageVersion Include="EasyReasy.Database.Sqlite" Version="1.0.1" />
+    <PackageVersion Include="EasyReasy.Database.Testing" Version="3.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.SpaProxy" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="MSTest.TestAdapter" Version="4.4.1" />
+    <PackageVersion Include="MSTest.TestFramework" Version="4.4.1" />
+  </ItemGroup>
+
+</Project>

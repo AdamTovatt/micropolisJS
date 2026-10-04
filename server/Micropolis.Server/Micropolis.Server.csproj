@@ -15,14 +15,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="dbup-core" Version="6.1.1" />
-    <PackageReference Include="dbup-sqlite" Version="6.0.4" />
-    <PackageReference Include="EasyReasy.Auth" Version="5.9.0" />
-    <PackageReference Include="EasyReasy.Database" Version="2.0.0" />
-    <PackageReference Include="EasyReasy.Database.Mapping" Version="1.3.0" />
-    <PackageReference Include="EasyReasy.Database.Sqlite" Version="1.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.SpaProxy" Version="10.0.11" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <PackageReference Include="dbup-core" />
+    <PackageReference Include="dbup-sqlite" />
+    <PackageReference Include="EasyReasy.Auth" />
+    <PackageReference Include="EasyReasy.Database" />
+    <PackageReference Include="EasyReasy.Database.Mapping" />
+    <PackageReference Include="EasyReasy.Database.Sqlite" />
+    <PackageReference Include="Microsoft.AspNetCore.SpaProxy" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
   </ItemGroup>
 
   <ItemGroup>

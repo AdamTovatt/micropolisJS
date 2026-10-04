@@ -87,7 +87,8 @@ namespace Micropolis.Rules.Tests
                 Assert.AreEqual(categories[value], Queries.ZoneCategory(value), $"Tile value {value}");
             }
 
-            CollectionAssert.AreEquivalent(Queries.ZoneCategories.ToList(), categories.Distinct().ToList());
+            // The categories in order of their first tile, which is the order the protocol lists them in
+            CollectionAssert.AreEqual(categories.Distinct().ToList(), Queries.ZoneCategories.ToList());
         }
 
         // A map preview's answer is the map the seed generates, which maps.json lists
