@@ -71,19 +71,8 @@ Issue #57 tracks every asset still to make, these zone designs included.
 
 A scene matches its reference in layout, proportions, colours and roof detail rather than pixel for pixel, and leaves out what the conventions in `../README.md` forbid, such as streets.
 
-## Industrial slots
+## Slots
 
-The game picks a populated industrial zone's tiles by land value and density (`placeIndustrial` in `src/industrial.js`): slot = value × 4 + density, nine ids each from 621. Each slot has one design, chosen by how dense and how well-off it looks. A powered zone animates one tile of its slot (`setAnimation`), and `src/animationManager.ts` lists the frames of a second tile in four of the slots too, so a design puts a smoking stack in each tile its slot lists, and renders its frames into `frame-<n>` beside the still zone (`render_animated()`).
+The game picks a populated zone's tiles by land value and density, nine ids a slot: residential slot = value × 4 + density from 261 (`placeResidential` in `src/residential.js`), commercial slot = value × 5 + density from 432 (`placeCommercial`), industrial slot = value × 4 + density from 621 (`placeIndustrial`). Each slot has one design, chosen by what it shows: denser and taller with density, and from bare ground and car parks to gardens, plazas and glass with land value. The empty zones are 240–248, 423–431 and 612–620. Which design has which slot is `ZONES` in `tools/atlas.py`, the one place the atlas build reads it from.
 
-| Slot | Tiles | Design | Animated tiles and their frames |
-|------|-------|--------|---------------------------------|
-| 0 | 621–629 | `industrial_workshop_yard` | 621: 852–859 |
-| 1 | 630–638 | `industrial_scrapyard` | none |
-| 2 | 639–647 | `industrial_brick_factory` | 641: 884–887; 644: 888–891 |
-| 3 | 648–656 | `industrial_steel_mill` | 649: 892–895; 650: 896–899 |
-| 4 | 657–665 | `industrial_warehouse` | none |
-| 5 | 666–674 | `industrial_chemical_works` | none |
-| 6 | 675–683 | `industrial_large_factory` | 676: 900–903; 677: 904–907 |
-| 7 | 684–692 | `industrial_sawtooth_plant` | 686: 908–911; 689: 912–915 |
-
-The empty zone, `industrial_empty`, is tiles 612–620.
+A powered industrial zone animates one tile of its slot (`setAnimation`), and `src/animationManager.ts` lists the frames of a second tile in four of the slots too, so a design puts a smoking stack in each tile its slot lists, and renders its frames into `frame-<n>` beside the still zone (`render_animated()`). `FRAMES` in `tools/atlas.py` lists each animated tile and its frames' ids.

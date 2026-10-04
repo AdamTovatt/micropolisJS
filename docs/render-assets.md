@@ -1,6 +1,6 @@
 # Render assets
 
-The map is drawn with WebGL2 from a manifest and the atlases it names, in `images/render/`. This document specifies the manifest: what an atlas build must write from the zones' rendered layers (`art/README.md`), and what the client (`renderManifest.ts`, `renderAssets.ts`) reads. A tile id or sprite frame the manifest leaves out is drawn from the 16 px sheets, `images/tiles.png` and `images/sprites.png`, so a manifest of no entries draws the game as those sheets always have.
+The map is drawn with WebGL2 from a manifest and the atlases it names, in `images/render/`. This document specifies the manifest: what an atlas build must write from the zones' rendered layers (`art/README.md`), which `art/tools/atlas.py` does, and what the client (`renderManifest.ts`, `renderAssets.ts`) reads. A tile id or sprite frame the manifest leaves out is drawn from the 16 px sheets, `images/tiles.png` and `images/sprites.png`, so a manifest of no entries draws the game as those sheets always have.
 
 ## How the map is drawn
 

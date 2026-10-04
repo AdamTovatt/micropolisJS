@@ -15,7 +15,7 @@ Sources for rendering the game's tile art in Blender, one zone or one set of sin
 - `blender/vehicles/`: one script per vehicle sprite, rendering each of its frames.
 - `blender/out/`: rendered zones and tiles, one directory of layers each. Ignored by git: a render is rebuilt from its script.
 - `painted/`: the renders repainted as oil paintings, in the same layers, described in `painted/README.md`.
-- `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), previewing rendered zones side by side (`preview.py`), and repainting renders (`paint.py`, as the art-painting skill describes).
+- `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), previewing rendered zones side by side (`preview.py`), repainting renders (`paint.py`, as the art-painting skill describes), and building the game's atlases from them (`atlas.py`).
 
 ## Rendering a zone
 
@@ -64,12 +64,22 @@ A set of edge tiles, such as the shores or the road pieces, is one scene with a 
 
 ## Rendering a vehicle
 
-A script in `blender/vehicles/` renders a sprite's frames, numbered as the game numbers them (`src/*Sprite.js`), each into `art/blender/out/<vehicle>/<frame>/`, two digits; frame numbers after the directory render only those. A frame is three tiles square, as the original's 48 px cell, with the vehicle standing on its middle, and renders as two layers: `objects.png`, the vehicle over transparency, and `shadow.png`, its shadow on flat ground in the same frame. A vehicle that flies is built above the middle by its height, so the shear draws it up and to the right of where it is and its shadow falls away from it, and it reads as flying.
+A script in `blender/vehicles/` renders a sprite's frames, numbered as the game numbers them (`src/*Sprite.js`), each into `art/blender/out/<vehicle>/<frame>/`, two digits; frame numbers after the directory render only those. A frame is three tiles square, as the original's 48 px cell, with the vehicle standing on its middle, and renders as two layers: `objects.png`, the vehicle over transparency, and `shadow.png`, its shadow on flat ground in the same frame. A vehicle that flies is built above the middle by its height, so the shear draws it up and to the right of where it is and its shadow falls away from it, and it reads as flying. The game draws the train and the helicopter into a square of two tiles, as the original's 32 px sprites, so the atlas build crops their frames to the middle two tiles, and everything of theirs, shadow included, stays inside it.
 
 - `train.py`: the railcar, sprite 1, frames 0 to 4.
 - `helicopter.py`: sprite 2, frames 0 to 7.
 - `airplane.py`: the airliner, sprite 3, frames 0 to 10.
 - `ship.py`: the cargo ship, sprite 4, frames 0 to 7.
+
+## Building the atlases
+
+The game draws the map from the atlases and manifest in `images/render/`, in the format `docs/render-assets.md` specifies. `tools/atlas.py` builds them from one set of layers, the painted ones or the renders, which are laid out alike:
+
+```bash
+python art/tools/atlas.py --source art/painted/out
+```
+
+It cuts every asset's ground and objects into a rectangle per tile id and keeps its shadow whole on the zone's centre, packs them with the gutters the format asks for, and writes the manifest. It also writes the cells of `images/tiles.png` and `images/sprites.png` it has art for, scaled down to 16 px, for what the game still draws from them, the splash screen's map and the monster TV, and the page background, `images/dirtbg.png`, from the bare land tile. Which design fills which tile ids, and which frames each animated tile cycles through, is in `ZONES`, `FRAMES` and `SPRITES` at its top. It runs by hand, and its output is committed: the renders it would need are not, and CI has no Blender. It needs Pillow and NumPy.
 
 ## Layers
 
