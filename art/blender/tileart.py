@@ -85,8 +85,33 @@ def mottled(name, hex_a, hex_b, scale=12, rough=0.9):
     return m
 
 
-def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue=0.0):
-    # an image from art/textures spanning width x height world units, repeating beyond.
+def concrete_yard(name='yard'):
+    # a works yard: pale grey concrete worn in broad stains. The asphalt texture is too dark to
+    # lighten this far, as the tone mapping flattens a raised shade
+    return weathered(mottled(name, 'aeaca6', '92908a', 8), dirt=0.25)
+
+
+def haze(name, hex_a, hex_b, alpha=0.8):
+    # smoke: two greys in soft patches, and partly see-through, so a puff reads as a cloud and
+    # not as a stone; a lower alpha for a blur barely there, such as a turning rotor
+    m = mottled(name, hex_a, hex_b, scale=18, rough=1.0)
+    _bsdf(m).inputs['Alpha'].default_value = alpha
+    return m
+
+
+def chimney_smoke():
+    # the smoke of every works chimney, a mid grey: paler smoke vanishes against pale roofs
+    return bpy.data.materials.get('chimney_smoke') or haze('chimney_smoke', '9c9892', '6e6a64')
+
+
+def stack_brick():
+    # a brick chimney: brick-wall.png wrapped round a narrow cylinder comes out as stripes
+    return bpy.data.materials.get('stack_brick') or mottled('stack_brick', '9a4a34', '74382a', 20)
+
+
+def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue=0.0, turned=False):
+    # an image from art/textures spanning width x height world units, repeating beyond, or
+    # with turned=True a quarter turn round, so a roof's ribs can run down either slope.
     # Its hue turns by `hue`, a fraction of the colour wheel, so blue glass can become green
     # without losing its brightness; then it is multiplied by tint and by shade, so a grey
     # texture can be coloured and darkened
@@ -95,6 +120,8 @@ def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue
     uv = nt.nodes.new('ShaderNodeTexCoord')
     span = nt.nodes.new('ShaderNodeMapping')
     span.inputs['Scale'].default_value = (1 / width, 1 / height, 1)
+    if turned:
+        span.inputs['Rotation'].default_value = (0, 0, math.pi / 2)
     nt.links.new(uv.outputs['UV'], span.inputs['Vector'])
     img = nt.nodes.new('ShaderNodeTexImage')
     img.image = bpy.data.images.load(os.path.join(TEXTURES, file), check_existing=True)
@@ -115,19 +142,60 @@ def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue
     return m
 
 
-def weathered(m, dirt=0.3, dirt_scale=4, specks=0.0, speck_hex='2a2824'):
-    # darken a material in broad stains, and optionally scatter small specks over it
+def tiling_noise(nt, scale, period=1.0, detail=6):
+    # A noise texture's Fac that repeats every `period` world units in x and y, read from the UVs
+    # (world units on the top faces), so tiles drawn side by side join without a seam: the plane
+    # is wrapped onto a torus in four dimensions, which the noise samples. scale is about the
+    # number of features across one period.
+    def node(kind, *inputs, op=None):
+        n = nt.nodes.new(kind)
+        if op:
+            n.operation = op
+        for i, value in enumerate(inputs):
+            if isinstance(value, (int, float)):
+                n.inputs[i].default_value = value
+            else:
+                nt.links.new(value, n.inputs[i])
+        return n
+    uv = nt.nodes.new('ShaderNodeTexCoord')
+    xyz = node('ShaderNodeSeparateXYZ', uv.outputs['UV'])
+    radius = scale / (2 * math.pi)
+    ring = []
+    for axis in ('X', 'Y'):
+        angle = node('ShaderNodeMath', xyz.outputs[axis], 2 * math.pi / period, op='MULTIPLY').outputs[0]
+        for op in ('COSINE', 'SINE'):
+            wave = node('ShaderNodeMath', angle, op=op).outputs[0]
+            ring.append(node('ShaderNodeMath', wave, radius, op='MULTIPLY').outputs[0])
+    point = node('ShaderNodeCombineXYZ', ring[0], ring[1], ring[2])
+    noise = nt.nodes.new('ShaderNodeTexNoise')
+    noise.noise_dimensions = '4D'
+    noise.inputs['Scale'].default_value = 1
+    noise.inputs['Detail'].default_value = detail
+    nt.links.new(point.outputs[0], noise.inputs['Vector'])
+    nt.links.new(ring[3], noise.inputs['W'])
+    return noise.outputs['Fac']
+
+
+def weathered(m, dirt=0.3, dirt_scale=4, specks=0.0, speck_hex='2a2824', period=None):
+    # darken a material in broad stains, and optionally scatter small specks over it. Without a
+    # period the stains spread over each object's own extent; with one they repeat every period
+    # world units (tiling_noise), so a surface that crosses from tile to tile, such as a road,
+    # carries its stains across the edge
     nt = m.node_tree
     base = _bsdf(m).inputs['Base Color']
     src = base.links[0].from_socket
-    stain = nt.nodes.new('ShaderNodeTexNoise')
-    stain.inputs['Scale'].default_value = dirt_scale
-    stain.inputs['Detail'].default_value = 6
+    if period:
+        stain = tiling_noise(nt, dirt_scale, period)
+    else:
+        noise = nt.nodes.new('ShaderNodeTexNoise')
+        noise.inputs['Scale'].default_value = dirt_scale
+        noise.inputs['Detail'].default_value = 6
+        stain = noise.outputs['Fac']
     ramp = nt.nodes.new('ShaderNodeValToRGB')
     ramp.color_ramp.elements[0].position = 0.4
     ramp.color_ramp.elements[0].color = (1 - dirt, 1 - dirt, 1 - dirt * 1.1, 1)
     ramp.color_ramp.elements[1].position = 0.7
-    nt.links.new(stain.outputs['Fac'], ramp.inputs['Fac'])
+    nt.links.new(stain, ramp.inputs['Fac'])
     mul = nt.nodes.new('ShaderNodeMix')
     mul.data_type = 'RGBA'
     mul.blend_type = 'MULTIPLY'
@@ -194,6 +262,34 @@ def box(x0, y0, z0, x1, y1, z1, side, top=None, name='box'):
 def cylinder(x, y, z0, z1, r, material, verts=16):
     bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=z1 - z0, location=(x, y, (z0 + z1) / 2))
     bpy.context.object.data.materials.append(material)
+    return bpy.context.object
+
+
+def frustum(x, y, z0, z1, r0, r1, material, verts=32):
+    # a round section tapering from radius r0 at z0 to r1 at z1, open at both ends: stacked,
+    # they turn a profile such as a cooling tower's
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r0, radius2=r1, depth=z1 - z0,
+                                    end_fill_type='NOTHING', location=(x, y, (z0 + z1) / 2))
+    ob = bpy.context.object
+    ob.data.materials.append(material)
+    return ob
+
+
+def sphere(x, y, z, r, material, shadow=True):
+    # a ball of radius r centred at (x, y, z); shadow=False for one that casts none, such as smoke
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=r, location=(x, y, z))
+    ob = bpy.context.object
+    ob.data.materials.append(material)
+    ob.visible_shadow = shadow
+    return ob
+
+
+def mound(x, y, rx, ry, height, material):
+    # a heap of loose stuff, such as gravel or coal: half a ball squashed to rx by ry across and
+    # height high, centred on (x, y) on the ground
+    ob = sphere(x, y, 0, 1, material)
+    ob.scale = (rx, ry, height)
+    return ob
 
 
 def keep_inside(x, y, reach, height, tiles, margin=0.02):
@@ -220,11 +316,21 @@ def _shadow_only(ob):
     return ob
 
 
-def _rotated_rect(x, y, width, depth, turn):
+def rotated_rect(x, y, width, depth, turn):
+    # the corners of a width x depth rectangle centred on (x, y), turned anticlockwise by turn
+    # degrees: width runs east-west and depth north-south before the turn
     a = math.radians(turn)
     return [(x + u * width / 2 * math.cos(a) - v * depth / 2 * math.sin(a),
              y + u * width / 2 * math.sin(a) + v * depth / 2 * math.cos(a))
             for (u, v) in [(-1, -1), (1, -1), (1, 1), (-1, 1)]]
+
+
+def along_rect(x, y, s0, s1, width, turn):
+    # the corners of a rectangle on a heading through (x, y): from s0 to s1 along the heading,
+    # width across it. turn 0 heads north, turning anticlockwise in degrees, as car() does
+    a = math.radians(turn)
+    s = (s0 + s1) / 2
+    return rotated_rect(x - math.sin(a) * s, y + math.cos(a) * s, width, s1 - s0, turn)
 
 
 def _card(cutout, x, y, height, length, turn=0):
@@ -265,26 +371,168 @@ CAR_SCALE = 0.26 / 330    # world units per pixel of a car cutout, so vans come 
 VANS = {'car-06', 'car-07', 'car-13', 'car-14', 'car-20', 'car-21'}
 
 
-def car(name, x, y, turn):
-    # a car from cutouts/cars centred on (x, y); turn 0 points its nose north. Under the card
-    # is a body only the sun sees, so the car's shadow starts at the ground
+def car_size(name):
+    # a car's height and its card's width and depth, nose north, in world units
     cutout = f'cars/{name}.png'
     image = bpy.data.images.load(os.path.join(CUTOUTS, cutout), check_existing=True)
-    length = CAR_SCALE * max(image.size)
-    height = 0.07 if name in VANS else 0.05
-    _card(cutout, x, y, height, length, turn)
-    _, w, d = _cutout_size(cutout, length)
-    body = prism(_rotated_rect(x, y, w * 0.85, d * 0.92, turn), 0.0, height - 0.002,
+    _, w, d = _cutout_size(cutout, CAR_SCALE * max(image.size))
+    return (0.07 if name in VANS else 0.05), w, d
+
+
+def car(name, x, y, turn, base=0.0):
+    # a car from cutouts/cars centred on (x, y), standing on ground at height base, such as a
+    # bridge's deck; turn 0 points its nose north. Under the card is a body only the sun sees,
+    # so the car's shadow starts at the ground
+    cutout = f'cars/{name}.png'
+    height, w, d = car_size(name)
+    _card(cutout, x, y, base + height, max(w, d), turn)
+    body = prism(rotated_rect(x, y, w * 0.85, d * 0.92, turn), base, base + height - 0.002,
                  _shadow_material(), name='car_body')
     _shadow_only(body)
 
 
+def lorry(x, y, turn, cab, body=None, kind='box', load=None, length=0.54):
+    # a lorry centred on (x, y): a cab and, behind it, a box body or a flat bed carrying `load`
+    # (a material for the crates on it, or None for an empty bed); turn 0 points its nose north,
+    # turning anticlockwise in degrees, as car() does. A shorter length is a smaller lorry, its
+    # cab scaled with it
+    a = math.radians(turn)
+    ux, uy = -math.sin(a), math.cos(a)         # forward
+
+    def part(s0, s1, width, z0, z1, side, top=None, name='lorry'):
+        s = (s0 + s1) / 2
+        return prism(rotated_rect(x + ux * s, y + uy * s, width, s1 - s0, turn), z0, z1, side, top, name=name)
+
+    k = length / 0.44
+    half, width, cab_length = length / 2, 0.095 * k, 0.095 * k
+    glass = bpy.data.materials.get('lorry_glass') or plain('lorry_glass', '1c2228', 0.2)
+    chassis = bpy.data.materials.get('lorry_chassis') or plain('lorry_chassis', '2a2a2c', 0.7)
+    part(half - cab_length, half, width, 0.015 * k, 0.095 * k, cab, name='cab')
+    part(half - 0.02 * k, half - 0.005 * k, width * 0.86, 0.062 * k, 0.097 * k, glass, name='windscreen')
+    part(-half, half - cab_length, width * 0.9, 0.0, 0.028 * k, chassis, name='chassis')
+    rear = half - cab_length - 0.01 * k
+    if kind == 'box':
+        part(-half, rear, width, 0.028 * k, 0.125 * k, body or cab, name='lorry_body')
+    else:
+        part(-half, rear, width, 0.028 * k, 0.038 * k, body or chassis, name='bed')
+        if load is not None:
+            span = (rear + half) / 3
+            for i in range(3):
+                s0 = -half + i * span
+                part(s0 + 0.006, s0 + span - 0.006, width * 0.8, 0.038 * k, 0.075 * k, load, name='load')
+
+
+def plane(x, y, turn, body, trim, length=0.6, base=0.0):
+    # an airliner centred on (x, y), its belly `base` above the ground under it: a fuselage,
+    # swept wings with an engine under each, a tailplane and a fin painted `trim`. turn 0 points
+    # its nose north, turning anticlockwise in degrees. Parked, it stands on its wheels.
+    a = math.radians(turn)
+    ux, uy = -math.sin(a), math.cos(a)         # forward
+    k = length / 0.6
+
+    def at(s, w):
+        return (x + (ux * s + uy * w) * k, y + (uy * s - ux * w) * k)
+
+    def part(outline, z0, z1, material, name):
+        return prism([at(s, w) for s, w in outline], base + z0 * k, base + z1 * k, material, name=name)
+
+    nose = [(0.3, 0), (0.27, -0.022), (0.2, -0.03), (-0.24, -0.03), (-0.3, -0.008), (-0.3, 0.008), (-0.24, 0.03),
+            (0.2, 0.03), (0.27, 0.022)]
+    part(nose, 0.02, 0.06, body, 'fuselage')
+    part([(0.08, 0), (-0.06, -0.29), (-0.11, -0.29), (-0.03, 0), (-0.11, 0.29), (-0.06, 0.29)], 0.035, 0.044, body,
+         'wings')
+    part([(-0.21, 0), (-0.28, -0.1), (-0.31, -0.1), (-0.27, 0), (-0.31, 0.1), (-0.28, 0.1)], 0.052, 0.058, body,
+         'tailplane')
+    part([(-0.22, -0.006), (-0.22, 0.006), (-0.3, 0.006), (-0.3, -0.006)], 0.058, 0.13, trim, 'fin')
+    for w in (-0.12, 0.12):
+        p, q = at(0.04, w), at(-0.04, w)
+        strut((p[0], p[1], base + 0.028 * k), (q[0], q[1], base + 0.028 * k), 0.013 * k, trim)
+    if base == 0:
+        for s, w in ((0.2, 0), (-0.03, -0.05), (-0.03, 0.05)):
+            gx, gy = at(s, w)
+            cylinder(gx, gy, 0, 0.02 * k, 0.006 * k, body, 8)
+
+
+def excavator(x, y, turn, paint, reach=0.3, size=1.0):
+    # a tracked excavator centred on (x, y), its boom reaching `reach` ahead, the way turn 0
+    # points north, and bending down to a bucket on the ground; size scales it
+    a = math.radians(turn)
+    ux, uy = -math.sin(a), math.cos(a)         # forward
+    dark = bpy.data.materials.get('track') or plain('track', '262626', 0.8)
+    glass = bpy.data.materials.get('lorry_glass') or plain('lorry_glass', '1c2228', 0.2)
+    k = size
+    for side in (-1, 1):
+        cx, cy = x + uy * side * 0.04 * k, y - ux * side * 0.04 * k
+        prism(rotated_rect(cx, cy, 0.026 * k, 0.15 * k, turn), 0, 0.025 * k, dark, name='track')
+    prism(rotated_rect(x, y, 0.1 * k, 0.11 * k, turn), 0.025 * k, 0.06 * k, paint, name='excavator')
+    cab = (x + uy * 0.022 * k + ux * 0.015 * k, y - ux * 0.022 * k + uy * 0.015 * k)
+    prism(rotated_rect(*cab, 0.045 * k, 0.055 * k, turn), 0.06 * k, 0.1 * k, paint, glass, name='cab')
+    root = (x - uy * 0.02 * k + ux * 0.04 * k, y + ux * 0.02 * k + uy * 0.04 * k, 0.07 * k)
+    elbow = (root[0] + ux * reach * 0.6, root[1] + uy * reach * 0.6, 0.17 * k)
+    tip = (root[0] + ux * reach, root[1] + uy * reach, 0.03 * k)
+    strut(root, elbow, 0.012 * k, paint)
+    strut(elbow, tip, 0.009 * k, paint)
+    prism(rotated_rect(tip[0], tip[1], 0.05 * k, 0.035 * k, turn), 0, 0.035 * k, dark, name='bucket')
+
+
+def crates(x0, y0, x1, y1, material, rng, size=0.075, height=0.045, fill=0.8):
+    # pallets of crates in rows over the rectangle, some stacked two high and some places empty
+    nx, ny = max(1, int((x1 - x0) / size)), max(1, int((y1 - y0) / size))
+    for i in range(nx):
+        for j in range(ny):
+            if rng.random() > fill:
+                continue
+            cx, cy = x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny
+            h = height * (2 if rng.random() < 0.3 else 1)
+            s = size * rng.uniform(0.78, 0.9) / 2
+            box(cx - s, cy - s, 0, cx + s, cy + s, h, material, name='crate')
+
+
+def barrels(x0, y0, x1, y1, material, rng, r=0.022, height=0.042, fill=0.85):
+    # drums standing in rows over the rectangle
+    step = r * 2.3
+    for i in range(max(1, int((x1 - x0) / step))):
+        for j in range(max(1, int((y1 - y0) / step))):
+            if rng.random() < fill:
+                cylinder(x0 + (i + 0.5) * step, y0 + (j + 0.5) * step, 0, height, r, material, 12)
+
+
+def smoke(x, y, z, frame, frames, material, puffs=4, rise=0.07, size=0.03, drift=(0.012, 0.02), seed=0):
+    # A plume from a chimney's mouth at (x, y, z), in one of `frames` frames of a loop: puffs a
+    # rise apart up the plume, each growing as it climbs, and each frame lifts every puff a
+    # fraction of a rise, so the last frame runs on into the first. The plume leans with the
+    # wind by drift per rise, and wavers as a smooth function of its height, so that too runs on
+    # from frame to frame. It casts no shadow, as a thin plume barely does.
+    for k in range(puffs):
+        u = k + frame / frames               # the puff's height in rises
+        r = size * (0.7 + 0.45 * u)
+        jx, jy = 0.3 * math.sin(2.1 * u + seed), 0.3 * math.cos(1.7 * u + seed)
+        sphere(x + drift[0] * u + jx * r, y + drift[1] * u + jy * r, z + r * 0.6 + rise * u, r, material,
+               shadow=False)
+
+
 def tree(name, x, y, size, turn=0):
-    # a tree from cutouts/plants: its crown, `size` across, on a trunk from the ground
+    # a tree from cutouts/plants: its crown, `size` across, on a trunk from the ground. Returns
+    # the crown and the trunk
     height = 0.8 * size
-    _card(f'plants/{name}.png', x, y, height, size, turn)
+    crown = _card(f'plants/{name}.png', x, y, height, size, turn)
     trunk = bpy.data.materials.get('trunk') or plain('trunk', '4a3522', 0.9)
     cylinder(x, y, 0, height - 0.002, 0.016, trunk, 8)
+    return crown, bpy.context.object
+
+
+def neighbours_shade(ob):
+    # Make an object stand in for one in a neighbouring tile, such as a tree in the woods next
+    # door, so that it shades this tile's objects as the neighbour's would: the camera never
+    # sees it, and render() leaves it out of the shadow layer, where the neighbour casts its own.
+    # Without it, the trees along a tile's sunny edges would be lit brighter than the rest,
+    # marking out the grid.
+    ob['neighbours_shade'] = True
+    ob.visible_camera = False
+    ob.visible_diffuse = False
+    ob.visible_glossy = False
+    ob.visible_transmission = False
+    return ob
 
 
 def shrub(name, x, y, size, height, turn=0):
@@ -497,6 +745,14 @@ def roof_clutter(areas, z, rng, unit, fan, count=6, avoid=()):
                 cylinder(vx, vy, z, z + 0.018, 0.009, unit, 10)
 
 
+def mark(ob, name):
+    # Name an object as part of a mark that tells the zone apart as its letter does, such as the
+    # nuclear plant's atom: render() masks it, and a painting takes it from the render, since the
+    # model redraws a symbol as freely as a letter
+    ob.name = 'mark_' + name
+    return ob
+
+
 def zone_letter(letter, cx, cy, z, height, material, thickness=0.03):
     # A zone's letter in LETTER_FONT, `height` tall and centred on (cx, cy), standing
     # `thickness` proud of a roof or the ground at z so it casts a shadow
@@ -548,9 +804,21 @@ def dashes(x0, y0, x1, y1, material, dash=0.08, gap=0.06, width=0.012, z=0.006):
 FIT_TOLERANCE = 0.003  # how far a sheared point may stray past the edge: a flat ground layer's rim
 
 
+def spans_edge(ob):
+    # Mark an object that crosses a tile's edge by design, running on into the neighbouring tile
+    # that continues it: a power line's wire, a bridge's deck. The fit check passes it. The scene
+    # builds it past the west and south edges by at least its sheared lift, since the shear
+    # carries it in from those, so that where the frame cuts it off,
+    # the neighbour's copy of it, built the same way, takes over without a gap.
+    ob['spans_edge'] = True
+    return ob
+
+
 def _shear_scene(scene, tiles):
     # Shear every point up and to the right by its height, then fail if anything the camera
     # sees stands past the zone's edge: the game draws each tile on its own, so it would be cut off.
+    if not scene.objects:
+        return    # an empty frame, such as the train's while it is under water
     bpy.ops.object.select_all(action='SELECT')
     bpy.context.view_layer.objects.active = bpy.context.selected_objects[0]
     bpy.ops.object.convert(target='MESH')
@@ -562,7 +830,7 @@ def _shear_scene(scene, tiles):
         for v in ob.data.vertices:
             v.co.x += SHEAR * v.co.z
             v.co.y += SHEAR * v.co.z
-            if ob.visible_camera and v.co.z >= 0 and not (
+            if ob.visible_camera and not ob.get('spans_edge') and v.co.z >= 0 and not (
                     -FIT_TOLERANCE <= v.co.x <= tiles + FIT_TOLERANCE and
                     -FIT_TOLERANCE <= v.co.y <= tiles + FIT_TOLERANCE):
                 outside.add(ob.name)
@@ -621,6 +889,56 @@ def _render_to(scene, path):
     final.save()
 
 
+def _stage(scene, samples, sun_azimuth, sun_elevation, sun_colour, sun_strength, sky_strength):
+    # the camera, the light and the render settings every render shares; returns the camera
+    cam = bpy.data.objects.new('camera', bpy.data.cameras.new('camera'))
+    cam.data.type = 'ORTHO'
+    cam.data.clip_end = 100
+    scene.collection.objects.link(cam)
+    scene.camera = cam
+    _sun(scene, sun_azimuth, sun_elevation, sun_colour, sun_strength)
+    _sky(scene, sun_elevation, sky_strength)
+    scene.render.engine = 'CYCLES'
+    scene.cycles.device = 'CPU'
+    scene.cycles.samples = samples
+    scene.cycles.use_denoising = False
+    # each pixel samples only its own square: the default filter, wider than a pixel, reaches
+    # past the frame's edge, where nothing of the zone is, and darkens its outermost pixels, a
+    # faint line where it meets its neighbour. Rendering at twice the size smooths edges instead.
+    scene.cycles.filter_width = 1.0
+    scene.render.image_settings.color_mode = 'RGBA'
+    scene.view_settings.view_transform = 'AgX'
+    scene.view_settings.look = 'AgX - Punchy'
+    return cam
+
+
+def render_sprite(scene, out_dir, tiles=3, samples=192,
+                  sun_azimuth=300, sun_elevation=35, sun_colour=(1.0, 0.88, 0.72), sun_strength=5.5,
+                  sky_strength=0.17):
+    # Render one frame of a vehicle, built round the middle of a frame `tiles` tiles square, lit
+    # and sheared as a zone is, into out_dir as two layers:
+    #   objects.png  the vehicle over transparency
+    #   shadow.png   black whose alpha is the shadow it casts onto flat ground, within the same
+    #                frame: a flying vehicle's falls away from it by its height
+    # The fit check holds the vehicle inside the frame; its shadow must fit as well, which the
+    # scene sees to by how high it flies.
+    _shear_scene(scene, tiles)
+    meshes = [ob for ob in scene.objects if ob.type == 'MESH']
+    cam = _stage(scene, samples, sun_azimuth, sun_elevation, sun_colour, sun_strength, sky_strength)
+    os.makedirs(out_dir, exist_ok=True)
+    _frame(scene, cam, 0, 0, tiles, tiles)
+    scene.render.film_transparent = True
+    _render_to(scene, os.path.join(out_dir, 'objects.png'))
+    for ob in meshes:
+        ob.visible_camera = False
+    catcher = box(-1, -1, -0.01, tiles + 1, tiles + 1, 0.0, plain('catcher', '808080'), name='catcher')
+    catcher.is_shadow_catcher = True
+    _render_to(scene, os.path.join(out_dir, 'shadow.png'))
+    with open(os.path.join(out_dir, 'layers.json'), 'w') as f:
+        json.dump({'tiles': tiles, 'tile_px': TILE_PX}, f, indent=2)
+        f.write('\n')
+
+
 def render(scene, out_dir, tiles, samples=192,
            sun_azimuth=300, sun_elevation=35, sun_colour=(1.0, 0.88, 0.72), sun_strength=5.5,
            sky_strength=0.17):
@@ -640,21 +958,7 @@ def render(scene, out_dir, tiles, samples=192,
     ground = [ob for ob in meshes if _top(ob) <= GROUND_TOP]
     standing = [ob for ob in meshes if _top(ob) > GROUND_TOP]
     tallest = max((_top(ob) for ob in standing), default=0.0)
-
-    cam = bpy.data.objects.new('camera', bpy.data.cameras.new('camera'))
-    cam.data.type = 'ORTHO'
-    cam.data.clip_end = 100
-    scene.collection.objects.link(cam)
-    scene.camera = cam
-    _sun(scene, sun_azimuth, sun_elevation, sun_colour, sun_strength)
-    _sky(scene, sun_elevation, sky_strength)
-    scene.render.engine = 'CYCLES'
-    scene.cycles.device = 'CPU'
-    scene.cycles.samples = samples
-    scene.cycles.use_denoising = False
-    scene.render.image_settings.color_mode = 'RGBA'
-    scene.view_settings.view_transform = 'AgX'
-    scene.view_settings.look = 'AgX - Punchy'
+    cam = _stage(scene, samples, sun_azimuth, sun_elevation, sun_colour, sun_strength, sky_strength)
     os.makedirs(out_dir, exist_ok=True)
 
     # the ground, with nothing standing on it to cast a shadow
@@ -678,6 +982,8 @@ def render(scene, out_dir, tiles, samples=192,
         ob.hide_render = True
     for ob in standing:
         ob.visible_camera = False
+        if ob.get('neighbours_shade'):
+            ob.hide_render = True
     reach = tallest / math.tan(math.radians(sun_elevation)) + 0.05
     away = math.radians(sun_azimuth + 180)
     dx, dy = math.sin(away) * reach, math.cos(away) * reach
@@ -697,3 +1003,83 @@ def render(scene, out_dir, tiles, samples=192,
     with open(os.path.join(out_dir, 'layers.json'), 'w') as f:
         json.dump({'tiles': tiles, 'tile_px': TILE_PX, 'shadow_margin': margin}, f, indent=2)
         f.write('\n')
+
+    # the zone letters of each layer that holds any, and apart from them the marks that tell a
+    # zone apart as a letter does (mark()), each as a mask whose alpha is where the camera sees
+    # them, into <layer>-letters.png and <layer>-marks.png: a painting of the zone takes them from
+    # the render through it (art/tools/paint.py), and a mark that moves takes the surface it
+    # uncovers too. Rendered after the layers, so they come out exactly as they would without it
+    for kind, prefix in (('letters', 'letter_'), ('marks', 'mark_')):
+        shapes = [ob for ob in meshes if ob.name.startswith(prefix)]
+        for layer, members in (('ground', ground), ('objects', standing)):
+            mine = [ob for ob in shapes if ob in members]
+            if not mine:
+                continue
+            for ob in meshes:
+                ob.hide_render = ob not in members
+                ob.is_holdout = ob not in mine
+            scene.cycles.samples = 16
+            scene.render.film_transparent = True
+            _frame(scene, cam, 0, 0, tiles, tiles)
+            _render_to(scene, os.path.join(out_dir, f'{layer}-{kind}.png'))
+    for ob in meshes:
+        ob.hide_render = False
+        ob.is_holdout = False
+
+
+def _wanted():
+    # the numbers listed after the output directory on the command line (`-- <directory>
+    # 66,70-75`), or None when none are
+    import sys
+    if '--' not in sys.argv or len(sys.argv) <= sys.argv.index('--') + 2:
+        return None
+    wanted = set()
+    for part in sys.argv[sys.argv.index('--') + 2].split(','):
+        first, _, last = part.partition('-')
+        wanted.update(range(int(first), int(last or first) + 1))
+    return wanted
+
+
+def render_tiles(script, builders):
+    # Render a set of single tiles, such as every road piece: builders maps a tile id, as
+    # src/tileValues.ts numbers them, to a function that builds that tile's scene, from nothing,
+    # with the tile's south-west corner at the origin. Each renders as a zone of one tile into
+    # <out>/<id, four digits>, where <out> is out_dir(script). Ids after the directory on the
+    # command line (`-- <directory> 66,70-75`) render only those.
+    out, wanted = out_dir(script), _wanted()
+    for tile, build in sorted(builders.items()):
+        if wanted is not None and tile not in wanted:
+            continue
+        scene = new_scene()
+        build()
+        render(scene, os.path.join(out, f'{tile:04d}'), tiles=1)
+
+
+def render_sprites(script, builders, tiles=3):
+    # Render a vehicle's frames: builders maps each frame, numbered as the game numbers the
+    # sprite's frames from 0, to a function that builds it from nothing, standing on the middle
+    # of a frame `tiles` tiles square. Each renders through render_sprite() into
+    # <out>/<frame, two digits>; frame numbers after the directory render only those.
+    out, wanted = out_dir(script), _wanted()
+    for frame, build in sorted(builders.items()):
+        if wanted is not None and frame not in wanted:
+            continue
+        scene = new_scene()
+        build()
+        render_sprite(scene, os.path.join(out, f'{frame:02d}'), tiles=tiles)
+
+
+def render_animated(script, build, frames, tiles=3):
+    # Render a zone with animated tiles, such as a factory's smoking chimney: build(frame)
+    # builds the scene from nothing, frame None for the zone as it stands still and 0 to
+    # frames - 1 for each frame of its animation. The still zone renders into out_dir(script),
+    # each frame into frame-<n> inside it, from which the atlas build cuts the animated tiles.
+    # Frame numbers after the directory on the command line render the still zone and only
+    # those frames.
+    out, wanted = out_dir(script), _wanted()
+    for frame in [None] + list(range(frames)):
+        if frame is not None and wanted is not None and frame not in wanted:
+            continue
+        scene = new_scene()
+        build(frame)
+        render(scene, out if frame is None else os.path.join(out, f'frame-{frame}'), tiles=tiles)

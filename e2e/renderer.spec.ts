@@ -22,6 +22,7 @@ import { GameSave, Player, startGame, Tile } from "./player";
 import { samplePixels } from "./png";
 import { rawTileAt, tileAt } from "./savedMap";
 import { SEED } from "./stages";
+import { serveNoArt } from "./testArt";
 
 // The map's canvas as the WebGL renderer draws it: the pictures the Screenshot window takes, the backing store on a
 // dense screen, and a WebGL context the browser takes away and gives back. The map is the seed's, with no sprites, as
@@ -49,7 +50,9 @@ async function stillTilesInView(player: Player, save: GameSave, scale: number, l
 
 // Where each tile given draws in a picture, and the pixels of its art there: an OFFSETS pixel of the tile in
 // images/tiles.png, drawn at scale picture pixels to its pixel from the tile's top-left corner in the picture. Gives the
-// tiles whose picture pixels are not their art's.
+// tiles whose picture pixels are not their art's. A test that uses it draws the map from the 16 px sheets alone, the
+// fallback path, by serving a manifest of no entries (serveNoArt): that is its real input, since a tile the manifest
+// has art for draws from its atlas, scaled down through the mip levels, which no pixel of images/tiles.png predicts.
 async function wrongTiles(page: Page, picture: Buffer | string, save: GameSave,
                           tiles: {tile: Tile, x: number, y: number}[], scale: number): Promise<string[]> {
   const inPicture: {x: number, y: number}[] = [];
@@ -89,6 +92,7 @@ async function takePicture(page: Page, area: "visible" | "whole"): Promise<strin
 test("the Screenshot window's picture of the whole map draws every tile at 16 pixels, the right way up",
      async ({page}) => {
   const problems = collectPageProblems(page);
+  await serveNoArt(page);
   const player = await startGame(page, SEED, "Whole");
   const save = await player.save();
 
@@ -109,6 +113,7 @@ test("the Screenshot window's picture of the whole map draws every tile at 16 pi
 
 test("the Screenshot window's picture of the visible map shows the view as it is drawn", async ({page}) => {
   const problems = collectPageProblems(page);
+  await serveNoArt(page);
   const player = await startGame(page, SEED, "Visible");
   const save = await player.save();
   const canvas = await player.canvasBox();
@@ -128,6 +133,7 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
   test("the map is drawn at two device pixels to the art's, and an outline at two to the CSS pixel",
        async ({page}) => {
     const problems = collectPageProblems(page);
+    await serveNoArt(page);
     const player = await startGame(page, SEED, "Dense");
     const save = await player.save();
     const canvas = await player.canvasBox();

@@ -47,7 +47,7 @@ The pipeline's layout, conventions and tools are in `art/README.md`, the texture
 ## Working with Adam
 
 - Generate the textures and sprite sheets a scene needs with `generate.py`, one prompt per image, written to the rules in `art/textures/README.md`, and send him each one. Sprite sheets are objects on plain black that touch neither each other nor the border, so `cutout.py` can separate them. Record every image you keep, with its prompt and the model, in the README beside it.
-- Running a finished render through an image model to make it look more realistic is untried, and Adam has not decided on it. What it risks: merging the zone's three layers into one picture, moving edges the edge check cannot see, and giving each zone its own light and colour. Realism put into what the render uses, its textures and cutouts, risks none of that. Try the pass on one zone, beside the plain render, before relying on it.
+- Finished renders are repainted by an image model into painted layers beside them; the `art-painting` skill holds that process.
 - Zones render at 64 px per tile. That is his decision: detail reads at that size, and the map stays a size a canvas can hold.
 - He judges by eye. Send images often and say plainly what still falls short of the reference.
 - A zone holds no street, no shadow falls on a roof, and the zone letters use the Tomorrow font. These rules came from him and are in `art/README.md`.
@@ -56,6 +56,6 @@ The pipeline's layout, conventions and tools are in `art/README.md`, the texture
 
 ## Where this leads
 
-The layers are made for the client to composite: every zone's ground, then the shadows merged by their darkest value, then every zone's objects. The client draws them from a manifest and atlases in `images/render/`, which `docs/render-assets.md` specifies: how a zone's layers are cut into tiles, and how its `shadow_margin` becomes the shadow's reach.
+The layers are made for the client to composite: every zone's ground, then the shadows merged by their darkest value, then every zone's objects. The client draws them from a manifest and atlases in `images/render/`, which `docs/render-assets.md` specifies: how a zone's layers are cut into tiles, and how its `shadow_margin` becomes the shadow's reach. `art/tools/atlas.py` builds them (`art/README.md`); a new design gets its tile ids in its `ZONES`, and a new animation its frames' ids in `FRAMES`.
 
 The original's zone tiles map onto these scenes as follows. A 3×3 zone is nine consecutive tile ids, in rows from its top-left (`src/buildingTool.js`). The populated residential zones start at 261, the populated commercial zones at 432, nine ids apart (names in `src/tileValues.ts`), and the single-tile houses are 249 to 260.

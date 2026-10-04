@@ -1,0 +1,12 @@
+{
+  "job": "helicopter",
+  "paintings": {
+    "full": {
+      "prompt": "Repaint this top-down render of one white and grey traffic helicopter with a dark cockpit and a red tail, flying, seen from directly above, in each of the directions it heads, with its shadow on the plain grass below as a cosy oil painting of a lovely summer day: visible brushstrokes and soft impasto texture, painterly but clear, warm soft daylight, rich but natural colours, lush summer greens. The helicopter's body stays clean white and light grey, never cream, beige or yellow, with no dark outline round it; the grass stays plain. Keep the exact composition: every shape, every tree and every boundary between paving and grass in the same position, size and outline, the same straight-down camera angle. Keep every big letter on a roof or on the ground, such as a green R, C or I, exactly as it is: the same letter, shape, size and colour, crisp and flat, never turned into a sign, a helipad or another letter. Do not add trees, bushes, sky or anything else. No other text, no borders.",
+      "model": "gemini-3-pro-image",
+      "references": [
+        "in-full"
+      ]
+    }
+  }
+}

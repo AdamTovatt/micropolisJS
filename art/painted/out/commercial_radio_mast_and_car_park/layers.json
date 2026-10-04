@@ -1,0 +1,10 @@
+{
+  "tiles": 3,
+  "tile_px": 64,
+  "shadow_margin": {
+    "left": 0,
+    "right": 2,
+    "bottom": 2,
+    "top": 0
+  }
+}
