@@ -14,6 +14,7 @@
 using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 // The bodies of /api/session, the messages on the city's WebSocket, /ws/city, and the commands a player sends the
@@ -57,6 +58,9 @@ namespace Micropolis.Rules
     [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
     [JsonDerivedType(typeof(HelloMessage), "hello")]
     [JsonDerivedType(typeof(PlayersMessage), "players")]
+    [JsonDerivedType(typeof(StateBatchMessage), "state")]
+    [JsonDerivedType(typeof(AnswerMessage), "answer")]
+    [JsonDerivedType(typeof(FailedMessage), "failed")]
     public abstract record ServerMessage;
 
     /// <summary>
@@ -74,6 +78,55 @@ namespace Micropolis.Rules
     /// <param name="Players">Everyone now online, in the order they came online.</param>
     public sealed record PlayersMessage(
         [property: JsonPropertyName("players")] IReadOnlyList<PlayerInfo> Players) : ServerMessage;
+
+    /// <summary>
+    /// The state messages the city sent in one batch, in the order it sent them, as StateMessage in
+    /// <c>src/protocol.ts</c> defines each: every player in the city receives the same batches.
+    /// </summary>
+    public sealed record StateBatchMessage(
+        [property: JsonPropertyName("messages")] JsonArray Messages) : ServerMessage;
+
+    /// <summary>
+    /// The answer to the player's request with the given id, sent after any state the request changed. What the value
+    /// is depends on the request: <c>protocol/README.md</c> lists them.
+    /// </summary>
+    public sealed record AnswerMessage(
+        [property: JsonPropertyName("id")] long Id,
+        [property: JsonPropertyName("value")] JsonNode? Value) : ServerMessage;
+
+    /// <summary>
+    /// Why the player's request with the given id failed, in words.
+    /// </summary>
+    public sealed record FailedMessage(
+        [property: JsonPropertyName("id")] long Id,
+        [property: JsonPropertyName("error")] string Error) : ServerMessage;
+
+    /// <summary>
+    /// A city that has started or been joined, as <c>CityJoined</c> in <c>src/protocol.ts</c>: its id, which any
+    /// player joins it by, its name, and its game seed.
+    /// </summary>
+    public sealed record CityJoined(
+        [property: JsonPropertyName("city")] string City,
+        [property: JsonPropertyName("name")] string Name,
+        [property: JsonPropertyName("seed")] uint Seed);
+
+    /// <summary>
+    /// The city's session log: the log, the steps the city has taken since the session began, and why the log has no
+    /// checkpoints, which is always null on the server, since it can always work out a state hash.
+    /// </summary>
+    public sealed record SessionLog(
+        [property: JsonPropertyName("log")] JsonObject Log,
+        [property: JsonPropertyName("step")] long Step,
+        [property: JsonPropertyName("unhashed")] string? Unhashed);
+
+    /// <summary>
+    /// What came of a debug advance: the steps it took, whether a year-end budget review fell due during them, and why
+    /// it failed, or null when it took every step asked for.
+    /// </summary>
+    public sealed record AdvanceResult(
+        [property: JsonPropertyName("steps")] long Steps,
+        [property: JsonPropertyName("budgetReviewDue")] bool BudgetReviewDue,
+        [property: JsonPropertyName("error")] string? Error);
 
     /// <summary>
     /// A request or response body of <c>/api/session</c>. Each body's endpoint and status say what it is, so a body
@@ -222,6 +275,17 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
+    /// The bounds <c>src/protocol.ts</c> sets on what a message carries, beyond the types of its fields.
+    /// </summary>
+    public static class ProtocolLimits
+    {
+        /// <summary>
+        /// The largest game seed, <c>MAX_SEED</c>: a seed is a uint32.
+        /// </summary>
+        public const uint MaxSeed = uint.MaxValue;
+    }
+
+    /// <summary>
     /// Reads and writes protocol messages. Reading is strict: an unknown field, a missing one or a null where the
     /// protocol has none is an error rather than a default. The fields of a message may come in any order, its
     /// <c>type</c> included, and writing puts them in the protocol's order.
@@ -238,7 +302,17 @@ namespace Micropolis.Rules
             // of any script are written as they are, as JSON.stringify writes them. protocol/README.md states which
             // characters the two serializers write differently.
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            // A fraction, such as a funding share, and any JSON value a message carries, such as a command a player
+            // sent, written as JSON.stringify writes it
+            Converters = { new JavaScriptDoubleConverter(), new JavaScriptNodeConverter() },
+            // Deep enough to read back whatever a player's message carried, which is read as deep as JsonText reads,
+            // inside the messages that carry it on: a rejected command's result echoes the command to every player
+            MaxDepth = MaxCarriedDepth,
         };
+
+        // The deepest a message nests, a value a player sent with the objects and lists that carry it around it, as a
+        // state batch carries a command result's command
+        private const int MaxCarriedDepth = JsonText.MaxDepth + 16;
 
         /// <summary>
         /// The message as the wire carries it.
@@ -295,6 +369,34 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// A value of the protocol's, such as a state message or an answer, as the JSON the wire carries it as, to be
+        /// carried in another message.
+        /// </summary>
+        public static JsonNode? ToNode(object value)
+        {
+            // By the value's own type, which writes a state message's or an answer's type first. The text is read back
+            // as JSON.parse reads it, which keeps a lone surrogate a player sent.
+            return JsonText.Parse(JsonSerializer.Serialize(value, value.GetType(), Options), MaxCarriedDepth);
+        }
+
+        /// <summary>
+        /// The message a player sends as the wire carries it.
+        /// </summary>
+        public static string Serialize(ClientMessage message)
+        {
+            return JsonSerializer.Serialize(message, Options);
+        }
+
+        /// <summary>
+        /// The state message as the wire carries it.
+        /// </summary>
+        public static string Serialize(StateMessage message)
+        {
+            // By the message's own type, which writes its type first: a state message has no discriminator
+            return JsonSerializer.Serialize(message, message.GetType(), Options);
+        }
+
+        /// <summary>
         /// The name the protocol gives an enumeration's member, such as a tool's or an outcome's.
         /// </summary>
         public static string Name<TEnum>(TEnum value) where TEnum : struct, Enum
@@ -316,6 +418,55 @@ namespace Micropolis.Rules
         public static bool TryParseName<TEnum>(string name, out TEnum value) where TEnum : struct, Enum
         {
             return EnumNames<TEnum>.ByName.TryGetValue(name, out value);
+        }
+
+        // A double as ECMAScript's Number::toString writes it, where .NET would write an exponent differently, such as
+        // 1e-7 for its 1E-07. The protocol carries no number JSON can't hold.
+        private sealed class JavaScriptDoubleConverter : JsonConverter<double>
+        {
+            public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            {
+                return reader.GetDouble();
+            }
+
+            public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options)
+            {
+                if (!double.IsFinite(value))
+                {
+                    throw new JsonException($"The protocol has no number {value}.");
+                }
+
+                writer.WriteRawValue(CanonicalJson.FormatNumber(value), skipInputValidation: true);
+            }
+        }
+
+        // A JSON value as JSON.stringify writes it. System.Text.Json's writer replaces a lone surrogate, which a player's
+        // command may hold and JSON.parse reads, with U+FFFD, where JSON.stringify escapes it, so a command a result or
+        // a log carries on would no longer be the command that arrived.
+        private sealed class JavaScriptNodeConverter : JsonConverterFactory
+        {
+            public override bool CanConvert(Type typeToConvert)
+            {
+                return typeof(JsonNode).IsAssignableFrom(typeToConvert);
+            }
+
+            public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+            {
+                return (JsonConverter)Activator.CreateInstance(typeof(NodeConverter<>).MakeGenericType(typeToConvert))!;
+            }
+
+            private sealed class NodeConverter<TNode> : JsonConverter<TNode> where TNode : JsonNode
+            {
+                public override TNode? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+                {
+                    return JsonNode.Parse(ref reader) as TNode ?? throw new JsonException($"The value is not a {typeof(TNode).Name}.");
+                }
+
+                public override void Write(Utf8JsonWriter writer, TNode value, JsonSerializerOptions options)
+                {
+                    writer.WriteRawValue(CanonicalJson.Stringify(value), skipInputValidation: true);
+                }
+            }
         }
 
         // An enumeration's protocol names, read from its members' attributes once

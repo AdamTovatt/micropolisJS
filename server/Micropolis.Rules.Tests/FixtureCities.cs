@@ -21,6 +21,15 @@ namespace Micropolis.Rules.Tests
     internal static class FixtureCities
     {
         /// <summary>
+        /// A fixture's city by the name its save has in <c>conformance/saves/</c>, such as <c>town.built</c>.
+        /// </summary>
+        public static Simulation City(string save)
+        {
+            int dot = save.LastIndexOf('.');
+            return City(save[..dot], save[(dot + 1)..]);
+        }
+
+        /// <summary>
         /// A fixture's city from its save at the point, <c>built</c> or <c>run</c>, with any change to the save made
         /// before it loads.
         /// </summary>

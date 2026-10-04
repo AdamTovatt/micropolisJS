@@ -34,7 +34,16 @@ namespace Micropolis.Rules
         /// <exception cref="JsonException">The text is not JSON.</exception>
         public static JsonNode? Parse(string text)
         {
-            Utf8JsonReader reader = new Utf8JsonReader(Encoding.UTF8.GetBytes(text), new JsonReaderOptions { MaxDepth = MaxDepth });
+            return Parse(text, MaxDepth);
+        }
+
+        /// <summary>
+        /// The text, nested at most as deep as given, such as a message carrying a value a player sent.
+        /// </summary>
+        /// <exception cref="JsonException">The text is not JSON.</exception>
+        internal static JsonNode? Parse(string text, int maxDepth)
+        {
+            Utf8JsonReader reader = new Utf8JsonReader(Encoding.UTF8.GetBytes(text), new JsonReaderOptions { MaxDepth = maxDepth });
 
             // The containers open, innermost last, and the key each object is waiting to give a value
             Stack<(JsonNode Container, string? Key)> open = new Stack<(JsonNode Container, string? Key)>();

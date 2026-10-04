@@ -17,8 +17,8 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The checks the simulation reads untrusted JSON with, as <c>src/validation.ts</c>: the commands a player sends,
-    /// and saved games.
+    /// The checks untrusted JSON is read with, as <c>src/validation.ts</c>: the commands and queries a player sends,
+    /// the messages that carry them, and saved games.
     /// </summary>
     internal static class Validation
     {
@@ -135,6 +135,16 @@ namespace Micropolis.Rules
             bool inRange = TryGetWholeNumber(value, out double whole) && whole >= min && whole <= max;
             number = inRange ? (long)whole : 0;
             return inRange;
+        }
+
+        /// <summary>
+        /// A game seed: a whole number from 0 to <see cref="ProtocolLimits.MaxSeed"/>.
+        /// </summary>
+        public static bool TryGetSeed(JsonNode? value, out uint seed)
+        {
+            bool isSeed = TryGetWholeNumberIn(value, 0, ProtocolLimits.MaxSeed, out long whole);
+            seed = (uint)whole;
+            return isSeed;
         }
 
         /// <summary>

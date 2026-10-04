@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace Micropolis.Rules
 {
@@ -22,23 +23,22 @@ namespace Micropolis.Rules
     public sealed record ReceivedCommand(string Player, JsonNode? Command);
 
     /// <summary>
-    /// What came of a command, and who sent it: the command as it arrived, which a rejected one may not be a command,
-    /// and the reason it was rejected, or null when it wasn't.
+    /// What came of a command, and who sent it, as <c>CommandResult</c> in <c>src/protocol.ts</c>: the command as it
+    /// arrived, which a rejected one may not be a command, and the reason it was rejected, or null when it wasn't.
     /// </summary>
-    public sealed record CommandResult(string Player, JsonNode? Command, Outcome Outcome, string? Reason)
+    public sealed record CommandResult(
+        [property: JsonPropertyName("player")] string Player,
+        [property: JsonPropertyName("command")] JsonNode? Command,
+        [property: JsonPropertyName("outcome")] Outcome Outcome,
+        [property: JsonPropertyName("reason")] string? Reason)
     {
         /// <summary>
-        /// The result as <see cref="Messages.COMMAND_RESULT"/> carries it, with its own copy of the command.
+        /// The result as <see cref="Messages.COMMAND_RESULT"/> carries it, and the wire too, with its own copy of the
+        /// command.
         /// </summary>
         public JsonObject ToPayload()
         {
-            return new JsonObject
-            {
-                ["player"] = Player,
-                ["command"] = Command?.DeepClone(),
-                ["outcome"] = ProtocolJson.Name(Outcome),
-                ["reason"] = Reason,
-            };
+            return ProtocolJson.ToNode(this)!.AsObject();
         }
     }
 

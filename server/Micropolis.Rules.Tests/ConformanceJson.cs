@@ -17,7 +17,7 @@ namespace Micropolis.Rules.Tests
 {
     /// <summary>
     /// Reads the members of a conformance file parsed by <see cref="JsonText"/>, as <c>JSON.parse</c> parses it, such
-    /// as <c>commands.json</c> and the command logs, whose commands are any JSON: strictly, so a member of the wrong
+    /// as <c>commands.json</c>, <c>queries.json</c> and the command logs, whose commands and queries are any JSON: strictly, so a member of the wrong
     /// kind, or one missing or unknown, fails the read.
     /// </summary>
     internal static class ConformanceJson
@@ -47,6 +47,11 @@ namespace Micropolis.Rules.Tests
         public static IEnumerable<JsonNode?> List(JsonNode? node, string name)
         {
             return node as JsonArray ?? throw Broken($"{name} is not a list");
+        }
+
+        public static JsonObject Object(JsonNode? node, string name)
+        {
+            return node as JsonObject ?? throw Broken($"{name} is not an object");
         }
 
         public static string String(JsonNode? node, string name)

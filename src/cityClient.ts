@@ -241,7 +241,7 @@ export class CityClient {
     if (message.type === "hello") {
       this.reconnectDelayMs = FIRST_RECONNECT_DELAY_MS;
       this.setStatus({online: true, you: message.you, players: message.players});
-    } else if (this.status.online) {
+    } else if (message.type === "players" && this.status.online) {
       this.setStatus({online: true, you: this.status.you, players: message.players});
     }
   }

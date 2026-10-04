@@ -93,6 +93,14 @@ namespace Micropolis.Rules
             Array.Clear(_data);
         }
 
+        /// <summary>
+        /// A copy of the entries, row by row.
+        /// </summary>
+        public int[] CopyValues()
+        {
+            return (int[])_data.Clone();
+        }
+
         internal JsonArray Save()
         {
             return SavedList.Of(_data);

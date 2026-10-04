@@ -38,11 +38,42 @@ export interface PlayersMessage {
   players: PlayerInfo[];
 }
 
-export type ServerMessage = HelloMessage | PlayersMessage;
+// The state messages the city sent in one batch, in the order it sent them: every player in the city receives the
+// same batches
+export interface StateBatchMessage {
+  type: "state";
+  messages: StateMessage[];
+}
+
+// The answer to the player's request with the given id, sent after any state the request changed. What the value is
+// depends on the request: protocol/README.md lists them.
+export interface AnswerMessage {
+  type: "answer";
+  id: number;
+  value: unknown;
+}
+
+// Why the player's request with the given id failed, in words
+export interface FailedMessage {
+  type: "failed";
+  id: number;
+  error: string;
+}
+
+export type ServerMessage = HelloMessage | PlayersMessage | StateBatchMessage | AnswerMessage | FailedMessage;
+
+// What the server sends about the city a connection is in, which the city source reads
+export type CityMessage = Exclude<ServerMessage, HelloMessage | PlayersMessage>;
+
+// The status the server closes a connection with when the city it is in fails: the server unloads the city without
+// saving it, so the store keeps it as it was last saved
+export const CITY_FAILED_CLOSE = 1011;
 
 // Every message type, as the compiler checks against the union: a type added to ServerMessage and not here fails to
 // compile, and the tests fail on a type with no example.
-const SERVER_MESSAGE_TYPES: Record<ServerMessage["type"], true> = {hello: true, players: true};
+const SERVER_MESSAGE_TYPES: Record<ServerMessage["type"], true> = {
+  hello: true, players: true, state: true, answer: true, failed: true,
+};
 
 export function serverMessageTypes(): string[] {
   return Object.keys(SERVER_MESSAGE_TYPES);
@@ -139,6 +170,16 @@ function parsePlayers(value: unknown): PlayerInfo[] {
   });
 }
 
+// A request's id: a whole number from 0
+function requestId(object: JsonObject, what: string): number {
+  const id = object.id;
+  if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 0) {
+    fail(`${what}.id must be a whole number from 0`);
+  }
+
+  return id;
+}
+
 // Reads one message from the server. The result is built field by field in the protocol's order, so writing it
 // with JSON.stringify gives the server's bytes back.
 export function parseServerMessage(text: string): ServerMessage {
@@ -157,6 +198,36 @@ export function parseServerMessage(text: string): ServerMessage {
     case "players": {
       const message = objectWithFields(value, ["type", "players"], "players");
       return {type: "players", players: parsePlayers(message.players)};
+    }
+
+    // The batch's messages are each a state message the examples pin on both sides, so each is checked to be one of
+    // the protocol's by its type, and taken as the server wrote it
+    case "state": {
+      const message = objectWithFields(value, ["type", "messages"], "state");
+      if (!Array.isArray(message.messages)) {
+        fail("state.messages must be an array");
+      }
+
+      return {type: "state", messages: message.messages.map((item: unknown) => {
+        const state = item as JsonObject;
+        if (typeof item !== "object" || item === null || Array.isArray(item) ||
+            !stateMessageTypes().includes(state.type as string)) {
+          fail("a state message must be an object of a state message type");
+        }
+
+        return item as StateMessage;
+      })};
+    }
+
+    // The value is what the request asked for, which the requester reads
+    case "answer": {
+      const message = objectWithFields(value, ["type", "id", "value"], "answer");
+      return {type: "answer", id: requestId(message, "answer"), value: message.value};
+    }
+
+    case "failed": {
+      const message = objectWithFields(value, ["type", "id", "error"], "failed");
+      return {type: "failed", id: requestId(message, "failed"), error: stringField(message, "error", "failed")};
     }
 
     default:
@@ -380,6 +451,16 @@ export interface MapPreviewAnswer {
 }
 
 export type QueryAnswer = OverlayAnswer | TileReportAnswer | BudgetForecastAnswer | MapPreviewAnswer | QueryRejection;
+
+// Every answer type, as the compiler checks against the union: a type added to QueryAnswer and not here fails to
+// compile, and the tests fail on a type with no example.
+const QUERY_ANSWER_TYPES: Record<QueryAnswer["type"], true> = {
+  overlay: true, tileReport: true, budgetForecast: true, mapPreview: true, rejected: true,
+};
+
+export function queryAnswerTypes(): string[] {
+  return Object.keys(QUERY_ANSWER_TYPES);
+}
 
 // The records the simulation produces for the windows to show: what it says about the city, as codes and numbers. The
 // client turns the codes into text, so the wording is the client's alone.
@@ -607,4 +688,75 @@ const STATE_MESSAGE_TYPES: Record<StateMessageType, true> = {
 
 export function stateMessageTypes(): string[] {
   return Object.keys(STATE_MESSAGE_TYPES);
+}
+
+// The messages a player's browser sends the server on the city's WebSocket. A request carries an id, a whole number
+// from 0, which the server's answer to it, or its failure, carries back. A connection is in at most one city at a time:
+// starting or joining one leaves the one before. The commands a connection sends go into its city's one command stream,
+// with every other player's, in the order the server receives them.
+export type ClientMessage =
+  // Starts a new city on the server, as CityStart's new city describes it, and joins it. The answer is a CityJoined.
+  | {type: "start", id: number, name: string, seed: number, level: number}
+  // Starts a city on the server from a saved game's text, and joins it. The answer is a CityJoined.
+  | {type: "upload", id: number, save: string}
+  // Joins the city with the id, which any signed-in player may. The answer is a CityJoined.
+  | {type: "join", id: number, city: string}
+  // A command for the city the connection is in, which the server doesn't answer: what came of it is a state message
+  | {type: "command", command: Command}
+  // The answer is the query's. Before the connection is in a city, only a map preview is answered.
+  | {type: "query", id: number, query: Query}
+  // The answer is the saved game's text
+  | {type: "save", id: number}
+  // The answer is the city's session log: {log, step, unhashed}, as CitySource's commandLog gives it
+  | {type: "commandLog", id: number}
+  // The debug channel, which only a Debug build of the server answers. Holding applies to the city the connection is in
+  // and to each it starts or joins after; releasing applies to the city it is in, and a city it joins after stays as
+  // another player's hold left it. Each answer is null.
+  | {type: "hold", id: number}
+  | {type: "release", id: number}
+  // Applies the commands sent so far. The answer is null.
+  | {type: "flush", id: number}
+  // Applies the commands sent so far, then takes this many steps. The answer is {steps, budgetReviewDue, error}.
+  | {type: "advance", id: number, steps: number}
+  // The answer is the city's time, in the units its date counts: 48 a year
+  | {type: "cityTime", id: number}
+  // On a server whose cities run on a clock only the debug channel moves (CITY_CLOCK=manual): moves the city's clock on
+  // by the milliseconds given, then takes a turn of its loop if one is due. The answer is null.
+  | {type: "turn", id: number, milliseconds: number};
+
+export type ClientMessageType = ClientMessage["type"];
+
+// Every message type a player sends, as the compiler checks against the union: a type added to ClientMessage and not
+// here fails to compile, and the tests fail on a type with no example.
+const CLIENT_MESSAGE_TYPES: Record<ClientMessageType, true> = {
+  start: true, upload: true, join: true, command: true, query: true, save: true, commandLog: true, hold: true,
+  release: true, flush: true, advance: true, cityTime: true, turn: true,
+};
+
+export function clientMessageTypes(): string[] {
+  return Object.keys(CLIENT_MESSAGE_TYPES);
+}
+
+// The answer to a start, an upload or a join: the city's id, by which any player joins it, its name, and its game seed
+export interface CityJoined {
+  city: string;
+  name: string;
+  seed: number;
+}
+
+// A session's command log, as a city source records it and the answer to a commandLog request carries it: the log,
+// which the headless runner replays (docs/command-log.md); the steps the city has taken since the session began; and
+// why the log has no checkpoints, or null when it has them
+export interface SessionLog {
+  log: object;
+  step: number;
+  unhashed: string | null;
+}
+
+// What came of an advance, as the answer to an advance request carries it: the steps it took, whether a year-end
+// budget review fell due during them, and why it failed, or null when it took every step asked for
+export interface AdvanceResult {
+  steps: number;
+  budgetReviewDue: boolean;
+  error: string | null;
 }

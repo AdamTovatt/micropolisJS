@@ -2,9 +2,11 @@
 
 The bodies and messages between the browser and the server. Each side defines the session's bodies and messages and the
 commands a player sends the simulation by hand: `src/protocol.ts` for the client and
-`server/Micropolis.Rules/Protocol.cs` for the server. Only `src/protocol.ts` defines the queries with their answers,
-the records the simulation produces for the windows to show, and the state messages the city sends the client. The
-examples and reader cases here pin the sides together.
+`server/Micropolis.Rules/Protocol.cs` for the server, and the messages a player sends in `ClientMessages.cs`.
+`src/protocol.ts` also defines the queries with their answers, the records the simulation produces for the windows to
+show, and the state messages the city sends the client; the server defines those it writes, the answers in
+`QueryAnswers.cs` and the records and state messages in `StateMessages.cs`, and reads a query by validating it
+(`Queries.cs`). The examples and reader cases here pin the sides together.
 
 ## Transport
 
@@ -19,11 +21,14 @@ examples and reader cases here pin the sides together.
   server answers: a 401 or a player is this server's answer, and anything else, such as a static host's page, means
   the game runs single-player. A token is refused from the second it expires: the server that issues tokens is the
   one that checks them, so it allows no clock skew.
-- `/ws/city` is one plain WebSocket carrying one JSON message per text frame. The browser cannot set an
-  `Authorization` header on a WebSocket, so the token travels in the `access_token` query parameter. A connection
-  without a valid token is refused. The server closes a connection with status 1008 when its token expires or when
-  the client falls 256 messages behind, and with 1001 when the server stops. It pings every 15 seconds, which browsers
-  answer on their own, and drops a connection that leaves a ping unanswered for 15 seconds.
+- `/ws/city` is one plain WebSocket carrying one JSON message per text message, of one frame or more. The browser
+  cannot set an `Authorization` header on a WebSocket, so the token travels in the `access_token` query parameter. A
+  connection without a valid token is refused. The server closes a connection with status 1008 when its token expires,
+  when the client falls 256 messages behind, or when the client sends something that is not a message a player sends,
+  or a command before it is in a city; with 1003 for a binary message, 1007 for text that isn't UTF-8 and 1009 for a
+  message longer than 4 MiB; with 1011 when the city it is in fails; and with 1001 when the server stops. It pings
+  every 15 seconds, which browsers answer on their own, and drops a connection that leaves a ping unanswered for 15
+  seconds.
 
 A display name is 1 to 32 characters, counted as UTF-16 code units as JavaScript's `length` counts them, after
 surrounding whitespace is trimmed. It holds no control characters, no format characters (Unicode category Cf, such as
@@ -37,12 +42,64 @@ Every message is a JSON object whose `type` field names it. The server sends:
 - `hello`: the first message on every connection. `you` is the connecting player's id and `players` lists everyone
   online, the connecting player included, in the order they came online.
 - `players`: someone came online or went offline. `players` lists everyone now online, in the same order.
+- `state`: a batch of state messages from the city the connection is in, in `messages`, in the order the city sent
+  them (see State messages). Every connection in the city receives the same batches.
+- `answer`: the answer to the request with the `id` given, in `value`, sent after any state the request changed.
+- `failed`: why the request with the `id` given failed, in words, in `error`.
 
 A player is `{"id", "name"}`. A player with several connections, such as two tabs signed in as one player, is listed
 once, comes online with the first connection and goes offline with the last.
 
+A player's browser sends these, each a request carrying an `id`, a whole number from 0 that the answer carries back,
+but `command`:
+
+- `start`, with `name`, `seed` and `level`: starts a new city on the server, on the map the seed generates, at the level
+  by its number in `GAME_LEVELS`, under a new id, and joins it.
+- `upload`, with `save`, a saved game's text: starts the city the save holds on the server, under a new id, and joins
+  it. The city the save came from is untouched: the upload is a copy.
+- `join`, with `city`, a city's id: joins the city, which any signed-in player may. A city's id is 32 lower-case
+  hexadecimal digits.
+
+A city's name is 1 to 15 characters, counted as a display name's are, and holds none of the characters a display name
+can't. A `start` whose name breaks the rule fails, and so does an `upload` of a save whose name does, a save that won't
+load, a `join` of a city that doesn't exist or whose save won't load, and any of them when the server can't reach the
+store it keeps its cities in. Each of those leaves the connection in the city it was in. A city that fails as the
+connection joins it fails the request with the connection in no city.
+- `command`, with `command`: a command (see Commands) for the city the connection is in. The server doesn't answer it:
+  what came of it is a `commandResult` state message, which every player in the city receives.
+- `query`, with `query`: a query (see Queries). The answer is the query's answer. Before the connection is in a city,
+  a map preview is answered and any other query rejected.
+- `save`: the answer is the city's saved game's text, as the game saves one.
+- `commandLog`: the answer is the city's session log, `{"log", "step", "unhashed"}`: the log (`docs/command-log.md`)
+  since the server last started or loaded the city, the steps the city has taken since, and `null`, since the server
+  always works out its checkpoints' hashes.
+- The debug channel, which only a Debug build of the server answers (`dotnet build` or `dotnet run`; `dotnet publish`
+  builds Release), and others fail: `hold` holds the step driver of the city the connection is in, and of each city it
+  starts or joins after, until a `release`, so that the city steps only when `advance`d; `release` lets the city the
+  connection is in step again, and leaves each it joins after as other players hold it or not; `flush` applies the
+  commands sent so far; `advance`, with `steps`, applies them and takes that many steps, and is answered with
+  `{"steps", "budgetReviewDue", "error"}`, where `error` says why city time fell short of the steps taken, or is null;
+  `cityTime` is answered with the city's time; and on a server whose cities run on a clock only the debug channel
+  moves, `turn`, with `milliseconds`, moves the city's clock on and has it take a turn of its loop if one is due, and
+  fails in a city on the server's clock. Each but `advance` and `cityTime` is answered with null.
+
+`save`, `commandLog`, `flush`, `advance`, `cityTime` and `turn` fail with "No city has started" before the connection
+is in a city; `hold` and `release` then answer null and apply to the city it starts or joins next.
+
+The answer to `start`, `upload` and `join` is `{"city", "name", "seed"}`: the city's id, its name and its game seed. It
+comes after the city's whole state, sent as one `state` batch: the whole map, the sprites, the date, the population,
+the records, and the latest `status` and `demand` the city has published, if it has. A connection is in at most one
+city: starting or joining one leaves the one before. Every connection's commands go into the city's one command stream
+in the order the server receives them, apply between steps, and are logged in the city's one log with the id of the
+player who sent each; the simulation never branches on who sent one. A city steps whether or not anyone can see it,
+while any player is in it; when the last leaves, the server saves it and unloads it, and a join loads it again. A city
+whose rules throw is unloaded without saving, so it stays as it was last saved, and every connection in it is closed
+with 1011.
+
 Readers are strict: an unknown field, a missing one, or a null or a value of the wrong kind where the protocol has
-none is an error. Fields may come in any order, `type` included, and writers put them in the protocol's order.
+none is an error. Fields may come in any order, `type` included, and writers put them in the protocol's order. The
+browser's reader checks a batch's messages only to be state messages, by their type, and takes an answer's value as
+the request expects it: the examples pin both on both sides.
 
 ## Commands
 
@@ -61,8 +118,8 @@ JSON at all rather than as a command to reject.
 
 A query asks the simulation about the city and changes nothing: a JSON object whose `type` field names it.
 `src/protocol.ts` defines each query and its answer. The simulation validates each query as it receives it
-(`src/queries.ts`) and answers a rejected one with `{"type": "rejected", "reason"}`. A query is never logged as a
-command, since replaying it would change nothing.
+(`src/queries.ts`, and `Queries` in C#) and answers a rejected one with `{"type": "rejected", "reason"}`, giving the
+same reason on either side. A query is never logged as a command, since replaying it would change nothing.
 
 - `overlay` names a `layer`, one of the maps the simulation computes, and is answered with the layer's values in
   blocks: `blockSize`, the tiles a block covers along each side; `width` and `height`, the blocks across and down;
@@ -161,24 +218,31 @@ order they came. A city that starts sends the whole map, the sprites, the date, 
 
 ## Examples
 
-Each file in `examples/socket/` is one WebSocket message, each file in `examples/session/` is one body of
-`/api/session`, named after the body, each file in `examples/commands/` is one command, and each file in
-`examples/queries/` is one query. An example is its exact wire text on one line, then a newline, in UTF-8 without a
-byte order mark. Each side's tests read every example of what that side reads or writes, deserialize it into their
-own types and serialize it back, and fail unless the bytes are identical, so a field renamed, added or dropped on one
-side turns that side red. Each side reads back every example of a body, message, command or query it reads, and
+Each file in `examples/socket/` is one WebSocket message the server sends, each file in `examples/client/` one a
+player's browser sends, each file in `examples/session/` is one body of `/api/session`, named after the body, each
+file in `examples/commands/` is one command, and each file in `examples/queries/` is one query. An example is its exact
+wire text on one line, then a newline, in UTF-8 without a byte order mark. Each side's tests read every example of
+what that side reads or writes, deserialize it into their own types and serialize it back, and fail unless the bytes
+are identical, so a field renamed, added or dropped on one side turns that side red. Each side reads back every example of a body, message, command or query it reads, and
 writes back every example of one it writes, building it from the example's fields where it has no reader for it. The
 simulation reads a command or a query by validating it, so such an example must also be one it accepts. Each side's
 tests also fail when a message type, a session body, a command type or a query type that side reads or writes has no
-example.
+example. The browser writes a message of `examples/client/` as an object literal, so its tests check that the
+WebSocket source writes each with the example's fields, in order, and the server's read each and write it back.
 
 Each file in `examples/records/` is one record, named after its type. The client's tests write each one back through
-the simulation's own code, from the example's fields, and fail on a record type with no example.
+the simulation's own code, from the example's fields, and the server's write each back from its C# type, and both fail
+on a record type with no example.
+
+Each file in `examples/answers/` is one answer to a query, named after its type. The client's tests check its shape,
+as they check a state message's below, against what the simulation answers, and the server's write each back from its
+C# type to the same bytes. Both fail on an answer type with no example.
 
 Each file in `examples/state/` is one state message other than a record, named after its type, with more than one
 for a message that comes in more than one shape. The client's tests check its shape, not its bytes: that the city host
 (`src/cityHost.ts`) writes each with the example's field names, in the same order, each with a value of the same
-kind. They fail on a state message type with no example among these and the records.
+kind. The server's tests write each back from its C# type to the same bytes. Both fail on a state message type with no
+example among these and the records.
 
 `reader-cases.json` holds the messages both readers must reject, messages they must accept and write back in the
 protocol's order, and session bodies a reader must reject, each tested by the sides that read that body.
@@ -188,3 +252,4 @@ differently only characters that System.Text.Json escapes and `JSON.stringify` d
 Basic Multilingual Plane (emoji among them), private-use and unassigned code points, spaces other than U+0020, U+2028,
 U+2029, U+FEFF and the control characters, where `JSON.stringify` escapes only the C0 controls and in lower-case hex.
 Both are valid JSON for the same text, so they differ in bytes only, and the examples hold none of these characters.
+The server writes a number with a fraction as `JSON.stringify` does, with its exponent in the same form.

@@ -33,8 +33,9 @@ Seeds and 32-bit words are hex strings, as the C reference prints them.
 ## Files the TypeScript reference writes
 
 `generate.ts` writes `tiles.json`, `canonicalJson.json`, `maps.json`, `saveStrings.json`, `messages.json`,
-`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/`, `logs/`, `snapshots/`, `runs/` and `traces/`
-from the TypeScript game rules. Regenerate them in the commit that changes what they are computed from:
+`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `queries.json`, `migrated/`, `logs/`, `snapshots/`,
+`runs/` and `traces/` from the TypeScript game rules. Regenerate them in the commit that changes what they are computed
+from:
 
 ```bash
 npm run conformance
@@ -156,6 +157,22 @@ small map's longest command, 3072 characters, is short enough to list one either
 `JSON.stringify` escapes, in a type and in a key, and numbers it writes as `Number::toString` does. The commands are
 any JSON, a key that is a lone surrogate included, so the C# reads the file as `JSON.parse` does (`JsonText`).
 Each disaster the player can trigger is a case of its own, so its hash shows what that disaster did.
+
+### queries.json
+
+What the simulation answers to queries, and the records it produces, over the fixtures' saves: `queryCases.ts` lists
+the queries, and the generator asks them. `categories` is what the query tool calls each tile value, from 0. Each of
+`records` has a `city`, the name of a save of `saves/` (`<fixture>.<point>`) or `{"seed", "level"}` for a new city on
+that seed's map at that level; `commands`, applied to the city in order before its records are taken, as they would
+arrive from a player; and the `evaluation`, `budget` and `settings` records the city then produces. The new cities
+reach what the fixtures never do: the hardest level, disasters on, the budget set by hand and the game paused. Each
+of `answers` holds a `query` and its `answer`, about the city of the `save` it names, or asked before any city has
+started where `save` is null: in each save, a tile report at the city's centre and at the first tile of each category
+no save before it reported, and budget forecasts with no service, every service and one service named; each overlay
+layer from the first save where it holds a value other than 0; and queries the simulation rejects, on the first save
+and before any city has started. The queries reach every reason the simulation rejects one for, and
+the generator fails unless they do. The C# must give the same records and answers, each rejection's reason word for
+word. A map preview's answer is the map the seed generates, which the C# checks against `maps.json`.
 
 ### saveVersions/ and migrated/
 

@@ -50,7 +50,7 @@ namespace Micropolis.Rules
         /// writes it. .NET's shortest round-trip formatting gives the same digits, which are laid out here by the
         /// specification's rules rather than .NET's.
         /// </summary>
-        internal static string FormatNumber(double value)
+        public static string FormatNumber(double value)
         {
             // Negative zero is written "0"
             if (value == 0)

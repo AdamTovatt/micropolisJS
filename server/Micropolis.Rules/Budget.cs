@@ -234,11 +234,30 @@ namespace Micropolis.Rules
             SetFunds(TotalFunds - amount);
         }
 
-        // Each service's full maintenance cost
-        private ServiceAmounts<long> Maintenance => new ServiceAmounts<long>(RoadMaintenanceBudget, FireMaintenanceBudget, PoliceMaintenanceBudget);
+        /// <summary>
+        /// Each service's full maintenance cost.
+        /// </summary>
+        public ServiceAmounts<long> Maintenance => new ServiceAmounts<long>(RoadMaintenanceBudget, FireMaintenanceBudget, PoliceMaintenanceBudget);
 
-        // Each service's funding percentage, 0 to 1
-        private ServiceAmounts<double> Percents => new ServiceAmounts<double>(RoadPercent, FirePercent, PolicePercent);
+        /// <summary>
+        /// Each service's funding percentage, 0 to 1.
+        /// </summary>
+        public ServiceAmounts<double> Percents => new ServiceAmounts<double>(RoadPercent, FirePercent, PolicePercent);
+
+        /// <summary>
+        /// What the year-end budget would leave if it ran now, as <c>forecast</c> in <c>src/budget.js</c>: from the
+        /// current funds and the most recent tax collection and maintenance costs, with each service given funded at
+        /// its whole percent, as <see cref="SetFunding"/> would set it, and the others at the percentages they have.
+        /// </summary>
+        public YearForecast Forecast(int? road, int? fire, int? police)
+        {
+            ServiceAmounts<double> percents = new ServiceAmounts<double>(
+                road is int roadPercent ? ServiceFunding.FundingPercent(roadPercent) : RoadPercent,
+                fire is int firePercent ? ServiceFunding.FundingPercent(firePercent) : FirePercent,
+                police is int policePercent ? ServiceFunding.FundingPercent(policePercent) : PolicePercent);
+
+            return ServiceFunding.ForecastYear(TotalFunds, TaxFund, Maintenance, percents);
+        }
 
         private void SetPercents(ServiceAmounts<double> percents)
         {

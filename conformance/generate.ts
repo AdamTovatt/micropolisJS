@@ -48,6 +48,7 @@ import { Traffic } from "../src/traffic.js";
 import { ZoneUtils } from "../src/zoneUtils.js";
 import { CityRun, describeStart, RANDOM_DISASTER_NAMES, recordRun, RunStart } from "./cityRuns";
 import { COMMAND_CASES } from "./commandCases";
+import { queryFile } from "./queryCases";
 import { Internals } from "./instrumentation";
 import { COMMAND_POINTS, SNAPSHOT_POINTS } from "./snapshotPoints";
 import { TRACES } from "./tracePoints";
@@ -1033,6 +1034,17 @@ async function writeLogs(): Promise<void> {
   ensureCovers(logs.some(([, log]) => "save" in log), "a log that starts from a save");
 }
 
+// --- queries.json: what the simulation answers to queries, and the records it produces, over the fixtures' saves
+
+function queryLines(): string[] {
+  const saves = fixtureNames().flatMap((fixture) => Object.keys(SAVE_POINTS).map((point) =>
+    ({name: `${fixture}.${point}`, save: writtenSave(fixture, point)})));
+  const {categories, records, answers} = queryFile(saves, ensureCovers);
+
+  return ["{", ...listLines("categories", categories, false), ...listLines("records", records, false),
+          ...listLines("answers", answers, true), "}"];
+}
+
 // --- runs/: cities run at each speed, with their state hashes in plain text and their events gzipped
 
 const RUNS_DIRECTORY = "runs";
@@ -1186,6 +1198,7 @@ async function main() {
   writeFile("helpers.json", helperLines());
   writeFile("speedGate.json", await speedGateLines());
   writeFile("commands.json", await commandLines());
+  writeFile("queries.json", queryLines());
   writeMigrated();
   await writeLogs();
   await writeSnapshots();

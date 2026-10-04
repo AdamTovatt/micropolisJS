@@ -71,21 +71,35 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The command, or why the simulation rejects it on a map of this size. A reason quotes no value from the
-        /// command but a coordinate already checked to be a number, so a hostile command can't make it long.
+        /// Why the command is too deep or too long to be one on a map of this size, or null when it is neither, which
+        /// <see cref="Read"/> checks before anything else, so these checks bound what a command's result echoes.
         /// </summary>
-        public static CommandReading Read(JsonNode? command, int width, int height)
+        public static string? BoundsRejection(JsonNode? command, int width, int height)
         {
             if (NestsDeeperThan(command, MaxCommandDepth))
             {
-                return new RejectedCommand($"a command nests objects and lists at most {MaxCommandDepth} deep");
+                return $"a command nests objects and lists at most {MaxCommandDepth} deep";
             }
 
             int maxLength = MaxCommandLength(width, height);
 
             if (CanonicalJson.Stringify(command).Length > maxLength)
             {
-                return new RejectedCommand($"a command is at most {maxLength} characters of JSON");
+                return $"a command is at most {maxLength} characters of JSON";
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// The command, or why the simulation rejects it on a map of this size. A reason quotes no value from the
+        /// command but a coordinate already checked to be a number, so a hostile command can't make it long.
+        /// </summary>
+        public static CommandReading Read(JsonNode? command, int width, int height)
+        {
+            if (BoundsRejection(command, width, height) is string outOfBounds)
+            {
+                return new RejectedCommand(outOfBounds);
             }
 
             if (command is not JsonObject fields || !TryGetString(fields["type"], out string? type) ||

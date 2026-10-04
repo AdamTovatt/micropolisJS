@@ -11,20 +11,31 @@
  *
  */
 
+using System.Text.Json.Serialization;
 using static Micropolis.Rules.JsMath;
 
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// An amount for each service the budget funds: roads, the fire department and the police.
+    /// An amount for each service the budget funds: roads, the fire department and the police. The protocol writes it
+    /// as <c>ServiceAmounts</c> in <c>src/protocol.ts</c>.
     /// </summary>
-    public readonly record struct ServiceAmounts<T>(T Road, T Fire, T Police);
+    public readonly record struct ServiceAmounts<T>(
+        [property: JsonPropertyName("road")] T Road,
+        [property: JsonPropertyName("fire")] T Fire,
+        [property: JsonPropertyName("police")] T Police);
 
     /// <summary>
     /// What the year-end budget does with the cash there is: what each service wants at its funding percentage, what
     /// each gets, and the percentages afterwards.
     /// </summary>
     public readonly record struct Funding(ServiceAmounts<long> Wanted, ServiceAmounts<long> Paid, ServiceAmounts<double> Percents);
+
+    /// <summary>
+    /// What the year-end budget would do: what each service would cost, the change in funds, and the funds it would
+    /// leave.
+    /// </summary>
+    public readonly record struct YearForecast(ServiceAmounts<long> Wanted, long FundsChange, long FundsAfterYear);
 
     /// <summary>
     /// How the budget funds road, fire and police services at year end, as doBudgetNow in the original's budget.cpp
@@ -122,6 +133,18 @@ namespace Micropolis.Rules
             return new Funding(wanted,
                 new ServiceAmounts<long>(road.Paid, fire.Paid, police.Paid),
                 new ServiceAmounts<double>(road.Percent, fire.Percent, police.Percent));
+        }
+
+        /// <summary>
+        /// The year-end budget applied to the given funds, taxes and maintenance costs, with each service funded at the
+        /// given percentage: the taxes come in and the services are paid from funds plus taxes.
+        /// </summary>
+        public static YearForecast ForecastYear(long funds, long taxes, ServiceAmounts<long> maintenance, ServiceAmounts<double> percents)
+        {
+            Funding funding = FundServices(funds + taxes, maintenance, percents);
+            long fundsChange = taxes - (funding.Paid.Road + funding.Paid.Fire + funding.Paid.Police);
+
+            return new YearForecast(funding.Wanted, fundsChange, funds + fundsChange);
         }
     }
 }
