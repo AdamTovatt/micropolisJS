@@ -44,6 +44,16 @@ namespace Micropolis.Rules.Tests
 
         public static IEnumerable<object[]> CommandExamples => ExamplePaths(CommandExampleKind).Select(path => new object[] { Path.GetFileName(path) });
 
+        public static IEnumerable<object[]> ClientExamples => ExamplePaths(ClientExampleKind).Select(path => new object[] { Path.GetFileName(path) });
+
+        public static IEnumerable<object[]> QueryExamples => ExamplePaths(QueryExampleKind).Select(path => new object[] { Path.GetFileName(path) });
+
+        public static IEnumerable<object[]> RecordExamples => ExamplePaths(RecordExampleKind).Select(path => new object[] { Path.GetFileName(path) });
+
+        public static IEnumerable<object[]> StateExamples => ExamplePaths(StateExampleKind).Select(path => new object[] { Path.GetFileName(path) });
+
+        public static IEnumerable<object[]> AnswerExamples => ExamplePaths(AnswerExampleKind).Select(path => new object[] { Path.GetFileName(path) });
+
         public static IEnumerable<object[]> RejectedSessionBodies => ReaderCases["rejectedSessionBodies"]!.AsArray()
             .Select(item => new object[] { (string)item!["case"]!, (string)item["body"]!, (string)item["text"]! });
 
@@ -133,6 +143,124 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
+        [DynamicData(nameof(ClientExamples))]
+        public void RoundTrip_SharedClientMessageExample_WritesIdenticalBytes(string fileName)
+        {
+            AssertRoundTrip(Path.Combine(ExamplesDirectory(ClientExampleKind), fileName), wire => ProtocolJson.Serialize(ClientMessageReader.Read(wire)));
+        }
+
+        [TestMethod]
+        public void ClientExamples_EveryClientMessageType_HasOne()
+        {
+            HashSet<string> declaredTypes = typeof(ClientMessage).GetCustomAttributes<JsonDerivedTypeAttribute>()
+                .Select(attribute => (string)attribute.TypeDiscriminator!)
+                .ToHashSet();
+
+            Assert.IsNotEmpty(declaredTypes);
+            Assert.IsTrue(declaredTypes.SetEquals(ExampleTypes(ClientExampleKind)),
+                $"Message types [{string.Join(", ", declaredTypes.Order())}].");
+        }
+
+        // The simulation reads a query as it arrived by validating it and writes none, so all an example can pin beyond
+        // being accepted is that it is canonical JSON, as the browser writes it
+        [TestMethod]
+        [DynamicData(nameof(QueryExamples))]
+        public void Read_SharedQueryExample_IsAcceptedAndCanonical(string fileName)
+        {
+            AssertRoundTrip(Path.Combine(ExamplesDirectory(QueryExampleKind), fileName), wire =>
+            {
+                JsonNode? query = JsonText.Parse(wire);
+                Assert.IsNull(Queries.Rejection(query, GameMapWidth, GameMapHeight));
+                return CanonicalJson.Stringify(query);
+            });
+        }
+
+        [TestMethod]
+        public void QueryExamples_EveryQueryType_HasOne()
+        {
+            HashSet<string> exampleTypes = ExampleTypes(QueryExampleKind);
+
+            Assert.IsTrue(exampleTypes.SetEquals(["overlay", "tileReport", "budgetForecast", "mapPreview"]),
+                $"Example types [{string.Join(", ", exampleTypes.Order())}].");
+        }
+
+        // A record is written field by field from the city, so one read from the example's fields and written back
+        // pins the C# type's fields and their order to the protocol's
+        [TestMethod]
+        [DynamicData(nameof(RecordExamples))]
+        public void RoundTrip_SharedRecordExample_WritesIdenticalBytes(string fileName)
+        {
+            AssertRoundTrip(Path.Combine(ExamplesDirectory(RecordExampleKind), fileName), wire =>
+                ProtocolJson.Serialize(ReadExample<StateMessage>(wire, RecordTypes, message => message.Type)));
+        }
+
+        // That every state message type the rules declare is a record or another state message is the next test's
+        [TestMethod]
+        public void RecordExamples_EveryRecordType_HasOneAndNoOther()
+        {
+            HashSet<string> exampleTypes = ExampleTypes(RecordExampleKind);
+
+            Assert.IsTrue(exampleTypes.SetEquals(RecordTypes.Keys), $"Example types [{string.Join(", ", exampleTypes.Order())}].");
+        }
+
+        [TestMethod]
+        [DynamicData(nameof(StateExamples))]
+        public void RoundTrip_SharedStateMessageExample_WritesIdenticalBytes(string fileName)
+        {
+            AssertRoundTrip(Path.Combine(ExamplesDirectory(StateExampleKind), fileName), wire =>
+                ProtocolJson.Serialize(ReadExample<StateMessage>(wire, StateTypes, message => message.Type)));
+        }
+
+        [TestMethod]
+        public void StateExamples_EveryStateMessageType_HasOneAmongTheseAndTheRecords()
+        {
+            HashSet<string> declaredTypes = typeof(StateMessage).Assembly.GetTypes()
+                .Where(type => type.IsSubclassOf(typeof(StateMessage)))
+                .Select(type => StateTypes.Concat(RecordTypes).Single(pair => pair.Value == type).Key)
+                .ToHashSet();
+
+            Assert.IsTrue(ExampleTypes(StateExampleKind).Concat(ExampleTypes(RecordExampleKind)).ToHashSet().SetEquals(declaredTypes),
+                $"State message types [{string.Join(", ", declaredTypes.Order())}].");
+        }
+
+        // As the server writes an answer: the value of the answer message that carries it
+        [TestMethod]
+        [DynamicData(nameof(AnswerExamples))]
+        public void RoundTrip_SharedAnswerExample_WritesIdenticalBytes(string fileName)
+        {
+            AssertRoundTrip(Path.Combine(ExamplesDirectory(AnswerExampleKind), fileName), wire =>
+            {
+                QueryAnswer answer = ReadExample<QueryAnswer>(wire, AnswerTypes, read => read.Type);
+                string message = ProtocolJson.Serialize(new AnswerMessage(0, ProtocolJson.ToNode(answer)));
+                return JsonDocument.Parse(message).RootElement.GetProperty("value").GetRawText();
+            });
+        }
+
+        [TestMethod]
+        public void AnswerExamples_EveryAnswerType_HasOne()
+        {
+            HashSet<string> declaredTypes = typeof(QueryAnswer).Assembly.GetTypes()
+                .Where(type => type.IsSubclassOf(typeof(QueryAnswer)))
+                .Select(type => AnswerTypes.Single(pair => pair.Value == type).Key)
+                .ToHashSet();
+
+            Assert.IsTrue(ExampleTypes(AnswerExampleKind).SetEquals(declaredTypes),
+                $"Answer types [{string.Join(", ", declaredTypes.Order())}].");
+        }
+
+        // A rejected command's result echoes the command to every player, inside a state batch
+        [TestMethod]
+        public void Serialize_ValueAsDeepAsAPlayerMaySend_IsWrittenInsideABatch()
+        {
+            JsonNode command = JsonText.Parse(new string('[', JsonText.MaxDepth) + new string(']', JsonText.MaxDepth))!;
+            CommandResultMessage result = new CommandResultMessage(new CommandResult("a", command, Outcome.Rejected, "not a command"));
+
+            string batch = ProtocolJson.Serialize(new StateBatchMessage(new JsonArray(ProtocolJson.ToNode(result))));
+
+            StringAssert.Contains(batch, new string('[', JsonText.MaxDepth));
+        }
+
+        [TestMethod]
         [DynamicData(nameof(RejectedCases))]
         public void DeserializeServerMessage_SharedRejectedCase_Throws(string description, string text)
         {
@@ -149,6 +277,70 @@ namespace Micropolis.Rules.Tests
         private const string SocketExamples = "socket";
         private const string SessionBodyExamples = "session";
         private const string CommandExampleKind = "commands";
+        private const string QueryExampleKind = "queries";
+        private const string RecordExampleKind = "records";
+        private const string AnswerExampleKind = "answers";
+        private const string ClientExampleKind = "client";
+        private const string StateExampleKind = "state";
+
+        // The C# type the server writes each state message other than a record as, by its type field
+        private static readonly IReadOnlyDictionary<string, Type> StateTypes = new Dictionary<string, Type>
+        {
+            ["map"] = typeof(MapMessage),
+            ["tiles"] = typeof(TilesMessage),
+            ["sprites"] = typeof(SpritesMessage),
+            ["date"] = typeof(DateMessage),
+            ["population"] = typeof(PopulationMessage),
+            ["status"] = typeof(StatusRecord),
+            ["demand"] = typeof(DemandMessage),
+            ["news"] = typeof(NewsMessage),
+            ["commandResult"] = typeof(CommandResultMessage),
+            ["budgetReviewDue"] = typeof(BudgetReviewDueMessage),
+            ["overlayUpdated"] = typeof(OverlayUpdatedMessage),
+        };
+
+        // The C# type the server writes each record and answer as, by its type field
+        private static readonly IReadOnlyDictionary<string, Type> RecordTypes = new Dictionary<string, Type>
+        {
+            ["evaluation"] = typeof(EvaluationRecord),
+            ["budget"] = typeof(BudgetRecord),
+            ["settings"] = typeof(SettingsRecord),
+        };
+
+        private static readonly IReadOnlyDictionary<string, Type> AnswerTypes = new Dictionary<string, Type>
+        {
+            ["overlay"] = typeof(OverlayAnswer),
+            ["tileReport"] = typeof(TileReportAnswer),
+            ["budgetForecast"] = typeof(BudgetForecastAnswer),
+            ["mapPreview"] = typeof(MapPreviewAnswer),
+            ["rejected"] = typeof(QueryRejection),
+        };
+
+        // Strict, as the protocol's readers are: an unknown field or a missing one fails. The server never reads what
+        // it only writes, so its tests read the examples with options of their own.
+        private static readonly JsonSerializerOptions StrictReading = new JsonSerializerOptions
+        {
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+            RespectNullableAnnotations = true,
+            RespectRequiredConstructorParameters = true,
+        };
+
+        private static HashSet<string> ExampleTypes(string kind)
+        {
+            return ExamplePaths(kind)
+                .Select(path => JsonDocument.Parse(ReadWireText(File.ReadAllBytes(path))).RootElement.GetProperty("type").GetString()!)
+                .ToHashSet();
+        }
+
+        // The example read into the C# type of its type field, whose own type field must be the example's
+        private static TBase ReadExample<TBase>(string wire, IReadOnlyDictionary<string, Type> types, Func<TBase, string> typeOf)
+        {
+            string type = JsonDocument.Parse(wire).RootElement.GetProperty("type").GetString()!;
+            TBase read = (TBase)JsonSerializer.Deserialize(wire, types[type], StrictReading)!;
+
+            Assert.AreEqual(type, typeOf(read));
+            return read;
+        }
 
         // The game's map, which every command example's tiles lie on
         private const int GameMapWidth = 120;

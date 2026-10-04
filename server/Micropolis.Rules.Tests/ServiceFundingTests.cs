@@ -122,5 +122,38 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(NothingPaid, funding.Paid);
             Assert.AreEqual(FullFunding, funding.Percents);
         }
+
+        [TestMethod]
+        public void ForecastYear_CashCoversTheServices_AddsTaxesAndSubtractsThem()
+        {
+            ServiceAmounts<long> maintenance = new ServiceAmounts<long>(300, 200, 100);
+
+            Assert.AreEqual(new YearForecast(maintenance, 2400, 12757), ServiceFunding.ForecastYear(10357, 3000, maintenance, FullFunding));
+        }
+
+        // The services are paid from funds and taxes together: funds alone would pay only the $100 of the roads
+        [TestMethod]
+        public void ForecastYear_FundsShortButTaxesMakeUpTheRest_PaysEveryService()
+        {
+            ServiceAmounts<long> maintenance = new ServiceAmounts<long>(300, 200, 100);
+
+            Assert.AreEqual(new YearForecast(maintenance, 0, 100), ServiceFunding.ForecastYear(100, 600, maintenance, FullFunding));
+        }
+
+        [TestMethod]
+        public void ForecastYear_ServicesAtSomeFunding_ChargesEachAtItsPercentage()
+        {
+            ServiceAmounts<long> maintenance = new ServiceAmounts<long>(300, 200, 100);
+
+            Assert.AreEqual(new YearForecast(new ServiceAmounts<long>(150, 0, 100), -250, 750),
+                ServiceFunding.ForecastYear(1000, 0, maintenance, new ServiceAmounts<double>(0.5, 0, 1)));
+        }
+
+        // $150 pays the $100 of roads and $50 of the fire department; police goes unpaid
+        [TestMethod]
+        public void ForecastYear_CashShort_SubtractsOnlyWhatItPays()
+        {
+            Assert.AreEqual(new YearForecast(Maintenance, -100, 0), ServiceFunding.ForecastYear(100, 50, Maintenance, FullFunding));
+        }
     }
 }

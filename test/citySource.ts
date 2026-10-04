@@ -23,31 +23,47 @@ import { Random } from "../src/random";
 import { SaveFormat } from "../src/savedGame";
 import { STEPS_PER_SECOND } from "../src/stepDriver";
 import { BIT_MASK } from "../src/tileFlags";
-import { pageSource, SourceFactory, SourceUnderTest, workerSource } from "./helpers/citySources";
+import { CITY_ID } from "../src/urlOptions";
+import { pageSource, SourceFactory, SourceUnderTest, WebSocketSourceFactory, workerSource } from "./helpers/citySources";
+import { serverTestsEnabled, START_SERVER_TIMEOUT_MS } from "./helpers/testServer";
 
-// The contract every city source in the browser keeps, whatever runs the simulation behind it
+// The contract every city source keeps, whatever runs the simulation behind it. The cities are new ones, and saves of
+// new ones.
 
 const SEED = 2026;
 const STEPS_PER_CITY_TIME = stepsPerCityTime(SPEEDS.medium);
 // The milliseconds a number of steps takes in real time
 const millisecondsFor = (steps: number) => steps * 1000 / STEPS_PER_SECOND;
 
-const SOURCES: SourceFactory[] = [pageSource, workerSource];
+describe.each([pageSource, workerSource])("$name", (factory) => contract(factory));
 
-describe.each(SOURCES)("$name", (factory) => {
+// The WebSocket source runs against the real server, which only CI's server job tests against (testServer.ts)
+const webSocketSource = new WebSocketSourceFactory();
+(serverTestsEnabled() ? describe : describe.skip)(webSocketSource.name, () => {
+    beforeAll(() => webSocketSource.startServer(), START_SERVER_TIMEOUT_MS);
+    afterAll(() => webSocketSource.stopServer());
+
+    contract(webSocketSource);
+});
+
+function contract(factory: SourceFactory): void {
 
     let tested: SourceUnderTest;
     let state: CityState;
     let messages: StateMessage[];
 
-    beforeEach(() => {
-        tested = factory.create();
+    beforeEach(async () => {
+        tested = await factory.create();
         state = new CityState(tested.source);
         messages = [];
         tested.source.subscribe((message) => messages.push(message));
     });
 
-    afterEach(() => tested.close());
+    // A source that lost its city fails the test that lost it: no test loses one on purpose
+    afterEach(() => {
+        tested.close();
+        expect(tested.lost()).toEqual([]);
+    });
 
     function ask(query: Query): Promise<QueryAnswer> {
         return new Promise((resolve) => tested.source.ask(query, resolve));
@@ -66,13 +82,18 @@ describe.each(SOURCES)("$name", (factory) => {
 
     // The save of a city started on a source of its own
     async function savedElsewhere(start: CityStart): Promise<string> {
-        const other = factory.create();
+        const other = await factory.create();
         try {
             await other.source.start(start);
             return await other.source.save();
         } finally {
             other.close();
         }
+    }
+
+    // A city as a start resolves with it: only a city on the server has an id another player could join it by
+    function startedCity(name: string, seed: number) {
+        return {name, seed, city: factory.onServer ? expect.stringMatching(CITY_ID) : null};
     }
 
     // Starts a new city on the seed's map, and takes the first turn of the source's loop, which starts its clock
@@ -123,7 +144,7 @@ describe.each(SOURCES)("$name", (factory) => {
         it("delivers the whole map, the date, the population and the records before the start resolves", async () => {
             const started = await tested.source.start({name: "Town", seed: SEED, level: 0});
 
-            expect(started).toEqual({name: "Town", seed: SEED});
+            expect(started).toEqual(startedCity("Town", SEED));
             expect(messages.map(({type}) => type)).toEqual(["map", "sprites", "date", "population", "evaluation",
                                                             "budget", "settings"]);
             expect(clientTiles()).toEqual(await savedTiles());
@@ -142,9 +163,9 @@ describe.each(SOURCES)("$name", (factory) => {
             await tested.run(millisecondsFor(100));
             const text = await tested.source.save();
 
-            const other = factory.create();
+            const other = await factory.create();
             try {
-                expect(await other.source.start({save: text})).toEqual({name: "Saved", seed: SEED});
+                expect(await other.source.start({save: text})).toEqual(startedCity("Saved", SEED));
                 expect(await other.source.save()).toBe(text);
             } finally {
                 other.close();
@@ -156,13 +177,16 @@ describe.each(SOURCES)("$name", (factory) => {
             const before = await tested.source.save();
             const saved = () => JSON.parse(before) as Record<string, unknown>;
 
-            await expect(tested.source.start({save: "not a save"})).rejects.toThrow(SyntaxError);
+            // A failure on the server reaches the page in the C# rules' words
+            await expect(tested.source.start({save: "not a save"}))
+                .rejects.toThrow(factory.onServer ? /^The save's state is not JSON/ : SyntaxError);
             const nameless = saved();
             delete nameless.name;
-            await expect(tested.source.start({save: JSON.stringify(nameless)})).rejects.toThrow("The save names no city");
+            await expect(tested.source.start({save: JSON.stringify(nameless)})).rejects.toThrow("The save's name must be a string.");
             const mapless = saved();
             delete mapless.map;
-            await expect(tested.source.start({save: JSON.stringify(mapless)})).rejects.toThrow(TypeError);
+            await expect(tested.source.start({save: JSON.stringify(mapless)}))
+                .rejects.toThrow(factory.onServer ? "The save's map is missing." : TypeError);
 
             expect(await tested.source.save()).toBe(before);
         });
@@ -176,7 +200,7 @@ describe.each(SOURCES)("$name", (factory) => {
             const other = await savedElsewhere({name: "Other", seed: SEED + 1, level: 2});
 
             messages.length = 0;
-            expect(await tested.source.start({save: other})).toEqual({name: "Other", seed: SEED + 1});
+            expect(await tested.source.start({save: other})).toEqual(startedCity("Other", SEED + 1));
 
             // The whole map again, and every record, though some are as the city before last sent them
             expect(messages.map(({type}) => type)).toEqual(["map", "sprites", "date", "population", "evaluation",
@@ -229,18 +253,29 @@ describe.each(SOURCES)("$name", (factory) => {
             expect(await tested.source.driver.cityTime()).toBe(0);
         });
 
-        it("doesn't step while the player can't see it, and resumes without catching up", async () => {
-            await startNewCity();
-            tested.source.setViewerVisible(false);
+        if (factory.onServer) {
+            it("steps while the player can't see it: one player's view doesn't hold a shared city", async () => {
+                await startNewCity();
+                tested.source.setViewerVisible(false);
 
-            await tested.run(millisecondsFor(10 * STEPS_PER_CITY_TIME));
-            expect(await tested.source.driver.cityTime()).toBe(0);
+                await tested.run(millisecondsFor(STEPS_PER_CITY_TIME));
 
-            tested.source.setViewerVisible(true);
-            await tested.run(millisecondsFor(10 * STEPS_PER_CITY_TIME));
-            await tested.run(millisecondsFor(STEPS_PER_CITY_TIME));
-            expect(await tested.source.driver.cityTime()).toBe(1);
-        });
+                expect(await tested.source.driver.cityTime()).toBe(1);
+            });
+        } else {
+            it("doesn't step while the player can't see it, and resumes without catching up", async () => {
+                await startNewCity();
+                tested.source.setViewerVisible(false);
+
+                await tested.run(millisecondsFor(10 * STEPS_PER_CITY_TIME));
+                expect(await tested.source.driver.cityTime()).toBe(0);
+
+                tested.source.setViewerVisible(true);
+                await tested.run(millisecondsFor(10 * STEPS_PER_CITY_TIME));
+                await tested.run(millisecondsFor(STEPS_PER_CITY_TIME));
+                expect(await tested.source.driver.cityTime()).toBe(1);
+            });
+        }
 
         it("sends nothing on a turn that changes nothing", async () => {
             await startNewCity();
@@ -344,21 +379,24 @@ describe.each(SOURCES)("$name", (factory) => {
         });
     });
 
-    // The simulation's debug mode is a module both sides share under Jest, so the test puts it back
-    it("passes the client's debug mode on to the simulation", async () => {
-        const debugging = factory.create(true);
-        try {
-            await debugging.run();
-            expect(Config.debug).toBe(true);
-        } finally {
-            debugging.close();
-            Config.debug = false;
-        }
-    });
+    // The simulation's debug mode is a module both sides share under Jest, so the test puts it back. The server's
+    // simulation has no debug mode of the client's.
+    if (!factory.onServer) {
+        it("passes the client's debug mode on to the simulation", async () => {
+            const debugging = await factory.create(true);
+            try {
+                await debugging.run();
+                expect(Config.debug).toBe(true);
+            } finally {
+                debugging.close();
+                Config.debug = false;
+            }
+        });
+    }
 
     it("saves a game whose text is the save format's", async () => {
         await startNewCity();
 
         expect(SaveFormat.parse(await tested.source.save())).toMatchObject({name: "Town"});
     });
-});
+}

@@ -15,7 +15,9 @@ import { ReceivedCommand } from "../src/commands";
 import type { EvaluationSource } from "../src/evaluationRecord";
 import { GameMap } from "../src/gameMap.js";
 import { MapGenerator } from "../src/mapGenerator.js";
-import { CommandResult, type EvaluationRecord, QueryAnswer } from "../src/protocol";
+import {
+  type BudgetRecord, CommandResult, type EvaluationRecord, QueryAnswer, type SettingsRecord,
+} from "../src/protocol";
 import { Random } from "../src/random";
 import { Simulation as SimulationConstructor } from "../src/simulation.js";
 
@@ -34,6 +36,8 @@ export interface Simulation {
   budget: Budget;
   evaluation: EvaluationSource;
   evaluationRecord(): EvaluationRecord;
+  budgetRecord(): BudgetRecord;
+  settingsRecord(): SettingsRecord;
   save(saveData: object): void;
   load(saveData: object): void;
   applyCommands(received: ReceivedCommand[]): CommandResult[];

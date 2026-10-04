@@ -11,10 +11,11 @@
  *
  */
 
-import type { CityStart } from "./citySource";
+import type { StartedCity } from "./citySource";
 import { ClientMap } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { isChecked, isShown, requiredElement, setShown } from "./domElements";
+import { errorMessage } from "./errorMessage";
 import { Game, GameParts } from "./game";
 import { GAME_LEVELS, GameLevel } from "./protocol";
 import { SplashCanvas } from "./splashCanvas";
@@ -141,14 +142,19 @@ class SplashScreen {
   };
 
   // Launches a new game on the chosen map, with the name and level the player gave. The name may be empty: the start
-  // form doesn't require one in debug mode.
+  // form doesn't require one in debug mode. A city the source can't start, such as one on a server that went away, is
+  // said out loud, and the splash screen comes back on the same map.
   private readonly onSubmit = (e: Event) => {
     e.preventDefault();
 
     this.playForm.removeEventListener("submit", this.onSubmit);
     setShown(this.start, false);
 
-    void this.startGame({name: this.nameInput.value || "MyTown", seed: this.seed, level: checkedLevel()});
+    const start = {name: this.nameInput.value || "MyTown", seed: this.seed, level: checkedLevel()};
+    this.parts.source.start(start).then((started) => this.play(started), (err: unknown) => {
+      alert(`The city could not start: ${errorMessage(err)}`);
+      showSplashScreen(this.parts, this.seed);
+    });
   };
 
   constructor(private readonly parts: GameParts, seed: number | null) {
@@ -212,17 +218,19 @@ class SplashScreen {
     }
 
     this.loading = true;
-    this.startGame({save: text}).then(() => {
+    this.parts.source.start({save: text}).then((started) => {
       this.loading = false;
+      this.play(started);
       this.leave();
     }, (err: unknown) => {
       this.loading = false;
-      failed(err instanceof Error ? err.message : String(err));
+      failed(errorMessage(err));
     });
   }
 
-  // Starts the city, then the game
-  private async startGame(start: CityStart): Promise<void> {
-    new Game(this.parts, await this.parts.source.start(start));
+  // Plays the city the source started. Only the start is caught where it is asked for: a game that fails to build is
+  // a defect, which goes unhandled rather than being taken for a city that couldn't start.
+  private play(started: StartedCity): void {
+    new Game(this.parts, started);
   }
 }

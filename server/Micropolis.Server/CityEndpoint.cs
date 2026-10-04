@@ -12,6 +12,7 @@
  */
 
 using System.Net.WebSockets;
+using System.Text;
 using Micropolis.Rules;
 
 namespace Micropolis.Server
@@ -30,12 +31,18 @@ namespace Micropolis.Server
         // The longest a timer can wait; a token outliving it closes then, and the client reconnects with it
         internal static readonly TimeSpan LongestTimerDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
 
+        /// <summary>
+        /// The longest message a client may send: room for a saved game, the longest message the protocol has.
+        /// </summary>
+        internal const int MaxMessageBytes = 4 * 1024 * 1024;
+
         public static void Map(WebApplication app)
         {
             app.Map(Path, ConnectAsync).RequireAuthorization();
         }
 
-        private static async Task ConnectAsync(HttpContext context, PlayerPresence presence, TimeProvider time, IHostApplicationLifetime lifetime)
+        private static async Task ConnectAsync(HttpContext context, PlayerPresence presence, CityRegistry registry, CityLimits limits,
+            TimeProvider time, IHostApplicationLifetime lifetime, ILogger<CitySession> logger)
         {
             if (!context.WebSockets.IsWebSocketRequest)
             {
@@ -65,6 +72,8 @@ namespace Micropolis.Server
             using CancellationTokenRegistration stopping = lifetime.ApplicationStopping.Register(
                 () => connection.Close(WebSocketCloseStatus.EndpointUnavailable, "server stopping"));
 
+            // The address as the server resolves it from any trusted proxy, as the sign-in rate limit takes it
+            CitySession session = new CitySession(connection, registry, limits, context.Connection.RemoteIpAddress?.ToString() ?? "", logger);
             presence.Connect(connection);
             Task sending = SendAsync();
 
@@ -86,7 +95,7 @@ namespace Micropolis.Server
 
             try
             {
-                await ReceiveUntilClosedAsync(socket, receiving.Token);
+                await ReceiveUntilClosedAsync(socket, connection, session, receiving.Token);
                 connection.Close(WebSocketCloseStatus.NormalClosure, null);
                 await sending;
             }
@@ -100,22 +109,32 @@ namespace Micropolis.Server
             }
             finally
             {
-                presence.Disconnect(connection);
-                connection.Close(WebSocketCloseStatus.NormalClosure, null);
-
-                if (socket.State != WebSocketState.Closed)
+                try
                 {
-                    socket.Abort();
+                    await session.LeaveAsync();
                 }
+                finally
+                {
+                    presence.Disconnect(connection);
+                    connection.Close(WebSocketCloseStatus.NormalClosure, null);
 
-                await IgnoreFailureAsync(sending);
+                    if (socket.State != WebSocketState.Closed)
+                    {
+                        socket.Abort();
+                    }
+
+                    await IgnoreFailureAsync(sending);
+                }
             }
         }
 
-        // Clients send nothing, so anything but the close is read and dropped
-        private static async Task ReceiveUntilClosedAsync(WebSocket socket, CancellationToken cancellationToken)
+        // Each message, one text message of one or more frames, goes to the session in the order it came, until the
+        // connection closes for any reason: what the client sends after that, before it answers the close, is read and
+        // dropped. A binary message, one longer than any the protocol has, or one that isn't UTF-8 closes the connection.
+        private static async Task ReceiveUntilClosedAsync(WebSocket socket, CityConnection connection, CitySession session, CancellationToken cancellationToken)
         {
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[16 * 1024];
+            using MemoryStream message = new MemoryStream();
 
             while (true)
             {
@@ -124,6 +143,43 @@ namespace Micropolis.Server
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
                     return;
+                }
+
+                if (connection.IsClosing)
+                {
+                    continue;
+                }
+
+                if (result.MessageType != WebSocketMessageType.Text)
+                {
+                    connection.Close(WebSocketCloseStatus.InvalidMessageType, "messages are text");
+                    continue;
+                }
+
+                if (message.Length + result.Count > MaxMessageBytes)
+                {
+                    connection.Close(WebSocketCloseStatus.MessageTooBig, $"a message is at most {MaxMessageBytes / (1024 * 1024)} MiB");
+                    continue;
+                }
+
+                message.Write(buffer, 0, result.Count);
+
+                if (result.EndOfMessage)
+                {
+                    string text;
+
+                    try
+                    {
+                        text = StrictUtf8.Encoding.GetString(message.GetBuffer(), 0, (int)message.Length);
+                    }
+                    catch (DecoderFallbackException)
+                    {
+                        connection.Close(WebSocketCloseStatus.InvalidPayloadData, "a message is UTF-8");
+                        continue;
+                    }
+
+                    message.SetLength(0);
+                    await session.ReceiveAsync(text);
                 }
             }
         }

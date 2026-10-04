@@ -12,7 +12,8 @@
  */
 
 import {
-  parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, PlayerInfo, signInRequest,
+  CITY_FAILED_CLOSE, CityMessage, ClientMessage, parseErrorResponse, parsePlayerResponse, parseServerMessage,
+  parseSessionResponse, PlayerInfo, signInRequest,
 } from "./protocol";
 
 // The browser's side of the server, as protocol/README.md describes it: signing in and the city's WebSocket. When no
@@ -43,7 +44,9 @@ export interface ResponseLike {
 
 export interface SocketLike {
   onmessage: ((event: {data: unknown}) => void) | null;
-  onclose: (() => void) | null;
+  // The code is the status the connection closed with: the server's, or one the browser gives a connection lost
+  onclose: ((event: {code: number}) => void) | null;
+  send(data: string): void;
 }
 
 // What the client needs from the browser, so a test can stand in for it
@@ -75,6 +78,14 @@ export class CityClient {
   private status: CityStatus = {online: false};
   private reconnectDelayMs = FIRST_RECONNECT_DELAY_MS;
   private readonly listeners: ((status: CityStatus) => void)[] = [];
+  private readonly cityListeners: ((message: CityMessage) => void)[] = [];
+  private readonly cityFailedListeners: (() => void)[] = [];
+  // The socket, once the server has welcomed it, until it closes
+  private socket: SocketLike | null = null;
+  // Whether a socket is opening or open, which the server will welcome or close
+  private hasSocket = false;
+  // What waits for the socket opening to be welcomed or closed
+  private welcomes: ((online: boolean) => void)[] = [];
 
   constructor(private readonly environment: CityClientEnvironment) {}
 
@@ -86,6 +97,37 @@ export class CityClient {
   onStatus(listener: (status: CityStatus) => void): void {
     this.listeners.push(listener);
     listener(this.status);
+  }
+
+  // Whether the server welcomes this client: at once when it has, and otherwise once the socket opening is welcomed or
+  // closes. False at once when no socket is opening, as when no server answered.
+  welcomed(): Promise<boolean> {
+    if (this.status.online || !this.hasSocket) {
+      return Promise.resolve(this.status.online);
+    }
+
+    return new Promise((resolve) => this.welcomes.push(resolve));
+  }
+
+  // Calls the listener with each message about the city the connection is in, in the order they came
+  onCityMessage(listener: (message: CityMessage) => void): void {
+    this.cityListeners.push(listener);
+  }
+
+  // Calls the listener when the server closes the connection because the city it was in failed, before the client
+  // goes offline and reconnects
+  onCityFailed(listener: () => void): void {
+    this.cityFailedListeners.push(listener);
+  }
+
+  // Sends the message on the socket, and whether it could: not while offline, when nothing reaches the server
+  send(message: ClientMessage): boolean {
+    if (this.socket === null) {
+      return false;
+    }
+
+    this.socket.send(JSON.stringify(message));
+    return true;
   }
 
   // Finds out whether a server answers, and connects with the stored session when it does. The stored name signs in
@@ -214,17 +256,23 @@ export class CityClient {
   private connect(session: StoredSession): void {
     this.session = session;
     const socket = this.environment.openSocket(`${CITY_PATH}?access_token=${encodeURIComponent(session.token)}`);
+    this.hasSocket = true;
 
-    socket.onmessage = (event) => this.receive(event.data);
-    socket.onclose = () => {
+    socket.onmessage = (event) => this.receive(socket, event.data);
+    socket.onclose = ({code}) => {
       socket.onmessage = null;
       socket.onclose = null;
+      this.socket = null;
+      this.hasSocket = false;
+      if (code === CITY_FAILED_CLOSE) {
+        this.cityFailedListeners.forEach((listener) => listener());
+      }
       this.setStatus({online: false});
       this.scheduleReconnect();
     };
   }
 
-  private receive(data: unknown): void {
+  private receive(socket: SocketLike, data: unknown): void {
     if (typeof data !== "string") {
       return;
     }
@@ -238,11 +286,21 @@ export class CityClient {
       return;
     }
 
-    if (message.type === "hello") {
-      this.reconnectDelayMs = FIRST_RECONNECT_DELAY_MS;
-      this.setStatus({online: true, you: message.you, players: message.players});
-    } else if (this.status.online) {
-      this.setStatus({online: true, you: this.status.you, players: message.players});
+    switch (message.type) {
+      case "hello":
+        this.reconnectDelayMs = FIRST_RECONNECT_DELAY_MS;
+        this.socket = socket;
+        this.setStatus({online: true, you: message.you, players: message.players});
+        break;
+
+      case "players":
+        if (this.status.online) {
+          this.setStatus({online: true, you: this.status.you, players: message.players});
+        }
+        break;
+
+      default:
+        this.cityListeners.forEach((listener) => listener(message));
     }
   }
 
@@ -284,5 +342,9 @@ export class CityClient {
   private setStatus(status: CityStatus): void {
     this.status = status;
     this.listeners.forEach((listener) => listener(status));
+
+    const welcomes = this.welcomes;
+    this.welcomes = [];
+    welcomes.forEach((welcome) => welcome(status.online));
   }
 }

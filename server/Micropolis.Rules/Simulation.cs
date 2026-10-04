@@ -93,21 +93,6 @@ namespace Micropolis.Rules
         private const int CensusFrequency120 = CensusFrequency10 * 10;
         private const int TaxFrequency = 48;
 
-        // The overlay layers, in the order of OVERLAY_LAYERS in src/protocol.ts, with the phase that recomputes each:
-        // LAYER_PHASES in src/queries.ts
-        private static readonly IReadOnlyList<(string Layer, int Phase)> LayerPhases =
-        [
-            ("landValue", 12),
-            ("pollution", 12),
-            ("crime", 13),
-            ("trafficDensity", 10),
-            ("populationDensity", 14),
-            ("policeCoverage", 13),
-            ("fireCoverage", 15),
-            ("rateOfGrowth", 10),
-            ("powerGrid", 11),
-        ];
-
         // The date last announced, which a save doesn't hold: a loaded city announces its date at its first step
         private long _cityYearLast = -1;
         private long _cityMonthLast = -1;
@@ -825,11 +810,11 @@ namespace Micropolis.Rules
         // The phase counter moves on only once the phase has run.
         internal void OverlaysUpdated()
         {
-            foreach ((string layer, int phase) in LayerPhases)
+            foreach (OverlayLayer layer in Queries.Layers)
             {
-                if (phase == PhaseCycle)
+                if (layer.Phase == PhaseCycle)
                 {
-                    Events.Emit(Messages.OVERLAY_UPDATED, new JsonObject { ["layer"] = layer });
+                    Events.Emit(Messages.OVERLAY_UPDATED, new JsonObject { ["layer"] = layer.Name });
                 }
             }
         }

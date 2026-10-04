@@ -15,6 +15,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.WebSockets;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json.Nodes;
 using EasyReasy.Auth;
 using Micropolis.Rules;
 using Microsoft.AspNetCore.TestHost;
@@ -27,7 +29,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Connect_NoToken_IsRefused()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             WebSocketClient client = city.Server.CreateWebSocketClient();
 
             InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -39,7 +41,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Connect_TokenSignedWithAnotherSecret_IsRefused()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             string token = new JwtTokenService("another-secret-that-signs-nothing-here-at-all", issuer: null, audience: null, city.Time)
                 .CreateToken("someone", PlayerClaims.AuthType, PlayerClaims.For("Eve"), [], city.Time.GetUtcNow().AddDays(1).UtcDateTime);
 
@@ -51,7 +53,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Connect_TokenExpiredASecondAgo_IsRefused()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             TimeSpan lifetime = TimeSpan.FromHours(1);
             string token = city.CreateToken("someone", "Ada", lifetime);
             city.Time.Advance(lifetime + TimeSpan.FromSeconds(1));
@@ -64,7 +66,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Connect_TokenWithoutName_IsRefused()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             string token = city.CreateTokenWithClaims(new Claim(JwtRegisteredClaimNames.Sub, "someone"));
 
             InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => city.ConnectAsync(token));
@@ -75,7 +77,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Connect_TokenWithoutExpiry_IsRefused()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             string token = city.CreateTokenWithoutExpiry("someone", "Ada");
 
             InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => city.ConnectAsync(token));
@@ -86,7 +88,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Get_NotAWebSocketRequest_IsBadRequest()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             SignedIn session = await city.SignInAsync("Ada");
             using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, CityEndpoint.Path);
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", session.Token);
@@ -99,7 +101,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Connect_ValidTokenInQueryStringAsBrowserSendsIt_GetsHelloListingItself()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             SignedIn ada = await city.SignInAsync("Ada");
 
             await using TestSocket socket = await city.ConnectAsync(ada.Token);
@@ -112,7 +114,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Connect_SecondPlayer_JoinAndLeaveReachFirst()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             SignedIn ada = await city.SignInAsync("Ada");
             SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket adaSocket = await city.ConnectAsync(ada.Token);
@@ -135,7 +137,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Connect_SameTokenTwice_ListsPlayerOnce()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             SignedIn ada = await city.SignInAsync("Ada");
             SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
@@ -160,7 +162,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Close_OneOfTwoConnectionsOfAPlayer_KeepsPlayerOnline()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             SignedIn ada = await city.SignInAsync("Ada");
             SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
@@ -184,7 +186,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Connection_DroppedWithoutClose_PlayerLeaves()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             SignedIn ada = await city.SignInAsync("Ada");
             SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
@@ -202,7 +204,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task Close_ClientNeverAnswers_DroppedAfterTheHandshakeTimeoutOnTheServersClock()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             SignedIn ada = await city.SignInAsync("Ada");
             SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
@@ -229,7 +231,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task TokenOutlivingTheLongestTimer_WhileConnected_ServerClosesThenSoTheClientReconnects()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             SignedIn ada = await city.SignInAsync("Ada");
             string longToken = city.CreateToken(ada.PlayerId, "Ada", TimeSpan.FromDays(60));
             await using TestSocket socket = await city.ConnectAsync(longToken);
@@ -245,7 +247,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task TokenExpires_WhileConnected_ServerClosesWithPolicyViolationAndPlayerLeaves()
         {
-            await using TestCity city = await TestCity.StartAsync();
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
             SignedIn ada = await city.SignInAsync("Ada");
             SignedIn grace = await city.SignInAsync("Grace");
             await using TestSocket graceSocket = await city.ConnectAsync(grace.Token);
@@ -268,7 +270,7 @@ namespace Micropolis.Server.Tests
         public async Task ServerStops_WhileConnected_ClosesConnectionsAsGoingAway()
         {
             // Disposed only after the socket, which the stopping server must close first
-            TestCity city = await TestCity.StartAsync();
+            ServerUnderTest city = await ServerUnderTest.StartAsync();
 
             try
             {
@@ -287,10 +289,63 @@ namespace Micropolis.Server.Tests
             }
         }
 
+        [TestMethod]
+        public async Task Receive_BinaryMessage_ClosesAsTheWrongType()
+        {
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(city, "Ada");
+            TestSocket socket = ada.Socket;
+
+            await socket.SendBinaryAsync([1, 2, 3]);
+
+            Assert.AreEqual(WebSocketCloseStatus.InvalidMessageType, await socket.ReceiveCloseAsync());
+        }
+
+        [TestMethod]
+        public async Task Receive_MessageLongerThanAnyTheProtocolHas_ClosesAsTooBig()
+        {
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(city, "Ada");
+            TestSocket socket = ada.Socket;
+
+            await socket.SendFramesAsync(new byte[CityEndpoint.MaxMessageBytes], [(byte)' ']);
+
+            Assert.AreEqual(WebSocketCloseStatus.MessageTooBig, await socket.ReceiveCloseAsync());
+        }
+
+        [TestMethod]
+        public async Task Receive_MessageThatIsNotUtf8_ClosesAsInvalidData()
+        {
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(city, "Ada");
+            TestSocket socket = ada.Socket;
+
+            await socket.SendFramesAsync([0x7b, 0xff, 0x7d]);
+
+            Assert.AreEqual(WebSocketCloseStatus.InvalidPayloadData, await socket.ReceiveCloseAsync());
+        }
+
+        [TestMethod]
+        public async Task Receive_MessageInSeveralFrames_IsReadAsOne()
+        {
+            await using ServerUnderTest city = await ServerUnderTest.StartAsync();
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(city, "Ada");
+            TestSocket socket = ada.Socket;
+            byte[] message = Encoding.UTF8.GetBytes(ProtocolJson.Serialize(new QueryRequest(7, new JsonObject { ["type"] = "mapPreview", ["seed"] = 2026 })));
+            // Split inside the seed, so neither half is a message on its own
+            int split = message.Length - 4;
+
+            await socket.SendFramesAsync(message[..split], message[split..]);
+
+            AnswerMessage answer = await socket.ReceiveAsync<AnswerMessage>();
+            Assert.AreEqual(7, answer.Id);
+            Assert.AreEqual("mapPreview", (string)answer.Value!["type"]!);
+        }
+
         // Signs in and connects a new player, and gives the players message that join sends the listener. Every
         // player's messages arrive in order, so anything the server sent the listener before the join comes first. The
         // new player stays connected until the city stops, since leaving would send the listener another message.
-        private static async Task<PlayersMessage> JoinAndReceiveAsync(TestCity city, string name, TestSocket listener)
+        private static async Task<PlayersMessage> JoinAndReceiveAsync(ServerUnderTest city, string name, TestSocket listener)
         {
             SignedIn session = await city.SignInAsync(name);
             TestSocket socket = await city.ConnectAsync(session.Token);

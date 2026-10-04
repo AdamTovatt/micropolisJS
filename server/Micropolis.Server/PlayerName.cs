@@ -12,8 +12,6 @@
  */
 
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Text;
 
 namespace Micropolis.Server
 {
@@ -40,8 +38,7 @@ namespace Micropolis.Server
                 return false;
             }
 
-            // A lone surrogate never gets this far: the JSON reader refuses the request
-            if (trimmed.EnumerateRunes().Any(IsInvisibleOrControl))
+            if (ShownText.HasInvisibleOrControl(trimmed))
             {
                 error = "A name cannot contain control or invisible formatting characters.";
                 return false;
@@ -50,14 +47,6 @@ namespace Micropolis.Server
             normalized = trimmed;
             error = null;
             return true;
-        }
-
-        // Format characters draw nothing and can reorder the text after them, such as a right-to-left override in
-        // the list of who is online, and line and paragraph separators break that list's line
-        private static bool IsInvisibleOrControl(Rune rune)
-        {
-            return Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control or UnicodeCategory.Format
-                or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
         }
     }
 }

@@ -70,6 +70,18 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(double.IsNegative(expected), double.IsNegative(number));
         }
 
+        // As JSON.parse, whose object puts the keys that are array indices first, ascending: "01", "-1" and 2^32 − 1
+        // are not array indices, and "4294967294", 2^32 − 2, is the last
+        [TestMethod]
+        public void Parse_KeysThatAreArrayIndices_ComeFirstAscending()
+        {
+            JsonNode parsed = JsonText.Parse(
+                "{\"b\":0,\"10\":1,\"01\":2,\"2\":3,\"-1\":4,\"4294967295\":5,\"4294967294\":6,\"a\":{\"1\":7,\"0\":8}}")!;
+
+            Assert.AreEqual("{\"2\":3,\"10\":1,\"4294967294\":6,\"b\":0,\"01\":2,\"-1\":4,\"4294967295\":5,\"a\":{\"0\":8,\"1\":7}}",
+                CanonicalJson.Stringify(parsed));
+        }
+
         [TestMethod]
         public void Parse_NestedValues_KeepTheirShapeAndOrder()
         {

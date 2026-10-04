@@ -13,9 +13,9 @@
 
 import { CityHost, Ticker } from "./cityHost";
 import { Subscribers, trackingHold } from "./citySource";
-import type { CityDriver, CitySource, StartedCity, CityStart, SessionLog } from "./citySource";
+import type { CityDriver, CitySource, StartedCity, CityStart } from "./citySource";
 import { Config } from "./config.js";
-import { Command, LOCAL_PLAYER, Query, QueryAnswer, StateMessage } from "./protocol";
+import { Command, LOCAL_PLAYER, Query, QueryAnswer, SessionLog, StateMessage } from "./protocol";
 
 // The in-page source: the simulation runs in the same thread as the client, and answers at once. The page plays
 // through the Worker source; the client's tests run against this one, on the test's own thread, and it passes the same

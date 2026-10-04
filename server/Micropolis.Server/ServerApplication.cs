@@ -40,6 +40,23 @@ namespace Micropolis.Server
         /// </summary>
         public const string NoTrustedProxies = "none";
 
+        /// <summary>
+        /// The configuration key, and so the environment variable, naming the directory the server keeps its cities in,
+        /// relative to the content root or absolute.
+        /// </summary>
+        public const string CityStoreKey = "CITY_STORE";
+
+        /// <summary>
+        /// The configuration key, and so the environment variable, a test server sets to <see cref="ManualClock"/> so
+        /// that its cities' loops turn only when the debug channel says. Without it, cities run on the server's clock.
+        /// </summary>
+        public const string CityClockKey = "CITY_CLOCK";
+
+        /// <summary>
+        /// The value of <see cref="CityClockKey"/> for cities whose loops the debug channel turns.
+        /// </summary>
+        public const string ManualClock = "manual";
+
         // HS256 needs a key of at least 256 bits
         private const int MinimumJwtSecretBytes = 32;
 
@@ -56,6 +73,8 @@ namespace Micropolis.Server
         {
             string jwtSecret = ReadJwtSecret(builder.Configuration);
             ForwardedHeadersOptions? forwardedHeaders = ReadTrustedProxies(builder.Configuration);
+            string cityStore = ReadCityStore(builder.Configuration, builder.Environment);
+            bool manualClock = ReadManualClock(builder.Configuration);
 
             builder.Services.AddEasyReasyAuth(jwtSecret, options =>
             {
@@ -70,6 +89,11 @@ namespace Micropolis.Server
             // Tests register their own clock first
             builder.Services.TryAddSingleton(TimeProvider.System);
             builder.Services.AddSingleton<PlayerPresence>();
+            builder.Services.AddSingleton(new CityStore(cityStore));
+            builder.Services.AddSingleton(services => new ServerClock(services.GetRequiredService<TimeProvider>(), manualClock));
+            builder.Services.AddSingleton<CityRegistry>();
+            builder.Services.AddSingleton<CityLimits>();
+            builder.Services.AddHostedService(services => services.GetRequiredService<CityRegistry>());
 
             WebApplication app = builder.Build();
 
@@ -111,6 +135,44 @@ namespace Micropolis.Server
             }
 
             return secret;
+        }
+
+        // Required, since where a server keeps its cities is deployment's choice: a default would keep them somewhere no
+        // one chose
+        private static string ReadCityStore(IConfiguration configuration, IHostEnvironment environment)
+        {
+            string? directory = configuration[CityStoreKey];
+
+            if (string.IsNullOrWhiteSpace(directory))
+            {
+                throw new InvalidOperationException($"{CityStoreKey} is required: the directory the server keeps its cities in.");
+            }
+
+            return Path.GetFullPath(directory, environment.ContentRootPath);
+        }
+
+        // Only a build with the debug channel can turn its cities' loops, so a release build given the manual clock fails
+        // at startup
+        private static bool ReadManualClock(IConfiguration configuration)
+        {
+            string? clock = configuration[CityClockKey];
+
+            if (clock is null)
+            {
+                return false;
+            }
+
+            if (clock != ManualClock)
+            {
+                throw new InvalidOperationException($"{CityClockKey} is {ManualClock} or not set, not \"{clock}\".");
+            }
+
+            if (!DebugChannel.IsBuiltIn)
+            {
+                throw new InvalidOperationException($"{CityClockKey} is {ManualClock} only in a build with the debug channel.");
+            }
+
+            return true;
         }
 
         // Required, with an explicit value for none, since a server behind a proxy it does not trust sees every client

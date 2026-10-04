@@ -1,0 +1,261 @@
+/* micropolisJS. Adapted by Graeme McCutcheon from Micropolis.
+ *
+ * This code is released under the GNU GPL v3, with some additional terms.
+ * Please see the files LICENSE and COPYING for details. Alternatively,
+ * consult http://micropolisjs.graememcc.co.uk/LICENSE and
+ * http://micropolisjs.graememcc.co.uk/COPYING
+ *
+ * The name/term "MICROPOLIS" is a registered trademark of Micropolis (https://www.micropolis.com) GmbH
+ * (Micropolis Corporation, the "licensor") and is licensed here to the authors/publishers of the "Micropolis"
+ * city simulation game and its source code (the project or "licensee(s)") as a courtesy of the owner.
+ *
+ */
+
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+
+// The state messages the city sends the client, as StateMessage in src/protocol.ts defines them, and the records among
+// them, which the simulation produces for the windows to show. protocol/README.md describes them. The server only
+// writes them, each field by field in the protocol's order, its type first.
+
+namespace Micropolis.Rules
+{
+    /// <summary>
+    /// What the city sends the client about itself, named by its <c>type</c> field, which comes first.
+    /// </summary>
+    public abstract record StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public abstract string Type { get; }
+    }
+
+    /// <summary>
+    /// The city's evaluation, as the evaluation window shows it: <c>EvaluationRecord</c> in <c>src/protocol.ts</c>.
+    /// </summary>
+    /// <param name="Approval">The share of the public, in percent, who think the mayor is doing a good job.</param>
+    /// <param name="Problems">The ids of the worst problems, worst first, each one some of the public voted for.</param>
+    /// <param name="CityClass">The city's class, one of <c>CITY_CLASSES</c>.</param>
+    /// <param name="Level">The game's difficulty, by its number in <c>GAME_LEVELS</c>.</param>
+    public sealed record EvaluationRecord(
+        [property: JsonPropertyName("approval")] long Approval,
+        [property: JsonPropertyName("problems")] IReadOnlyList<int> Problems,
+        [property: JsonPropertyName("population")] long Population,
+        [property: JsonPropertyName("migration")] long Migration,
+        [property: JsonPropertyName("assessedValue")] long AssessedValue,
+        [property: JsonPropertyName("cityClass")] string CityClass,
+        [property: JsonPropertyName("level")] int Level,
+        [property: JsonPropertyName("score")] long Score,
+        [property: JsonPropertyName("scoreDelta")] long ScoreDelta,
+        [property: JsonPropertyName("scoreBreakdown")] IReadOnlyList<ScoreEntry> ScoreBreakdown) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "evaluation";
+    }
+
+    /// <summary>
+    /// One step of the yearly score calculation: the points it moved the score by.
+    /// </summary>
+    /// <param name="Reason">The step, one of <c>SCORE_REASONS</c>.</param>
+    public sealed record ScoreEntry(
+        [property: JsonPropertyName("reason")] string Reason,
+        [property: JsonPropertyName("points")] long Points);
+
+    /// <summary>
+    /// The budget, as the budget window shows it: <c>BudgetRecord</c> in <c>src/protocol.ts</c>.
+    /// </summary>
+    /// <param name="Funding">Each service's funding, 0 to 1 of what it needs, a single-precision float as the original
+    /// keeps it, written as the double it widens to.</param>
+    public sealed record BudgetRecord(
+        [property: JsonPropertyName("taxRate")] long TaxRate,
+        [property: JsonPropertyName("taxesCollected")] long TaxesCollected,
+        [property: JsonPropertyName("funds")] long Funds,
+        [property: JsonPropertyName("maintenance")] ServiceAmounts<long> Maintenance,
+        [property: JsonPropertyName("funding")] ServiceAmounts<double> Funding) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "budget";
+    }
+
+    /// <summary>
+    /// The city's settings, as the settings window shows them: <c>SettingsRecord</c> in <c>src/protocol.ts</c>.
+    /// </summary>
+    /// <param name="Speed">The speed the city runs at, as <c>setSpeed</c> sets it, 0 when paused.</param>
+    public sealed record SettingsRecord(
+        [property: JsonPropertyName("autoBudget")] bool AutoBudget,
+        [property: JsonPropertyName("disasters")] bool Disasters,
+        [property: JsonPropertyName("speed")] int Speed) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "settings";
+    }
+
+    /// <summary>
+    /// The whole map: each tile's raw value, with its flags, row by row, top row first.
+    /// </summary>
+    public sealed record MapMessage(
+        [property: JsonPropertyName("width")] int Width,
+        [property: JsonPropertyName("height")] int Height,
+        [property: JsonPropertyName("tiles")] IReadOnlyList<int> Tiles) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "map";
+    }
+
+    /// <summary>
+    /// A tile whose raw value changed, and its new value.
+    /// </summary>
+    public sealed record TileChange(
+        [property: JsonPropertyName("x")] int X,
+        [property: JsonPropertyName("y")] int Y,
+        [property: JsonPropertyName("value")] int Value);
+
+    /// <summary>
+    /// The tiles that changed since the last map or tiles message.
+    /// </summary>
+    public sealed record TilesMessage(
+        [property: JsonPropertyName("changes")] IReadOnlyList<TileChange> Changes) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "tiles";
+    }
+
+    /// <summary>
+    /// A sprite as the client draws it: its type, its row of the sprite sheet, and its frame, its column, both counted
+    /// from 1; and the square it is drawn in, <paramref name="Width"/> map pixels a side with its top-left corner at map
+    /// pixel (<paramref name="X"/>, <paramref name="Y"/>).
+    /// </summary>
+    public sealed record SpriteView(
+        [property: JsonPropertyName("type")] int Type,
+        [property: JsonPropertyName("frame")] long Frame,
+        [property: JsonPropertyName("x")] long X,
+        [property: JsonPropertyName("y")] long Y,
+        [property: JsonPropertyName("width")] int Width);
+
+    /// <summary>
+    /// Every sprite on the map.
+    /// </summary>
+    public sealed record SpritesMessage(
+        [property: JsonPropertyName("sprites")] IReadOnlyList<SpriteView> Sprites) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "sprites";
+    }
+
+    /// <summary>
+    /// The city's date: the month from 0, and the year.
+    /// </summary>
+    public sealed record DateMessage(
+        [property: JsonPropertyName("month")] long Month,
+        [property: JsonPropertyName("year")] long Year) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "date";
+    }
+
+    /// <summary>
+    /// The city's population as the last monthly growth check counted it.
+    /// </summary>
+    public sealed record PopulationMessage(
+        [property: JsonPropertyName("population")] long Population) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "population";
+    }
+
+    /// <summary>
+    /// The conditions that limit the city's growth, as the simulation publishes them each cycle: <c>StatusRecord</c>
+    /// in <c>src/protocol.ts</c>.
+    /// </summary>
+    /// <param name="Conditions">The advisor conditions that hold, each named by its message.</param>
+    public sealed record StatusRecord(
+        [property: JsonPropertyName("powerCapacity")] long PowerCapacity,
+        [property: JsonPropertyName("powerLoad")] long PowerLoad,
+        [property: JsonPropertyName("residentialCapped")] bool ResidentialCapped,
+        [property: JsonPropertyName("commercialCapped")] bool CommercialCapped,
+        [property: JsonPropertyName("industrialCapped")] bool IndustrialCapped,
+        [property: JsonPropertyName("conditions")] IReadOnlyList<string> Conditions) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "status";
+    }
+
+    /// <summary>
+    /// The demand for each kind of zone, as the demand valves last set it.
+    /// </summary>
+    public sealed record DemandMessage(
+        [property: JsonPropertyName("residential")] long Residential,
+        [property: JsonPropertyName("commercial")] long Commercial,
+        [property: JsonPropertyName("industrial")] long Industrial) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "demand";
+    }
+
+    /// <summary>
+    /// Where a piece of news happened, in map tiles: a place, a place the monster TV shows, or one where it follows the
+    /// sprite of the given type, a monster or a tornado, of which the map holds at most one each. A field the place
+    /// doesn't have is left out.
+    /// </summary>
+    public sealed record NewsPlace(
+        [property: JsonPropertyName("x")] long X,
+        [property: JsonPropertyName("y")] long Y,
+        [property: JsonPropertyName("showable"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Showable = null,
+        [property: JsonPropertyName("trackable"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Trackable = null,
+        [property: JsonPropertyName("sprite"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Sprite = null);
+
+    /// <summary>
+    /// News the simulation sends for the player: its subject, one of the messages in <c>src/messages.ts</c>, and where
+    /// it happened, if it did somewhere.
+    /// </summary>
+    public sealed record NewsMessage(
+        [property: JsonPropertyName("subject")] string Subject,
+        [property: JsonPropertyName("data"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NewsPlace? Data = null) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "news";
+    }
+
+    /// <summary>
+    /// What came of a command, any player's.
+    /// </summary>
+    public sealed record CommandResultMessage(
+        [property: JsonPropertyName("result")] CommandResult Result) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "commandResult";
+    }
+
+    /// <summary>
+    /// The year end paid the budget with values the player should review. The city stepped on: nothing waits for it.
+    /// </summary>
+    public sealed record BudgetReviewDueMessage : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "budgetReviewDue";
+    }
+
+    /// <summary>
+    /// The simulation recomputed the layer, so an overlay showing it is out of date.
+    /// </summary>
+    public sealed record OverlayUpdatedMessage(
+        [property: JsonPropertyName("layer")] string Layer) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "overlayUpdated";
+    }
+}

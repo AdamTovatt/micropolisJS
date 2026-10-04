@@ -39,14 +39,57 @@ namespace Micropolis.Server.Tests
         /// </summary>
         public async Task<T> ReceiveAsync<T>(TimeSpan? within = null) where T : ServerMessage
         {
-            TimeSpan timeout = within ?? MessageTimeout;
-            WebSocketReceiveResult result = await ReceiveFrameAsync(timeout)
-                ?? throw new TimeoutException($"No message within {timeout}.");
-
-            Assert.AreEqual(WebSocketMessageType.Text, result.MessageType, $"Expected a message, got a {result.MessageType} frame.");
-            Assert.IsTrue(result.EndOfMessage, "A message spans more than one frame.");
-            ServerMessage message = ProtocolJson.DeserializeServerMessage(Encoding.UTF8.GetString(_buffer, 0, result.Count));
+            ServerMessage message = ProtocolJson.DeserializeServerMessage(await ReceiveTextAsync(within));
             return message as T ?? throw new AssertFailedException($"Expected a {typeof(T).Name}, got {message}.");
+        }
+
+        /// <summary>
+        /// The next message's text, as the server wrote it, however many frames it took.
+        /// </summary>
+        public async Task<string> ReceiveTextAsync(TimeSpan? within = null)
+        {
+            TimeSpan timeout = within ?? MessageTimeout;
+            using MemoryStream message = new MemoryStream();
+
+            while (true)
+            {
+                WebSocketReceiveResult result = await ReceiveFrameAsync(timeout)
+                    ?? throw new TimeoutException($"No message within {timeout}.");
+
+                Assert.AreEqual(WebSocketMessageType.Text, result.MessageType, $"Expected a message, got a {result.MessageType} frame.");
+                message.Write(_buffer, 0, result.Count);
+
+                if (result.EndOfMessage)
+                {
+                    return Encoding.UTF8.GetString(message.ToArray());
+                }
+            }
+        }
+
+        public async Task SendAsync(ClientMessage message)
+        {
+            await SendTextAsync(ProtocolJson.Serialize(message));
+        }
+
+        public async Task SendTextAsync(string text)
+        {
+            await _socket.SendAsync(Encoding.UTF8.GetBytes(text), WebSocketMessageType.Text, endOfMessage: true, CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Sends one text message as the frames given, each its bytes as they are, valid UTF-8 or not.
+        /// </summary>
+        public async Task SendFramesAsync(params byte[][] frames)
+        {
+            for (int i = 0; i < frames.Length; i++)
+            {
+                await _socket.SendAsync(frames[i], WebSocketMessageType.Text, endOfMessage: i == frames.Length - 1, CancellationToken.None);
+            }
+        }
+
+        public async Task SendBinaryAsync(byte[] bytes)
+        {
+            await _socket.SendAsync(bytes, WebSocketMessageType.Binary, endOfMessage: true, CancellationToken.None);
         }
 
         /// <summary>

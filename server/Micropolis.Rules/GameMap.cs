@@ -78,6 +78,14 @@ namespace Micropolis.Rules
         public int PollutionMaxY { get; internal set; }
 
         /// <summary>
+        /// Each tile's raw value, with its flags, row by row, top row first.
+        /// </summary>
+        public int[] RawValues()
+        {
+            return _data.Select(tile => tile.GetRawValue()).ToArray();
+        }
+
+        /// <summary>
         /// Writes the map under <c>map</c>: its size, its positions, and each tile's raw value row by row.
         /// </summary>
         internal void Save(JsonObject saveData)

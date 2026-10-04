@@ -19,11 +19,12 @@ import { newsMessage } from "../src/cityHost";
 import { commandRejection } from "../src/commands";
 import { evaluationRecord, type EvaluationSource } from "../src/evaluationRecord";
 import {
-    type BudgetRecord, commandTypes, type EvaluationRecord, LOCAL_PLAYER, type NewsMessage, type NewsPlace,
-    parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, queryTypes, recordTypes,
+    type BudgetRecord, clientMessageTypes, commandTypes, type EvaluationRecord, LOCAL_PLAYER, type NewsMessage, type NewsPlace,
+    parseErrorResponse, parsePlayerResponse, parseServerMessage, parseSessionResponse, queryAnswerTypes, queryTypes,
+    recordTypes,
     serverMessageTypes, type SettingsRecord, signInRequest, type StateMessage, stateMessageTypes,
 } from "../src/protocol";
-import { queryRejection } from "../src/queries";
+import { answerQueryWithoutCity, queryRejection } from "../src/queries";
 import { SaveFormat } from "../src/savedGame";
 import { settingsRecord, type SettingsSource } from "../src/settingsRecord";
 import { plainSavedState } from "../src/stateHash";
@@ -38,6 +39,8 @@ const COMMAND_EXAMPLES = repositoryPath("protocol/examples/commands");
 const QUERY_EXAMPLES = repositoryPath("protocol/examples/queries");
 const RECORD_EXAMPLES = repositoryPath("protocol/examples/records");
 const STATE_EXAMPLES = repositoryPath("protocol/examples/state");
+const ANSWER_EXAMPLES = repositoryPath("protocol/examples/answers");
+const CLIENT_EXAMPLES = repositoryPath("protocol/examples/client");
 
 // The game's map, which every command example's tiles lie on
 const MAP_WIDTH = 120;
@@ -113,6 +116,16 @@ describe("the protocol", () => {
 
     it.each(readerCases.accepted)("reads a message with $case and writes it in the protocol's order", ({text, canonical}) => {
         expect(JSON.stringify(parseServerMessage(text))).toBe(canonical);
+    });
+});
+
+describe("the protocol's messages a player sends", () => {
+
+    // test/webSocketCitySource.ts checks that the source writes each with the example's fields, in order
+    it("has an example of every message type a player sends, and no other", () => {
+        const exampleTypes = exampleFiles(CLIENT_EXAMPLES).map((file) => JSON.parse(readWireText(join(CLIENT_EXAMPLES, file))).type);
+
+        expect(exampleTypes.sort()).toEqual(clientMessageTypes().sort());
     });
 });
 
@@ -223,6 +236,32 @@ function shapeOf(value: unknown): string {
 
     return value === null ? "null" : typeof value;
 }
+
+describe("the protocol's answers", () => {
+
+    // An answer of each type, as the simulation writes it, about a city with residents or before any city has started
+    const city = buildCity(1, 1);
+    const ANSWERS: Record<string, () => unknown> = {
+        overlay: () => city.answerQuery({type: "overlay", layer: "crime"}),
+        tileReport: () => city.answerQuery({type: "tileReport", x: 29, y: 14}),
+        budgetForecast: () => city.answerQuery({type: "budgetForecast", road: 40, fire: 100}),
+        mapPreview: () => answerQueryWithoutCity({type: "mapPreview", seed: 2026}),
+        rejected: () => city.answerQuery({type: "mapPreview", seed: -1}),
+    };
+
+    it("has an example of every answer type and no other", () => {
+        const exampleTypes = exampleFiles(ANSWER_EXAMPLES).map((file) => JSON.parse(readWireText(join(ANSWER_EXAMPLES, file))).type);
+
+        expect(Object.keys(ANSWERS).sort()).toEqual(queryAnswerTypes().sort());
+        expect(exampleTypes.sort()).toEqual(queryAnswerTypes().sort());
+    });
+
+    it.each(exampleFiles(ANSWER_EXAMPLES))("is written by the simulation with the fields of the example %s, in order", (file) => {
+        const example = JSON.parse(readWireText(join(ANSWER_EXAMPLES, file))) as {type: string};
+
+        expect(shapeOf(ANSWERS[example.type]())).toBe(shapeOf(example));
+    });
+});
 
 describe("the protocol's state messages", () => {
 

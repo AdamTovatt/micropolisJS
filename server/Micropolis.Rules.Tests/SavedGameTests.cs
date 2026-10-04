@@ -57,6 +57,21 @@ namespace Micropolis.Rules.Tests
                                            versions.ToList());
         }
 
+        // The sample of the current version is the text the TypeScript game wrote, so a city loaded from it writes it
+        // back, but for the order of the keys within a component, which the rules write in an order of their own
+        [TestMethod]
+        public void Write_CityOfTheCurrentSample_WritesTheSampleAsTheGameDid()
+        {
+            string text = ConformanceFile.Read($"saveVersions/version{SavedGame.CurrentVersion}.json");
+            Simulation city = SavedGame.Load(text, out string name);
+
+            string written = SavedGame.Write(name, city);
+
+            Assert.AreEqual(CanonicalJson.Write(JsonText.Parse(text)), CanonicalJson.Write(JsonText.Parse(written)));
+            CollectionAssert.AreEqual(JsonText.Parse(text)!.AsObject().Select(member => member.Key).ToList(),
+                JsonText.Parse(written)!.AsObject().Select(member => member.Key).ToList(), "The save's own keys, in order");
+        }
+
         [TestMethod]
         public void Migrate_CurrentSave_IsUnchanged()
         {

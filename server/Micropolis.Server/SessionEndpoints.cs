@@ -42,9 +42,6 @@ namespace Micropolis.Server
 
         private const string SignInRateLimit = "sign-in";
 
-        // Invalid UTF-8 is refused rather than read as replacement characters
-        private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-
         /// <summary>
         /// Adds the rate limit on signing in, per client address as <see cref="ServerApplication"/> resolves it from
         /// any trusted proxy.
@@ -80,7 +77,7 @@ namespace Micropolis.Server
 
             try
             {
-                signIn = ProtocolJson.DeserializeSessionBody<SignInRequest>(StrictUtf8.GetString(bytes));
+                signIn = ProtocolJson.DeserializeSessionBody<SignInRequest>(StrictUtf8.Encoding.GetString(bytes));
             }
             catch (Exception exception) when (exception is JsonException or DecoderFallbackException)
             {

@@ -16,30 +16,37 @@ import type { CitySource } from "../../src/citySource";
 import type { Port } from "../../src/cityWorkerMessages";
 import { serveCity } from "../../src/cityWorkerHost";
 import { PageCitySource } from "../../src/pageCitySource";
+import { WebSocketCitySource } from "../../src/webSocketCitySource";
 import { WorkerCitySource, WorkerPort } from "../../src/workerCitySource";
 import { ManualTicker } from "./manualTicker";
+import { memorySessionStore, signedInClient, startTestServer, TestServer } from "./testServer";
 
 // A city source the contract tests drive, whatever runs the simulation behind it. run takes one turn of the source's
 // loop, after moving its clock on by the milliseconds given, and resolves once every state message that turn produced
-// has been delivered. close stops the source.
+// has been delivered. close stops the source. lost gives why the source lost its city each time it did, which only a
+// city on a server can be.
 export interface SourceUnderTest {
     source: CitySource;
     run(milliseconds?: number): Promise<void>;
     close(): void;
+    lost(): Error[];
 }
 
-// create's debug is whether the client is in debug mode
+// create's debug is whether the client is in debug mode. onServer is whether the city runs on the server, which steps a
+// shared city whether or not a player sees it, has no client debug mode, and reports a failure in words alone.
 export interface SourceFactory {
     name: string;
-    create(debug?: boolean): SourceUnderTest;
+    onServer: boolean;
+    create(debug?: boolean): Promise<SourceUnderTest>;
 }
 
 export const pageSource: SourceFactory = {
     name: "the in-page source",
-    create: (debug = false) => {
+    onServer: false,
+    create: async (debug = false) => {
         const ticker = new ManualTicker();
         return {source: new PageCitySource(ticker, debug), run: async (milliseconds) => ticker.run(milliseconds),
-                close: () => {}};
+                close: () => {}, lost: () => []};
     },
 };
 
@@ -47,7 +54,8 @@ export const pageSource: SourceFactory = {
 // Web Worker
 export const workerSource: SourceFactory = {
     name: "the Worker source",
-    create: (debug = false) => {
+    onServer: false,
+    create: async (debug = false) => {
         // Node types a port's onmessage with its own event, not the DOM's MessageEvent, though what it reads of it,
         // the data, is the same. A port takes error listeners, as the Worker does, and fires no error event.
         const {port1, port2} = new MessageChannel();
@@ -71,6 +79,48 @@ export const workerSource: SourceFactory = {
                 port1.close();
                 port2.close();
             },
+            lost: () => [],
         };
     },
 };
+
+// The WebSocket source, against the real server (testServer.ts), which the suite starts once and every source shares,
+// each with a connection of its own. They share one stored session, as a browser's tabs do, so the suite signs in once.
+export class WebSocketSourceFactory implements SourceFactory {
+    readonly name = "the WebSocket source";
+    readonly onServer = true;
+
+    private server: TestServer | null = null;
+    private readonly sessions = memorySessionStore();
+
+    async startServer(): Promise<void> {
+        this.server = await startTestServer();
+    }
+
+    async stopServer(): Promise<void> {
+        await this.server?.stop();
+    }
+
+    // The server has no client debug mode
+    async create(): Promise<SourceUnderTest> {
+        if (this.server === null) {
+            throw new Error("The test server hasn't started");
+        }
+
+        const {client, environment} = await signedInClient(this.server.origin, this.sessions, "Tester");
+        const lost: Error[] = [];
+        const source = new WebSocketCitySource(client, (error) => lost.push(error));
+        return {
+            source,
+            // The server takes in what the source sent before the turn, since one socket keeps the order. A turn before
+            // any city has started takes nothing, as a host's loop doesn't turn before one.
+            run: async (milliseconds = 0) => {
+                if (source.city !== null) {
+                    await source.turn(milliseconds);
+                }
+            },
+            close: () => environment.close(),
+            lost: () => lost,
+        };
+    }
+}

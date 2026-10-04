@@ -29,10 +29,17 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
       - name: Check the random stream's vectors against the program that writes them
         run: cc -O2 -o conformance/random conformance/random.c && conformance/random | diff - conformance/random.json
       - run: dotnet build server/Micropolis.slnx
       - run: dotnet test server/Micropolis.slnx --no-build
+      # What only a Release build can show, which a Debug build finds inconclusive: that it has no debug channel
+      - name: Test what only a Release build of the server shows
+        run: dotnet test server/Micropolis.Server.Tests -c Release --filter TestCategory=ReleaseBuild
       # A brief run of the benchmark, so it can't rot: it must run every case and write the table. CI machines vary,
       # so no timing is checked.
       - name: Run the benchmark briefly
@@ -40,6 +47,12 @@ jobs:
           dotnet run --project server/Micropolis.Benchmarks --no-build -- report --warmup 16 --steps 16 --repeats 1 --output "$RUNNER_TEMP/benchmarks.md"
           cat "$RUNNER_TEMP/benchmarks.md"
           grep -q '^| Fixture | Speed | Steps/s | ms/step | Bytes/step |$' "$RUNNER_TEMP/benchmarks.md"
+      - run: npm ci
+      # The client's tests that start the server just built: the city sources' contract and the city two players share
+      - name: Run the client's tests against the real server
+        run: npx jest --coverage=false test/citySource.ts test/sharedCity.ts
+        env:
+          MICROPOLIS_SERVER_TESTS: "1"
 
   e2e:
     needs: check
@@ -52,7 +65,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      # The page online plays against the server's Debug build (e2e/onlineCity.spec.ts)
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build server/Micropolis.slnx
       - run: npm run e2e
+        env:
+          MICROPOLIS_SERVER_TESTS: "1"
       # The report shows every stage of the playthrough, so it is kept on every run, not only on failure
       - uses: actions/upload-artifact@v7
         if: always()

@@ -29,14 +29,19 @@ namespace Micropolis.Server.Tests
     /// <summary>
     /// The real server on a <see cref="TestServer"/>, with its own signing secret and a clock the test moves.
     /// </summary>
-    internal sealed class TestCity : IAsyncDisposable
+    internal sealed class ServerUnderTest : IAsyncDisposable
     {
         public const string Secret = "test-only-signing-secret-for-the-server-tests";
 
-        private TestCity(WebApplication app, FakeTimeProvider time)
+        // Whether the store is this server's alone, to delete when it stops
+        private readonly bool _ownsStore;
+
+        private ServerUnderTest(WebApplication app, FakeTimeProvider time, string store, bool ownsStore)
         {
             App = app;
             Time = time;
+            Store = store;
+            _ownsStore = ownsStore;
             Server = app.GetTestServer();
             Client = Server.CreateClient();
         }
@@ -46,27 +51,75 @@ namespace Micropolis.Server.Tests
         public TestServer Server { get; }
         public HttpClient Client { get; }
 
-        public static async Task<TestCity> StartAsync(string trustedProxies = ServerApplication.NoTrustedProxies)
+        /// <summary>
+        /// The directory the server keeps its cities in, which is the test's own.
+        /// </summary>
+        public string Store { get; }
+
+        /// <summary>
+        /// The file the server keeps the city in.
+        /// </summary>
+        public string StoredPathOf(string city)
+        {
+            return new CityStore(Store).PathOf(city);
+        }
+
+        /// <param name="manualClock">Whether the server's cities turn only when the debug channel says, rather than on
+        /// the clock the test moves.</param>
+        /// <param name="store">The directory the server keeps its cities in, which outlives the server, such as another
+        /// test server's; or none, for a store of the server's own, deleted when it stops.</param>
+        public static async Task<ServerUnderTest> StartAsync(string trustedProxies = ServerApplication.NoTrustedProxies, bool manualClock = false, string? store = null)
         {
             FakeTimeProvider time = new FakeTimeProvider();
-            WebApplicationBuilder builder = CreateBuilder(Secret, trustedProxies);
+            bool ownsStore = store is null;
+            store ??= NewStore();
+            WebApplicationBuilder builder = CreateBuilder(Secret, trustedProxies, store);
+
+            if (manualClock)
+            {
+                RequireDebugChannel();
+                builder.Configuration.AddInMemoryCollection([new KeyValuePair<string, string?>(ServerApplication.CityClockKey, ServerApplication.ManualClock)]);
+            }
+
             builder.Services.AddSingleton<TimeProvider>(time);
 
             WebApplication app = ServerApplication.Build(builder);
             await app.StartAsync();
-            return new TestCity(app, time);
+            return new ServerUnderTest(app, time, store, ownsStore);
         }
 
         /// <summary>
-        /// A builder configured as the tests run the server: the given secret and trusted proxies, pinned over any in
-        /// the environment.
+        /// Skips a test that drives cities through the debug channel, which only a Debug build answers.
         /// </summary>
-        public static WebApplicationBuilder CreateBuilder(string? secret, string? trustedProxies = ServerApplication.NoTrustedProxies)
+        public static void RequireDebugChannel()
+        {
+            if (!DebugChannel.IsBuiltIn)
+            {
+                Assert.Inconclusive("Only a Debug build of the server answers the debug channel.");
+            }
+        }
+
+        /// <summary>
+        /// A directory for a server to keep its cities in, which no one has used: the server makes it when it first
+        /// keeps a city.
+        /// </summary>
+        public static string NewStore()
+        {
+            return Path.Combine(Path.GetTempPath(), $"micropolis-cities-{Guid.NewGuid():N}");
+        }
+
+        /// <summary>
+        /// A builder configured as the tests run the server: the given secret, trusted proxies and store, pinned over any
+        /// in the environment.
+        /// </summary>
+        public static WebApplicationBuilder CreateBuilder(string? secret, string? trustedProxies = ServerApplication.NoTrustedProxies, string? store = null)
         {
             WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
             builder.Configuration.AddInMemoryCollection([
                 new KeyValuePair<string, string?>(ServerApplication.JwtSecretKey, secret),
                 new KeyValuePair<string, string?>(ServerApplication.TrustedProxiesKey, trustedProxies),
+                new KeyValuePair<string, string?>(ServerApplication.CityStoreKey, store ?? NewStore()),
+                new KeyValuePair<string, string?>(ServerApplication.CityClockKey, null),
             ]);
             builder.WebHost.UseTestServer();
             builder.Logging.ClearProviders();
@@ -147,10 +200,41 @@ namespace Micropolis.Server.Tests
             return new TestSocket(await client.ConnectAsync(uri, CancellationToken.None));
         }
 
+        /// <summary>
+        /// Stops the server, which saves its cities, then deletes its store if the store is its own.
+        /// </summary>
         public async ValueTask DisposeAsync()
         {
-            Client.Dispose();
-            await App.DisposeAsync();
+            try
+            {
+                Client.Dispose();
+                // Disposing alone stops none of the server's services, which is where it saves its cities
+                await App.StopAsync();
+                await App.DisposeAsync();
+            }
+            finally
+            {
+                if (_ownsStore)
+                {
+                    DeleteStore(Store);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Deletes a store a test is done with, a directory, or a file a test put in its place so it can't be made.
+        /// </summary>
+        public static void DeleteStore(string store)
+        {
+            if (File.Exists(store))
+            {
+                File.Delete(store);
+            }
+
+            if (Directory.Exists(store))
+            {
+                Directory.Delete(store, recursive: true);
+            }
         }
     }
 

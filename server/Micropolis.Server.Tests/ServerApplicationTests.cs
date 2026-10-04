@@ -12,6 +12,7 @@
  */
 
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Micropolis.Server.Tests
 {
@@ -25,7 +26,7 @@ namespace Micropolis.Server.Tests
         public void Build_WithoutSigningSecret_Fails(string? secret)
         {
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
-                () => ServerApplication.Build(TestCity.CreateBuilder(secret)));
+                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(secret)));
 
             StringAssert.Contains(exception.Message, ServerApplication.JwtSecretKey);
             StringAssert.Contains(exception.Message, "required");
@@ -35,7 +36,7 @@ namespace Micropolis.Server.Tests
         public void Build_SigningSecretShorterThan32Bytes_Fails()
         {
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
-                () => ServerApplication.Build(TestCity.CreateBuilder(new string('x', 31))));
+                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(new string('x', 31))));
 
             StringAssert.Contains(exception.Message, "32 bytes");
         }
@@ -46,7 +47,7 @@ namespace Micropolis.Server.Tests
         [DataRow("10.0.0.1, 2001:db8::1", DisplayName = "two proxies")]
         public async Task Build_SigningSecretAndTrustedProxies_Starts(string trustedProxies)
         {
-            await using WebApplication app = ServerApplication.Build(TestCity.CreateBuilder(TestCity.Secret, trustedProxies));
+            await using WebApplication app = ServerApplication.Build(ServerUnderTest.CreateBuilder(ServerUnderTest.Secret, trustedProxies));
 
             await app.StartAsync();
             await app.StopAsync();
@@ -58,17 +59,72 @@ namespace Micropolis.Server.Tests
         public void Build_WithoutTrustedProxies_Fails(string? trustedProxies)
         {
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
-                () => ServerApplication.Build(TestCity.CreateBuilder(TestCity.Secret, trustedProxies)));
+                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(ServerUnderTest.Secret, trustedProxies)));
 
             StringAssert.Contains(exception.Message, ServerApplication.TrustedProxiesKey);
             StringAssert.Contains(exception.Message, "required");
         }
 
         [TestMethod]
+        [DataRow(null, DisplayName = "no setting")]
+        [DataRow("", DisplayName = "an empty setting")]
+        [DataRow("   ", DisplayName = "a whitespace setting")]
+        public void Build_WithoutCityStore_Fails(string? cityStore)
+        {
+            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(ServerUnderTest.Secret);
+            builder.Configuration[ServerApplication.CityStoreKey] = cityStore;
+
+            InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(() => ServerApplication.Build(builder));
+
+            StringAssert.Contains(exception.Message, ServerApplication.CityStoreKey);
+            StringAssert.Contains(exception.Message, "required");
+        }
+
+        [TestMethod]
+        public void Build_CityClockNeitherManualNorUnset_Fails()
+        {
+            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(ServerUnderTest.Secret);
+            builder.Configuration[ServerApplication.CityClockKey] = "fast";
+
+            InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(() => ServerApplication.Build(builder));
+
+            StringAssert.Contains(exception.Message, ServerApplication.CityClockKey);
+            StringAssert.Contains(exception.Message, "\"fast\"");
+        }
+
+        [TestMethod]
+        [TestCategory(ReleaseBuild.Category)]
+        public void Build_ManualCityClockInAReleaseBuild_Fails()
+        {
+            if (DebugChannel.IsBuiltIn)
+            {
+                Assert.Inconclusive("A Debug build takes the manual clock.");
+            }
+
+            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(ServerUnderTest.Secret);
+            builder.Configuration[ServerApplication.CityClockKey] = ServerApplication.ManualClock;
+
+            InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(() => ServerApplication.Build(builder));
+
+            StringAssert.Contains(exception.Message, "debug channel");
+        }
+
+        [TestMethod]
+        public async Task Build_RelativeCityStore_ResolvesItAgainstTheContentRoot()
+        {
+            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(ServerUnderTest.Secret);
+            builder.Configuration[ServerApplication.CityStoreKey] = "relative-store";
+
+            await using WebApplication app = ServerApplication.Build(builder);
+
+            Assert.AreEqual(Path.Combine(app.Environment.ContentRootPath, "relative-store"), app.Services.GetRequiredService<CityStore>().Location);
+        }
+
+        [TestMethod]
         public void Build_TrustedProxyNotAnAddress_Fails()
         {
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
-                () => ServerApplication.Build(TestCity.CreateBuilder(TestCity.Secret, "10.0.0.1, proxy.example")));
+                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(ServerUnderTest.Secret, "10.0.0.1, proxy.example")));
 
             StringAssert.Contains(exception.Message, "proxy.example");
         }

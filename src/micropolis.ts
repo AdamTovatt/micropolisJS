@@ -13,28 +13,32 @@
 
 import { browserCityEnvironment } from "./browserCityEnvironment";
 import { CityClient } from "./cityClient";
+import { joinLinkedCity, leaveLostCity, linkedCity } from "./cityLink";
 import type { CitySource } from "./citySource";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { requiredElement } from "./domElements";
+import { errorMessage } from "./errorMessage";
+import { Game } from "./game";
 import { showOnlineList } from "./onlineList";
 import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
 import { attachDriverToTestHook, installTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
 import { debugOption, seedOption } from "./urlOptions";
+import { WebSocketCitySource } from "./webSocketCitySource";
 import { WorkerCitySource } from "./workerCitySource";
 
-// The page's entry point: it loads the tile set, waits for the sprites, signs in where a server answers, and shows the
-// splash screen
+// The page's entry point: it loads the tile set, waits for the sprites, signs in where a server answers, and joins the
+// city the page was opened with, or shows the splash screen
 
-// The game seed the page was opened with (?seed=<n>), or null to pick one at random. A seed the player can't have meant
-// is refused out loud, and the map is picked at random as usual.
+// The game seed the page was opened with, or null for none. One that isn't a seed is refused out loud, and the map is
+// picked at random.
 function pageSeed(): number | null {
   try {
     return seedOption(window.location.search);
   } catch (e) {
-    alert(e instanceof Error ? e.message : String(e));
+    alert(errorMessage(e));
     return null;
   }
 }
@@ -67,7 +71,9 @@ async function loadTileSet(): Promise<TileSet | null> {
   return tileSetFrom(tiles);
 }
 
-async function start(seed: number | null): Promise<void> {
+// Starts the page: the game seed to offer first (?seed=<n>), or null to pick one at random, and the city on the server
+// to join (?city=<id>), or null to choose one on the splash screen
+async function start(seed: number | null, city: string | null): Promise<void> {
   const tileSet = await loadTileSet();
   if (tileSet === null) {
     // XXX Replace with an error dialog
@@ -88,22 +94,28 @@ async function start(seed: number | null): Promise<void> {
     console.error("Signing in failed", error);
   }
 
-  showSplashScreen({source, state, tileSet, spriteSheet: sprites}, seed);
+  // The only way the client reaches the city, and the client's copy of it, which follows the source from the start.
+  // The city runs on the server when it welcomes the player, and otherwise in a Web Worker, off the page's thread.
+  const online = await cityClient.welcomed();
+  const webSocketSource = online ? new WebSocketCitySource(cityClient, (error) => leaveLostCity(error, window)) : null;
+  const source: CitySource = webSocketSource ??
+    new WorkerCitySource(new Worker(new URL("./cityWorker.ts", import.meta.url)), ClientConfig.debug);
+  const state = new CityState(source);
+
+  // The end-to-end runner drives the game through this, once there is a source to drive
+  if (ClientConfig.debug) {
+    installTestHook();
+    attachDriverToTestHook(source.driver);
+  }
+
+  const parts = {source, state, tileSet, spriteSheet: sprites};
+  if (city !== null && await joinLinkedCity(city, webSocketSource, (started) => new Game(parts, started), window)) {
+    return;
+  }
+
+  showSplashScreen(parts, seed);
 }
 
 ClientConfig.debug = debugOption(window.location.search);
-const seed = pageSeed();
 
-// The end-to-end runner drives the game through this
-if (ClientConfig.debug) {
-  installTestHook();
-}
-
-// The only way the client reaches the city, and the client's copy of it, which follows the source from the start. The
-// city runs in a Web Worker, off the page's thread.
-const source: CitySource = new WorkerCitySource(new Worker(new URL("./cityWorker.ts", import.meta.url)),
-                                                ClientConfig.debug);
-const state = new CityState(source);
-attachDriverToTestHook(source.driver);
-
-void start(seed);
+void start(pageSeed(), linkedCity(window));

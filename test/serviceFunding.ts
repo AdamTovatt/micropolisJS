@@ -157,6 +157,15 @@ describe("forecastYear", () => {
             .toEqual({ wanted: maintenance, fundsChange: 2400, fundsAfterYear: 12757 });
     });
 
+    // Funds alone would pay only the $100 of the roads
+    it("should pay the services from funds and taxes together", () => {
+        const funds = 100;
+        const taxes = 600;
+
+        expect(forecastYear(funds, taxes, maintenance, fullFunding))
+            .toEqual({ wanted: maintenance, fundsChange: 0, fundsAfterYear: 100 });
+    });
+
     it("should charge each service at its funding percentage", () => {
         const funds = 1000;
         const taxes = 0;

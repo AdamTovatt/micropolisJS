@@ -9,6 +9,7 @@ TODO
 headless/fixtures/export/
 server/**/bin/
 server/**/obj/
+.cities/
 conformance/random
 art/blender/out/
 __pycache__/

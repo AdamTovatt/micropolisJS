@@ -105,6 +105,25 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// The text a city is saved as, as <c>SaveFormat.serialise</c> writes the city host's save: its name, then
+        /// what the simulation saves, stamped with the current version, written as <c>JSON.stringify</c> writes it. The
+        /// keys and values are the browser's, and so is the state hash, which sorts the keys; within a component the
+        /// keys may come in another order than the browser's.
+        /// </summary>
+        public static string Write(string name, Simulation city)
+        {
+            JsonObject savedGame = new JsonObject { ["name"] = name };
+
+            foreach ((string key, JsonNode? value) in city.Save().ToList())
+            {
+                savedGame[key] = value?.DeepClone();
+            }
+
+            savedGame["version"] = CurrentVersion;
+            return CanonicalJson.Stringify(savedGame);
+        }
+
+        /// <summary>
         /// The saved game the text holds, migrated to the current version and stamped with it.
         /// </summary>
         public static JsonObject Migrate(string savedGameText)

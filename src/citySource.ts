@@ -11,7 +11,7 @@
  *
  */
 
-import type { Command, PlayerId, StateMessage } from "./protocol";
+import type { AdvanceResult, Command, PlayerId, Query, QueryAnswer, SessionLog, StateMessage } from "./protocol";
 import type { QuerySource } from "./querySource";
 
 // The only way the client reaches the city. A source sends the city commands and queries, and delivers the state
@@ -23,27 +23,12 @@ import type { QuerySource } from "./querySource";
 // its number in GAME_LEVELS; or a saved game, as the text save gave
 export type CityStart = {name: string, seed: number, level: number} | {save: string};
 
-// A city that has started: its name, and its game seed
+// A city that has started: its name, its game seed, and its id, by which any player joins it, or null for a city in the
+// browser, which no one else can join
 export interface StartedCity {
   name: string;
   seed: number;
-}
-
-// A session's command log, as the source records it: the log, which the headless runner replays
-// (docs/command-log.md); the steps the city has taken since the session began; and why the log has no checkpoints,
-// or null when it has them
-export interface SessionLog {
-  log: object;
-  step: number;
-  unhashed: string | null;
-}
-
-// What came of an advance: the steps it took, whether a year-end budget review fell due during them, and why it
-// failed, or null when it took every step asked for
-export interface AdvanceResult {
-  steps: number;
-  budgetReviewDue: boolean;
-  error: string | null;
+  city: string | null;
 }
 
 // The end-to-end runner's channel, in debug mode: it holds the source's step driver, so that the city steps only when
@@ -96,6 +81,61 @@ export class Subscribers {
 
   deliver(messages: StateMessage[]): void {
     messages.forEach((message) => this.listeners.forEach((listener) => listener(message)));
+  }
+}
+
+// What becomes of a call's answer, or of its failure, once it comes; and, where it isn't a failure like any other, of
+// the call when the source gives up on it with every other, as when the connection to the server drops
+export interface Pending {
+  resolve(value: unknown): void;
+  reject(error: Error): void;
+  abandon?(error: Error): void;
+}
+
+// What becomes of a query a remote source asks. The reply is called as the answer arrives, so what goes wrong in it, or
+// in the query, is thrown there, as the in-page source throws it at the call, rather than lost in a promise. A query
+// the source gives up on is never answered, which is said out loud: what asked it carries on without the answer.
+export function queryReply(query: Query, reply: (answer: QueryAnswer) => void): Required<Pending> {
+  return {
+    resolve: (answer) => reply(answer as QueryAnswer),
+    reject: (error) => {
+      throw error;
+    },
+    abandon: (error) => console.warn(`A query went unanswered: ${error.message}`, query),
+  };
+}
+
+// The calls a source has made of what runs the city and waits on, each by the id its answer comes back with
+export class PendingCalls {
+  private readonly pending = new Map<number, Pending>();
+  private nextId = 0;
+
+  // answered names what answers a call, such as "The server answered request", for an answer to one never made
+  constructor(private readonly answered: string) {}
+
+  // Waits on a call, and gives the id its answer comes back with
+  add(pending: Pending): number {
+    const id = this.nextId++;
+    this.pending.set(id, pending);
+    return id;
+  }
+
+  // The call the answer is for, no longer waited on
+  settle(id: number): Pending {
+    const pending = this.pending.get(id);
+    if (pending === undefined) {
+      throw new Error(`${this.answered} ${id}, which was never made or already answered`);
+    }
+
+    this.pending.delete(id);
+    return pending;
+  }
+
+  // Gives up on every call waited on, none of which will be answered now
+  failAll(error: Error): void {
+    const pending = Array.from(this.pending.values());
+    this.pending.clear();
+    pending.forEach((call) => (call.abandon ?? call.reject)(error));
   }
 }
 

@@ -11,24 +11,9 @@
  *
  */
 
-import {
-    CITY_PATH, CityClient, CityClientEnvironment, CityStatus, ResponseLike, SESSION_PATH, SocketLike, StoredSession,
-} from "../src/cityClient";
-import { ErrorResponse, PlayerResponse, SessionResponse } from "../src/protocol";
-
-interface Request {
-    method: string;
-    path: string;
-    headers: Record<string, string>;
-    body?: string;
-}
-
-// Answers a request: a response, or a thrown error for no server at all
-type Handler = (request: Request) => ResponseLike;
-
-function respond(status: number, body: unknown): ResponseLike {
-    return {status, json: () => Promise.resolve(body)};
-}
+import { CITY_PATH, CityClient, CityStatus, ResponseLike, SESSION_PATH } from "../src/cityClient";
+import { CITY_FAILED_CLOSE, CityMessage, ErrorResponse, PlayerResponse, SessionResponse } from "../src/protocol";
+import { FakeBrowser, Handler, respond } from "./helpers/fakeBrowser";
 
 // The server's bodies, typed by the protocol, so a field renamed there fails to compile here
 function session(body: SessionResponse): ResponseLike {
@@ -45,89 +30,6 @@ function refusal(status: 400 | 429, body: ErrorResponse): ResponseLike {
 
 function notJson(status: number): ResponseLike {
     return {status, json: () => Promise.reject(new SyntaxError("Unexpected token <"))};
-}
-
-class FakeSocket implements SocketLike {
-    onmessage: ((event: {data: unknown}) => void) | null = null;
-    onclose: (() => void) | null = null;
-
-    constructor(readonly pathAndQuery: string) {}
-
-    deliver(message: unknown): void {
-        this.onmessage?.({data: typeof message === "string" ? message : JSON.stringify(message)});
-    }
-
-    drop(): void {
-        this.onclose?.();
-    }
-}
-
-// One browser: every client given it is a tab, sharing its stored session and its lock
-class FakeBrowser implements CityClientEnvironment {
-    readonly requests: Request[] = [];
-    readonly sockets: FakeSocket[] = [];
-    readonly scheduled: {callback: () => void; delayMs: number}[] = [];
-    stored: StoredSession | null = null;
-    private lockQueue: Promise<unknown> = Promise.resolve();
-
-    constructor(public handler: Handler) {}
-
-    store = {
-        load: () => this.stored,
-        save: (session: StoredSession) => { this.stored = session; },
-    };
-
-    request(path: string, init: {method: string; headers: Record<string, string>; body?: string}): Promise<ResponseLike> {
-        const request = {path, ...init};
-        this.requests.push(request);
-
-        try {
-            return Promise.resolve(this.handler(request));
-        } catch (error) {
-            return Promise.reject(error);
-        }
-    }
-
-    openSocket(pathAndQuery: string): SocketLike {
-        const socket = new FakeSocket(pathAndQuery);
-        this.sockets.push(socket);
-        return socket;
-    }
-
-    exclusively<T>(task: () => Promise<T>): Promise<T> {
-        const result = this.lockQueue.then(task);
-        this.lockQueue = result.catch(() => undefined);
-        return result;
-    }
-
-    schedule(callback: () => void, delayMs: number): void {
-        this.scheduled.push({callback, delayMs});
-    }
-
-    lastSocket(): FakeSocket {
-        return this.sockets[this.sockets.length - 1];
-    }
-
-    signIns(): Request[] {
-        return this.requests.filter((request) => request.method === "POST");
-    }
-
-    // Runs the scheduled reconnects due now, every tab's, and lets their requests settle
-    async runScheduled(count = 1): Promise<void> {
-        const due = this.scheduled.splice(0, count);
-
-        if (due.length < count) {
-            throw new Error(`${count} scheduled, ${due.length} found`);
-        }
-
-        due.forEach((entry) => entry.callback());
-        await settle();
-    }
-}
-
-// Every fake answers at once, so everything pending has run by the next turn of the event loop
-function settle(): Promise<void> {
-    return new Promise((resolve) => setImmediate(resolve));
 }
 
 const noServer: Handler = () => { throw new TypeError("Failed to fetch"); };
@@ -392,6 +294,85 @@ describe("the city client", () => {
             browser.lastSocket().drop();
 
             expect(statuses.map((status) => status.online)).toEqual([false, true, false]);
+        });
+
+        it("says it is welcomed once the hello comes, and at once after", async () => {
+            const {browser, client} = await signedIn();
+            const welcomed = client.welcomed();
+
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
+
+            expect(await welcomed).toBe(true);
+            expect(await client.welcomed()).toBe(true);
+        });
+
+        it("says it is not welcomed once the socket closes before the hello", async () => {
+            const {browser, client} = await signedIn();
+            const welcomed = client.welcomed();
+
+            browser.lastSocket().drop();
+
+            expect(await welcomed).toBe(false);
+        });
+
+        it("says it is not welcomed at once when no socket is opening", async () => {
+            expect(await new CityClient(new FakeBrowser(server([]))).welcomed()).toBe(false);
+        });
+
+        it("tells its city-failed listeners when the server closes the connection because its city failed, before " +
+           "going offline", async () => {
+            const {browser, client} = await signedIn();
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
+            const onlineWhenTold: boolean[] = [];
+            client.onCityFailed(() => onlineWhenTold.push(client.getStatus().online));
+
+            browser.lastSocket().drop(CITY_FAILED_CLOSE);
+
+            expect(onlineWhenTold).toEqual([true]);
+            expect(client.getStatus()).toEqual({online: false});
+            expect(browser.scheduled).toHaveLength(1);
+        });
+
+        it("tells no city-failed listener of any other close", async () => {
+            const {browser, client} = await signedIn();
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
+            const told = jest.fn();
+            client.onCityFailed(told);
+
+            browser.lastSocket().drop(1000);
+
+            expect(told).not.toHaveBeenCalled();
+        });
+
+        it("hands the city's messages to its city listeners, in order", async () => {
+            const {browser, client} = await signedIn();
+            const received: CityMessage[] = [];
+            client.onCityMessage((message) => received.push(message));
+            browser.lastSocket().deliver(hello("id-Ada", "Ada"));
+
+            browser.lastSocket().deliver({type: "state", messages: [{type: "population", population: 12}]});
+            browser.lastSocket().deliver({type: "answer", id: 0, value: null});
+            browser.lastSocket().deliver({type: "failed", id: 1, error: "No city has started"});
+
+            expect(received).toEqual([
+                {type: "state", messages: [{type: "population", population: 12}]},
+                {type: "answer", id: 0, value: null},
+                {type: "failed", id: 1, error: "No city has started"},
+            ]);
+        });
+
+        it("sends a message once the server has welcomed the socket, and not before or after it closes", async () => {
+            const {browser, client} = await signedIn();
+            const socket = browser.lastSocket();
+
+            const beforeHello = client.send({type: "save", id: 0});
+            socket.deliver(hello("id-Ada", "Ada"));
+            const online = client.send({type: "save", id: 1});
+            socket.drop();
+            const afterClose = client.send({type: "save", id: 2});
+
+            expect([beforeHello, online, afterClose]).toEqual([false, true, false]);
+            expect(socket.sent).toEqual(["{\"type\":\"save\",\"id\":1}"]);
         });
     });
 
