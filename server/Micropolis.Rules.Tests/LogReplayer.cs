@@ -27,14 +27,9 @@ namespace Micropolis.Rules.Tests
         /// </summary>
         public static string? FirstDifference(ConformanceLog log)
         {
-            LogStart start = log.Seed is uint seed ? new SeedStart(seed, log.GameLevel!.Value) : new SaveStart(log.Save!);
-            CommandLog replayed = new CommandLog(null, start,
-                                                 log.Entries.Select(entry => new LoggedCommand(entry.Step, entry.Player, entry.Command)).ToList(),
-                                                 log.Checkpoints.Select(checkpoint => new Checkpoint(checkpoint.Step, checkpoint.Hash)).ToList());
-
             try
             {
-                LogReplay.Verify(replayed);
+                LogReplay.Verify(log.Log);
                 return null;
             }
             catch (Exception exception) when (exception is InvalidDataException or StepsFailedException)

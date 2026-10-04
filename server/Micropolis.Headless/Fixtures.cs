@@ -277,7 +277,8 @@ namespace Micropolis.Headless
                                [0, RunSteps]);
         }
 
-        // A fixture that starts from a city no command builds, whose save its log keeps
+        // A fixture that starts from a city no command builds, whose save its log keeps. The save is committed data, by
+        // design: nothing rebuilds it, so the tool writes it back as it reads it
         private static Fixture FromCommittedSave(string name, string description, IReadOnlyList<Command> commands)
         {
             return Built(name, description, commands) with { Start = directory => CommittedSave(directory, name) };

@@ -13,4 +13,4 @@
 
 using Micropolis.Headless;
 
-return HeadlessProgram.Run(args, Console.Out, Console.Error, File.ReadAllText);
+return HeadlessProgram.Run(args, Console.Out, Console.Error, HeadlessFiles.Committed);

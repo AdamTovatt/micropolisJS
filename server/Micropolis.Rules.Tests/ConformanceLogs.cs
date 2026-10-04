@@ -74,34 +74,18 @@ namespace Micropolis.Rules.Tests
             }
 
             ConformanceFile.NonEmpty("checkpoints", parsed.Checkpoints);
-
-            return new ConformanceLog(name, (parsed.Start as SeedStart)?.Seed, (parsed.Start as SeedStart)?.Level, (parsed.Start as SaveStart)?.Save,
-                                      parsed.Entries.Select(entry => new LogEntry(entry.Step, entry.Player, entry.Command)).ToList(),
-                                      parsed.Checkpoints.Select(checkpoint => new RunCheckpoint(checkpoint.Step, checkpoint.Hash)).ToList());
+            return new ConformanceLog(name, parsed);
         }
     }
 
     /// <summary>
-    /// A command log: the city it starts from, a new city on a seed's map at a level or a saved state, the commands it
-    /// was sent, each stamped with the step it preceded, and the state hashes it reached.
+    /// A command log under its file's name.
     /// </summary>
-    public sealed record ConformanceLog(
-        string Name, uint? Seed, Level? GameLevel, JsonObject? Save, IReadOnlyList<LogEntry> Entries,
-        IReadOnlyList<RunCheckpoint> Checkpoints)
+    public sealed record ConformanceLog(string Name, CommandLog Log)
     {
-        /// <summary>
-        /// The step a replay ends at: its last entry's or its last checkpoint's, whichever is later.
-        /// </summary>
-        public int LastStep => Math.Max(Entries.Count == 0 ? 0 : Entries[^1].Step, Checkpoints[^1].Step);
-
         public override string ToString()
         {
             return Name;
         }
     }
-
-    /// <summary>
-    /// A logged command: the step it preceded, the player who sent it, and the command as it arrived.
-    /// </summary>
-    public sealed record LogEntry(int Step, string Player, JsonNode? Command);
 }

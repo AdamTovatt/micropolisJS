@@ -30,7 +30,7 @@ namespace Micropolis.Headless
         // Arguments it can't run, shown with the usage
         public const int Misused = 2;
 
-        public static int Run(IReadOnlyList<string> args, TextWriter output, TextWriter error, Func<string, string> readFile)
+        public static int Run(IReadOnlyList<string> args, TextWriter output, TextWriter error, HeadlessFiles files)
         {
             HeadlessCommand command;
 
@@ -49,9 +49,7 @@ namespace Micropolis.Headless
 
             try
             {
-                report = command is WriteFixtures
-                    ? new RunReport(FixtureLogs.WriteAll(Fixtures.CommittedLogs).Select(path => $"wrote {path}").ToList(), null)
-                    : HeadlessRunner.Run(command, readFile);
+                report = HeadlessRunner.Run(command, files);
             }
             catch (Exception exception) when (exception is ArgumentException or InvalidDataException or StepsFailedException or
                                                   SaveFormatException or IOException or UnauthorizedAccessException)

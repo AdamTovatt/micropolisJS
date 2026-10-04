@@ -31,6 +31,12 @@ namespace Micropolis.Headless.Tests
             return CommandLog.Parse(File.ReadAllText(LogPath(name)));
         }
 
+        // The committed files, with a command log of the text given
+        private static HeadlessFiles Reading(string log)
+        {
+            return HeadlessFiles.Committed with { ReadFile = _ => log };
+        }
+
         private static string Hash(Simulation city)
         {
             return StateHash.HashSavedState(city.Save());
@@ -40,7 +46,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_FixtureForItsRun_EndsAtItsRunCheckpoint()
         {
-            RunReport report = HeadlessRunner.Run(new RunCity(new RunStart(null, "town", null, null), Fixtures.RunSteps), File.ReadAllText);
+            RunReport report = HeadlessRunner.Run(new RunCity(new RunStart(null, "town", null, null), Fixtures.RunSteps), HeadlessFiles.Committed);
 
             Assert.AreEqual(Committed("town").Checkpoints[1].Hash, report.Lines[0]);
             Assert.IsNull(report.Failure);
@@ -54,7 +60,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_Seed_PrintsTheHashThenTheYearPopulationAndFunds()
         {
-            RunReport report = HeadlessRunner.Run(new RunCity(new RunStart(5, null, null, Speed.Fast), 2000), File.ReadAllText);
+            RunReport report = HeadlessRunner.Run(new RunCity(new RunStart(5, null, null, Speed.Fast), 2000), HeadlessFiles.Committed);
 
             Simulation city = Simulation.NewCity(5, Level.Easy, Speed.Fast);
             for (int i = 0; i < 2000; i++)
@@ -68,15 +74,15 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void StartCity_Fixture_IsItsCityAsBuilt()
         {
-            Assert.AreEqual(Committed("suburb").Checkpoints[0].Hash, Hash(HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null))));
+            Assert.AreEqual(Committed("suburb").Checkpoints[0].Hash, Hash(HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null), Fixtures.CommittedLogs)));
         }
 
         [TestMethod]
         public void StartCity_FixtureAtAnotherSpeed_KeepsItsStream()
         {
-            Simulation saved = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null));
+            Simulation saved = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null), Fixtures.CommittedLogs);
 
-            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, Speed.Fast));
+            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, Speed.Fast), Fixtures.CommittedLogs);
 
             Assert.AreEqual(Speed.Medium, saved.Speed);
             Assert.AreEqual(Speed.Fast, city.Speed);
@@ -86,7 +92,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void StartCity_FixtureReseeded_TakesTheSeedAndItsSimulationStream()
         {
-            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", 7, null));
+            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", 7, null), Fixtures.CommittedLogs);
 
             Assert.AreEqual(7u, city.Seed);
             CollectionAssert.AreEqual(RandomStream.SimulationStream(7).GetState(), city.Random.GetState());
@@ -100,7 +106,7 @@ namespace Micropolis.Headless.Tests
         public void StartCity_WrongStart_ThrowsNamingTheProblem(uint? seed, string? fixture, uint? reseed, string problem)
         {
             ArgumentException exception = Assert.ThrowsExactly<ArgumentException>(
-                () => HeadlessRunner.StartCity(new RunStart(seed, fixture, reseed, null)));
+                () => HeadlessRunner.StartCity(new RunStart(seed, fixture, reseed, null), Fixtures.CommittedLogs));
 
             StringAssert.Contains(exception.Message, problem);
         }
@@ -126,7 +132,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_CommittedLog_CountsItsOutcomesAndMatchesEveryCheckpoint()
         {
-            RunReport report = HeadlessRunner.Run(new ReplayLog(LogPath(MidRun.Name)), File.ReadAllText);
+            RunReport report = HeadlessRunner.Run(new ReplayLog(LogPath(MidRun.Name)), HeadlessFiles.Committed);
 
             // Every command of the mid-run log applies, as the generator checks
             Assert.AreEqual($"{MidRun.Entries.Count} commands: {MidRun.Entries.Count} ok", report.Lines[0]);
@@ -142,7 +148,7 @@ namespace Micropolis.Headless.Tests
                                "{\"step\":2,\"player\":\"local\",\"command\":{\"type\":\"addFunds\"}}," +
                                "{\"step\":2,\"player\":\"ada\",\"command\":{\"type\":\"nothing\"}}],\"checkpoints\":[]}";
 
-            RunReport report = HeadlessRunner.Run(new ReplayLog("log.json"), _ => log);
+            RunReport report = HeadlessRunner.Run(new ReplayLog("log.json"), Reading(log));
 
             Assert.AreEqual("2 commands: 1 ok, 1 rejected", report.Lines[0]);
             Assert.AreEqual("The log has no checkpoints, so its replay verified nothing", report.Failure);
@@ -155,7 +161,7 @@ namespace Micropolis.Headless.Tests
             Checkpoint checkpoint = Committed(MidRun.Name).Checkpoints[2];
 
             InvalidDataException exception = Assert.ThrowsExactly<InvalidDataException>(
-                () => HeadlessRunner.Run(new ReplayLog("log.json"), _ => log.Replace(checkpoint.Hash, new string('0', 64))));
+                () => HeadlessRunner.Run(new ReplayLog("log.json"), Reading(log.Replace(checkpoint.Hash, new string('0', 64)))));
 
             Assert.AreEqual($"The state hash at step {checkpoint.Step} differs: expected {new string('0', 64)}, was {checkpoint.Hash}.",
                             exception.Message);
@@ -169,7 +175,7 @@ namespace Micropolis.Headless.Tests
                                "\"checkpoints\":[{\"step\":5,\"hash\":\"" + "0000000000000000000000000000000000000000000000000000000000000000" + "\"}]}";
 
             StepsFailedException exception = Assert.ThrowsExactly<StepsFailedException>(
-                () => HeadlessRunner.Run(new ReplayLog("log.json"), _ => log));
+                () => HeadlessRunner.Run(new ReplayLog("log.json"), Reading(log)));
 
             Assert.AreEqual("The log steps a paused city at step 0.", exception.Message);
         }

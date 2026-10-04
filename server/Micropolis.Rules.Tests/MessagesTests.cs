@@ -46,13 +46,23 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void Messages_EachName_HasAStringNoOtherNameShares()
         {
-            List<string> shared = Strings.GroupBy(name => (string)name[1], name => (string)name[0])
-                .Where(sharing => sharing.Count() > 1)
-                .Select(sharing => $"{string.Join(" and ", sharing)} share \"{sharing.Key}\"")
-                .ToList();
-
             Assert.IsNotEmpty(Strings);
-            Assert.AreEqual("", string.Join("; ", shared));
+            Assert.AreEqual("", Shared(Strings.Select(name => ((string)name[0], (string)name[1]))));
+        }
+
+        // The check can fail
+        [TestMethod]
+        public void Shared_TwoNamesWithOneString_NamesBoth()
+        {
+            Assert.AreEqual("FIRE and BLAZE share \"fire\"", Shared([("FIRE", "fire"), ("FLOOD", "flood"), ("BLAZE", "fire")]));
+        }
+
+        // Each string that more than one name has, with the names that share it
+        private static string Shared(IEnumerable<(string Name, string Value)> names)
+        {
+            return string.Join("; ", names.GroupBy(name => name.Value, name => name.Name)
+                .Where(sharing => sharing.Count() > 1)
+                .Select(sharing => $"{string.Join(" and ", sharing)} share \"{sharing.Key}\""));
         }
 
         [TestMethod]

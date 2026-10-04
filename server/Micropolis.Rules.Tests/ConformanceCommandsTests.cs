@@ -24,7 +24,8 @@ namespace Micropolis.Rules.Tests
     public sealed partial class ConformanceCommandsTests
     {
         // The reasons a command is rejected with, each number they quote written #, as REJECTION_REASONS in
-        // conformance/generate.ts lists the TypeScript's
+        // conformance/generate.ts lists the TypeScript's. Kept here rather than read from commands.json: once the
+        // TypeScript simulation is deleted, with the generator and commands.json, this is the list
         private static readonly string[] RejectionReasons =
         [
             "a command nests objects and lists at most # deep",

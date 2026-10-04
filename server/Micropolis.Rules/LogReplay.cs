@@ -82,10 +82,10 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Replays the whole log, and the number of its checkpoints, each of which the replay matched, or an
-        /// <see cref="InvalidDataException"/> naming the earliest that it didn't.
+        /// Replays the whole log, matching each of its checkpoints, or an <see cref="InvalidDataException"/> naming the
+        /// earliest that it didn't match.
         /// </summary>
-        public static (Replay Replay, int Matched) Verify(CommandLog log)
+        public static Replay Verify(CommandLog log)
         {
             Replay replay = Run(log.Start, log.Entries, log.Checkpoints.Select(checkpoint => checkpoint.Step).ToList(), log.LastStep);
 
@@ -98,7 +98,7 @@ namespace Micropolis.Rules
                 }
             }
 
-            return (replay, log.Checkpoints.Count);
+            return replay;
         }
 
         /// <summary>

@@ -22,10 +22,15 @@ namespace Micropolis.Headless.Tests
     {
         private static (int Code, string Output, string Error) Run(string[] args, Func<string, string> readFile)
         {
+            return Run(args, HeadlessFiles.Committed with { ReadFile = readFile });
+        }
+
+        private static (int Code, string Output, string Error) Run(string[] args, HeadlessFiles files)
+        {
             StringWriter output = new StringWriter();
             StringWriter error = new StringWriter();
 
-            int code = HeadlessProgram.Run(args, output, error, readFile);
+            int code = HeadlessProgram.Run(args, output, error, files);
             return (code, output.ToString(), error.ToString());
         }
 
@@ -99,6 +104,51 @@ namespace Micropolis.Headless.Tests
             Assert.AreEqual(HeadlessProgram.Failed, code);
             StringAssert.StartsWith(output, "0 commands");
             StringAssert.StartsWith(error, "The log has no checkpoints");
+        }
+
+        [TestMethod]
+        public void Run_WriteFixtures_PrintsEachLogWrittenAndPasses()
+        {
+            string logs = FixtureLogsTests.CopyOfTheLogs();
+
+            try
+            {
+                (int code, string output, string error) = Run(["--write-fixtures"], HeadlessFiles.Committed with { Logs = logs, ReadFile = NoFile });
+
+                Assert.AreEqual(HeadlessProgram.Passed, code);
+                CollectionAssert.AreEqual(FixtureLogs.Names.Select(name => $"wrote {Fixtures.LogPath(logs, name)}").ToArray(),
+                                          output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+                Assert.AreEqual("", error);
+            }
+            finally
+            {
+                Directory.Delete(logs, true);
+            }
+        }
+
+        // A golden playthrough it can't copy is a file the run refuses, not a defect to trace, and every log stays as it was
+        [TestMethod]
+        public void Run_WriteFixturesFromABrokenGoldenPlaythrough_PrintsTheReasonAndFails()
+        {
+            string logs = FixtureLogsTests.CopyOfTheLogs();
+            string golden = Path.Combine(logs, "goldenPlaythrough.json");
+
+            try
+            {
+                File.WriteAllText(golden, "{\"log\":");
+                File.WriteAllText(Fixtures.LogPath(logs, "town"), "stale");
+
+                (int code, string output, string error) = Run(["--write-fixtures"], new HeadlessFiles(NoFile, logs, golden));
+
+                Assert.AreEqual(HeadlessProgram.Failed, code);
+                Assert.AreEqual("", output);
+                StringAssert.StartsWith(error, $"The golden playthrough {golden} is not JSON: ");
+                Assert.AreEqual("stale", File.ReadAllText(Fixtures.LogPath(logs, "town")));
+            }
+            finally
+            {
+                Directory.Delete(logs, true);
+            }
         }
     }
 }

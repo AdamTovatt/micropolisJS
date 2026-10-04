@@ -15,11 +15,11 @@ import { builtFixture, RUN_STEPS } from "./fixture";
 import { buildingAt } from "./toolCommands";
 
 // A city whose run pins where growZone's limit on pollution lies, which no other fixture reaches: a residential zone
-// that passes the test for growth with its pollution below the limit of 128, but well above the levels the other
-// fixtures' growing zones have. As in the smoky woods, the zone is in seed 8's thickest woods, and grows only between
-// the first scan of pollution and land value and the next, while its land value counts no pollution against it. With
-// a coal plant against its west side and one against its east, rather than to its north and east, its pollution then is
-// 110, where the smoky woods' is over 128: so it grows, where a limit anywhere from 96 to 109 would stop it.
+// that grows with its pollution below the limit, but well above the levels the other fixtures' growing zones have, so
+// a lower limit stops it. As in the smoky woods, the zone is in seed 8's thickest woods, and grows only between the
+// first scan of pollution and land value and the next, while its land value counts no pollution against it. Its coal
+// plants stand against its west side and its east, rather than to its north and east as in the smoky woods, whose
+// zone's pollution is over the limit, so this one's is near the limit but under it.
 export const hazyWoods = builtFixture(
   "A residential zone in the woods with a coal plant against each side, and nothing else", [
     buildingAt("residential", 45, 13),

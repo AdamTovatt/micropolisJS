@@ -52,7 +52,28 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void CopyPlaythrough_GoldenPlaythrough_WritesTheCommittedFileByteForByte()
         {
-            Assert.AreEqual(Committed(FixtureLogs.Playthrough), FixtureLogs.CopyPlaythrough().Write());
+            Assert.AreEqual(Committed(FixtureLogs.Playthrough), FixtureLogs.CopyPlaythrough(FixtureLogs.CommittedGoldenPlaythrough).Write());
+        }
+
+        [TestMethod]
+        [DataRow("{\"log\":", "is not JSON: ", DisplayName = "text that is no JSON")]
+        [DataRow("{\"checkpoints\":[]}", "holds no log: A command log is a JSON object", DisplayName = "JSON with no log")]
+        public void CopyPlaythrough_GoldenPlaythroughWithNoLog_ThrowsNamingTheFile(string golden, string problem)
+        {
+            string path = Path.Combine(Directory.CreateTempSubdirectory("micropolis-golden-").FullName, "goldenPlaythrough.json");
+
+            try
+            {
+                File.WriteAllText(path, golden);
+
+                InvalidDataException exception = Assert.ThrowsExactly<InvalidDataException>(() => FixtureLogs.CopyPlaythrough(path));
+
+                StringAssert.StartsWith(exception.Message, $"The golden playthrough {path} {problem}");
+            }
+            finally
+            {
+                Directory.Delete(Path.GetDirectoryName(path)!, true);
+            }
         }
 
         // The save is committed data, so the byte-for-byte check holds it to itself: what it proves is that the tool
@@ -90,7 +111,7 @@ namespace Micropolis.Headless.Tests
             {
                 File.WriteAllText(Fixtures.LogPath(directory, "town"), "stale");
 
-                IReadOnlyList<string> written = FixtureLogs.WriteAll(directory);
+                IReadOnlyList<string> written = FixtureLogs.WriteAll(directory, FixtureLogs.CommittedGoldenPlaythrough);
 
                 Assert.HasCount(FixtureLogs.Names.Count, written);
                 foreach (string name in FixtureLogs.Names)
@@ -115,7 +136,7 @@ namespace Micropolis.Headless.Tests
                 File.WriteAllText(Fixtures.LogPath(directory, "broke"), "stale");
                 File.WriteAllText(Fixtures.LogPath(directory, "disasters"), "{}");
 
-                Assert.ThrowsExactly<InvalidDataException>(() => FixtureLogs.WriteAll(directory));
+                Assert.ThrowsExactly<InvalidDataException>(() => FixtureLogs.WriteAll(directory, FixtureLogs.CommittedGoldenPlaythrough));
 
                 Assert.AreEqual("stale", File.ReadAllText(Fixtures.LogPath(directory, "broke")));
             }
@@ -133,7 +154,8 @@ namespace Micropolis.Headless.Tests
             StringAssert.Contains(exception.Message, "No fixture named metropolis: the fixtures are broke, disasters");
         }
 
-        private static string CopyOfTheLogs()
+        // A temporary directory holding a copy of each committed log, which the caller deletes
+        internal static string CopyOfTheLogs()
         {
             string directory = Directory.CreateTempSubdirectory("micropolis-logs-").FullName;
 

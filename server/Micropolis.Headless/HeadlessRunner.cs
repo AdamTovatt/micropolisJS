@@ -23,57 +23,57 @@ namespace Micropolis.Headless
     internal sealed record RunReport(IReadOnlyList<string> Lines, string? Failure);
 
     /// <summary>
+    /// The files a run reads and writes: a command log, read with <see cref="ReadFile"/>; the directory of the fixtures'
+    /// logs, which a fixture that starts from a save reads it from, and which the fixture tool writes; and the golden
+    /// playthrough, which the tool copies the playthrough's log from.
+    /// </summary>
+    internal sealed record HeadlessFiles(Func<string, string> ReadFile, string Logs, string GoldenPlaythrough)
+    {
+        /// <summary>
+        /// The repository's own files, as the command line runs on them.
+        /// </summary>
+        public static HeadlessFiles Committed => new HeadlessFiles(File.ReadAllText, Fixtures.CommittedLogs, FixtureLogs.CommittedGoldenPlaythrough);
+    }
+
+    /// <summary>
     /// Starts a city from a seed, a fixture or a command log and advances it step by step, as <c>headless/runner.ts</c>
-    /// and <c>headless/run.ts</c> do. A run never stalls silently: it fails when the city is paused, or doesn't advance
-    /// city time as far as the step count implies.
+    /// and <c>headless/run.ts</c> do, or writes every fixture's log. A run never stalls silently: it fails when the city
+    /// is paused, or doesn't advance city time as far as the step count implies.
     /// </summary>
     internal static class HeadlessRunner
     {
         /// <summary>
-        /// Runs the command, reading a log's file with <paramref name="readFile"/>. A replay fails at a checkpoint that
-        /// doesn't match; one whose log has no checkpoints runs to its end but fails, since it verified nothing.
+        /// Runs the command on <paramref name="files"/>. A replay fails at a checkpoint that doesn't match; one whose
+        /// log has no checkpoints runs to its end but fails, since it verified nothing.
         /// </summary>
-        public static RunReport Run(HeadlessCommand command, Func<string, string> readFile)
+        public static RunReport Run(HeadlessCommand command, HeadlessFiles files)
         {
-            List<string> lines = new List<string>();
-            string? failure = null;
-            Simulation city;
-
             switch (command)
             {
-                case ReplayLog log:
-                    (Replay replay, int matched) = LogReplay.Verify(CommandLog.Parse(readFile(log.Path)));
-                    lines.Add(OutcomeCounts(replay.Results));
+                case WriteFixtures:
+                    return new RunReport(FixtureLogs.WriteAll(files.Logs, files.GoldenPlaythrough).Select(path => $"wrote {path}").ToList(), null);
+                case ReplayLog replayLog:
+                    CommandLog log = CommandLog.Parse(files.ReadFile(replayLog.Path));
+                    Replay replay = LogReplay.Verify(log);
 
-                    if (matched == 0)
-                    {
-                        failure = "The log has no checkpoints, so its replay verified nothing";
-                    }
-                    else
-                    {
-                        lines.Add($"{matched} checkpoints match");
-                    }
-
-                    city = replay.City;
-                    break;
+                    return log.Checkpoints.Count == 0
+                        ? new RunReport([OutcomeCounts(replay.Results), .. CityLines(replay.City)], "The log has no checkpoints, so its replay verified nothing")
+                        : new RunReport([OutcomeCounts(replay.Results), $"{log.Checkpoints.Count} checkpoints match", .. CityLines(replay.City)], null);
                 case RunCity run:
-                    city = StartCity(run.Start);
+                    Simulation city = StartCity(run.Start, files.Logs);
                     Advance(city, run.Steps);
-                    break;
+                    return new RunReport(CityLines(city), null);
                 default:
                     throw new InvalidOperationException($"No command {command.GetType().Name}.");
             }
-
-            lines.Add(StateHash.HashSavedState(city.Save()));
-            lines.Add($"year {city.Date.Year}, population {city.Evaluation.CityPop}, funds {city.Budget.TotalFunds}");
-            return new RunReport(lines, failure);
         }
 
         /// <summary>
-        /// The city a run starts from. A fixture's city is loaded from the save its log builds, so a fixture always
-        /// goes through the load path.
+        /// The city a run starts from, a fixture that starts from a save reading it from its log in
+        /// <paramref name="logs"/>. A fixture's city is loaded from the save its log builds, so a fixture always goes
+        /// through the load path.
         /// </summary>
-        public static Simulation StartCity(RunStart start)
+        public static Simulation StartCity(RunStart start, string logs)
         {
             if (start.Seed.HasValue == (start.Fixture != null))
             {
@@ -91,7 +91,7 @@ namespace Micropolis.Headless
             }
 
             Fixture fixture = Fixtures.Named(start.Fixture!);
-            JsonObject save = LogReplay.Run(fixture.Start(Fixtures.CommittedLogs), fixture.Entries, [], 0).City.Save();
+            JsonObject save = LogReplay.Run(fixture.Start(logs), fixture.Entries, [], 0).City.Save();
             return StartFromSave(save, start.Reseed, start.Speed);
         }
 
@@ -133,6 +133,12 @@ namespace Micropolis.Headless
             }
 
             CityTimeModel.TakeSteps(city, steps, city.Step);
+        }
+
+        // The city's state hash, then its year, population and funds
+        private static List<string> CityLines(Simulation city)
+        {
+            return [StateHash.HashSavedState(city.Save()), $"year {city.Date.Year}, population {city.Evaluation.CityPop}, funds {city.Budget.TotalFunds}"];
         }
 
         /// <summary>

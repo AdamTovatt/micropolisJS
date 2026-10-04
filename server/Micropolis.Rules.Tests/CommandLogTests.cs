@@ -85,6 +85,8 @@ namespace Micropolis.Rules.Tests
         [DataRow("checkpoints that are no list", "\"checkpoints\":[{\"step\":3,\"hash\":\"" + Hash + "\"}]", "\"checkpoints\":3",
                  "A command log's checkpoints are a list")]
         [DataRow("an entry without a player", "\"player\":\"local\",", "", "Entry 0 of the command log is not a {step, player, command}")]
+        [DataRow("an entry before step 0", "{\"step\":0,\"player\"", "{\"step\":-1,\"player\"", "Entry 0 of the command log is not a {step, player, command}")]
+        [DataRow("an entry between steps", "{\"step\":0,\"player\"", "{\"step\":0.5,\"player\"", "Entry 0 of the command log is not a {step, player, command}")]
         [DataRow("an entry without a command", ",\"command\":{\"type\":\"addFunds\"}", "", "Entry 0 of the command log is not a {step, player, command}")]
         [DataRow("an entry before the one above it", "{\"step\":0,\"player\"",
                  "{\"step\":1,\"player\":\"local\",\"command\":null},{\"step\":0,\"player\"", "Entry 1 of the command log, at step 0, comes before")]

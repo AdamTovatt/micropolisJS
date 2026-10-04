@@ -203,25 +203,25 @@ each checkpoint, so a diff shows which moved:
   `test/playthroughReplay.ts` checks those.
 
 The generator reads each file back as a replayer reads it, and fails unless it replays to every checkpoint. It fails
-too unless one log starts from a seed and another from a save.
-`npm run simulate -- --log conformance/logs/<name>.log.json` replays one headless, and `dotnet run --project
-server/Micropolis.Headless -- --log conformance/logs/<name>.log.json` in C#.
+too unless one log starts from a seed and another from a save. `npm run simulate -- --log
+conformance/logs/<name>.log.json` replays one headless, and `dotnet run --project server/Micropolis.Headless -- --log
+conformance/logs/<name>.log.json` in C#.
 
 The C# fixture tool writes every file here too, from the C# rules: `dotnet run --project server/Micropolis.Headless
 -- --write-fixtures`. It lays out each fixture's and mid-run log's commands as the scripts do, in `Fixtures.cs`, and
 works out the checkpoints by replaying them, and copies the playthrough's log from its golden file, as the generator
-does. A log that starts from a save, the city a fixture's script writes onto, keeps the save
-the file holds: that save is committed data, which no C# code builds. While the TypeScript simulation exists, the
-generator writes the logs, and `FixtureLogsTests` fails unless each log the tool writes is the file here byte for byte.
+does. A log that starts from a save, the city a fixture's script writes onto, keeps the save the file holds: that save
+is committed data, which no C# code builds. While the TypeScript simulation exists, the generator writes the logs, and
+`FixtureLogsTests` fails unless each log the tool writes is the file here byte for byte.
 
 `ConformanceLogs` reads the logs with `CommandLog`, as `parseLog` does, and more strictly, as the readers of the other
-files here read theirs: it refuses a key the format doesn't define, and a `level` beside a `save`, which `parseLog`
-ignores. `LogReplayTests` replays every log in the directory through `LogReplay`, as the headless runners replay one:
-from a new city on the seed's map, at the log's level and medium speed, or from its save, it applies each step's
-commands through `Simulation.ApplyCommands`, checks the step's checkpoints, then takes the step. A difference names
-the first checkpoint whose state hash differs, the step at which the log has a paused city step, or city time that
-fell behind the steps. A command's result is held
-by `commands.json`, since a checkpoint can't tell one rejection from another.
+files here read theirs: it refuses a key the format doesn't define, a `level` beside a `save`, which `parseLog`
+ignores, and a log with no checkpoint. `LogReplayTests` replays every log in the directory through `LogReplay`, as the
+headless runners replay one: from a new city on the seed's map, at the log's level and medium speed, or from its save,
+it applies each step's commands through `Simulation.ApplyCommands`, checks the step's checkpoints, then takes the
+step. A difference names the first checkpoint whose state hash differs, the step at which the log has a paused city
+step, or city time that fell behind the steps. A command's result is held by `commands.json`, since a checkpoint
+can't tell one rejection from another.
 
 ### snapshots/
 
