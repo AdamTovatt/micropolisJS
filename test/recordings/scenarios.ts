@@ -131,6 +131,11 @@ export const SCENARIOS = {
                 await answerTo(source, {type: "budgetForecast", road: 50});
             },
 
+            // The Save button's
+            "save": async ({source}) => {
+                await source.save();
+            },
+
             // The test hook's
             "input, then flush": async ({source}) => {
                 await source.driver.advance(5);

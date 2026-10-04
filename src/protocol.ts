@@ -775,6 +775,7 @@ export type ClientMessage =
   | {type: "flush", id: number}
   | {type: "advance", id: number, steps: number}
   | {type: "cityTime", id: number}
+  | {type: "savedGame", id: number}
   | {type: "turn", id: number, milliseconds: number};
 
 export type ClientMessageType = ClientMessage["type"];
@@ -788,8 +789,8 @@ export interface RequestAnswers {
   upload: CityJoined;
   join: CityJoined;
   query: QueryAnswer;
-  // The saved game's text
-  save: string;
+  // Once the server's store has kept the city
+  save: null;
   commandLog: SessionLog;
   hold: null;
   release: null;
@@ -797,6 +798,8 @@ export interface RequestAnswers {
   advance: AdvanceResult;
   // In the units the city's date counts: 48 a year
   cityTime: number;
+  // The saved game's text, as the game saves one
+  savedGame: string;
   turn: null;
 }
 
@@ -807,7 +810,7 @@ export type RequestAnswer<Request extends ClientRequest> = RequestAnswers[Reques
 // here fails to compile, and the tests fail on a type with no example.
 const CLIENT_MESSAGE_TYPES: Record<ClientMessageType, true> = {
   cursor: true, start: true, upload: true, join: true, command: true, query: true, save: true, commandLog: true,
-  hold: true, release: true, flush: true, advance: true, cityTime: true, turn: true,
+  hold: true, release: true, flush: true, advance: true, cityTime: true, savedGame: true, turn: true,
 };
 
 export function clientMessageTypes(): string[] {

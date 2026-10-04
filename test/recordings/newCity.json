@@ -17,6 +17,9 @@
 "budget forecast": [
 {"query":{"type":"budgetForecast","road":50},"answer":{"type":"budgetForecast","budget":{"type":"budget","taxRate":7,"taxesCollected":0,"funds":20000,"maintenance":{"road":0,"fire":0,"police":0},"funding":{"road":1,"fire":1,"police":1}},"costs":{"road":0,"fire":0,"police":0},"fundsChange":0,"fundsAfterYear":20000}}
 ],
+"save": [
+{"call":"save","arguments":[],"messages":[],"returns":null}
+],
 "input, then flush": [
 {"call":"advance","arguments":[5],"messages":[{"type":"evaluation","approval":73,"problems":[3],"population":0,"migration":0,"assessedValue":0,"cityClass":"VILLAGE","level":0,"score":712,"scoreDelta":212,"scoreBreakdown":[{"reason":"PROBLEMS","points":432},{"reason":"TAXES","points":-7},{"reason":"AVERAGING","points":-213}]}],"returns":{"steps":5,"budgetReviewDue":false,"error":null}},
 {"call":"send","arguments":[{"type":"setAutoBudget","on":false}]},

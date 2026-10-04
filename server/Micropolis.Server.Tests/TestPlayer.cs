@@ -152,9 +152,20 @@ namespace Micropolis.Server.Tests
             return (await RequestAsync(id => new QueryRequest(id, query)))!.AsObject();
         }
 
-        public async Task<string> SaveAsync()
+        /// <summary>
+        /// Saves the city to the server's store, as the Save button does.
+        /// </summary>
+        public async Task SaveAsync()
         {
-            return (string)(await RequestAsync(id => new SaveRequest(id)))!;
+            Assert.IsNull(await RequestAsync(id => new SaveRequest(id)));
+        }
+
+        /// <summary>
+        /// The city's saved game's text, through the debug channel, which reaches no store.
+        /// </summary>
+        public async Task<string> SavedGameAsync()
+        {
+            return (string)(await RequestAsync(id => new SavedGameRequest(id)))!;
         }
 
         public async Task<long> CityTimeAsync()

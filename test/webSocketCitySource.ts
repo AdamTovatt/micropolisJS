@@ -115,6 +115,7 @@ describe("the WebSocket source", () => {
         source.driver.flush().catch(() => {});
         source.driver.advance(field("advance", "steps")).catch(() => {});
         source.driver.cityTime().catch(() => {});
+        source.driver.savedGame().catch(() => {});
         source.start({name: field("start", "name"), seed: field("start", "seed"), level: field("start", "level")}).catch(() => {});
         source.start({save: field("upload", "save")}).catch(() => {});
         source.join(field("join", "city")).catch(() => {});

@@ -17,7 +17,7 @@ import { readFileSync } from "fs";
 import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
 import type { Advanced, View } from "../src/testHook";
 import { steppedZoom } from "../src/viewPosition";
-import { CITY_LINK, signIn } from "./gameServer";
+import { CITY_LINK, GameServer, signIn } from "./gameServer";
 import { blockNetwork } from "./page";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
@@ -74,17 +74,20 @@ export class Player {
   private commandsBefore = 0;
   // Whether the player has signed in to the game server: the session the page then stores signs it in from then on
   private signedIn = false;
+  // Whether each page opened holds its driver as it starts
+  private holdingAtStart = false;
 
   // A player of a city on the game server signs in under its name, the first time the page opens; with none, the page
   // plays single-player in the browser
-  constructor(readonly page: Page, private readonly signInAs: string | null = null) {}
+  constructor(readonly page: Page, private readonly online: {signInAs: string, server: GameServer} | null = null) {}
 
   // Opens the page in debug mode, with more of a query string if given, signs in if the player has yet to, and holds
   // the driver before the game exists, so it never steps unasked
   async open(query = ""): Promise<void> {
+    await this.holdEachPageAtStart();
     await this.page.goto(`/?debug=1${query === "" ? "" : `&${query}`}`);
-    if (this.signInAs !== null && !this.signedIn) {
-      await signIn(this.page, this.signInAs);
+    if (this.online !== null && !this.signedIn) {
+      await signIn(this.page, this.online.signInAs);
       this.signedIn = true;
     }
 
@@ -102,23 +105,28 @@ export class Player {
     await this.waitForGame();
   }
 
-  // Ends the session, then opens the page again and loads the game saved in storage, as a player would. A page playing
-  // a city on the game server has the city's link in its address, which would join the city again, so the page opens
-  // at its address without it, as one opened afresh.
-  async reloadSavedGame(): Promise<void> {
+  // Ends the session, then leaves the page and opens it again at the same address, as a player would: the city's link
+  // in it joins the city again, which the game server loads from its store, held from its first step. The page opens
+  // again only once the player is offline, so the server has unloaded the city: a join before the city was unloaded
+  // would find it still loaded, and its log would go on from where the session before began.
+  async reloadCity(): Promise<void> {
+    if (this.online === null) {
+      throw new Error("Only a city on the game server has a link to join it again by");
+    }
+
     await this.endSession();
-    const address = new URL(this.page.url());
-    address.searchParams.delete("city");
-    await this.page.goto(`${address.pathname}${address.search}`);
+    const address = this.page.url();
+    await this.page.goto("about:blank");
+    await this.online.server.untilOffline(this.online.signInAs);
+    await this.page.goto(address);
     await this.holdOnceHooked();
-    await this.page.click("#splashLoad");
     await this.waitForGame();
   }
 
   // Waits for the game to show. A player signed in to the game server plays a city there, which puts its link in the
   // page's address: without one, the page would be playing single-player in the browser.
   async waitForGame(): Promise<void> {
-    if (this.signInAs !== null) {
+    if (this.online !== null) {
       await expect(this.page, "the city's link, of a city on the game server").toHaveURL(CITY_LINK);
     }
 
@@ -186,6 +194,21 @@ export class Player {
 
   async cityTime(): Promise<number> {
     return this.page.evaluate(() => window.micropolisTestHook!.cityTime());
+  }
+
+  // The save the game server's store keeps for the city the page plays, which the Save button writes
+  storedSave(): GameSave {
+    const city = CITY_LINK.exec(this.page.url())?.[1];
+    if (this.online === null || city === undefined) {
+      throw new Error("Only a city on the game server, whose link the page's address holds, is kept in its store");
+    }
+
+    const stored = this.online.server.storedCity(city);
+    if (stored === null) {
+      throw new Error(`The game server's store keeps no city ${city}`);
+    }
+
+    return JSON.parse(stored) as GameSave;
   }
 
   async save(): Promise<GameSave> {
@@ -381,10 +404,20 @@ export class Player {
     this.commandsBefore += applied;
   }
 
-  // Waits for the page to install the hook, then holds the driver
+  // Waits for the hold the page started with: the hook holds the driver as the page creates its city source
   private async holdOnceHooked(): Promise<void> {
     await this.page.waitForFunction(() => window.micropolisTestHook !== undefined);
-    await this.holdDriver();
+    await this.page.evaluate(() => window.micropolisTestHook!.untilHeldAtStart());
+  }
+
+  // Has every page opened from now on hold its driver as it starts, before any city it starts or joins takes a step
+  private async holdEachPageAtStart(): Promise<void> {
+    if (!this.holdingAtStart) {
+      await this.page.addInitScript(() => {
+        window.micropolisHoldDriverAtStart = true;
+      });
+      this.holdingAtStart = true;
+    }
   }
 
   // The hook's advance, counting the steps it took even when it fails

@@ -61,7 +61,7 @@ test("the playthrough", async ({page}) => {
 
   const e2eDirectory = test.info().config.rootDir;
   const report = new Report(join(e2eDirectory, "..", "e2e-report"), SEED);
-  const player = new Player(page, PLAYER_NAME);
+  const player = new Player(page, {signInAs: PLAYER_NAME, server});
   let golden: GoldenPlaythrough | null = null;
   let totalSteps = 0;
   const failures: string[] = [];

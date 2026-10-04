@@ -52,6 +52,7 @@ export class WebSocketCitySource implements CitySource {
       flush: () => this.done((id) => ({type: "flush", id})),
       advance: (steps) => this.request((id) => ({type: "advance", id, steps})),
       cityTime: () => this.request((id) => ({type: "cityTime", id})),
+      savedGame: () => this.request((id) => ({type: "savedGame", id})),
     });
   }
 
@@ -101,7 +102,8 @@ export class WebSocketCitySource implements CitySource {
   // A shared city steps whether or not this player can see it, so the server is never told
   setViewerVisible(): void {}
 
-  save(): Promise<string> {
+  // The city is kept in the server's store, the one place it is kept, and the save resolves once it is
+  save(): Promise<null> {
     return this.request((id) => ({type: "save", id}));
   }
 

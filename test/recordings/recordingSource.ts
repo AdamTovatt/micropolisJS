@@ -48,6 +48,7 @@ export class RecordingSource implements CitySource {
             flush: () => this.record("flush", [], () => recorded.driver.flush()),
             advance: (steps) => this.record("advance", [steps], () => recorded.driver.advance(steps)),
             cityTime: () => this.record("cityTime", [], () => recorded.driver.cityTime()),
+            savedGame: () => this.record("savedGame", [], () => recorded.driver.savedGame()),
         });
     }
 
@@ -99,7 +100,7 @@ export class RecordingSource implements CitySource {
         this.recorded.setViewerVisible(visible);
     }
 
-    save(): Promise<string> {
+    save(): Promise<string | null> {
         return this.record("save", [], () => this.recorded.save());
     }
 

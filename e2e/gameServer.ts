@@ -12,9 +12,14 @@
  */
 
 import { Page, test, WebSocketRoute } from "@playwright/test";
+import { DatabaseSync } from "node:sqlite";
 import { join } from "path";
 
-import { START_SERVER_TIMEOUT_MS, startTestServer, TestServer, TestServerClock } from "../test/helpers/testServer";
+import type { CityClient } from "../src/cityClient";
+import {
+  memorySessionStore, NodeCityEnvironment, signedInClient, START_SERVER_TIMEOUT_MS, startTestServer, TestServer,
+  TestServerClock,
+} from "../test/helpers/testServer";
 
 // The game server a spec plays the page against: the server's Debug build, which test/helpers/testServer.ts starts with
 // a city database of its own on a port the system picks, never one already on the machine. The page is served as in
@@ -32,11 +37,80 @@ export interface Forwarded {
   stop(): Promise<void>;
 }
 
+// The name the client watching who is online signs in under, which no spec's player has
+const OBSERVER_NAME = "Observer";
+
+// How long a player who closed their pages may stay online: their leaving saves their city to the store if they were
+// its last player, which takes a moment, not seconds
+const OFFLINE_TIMEOUT_MS = 10000;
+
+// The client watching who is online, and the waits on it, each told of every change
+interface Observer {
+  client: CityClient;
+  environment: NodeCityEnvironment;
+  waiting: Set<() => void>;
+}
+
 export class GameServer {
   // Each page's forwarding in the running test, which the test stops before its pages close
   private forwarding: Forwarded[] = [];
+  // A client signed in to watch who is online, once a spec has asked. It stays signed in until the server stops, so the
+  // players' online lists show it from then on, the same on every run.
+  private observer: Promise<Observer> | null = null;
 
   private constructor(private readonly server: TestServer) {}
+
+  // Resolves once the server lists no player of the name online, which it does only once each of their connections has
+  // left its city, and the last player's leaving has saved the city to the store and unloaded it. Fails, naming the
+  // player, when they are still online after a while.
+  async untilOffline(name: string): Promise<void> {
+    const {client, waiting} = await this.observe();
+    const offline = () => {
+      const status = client.getStatus();
+      return status.online && !status.players.some((player) => player.name === name);
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      const check = () => {
+        if (offline()) {
+          done();
+          resolve();
+        }
+      };
+      const timeout = setTimeout(() => {
+        done();
+        reject(new Error(`${name} was still online ${OFFLINE_TIMEOUT_MS} ms on`));
+      }, OFFLINE_TIMEOUT_MS);
+      const done = () => {
+        clearTimeout(timeout);
+        waiting.delete(check);
+      };
+
+      waiting.add(check);
+      check();
+    });
+  }
+
+  // The saved game the server's store keeps for the city, or null when it keeps none, as the server last wrote it
+  storedCity(city: string): string | null {
+    const database = new DatabaseSync(this.server.database, {readOnly: true});
+    try {
+      const row = database.prepare("SELECT saved_game FROM cities WHERE id = ?").get(city) as {saved_game: string} | undefined;
+      return row?.saved_game ?? null;
+    } finally {
+      database.close();
+    }
+  }
+
+  // The observer, signed in the first time it is asked for, which tells each wait on it of every change to who is online
+  private observe(): Promise<Observer> {
+    return this.observer ??= signedInClient(this.server.origin, memorySessionStore(), OBSERVER_NAME).then(
+      ({client, environment}) => {
+        const waiting = new Set<() => void>();
+        client.onStatus(() => waiting.forEach((check) => check()));
+        return {client, environment, waiting};
+      });
+  }
 
   // Starts the server, in a spec's beforeAll, with its cities on the clock given: the debug channel's turns alone, or
   // the server's own
@@ -49,6 +123,7 @@ export class GameServer {
 
   async stop(): Promise<void> {
     await this.stopForwarding();
+    (await this.observer)?.environment.close();
     await this.server.stop();
   }
 

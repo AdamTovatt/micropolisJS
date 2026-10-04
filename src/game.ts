@@ -15,6 +15,7 @@ import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetChoice, BudgetWindow } from "./budgetWindow";
 import type { Presence } from "./cityClient";
 import { linkToCity } from "./cityLink";
+import { saveCity } from "./citySave";
 import type { CitySource, StartedCity } from "./citySource";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
@@ -295,11 +296,6 @@ export class Game {
     this.animate();
   }
 
-  // The saved game's text
-  save(): Promise<string> {
-    return this.source.save();
-  }
-
   // Calls the listener with each command result from now on, any player's
   onCommandResult(listener: (result: CommandResult) => void): void {
     this.state.on("commandResult", ({result}) => listener(result));
@@ -490,8 +486,7 @@ export class Game {
   // The window opens once the save is written. A save the source can't give, such as one on a server the connection
   // to is down, is said out loud.
   private handleSave(): void {
-    this.save().then((text) => {
-      Storage.saveText(text);
+    saveCity(this.source, Storage).then(() => {
       this.windows.open(this.saveWindow);
     }, (error: unknown) => window.alert(`The city couldn't be saved: ${errorMessage(error)}`));
   }

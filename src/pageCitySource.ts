@@ -39,6 +39,8 @@ export class PageCitySource implements CitySource {
       flush: async () => host.flush(),
       advance: async (steps) => host.advance(steps),
       cityTime: async () => host.cityTime(),
+      // A city in the browser is kept only where the page keeps the text, so the runner's read is the save itself
+      savedGame: async () => host.save(),
     });
   }
 

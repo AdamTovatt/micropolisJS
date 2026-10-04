@@ -72,7 +72,7 @@ function contract(factory: SourceFactory): void {
 
     // The raw values of the city's tiles, as its save holds them
     async function savedTiles(): Promise<number[]> {
-        const save = JSON.parse(await tested.source.save()) as {map: {tiles: number[]}};
+        const save = JSON.parse(await tested.source.driver.savedGame()) as {map: {tiles: number[]}};
         return save.map.tiles;
     }
 
@@ -86,7 +86,7 @@ function contract(factory: SourceFactory): void {
         const other = await factory.create();
         try {
             await other.source.start(start);
-            return await other.source.save();
+            return await other.source.driver.savedGame();
         } finally {
             other.close();
         }
@@ -128,8 +128,9 @@ function contract(factory: SourceFactory): void {
                 .toEqual({type: "rejected", reason: "no city has started"});
         });
 
-        it("refuses to save or give its log", async () => {
+        it("refuses to save, give its save or give its log", async () => {
             await expect(tested.source.save()).rejects.toThrow("No city has started");
+            await expect(tested.source.driver.savedGame()).rejects.toThrow("No city has started");
             await expect(tested.source.commandLog()).rejects.toThrow("No city has started");
         });
 
@@ -162,12 +163,12 @@ function contract(factory: SourceFactory): void {
             await startNewCity("Saved");
             tested.source.send({type: "tool", tool: "road", path: [{x: 30, y: 30}], autoBulldoze: true});
             await tested.run(millisecondsFor(100));
-            const text = await tested.source.save();
+            const text = await tested.source.driver.savedGame();
 
             const other = await factory.create();
             try {
                 expect(await other.source.start({save: text})).toEqual(startedCity("Saved", SEED));
-                expect(await other.source.save()).toBe(text);
+                expect(await other.source.driver.savedGame()).toBe(text);
             } finally {
                 other.close();
             }
@@ -175,7 +176,7 @@ function contract(factory: SourceFactory): void {
 
         it("refuses a save that won't load, and keeps the city it had", async () => {
             await startNewCity();
-            const before = await tested.source.save();
+            const before = await tested.source.driver.savedGame();
             const saved = () => JSON.parse(before) as Record<string, unknown>;
 
             // A failure on the server reaches the page in the C# rules' words
@@ -189,7 +190,7 @@ function contract(factory: SourceFactory): void {
             await expect(tested.source.start({save: JSON.stringify(mapless)}))
                 .rejects.toThrow(factory.onServer ? "The save's map is missing." : TypeError);
 
-            expect(await tested.source.save()).toBe(before);
+            expect(await tested.source.driver.savedGame()).toBe(before);
         });
 
         it("replaces the city it had, the client's copy of it included", async () => {
@@ -442,9 +443,20 @@ function contract(factory: SourceFactory): void {
         });
     }
 
-    it("saves a game whose text is the save format's", async () => {
+    it("gives a save whose text is the save format's", async () => {
         await startNewCity();
 
-        expect(SaveFormat.parse(await tested.source.save())).toMatchObject({name: "Town"});
+        expect(SaveFormat.parse(await tested.source.driver.savedGame())).toMatchObject({name: "Town"});
+    });
+
+    // The server's store keeps a city on the server, as Micropolis.Server.Tests checks, and the page keeps a city in the
+    // browser, as the text its source gives
+    it(factory.onServer ? "saves the city in the server's store, giving no text" : "saves the city as its save's text",
+       async () => {
+        await startNewCity();
+        tested.source.send({type: "tool", tool: "road", path: [{x: 30, y: 30}], autoBulldoze: true});
+        await tested.run(millisecondsFor(100));
+
+        expect(await tested.source.save()).toBe(factory.onServer ? null : await tested.source.driver.savedGame());
     });
 }

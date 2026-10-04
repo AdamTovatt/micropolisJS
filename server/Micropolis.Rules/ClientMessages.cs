@@ -39,6 +39,7 @@ namespace Micropolis.Rules
     [JsonDerivedType(typeof(FlushRequest), "flush")]
     [JsonDerivedType(typeof(AdvanceRequest), "advance")]
     [JsonDerivedType(typeof(CityTimeRequest), "cityTime")]
+    [JsonDerivedType(typeof(SavedGameRequest), "savedGame")]
     [JsonDerivedType(typeof(TurnRequest), "turn")]
     public abstract record ClientMessage;
 
@@ -95,7 +96,8 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("query")] JsonNode? Query) : ClientRequest(Id);
 
     /// <summary>
-    /// The saved game's text of the city the player is in. The answer is the text.
+    /// Keeps the city the player is in in the server's store, as it stands. The answer is null, once the store has kept
+    /// it.
     /// </summary>
     public sealed record SaveRequest(long Id) : ClientRequest(Id);
 
@@ -131,6 +133,12 @@ namespace Micropolis.Rules
     /// The debug channel: the city's time. The answer is a number.
     /// </summary>
     public sealed record CityTimeRequest(long Id) : ClientRequest(Id);
+
+    /// <summary>
+    /// The debug channel: the saved game's text of the city, as the game saves one, which reaches no store. The answer
+    /// is the text.
+    /// </summary>
+    public sealed record SavedGameRequest(long Id) : ClientRequest(Id);
 
     /// <summary>
     /// The debug channel of a server whose cities run on a clock the tests move: moves the clock on by the milliseconds
@@ -169,6 +177,7 @@ namespace Micropolis.Rules
                 ["flush"] = Fields(required: ["id"]),
                 ["advance"] = Fields(required: ["id", "steps"]),
                 ["cityTime"] = Fields(required: ["id"]),
+                ["savedGame"] = Fields(required: ["id"]),
                 ["turn"] = Fields(required: ["id", "milliseconds"]),
             };
 
@@ -218,6 +227,7 @@ namespace Micropolis.Rules
                 "flush" => new FlushRequest(id),
                 "advance" => new AdvanceRequest(id, Number(message, "steps")),
                 "cityTime" => new CityTimeRequest(id),
+                "savedGame" => new SavedGameRequest(id),
                 "turn" => new TurnRequest(id, Number(message, "milliseconds")),
                 _ => throw new InvalidOperationException($"The {type} message has fields but no reading."),
             };

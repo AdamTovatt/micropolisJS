@@ -14,8 +14,9 @@
 import type { CityDriver, CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
 import { AdvanceResult, Command, SPEEDS } from "../src/protocol";
-import { TestHook } from "../src/testHook";
+import { attachDriverToTestHook, installTestHook, TestHook } from "../src/testHook";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
+import { removeWindow, stubWindow } from "./helpers/window";
 import { STEPS_PER_CITY_TIME, YEAR } from "./helpers/cityTimes";
 import { BranchName, NEW_CITY, openTown, ROAD, UNKNOWN_COMMAND } from "./recordings/scenarios";
 
@@ -33,7 +34,6 @@ function gameOn(source: CitySource, state: CityState) {
         sendToolPaths: () => {
             game.toolPaths.splice(0).forEach((command) => source.send(command));
         },
-        save: () => source.save(),
         onCommandResult: (listener: () => void) => state.on("commandResult", listener),
         // Not the tile set's 16 pixels, so the view's tile width is seen to be the canvas's
         gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS, tileWidth: 32,
@@ -50,7 +50,6 @@ function gameOn(source: CitySource, state: CityState) {
 // A game with no city behind it, for a hook whose driver is fake
 const IDLE_GAME = {
     sendToolPaths: () => {},
-    save: async () => "",
     onCommandResult: () => {},
     gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true},
     notificationBar: {dismiss: () => {}},
@@ -88,12 +87,15 @@ async function townWithoutAutoBudget(branch: BranchName<"town">) {
     return hook;
 }
 
+// An advance that took no steps, for a driver whose advances the test doesn't look at
+const NO_STEPS: AdvanceResult = {steps: 0, budgetReviewDue: false, error: null};
+
 // A driver that answers every advance with the result given, and records what it was asked
 class FakeDriver implements CityDriver {
     readonly advances: number[] = [];
     private held = false;
 
-    constructor(private readonly result: AdvanceResult) {}
+    constructor(private readonly result: AdvanceResult, private readonly saved = "") {}
 
     isHeld(): boolean {
         return this.held;
@@ -112,6 +114,10 @@ class FakeDriver implements CityDriver {
         return 0;
     }
 
+    async savedGame(): Promise<string> {
+        return this.saved;
+    }
+
     async advance(steps: number): Promise<AdvanceResult> {
         this.advances.push(steps);
         return this.result;
@@ -122,11 +128,58 @@ describe("the test hook", () => {
 
     afterEach(expectPlayedThrough);
 
+    // The page installs the hook and attaches its source's driver as it starts, before it starts or joins any city
+    describe("as the page starts", () => {
+
+        afterEach(() => {
+            removeWindow();
+        });
+
+        // The page's window, with the runner's request to hold, if it made one, and the hook the page installs on it
+        function startingPage(holdRequested: boolean, driver: CityDriver): TestHook {
+            stubWindow();
+            if (holdRequested) {
+                window.micropolisHoldDriverAtStart = true;
+            }
+
+            installTestHook();
+            attachDriverToTestHook(driver);
+            return window.micropolisTestHook!;
+        }
+
+        it("holds the driver there and then when the runner asked it to", async () => {
+            const driver = new FakeDriver(NO_STEPS);
+
+            const hook = startingPage(true, driver);
+
+            expect(driver.isHeld()).toBe(true);
+            await expect(hook.untilHeldAtStart()).resolves.toBeUndefined();
+        });
+
+        it("leaves the driver alone when the runner didn't ask, and says so to a runner waiting on the hold", async () => {
+            const driver = new FakeDriver(NO_STEPS);
+
+            const hook = startingPage(false, driver);
+
+            expect(driver.isHeld()).toBe(false);
+            await expect(hook.untilHeldAtStart()).rejects.toThrow("The page started without holding its driver");
+        });
+
+        it("fails a runner waiting on a hold that failed, as it failed", async () => {
+            const driver = new FakeDriver(NO_STEPS);
+            driver.hold = () => Promise.reject(new Error("The connection to the server is down"));
+
+            const hook = startingPage(true, driver);
+
+            await expect(hook.untilHeldAtStart()).rejects.toThrow("The connection to the server is down");
+        });
+    });
+
     describe("before a game has started", () => {
 
         it.each(["applyInput", "advance", "save", "cityTime"])("can't %s", async (method) => {
             const hook = new TestHook();
-            hook.attachDriver(new FakeDriver({steps: 0, budgetReviewDue: false, error: null}));
+            hook.attachDriver(new FakeDriver(NO_STEPS));
             const call = {
                 applyInput: () => hook.applyInput(),
                 advance: () => hook.advance(1),
@@ -255,9 +308,10 @@ describe("the test hook", () => {
         });
     });
 
-    it("saves what the game writes to storage, as the object it is", async () => {
+    it("reads the save from the driver, as the object it is", async () => {
         const hook = new TestHook();
-        hook.attach({...IDLE_GAME, save: async () => JSON.stringify({name: "Town", version: 10})});
+        hook.attachDriver(new FakeDriver(NO_STEPS, JSON.stringify({name: "Town", version: 10})));
+        hook.attach(IDLE_GAME);
 
         expect(await hook.save()).toEqual({name: "Town", version: 10});
     });
