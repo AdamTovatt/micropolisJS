@@ -10,9 +10,10 @@
 # city simulation game and its source code (the project or "licensee(s)") as a courtesy of the owner.
 #
 
-# Parks, tiles 40 to 43: the park tool lays one of the four at random on each tile it covers
-# (src/parkTool.js), whatever is beside it, so each is a small garden complete in itself on a
-# mown lawn that runs to every edge, and a stretch of park reads as one lawn.
+# Parks: the park tool lays one of five at random on each tile it covers (src/parkTool.js),
+# whatever is beside it: a garden, tiles 40 to 43, or a fountain, whose four frames 840 to 843
+# the game cycles through (src/animationManager.ts). So each is complete in itself on a mown lawn
+# that runs to every edge, and a stretch of park reads as one lawn.
 
 import math
 import os
@@ -37,6 +38,8 @@ def materials():
         'soil': ts.material('bed', lambda: t.textured('bed', 'bare-soil.png', 0.3, 0.3, tint='a08060', shade=0.8)),
         'bench': ts.material('bench', lambda: t.plain('bench', '7a5232', 0.8)),
         'water': ts.water_material(),
+        'stone': ts.material('stone', lambda: t.mottled('stone', 'd8d2c4', 'bcb4a4', 30)),
+        'spray': ts.material('spray', lambda: t.plain('spray', 'f2f8ff', 0.3)),
     }
 
 
@@ -113,4 +116,41 @@ def park_43():
     tree(rng, 'plant-18', 0.12, 0.84, 0.22)
 
 
-t.render_tiles(__file__, {40: park_40, 41: park_41, 42: park_42, 43: park_43})
+JETS = 8          # the arcs of water from the fountain's upper bowl
+DROPS = 5         # the drops along each arc, a fifth of an arc apart
+JET_TOP = (0.15, 0.17, 0.16, 0.14)   # how high the middle jet reaches in each frame
+
+
+def fountain(frame):
+    # A stone basin on a paved round, with a bowl on a column in its middle: arcs of water fall
+    # from the bowl into the basin, and each frame moves every drop a quarter of the way to the
+    # next one along its arc, so the fourth frame runs on into the first.
+    def build():
+        rng, m = random.Random(840), materials()
+        lawn(m)
+        t.prism(t.circle(0.5, 0.5, 0.36, 48), 0, 0.002, m['path'], name='paving')
+        t.cylinder(0.5, 0.5, 0, 0.022, 0.25, m['stone'], 48)
+        t.cylinder(0.5, 0.5, 0, 0.024, 0.225, m['water'], 48)
+        t.cylinder(0.5, 0.5, 0.024, 0.07, 0.025, m['stone'], 16)
+        t.cylinder(0.5, 0.5, 0.07, 0.082, 0.07, m['stone'], 32)
+        t.cylinder(0.5, 0.5, 0.082, 0.083, 0.06, m['water'], 32)
+        t.strut((0.5, 0.5, 0.08), (0.5, 0.5, JET_TOP[frame]), 0.006, m['spray'])
+        r0, z0, r1, z1, rise = 0.07, 0.085, 0.19, 0.026, 0.05
+        for j in range(JETS):
+            a = 2 * math.pi * (j + 0.5) / JETS
+            for k in range(DROPS):
+                u = (k + frame / 4) / DROPS
+                r, z = r0 + (r1 - r0) * u, z0 + (z1 - z0) * u + 4 * rise * u * (1 - u)
+                t.sphere(0.5 + r * math.cos(a), 0.5 + r * math.sin(a), z, 0.007, m['spray'])
+        for x, y, along in ((0.5, 0.06, 'x'), (0.5, 0.94, 'x'), (0.06, 0.5, 'y'), (0.94, 0.5, 'y')):
+            bench(m, x, y, along)
+        for x, y in ((0.1, 0.1), (0.9, 0.1), (0.1, 0.9), (0.88, 0.88)):
+            t.shrub(rng.choice(BUSHES), x, y, 0.1, 0.035, rng.choice((0, 90)))
+    return build
+
+
+builders = {40: park_40, 41: park_41, 42: park_42, 43: park_43}
+for frame in range(4):
+    builders[840 + frame] = fountain(frame)
+
+t.render_tiles(__file__, builders)

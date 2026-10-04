@@ -33,8 +33,8 @@ BRIDGE_HALF = 0.15   # the rail bridge's half-width
 
 def materials():
     return {
-        'deck': ts.material('rail_deck', lambda: t.weathered(t.textured('rail_deck', 'concrete-facade.png', 0.3,
-                                                                        0.3, shade=0.8), dirt=0.25)),
+        'deck': ts.material('rail_deck', lambda: t.weathered(t.textured('rail_deck', 'concrete-facade.png', 0.25,
+                                                                        0.25, shade=0.8), dirt=0.25, period=1)),
         'girder': ts.material('girder', lambda: t.plain('girder', '5c6670', 0.5, 0.5)),
         'post': ts.material('crossing_post', lambda: t.plain('crossing_post', 'eeeeea', 0.6)),
         'red': ts.material('red', lambda: t.plain('red', 'ff3020')),

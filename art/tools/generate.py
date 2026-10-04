@@ -21,7 +21,7 @@
 applies it to an image already generated, without asking the model again. --flatten evens out
 the broad light falloff the model often bakes in, which bands when the image repeats.
 
-Reads the API key from GEMINI_API_KEY. Needs Pillow. Record what you keep, with its prompt
+Reads the API key from GEMINI_API_KEY. Needs Pillow, and NumPy for --flatten. Record what you keep, with its prompt
 and the model, in the README beside it.
 """
 

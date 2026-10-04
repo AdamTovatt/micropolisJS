@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 import tileart as t  # noqa: E402
 import tilesets as ts  # noqa: E402
 
-# a strip of land along one side; the shore's land side, in the order the shore ends and starts
+# a strip of land along one side: each shore tile and the side its land lies on
 STRIPS = {5: 'N', 9: 'E', 13: 'S', 17: 'W'}
 # water in one corner, land along the two sides away from it
 CORNERS = {7: 0, 11: 3, 15: 2, 19: 1}  # quarter turns from water in the south-west corner

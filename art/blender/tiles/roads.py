@@ -36,7 +36,8 @@ PIECES = {66: 'EW', 67: 'NS', 68: 'NE', 69: 'ES', 70: 'SW', 71: 'NW',
           72: 'NEW', 73: 'NES', 74: 'ESW', 75: 'NSW', 76: 'NESW'}
 BRIDGES = {64: 'EW', 65: 'NS'}
 # the road's sides, then the power line's. 239 is a second north-south road under an east-west
-# line, which no tool lays (tileValues.ts calls it bogus) but the issue asks for, drawn as 78
+# line, which no tool lays (tileValues.ts calls it bogus); it is drawn as 78, so that a map that
+# holds one still shows a road there
 UNDER_POWER = {77: ('EW', 'NS'), 78: ('NS', 'EW'), 239: ('NS', 'EW')}
 LIGHT, HEAVY = 80 - 64, 144 - 64           # from a road tile to its first frame of traffic
 FRAMES = (0, 48, 32, 16)                   # each frame's tile, from the first, in the order shown
@@ -48,8 +49,8 @@ SPAN = 1.15                  # how far a drawbridge's swung span reaches from it
 
 def materials():
     return {
-        'deck': ts.material('deck', lambda: t.weathered(t.textured('deck', 'concrete-facade.png', 0.3, 0.3,
-                                                                   shade=0.9), dirt=0.2)),
+        'deck': ts.material('deck', lambda: t.weathered(t.textured('deck', 'concrete-facade.png', 0.25, 0.25,
+                                                                   shade=0.9), dirt=0.2, period=1)),
         'rail': ts.material('railing', lambda: t.plain('railing', 'b8bcc0', 0.5, 0.4)),
         'pier': ts.material('pier', lambda: t.plain('pier', '8c8a84')),
         'signal': ts.material('signal', lambda: t.plain('signal', '2e3034', 0.5)),

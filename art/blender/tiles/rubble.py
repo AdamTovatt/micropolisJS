@@ -36,17 +36,9 @@ def materials():
         'timber': ts.material('timber', lambda: t.plain('timber', '8a6a48', 0.9)),
         'scorch': ts.material('scorch', lambda: t.textured('scorch', 'bare-soil.png', 0.5, 0.5, tint='a89280',
                                                            shade=0.7)),
-        'smoke': ts.material('smoke', lambda: haze('smoke', 'c8c2ba', 'a29c94')),
-        'dark_smoke': ts.material('dark_smoke', lambda: haze('dark_smoke', '6a6460', '4a4440')),
+        'smoke': ts.material('smoke', lambda: t.haze('smoke', 'c8c2ba', 'a29c94')),
+        'dark_smoke': ts.material('dark_smoke', lambda: t.haze('dark_smoke', '6a6460', '4a4440')),
     }
-
-
-def haze(name, hex_a, hex_b):
-    # smoke: two greys in soft patches, and partly see-through, so a puff reads as a cloud and
-    # not as a stone
-    m = t.mottled(name, hex_a, hex_b, scale=18, rough=1.0)
-    m.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = 0.8
-    return m
 
 
 def flame(name, hex_a, hex_b, strength):
@@ -130,11 +122,12 @@ def explosion(frame):
             glow = flame('glow', 'c03000', 'ff6000', 0.6)
             t.prism(t.circle(0.5, 0.5, FIREBALL[frame] * 1.6, 32), 0, 0.003, glow, name='glow')
             r = FIREBALL[frame]
-            # orange lobes round a yellow heart that shows through at the top
+            # orange lobes round a yellow heart that shows through at the top. Fire and smoke
+            # cast no shadow, as neither does much in the light it gives off or lets through
             for a, k in ((0.3, 0.7), (1.5, 0.62), (2.6, 0.72), (3.8, 0.6), (5.0, 0.68)):
                 rr = r * k
-                bpy_sphere(0.5 + 0.42 * r * math.cos(a), 0.5 + 0.42 * r * math.sin(a), rr, rr * 0.8, hot)
-            bpy_sphere(0.5, 0.5, r * 0.5, r * 0.95, core)
+                t.sphere(0.5 + 0.42 * r * math.cos(a), 0.5 + 0.42 * r * math.sin(a), rr * 0.8, rr, hot, shadow=False)
+            t.sphere(0.5, 0.5, r * 0.95, r * 0.5, core, shadow=False)
         spread, puffs = SMOKE[frame]
         prng = random.Random(8601)
         for i in range(10):
@@ -149,7 +142,8 @@ def explosion(frame):
             for _ in range(5):
                 rr = size * prng.uniform(0.45, 0.65)
                 jx, jy, jz = (prng.uniform(-1, 1) * (size - rr) for _ in range(3))
-                bpy_sphere(x + jx, y + jy, rr, z + jz, m['dark_smoke'] if frame < 5 and i % 2 else m['smoke'])
+                t.sphere(x + jx, y + jy, z + jz, rr, m['dark_smoke'] if frame < 5 and i % 2 else m['smoke'],
+                         shadow=False)
         if FLYING[frame]:
             frng = random.Random(8602)
             for _ in range(14):
@@ -169,16 +163,6 @@ def ball_inside(x, y, r, z, margin=0.01):
     # its top is carried furthest up and right, and no part of it less far than its bottom
     low, high = r - t.SHEAR * (z - r) + margin, 1 - r - t.SHEAR * (z + r) - margin
     return min(max(x, low), high), min(max(y, low), high)
-
-
-def bpy_sphere(x, y, r, z, material):
-    # a ball of fire or smoke of radius r centred at height z; it casts no shadow, as neither
-    # does much in the light it gives off or the light it lets through
-    import bpy
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=r, location=(x, y, z))
-    ob = bpy.context.object
-    ob.data.materials.append(material)
-    ob.visible_shadow = False
 
 
 builders = {44 + i: rubble(44 + i) for i in range(4)}

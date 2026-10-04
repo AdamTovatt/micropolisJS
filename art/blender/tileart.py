@@ -85,6 +85,14 @@ def mottled(name, hex_a, hex_b, scale=12, rough=0.9):
     return m
 
 
+def haze(name, hex_a, hex_b):
+    # smoke: two greys in soft patches, and partly see-through, so a puff reads as a cloud and
+    # not as a stone
+    m = mottled(name, hex_a, hex_b, scale=18, rough=1.0)
+    _bsdf(m).inputs['Alpha'].default_value = 0.8
+    return m
+
+
 def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue=0.0):
     # an image from art/textures spanning width x height world units, repeating beyond.
     # Its hue turns by `hue`, a fraction of the colour wheel, so blue glass can become green
@@ -149,43 +157,26 @@ def tiling_noise(nt, scale, period=1.0, detail=6):
     return noise.outputs['Fac']
 
 
-def tiling_mottle(m, hex_colour, amount, scale=6, period=1.0, low=0.35, high=0.65):
-    # Blend a material's colour toward hex_colour in soft patches of tiling_noise, so a ground
-    # that repeats every tile varies within it without a seam: amount is the most it blends
-    nt = m.node_tree
-    base = _bsdf(m).inputs['Base Color']
-    src = base.links[0].from_socket if base.links else None
-    ramp = nt.nodes.new('ShaderNodeValToRGB')
-    ramp.color_ramp.elements[0].position = low
-    ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
-    ramp.color_ramp.elements[1].position = high
-    ramp.color_ramp.elements[1].color = (amount, amount, amount, 1)
-    nt.links.new(tiling_noise(nt, scale, period), ramp.inputs['Fac'])
-    mix = nt.nodes.new('ShaderNodeMix')
-    mix.data_type = 'RGBA'
-    nt.links.new(ramp.outputs['Color'], mix.inputs['Factor'])
-    if src is not None:
-        nt.links.new(src, mix.inputs['A'])
-    else:
-        mix.inputs['A'].default_value = base.default_value
-    mix.inputs['B'].default_value = (*srgb(hex_colour), 1)
-    nt.links.new(mix.outputs['Result'], base)
-    return m
-
-
-def weathered(m, dirt=0.3, dirt_scale=4, specks=0.0, speck_hex='2a2824'):
-    # darken a material in broad stains, and optionally scatter small specks over it
+def weathered(m, dirt=0.3, dirt_scale=4, specks=0.0, speck_hex='2a2824', period=None):
+    # darken a material in broad stains, and optionally scatter small specks over it. Without a
+    # period the stains spread over each object's own extent; with one they repeat every period
+    # world units (tiling_noise), so a surface that crosses from tile to tile, such as a road,
+    # carries its stains across the edge
     nt = m.node_tree
     base = _bsdf(m).inputs['Base Color']
     src = base.links[0].from_socket
-    stain = nt.nodes.new('ShaderNodeTexNoise')
-    stain.inputs['Scale'].default_value = dirt_scale
-    stain.inputs['Detail'].default_value = 6
+    if period:
+        stain = tiling_noise(nt, dirt_scale, period)
+    else:
+        noise = nt.nodes.new('ShaderNodeTexNoise')
+        noise.inputs['Scale'].default_value = dirt_scale
+        noise.inputs['Detail'].default_value = 6
+        stain = noise.outputs['Fac']
     ramp = nt.nodes.new('ShaderNodeValToRGB')
     ramp.color_ramp.elements[0].position = 0.4
     ramp.color_ramp.elements[0].color = (1 - dirt, 1 - dirt, 1 - dirt * 1.1, 1)
     ramp.color_ramp.elements[1].position = 0.7
-    nt.links.new(stain.outputs['Fac'], ramp.inputs['Fac'])
+    nt.links.new(stain, ramp.inputs['Fac'])
     mul = nt.nodes.new('ShaderNodeMix')
     mul.data_type = 'RGBA'
     mul.blend_type = 'MULTIPLY'
@@ -254,6 +245,15 @@ def cylinder(x, y, z0, z1, r, material, verts=16):
     bpy.context.object.data.materials.append(material)
 
 
+def sphere(x, y, z, r, material, shadow=True):
+    # a ball of radius r centred at (x, y, z); shadow=False for one that casts none, such as smoke
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=r, location=(x, y, z))
+    ob = bpy.context.object
+    ob.data.materials.append(material)
+    ob.visible_shadow = shadow
+    return ob
+
+
 def keep_inside(x, y, reach, height, tiles, margin=0.02):
     # move a point in so that something reaching `reach` from it at `height` stays inside
     # the zone once sheared: the shear carries its top up and to the right
@@ -278,7 +278,9 @@ def _shadow_only(ob):
     return ob
 
 
-def _rotated_rect(x, y, width, depth, turn):
+def rotated_rect(x, y, width, depth, turn):
+    # the corners of a width x depth rectangle centred on (x, y), turned anticlockwise by turn
+    # degrees: width runs east-west and depth north-south before the turn
     a = math.radians(turn)
     return [(x + u * width / 2 * math.cos(a) - v * depth / 2 * math.sin(a),
              y + u * width / 2 * math.sin(a) + v * depth / 2 * math.cos(a))
@@ -338,7 +340,7 @@ def car(name, x, y, turn, base=0.0):
     cutout = f'cars/{name}.png'
     height, w, d = car_size(name)
     _card(cutout, x, y, base + height, max(w, d), turn)
-    body = prism(_rotated_rect(x, y, w * 0.85, d * 0.92, turn), base, base + height - 0.002,
+    body = prism(rotated_rect(x, y, w * 0.85, d * 0.92, turn), base, base + height - 0.002,
                  _shadow_material(), name='car_body')
     _shadow_only(body)
 
@@ -631,7 +633,8 @@ FIT_TOLERANCE = 0.003  # how far a sheared point may stray past the edge: a flat
 def spans_edge(ob):
     # Mark an object that crosses a tile's edge by design, running on into the neighbouring tile
     # that continues it: a power line's wire, a bridge's deck. The fit check passes it. The scene
-    # builds it past the edge by at least its sheared lift, so that where the frame cuts it off,
+    # builds it past the west and south edges by at least its sheared lift, since the shear
+    # carries it in from those, so that where the frame cuts it off,
     # the neighbour's copy of it, built the same way, takes over without a gap.
     ob['spans_edge'] = True
     return ob
@@ -794,23 +797,29 @@ def render(scene, out_dir, tiles, samples=192,
         f.write('\n')
 
 
-def render_tiles(script, builders, **render_args):
+def _wanted():
+    # the numbers listed after the output directory on the command line (`-- <directory>
+    # 66,70-75`), or None when none are
+    import sys
+    if '--' not in sys.argv or len(sys.argv) <= sys.argv.index('--') + 2:
+        return None
+    wanted = set()
+    for part in sys.argv[sys.argv.index('--') + 2].split(','):
+        first, _, last = part.partition('-')
+        wanted.update(range(int(first), int(last or first) + 1))
+    return wanted
+
+
+def render_tiles(script, builders):
     # Render a set of single tiles, such as every road piece: builders maps a tile id, as
     # src/tileValues.ts numbers them, to a function that builds that tile's scene, from nothing,
     # with the tile's south-west corner at the origin. Each renders as a zone of one tile into
     # <out>/<id, four digits>, where <out> is out_dir(script). Ids after the directory on the
     # command line (`-- <directory> 66,70-75`) render only those.
-    import sys
-    out = out_dir(script)
-    wanted = None
-    if '--' in sys.argv and len(sys.argv) > sys.argv.index('--') + 2:
-        wanted = set()
-        for part in sys.argv[sys.argv.index('--') + 2].split(','):
-            first, _, last = part.partition('-')
-            wanted.update(range(int(first), int(last or first) + 1))
+    out, wanted = out_dir(script), _wanted()
     for tile, build in sorted(builders.items()):
         if wanted is not None and tile not in wanted:
             continue
         scene = new_scene()
         build()
-        render(scene, os.path.join(out, f'{tile:04d}'), tiles=1, **render_args)
+        render(scene, os.path.join(out, f'{tile:04d}'), tiles=1)

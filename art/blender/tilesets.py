@@ -310,7 +310,7 @@ def dashed(points, m, z, width=LINE, period=PERIOD, dash=DASH):
 def road_materials():
     return {
         'asphalt': material('asphalt', lambda: t.weathered(
-            t.textured('asphalt', 'asphalt.png', 0.25, 0.25, shade=1.1), dirt=0.12, dirt_scale=3)),
+            t.textured('asphalt', 'asphalt.png', 0.25, 0.25, shade=1.1), dirt=0.12, dirt_scale=3, period=1)),
         'pavement': material('pavement', lambda: t.textured('pavement', 'paving-slabs.png', 0.125, 0.125,
                                                            tint='fff8ec', shade=1.5)),
         'kerb': material('kerb', lambda: t.plain('kerb', 'c9c5bc')),
@@ -491,7 +491,7 @@ def track(sides, base=0.0, past=None):
 
 
 CARS = [f'car-{i:02d}' for i in range(1, 22) if f'car-{i:02d}' not in t.VANS]
-TRAFFIC = {'light': (1, 0.0, 0.1), 'heavy': (2, 0.3, 0.05)}  # cars to a lane, their spacing, a frame's step
+TRAFFIC = {'light': (0.5, 1), 'heavy': (0.25, 2)}  # the cars' spacing along a lane, and the kinds of car in turn
 
 
 def _heading(direction):
@@ -511,27 +511,26 @@ def _car_fits(name, point, direction, base):
 
 
 def traffic(paths, density, frame, seed, base=0.0):
-    # The cars of one of a road's four traffic frames, on ground at height base: in each lane, as
-    # many as `density` gives, which move on by a step each frame and are back where they began
-    # after the fourth, the way the game cycles the frames. Every car stays inside the tile in
-    # every frame. The cars and where they start come from seed alone, so all four frames show
-    # the same cars.
+    # The cars of one of a road's four traffic frames, on ground at height base. Each lane is a
+    # stream of cars evenly spaced, the kinds of car taking turns, which moves on by a quarter of
+    # as many spacings as there are kinds each frame: after the fourth frame every car stands
+    # where one of its kind stood in the first, so the game's cycle of the frames runs on without
+    # a jump back. A car shows wherever it is wholly inside the tile, so cars come in at one end
+    # and leave at the other. The cars and the stream's phase come from seed alone, so all four
+    # frames show the same stream.
     rng = random.Random(seed)
-    count, spacing, step = TRAFFIC[density]
+    spacing, kinds = TRAFFIC[density]
+    step = spacing * kinds / 4
     for path in paths:
-        names = rng.sample(CARS, count)
+        names = rng.sample(CARS, kinds)
+        phase = rng.uniform(0, spacing * kinds)
         total = length(path)
-        for n in range(count, 0, -1):
-            starts = [i / 100 for i in range(101)
-                      if all(i / 100 + j * spacing + k * step <= total and
-                             _car_fits(names[j], *along(path, i / 100 + j * spacing + k * step), base)
-                             for j in range(n) for k in range(4))]
-            if starts:
-                break
-        if not starts:
-            continue
-        s0 = rng.choice(starts)
-        for j in range(n):
-            point, direction = along(path, s0 + j * spacing + frame * step)
-            t.car(names[j], point[0], point[1], _heading(direction), base=base)
+        for i in range(-2 * kinds, int(total / spacing) + 2):
+            s = phase + i * spacing + frame * step
+            if not 0 <= s <= total:
+                continue
+            name = names[i % kinds]
+            point, direction = along(path, s)
+            if _car_fits(name, point, direction, base):
+                t.car(name, point[0], point[1], _heading(direction), base=base)
 

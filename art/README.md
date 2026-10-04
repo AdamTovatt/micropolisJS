@@ -1,6 +1,6 @@
 # Art
 
-Sources for rendering the game's tile art in Blender, one zone at a time. Every image here ships with the game's source, so its generator's or author's terms must allow distribution under GPLv3 (`LICENSE`).
+Sources for rendering the game's tile art in Blender, one zone or one set of single tiles at a time. Every image here ships with the game's source, so its generator's or author's terms must allow distribution under GPLv3 (`LICENSE`).
 
 - `references/`: concept sheets of whole zones that the scenes are modelled on, described in `references/README.md`.
 - `textures/`: seamless surface textures (roofs, paving, glass, grass). Their rules and provenance are in `textures/README.md`.
@@ -36,13 +36,14 @@ blender --background --python art/blender/tiles/roads.py -- art/blender/out/road
 - `land.py`: bare land, tile 0.
 - `water.py`: open water and the river's shores, 2 to 20.
 - `woods.py`: woods and their edges, 21 to 37.
-- `parks.py`: the park tool's four tiles, 40 to 43.
+- `parks.py`: what the park tool lays: the gardens, 40 to 43, and the fountain, 840 to 843.
 - `rubble.py`: rubble, 44 to 47, and the bulldozer's small explosion, 860 to 867.
 - `roads.py`: road pieces, bridges, roads under power lines and the traffic on them, 64 to 207 and 239, and the open drawbridges, 828 to 831 and 948 to 951.
 - `power.py`: power lines, 208 to 220, and the unpowered zone's warning, 827.
-- `rail.py`: rail, its bridges and crossings, 221 to 238.
+- `rail.py`: rail, its bridges and crossings, 221, 222 and 224 to 238.
+- `houses.py`: the single-tile houses a residential zone grows, 249 to 260.
 
-A set of edge tiles, such as the shores or the road pieces, is one scene with a variant for each pattern of neighbours the game gives it, in which everything that reaches the tile's edge meets it at the same place, width and height, and every ground texture repeats a whole number of times across the tile, so any two tiles side by side join without a seam. Animated tiles are one tile id per frame.
+A set of edge tiles, such as the shores or the road pieces, is one scene with a variant for each pattern of neighbours the game gives it, in which everything that reaches the tile's edge meets it at the same place, width and height, and every ground texture and stain repeats a whole number of times across the tile, so any two tiles side by side join without a seam. Animated tiles are one tile id per frame.
 
 ## Layers
 
@@ -58,14 +59,14 @@ The game draws every zone's ground, then the shadow layers merged by taking the 
 python art/tools/preview.py city.png commercial_glass_tower,residential_apartment_slabs commercial_office_park,
 ```
 
-Each argument after the output is a row of zone names; an empty name is bare lawn. A number is a single tile's id, so a grid of ids previews a strip of map, and `--original` writes the same grid from the game's 16 px tiles beside it. It needs Pillow.
+Each argument after the output is a row of zone names; an empty name is bare lawn. A number is a single tile's id, so a grid of ids previews a strip of map, and `--original` also writes the same grid from the game's 16 px tiles, to `<out>-original.png`. Every entry in one preview must be the same size, so a grid holds tiles or zones, not both. It needs Pillow.
 
 ## Conventions
 
 - **Units.** One world unit is one tile. A scene puts its zone's south-west corner at the origin, with x east and y north.
 - **The view.** The camera looks straight down, and `render()` shears every point up and to the right by `SHEAR` times its height, so the ground grid stays square and the west and south walls show, as in the original tiles. The sun's direction is sheared by the same amount, which keeps every shadow exactly where an upright scene would cast it.
 - **Size.** A zone renders at `TILE_PX` pixels per tile, rendered at twice that and scaled down.
-- **Fit.** Nothing but a shadow may reach past the zone's edge, sheared tops included: the game draws each tile on its own. `render()` fails, naming the objects, when anything the camera sees stands past the edge. `keep_inside()` moves a tree in from the edge. The one exception is something that crosses a tile's edge by design, running on into the neighbour that continues it, such as a power line's wire or a bridge's deck: `spans_edge()` marks it, and the scene builds it past the edge by at least its sheared lift, so where the frame cuts it off the neighbour's copy takes over.
+- **Fit.** Nothing but a shadow may reach past the zone's edge, sheared tops included: the game draws each tile on its own. `render()` fails, naming the objects, when anything the camera sees stands past the edge. `keep_inside()` moves a tree in from the edge. The one exception is something that crosses a tile's edge by design, running on into the neighbour that continues it, such as a power line's wire or a bridge's deck: `spans_edge()` marks it, and the scene builds it past the west and south edges by at least its sheared lift, so where the frame cuts it off the neighbour's copy takes over.
 - **Neighbours' shade.** A tile's objects are lit as if nothing stood beside it, so trees along a tile's sunny edges come out brighter than the rest, marking out the grid in a forest. `neighbours_shade()` marks a stand-in for a neighbour's object, which shades this tile's objects as the neighbour's would but is never seen and casts nothing in the shadow layer.
 - **No streets.** A zone holds no road that runs to its edge: roads are what the player builds between zones, and a street drawn into a zone would end at its neighbour. Footpaths, car parks and the drives inside them are fine.
 - **Light.** One warm sun from the north-west and a weak blue sky, set in `render()` so every zone is lit alike.
