@@ -170,6 +170,7 @@ def members(job):
 
 
 FRAMES = '-frames'             # a zone's animation frames, as the job <zone>-frames (prep_frames())
+MARK_MARGIN = 3                # pixels round a moving mark that change with it, from the painted surface (build_frames())
 
 
 def subject(job):
@@ -198,8 +199,8 @@ def prompts(job, paving, style_from_full=False):
                 f'still, {STYLE} Repaint the first image cell by cell in exactly the style, brushwork and colours '
                 f'of the second: whatever is the same in a cell of the two images stays exactly as the second paints '
                 f'it, and only what moves between the frames, such as smoke, a turning aerial, a spinning sign or '
-                f'the players and the ball, is painted where and as the first image shows it. Keep the grid, every '
-                f'cell, every shape and the camera. No text, no borders.')
+                f'the players and the ball, is painted where and as the first image shows it. {paving} Keep the '
+                f'grid, every cell, every shape and the camera. No text, no borders.')
     return {'full': full, 'ground': ground, 'shadow': SHADOW}
 
 
@@ -426,12 +427,14 @@ def hold_ground(painted, blender):
 
 
 def with_letters(painted, rendered, asset, layer):
-    # the layer with the render's own pixels wherever its <layer>-letters.png mask shows a zone
-    # letter, which render() in tileart writes for every layer that holds one
-    path = os.path.join(RENDERS, asset, f'{layer}-letters.png')
-    if not os.path.exists(path):
-        return painted
-    return Image.composite(rendered, painted, Image.open(path).getchannel('A'))
+    # the layer with the render's own pixels wherever its <layer>-letters.png or <layer>-marks.png
+    # mask shows a zone letter or a mark, which render() in tileart writes for every layer that
+    # holds one
+    for kind in ('letters', 'marks'):
+        path = os.path.join(RENDERS, asset, f'{layer}-{kind}.png')
+        if os.path.exists(path):
+            painted = Image.composite(rendered, painted, Image.open(path).getchannel('A'))
+    return painted
 
 
 def thick(mask):
@@ -441,6 +444,14 @@ def thick(mask):
     # outside these parts is taken from the render.
     disk = ndimage.generate_binary_structure(2, 1)
     return ndimage.binary_dilation(ndimage.binary_opening(mask, disk, iterations=THIN), disk)
+
+
+def _marks(asset, shape):
+    # where the render's objects-marks.png shows a mark, or nowhere if it has none
+    path = os.path.join(RENDERS, asset, 'objects-marks.png')
+    if not os.path.exists(path):
+        return np.zeros(shape, bool)
+    return np.asarray(Image.open(path).getchannel('A')) > 0
 
 
 def match(values, target):
@@ -704,17 +715,33 @@ def build_frames(job):
     still_shadow = np.asarray(layers['shadow'].getchannel('A')).astype(int)
     painted_shadow = np.asarray(painted['shadow'].getchannel('A'))
     sm = info['shadow_margin']
+    # A mark that moves, such as the nuclear plant's turning atom, comes from each frame's render
+    # as a letter does: painted, it changes shape from frame to frame. Where the still's mark
+    # stood and the frame's doesn't, the frame shows the surface under it, the nearest painted
+    # pixel that isn't the mark
+    still_marks = _marks(zone, still.shape[:2])
+    surface = np.asarray(painted['objects']).copy()
+    if still_marks.any():
+        _, (iy, ix) = ndimage.distance_transform_edt(ndimage.binary_dilation(still_marks, iterations=MARK_MARGIN),
+                                                     return_indices=True)
+        surface[..., :3] = surface[iy, ix, :3]
     for i, k in enumerate(canvas['frames']):
         finfo, flayers = frames[k]
         x, y = (i % cols) * cell + gap // 2, (i // cols) * cell + gap // 2
         crop = np.asarray(painting.crop((x, y, x + w, y + h)))
         mine = np.asarray(flayers['objects']).astype(int)
         moves = ndimage.binary_dilation(np.abs(mine - still).max(axis=-1) > 6)
+        # with the pixels round them, where the mark's own small shadows move with it
+        marked = ndimage.binary_dilation(still_marks | _marks(f'{zone}/frame-{k}', still.shape[:2]),
+                                         iterations=MARK_MARGIN)
         objects = np.asarray(painted['objects']).copy()
+        objects[marked, :3] = surface[marked, :3]
         region = objects[box[1]:box[3], box[0]:box[2]]
-        inside = moves[box[1]:box[3], box[0]:box[2]]
+        inside = (moves & ~marked)[box[1]:box[3], box[0]:box[2]]
         region[inside, :3] = crop[inside]
         objects[..., 3] = mine[..., 3]
+        objects = np.asarray(with_letters(Image.fromarray(objects, 'RGBA'), flayers['objects'],
+                                          f'{zone}/frame-{k}', 'objects'))
         # the frame's shadow, pixel by pixel against the still's, lined up by their margins
         fm = finfo['shadow_margin']
         frame_shadow = np.asarray(flayers['shadow'].getchannel('A')).astype(int)
@@ -738,7 +765,8 @@ def build_frames(job):
         with open(os.path.join(out, 'painting.json'), 'w') as f:
             json.dump({'job': job, 'still': zone, 'paintings': {'full': record['full']}}, f, indent=2)
             f.write('\n')
-        print(f'{zone}/frame-{k}: {moves.mean():.1%} of the zone from the frames\' painting')
+        print(f'{zone}/frame-{k}: {(moves & ~marked).mean():.1%} of the zone from the frames\' painting, '
+              f'{marked.mean():.1%} from its marks')
 
 
 if __name__ == '__main__':
@@ -748,7 +776,8 @@ if __name__ == '__main__':
                                            'none, and joins every painted single tile')
     p.add_argument('--only', help='paint: the inputs to paint, comma-separated; by default those prep found the '
                                   'job needs')
-    p.add_argument('--paving', help="paint: the sentence naming what the job's ground is made of")
+    p.add_argument('--paving', help="paint: the sentence naming what the job's ground is made of, or for a frames "
+                                    "job, how what moves looks")
     p.add_argument('--model', default=MODEL)
     p.add_argument('--style-from-full', action='store_true',
                    help="paint: give the ground the job's full painting as a second reference, to copy its brushwork")

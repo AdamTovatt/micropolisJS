@@ -80,8 +80,9 @@ def build(frame):
                 y + 0.24 * math.cos(s) * math.sin(a) + 0.08 * math.sin(s) * math.cos(a))
                for s in (i * 2 * math.pi / 24 for i in range(25))]
         for p, q in zip(pts, pts[1:]):
-            t.strut((p[0], p[1], z + 0.004 + k * 0.002), (q[0], q[1], z + 0.004 + k * 0.002), 0.008, m['atom'])
-    t.cylinder(x, y, z, z + 0.012, 0.04, m['core'], 20)
+            t.mark(t.strut((p[0], p[1], z + 0.004 + k * 0.002), (q[0], q[1], z + 0.004 + k * 0.002), 0.008,
+                           m['atom']), 'atom')
+    t.mark(t.cylinder(x, y, z, z + 0.012, 0.04, m['core'], 20), 'atom_core')
     t.building([(2.2, 0.4), (3.8, 0.4), (3.8, 1.95), (2.2, 1.95)], 0.2, m['grey_facade'], m['roof'], m['rim'])
     t.strut((1.83, 1.42, 0.1), (2.2, 1.42, 0.1), 0.04, m['steel'])
 

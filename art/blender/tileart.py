@@ -262,6 +262,7 @@ def box(x0, y0, z0, x1, y1, z1, side, top=None, name='box'):
 def cylinder(x, y, z0, z1, r, material, verts=16):
     bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=z1 - z0, location=(x, y, (z0 + z1) / 2))
     bpy.context.object.data.materials.append(material)
+    return bpy.context.object
 
 
 def frustum(x, y, z0, z1, r0, r1, material, verts=32):
@@ -744,6 +745,14 @@ def roof_clutter(areas, z, rng, unit, fan, count=6, avoid=()):
                 cylinder(vx, vy, z, z + 0.018, 0.009, unit, 10)
 
 
+def mark(ob, name):
+    # Name an object as part of a mark that tells the zone apart as its letter does, such as the
+    # nuclear plant's atom: render() masks it, and a painting takes it from the render, since the
+    # model redraws a symbol as freely as a letter
+    ob.name = 'mark_' + name
+    return ob
+
+
 def zone_letter(letter, cx, cy, z, height, material, thickness=0.03):
     # A zone's letter in LETTER_FONT, `height` tall and centred on (cx, cy), standing
     # `thickness` proud of a roof or the ground at z so it casts a shadow
@@ -995,22 +1004,24 @@ def render(scene, out_dir, tiles, samples=192,
         json.dump({'tiles': tiles, 'tile_px': TILE_PX, 'shadow_margin': margin}, f, indent=2)
         f.write('\n')
 
-    # the zone letters of each layer that holds any, as a mask whose alpha is where the camera
-    # sees them, into <layer>-letters.png: a painting of the zone takes its letters from the
-    # render through it (art/tools/paint.py). Rendered after the layers, so they come out exactly
-    # as they would without it
-    letters = [ob for ob in meshes if ob.name.startswith('letter_')]
-    for layer, members in (('ground', ground), ('objects', standing)):
-        mine = [ob for ob in letters if ob in members]
-        if not mine:
-            continue
-        for ob in meshes:
-            ob.hide_render = ob not in members
-            ob.is_holdout = ob not in mine
-        scene.cycles.samples = 16
-        scene.render.film_transparent = True
-        _frame(scene, cam, 0, 0, tiles, tiles)
-        _render_to(scene, os.path.join(out_dir, f'{layer}-letters.png'))
+    # the zone letters of each layer that holds any, and apart from them the marks that tell a
+    # zone apart as a letter does (mark()), each as a mask whose alpha is where the camera sees
+    # them, into <layer>-letters.png and <layer>-marks.png: a painting of the zone takes them from
+    # the render through it (art/tools/paint.py), and a mark that moves takes the surface it
+    # uncovers too. Rendered after the layers, so they come out exactly as they would without it
+    for kind, prefix in (('letters', 'letter_'), ('marks', 'mark_')):
+        shapes = [ob for ob in meshes if ob.name.startswith(prefix)]
+        for layer, members in (('ground', ground), ('objects', standing)):
+            mine = [ob for ob in shapes if ob in members]
+            if not mine:
+                continue
+            for ob in meshes:
+                ob.hide_render = ob not in members
+                ob.is_holdout = ob not in mine
+            scene.cycles.samples = 16
+            scene.render.film_transparent = True
+            _frame(scene, cam, 0, 0, tiles, tiles)
+            _render_to(scene, os.path.join(out_dir, f'{layer}-{kind}.png'))
     for ob in meshes:
         ob.hide_render = False
         ob.is_holdout = False

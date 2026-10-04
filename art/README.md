@@ -79,7 +79,7 @@ A zone renders as three layers, so its shadows can fall across its neighbours wi
 - `shadow.png`: black, whose alpha is the shadow everything standing casts onto flat ground. It reaches past the zone, by whole tiles, as far as the zone's longest shadow does; `layers.json` records how far on each side.
 - `objects.png`: everything standing (buildings, trees, cars) over transparency, with the shadows the zone casts on its own objects.
 
-Beside them, `<layer>-letters.png` masks the zone letters of each layer that holds any, its alpha where the camera sees them: the painted layers take their letters from the render through it (`painted/README.md`). It is rendered after the layers, which come out exactly as without it.
+Beside them, `<layer>-letters.png` masks the zone letters of each layer that holds any, its alpha where the camera sees them, and `<layer>-marks.png` the marks that tell a zone apart as a letter does, such as the nuclear plant's atom, which `mark()` names: the painted layers take both from the render through them (`painted/README.md`). They are rendered after the layers, which come out exactly as without them.
 
 The game draws every zone's ground, then the shadow layers merged by taking the darkest at each pixel, so overlapping shadows never darken twice, then every zone's objects. A shadow therefore falls across a neighbour's ground but never on its buildings, trees or cars. `tools/preview.py` composites rendered zones in that order, in a grid:
 

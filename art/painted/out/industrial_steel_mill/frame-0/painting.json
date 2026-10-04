@@ -1,0 +1,14 @@
+{
+  "job": "industrial_steel_mill-frames",
+  "still": "industrial_steel_mill",
+  "paintings": {
+    "full": {
+      "prompt": "The first image is a grid of the frames of an animation of part of an industrial city zone, seen from directly above, rendered. The second image is the same grid with the same place already painted, standing still, as a cosy oil painting of a lovely summer day: visible brushstrokes and soft impasto texture, painterly but clear, warm soft daylight, rich but natural colours, lush summer greens. Repaint the first image cell by cell in exactly the style, brushwork and colours of the second: whatever is the same in a cell of the two images stays exactly as the second paints it, and only what moves between the frames, such as smoke, a turning aerial, a spinning sign or the players and the ball, is painted where and as the first image shows it. Keep the grid, every cell, every shape and the camera. No text, no borders.",
+      "model": "gemini-3-pro-image",
+      "references": [
+        "in-full",
+        "ref-full"
+      ]
+    }
+  }
+}
