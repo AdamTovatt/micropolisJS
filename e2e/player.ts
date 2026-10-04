@@ -298,6 +298,18 @@ export class Player {
     }));
   }
 
+  // A screenshot of the page showing nothing but the map's canvas: the panels over it, the marks and the panels' drop
+  // shadows hidden for it
+  async mapScreenshot(): Promise<Buffer> {
+    const style = await this.page.addStyleTag({content: `body * { visibility: hidden; } ${CANVAS} { visibility: visible; }`});
+    try {
+      await this.settle();
+      return await this.page.screenshot();
+    } finally {
+      await style.evaluate((element) => (element as Element).remove());
+    }
+  }
+
   // Dismisses the notification bar through the hook. It closes on wall time, and has no control a player could close it
   // with: a click on it centres the map on the place it names.
   async dismissNotification(): Promise<void> {

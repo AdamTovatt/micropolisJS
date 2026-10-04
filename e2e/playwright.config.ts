@@ -36,8 +36,11 @@ export default defineConfig({
     trace: "retain-on-failure",
     // Chromium re-rasters only the part of a tile a frame damaged, and which part that is depends on the frames' timing:
     // an edge anti-aliased at a damaged area's border can come out a shade apart from a whole tile's raster. Rastering
-    // whole tiles keeps a stage's screenshot the same on every run.
-    launchOptions: {args: ["--disable-partial-raster"]},
+    // whole tiles keeps a stage's screenshot the same on every run. WebGL draws through ANGLE's SwiftShader backend
+    // named outright: by default headless Chromium reads each frame of the map's canvas back on the page's thread to
+    // composite it, which holds the thread most of each frame and leaves the game's ticks too little of it to see a key
+    // press between its keydown and keyup.
+    launchOptions: {args: ["--disable-partial-raster", "--use-angle=swiftshader"]},
   },
   webServer: {
     command: `npx webpack serve --mode production --port ${port} --no-hot --no-live-reload --no-client`,

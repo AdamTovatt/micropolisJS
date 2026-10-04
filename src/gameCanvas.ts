@@ -13,31 +13,18 @@
 
 import { AnimationManager } from "./animationManager";
 import { placeNewCanvas, requiredElement } from "./domElements";
+import { FrameRecord, MapFrame, buildMapFrame } from "./mapFrame";
+import type { FrameTiles } from "./mapFrame";
 import { drawBoxLabel, drawMouseBox } from "./mouseBox";
-import type { MouseBoxRect } from "./mouseBox";
-import { CanvasOverlay } from "./overlayRenderer";
 import type { OverlayView } from "./overlayRenderer";
-import { PaintRecord } from "./paintRecord";
-import type { TileRect } from "./paintRecord";
-import type { SpriteView } from "./protocol";
-import type { TileSet } from "./tileSet";
-import { TILE_INVALID } from "./tileValues";
+import { SPRITE_PIXELS_PER_TILE } from "./paintable";
+import type { PaintableMap, PaintableSprite } from "./paintable";
+import type { MapArt } from "./renderAssets";
+import type { RenderArt } from "./renderManifest";
+import { BIT_MASK } from "./tileFlags";
 import { ViewPosition, canvasPointToTile, viewport } from "./viewPosition";
 import type { OriginLimits, PixelPoint, TilePoint } from "./viewPosition";
-
-// What the canvas reads of the map
-interface PaintableMap {
-  readonly width: number;
-  readonly height: number;
-  testBounds(x: number, y: number): boolean;
-  getTileValue(x: number, y: number): number;
-  // Fills result, row by row, with the raw values of the w by h tiles from (x, y), TILE_INVALID off the map
-  getTileValuesForPainting(x: number, y: number, w: number, h: number, result: number[]): number[];
-}
-
-// What the canvas reads of a sprite: the square it is drawn in, width map pixels a side from map pixel (x, y), and its
-// type and frame, which count from 1, as a sprites message gives them
-type PaintableSprite = Readonly<SpriteView>;
+import { WebGLRenderer } from "./webglRenderer";
 
 // A tool's outline. x and y are the tile under the mouse, in tile offsets from the view's origin: the top-left of a
 // tool up to 2x2, and one tile in from the top-left of a bigger one. width and height are tiles. label is the name of
@@ -52,64 +39,18 @@ interface MouseOutline {
   label: {name: string, colour: string} | null;
 }
 
-// Where a tool's outline is drawn, or null if it is off the map, and the tiles it covers
-interface MouseOutlineLayout {
-  box: {pos: PixelPoint, width: number, height: number} | null;
-  damage: TileRect;
+// Where a tool's outline is drawn, in CSS pixels from the canvas's top-left
+interface MouseOutlineBox {
+  pos: PixelPoint;
+  width: number;
+  height: number;
 }
 
-// The pixels each sprite takes on the sprite sheet, in each direction: a sheet row per type, a column per frame
-const SPRITE_CELL = 48;
+// Where the outline is drawn, at tileWidth CSS pixels a tile, or null for an outline of no tiles or off the map, which
+// draws nothing
 
-// Sprites are positioned in map pixels, at 16 a tile whatever the tileset's width
-const SPRITE_PIXELS_PER_TILE = 16;
-
-// Whether a paint must clear the canvas and repaint every tile: the canvas changed size since the last paint
-function mustRepaintAll(width: number, height: number, lastWidth: number, lastHeight: number): boolean {
-  return width !== lastWidth || height !== lastHeight;
-}
-
-// The tiles a sprite drawn with the view's origin at (originX, originY) covers, so they are repainted next time
-function spriteDamage(sprite: PaintableSprite, originX: number, originY: number, tileWidth: number): TileRect {
-  const left = sprite.x - originX * SPRITE_PIXELS_PER_TILE;
-  const top = sprite.y - originY * SPRITE_PIXELS_PER_TILE;
-
-  return {
-    x: Math.floor(left / tileWidth),
-    xBound: Math.ceil((left + sprite.width) / tileWidth),
-    y: Math.floor(top / tileWidth),
-    yBound: Math.ceil((top + sprite.width) / tileWidth),
-  };
-}
-
-// The sprites any part of whose square shows in the view whose top-left tile is (originX, originY), pixelWidth by
-// pixelHeight map pixels, as the original's sprite manager chose the sprites to draw
-function spritesInView(sprites: readonly PaintableSprite[], originX: number, originY: number, pixelWidth: number,
-                       pixelHeight: number): PaintableSprite[] {
-  const startX = originX * SPRITE_PIXELS_PER_TILE;
-  const startY = originY * SPRITE_PIXELS_PER_TILE;
-  const lastX = startX + pixelWidth;
-  const lastY = startY + pixelHeight;
-  const inX = (x: number) => x >= startX && x < lastX;
-  const inY = (y: number) => y >= startY && y < lastY;
-
-  return sprites.filter((sprite) => (inX(sprite.x) || inX(sprite.x + sprite.width)) &&
-                                    (inY(sprite.y) || inY(sprite.y + sprite.width)));
-}
-
-// The tiles a rectangle of canvas pixels covers, any part of them
-function pixelDamage(rect: MouseBoxRect, tileWidth: number): TileRect {
-  return {
-    x: Math.floor(rect.x / tileWidth),
-    xBound: Math.ceil((rect.x + rect.width) / tileWidth),
-    y: Math.floor(rect.y / tileWidth),
-    yBound: Math.ceil((rect.y + rect.height) / tileWidth),
-  };
-}
-
-// The layout of the outline, or null for an outline of no tiles, which draws nothing
 function mouseOutlineLayout(mouse: MouseOutline, originX: number, originY: number, mapWidth: number,
-                            mapHeight: number, tileWidth: number): MouseOutlineLayout | null {
+                            mapHeight: number, tileWidth: number): MouseOutlineBox | null {
   if (mouse.width === 0 || mouse.height === 0) {
     return null;
   }
@@ -123,90 +64,103 @@ function mouseOutlineLayout(mouse: MouseOutline, originX: number, originY: numbe
                  originX + mouseX >= mapWidth || originY + mouseY >= mapHeight;
 
   if (offMap) {
-    return {box: null, damage: {x: mouseX, xBound: mouseX, y: mouseY, yBound: mouseY}};
+    return null;
   }
 
   return {
-    box: {
-      pos: {x: mouseX * tileWidth, y: mouseY * tileWidth},
-      width: mouse.width * tileWidth,
-      height: mouse.height * tileWidth,
-    },
-    // The outline runs outside the tiles, so a tile either side is damaged too
-    damage: {x: mouseX - 1, xBound: mouseX + mouse.width + 2, y: mouseY - 1, yBound: mouseY + mouse.height + 2},
+    pos: {x: mouseX * tileWidth, y: mouseY * tileWidth},
+    width: mouse.width * tileWidth,
+    height: mouse.height * tileWidth,
   };
 }
 
-// Paints the map's tiles, the sprites and the tools' outlines, other players' named, on a canvas that fills its
-// container. It repaints only the tiles that changed since the last paint, or that a sprite, an outline or a name
-// drew over.
+// The tile width of the Screenshot window's picture of the whole map, in its pixels
+const SCREENSHOT_TILE_PIXELS = 16;
+
+// A canvas laid over the container's top-left corner, before the child given, so the children after it show over it,
+// or in place of an element of the id there
+function placeLayer(parent: HTMLElement, id: string, before: Node | null): HTMLCanvasElement {
+  const canvas = placeNewCanvas(parent, id, before);
+  canvas.style.position = "absolute";
+  canvas.style.left = "0";
+  canvas.style.top = "0";
+  canvas.style.margin = "0";
+  canvas.style.padding = "0";
+  return canvas;
+}
+
+// The CSS pixels a tile is drawn
+const TILE_WIDTH = 16;
+
+// Draws the map with WebGL on a canvas that fills its container, with a 2D canvas over it for the marks the player's
+// interface draws: the tools' outlines, other players' named. Each canvas's backing store has devicePixelRatio pixels
+// for each CSS pixel, so the art is sharp on a dense screen, while positions on the canvas and the tile width are CSS
+// pixels.
 class GameCanvas {
   static readonly DEFAULT_ID = "MicropolisCanvas";
+  static readonly MARKS_ID = "MicropolisMarks";
 
+  // The map, drawn with WebGL, which takes the pointer's events
   private readonly canvas: HTMLCanvasElement;
-  private readonly record = new PaintRecord();
-  // The map overlay tinting each tile as it is painted, under the sprites
-  private readonly overlay = new CanvasOverlay();
+  // The marks, drawn with Canvas 2D over the map, which the pointer's events pass through
+  private readonly marks: HTMLCanvasElement;
+  private readonly frame = new MapFrame();
+  // The map overlay tinting each tile, under the sprites
+  private overlay: OverlayView | null = null;
+  // Counts the overlays shown, so a frame is drawn again for each
+  private overlaysShown = 0;
   private ready = false;
+  // What the map and the marks were last drawn from, so a paint that would draw the same again doesn't
+  private readonly drawn = new FrameRecord();
+  private marksDrawn = "";
 
-  // The canvas' size in pixels, as of the last change of dimensions
+  // The canvas' size in CSS pixels, and its backing store's pixels for each, as of the last change of dimensions
   private width = 0;
   private height = 0;
+  private pixelRatio = 1;
+
+  // The raw values of the tiles a paint reads, and the tile ids it draws, kept from paint to paint
+  private readonly values: number[] = [];
+  private readonly frames: number[] = [];
 
   // Set by init, before which ready is false and nothing reads them
   private map!: PaintableMap;
-  private tileSet!: TileSet;
-  private spriteSheet!: HTMLImageElement;
+  private art!: RenderArt;
+  private renderer!: WebGLRenderer;
   private animationManager!: AnimationManager;
   private position!: ViewPosition;
-
-  // Whether to allow off-map scrolling
-  private allowOffMap = true;
-
-  // Last time we painted, the canvas was this wide and tall in pixels
-  private lastCanvasWidth = -1;
-  private lastCanvasHeight = -1;
 
   // Has the window been resized since the last paint?
   private pendingDimensionChange = false;
 
-  // Creates the canvas in the container with the given id, replacing an element of the canvas' id there
-  constructor(parentId: string, id: string = GameCanvas.DEFAULT_ID) {
+  // Creates the canvases in the container with the given id, replacing elements of the canvases' ids there
+  constructor(parentId: string) {
     const parentNode = requiredElement(parentId);
-
-    // The canvas is assumed to fill its container on-screen. The container is measured before the canvas joins it, as
-    // the canvas could change its size.
-    const rect = parentNode.getBoundingClientRect();
-    this.canvas = placeNewCanvas(parentNode, id);
-    this.canvas.width = rect.width;
-    this.canvas.height = rect.height;
-    this.canvas.style.margin = "0";
-    this.canvas.style.padding = "0";
+    this.canvas = placeLayer(parentNode, GameCanvas.DEFAULT_ID, parentNode.firstChild);
+    this.marks = placeLayer(parentNode, GameCanvas.MARKS_ID, this.canvas.nextSibling);
+    this.marks.style.pointerEvents = "none";
   }
 
-  get canvasWidth(): number {
-    return this.width;
+  // The CSS pixels a tile is drawn
+  get tileWidth(): number {
+    return TILE_WIDTH;
   }
 
-  get canvasHeight(): number {
-    return this.height;
+  // The map pixels the view shows across and down, at 16 a tile, as sprites are positioned
+  get mapPixelWidth(): number {
+    return this.width * SPRITE_PIXELS_PER_TILE / TILE_WIDTH;
   }
 
-  init(map: PaintableMap, tileSet: TileSet, spriteSheet: HTMLImageElement): void {
-    if (!tileSet.isValid) {
-      throw new Error("TileSet not ready!");
-    }
+  get mapPixelHeight(): number {
+    return this.height * SPRITE_PIXELS_PER_TILE / TILE_WIDTH;
+  }
 
-    this.spriteSheet = spriteSheet;
-    this.tileSet = tileSet;
+  init(map: PaintableMap, {art, atlases}: MapArt): void {
+    this.art = art;
     this.map = map;
+    this.renderer = new WebGLRenderer(this.canvas, atlases);
     // Each canvas has its own: the manager remembers what this view painted last
     this.animationManager = new AnimationManager(map);
-
-    const w = tileSet.tileWidth;
-    if (this.canvas.width < w || this.canvas.height < w) {
-      throw new Error("Canvas too small!");
-    }
 
     this.calculateDimensions();
 
@@ -220,13 +174,6 @@ class GameCanvas {
     this.centreOn(Math.floor(map.width / 2), Math.floor(map.height / 2));
 
     this.paint([], null);
-  }
-
-  // NOTE: Canvas must be visible when this is called
-  disallowOffMap(): void {
-    this.allowOffMap = false;
-    this.record.forget();
-    this.calculateDimensions(true);
   }
 
   moveNorth(): void {
@@ -272,42 +219,62 @@ class GameCanvas {
 
   canvasCoordinateToTileOffset(x: number, y: number): TilePoint {
     this.requireReady();
-    return {x: Math.floor(x / this.tileSet.tileWidth), y: Math.floor(y / this.tileSet.tileWidth)};
+    return {x: Math.floor(x / TILE_WIDTH), y: Math.floor(y / TILE_WIDTH)};
   }
 
   canvasCoordinateToTileCoordinate(x: number, y: number): TilePoint | null {
     this.requireReady();
-    return canvasPointToTile(x, y, this.position.origin, this.tileSet.tileWidth, this.width, this.height);
+    return canvasPointToTile(x, y, this.position.origin, TILE_WIDTH, this.width, this.height);
   }
 
   // Shows an overlay view, or none
   setOverlay(view: OverlayView | null): void {
-    this.overlay.show(view);
+    this.overlay = view;
+    this.overlaysShown++;
   }
 
+  // The whole map at 16 pixels a tile, as a PNG's data URI: each tile's own value, unanimated, with no sprites or
+  // overlay, drawn offscreen
   screenshotMap(): string {
-    const tempCanvas = document.createElement("canvas");
-    tempCanvas.width = this.map.width * this.tileSet.tileWidth;
-    tempCanvas.height = this.map.height * this.tileSet.tileWidth;
-    const ctx = tempCanvas.getContext("2d")!;
+    this.requireReady();
+    const {width, height} = this.map;
+    const values = this.map.getTileValuesForPainting(0, 0, width, height, []);
+    const tiles: FrameTiles = {x: 0, y: 0, width, height, margin: 0, values, frames: values.map((value) => value & BIT_MASK)};
 
-    for (let x = 0; x < this.map.width; x++) {
-      for (let y = 0; y < this.map.height; y++) {
-        this.paintOne(ctx, this.map.getTileValue(x, y), x, y, x, y);
-      }
+    const frame = new MapFrame();
+    buildMapFrame(frame, this.art, tiles, SCREENSHOT_TILE_PIXELS, () => null, []);
+    const pixelWidth = width * SCREENSHOT_TILE_PIXELS;
+    const pixelHeight = height * SCREENSHOT_TILE_PIXELS;
+    const pixels = this.renderer.drawOffscreen(frame, pixelWidth, pixelHeight);
+    if (pixels === null) {
+      throw new Error("The map can't be drawn while the browser has lost its WebGL context");
     }
-    return tempCanvas.toDataURL();
+
+    const picture = document.createElement("canvas");
+    picture.width = pixelWidth;
+    picture.height = pixelHeight;
+    picture.getContext("2d")!.putImageData(new ImageData(pixels, pixelWidth, pixelHeight), 0, 0);
+    return picture.toDataURL();
   }
 
+  // The view as it shows, the marks over the map, at the backing store's pixels, as a PNG's data URI
   screenshotVisible(): string {
-    return this.canvas.toDataURL();
+    this.requireReady();
+    const picture = document.createElement("canvas");
+    picture.width = this.canvas.width;
+    picture.height = this.canvas.height;
+
+    // The map's drawing buffer isn't kept once the page has shown it, so the last frame is drawn again to be read
+    this.renderer.draw(this.frame);
+    const ctx = picture.getContext("2d")!;
+    ctx.drawImage(this.canvas, 0, 0);
+    ctx.drawImage(this.marks, 0, 0);
+    return picture.toDataURL();
   }
 
   // Paints the map, then the outlines in order, each over the last, then the sprites
   paint(outlines: readonly MouseOutline[], sprites: ReadonlyArray<PaintableSprite> | null, isPaused?: boolean): void {
     this.requireReady();
-
-    const ctx = this.canvas.getContext("2d")!;
 
     // Recompute our dimensions if there has been a resize since last paint
     if (this.pendingDimensionChange) {
@@ -315,56 +282,61 @@ class GameCanvas {
       this.pendingDimensionChange = false;
     }
 
-    if (mustRepaintAll(this.width, this.height, this.lastCanvasWidth, this.lastCanvasHeight)) {
-      ctx.clearRect(0, 0, this.width, this.height);
-      this.record.repaintAll();
-    }
-
     const origin = this.position.origin;
-    if (this.overlay.needsFullRepaint(origin.x, origin.y)) {
-      this.record.repaintAll();
+    const tiles = this.readTiles(origin, isPaused);
+    const overlay = this.overlay;
+    const view = [origin.x, origin.y, TILE_WIDTH, this.canvas.width, this.canvas.height, this.overlaysShown,
+                  this.renderer.contextRestores].join();
+    if (this.drawn.changed(view, tiles, sprites ?? [])) {
+      buildMapFrame(this.frame, this.art, tiles, TILE_WIDTH * this.pixelRatio,
+                    overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites ?? []);
+      this.renderer.draw(this.frame);
     }
 
-    const paintWidth = this.position.viewport.totalTilesInViewX;
-    const paintHeight = this.position.viewport.totalTilesInViewY;
+    const boxes = outlines.map((outline) => ({
+      outline, box: mouseOutlineLayout(outline, origin.x, origin.y, this.map.width, this.map.height, TILE_WIDTH),
+    }));
+    const marks = JSON.stringify([this.marks.width, this.marks.height, boxes]);
+    if (marks === this.marksDrawn) {
+      return;
+    }
+    this.marksDrawn = marks;
 
-    // Fill an array with the values we need to paint, adjusted for animations
-    const tileValues = this.map.getTileValuesForPainting(origin.x, origin.y, paintWidth, paintHeight,
-                                                         this.record.buffer);
-    this.animationManager.getTiles(tileValues, origin.x, origin.y, paintWidth, paintHeight, isPaused);
+    const ctx = this.marks.getContext("2d")!;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.marks.width, this.marks.height);
+    // The marks are drawn in CSS pixels
+    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
 
-    this.record.paint(tileValues, paintWidth, paintHeight,
-                      (tileValue, x, y) => this.paintViewTile(ctx, tileValue, x, y, origin));
-    this.lastCanvasWidth = this.width;
-    this.lastCanvasHeight = this.height;
-
-    // What the outlines, their labels and the sprites draw over is repainted next time
-    for (const outline of outlines) {
-      const layout = mouseOutlineLayout(outline, origin.x, origin.y, this.map.width, this.map.height,
-                                        this.tileSet.tileWidth);
-      if (layout === null) {
+    for (const {outline, box} of boxes) {
+      if (box === null) {
         continue;
       }
 
-      if (layout.box !== null) {
-        const box = layout.box;
-        drawMouseBox(this.canvas, box.pos, box.width, box.height, outline.colour);
-
-        if (outline.label !== null) {
-          const label = drawBoxLabel(this.canvas, {x: box.pos.x + box.width, y: box.pos.y}, outline.label.name,
-                                     outline.label.colour);
-          this.record.markForRepaint(pixelDamage(label, this.tileSet.tileWidth));
-        }
-      }
-      this.record.markForRepaint(layout.damage);
-    }
-
-    if (sprites) {
-      for (const sprite of sprites) {
-        this.paintSprite(ctx, sprite, origin);
-        this.record.markForRepaint(spriteDamage(sprite, origin.x, origin.y, this.tileSet.tileWidth));
+      drawMouseBox(this.marks, box.pos, box.width, box.height, outline.colour);
+      if (outline.label !== null) {
+        drawBoxLabel(this.marks, {x: box.pos.x + box.width, y: box.pos.y}, outline.label.name, outline.label.colour);
       }
     }
+  }
+
+  // The tiles in view, and a margin around them as wide as the farthest shadow reaches, whose anchors' shadows may
+  // reach into the view
+  private readTiles(origin: TilePoint, isPaused?: boolean): FrameTiles {
+    const margin = this.art.shadowReach;
+    const x = origin.x - margin;
+    const y = origin.y - margin;
+    const width = this.position.viewport.totalTilesInViewX + 2 * margin;
+    const height = this.position.viewport.totalTilesInViewY + 2 * margin;
+
+    const values = this.map.getTileValuesForPainting(x, y, width, height, this.values);
+    const frames = this.frames;
+    for (let i = 0; i < width * height; i++) {
+      frames[i] = values[i];
+    }
+    this.animationManager.getTiles(frames, x, y, width, height, isPaused);
+
+    return {x, y, width, height, margin, values, frames};
   }
 
   private requireReady(): void {
@@ -373,80 +345,29 @@ class GameCanvas {
     }
   }
 
-  private calculateDimensions(force = false): void {
-    // The canvas is assumed to fill its container on-screen
+  private calculateDimensions(): void {
+    // The canvases fill their container on-screen
     const parentNode = this.canvas.parentNode as HTMLElement;
-    const canvasWidth = this.width = parentNode.clientWidth;
-    const canvasHeight = this.height = parentNode.clientHeight;
+    this.width = parentNode.clientWidth;
+    this.height = parentNode.clientHeight;
+    this.pixelRatio = window.devicePixelRatio || 1;
 
-    if (canvasHeight === this.lastCanvasHeight && canvasWidth === this.lastCanvasWidth && !force) {
-      return;
+    for (const canvas of [this.canvas, this.marks]) {
+      canvas.width = Math.round(this.width * this.pixelRatio);
+      canvas.height = Math.round(this.height * this.pixelRatio);
+      canvas.style.width = `${this.width}px`;
+      canvas.style.height = `${this.height}px`;
     }
 
-    this.canvas.width = canvasWidth;
-    this.canvas.height = canvasHeight;
-
-    const view = viewport(canvasWidth, canvasHeight, this.tileSet.tileWidth, this.map.width, this.map.height,
-                          this.allowOffMap);
+    // The origin stays where it is until it next moves
+    const view = viewport(this.width, this.height, TILE_WIDTH, this.map.width, this.map.height, true);
     if (this.position === undefined) {
       this.position = new ViewPosition(view);
     } else {
       this.position.viewport = view;
     }
   }
-
-  private paintSprite(ctx: CanvasRenderingContext2D, sprite: PaintableSprite, origin: TilePoint): void {
-    try {
-      ctx.drawImage(this.spriteSheet,
-                    (sprite.frame - 1) * SPRITE_CELL,
-                    (sprite.type - 1) * SPRITE_CELL,
-                    sprite.width,
-                    sprite.width,
-                    sprite.x - origin.x * SPRITE_PIXELS_PER_TILE,
-                    sprite.y - origin.y * SPRITE_PIXELS_PER_TILE,
-                    sprite.width,
-                    sprite.width);
-    } catch (e) {
-      throw new Error(`Failed to draw sprite ${sprite.type} frame ${sprite.frame} at ${sprite.x}, ${sprite.y}`,
-                      {cause: e});
-    }
-  }
-
-  // A tile of the view, at (x, y) from the view's origin, with the overlay's tint
-  private paintViewTile(ctx: CanvasRenderingContext2D, tileValue: number, x: number, y: number,
-                        origin: TilePoint): void {
-    const mapX = origin.x + x;
-    const mapY = origin.y + y;
-    this.paintOne(ctx, tileValue, x, y, mapX, mapY);
-
-    if (tileValue !== TILE_INVALID) {
-      const w = this.tileSet.tileWidth;
-      this.overlay.paintTile(ctx, mapX, mapY, x * w, y * w, w);
-    }
-  }
-
-  // Paints the tile at (x, y) in tiles on the canvas, from the map's tile at (mapX, mapY), which a failure names
-  private paintOne(ctx: CanvasRenderingContext2D, tileValue: number, x: number, y: number, mapX: number,
-                   mapY: number): void {
-    const w = this.tileSet.tileWidth;
-
-    if (tileValue === TILE_INVALID) {
-      ctx.fillStyle = "black";
-      ctx.fillRect(x * w, y * w, w, w);
-      return;
-    }
-
-    try {
-      ctx.drawImage(this.tileSet.tile(tileValue), x * w, y * w);
-    } catch (e) {
-      const mapTile = this.map.testBounds(mapX, mapY) ? this.map.getTileValue(mapX, mapY) : "?? (Out of bounds)";
-      throw new Error(`Failed to draw tile ${tileValue} at ${x}, ${y} (map ${mapX}, ${mapY} tile ${mapTile})`,
-                      {cause: e});
-    }
-  }
 }
 
-export {
-  GameCanvas, SPRITE_PIXELS_PER_TILE, mouseOutlineLayout, mustRepaintAll, pixelDamage, spriteDamage, spritesInView,
-};
-export type { MouseOutline, PaintableMap, PaintableSprite };
+export { GameCanvas, mouseOutlineLayout };
+export type { MouseOutline };

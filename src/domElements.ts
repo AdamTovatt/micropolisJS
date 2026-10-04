@@ -34,15 +34,15 @@ export function isChecked(id: string): boolean {
   return requiredElement(id, HTMLInputElement).checked;
 }
 
-// A new canvas with the id, in the parent in place of an element of that id there, as when a canvas is made again. An
-// element of the id anywhere else in the document is an error.
-export function placeNewCanvas(parent: Node, id: string): HTMLCanvasElement {
+// A new canvas with the id, in the parent in place of an element of that id there, as when a canvas is made again, or
+// else before the child given, or last. An element of the id anywhere else in the document is an error.
+export function placeNewCanvas(parent: Node, id: string, before: Node | null = null): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.id = id;
 
   const current = document.getElementById(id);
   if (current === null) {
-    parent.appendChild(canvas);
+    parent.insertBefore(canvas, before);
   } else if (current.parentNode === parent) {
     parent.replaceChild(canvas, current);
   } else {

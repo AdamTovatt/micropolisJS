@@ -35,12 +35,12 @@ function gameOn(source: CitySource, state: CityState) {
         },
         save: () => source.save(),
         onCommandResult: (listener: () => void) => state.on("commandResult", listener),
-        gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS},
+        // Not the tile set's 16 pixels, so the view's tile width is seen to be the canvas's
+        gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS, tileWidth: 32},
         dismissals: 0,
         notificationBar: {dismiss: () => {
             game.dismissals++;
         }},
-        tileSet: {tileWidth: 16},
     };
 
     return game;
@@ -51,9 +51,8 @@ const IDLE_GAME = {
     sendToolPaths: () => {},
     save: async () => "",
     onCommandResult: () => {},
-    gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS},
+    gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16},
     notificationBar: {dismiss: () => {}},
-    tileSet: {tileWidth: 16},
 };
 
 // The hook on the source, with its driver attached, and the client's copy of the source's city. What the hook sends,
@@ -294,10 +293,10 @@ describe("the test hook", () => {
         expect(hook.commandsApplied()).toBe(1);
     });
 
-    it("tells where the view is", async () => {
+    it("tells where the view is, and the canvas's tile width", async () => {
         const {hook} = await holdingGame("nothing");
 
-        expect(hook.view()).toEqual({originX: 3, originY: 4, limits: LIMITS, tileWidth: 16});
+        expect(hook.view()).toEqual({originX: 3, originY: 4, limits: LIMITS, tileWidth: 32});
     });
 
     it("dismisses the game's notification bar", async () => {

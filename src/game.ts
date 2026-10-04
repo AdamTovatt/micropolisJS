@@ -24,7 +24,7 @@ import { isShown, requiredElement, toggleShown } from "./domElements";
 import { ToolPaths } from "./dragPath";
 import { errorMessage } from "./errorMessage";
 import { EvaluationWindow } from "./evaluationWindow";
-import { GameCanvas, MouseOutline, PaintableSprite, spritesInView } from "./gameCanvas";
+import { GameCanvas, MouseOutline } from "./gameCanvas";
 import { InfoBar, placeInfoBar } from "./infoBar";
 import { InputStatus, ToolClick } from "./inputStatus";
 import * as Messages from "./messages";
@@ -33,10 +33,12 @@ import { NewsHold, routeMessage } from "./news";
 import { NotificationBar, placeNotificationBar } from "./notification";
 import { OtherPlayers } from "./otherPlayers";
 import { cityOverlaySource, OverlayPicker } from "./overlayPicker";
+import { PaintableSprite, spritesInView } from "./paintable";
 import { CommandResult, DisasterKind, NewsMessage, SettingsRecord, ToolName } from "./protocol";
 import { QueryTool } from "./queryTool";
 import { QueryWindow } from "./queryWindow";
 import { placeRCI, RCI } from "./rci";
+import type { MapArt } from "./renderAssets";
 import { SaveWindow } from "./saveWindow";
 import { ScreenshotLinkWindow } from "./screenshotLinkWindow";
 import { ScreenshotArea, ScreenshotWindow } from "./screenshotWindow";
@@ -45,26 +47,34 @@ import { SpeedControl } from "./speedControl";
 import { StatusPanel } from "./statusPanel";
 import { Storage } from "./storage";
 import { attachToTestHook } from "./testHook";
-import { TileSet } from "./tileSet";
+import type { TileSet } from "./tileSet";
 import { TouchWarnWindow } from "./touchWarnWindow";
+import type { TilePoint } from "./viewPosition";
 import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
 // What a game is made from: the city source and the client's copy of its city, the server's word of the other players,
-// and the images the game draws with
+// and the art the game draws with: the map's, and the 16 px sheets the monster TV draws from
 export interface GameParts {
   source: CitySource;
   state: CityState;
   presence: Presence;
+  mapArt: MapArt;
   tileSet: TileSet;
   spriteSheet: HTMLImageElement;
+}
+
+// Where sprites are drawn: the view's top-left tile, and the map pixels it shows across and down
+interface SpriteViewport {
+  getTileOrigin(): TilePoint;
+  readonly mapPixelWidth: number;
+  readonly mapPixelHeight: number;
 }
 
 // A game of the city a source has started. The game reaches the city only through the source: it sends commands and
 // queries, and shows the city from the client's copy of it, which the source's state messages build.
 export class Game {
   readonly gameCanvas: GameCanvas;
-  readonly tileSet: TileSet;
 
   private readonly source: CitySource;
   private readonly state: CityState;
@@ -157,10 +167,9 @@ export class Game {
   private readonly animate: () => void;
 
   // A game of the city the source has started, which the state has followed from its start
-  constructor({source, state, presence, tileSet, spriteSheet}: GameParts, started: StartedCity) {
+  constructor({source, state, presence, mapArt, tileSet, spriteSheet}: GameParts, started: StartedCity) {
     this.source = source;
     this.state = state;
-    this.tileSet = tileSet;
     this.seed = started.seed;
     this.autoBulldoze = new AutoBulldozePreference(Storage.canStore ? window.localStorage : null);
 
@@ -172,8 +181,8 @@ export class Game {
 
     // Note: must init canvas before inputStatus
     this.gameCanvas = new GameCanvas("canvasContainer");
-    this.gameCanvas.init(state.map, this.tileSet, spriteSheet);
-    this.inputStatus = new InputStatus(tileSet.tileWidth);
+    this.gameCanvas.init(state.map, mapArt);
+    this.inputStatus = new InputStatus(this.gameCanvas.tileWidth);
 
     new OverlayPicker("overlayPanel", cityOverlaySource(source, state), this.gameCanvas);
 
@@ -564,9 +573,10 @@ export class Game {
     return outlines;
   }
 
-  private calculateSpritesForPaint(canvas: GameCanvas): PaintableSprite[] | null {
+  private calculateSpritesForPaint(canvas: SpriteViewport): PaintableSprite[] | null {
     const origin = canvas.getTileOrigin();
-    const spriteList = spritesInView(this.state.sprites, origin.x, origin.y, canvas.canvasWidth, canvas.canvasHeight);
+    const spriteList = spritesInView(this.state.sprites, origin.x, origin.y, canvas.mapPixelWidth,
+                                     canvas.mapPixelHeight);
 
     if (spriteList.length === 0) {
       return null;

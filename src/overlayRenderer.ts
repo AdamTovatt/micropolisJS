@@ -47,9 +47,21 @@ const PALE: Rgb = [255, 250, 190];
 const MIN_ALPHA = 0.25;
 const MAX_ALPHA = 0.75;
 
-// A tint as a CSS colour, which canvas fill styles and the legend's gradient both take
+// A tint: red, green and blue from 0 to 255, and its alpha from 0 to 1, rounded to thousandths as CSS writes it
+export interface Tint {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+// A colour as CSS writes it, which the legend's gradient takes
 function css([r, g, b]: Rgb, alpha: number): string {
-  return `rgba(${r}, ${g}, ${b}, ${Math.round(alpha * 1000) / 1000})`;
+  return tintCss({r, g, b, a: Math.round(alpha * 1000) / 1000});
+}
+
+export function tintCss({r, g, b, a}: Tint): string {
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
 function mix(from: Rgb, to: Rgb, t: number): Rgb {
@@ -62,16 +74,21 @@ function strength(value: number, from: number, to: number): number {
   return Math.min(Math.max((value - from) / (to - from), 0), 1);
 }
 
-function tint(colour: Rgb, t: number): string | null {
-  return t === 0 ? null : css(mix(PALE, colour, t), MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * t);
+function tint(colour: Rgb, t: number): Tint | null {
+  if (t === 0) {
+    return null;
+  }
+
+  const [r, g, b] = mix(PALE, colour, t);
+  return {r, g, b, a: Math.round((MIN_ALPHA + (MAX_ALPHA - MIN_ALPHA) * t) * 1000) / 1000};
 }
 
 function isDiverging(answer: OverlayAnswer): boolean {
   return answer.low < 0 && answer.high > 0;
 }
 
-// The tint of a value of the answer's layer as a CSS colour, or null to leave the tile untinted
-export function rampColour(answer: OverlayAnswer, value: number): string | null {
+// The tint of a value of the answer's layer, or null to leave the tile untinted
+export function rampColour(answer: OverlayAnswer, value: number): Tint | null {
   const colour = HIGH_COLOURS[answer.layer];
 
   if (isDiverging(answer)) {
@@ -117,23 +134,17 @@ export function legendView(answer: OverlayAnswer): LegendView {
   };
 }
 
-// The part of a 2D canvas context the overlay paints with
-export interface OverlayContext {
-  fillStyle: string | CanvasGradient | CanvasPattern;
-  fillRect(x: number, y: number, width: number, height: number): void;
-}
-
-// One answer, ready to paint tile by tile
+// One answer, ready to draw tile by tile
 export class OverlayView {
   // Each block's tint, in the answer's order
-  private readonly tints: (string | null)[];
+  private readonly tints: (Tint | null)[];
 
   constructor(readonly answer: OverlayAnswer) {
     this.tints = answer.values.map((value) => rampColour(answer, value));
   }
 
   // The tint of the tile at (x, y) on the map, or null for none
-  tileTint(x: number, y: number): string | null {
+  tileTint(x: number, y: number): Tint | null {
     const {blockSize, width, height} = this.answer;
     const blockX = Math.floor(x / blockSize);
     const blockY = Math.floor(y / blockSize);
@@ -143,44 +154,5 @@ export class OverlayView {
     }
 
     return this.tints[width * blockY + blockX];
-  }
-
-  // Tints the tile at (x, y) on the map, painted at (canvasX, canvasY) on the canvas, size pixels square
-  paintTile(ctx: OverlayContext, x: number, y: number, canvasX: number, canvasY: number, size: number): void {
-    const tint = this.tileTint(x, y);
-    if (tint !== null) {
-      ctx.fillStyle = tint;
-      ctx.fillRect(canvasX, canvasY, size, size);
-    }
-  }
-}
-
-// The overlay a canvas shows, if any. The canvas repaints a cell of its view only when the tile value painted there
-// changes, but a tint belongs to a place on the map: so every cell must be repainted when the overlay changes, and
-// when the view scrolls while an overlay shows, since a cell can then show another place with the same tile value.
-export class CanvasOverlay {
-  private view: OverlayView | null = null;
-  private changed = false;
-  private lastOrigin: {x: number, y: number} | null = null;
-
-  show(view: OverlayView | null): void {
-    this.view = view;
-    this.changed = true;
-  }
-
-  // Whether the paint about to start from this origin must repaint every cell. It is asked once per paint.
-  needsFullRepaint(originX: number, originY: number): boolean {
-    const scrolled = this.lastOrigin !== null && (this.lastOrigin.x !== originX || this.lastOrigin.y !== originY);
-    const repaint = this.changed || (this.view !== null && scrolled);
-    this.changed = false;
-    this.lastOrigin = {x: originX, y: originY};
-    return repaint;
-  }
-
-  // Tints the tile at (x, y) on the map, painted at (canvasX, canvasY) on the canvas, size pixels square
-  paintTile(ctx: OverlayContext, x: number, y: number, canvasX: number, canvasY: number, size: number): void {
-    if (this.view !== null) {
-      this.view.paintTile(ctx, x, y, canvasX, canvasY, size);
-    }
   }
 }
