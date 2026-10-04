@@ -17,7 +17,8 @@ import { OverlayView } from "../src/overlayRenderer";
 import { OverlayLayer, Query, QueryAnswer } from "../src/protocol";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
 import { answerTo } from "./helpers/queryAnswers";
-import { CYCLES_IN_A_YEAR, FAST_CYCLE, openTown, TOWN_OVERLAY } from "./recordings/scenarios";
+import { CYCLES_IN_A_YEAR, FAST_CYCLE } from "./helpers/cityTimes";
+import { openTown, TOWN_OVERLAY } from "./recordings/scenarios";
 
 // A source that answers each query when the test says, as a server would some time after it was asked
 class FakeSource implements OverlaySource {
@@ -143,6 +144,9 @@ describe("the overlay selection on a city source", () => {
 
     afterEach(expectPlayedThrough);
 
+    // Once the answers the source has to give have arrived, each on a microtask of its own
+    const answersArrived = () => new Promise((resolve) => setImmediate(resolve));
+
     it("shows the city's answer, and the new one each time the city recomputes the layer", async () => {
         const source = playback("town", "a year of overlays");
         const state = new CityState(source);
@@ -154,13 +158,17 @@ describe("the overlay selection on a city source", () => {
         const shown: (OverlayView | null)[] = [];
         const overlays = new OverlaySelection(cityOverlaySource(source, state), (view) => shown.push(view));
 
+        // A source answers after the question, never during it
         overlays.select(TOWN_OVERLAY);
+        expect(shown.length).toBe(0);
+        await answersArrived();
         expect(shown.length).toBe(1);
         // A cycle at a time, so the source sends the state after each, in which the layer is recomputed at most once
         for (let cycle = 0; cycle < CYCLES_IN_A_YEAR; cycle++) {
             expect((await source.driver.advance(FAST_CYCLE)).error).toBeNull();
         }
 
+        await answersArrived();
         // Shown once when chosen, then once after each time the city recomputed it, as the town's pollution grew
         expect(announced).toBeGreaterThan(1);
         expect(shown.length).toBe(1 + announced);

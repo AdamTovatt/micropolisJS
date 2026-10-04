@@ -19,14 +19,14 @@
 ],
 "input, then flush": [
 {"call":"advance","arguments":[5],"messages":[{"type":"evaluation","approval":73,"problems":[3],"population":0,"migration":0,"assessedValue":0,"cityClass":"VILLAGE","level":0,"score":712,"scoreDelta":212,"scoreBreakdown":[{"reason":"PROBLEMS","points":432},{"reason":"TAXES","points":-7},{"reason":"AVERAGING","points":-213}]}],"returns":{"steps":5,"budgetReviewDue":false,"error":null}},
-{"call":"send","arguments":[{"type":"setAutoBudget","on":false}],"messages":[]},
-{"call":"send","arguments":[{"type":"tool","tool":"road","path":[{"x":30,"y":49}],"autoBulldoze":true}],"messages":[]},
+{"call":"send","arguments":[{"type":"setAutoBudget","on":false}]},
+{"call":"send","arguments":[{"type":"tool","tool":"road","path":[{"x":30,"y":49}],"autoBulldoze":true}]},
 {"call":"flush","arguments":[],"messages":[{"type":"tiles","changes":[{"x":30,"y":49,"value":12354}]},{"type":"budget","taxRate":7,"taxesCollected":0,"funds":19990,"maintenance":{"road":0,"fire":0,"police":0},"funding":{"road":1,"fire":1,"police":1}},{"type":"settings","autoBudget":false,"disasters":false,"speed":2},{"type":"commandResult","result":{"player":"player","command":{"type":"setAutoBudget","on":false},"outcome":"ok","reason":null}},{"type":"commandResult","result":{"player":"player","command":{"type":"tool","tool":"road","path":[{"x":30,"y":49}],"autoBulldoze":true},"outcome":"ok","reason":null}}]}
 ],
 "input, then advance": [
 {"call":"advance","arguments":[5],"messages":[{"type":"evaluation","approval":73,"problems":[3],"population":0,"migration":0,"assessedValue":0,"cityClass":"VILLAGE","level":0,"score":712,"scoreDelta":212,"scoreBreakdown":[{"reason":"PROBLEMS","points":432},{"reason":"TAXES","points":-7},{"reason":"AVERAGING","points":-213}]}],"returns":{"steps":5,"budgetReviewDue":false,"error":null}},
-{"call":"send","arguments":[{"type":"setAutoBudget","on":false}],"messages":[]},
-{"call":"send","arguments":[{"type":"tool","tool":"road","path":[{"x":30,"y":49}],"autoBulldoze":true}],"messages":[]},
+{"call":"send","arguments":[{"type":"setAutoBudget","on":false}]},
+{"call":"send","arguments":[{"type":"tool","tool":"road","path":[{"x":30,"y":49}],"autoBulldoze":true}]},
 {"call":"advance","arguments":[5],"messages":[{"type":"tiles","changes":[{"x":30,"y":49,"value":12354}]},{"type":"budget","taxRate":7,"taxesCollected":0,"funds":19990,"maintenance":{"road":0,"fire":0,"police":0},"funding":{"road":1,"fire":1,"police":1}},{"type":"settings","autoBudget":false,"disasters":false,"speed":2},{"type":"commandResult","result":{"player":"player","command":{"type":"setAutoBudget","on":false},"outcome":"ok","reason":null}},{"type":"commandResult","result":{"player":"player","command":{"type":"tool","tool":"road","path":[{"x":30,"y":49}],"autoBulldoze":true},"outcome":"ok","reason":null}}],"returns":{"steps":5,"budgetReviewDue":false,"error":null}}
 ],
 "ten city times": [
@@ -34,65 +34,65 @@
 {"call":"cityTime","arguments":[],"messages":[],"returns":10}
 ],
 "pause, flush, advance": [
-{"call":"send","arguments":[{"type":"setSpeed","speed":0}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":0}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":0},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":0},"outcome":"ok","reason":null}}]},
 {"call":"advance","arguments":[1],"messages":[],"returns":{"steps":0,"budgetReviewDue":false,"error":"The city is not stepping: it is paused"}}
 ],
 "pause, advance": [
-{"call":"send","arguments":[{"type":"setSpeed","speed":0}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":0}]},
 {"call":"advance","arguments":[1],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":0},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":0},"outcome":"ok","reason":null}}],"returns":{"steps":0,"budgetReviewDue":false,"error":"The city is not stepping: it is paused"}}
 ],
 "auto-budget off, an unknown command, flush": [
-{"call":"send","arguments":[{"type":"setAutoBudget","on":false}],"messages":[]},
-{"call":"send","arguments":[{"type":"noSuchCommand"}],"messages":[]},
+{"call":"send","arguments":[{"type":"setAutoBudget","on":false}]},
+{"call":"send","arguments":[{"type":"noSuchCommand"}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":false,"disasters":false,"speed":2},{"type":"commandResult","result":{"player":"player","command":{"type":"setAutoBudget","on":false},"outcome":"ok","reason":null}},{"type":"commandResult","result":{"player":"player","command":{"type":"noSuchCommand"},"outcome":"rejected","reason":"not a command"}}]}
 ],
 "auto-budget off, advance": [
-{"call":"send","arguments":[{"type":"setAutoBudget","on":false}],"messages":[]},
+{"call":"send","arguments":[{"type":"setAutoBudget","on":false}]},
 {"call":"advance","arguments":[1],"messages":[{"type":"settings","autoBudget":false,"disasters":false,"speed":2},{"type":"commandResult","result":{"player":"player","command":{"type":"setAutoBudget","on":false},"outcome":"ok","reason":null}}],"returns":{"steps":1,"budgetReviewDue":false,"error":null}}
 ],
 "auto-budget off, flush, on, flush": [
-{"call":"send","arguments":[{"type":"setAutoBudget","on":false}],"messages":[]},
+{"call":"send","arguments":[{"type":"setAutoBudget","on":false}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":false,"disasters":false,"speed":2},{"type":"commandResult","result":{"player":"player","command":{"type":"setAutoBudget","on":false},"outcome":"ok","reason":null}}]},
-{"call":"send","arguments":[{"type":"setAutoBudget","on":true}],"messages":[]},
+{"call":"send","arguments":[{"type":"setAutoBudget","on":true}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":2},{"type":"commandResult","result":{"player":"player","command":{"type":"setAutoBudget","on":true},"outcome":"ok","reason":null}}]}
 ],
 "auto-budget off, flush": [
-{"call":"send","arguments":[{"type":"setAutoBudget","on":false}],"messages":[]},
+{"call":"send","arguments":[{"type":"setAutoBudget","on":false}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":false,"disasters":false,"speed":2},{"type":"commandResult","result":{"player":"player","command":{"type":"setAutoBudget","on":false},"outcome":"ok","reason":null}}]}
 ],
 "pause": [
-{"call":"send","arguments":[{"type":"setSpeed","speed":0}],"messages":[]}
+{"call":"send","arguments":[{"type":"setSpeed","speed":0}]}
 ],
 "pause, flush, medium, flush": [
-{"call":"send","arguments":[{"type":"setSpeed","speed":0}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":0}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":0},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":0},"outcome":"ok","reason":null}}]},
-{"call":"send","arguments":[{"type":"setSpeed","speed":2}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":2}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":2},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":2},"outcome":"ok","reason":null}}]}
 ],
 "fast, flush": [
-{"call":"send","arguments":[{"type":"setSpeed","speed":3}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":3}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":3},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":3},"outcome":"ok","reason":null}}]}
 ],
 "slow, flush, pause, flush, slow, flush": [
-{"call":"send","arguments":[{"type":"setSpeed","speed":1}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":1}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":1},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":1},"outcome":"ok","reason":null}}]},
-{"call":"send","arguments":[{"type":"setSpeed","speed":0}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":0}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":0},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":0},"outcome":"ok","reason":null}}]},
-{"call":"send","arguments":[{"type":"setSpeed","speed":1}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":1}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":1},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":1},"outcome":"ok","reason":null}}]}
 ],
 "pause, flush, flush, fast, flush": [
-{"call":"send","arguments":[{"type":"setSpeed","speed":0}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":0}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":0},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":0},"outcome":"ok","reason":null}}]},
 {"call":"flush","arguments":[],"messages":[]},
-{"call":"send","arguments":[{"type":"setSpeed","speed":3}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":3}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":3},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":3},"outcome":"ok","reason":null}}]}
 ],
 "another player's slow, flush, another player's pause, flush, slow, flush": [
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":1},{"type":"commandResult","result":{"player":"another player","command":{"type":"setSpeed","speed":1},"outcome":"ok","reason":null}}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":0},{"type":"commandResult","result":{"player":"another player","command":{"type":"setSpeed","speed":0},"outcome":"ok","reason":null}}]},
-{"call":"send","arguments":[{"type":"setSpeed","speed":1}],"messages":[]},
+{"call":"send","arguments":[{"type":"setSpeed","speed":1}]},
 {"call":"flush","arguments":[],"messages":[{"type":"settings","autoBudget":true,"disasters":false,"speed":1},{"type":"commandResult","result":{"player":"player","command":{"type":"setSpeed","speed":1},"outcome":"ok","reason":null}}]}
 ]
 }

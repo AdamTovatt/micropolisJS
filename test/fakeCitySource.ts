@@ -11,11 +11,12 @@
  *
  */
 
+import type { CityStart } from "../src/citySource";
 import { QueryAnswer, StateMessage } from "../src/protocol";
 import { expectPlayedThrough, FakeCitySource, playback } from "./helpers/fakeCitySource";
+import { answerTo } from "./helpers/queryAnswers";
 import { Recording } from "./helpers/recordings";
 import { NEW_CITY } from "./recordings/scenarios";
-import { answerTo } from "./helpers/queryAnswers";
 
 // The fake city source, on a recording laid out here rather than one the recording script made
 
@@ -29,18 +30,19 @@ const FORECAST: QueryAnswer = {
     costs: {road: 0, fire: 0, police: 0}, fundsChange: 0, fundsAfterYear: 20000,
 };
 
+const START: CityStart = {name: "Town", seed: 1, level: 0};
+
 const RECORDING: Recording = {
     player: "player",
     opening: [
         {query: {type: "budgetForecast"}, answer: REJECTED},
         {call: "hold", arguments: [], messages: []},
-        {call: "start", arguments: [{name: "Town", seed: 1, level: 0}], messages: [DATE],
-         returns: {name: "Town", seed: 1, city: "city"}},
+        {call: "start", arguments: [START], messages: [DATE], returns: {name: "Town", seed: 1, city: "city"}},
         {query: {type: "budgetForecast"}, answer: FORECAST},
     ],
     branches: {
         "advance": [
-            {call: "send", arguments: [{type: "setAutoBudget", on: false}], messages: []},
+            {call: "send", arguments: [{type: "setAutoBudget", on: false}]},
             {call: "advance", arguments: [16], messages: [POPULATION],
              returns: {steps: 16, budgetReviewDue: false, error: null}},
         ],
@@ -57,13 +59,21 @@ function fake(branch: string) {
     return {source, delivered};
 }
 
+// The fake with the recording's opening played: held, and started
+async function started(branch: string) {
+    const played = fake(branch);
+    await played.source.driver.hold();
+    await played.source.start(START);
+    return played;
+}
+
 describe("the fake city source", () => {
 
     it("plays the opening and the branch, delivering each call's messages before it resolves", async () => {
         const {source, delivered} = fake("advance");
 
         await source.driver.hold();
-        expect(await source.start({name: "Town", seed: 1, level: 0})).toEqual({name: "Town", seed: 1, city: "city"});
+        expect(await source.start(START)).toEqual({name: "Town", seed: 1, city: "city"});
         expect(delivered).toEqual([DATE]);
         source.send({type: "setAutoBudget", on: false});
         const advancing = source.driver.advance(16);
@@ -82,10 +92,21 @@ describe("the fake city source", () => {
 
         expect(await answerTo(source, {type: "budgetForecast"})).toEqual(REJECTED);
         await source.driver.hold();
-        await source.start({name: "Town", seed: 1, level: 0});
+        await source.start(START);
 
         expect(await answerTo(source, {type: "budgetForecast"})).toEqual(FORECAST);
         expect(await answerTo(source, {type: "budgetForecast"})).toEqual(FORECAST);
+    });
+
+    it("answers after the question, never during it, as a source running a city does", async () => {
+        const {source} = await started("advance");
+        const answers: QueryAnswer[] = [];
+
+        source.ask({type: "budgetForecast"}, (answer) => answers.push(answer));
+        expect(answers).toEqual([]);
+
+        await Promise.resolve();
+        expect(answers).toEqual([FORECAST]);
     });
 
     it("refuses a query recorded at another point", async () => {
@@ -106,18 +127,15 @@ describe("the fake city source", () => {
     });
 
     it("refuses a call past the end of the branch", async () => {
-        const {source} = fake("save fails");
-        await source.driver.hold();
-        await source.start({name: "Town", seed: 1, level: 0});
+        const {source} = await started("save fails");
         await expect(source.save()).rejects.toThrow();
 
-        await expect(source.driver.flush()).rejects.toThrow("The recording has no more calls, but flush() was made after call 3");
+        await expect(source.driver.flush())
+            .rejects.toThrow("The recording has no more calls, but flush() was made after call 3");
     });
 
     it("throws what the recorded call threw, after delivering its messages", async () => {
-        const {source, delivered} = fake("save fails");
-        await source.driver.hold();
-        await source.start({name: "Town", seed: 1, level: 0});
+        const {source, delivered} = await started("save fails");
 
         await expect(source.save()).rejects.toThrow("The city failed");
         expect(delivered).toEqual([DATE, POPULATION]);

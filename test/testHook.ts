@@ -16,9 +16,8 @@ import { CityState } from "../src/cityState";
 import { AdvanceResult, Command, SPEEDS } from "../src/protocol";
 import { TestHook } from "../src/testHook";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
-import {
-    NEW_CITY, openTown, ROAD, STEPS_PER_CITY_TIME, UNKNOWN_COMMAND, YEAR,
-} from "./recordings/scenarios";
+import { STEPS_PER_CITY_TIME, YEAR } from "./helpers/cityTimes";
+import { BranchName, NEW_CITY, openTown, ROAD, UNKNOWN_COMMAND } from "./recordings/scenarios";
 
 // The hook's own work, over a source playing back a recording of the server. How the source holds, flushes and
 // advances the city, and why an advance fails, is the source's, which the contract tests pin (test/citySource.ts).
@@ -57,20 +56,18 @@ const IDLE_GAME = {
     tileSet: {tileWidth: 16},
 };
 
-// The hook on the source, with its driver attached, and the client's copy of the source's city. results lists the
-// commands the city has applied, in order.
+// The hook on the source, with its driver attached, and the client's copy of the source's city. What the hook sends,
+// and when, is checked by the fake, which refuses any call but the recording's next
 function hooked(source: CitySource) {
     const state = new CityState(source);
     const hook = new TestHook();
     hook.attachDriver(source.driver);
-    const results: unknown[] = [];
-    state.on("commandResult", ({result}) => results.push(result.command));
 
-    return {hook, source, state, results};
+    return {hook, source, state};
 }
 
 // The hook holding the driver of a new city, which it held before the city started
-async function holdingGame(branch: string) {
+async function holdingGame(branch: BranchName<"newCity">) {
     const hooks = hooked(playback("newCity", branch));
     await hooks.hook.holdDriver();
     await hooks.source.start(NEW_CITY);
@@ -81,7 +78,7 @@ async function holdingGame(branch: string) {
 }
 
 // The town, with residents, a year in, with auto-budget off, so that its next year end offers the budget to review
-async function townWithoutAutoBudget(branch: string) {
+async function townWithoutAutoBudget(branch: BranchName<"town">) {
     const {hook, source, state} = hooked(playback("town", branch));
     await openTown(source);
     hook.attach(gameOn(source, state));
@@ -166,20 +163,20 @@ describe("the test hook", () => {
         expect(source.driver.isHeld()).toBe(false);
     });
 
-    // An advance applies them before its first step, as the game's next tick would have, had it run before the advance
+    // An advance applies them before its first step, as the game's next tick would have, had it run before the advance.
+    // The fake holds the hook to the recording's order: both commands sent, then the flush or the advance.
     it.each([
-        ["applyInput", "input, then flush", (hook: TestHook) => hook.applyInput()],
-        ["advance", "input, then advance", (hook: TestHook) => hook.advance(5)],
+        ["applyInput", "input, then flush" as const, (hook: TestHook) => hook.applyInput()],
+        ["advance", "input, then advance" as const, (hook: TestHook) => hook.advance(5)],
     ])("applies the commands sent, and the tool paths yet to be sent, before any step, through %s",
        async (_, branch, act) => {
-        const {hook, game, source, results} = await holdingGame(branch);
+        const {hook, game, source} = await holdingGame(branch);
         await hook.advance(5);
         source.send({type: "setAutoBudget", on: false});
         game.toolPaths.push(ROAD);
 
         await act(hook);
 
-        expect(results).toEqual([{type: "setAutoBudget", on: false}, ROAD]);
         expect(game.toolPaths).toEqual([]);
     });
 
@@ -210,14 +207,14 @@ describe("the test hook", () => {
 
         // Refused before anything is sent
         it.each([-1, 1.5, NaN])("takes a whole number of steps, not %s, and sends nothing otherwise", async (steps) => {
-            const {hook, game, source, results} = await holdingGame("flush");
+            const {hook, game, source} = await holdingGame("flush");
             game.toolPaths.push({type: "setAutoBudget", on: false});
 
             await expect(hook.advance(steps)).rejects.toThrow(`Steps are taken in whole numbers, got ${steps}`);
 
             expect(game.toolPaths).toEqual([{type: "setAutoBudget", on: false}]);
+            // The recording's next call: the fake would have refused a command the hook sent, or an advance
             await source.driver.flush();
-            expect(results).toEqual([]);
         });
 
         it("advances only while the driver is held", async () => {

@@ -60,10 +60,14 @@ describe("the query tool", () => {
     });
 
     // The game asks only about tiles on the map
-    it("fails on a rejection, and shows nothing", () => {
-        const {tool: queryTool, shown} = tool(town);
+    it("fails on a rejection, and shows nothing", async () => {
+        const source = new HeldSource();
+        const {tool: queryTool, shown} = tool(source);
+        queryTool.query(-1, y);
 
-        expect(() => queryTool.query(-1, y)).toThrow(/^The simulation rejected a tile report query: the tile is /);
+        const rejection = await answerTo(town, source.asked[0].query);
+        expect(() => source.asked[0].reply(rejection))
+            .toThrow(/^The simulation rejected a tile report query: the tile is /);
         expect(shown).toEqual([]);
     });
 

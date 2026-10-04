@@ -34,14 +34,17 @@ const FORECAST: BudgetForecastAnswer = {
 
 describe("the budget window's forecast query", () => {
 
-    it("names the services whose sliders moved, and only those, as the city answers", async () => {
-        const query = forecastQuery({road: 50});
+    afterEach(expectPlayedThrough);
 
-        expect(query).toEqual({type: "budgetForecast", road: 50});
+    it("names the services whose sliders moved, and only those", () => {
+        expect(forecastQuery({road: 50})).toEqual({type: "budgetForecast", road: 50});
+    });
+
+    it("is one the city answers with a forecast", async () => {
         const source = playback("newCity", "budget forecast");
         await openNewCity(source);
-        await answerOfType(source, query, "budgetForecast");
-        expectPlayedThrough();
+
+        await answerOfType(source, forecastQuery({road: 50}), "budgetForecast");
     });
 
     it("names no service when no slider moved", () => {

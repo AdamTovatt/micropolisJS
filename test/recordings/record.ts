@@ -12,11 +12,12 @@
  */
 
 import { WebSocketCitySource } from "../../src/webSocketCitySource";
-import { Entry, withNames, writeRecording } from "../helpers/recordings";
+import { Entry } from "../helpers/recordings";
 import {
     memorySessionStore, NodeCityEnvironment, signedInClient, startTestServer, TestServer,
 } from "../helpers/testServer";
-import { RecordingBuilder, RecordingSource } from "./recordingSource";
+import { RecordingBuilder, withNames, writeRecording } from "./recordingFile";
+import { RecordingSource } from "./recordingSource";
 import { RecordingSession, Scenario, SCENARIOS } from "./scenarios";
 
 // Records the state-message streams and query answers the client's tests play back through the fake city source
@@ -26,8 +27,8 @@ import { RecordingSession, Scenario, SCENARIOS } from "./scenarios";
 // branch, and fails unless every branch's opening records the same. Run it with `npm run record`, from the
 // repository's root, as npm runs it.
 //
-// The ids the server makes up, of the players and of each city, are written as the names below, so a recording made
-// again is the same file unless what the server sends changed.
+// The ids the server makes up, of the players and of each city a branch starts, in order, are written as the names
+// below, so a recording made again is the same file unless what the server sends changed.
 
 const PLAYER = "player";
 const ANOTHER_PLAYER = "another player";
@@ -61,10 +62,10 @@ async function recordBranch(players: Players, scenario: Scenario, branch: string
     const names = new Map([[source.player, PLAYER]]);
     let joined: Promise<WebSocketCitySource> | null = null;
 
-    // Another player joins the city as its first command comes
+    // Another player joins the city the source started last as its first command comes
     const anotherPlayer = async () => {
         const another = await players.connect("another");
-        await another.join(source.city!);
+        await another.join(source.cities[source.cities.length - 1]);
         names.set(another.player, ANOTHER_PLAYER);
         return another;
     };
@@ -86,9 +87,7 @@ async function recordBranch(players: Players, scenario: Scenario, branch: string
         await scenario.branches[branch](session);
         const recorded = source.take();
 
-        if (source.city !== null) {
-            names.set(source.city, CITY);
-        }
+        source.cities.forEach((city, i) => names.set(city, i === 0 ? CITY : `${CITY} ${i + 1}`));
 
         return {opening: withNames(opening, names), branch: withNames(recorded, names)};
     } finally {

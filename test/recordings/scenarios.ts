@@ -12,8 +12,8 @@
  */
 
 import type { CitySource, CityStart } from "../../src/citySource";
-import { stepsPerCityTime, stepsPerYear } from "../../src/cityTimeModel";
 import { Command, CommandResult, OverlayLayer, Query, SPEEDS, TilePosition } from "../../src/protocol";
+import { CYCLES_IN_A_YEAR, FAST_CYCLE, STEPS_PER_CITY_TIME, YEAR } from "../helpers/cityTimes";
 import { answerTo } from "../helpers/queryAnswers";
 
 // What the recording script (record.ts) does with the city source it records, which the client's tests then do with
@@ -39,15 +39,6 @@ export const SEED = 2026;
 
 // The city every scenario with a city starts: a new city on the seed's map, at medium speed
 export const NEW_CITY: CityStart = {name: "Town", seed: SEED, level: 0};
-
-// A city time at the new city's speed
-export const STEPS_PER_CITY_TIME = stepsPerCityTime(SPEEDS.medium);
-
-// A city time at the town's speed, fast, one cycle of the simulation's sixteen phases, every one of which runs at fast
-// speed; and a year of them
-export const FAST_CYCLE = stepsPerCityTime(SPEEDS.fast);
-export const CYCLES_IN_A_YEAR = 48;
-export const YEAR = stepsPerYear(SPEEDS.fast);
 
 // A road on clear land of the seed's map
 export const ROAD: Command = {type: "tool", tool: "road", path: [{x: 30, y: 49}], autoBulldoze: true};
@@ -115,7 +106,8 @@ function sending(...steps: (Command | "flush")[]): (session: RecordingSession) =
     };
 }
 
-export const SCENARIOS: Record<string, Scenario> = {
+// The scenarios by name, whose names and branch names the compiler checks a test's playback against
+export const SCENARIOS = {
 
     // No city: the splash screen's map preview
     noCity: {
@@ -234,4 +226,8 @@ export const SCENARIOS: Record<string, Scenario> = {
             },
         },
     },
-};
+} satisfies Record<string, Scenario>;
+
+export type ScenarioName = keyof typeof SCENARIOS;
+
+export type BranchName<Name extends ScenarioName> = keyof typeof SCENARIOS[Name]["branches"] & string;

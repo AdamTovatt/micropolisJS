@@ -16,11 +16,11 @@ import { CityState } from "../src/cityState";
 import { SPEEDS } from "../src/protocol";
 import { SpeedControl } from "../src/speedControl";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
-import { openNewCity } from "./recordings/scenarios";
+import { BranchName, openNewCity } from "./recordings/scenarios";
 
 // A new city, held, on a source playing back the branch of the recording, with the client's copy of the city. apply
 // applies the commands sent, and has the city send what they changed.
-async function newGame(branch: string) {
+async function newGame(branch: BranchName<"newCity">) {
     const source = playback("newCity", branch);
     const state = new CityState(source);
     await openNewCity(source);

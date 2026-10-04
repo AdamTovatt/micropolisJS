@@ -17,13 +17,14 @@ import type { CityDriver, CitySource, CityStart, StartedCity } from "../../src/c
 import type {
     AdvanceResult, Command, PlayerId, Query, QueryAnswer, SessionLog, StateMessage,
 } from "../../src/protocol";
+import type { BranchName, ScenarioName } from "../recordings/scenarios";
 import { asJson, CallEntry, CallName, Entry, isCall, QueryEntry, readRecording, Recording } from "./recordings";
 
 // A city source that plays back a recording of the real one (recordings.ts), so the client's tests run a city without
 // one. The calls made of it must be the recording's, in its order and with its arguments: each delivers the state
-// messages recorded with it, then returns what it returned, or throws what it threw. A query is answered at once with
-// the answer recorded for it since the last call, as often as it is asked, since a query changes nothing. A call or a
-// query the recording doesn't have fails, naming what the recording expected.
+// messages recorded with it, then returns what it returned, or throws what it threw. A query is answered on a
+// microtask with the answer recorded for it since the last call, as often as it is asked, since a query changes
+// nothing. A call or a query the recording doesn't have fails, naming what the recording expected.
 
 export class FakeCitySource implements CitySource {
     readonly player: PlayerId;
@@ -81,7 +82,8 @@ export class FakeCitySource implements CitySource {
             throw new Error(`${this.where} has no answer to the query ${JSON.stringify(query)} ${this.position()}`);
         }
 
-        reply(recorded.answer);
+        // Later, as every source that runs a city answers, never during the call
+        queueMicrotask(() => reply(recorded.answer));
     }
 
     setViewerVisible(visible: boolean): void {
@@ -115,8 +117,11 @@ export class FakeCitySource implements CitySource {
         this.next++;
         // Before the messages, whose listeners may ask about the city as it is after the call
         this.takeAnswers();
-        this.subscribers.deliver(entry.messages);
+        if (!("messages" in entry)) {
+            return undefined;
+        }
 
+        this.subscribers.deliver(entry.messages);
         if (entry.throws !== undefined) {
             throw new Error(entry.throws);
         }
@@ -155,8 +160,9 @@ const recordings = new Map<string, Recording>();
 // The fakes made since the last check that they were played through
 let made: FakeCitySource[] = [];
 
-// A fake source playing back the branch of the recording of the name, in test/recordings/
-export function playback(name: string, branch: string): FakeCitySource {
+// A fake source playing back the branch of the recording of the name, in test/recordings/, each the name of a scenario
+// and its branch in scenarios.ts, as the compiler checks
+export function playback<Name extends ScenarioName>(name: Name, branch: BranchName<Name>): FakeCitySource {
     let recording = recordings.get(name);
     if (recording === undefined) {
         recording = readRecording(name);

@@ -16,27 +16,27 @@ import type { CityDriver, CitySource, CityStart, StartedCity } from "../../src/c
 import { trackingHold } from "../../src/citySource";
 import { errorMessage } from "../../src/errorMessage";
 import type { Command, Query, QueryAnswer, SessionLog, StateMessage } from "../../src/protocol";
-import { asJson, CallEntry, CallName, Entry, isCall, QueryEntry, Recording } from "../helpers/recordings";
+import { asJson, CallEntry, Entry, RequestEntry, RequestName } from "../helpers/recordings";
 
-// How the recording script (record.ts) records a city source, apart from the server it records
-
-// A city source that records every call made of the source it wraps (recordings.ts). The state messages delivered
-// during a call are the call's: a source answers each call after the state it changed. A message delivered outside any
-// call fails the recording, since a test could never receive it at the same point.
+// A city source that records every call made of the source it wraps (test/helpers/recordings.ts), for the recording
+// script (record.ts). The state messages delivered during a call are the call's: a source answers each call after the
+// state it changed. A query is recorded where it was asked, and its answer filled in as it comes. What would make a
+// recording a test couldn't play back fails the recording, as the next take: a message delivered outside any call,
+// which a test could never receive at the same point; a call made while another waits on its answer, whose messages
+// no one could tell apart; a query answered twice, differently, between two calls; and a query never answered.
 export class RecordingSource implements CitySource {
     readonly driver: CityDriver;
-    // The id of the city the source last started, or null before it started one
-    city: string | null = null;
+    // The ids of the cities the source started, in order
+    readonly cities: string[] = [];
 
-    private entries: Entry[] = [];
-    // Messages delivered outside any call
-    private readonly strays: StateMessage[] = [];
-    private calling: CallEntry | null = null;
+    private entries: (CallEntry | AskedQuery)[] = [];
+    private problems: string[] = [];
+    private calling: RequestEntry | null = null;
 
     constructor(private readonly recorded: CitySource) {
         recorded.subscribe((message) => {
             if (this.calling === null) {
-                this.strays.push(message);
+                this.problems.push(`The source delivered state outside any call: ${JSON.stringify(message).slice(0, 500)}`);
             } else {
                 this.calling.messages.push(message);
             }
@@ -61,35 +61,33 @@ export class RecordingSource implements CitySource {
 
     async start(start: CityStart): Promise<StartedCity> {
         const started = await this.record("start", [start], () => this.recorded.start(start));
-        this.city = started.city;
+        if (started.city !== null) {
+            this.cities.push(started.city);
+        }
+
         return started;
     }
 
     send(command: Command): void {
-        this.entries.push({call: "send", arguments: asJson([command]), messages: []});
+        this.entries.push({call: "send", arguments: asJson([command])});
         this.recorded.send(command);
     }
 
     // A query asked again before the next call, which changes nothing, is recorded once
     ask(query: Query, reply: (answer: QueryAnswer) => void): void {
+        const asked = asJson(query);
+        let entry = this.askedSinceLastCall().find((before) => isDeepStrictEqual(before.query, asked));
+        if (entry === undefined) {
+            entry = {query: asked, answer: null};
+            this.entries.push(entry);
+        }
+
+        const recorded = entry;
         this.recorded.ask(query, (answer) => {
-            const asked = asJson(query);
-            let before: QueryEntry | undefined;
-            for (let i = this.entries.length - 1; i >= 0; i--) {
-                const entry = this.entries[i];
-                if (isCall(entry)) {
-                    break;
-                }
-
-                if (isDeepStrictEqual(entry.query, asked)) {
-                    before = entry;
-                }
-            }
-
-            if (before === undefined) {
-                this.entries.push({query: asked, answer});
-            } else if (!isDeepStrictEqual(before.answer, answer)) {
-                throw new Error(`The query ${JSON.stringify(query)} was answered twice, differently, between two calls`);
+            if (recorded.answer === null) {
+                recorded.answer = answer;
+            } else if (!isDeepStrictEqual(recorded.answer, answer)) {
+                this.problems.push(`The query ${JSON.stringify(query)} was answered twice, differently, between two calls`);
             }
 
             reply(answer);
@@ -97,7 +95,7 @@ export class RecordingSource implements CitySource {
     }
 
     setViewerVisible(visible: boolean): void {
-        this.entries.push({call: "setViewerVisible", arguments: [visible], messages: []});
+        this.entries.push({call: "setViewerVisible", arguments: [visible]});
         this.recorded.setViewerVisible(visible);
     }
 
@@ -109,19 +107,42 @@ export class RecordingSource implements CitySource {
         return this.record("commandLog", [], () => this.recorded.commandLog());
     }
 
-    // The entries recorded since the last call of this, the opening's or a branch's
+    // The entries recorded since the last call of this, the opening's or a branch's, or the first problem with them
     take(): Entry[] {
-        if (this.strays.length > 0) {
-            throw new Error(`The source delivered state outside any call: ${JSON.stringify(this.strays).slice(0, 500)}`);
+        const unanswered = this.entries.filter((entry) => !isCall(entry) && entry.answer === null);
+        unanswered.forEach((entry) => this.problems.push(`The query ${JSON.stringify(entry)} was never answered`));
+        if (this.problems.length > 0) {
+            throw new Error(this.problems[0]);
         }
 
-        const taken = this.entries;
+        const taken = this.entries as Entry[];
         this.entries = [];
         return taken;
     }
 
-    private async record<T>(call: CallName, args: unknown[], run: () => Promise<T>): Promise<T> {
-        const entry: CallEntry = {call, arguments: asJson(args), messages: []};
+    // The queries asked since the last call
+    private askedSinceLastCall(): AskedQuery[] {
+        const asked: AskedQuery[] = [];
+        for (let i = this.entries.length - 1; i >= 0; i--) {
+            const entry = this.entries[i];
+            if (isCall(entry)) {
+                break;
+            }
+
+            asked.push(entry);
+        }
+
+        return asked;
+    }
+
+    private async record<T>(call: RequestName, args: unknown[], run: () => Promise<T>): Promise<T> {
+        if (this.calling !== null) {
+            const message = `${call} was made while ${this.calling.call} waited on its answer`;
+            this.problems.push(message);
+            throw new Error(message);
+        }
+
+        const entry: RequestEntry = {call, arguments: asJson(args), messages: []};
         this.entries.push(entry);
         this.calling = entry;
         try {
@@ -140,24 +161,12 @@ export class RecordingSource implements CitySource {
     }
 }
 
-// A scenario's recording, as its branches are recorded one after another, each with the opening it started with
-export class RecordingBuilder {
-    private opening: Entry[] | null = null;
-    private readonly branches: Record<string, Entry[]> = {};
+// A query as it is recorded, before its answer comes
+interface AskedQuery {
+    query: Query;
+    answer: QueryAnswer | null;
+}
 
-    constructor(private readonly scenario: string, private readonly player: string) {}
-
-    // Fails unless the branch's opening recorded the same as every branch's before it
-    add(branch: string, recorded: {opening: Entry[], branch: Entry[]}): void {
-        if (this.opening !== null && !isDeepStrictEqual(recorded.opening, this.opening)) {
-            throw new Error(`The opening of ${this.scenario} recorded differently for branch "${branch}"`);
-        }
-
-        this.opening = recorded.opening;
-        this.branches[branch] = recorded.branch;
-    }
-
-    build(): Recording {
-        return {player: this.player, opening: this.opening ?? [], branches: this.branches};
-    }
+function isCall(entry: CallEntry | AskedQuery): entry is CallEntry {
+    return "call" in entry;
 }

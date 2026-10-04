@@ -13,7 +13,6 @@
 
 import { replay } from "../headless/runner";
 import type { CityStart } from "../src/citySource";
-import { stepsPerCityTime } from "../src/cityTimeModel";
 import { CityState } from "../src/cityState";
 import { CommandLog } from "../src/commandLog";
 import { Config } from "../src/config.js";
@@ -26,6 +25,7 @@ import { STEPS_PER_SECOND } from "../src/stepDriver";
 import { BIT_MASK } from "../src/tileFlags";
 import { CITY_ID } from "../src/urlOptions";
 import { pageSource, SourceFactory, SourceUnderTest, WebSocketSourceFactory, workerSource } from "./helpers/citySources";
+import { STEPS_PER_CITY_TIME } from "./helpers/cityTimes";
 import { answerTo } from "./helpers/queryAnswers";
 import { serverTestsEnabled, START_SERVER_TIMEOUT_MS } from "./helpers/testServer";
 
@@ -33,7 +33,6 @@ import { serverTestsEnabled, START_SERVER_TIMEOUT_MS } from "./helpers/testServe
 // new ones.
 
 const SEED = 2026;
-const STEPS_PER_CITY_TIME = stepsPerCityTime(SPEEDS.medium);
 // The milliseconds a number of steps takes in real time
 const millisecondsFor = (steps: number) => steps * 1000 / STEPS_PER_SECOND;
 
