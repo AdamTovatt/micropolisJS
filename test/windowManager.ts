@@ -33,13 +33,14 @@ const BUDGET_VALUES = {taxRate: 7};
 function setUp() {
     const budget = new FakeWindow();
     const other = new FakeWindow();
-    const windows = new WindowManager(budget, () => [BUDGET_VALUES]);
+    const marker = {lit: false, setLit(lit: boolean) { this.lit = lit; }};
+    const windows = new WindowManager(budget, () => [BUDGET_VALUES], marker);
 
     for (const window of [budget, other]) {
         window.onClose = () => windows.closed();
     }
 
-    return {windows, budget, other};
+    return {windows, budget, other, marker};
 }
 
 describe("the window manager", () => {
@@ -56,10 +57,21 @@ describe("the window manager", () => {
     it("opens the budget window with the budget's values", () => {
         const {windows, budget} = setUp();
 
-        windows.openBudget();
+        const opened = windows.openBudget();
 
+        expect(opened).toBe(true);
         expect(budget.opened).toEqual([[BUDGET_VALUES]]);
         expect(windows.holdsInput()).toBe(true);
+    });
+
+    it("opens no budget window over another", () => {
+        const {windows, budget, other} = setUp();
+        windows.open(other);
+
+        const opened = windows.openBudget();
+
+        expect(opened).toBe(false);
+        expect(budget.opened).toEqual([]);
     });
 
     it("holds nothing once the window closes", () => {
@@ -78,5 +90,43 @@ describe("the window manager", () => {
         windows.open(other);
 
         expect(other.opened).toEqual([]);
+    });
+
+    it("marks a year-end budget review due without opening the budget window", () => {
+        const {windows, budget, marker} = setUp();
+
+        windows.budgetReviewDue();
+
+        expect(marker.lit).toBe(true);
+        expect(budget.opened).toEqual([]);
+        expect(windows.holdsInput()).toBe(false);
+    });
+
+    it("keeps the review marked when another falls due", () => {
+        const {windows, marker} = setUp();
+        windows.budgetReviewDue();
+
+        windows.budgetReviewDue();
+
+        expect(marker.lit).toBe(true);
+    });
+
+    it("clears the review's mark when the budget window opens", () => {
+        const {windows, marker} = setUp();
+        windows.budgetReviewDue();
+
+        windows.openBudget();
+
+        expect(marker.lit).toBe(false);
+    });
+
+    it("keeps the review marked while the budget window can't open over another", () => {
+        const {windows, other, marker} = setUp();
+        windows.budgetReviewDue();
+        windows.open(other);
+
+        windows.openBudget();
+
+        expect(marker.lit).toBe(true);
     });
 });

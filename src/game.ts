@@ -192,7 +192,9 @@ export class Game {
     const opacityLayerID = "opaque";
 
     const budgetWindow = new BudgetWindow(opacityLayerID, "budget", source);
-    this.windows = new WindowManager(budgetWindow, () => this.budgetWindowValues());
+    const budgetButton = requiredElement("budgetRequest");
+    this.windows = new WindowManager(budgetWindow, () => this.budgetWindowValues(),
+                                     {setLit: (lit) => budgetButton.classList.toggle("reviewDue", lit)});
 
     this.handleWindowClosure = () => this.windows.closed();
 
@@ -330,10 +332,11 @@ export class Game {
       this.handleCommandResult(result);
       this.otherPlayers.commandResult(result);
     });
-    // The year end paid for the services with the player's values. The budget window never opens unasked, since in a
-    // shared city it would open for every player at once: the notification offers it, and opens it when clicked.
+    // The Budget button marks the review due until the player opens the budget, and the notification bar offers it, if
+    // no news shows: the year end's own news, such as the city going broke, comes before the review
     state.on("budgetReviewDue", () => {
-      this.notificationBar.show({subject: Messages.BUDGET_REVIEW_DUE}, () => this.windows.openBudget());
+      this.windows.budgetReviewDue();
+      this.notificationBar.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => this.windows.openBudget());
     });
   }
 

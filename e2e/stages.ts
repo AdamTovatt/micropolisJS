@@ -187,8 +187,8 @@ export const STAGES: Stage[] = [
   {
     name: "Change the budget and tax",
     async play(player) {
-      // Without auto-budget, the year end pays the city's services and the notification bar offers the budget to
-      // review, while the city steps on
+      // Without auto-budget, the year end pays the city's services and the Budget button marks the budget to review,
+      // while the city steps on
       await player.setAutoBudget(false);
       await player.advanceUntilBudgetReview(YEAR, stepsPerCityTime(Simulation.SPEED_MED));
 

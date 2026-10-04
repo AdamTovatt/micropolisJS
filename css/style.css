@@ -676,6 +676,12 @@ main {
   color: white;
 }
 
+/* A year-end budget review is due, until the player opens the budget */
+#budgetRequest.reviewDue {
+  font-weight: bold;
+  outline: 3px solid gold;
+}
+
 #disasterRequest, #disasterHeader {
   background-color: red;
   color: yellow;

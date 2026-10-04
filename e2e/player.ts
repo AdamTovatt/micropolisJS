@@ -164,14 +164,18 @@ export class Player {
     }
   }
 
-  // Steps chunk steps at a time until the year-end budget review falls due, then opens it from the notification that
-  // offers it. The city steps on through the year end, and stops at the end of the chunk it fell in, the same step on
-  // every run. Fails if it hasn't fallen due within maxSteps.
+  // Steps chunk steps at a time until the year-end budget review falls due, then opens it from the Budget button, which
+  // marks it due until it opens. The city steps on through the year end, and stops at the end of the chunk it fell in,
+  // the same step on every run. Fails if it hasn't fallen due within maxSteps. The notification bar's offer of the
+  // review is no way in: whether it shows depends on the news the year end brings.
   async advanceUntilBudgetReview(maxSteps: number, chunk: number): Promise<void> {
     for (let taken = 0; taken < maxSteps; taken += chunk) {
       if ((await this.hookAdvance(chunk)).budgetReviewDue) {
-        await this.page.locator("#notifications", {hasText: "Year-end budget ready"}).click();
+        const budgetButton = this.page.locator("#budgetRequest");
+        await expect(budgetButton, "the Budget button, marking the review due").toHaveClass(/\breviewDue\b/);
+        await budgetButton.click();
         await this.page.locator("#budget").waitFor();
+        await expect(budgetButton, "the Budget button, once the budget opened").not.toHaveClass(/\breviewDue\b/);
         return;
       }
     }

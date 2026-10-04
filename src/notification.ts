@@ -16,8 +16,8 @@ import { MessageTone, Text } from "./text";
 import type { TilePoint } from "./viewPosition";
 
 // The bar along the bottom of the map that announces a message for a while, coloured by its tone. A message about a
-// place on the map is a link: clicking the bar centres the map there. A message shown with an action of its own runs
-// that instead.
+// place on the map is a link: clicking the bar centres the map there. An offer, such as the year-end budget's, is a
+// message with an action of its own, which clicking the bar runs instead.
 
 const ELEMENT_ID = "notifications";
 const TIMEOUT_SECS = 30;
@@ -64,48 +64,40 @@ export function notificationView(message: NotificationMessage): NotificationView
 }
 
 export class NotificationBar<E extends BarElement<E>> {
+  // Non-null exactly while the bar shows a message
   private timeout: ReturnType<typeof setTimeout> | null = null;
-  // What a click on the bar does, or null when the message links to nothing
-  private action: (() => void) | null = null;
-  // Whether the action is the message's own, which is done once: the bar hides when it runs
-  private ownAction = false;
+  // The tile a click on the bar centres the map on, or null when the message has none
+  private link: TilePoint | null = null;
+  // What a click on an offer does, which says whether it was done, or null when the bar shows news
+  private action: (() => boolean) | null = null;
 
   constructor(private readonly element: E, private readonly map: CentringMap) {
     this.element.addEventListener("click", (e) => {
       e.preventDefault();
 
       if (this.action !== null) {
-        this.action();
-      }
-      if (this.ownAction) {
-        this.dismiss();
+        if (this.action()) {
+          this.dismiss();
+        }
+      } else if (this.link !== null) {
+        this.map.centreOn(this.link.x, this.link.y);
       }
     });
 
     this.close();
   }
 
-  // Announces the message in its tone, for TIMEOUT_SECS from now. A click on the bar runs the action given, then hides
-  // the bar, or else centres the map on the message's place.
-  show(message: NotificationMessage, action: (() => void) | null = null): void {
-    const view = notificationView(message);
-    const link = view.link;
+  // Announces the message in its tone, for TIMEOUT_SECS from now, in place of any message showing
+  show(message: NotificationMessage): void {
+    this.announce(message, null);
+  }
 
-    this.cancelTimeout();
-
-    this.action = action ?? (link === null ? null : () => this.map.centreOn(link.x, link.y));
-    this.ownAction = action !== null;
-    this.element.classList.remove(...TONES);
-    this.element.classList.add(view.tone);
-    this.element.classList.toggle("pointer", this.action !== null);
-    this.element.textContent = view.text;
-
-    setShown(this.element, true);
-
-    this.timeout = setTimeout(() => {
-      this.timeout = null;
-      this.close();
-    }, TIMEOUT_SECS * 1000);
+  // Offers the action under the message, if the bar shows nothing: an offer is a hint, which takes no message's place,
+  // and news replaces it. A click on the bar runs the action, and hides the bar once the action was done.
+  offer(message: NotificationMessage, action: () => boolean): void {
+    if (this.timeout === null) {
+      this.announce(message, action);
+    }
   }
 
   // Hides the bar now, before its time is up: the end-to-end runner's screenshots would otherwise show it or not
@@ -113,6 +105,26 @@ export class NotificationBar<E extends BarElement<E>> {
   dismiss(): void {
     this.cancelTimeout();
     this.close();
+  }
+
+  private announce(message: NotificationMessage, action: (() => boolean) | null): void {
+    const view = notificationView(message);
+
+    this.cancelTimeout();
+
+    this.element.classList.remove(...TONES);
+    this.element.classList.add(view.tone);
+    this.element.classList.toggle("pointer", action !== null || view.link !== null);
+    this.element.textContent = view.text;
+    this.link = view.link;
+    this.action = action;
+
+    setShown(this.element, true);
+
+    this.timeout = setTimeout(() => {
+      this.timeout = null;
+      this.close();
+    }, TIMEOUT_SECS * 1000);
   }
 
   private cancelTimeout(): void {
