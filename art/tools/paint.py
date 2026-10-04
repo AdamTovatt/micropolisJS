@@ -28,6 +28,7 @@ import argparse
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -49,14 +50,91 @@ SIZE = 1024                    # the side of every model input
 BORDER = 0.5                   # tiles round every cell, so no footprint meets the canvas's edge, where the model
                                # paints borders
 GRASS = (86, 118, 52)          # the lawn outside an asset's footprint, as preview.py draws it
+SHADOW_FLOOR = 48              # a shadow alpha below this everywhere is the sky's faint shading, not worth painting
+WATER = (59, 112, 147)         # the open water a ship's frames are painted on, as water.py renders it
+THIN = 2                       # pixels: a part of an object or shadow narrower than twice this, such as a wire,
+                               # a pole or a crossing's gate, keeps the render's pixels (thick())
 
-# sets painted together on one canvas, so their members come out alike: four houses to a canvas,
-# so each is painted at about the scale of a zone
-SETS = {f'houses-{k + 1}': [f'houses/{t:04d}' for t in range(249 + 4 * k, 253 + 4 * k)] for k in range(3)}
+
+def _tile_sets():
+    # The single tiles, four to a canvas, so each is painted at about the scale of a zone and the
+    # members of a canvas come out alike. An animated tile's frames share a canvas, so they are
+    # one painting and don't flicker: a road piece's four frames of light traffic, then of heavy
+    # (art/blender/tiles/roads.py), the fountain's four, the explosion's eight in two.
+    def tiles(name, ids):
+        return [f'{name}/{t:04d}' for t in ids]
+
+    def fours(name, ids):
+        ids = list(ids)
+        return {f'{name}-{k // 4 + 1}': tiles(name, ids[k:k + 4]) for k in range(0, len(ids), 4)}
+
+    sets = {}
+    sets.update(fours('houses', range(249, 261)))
+    sets.update(fours('land', [0]))
+    sets.update(fours('water', range(2, 21)))
+    sets.update(fours('woods', range(21, 38)))
+    sets.update(fours('parks', [40, 41, 42, 43]))
+    sets['parks-fountain'] = tiles('parks', range(840, 844))
+    sets.update(fours('rubble', range(44, 48)))
+    sets.update({f'rubble-explosion-{k + 1}': tiles('rubble', range(860 + 4 * k, 864 + 4 * k)) for k in range(2)})
+    sets.update(fours('roads', list(range(64, 79)) + [239]))
+    for piece in range(64, 79):
+        for density, first in (('light', 16), ('heavy', 80)):
+            sets[f'roads-{piece}-{density}'] = tiles('roads', range(piece + first, piece + first + 64, 16))
+    sets.update({f'roads-drawbridge-{k + 1}': tiles('roads', ids) for k, ids in
+                 enumerate((range(828, 832), range(948, 952)))})
+    sets['roads-open-water'] = tiles('roads', range(79, 208, 16))
+    # every frame of a vehicle on one canvas, so its turns and climbs are one painting of one vehicle
+    for vehicle, frames in (('train', 5), ('helicopter', 8), ('airplane', 11), ('ship', 8)):
+        sets[vehicle] = [f'{vehicle}/{k:02d}' for k in range(frames)]
+    sets.update(fours('power', list(range(208, 221)) + [827]))
+    sets.update(fours('rail', [221, 222] + list(range(224, 239))))
+    return sets
+
+
+SETS = _tile_sets()
+
+
+def ground_painted(job):
+    # a traffic frame's ground is wholly its road piece's, and an open drawbridge's middle is open
+    # water, which join() gives them, and a vehicle has no ground, so they are not painted
+    return not re.fullmatch(r'roads-(\d+-(light|heavy)|open-water)|train|helicopter|airplane|ship', job)
+
+
+# Tiles whose painting of a layer every other tile takes wherever its render of that layer is the
+# same as theirs, in this order, so the surfaces the tiles share come from one painting and two
+# tiles side by side join as their renders do (join()). Each is wrapped first along the axes its
+# surface runs on, so it joins itself: land and water every way, a straight road, rail, wire or
+# bridge along its length. Then every road piece gives its traffic frames its ground.
+DONORS = ([('land/0000', 'xy', ('ground',)), ('water/0002', 'xy', ('ground',)), ('woods/0037', 'xy', ('ground',)),
+           ('roads/0066', 'x', ('ground',)), ('roads/0067', 'y', ('ground',)),
+           ('roads/0064', 'x', ('objects',)), ('roads/0065', 'y', ('objects',)),
+           ('rail/0226', 'x', ('ground', 'objects')), ('rail/0227', 'y', ('ground', 'objects')),
+           ('rail/0224', 'x', ('objects',)), ('rail/0225', 'y', ('objects',)),
+           ('power/0210', 'x', ('objects',)), ('power/0211', 'y', ('objects',)),
+           ('power/0208', 'x', ('objects',)), ('power/0209', 'y', ('objects',))]
+          + [(f'roads/{t:04d}', '', ('ground',)) for t in range(64, 79)])
+WRAP_BAND = 12                 # pixels from a donor's edge over which it fades into its half-shifted copy
+FLATTEN = 2                    # pixels: the blur that finds a surface donor's broad patches (flattened())
 
 # what each asset is, by the start of its name, for the prompts
 SUBJECTS = [
     ('houses', 'a sheet of small suburban houses, each on its own square plot of land'),
+    ('land', 'a square of open grassy land'),
+    ('water', 'a river: open water and pieces of its grassy banks'),
+    ('woods', 'pieces of woodland and the grassy land at its edges'),
+    ('parks', 'small square parks on mown lawns'),
+    ('rubble', 'rubble where buildings were knocked down'),
+    ('roads', 'pieces of road, with their junctions, bridges and traffic, on grassy land'),
+    ('power', 'power lines on wooden poles over grassy land and water'),
+    ('rail', 'pieces of railway track, with its junctions, bridges and crossings, on grassy land'),
+    ('train', 'one railcar, seen from directly above, in each of the directions it runs, on plain grass'),
+    ('helicopter', 'one traffic helicopter flying, seen from directly above, in each of the directions it '
+                   'heads, with its shadow on the plain grass below'),
+    ('airplane', 'one airliner flying low, seen from directly above, in each of the directions it heads, with '
+                 'its shadow on the plain grass below'),
+    ('ship', 'one cargo ship at sea, seen from directly above, in each of the directions it heads, on plain '
+             'open water'),
     ('residential', 'a residential city zone'),
     ('commercial', 'a commercial city zone'),
     ('industrial', 'an industrial city zone'),
@@ -90,6 +168,9 @@ def members(job):
     return SETS.get(job, [job])
 
 
+FRAMES = '-frames'             # a zone's animation frames, as the job <zone>-frames (prep_frames())
+
+
 def subject(job):
     for start, words in SUBJECTS:
         if job.startswith(start):
@@ -109,18 +190,31 @@ def prompts(job, paving, style_from_full=False):
         ground = (f'The second image is the same place already painted, with its buildings. Paint the ground in '
                   f'exactly the brushwork, texture and colours of the ground in that painting, with strong visible '
                   f'brushstrokes. {ground}')
-    return {
-        'full': f'Repaint this top-down render of {what} {STYLE} {paving} {KEEP}',
-        'ground': ground,
-        'shadow': SHADOW,
-    }
+    full = f'Repaint this top-down render of {what} {STYLE} {paving} {KEEP}'
+    if job.endswith(FRAMES):
+        full = (f'The first image is a grid of the frames of an animation of part of {what}, seen from directly '
+                f'above, rendered. The second image is the same grid with the same place already painted, standing '
+                f'still, {STYLE} Repaint the first image cell by cell in exactly the style, brushwork and colours '
+                f'of the second: whatever is the same in a cell of the two images stays exactly as the second paints '
+                f'it, and only what moves between the frames, such as smoke, a turning aerial, a spinning sign or '
+                f'the players and the ball, is painted where and as the first image shows it. Keep the grid, every '
+                f'cell, every shape and the camera. No text, no borders.')
+    return {'full': full, 'ground': ground, 'shadow': SHADOW}
 
 
 def render(asset):
+    # an asset's layers.json and layers. A vehicle's frame has no ground and no shadow margin: it
+    # is given the plain ground it travels over, which is painted round it but never written
     d = os.path.join(RENDERS, asset)
     with open(os.path.join(d, 'layers.json')) as f:
         info = json.load(f)
-    layers = {k: Image.open(os.path.join(d, k + '.png')).convert('RGBA') for k in ('ground', 'shadow', 'objects')}
+    info.setdefault('shadow_margin', {'left': 0, 'right': 0, 'top': 0, 'bottom': 0})
+    layers = {k: Image.open(os.path.join(d, k + '.png')).convert('RGBA')
+              for k in ('ground', 'shadow', 'objects') if os.path.exists(os.path.join(d, k + '.png'))}
+    if 'ground' not in layers:
+        size = info['tiles'] * info['tile_px']
+        layers['ground'] = Image.new('RGBA', (size, size), (*(WATER if asset.startswith('ship') else GRASS), 255))
+        info['vehicle'] = True
     return info, layers
 
 
@@ -144,7 +238,9 @@ def prep(job):
     # Lay the job's assets out in a grid of equal square cells, each footprint at its shadow margin
     # and the border from its cell's corner, and write the three model inputs and the layout. Each
     # member's x and y are where its shadow.png starts on the canvas
-    renders = [(a, *render(a)) for a in members(job)]
+    if job.endswith(FRAMES):
+        return prep_frames(job)
+    renders =[(a, *render(a)) for a in members(job)]
     px = renders[0][1]['tile_px']
     border = int(BORDER * px)
     cell = max(cell_tiles(info) for _, info, _ in renders) * px + 2 * border
@@ -175,15 +271,24 @@ def prep(job):
     os.makedirs(out, exist_ok=True)
     for name, im in (('full', full), ('ground', ground), ('shadow', Image.eval(shadow, lambda v: 255 - v))):
         im.convert('RGB').resize((SIZE, SIZE), Image.LANCZOS).save(os.path.join(out, f'in-{name}.png'))
+    # the paintings the job needs: none of the objects where nothing stands, none of the shadow
+    # where nothing casts one, and none of the ground where another tile's gives it all
+    needs = [layer for layer, wanted in (('full', np.asarray(objects.getchannel('A')).max() > 0),
+                                         ('ground', ground_painted(job)),
+                                         ('shadow', np.asarray(shadow).max() >= SHADOW_FLOOR)) if wanted]
     with open(os.path.join(out, 'canvas.json'), 'w') as f:
-        json.dump({'side': side, 'tile_px': px, 'members': layout}, f, indent=2)
-    print(f'{job}: {len(layout)} asset(s) on a canvas of {side // px} tiles')
+        json.dump({'side': side, 'tile_px': px, 'members': layout, 'paint': needs}, f, indent=2)
+    print(f'{job}: {len(layout)} asset(s) on a canvas of {side // px} tiles, painting {", ".join(needs)}')
 
 
 def paint(job, only, paving, model, style_from_full=False):
     # Paint the chosen inputs at once, each through generate.py, keeping any earlier painting
-    # as out-<layer>-<n>.png
+    # as out-<layer>-<n>.png. A painting is replaced only once its successor exists: the model
+    # refuses some prompts outright, and a refused retry leaves the job as it was
     out = os.path.join(RAW, job)
+    if only is None:
+        with open(os.path.join(out, 'canvas.json')) as f:
+            only = json.load(f)['paint']
     record_path = os.path.join(out, 'prompts.json')
     record = json.load(open(record_path)) if os.path.exists(record_path) else {}
     texts = prompts(job, paving or record.get('paving') or PAVING, style_from_full)
@@ -192,16 +297,12 @@ def paint(job, only, paving, model, style_from_full=False):
         sys.exit(f'{job}: --style-from-full paints the ground from a finished full painting; paint full first')
     runs = []
     for layer in only:
-        target = os.path.join(out, f'out-{layer}.png')
-        if os.path.exists(target):
-            n = 1
-            while os.path.exists(os.path.join(out, f'out-{layer}-{n}.png')):
-                n += 1
-            shutil.move(target, os.path.join(out, f'out-{layer}-{n}.png'))
-        command = [sys.executable, os.path.join(HERE, 'generate.py'), target, texts[layer],
+        command = [sys.executable, os.path.join(HERE, 'generate.py'), os.path.join(out, f'new-{layer}.png'), texts[layer],
                    '--reference', os.path.join(out, f'in-{layer}.png'), '--model', model]
         if style_from_full and layer == 'ground':
             command += ['--reference', full]
+        if job.endswith(FRAMES):
+            command += ['--reference', os.path.join(out, 'ref-full.png')]
         runs.append((layer, subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)))
     failed = []
     for layer, run in runs:
@@ -209,10 +310,18 @@ def paint(job, only, paving, model, style_from_full=False):
         print(f'{job} {layer}: {said}')
         if run.returncode:
             failed.append(layer)
-        else:
-            references = [f'in-{layer}'] + (['out-full'] if style_from_full and layer == 'ground' else [])
-            record[layer] = {'prompt': texts[layer], 'model': model, 'references': references}
-    if paving:
+            continue
+        target = os.path.join(out, f'out-{layer}.png')
+        if os.path.exists(target):
+            n = 1
+            while os.path.exists(os.path.join(out, f'out-{layer}-{n}.png')):
+                n += 1
+            shutil.move(target, os.path.join(out, f'out-{layer}-{n}.png'))
+        shutil.move(os.path.join(out, f'new-{layer}.png'), target)
+        references = ([f'in-{layer}'] + (['out-full'] if style_from_full and layer == 'ground' else [])
+                      + (['ref-full'] if job.endswith(FRAMES) else []))
+        record[layer] = {'prompt': texts[layer], 'model': model, 'references': references}
+    if paving and len(failed) < len(runs):
         record['paving'] = paving
     with open(record_path, 'w') as f:
         json.dump(record, f, indent=2)
@@ -276,6 +385,15 @@ def with_letters(painted, rendered, asset, layer):
     return Image.composite(rendered, painted, Image.open(path).getchannel('A'))
 
 
+def thick(mask):
+    # The parts of a mask at least 2 * THIN pixels across, grown by a pixel to take in their soft
+    # rims. The model cannot keep a stroke a pixel or two wide: it paints a wire, a pole or a
+    # gate's arm, or its shadow, as a dark smear or as whatever lies behind it, so everything
+    # outside these parts is taken from the render.
+    disk = ndimage.generate_binary_structure(2, 1)
+    return ndimage.binary_dilation(ndimage.binary_opening(mask, disk, iterations=THIN), disk)
+
+
 def match(values, target):
     # histogram-match values to target: the same ranks, target's values
     order = np.argsort(values, axis=None)
@@ -285,21 +403,29 @@ def match(values, target):
 
 
 def build(job):
+    if job.endswith(FRAMES):
+        return build_frames(job)
     raw = os.path.join(RAW, job)
     with open(os.path.join(raw, 'canvas.json')) as f:
         canvas = json.load(f)
-    with open(os.path.join(raw, 'prompts.json')) as f:
-        record = json.load(f)
+    record_path = os.path.join(raw, 'prompts.json')
+    record = json.load(open(record_path)) if os.path.exists(record_path) else {}    # a job that paints nothing
     side, px = canvas['side'], canvas['tile_px']
+    painted = [layer for layer in LAYERS if os.path.exists(os.path.join(raw, f'out-{layer}.png'))]
 
     def painting(layer):
+        # a layer the job did not paint is taken from the render, as preview.py would draw it
+        if layer not in painted:
+            return None
         return Image.open(os.path.join(raw, f'out-{layer}.png')).convert('RGB').resize((side, side), Image.LANCZOS)
 
     full, ground = painting('full'), painting('ground')
     renders = {m['asset']: render(m['asset']) for m in canvas['members']}
     # the shadow over the whole canvas: the painting's darkness with the strength of Blender's,
     # matched over the ground that shows. Under a building Blender's shadow is full and hidden,
-    # and the model paints a cast shadow as dark as it: matched with it, a soft shadow turns black
+    # and the model paints a cast shadow as dark as it: matched with it, a soft shadow turns black.
+    # Only Blender's thick shadow is painted: the model smears a wire's or a car's thin shadow
+    # where nothing casts one, and where Blender has none the painting's darkness is a smudge
     blender = np.zeros((side, side), np.float32)
     covered = np.zeros((side, side), bool)
     for m in canvas['members']:
@@ -311,10 +437,17 @@ def build(job):
         fx, fy, n = m['x'] + info['shadow_margin']['left'] * px, m['y'] + info['shadow_margin']['top'] * px, \
             info['tiles'] * px
         covered[fy:fy + n, fx:fx + n] |= np.asarray(layers['objects'].getchannel('A')) >= 128
-    darkness = 255 - np.asarray(painting('shadow').convert('L')).astype(np.float32)
-    matched = blender.copy()
-    matched[~covered] = match(darkness[~covered], blender[~covered])
-    shadow = Image.fromarray(np.clip(matched, 0, 255).astype(np.uint8))
+    shadow = None
+    if 'shadow' in painted:
+        darkness = 255 - np.asarray(painting('shadow').convert('L')).astype(np.float32)
+        region = thick(blender >= SHADOW_FLOOR) & ~covered
+        matched = blender.copy()
+        if region.any():
+            matched[region] = match(darkness[region], blender[region])
+        # faded into Blender's over a pixel or two at the region's edge, so it has no hard rim
+        weight = ndimage.gaussian_filter(region.astype(np.float32), 1)
+        matched = blender + weight * (matched - blender)
+        shadow = Image.fromarray(np.clip(matched, 0, 255).round().astype(np.uint8))
 
     for m in canvas['members']:
         info, layers = renders[m['asset']]
@@ -323,40 +456,256 @@ def build(job):
         box = (fx, fy, fx + size, fy + size)
         out = os.path.join(PAINTED, m['asset'])
         os.makedirs(out, exist_ok=True)
-        g, replaced = hold_ground(ground.crop(box), layers['ground'])
-        o = full.crop(box).convert('RGBA')
-        o.putalpha(layers['objects'].getchannel('A'))
+        replaced = 0.0
+        if ground is not None:
+            g, replaced = hold_ground(ground.crop(box), layers['ground'])
+        else:
+            g = layers['ground'].convert('RGB')
+        o = layers['objects'].copy()
+        if full is not None:
+            alpha = layers['objects'].getchannel('A')
+            painted_part = thick(np.asarray(alpha) >= 128)
+            o = Image.composite(full.crop(box).convert('RGBA'), o, Image.fromarray(painted_part.astype(np.uint8) * 255))
+            o.putalpha(alpha)
         # the zone letters come from the render: the model turns an I into an H or an R, or bends
         # it, however the prompt asks, and a letter is how a player tells the zones apart
         g = with_letters(g.convert('RGBA'), layers['ground'], m['asset'], 'ground')
         o = with_letters(o, layers['objects'], m['asset'], 'objects')
-        g.convert('RGB').save(os.path.join(out, 'ground.png'))
+        if not info.get('vehicle'):
+            g.convert('RGB').save(os.path.join(out, 'ground.png'))
         o.save(os.path.join(out, 'objects.png'))
-        w, h = layers['shadow'].size
-        s = Image.new('RGBA', (w, h), (0, 0, 0, 255))
-        s.putalpha(shadow.crop((m['x'], m['y'], m['x'] + w, m['y'] + h)))
+        if shadow is not None:
+            w, h = layers['shadow'].size
+            s = Image.new('RGBA', (w, h), (0, 0, 0, 255))
+            s.putalpha(shadow.crop((m['x'], m['y'], m['x'] + w, m['y'] + h)))
+        else:
+            s = layers['shadow']
         s.save(os.path.join(out, 'shadow.png'))
         shutil.copy(os.path.join(RENDERS, m['asset'], 'layers.json'), os.path.join(out, 'layers.json'))
         with open(os.path.join(out, 'painting.json'), 'w') as f:
-            json.dump({'job': job, 'paintings': {k: record[k] for k in LAYERS}}, f, indent=2)
+            json.dump({'job': job, 'paintings': {k: record[k] for k in painted}}, f, indent=2)
             f.write('\n')
+        if '/' in m['asset'] and not info.get('vehicle'):
+            # a single tile's: join() works from these, so it can run again without wrapping a donor twice
+            kept = os.path.join(RAW, 'built', m['asset'])
+            os.makedirs(kept, exist_ok=True)
+            for layer in ('ground', 'objects'):
+                shutil.copy(os.path.join(out, f'{layer}.png'), os.path.join(kept, f'{layer}.png'))
         print(f'{m["asset"]}: ground held to the render at {replaced:.1%} of its pixels')
+
+
+def wrapped(image, axes):
+    # The image faded, over WRAP_BAND pixels at each edge along each of `axes` ('x', 'y'), into
+    # itself shifted by half its size: at its edges it then shows the two sides of its middle,
+    # which meet, so it runs on into a copy of itself without a seam, and away from them it is
+    # untouched, where blending it all with the shifted copy would double its markings
+    a = np.asarray(image).astype(np.float32)
+    h, w = a.shape[:2]
+    for axis in axes:
+        n = w if axis == 'x' else h
+        k = np.arange(n, dtype=np.float32)
+        weight = np.minimum(1.0, np.minimum(k, n - 1 - k) / WRAP_BAND)
+        shifted = np.roll(a, n // 2, axis=1 if axis == 'x' else 0)
+        weight = weight[None, :, None] if axis == 'x' else weight[:, None, None]
+        a = a * weight + shifted * (1 - weight)
+    return Image.fromarray(np.clip(a, 0, 255).round().astype(np.uint8), image.mode)
+
+
+def flattened(image):
+    # A surface donor without its broad light and dark patches, keeping its brushwork: every tile
+    # of land or water on the map is the same image, so a patch the model painted, such as a dark
+    # tuft, stands in the same place on every tile and marks out the grid. The image runs on into
+    # itself, as wrapped() leaves it, so the blur wraps too.
+    a = np.asarray(image).astype(np.float32)
+    broad = ndimage.gaussian_filter(a, (FLATTEN, FLATTEN, 0), mode='wrap')
+    a = a - broad + broad.mean(axis=(0, 1))
+    return Image.fromarray(np.clip(a, 0, 255).round().astype(np.uint8), image.mode)
+
+
+def join(tolerance=3):
+    # Give every painted single tile its donors' paintings wherever its render is the donor's to
+    # within `tolerance`: the ground everywhere it is, and the objects where both are opaque.
+    # Blender's tiles join because the surfaces they share are one texture laid the same way on
+    # every tile; this makes the painted surfaces one painting in the same way, so painted tiles
+    # join where their renders do. Works from the built layers build() keeps, so it can run again.
+    kept = os.path.join(RAW, 'built')
+    tiles = sorted(f'{s}/{t}' for s in os.listdir(kept) for t in os.listdir(os.path.join(kept, s)))
+    donors = []
+    for asset, axes, layers in DONORS:
+        if asset not in tiles:
+            print(f'{asset}: not painted yet, so no donor')
+            continue
+        for layer in layers:
+            blender = np.asarray(Image.open(os.path.join(RENDERS, asset, f'{layer}.png')).convert('RGBA')).astype(int)
+            painted = wrapped(Image.open(os.path.join(kept, asset, f'{layer}.png')).convert('RGBA'), axes)
+            if axes == 'xy':
+                painted = flattened(painted)
+            donors.append((layer, blender, np.asarray(painted)))
+    for asset in tiles:
+        out = os.path.join(PAINTED, asset)
+        shares = []
+        for layer in ('ground', 'objects'):
+            mine = np.asarray(Image.open(os.path.join(RENDERS, asset, f'{layer}.png')).convert('RGBA')).astype(int)
+            result = np.asarray(Image.open(os.path.join(kept, asset, f'{layer}.png')).convert('RGBA')).copy()
+            free = np.ones(mine.shape[:2], bool)
+            for given, blender, painted in donors:
+                if given != layer:
+                    continue
+                same = np.abs(mine[..., :3] - blender[..., :3]).max(axis=-1) <= tolerance
+                if layer == 'objects':
+                    same &= (mine[..., 3] == 255) & (blender[..., 3] == 255)
+                take = same & free
+                result[take, :3] = painted[take, :3]
+                free &= ~take
+            shares.append(float((~free).mean()))
+            image = Image.fromarray(result, 'RGBA')
+            (image.convert('RGB') if layer == 'ground' else image).save(os.path.join(out, f'{layer}.png'))
+        print(f'{asset}: {shares[0]:.0%} of the ground and {shares[1]:.0%} of the objects from donors')
+
+
+def _frame_dirs(zone):
+    d = os.path.join(RENDERS, zone)
+    return sorted((int(f.split('-')[1]), f) for f in os.listdir(d) if f.startswith('frame-'))
+
+
+def _composite(ground, shadow, objects, margin, px):
+    # a zone's footprint as the game draws it: its ground, its own shadow over it, its objects
+    image = ground.convert('RGBA').copy()
+    a = Image.new('L', image.size, 0)
+    a.paste(shadow.getchannel('A'), (-margin['left'] * px, -margin['top'] * px))
+    dark = Image.new('RGBA', image.size, (0, 0, 0, 255))
+    dark.putalpha(a)
+    image.alpha_composite(dark)
+    image.alpha_composite(objects)
+    return image
+
+
+def _moving(zone):
+    # where any frame's objects differ from the still zone's, the render's pixels: the smoke, the
+    # aerial, the players
+    still = np.asarray(render(zone)[1]['objects']).astype(int)
+    moving = np.zeros(still.shape[:2], bool)
+    frames = {}
+    for k, d in _frame_dirs(zone):
+        frames[k] = render(f'{zone}/{d}')
+        moving |= np.abs(np.asarray(frames[k][1]['objects']).astype(int) - still).max(axis=-1) > 6
+    return still, frames, moving
+
+
+def prep_frames(job):
+    # A zone's animation: every frame's region that moves, cut from the frame as the game draws it,
+    # laid out in a grid as the first model input, and the same grid of the painted still zone as
+    # the second, so the painting changes only what moves and the frames don't flicker
+    zone = job[:-len(FRAMES)]
+    info, layers = render(zone)
+    px, n = info['tile_px'], info['tiles'] * info['tile_px']
+    _, frames, moving = _moving(zone)
+    ys, xs = np.nonzero(moving)
+    pad = px // 4
+    box = [max(0, int(xs.min()) - pad), max(0, int(ys.min()) - pad), min(n, int(xs.max()) + 1 + pad),
+           min(n, int(ys.max()) + 1 + pad)]
+    painted_dir = os.path.join(PAINTED, zone)
+    painted = _composite(*(Image.open(os.path.join(painted_dir, f'{k}.png')).convert('RGBA')
+                           for k in ('ground', 'shadow', 'objects')), info['shadow_margin'], px).crop(box)
+    w, h = box[2] - box[0], box[3] - box[1]
+    gap = px // 8
+    cell = max(w, h) + gap
+    cols = math.ceil(math.sqrt(len(frames)))
+    side = cols * cell
+    first = Image.new('RGBA', (side, side), (*GRASS, 255))
+    second = first.copy()
+    for i, (k, (finfo, flayers)) in enumerate(sorted(frames.items())):
+        x, y = (i % cols) * cell + gap // 2, (i // cols) * cell + gap // 2
+        first.paste(_composite(flayers['ground'], flayers['shadow'], flayers['objects'], finfo['shadow_margin'],
+                               px).crop(box), (x, y))
+        second.paste(painted, (x, y))
+    out = os.path.join(RAW, job)
+    os.makedirs(out, exist_ok=True)
+    first.convert('RGB').resize((SIZE, SIZE), Image.LANCZOS).save(os.path.join(out, 'in-full.png'))
+    second.convert('RGB').resize((SIZE, SIZE), Image.LANCZOS).save(os.path.join(out, 'ref-full.png'))
+    with open(os.path.join(out, 'canvas.json'), 'w') as f:
+        json.dump({'side': side, 'tile_px': px, 'box': box, 'cell': cell, 'gap': gap, 'cols': cols,
+                   'frames': sorted(frames), 'paint': ['full']}, f, indent=2)
+    print(f'{job}: {len(frames)} frames of a {w} x {h} px region')
+
+
+def build_frames(job):
+    # Each frame of the zone: the painted still zone, but where the frame's objects differ from the
+    # still's, the painting of that frame; the shadow the still's painted one wherever the frame's
+    # rendered shadow is the still's, and the render's where something moving changes it
+    zone = job[:-len(FRAMES)]
+    raw = os.path.join(RAW, job)
+    with open(os.path.join(raw, 'canvas.json')) as f:
+        canvas = json.load(f)
+    with open(os.path.join(raw, 'prompts.json')) as f:
+        record = json.load(f)
+    info, layers = render(zone)
+    px, box, cell, gap, cols = canvas['tile_px'], canvas['box'], canvas['cell'], canvas['gap'], canvas['cols']
+    w, h = box[2] - box[0], box[3] - box[1]
+    painting = Image.open(os.path.join(raw, 'out-full.png')).convert('RGB').resize((canvas['side'],) * 2,
+                                                                                      Image.LANCZOS)
+    painted_dir = os.path.join(PAINTED, zone)
+    painted = {k: Image.open(os.path.join(painted_dir, f'{k}.png')).convert('RGBA')
+               for k in ('ground', 'shadow', 'objects')}
+    still, frames, _ = _moving(zone)
+    still_shadow = np.asarray(layers['shadow'].getchannel('A')).astype(int)
+    painted_shadow = np.asarray(painted['shadow'].getchannel('A'))
+    sm = info['shadow_margin']
+    for i, k in enumerate(canvas['frames']):
+        finfo, flayers = frames[k]
+        x, y = (i % cols) * cell + gap // 2, (i // cols) * cell + gap // 2
+        crop = np.asarray(painting.crop((x, y, x + w, y + h)))
+        mine = np.asarray(flayers['objects']).astype(int)
+        moves = ndimage.binary_dilation(np.abs(mine - still).max(axis=-1) > 6)
+        objects = np.asarray(painted['objects']).copy()
+        region = objects[box[1]:box[3], box[0]:box[2]]
+        inside = moves[box[1]:box[3], box[0]:box[2]]
+        region[inside, :3] = crop[inside]
+        objects[..., 3] = mine[..., 3]
+        # the frame's shadow, pixel by pixel against the still's, lined up by their margins
+        fm = finfo['shadow_margin']
+        frame_shadow = np.asarray(flayers['shadow'].getchannel('A')).astype(int)
+        shadow = frame_shadow.copy()
+        dy, dx = (sm['top'] - fm['top']) * px, (sm['left'] - fm['left']) * px
+        fh, fw = frame_shadow.shape
+        yy, xx = np.mgrid[0:fh, 0:fw]
+        sy, sx = yy + dy, xx + dx
+        inside = (sy >= 0) & (sy < still_shadow.shape[0]) & (sx >= 0) & (sx < still_shadow.shape[1])
+        same = np.zeros_like(inside)
+        same[inside] = np.abs(frame_shadow[inside] - still_shadow[sy[inside], sx[inside]]) <= 4
+        shadow[same] = painted_shadow[sy[same], sx[same]]
+        out = os.path.join(PAINTED, zone, f'frame-{k}')
+        os.makedirs(out, exist_ok=True)
+        painted['ground'].convert('RGB').save(os.path.join(out, 'ground.png'))
+        Image.fromarray(objects, 'RGBA').save(os.path.join(out, 'objects.png'))
+        s = Image.new('RGBA', (fw, fh), (0, 0, 0, 255))
+        s.putalpha(Image.fromarray(shadow.astype(np.uint8)))
+        s.save(os.path.join(out, 'shadow.png'))
+        shutil.copy(os.path.join(RENDERS, zone, f'frame-{k}', 'layers.json'), os.path.join(out, 'layers.json'))
+        with open(os.path.join(out, 'painting.json'), 'w') as f:
+            json.dump({'job': job, 'still': zone, 'paintings': {'full': record['full']}}, f, indent=2)
+            f.write('\n')
+        print(f'{zone}/frame-{k}: {moves.mean():.1%} of the zone from the frames\' painting')
 
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    p.add_argument('step', choices=('prep', 'paint', 'build'))
-    p.add_argument('jobs', nargs='+', help='asset names under art/blender/out, or sets named in SETS')
-    p.add_argument('--only', default=','.join(LAYERS), help='paint: the inputs to paint, comma-separated')
+    p.add_argument('step', choices=('prep', 'paint', 'build', 'join'))
+    p.add_argument('jobs', nargs='*', help='asset names under art/blender/out, or sets named in SETS; join takes '
+                                           'none, and joins every painted single tile')
+    p.add_argument('--only', help='paint: the inputs to paint, comma-separated; by default those prep found the '
+                                  'job needs')
     p.add_argument('--paving', help="paint: the sentence naming what the job's ground is made of")
     p.add_argument('--model', default=MODEL)
     p.add_argument('--style-from-full', action='store_true',
                    help="paint: give the ground the job's full painting as a second reference, to copy its brushwork")
     a = p.parse_args()
+    if a.step == 'join':
+        join()
     for job in a.jobs:
         if a.step == 'prep':
             prep(job)
         elif a.step == 'paint':
-            paint(job, a.only.split(','), a.paving, a.model, a.style_from_full)
-        else:
+            paint(job, a.only.split(',') if a.only else None, a.paving, a.model, a.style_from_full)
+        elif a.step == 'build':
             build(job)
