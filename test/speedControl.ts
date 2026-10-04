@@ -102,45 +102,7 @@ describe("the speed control", () => {
         expect(game.speed()).toBe(SPEEDS.slow);
     });
 
-    it("runs at the speed Settings chooses", async () => {
-        const game = await newGame("fast, flush");
-        const {speedControl, shown} = control(game);
-
-        speedControl.setRunningSpeed(SPEEDS.fast);
-        await game.apply();
-
-        expect(game.speed()).toBe(SPEEDS.fast);
-        expect(speedControl.getRunningSpeed()).toBe(SPEEDS.fast);
-        expect(shown).toEqual([false, false]);
-    });
-
-    // The settings window sends its speed whenever it closes, changed or not
-    it("sends nothing when Settings closes at the speed the city already runs at", async () => {
-        const game = await newGame("nothing");
-        const {speedControl, sent} = control(game);
-
-        speedControl.setRunningSpeed(SPEEDS.medium);
-
-        expect(sent).toEqual([]);
-    });
-
-    it("keeps a paused game paused when Settings chooses a speed, and resumes it at that speed", async () => {
-        const game = await newGame("pause, flush, flush, fast, flush");
-        const {speedControl, shown} = control(game);
-        speedControl.togglePause();
-        await game.apply();
-
-        speedControl.setRunningSpeed(SPEEDS.fast);
-        await game.apply();
-        const whilePaused = game.speed();
-        speedControl.togglePause();
-        await game.apply();
-
-        expect([whilePaused, game.speed()]).toEqual([SPEEDS.paused, SPEEDS.fast]);
-        expect(shown).toEqual([false, true, false]);
-    });
-
-    // As a replayed log or another player may: Play then resumes at the speed the city last ran at. The other player's
+    // As a replayed log, another player or Settings may: Play then resumes at the speed the city last ran at. The other player's
     // commands reach this source only as what the city sends once it applies them.
     it("follows a speed set by another player's command", async () => {
         const game = await newGame("another player's slow, flush, another player's pause, flush, slow, flush");

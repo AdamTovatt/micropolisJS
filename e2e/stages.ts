@@ -173,14 +173,27 @@ export const STAGES: Stage[] = [
     async play(player) {
       await player.selectTool("airport");
       await player.clickTile({x: 47, y: 41});
-      await expect(player.page.locator("#toolOutput")).toHaveText("Tools");
       await expectTiles(player, [[{x: 47, y: 41}, AIRPORT]], "the airport's centre");
+      await expect(player.page.locator("#toolToast"), "a tool that built shows no toast").toBeHidden();
 
       // The airport left too little for a second one
       const before = await player.save();
       expect(before.budget.totalFunds).toBeLessThan(AIRPORT_COST);
       await player.clickTile({x: 72, y: 30});
-      await expect(player.page.locator("#toolOutput")).toHaveText("Insufficient funds to build that");
+      const toast = player.page.locator("#toolToast");
+      await expect(toast).toBeVisible();
+      await expect(toast).toHaveText("Insufficient funds to build that");
+      await expect(player.page.locator("#toolInfo"), "the Tools heading never changes").toHaveText("Tools");
+
+      // Just right of and below the pointer, which clicked the tile's middle
+      const corner = await player.tileCorner({x: 72, y: 30});
+      const {tileWidth} = await player.view();
+      const box = (await toast.boundingBox())!;
+      const offset = {x: box.x - (corner.x + tileWidth / 2), y: box.y - (corner.y + tileWidth / 2)};
+      expect(offset.x, "the toast's left edge from the pointer").toBeGreaterThan(0);
+      expect(offset.x, "the toast's left edge from the pointer").toBeLessThan(tileWidth * 2);
+      expect(offset.y, "the toast's top edge from the pointer").toBeGreaterThan(0);
+      expect(offset.y, "the toast's top edge from the pointer").toBeLessThan(tileWidth * 2);
       expect(await player.save(), "a rejected tool leaves the city as it was").toEqual(before);
     },
   },

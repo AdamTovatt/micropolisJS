@@ -42,7 +42,7 @@ describe("the info bar", () => {
         bar.showEvaluation({cityClass: "TOWN", score: 612});
         bar.showBudget({funds: 18750});
 
-        expect(shown()).toEqual({classification: "TOWN", population: "2400", score: "612", funds: "18750",
+        expect(shown()).toEqual({classification: "TOWN", population: "2400", score: "612", funds: "$18,750",
                                  date: "Apr 1901", name: "Town"});
     });
 
@@ -58,6 +58,6 @@ describe("the info bar", () => {
         bar.showEvaluation({cityClass: "VILLAGE", score: 510});
         bar.showBudget({funds: 19500});
 
-        expect(shown()).toMatchObject({population: "120", score: "510", funds: "19500", date: "Feb 1900"});
+        expect(shown()).toMatchObject({population: "120", score: "510", funds: "$19,500", date: "Feb 1900"});
     });
 });

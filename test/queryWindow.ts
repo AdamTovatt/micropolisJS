@@ -29,6 +29,7 @@ describe("the query window's view", () => {
     it("shows the report's bands as text, and its raw values for the debug rows", () => {
         expect(queryView(REPORT)).toEqual({
             category: "Residential",
+            hasPower: "Yes",
             populationDensityBand: "High",
             landValueBand: "Lower Class",
             crimeBand: "Light",
@@ -67,6 +68,20 @@ describe("the query window's view", () => {
             "Police Department", "Stadium", "Nuclear Power", "Draw Bridge", "Radar Dish", "Fountain",
             "Steelers 38  Bears 3", "Ur 238",
         ]);
+    });
+});
+
+describe("the query window's powered row", () => {
+
+    it.each([
+        ["a powered zone's centre", {zoneCentre: true, conductive: true, powered: true}, "Yes"],
+        ["an unpowered zone's centre", {zoneCentre: true, conductive: true, powered: false}, "No"],
+        ["a powered power line", {category: "POWER", zoneCentre: false, conductive: true, powered: true}, "Yes"],
+        ["an unpowered power line", {category: "POWER", zoneCentre: false, conductive: true, powered: false}, "No"],
+        ["water", {category: "WATER", zoneCentre: false, conductive: false, powered: false}, null],
+        ["a park", {category: "FOUNTAIN", zoneCentre: false, conductive: false, powered: false}, null],
+    ] as const)("for %s is %p", (_, tile, shown) => {
+        expect(queryView({...REPORT, ...tile}).hasPower).toBe(shown);
     });
 });
 

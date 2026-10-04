@@ -13,39 +13,28 @@
 
 import { readFileSync } from "fs";
 
-import { RUNNING_SPEEDS, Speed } from "../headless/city";
-import { type SettingsRecord, SPEEDS } from "../src/protocol";
-import { type ClientSettings, shownSpeed, SPEED_RADIOS, speedRadioID } from "../src/settingsWindow";
+import { SPEEDS } from "../src/protocol";
+import { SPEED_RADIOS, speedRadioID } from "../src/settingsWindow";
 import { repositoryPath } from "./helpers/repository";
 
-const CITY: SettingsRecord = {type: "settings", autoBudget: true, disasters: false, speed: SPEEDS.fast};
-const CLIENT: ClientSettings = {autoBulldoze: true, seed: 8, resumeSpeed: SPEEDS.slow};
-
-describe("the speed the settings window shows", () => {
-
-    it("is the speed the city runs at", () => {
-        expect(shownSpeed(CITY, CLIENT)).toBe(SPEEDS.fast);
-    });
-
-    it("is the speed Play resumes the city at while it is paused", () => {
-        expect(shownSpeed({...CITY, speed: SPEEDS.paused}, CLIENT)).toBe(SPEEDS.slow);
-    });
-});
-
+// The window shows the city's speed as the settings record gives it, paused included, as the pause button does
 describe("the settings window's speed radio buttons", () => {
 
     // The page's markup, which has each radio button
     const page = readFileSync(repositoryPath("index.html"), "utf8");
 
-    it.each(RUNNING_SPEEDS)("include one for the %s speed", (name) => {
-        expect(page).toContain(`id="${speedRadioID(Speed[name])}"`);
+    it.each(Object.entries(SPEEDS))("include one for the %s speed", (_, speed) => {
+        expect(page).toContain(`id="${speedRadioID(speed)}"`);
     });
 
-    it("are one for each speed the city runs at", () => {
-        expect(SPEED_RADIOS.map(({speed}) => speed)).toEqual(RUNNING_SPEEDS.map((name) => Speed[name]));
+    it("are one for each speed, paused first", () => {
+        expect(SPEED_RADIOS.map(({speed}) => speed).sort()).toEqual(Object.values(SPEEDS).sort());
+        expect(SPEED_RADIOS[0].speed).toBe(SPEEDS.paused);
     });
 
-    it("are none for the paused speed", () => {
-        expect(() => speedRadioID(SPEEDS.paused)).toThrow("no radio button for the speed 0");
+    it("are none for a speed the city has no such setting for", () => {
+        const unknown = Math.max(...Object.values(SPEEDS)) + 1;
+
+        expect(() => speedRadioID(unknown)).toThrow(`no radio button for the speed ${unknown}`);
     });
 });

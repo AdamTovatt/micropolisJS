@@ -12,14 +12,15 @@
  */
 
 import { Command, CommandResult, Outcome, PlayerId, ServiceAmounts } from "./protocol";
-import { Text } from "./text";
 
 // The commands the player's choices in the game's windows send, and what the game shows of their results
 
-// The city settings the settings window shows, which are city state and change only by command
+// The city settings the settings window shows, which are city state and change only by command: the speed one of
+// SPEEDS, paused included
 export interface CitySettings {
   autoBudget: boolean;
   disasters: boolean;
+  speed: number;
 }
 
 // The commands for the city settings the player changed in the settings window. A setting is compared with what the
@@ -36,6 +37,10 @@ export function settingsCommands(shown: CitySettings, chosen: CitySettings): Com
     commands.push({type: "setDisasters", on: chosen.disasters});
   }
 
+  if (chosen.speed !== shown.speed) {
+    commands.push({type: "setSpeed", speed: chosen.speed});
+  }
+
   return commands;
 }
 
@@ -44,8 +49,7 @@ export function budgetCommand(funding: Partial<ServiceAmounts>, tax: number): Co
   return {type: "setBudget", tax, ...funding};
 }
 
-// The outcome the tool output shows for a command result: that of the player's own tool commands, and null for any
-// other. A result's command is whatever arrived, so it is checked before it is read: here rather than with
+// The outcome of the player's own tool command a result tells of, and null for any other result. A result's command is whatever arrived, so it is checked before it is read: here rather than with
 // validation.ts's isRecord, since the client imports nothing of the simulation's but the vocabulary it shares.
 export function toolOutcome(result: CommandResult, player: PlayerId): Outcome | null {
   const command = result.command;
@@ -55,18 +59,4 @@ export function toolOutcome(result: CommandResult, player: PlayerId): Outcome | 
   }
 
   return result.outcome;
-}
-
-// What the tool output shows for a tool command's outcome: why it built nothing, where the player can fix that, or
-// else its label
-export function toolOutputText(outcome: Outcome): string {
-  if (outcome === "needsBulldoze") {
-    return Text.toolMessages.needsDoze;
-  }
-
-  if (outcome === "noMoney") {
-    return Text.toolMessages.noMoney;
-  }
-
-  return Text.toolMessages.label;
 }

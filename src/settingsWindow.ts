@@ -16,16 +16,14 @@ import { SETTINGS_WINDOW_CLOSED } from "./uiMessages";
 import { type SettingsRecord, SPEEDS } from "./protocol";
 import { ClosableWindow } from "./windowBase";
 
-// The settings the client keeps, which the window shows beside the city's: the auto-bulldoze preference, the seed, and
-// the speed Play resumes the city at while it is paused
+// The settings the client keeps, which the window shows beside the city's: the auto-bulldoze preference and the seed
 export interface ClientSettings {
   autoBulldoze: boolean;
   seed: number;
-  resumeSpeed: number;
 }
 
-// What the player chose with OK: every setting the window offers. The game sends the city's settings the player
-// changed as commands, and keeps the others.
+// What the player chose with OK: every setting the window offers, the speed one of SPEEDS, paused included. The game
+// sends the city's settings the player changed as commands, and keeps the others.
 export interface SettingsChoice {
   autoBudget: boolean;
   autoBulldoze: boolean;
@@ -33,18 +31,13 @@ export interface SettingsChoice {
   disasters: boolean;
 }
 
-// The radio button of each speed the city runs at
+// The radio button of each speed the city can be set to, paused included, as the pause button shows it
 export const SPEED_RADIOS: {speed: number, id: string}[] = [
+  {speed: SPEEDS.paused, id: "speedPaused"},
   {speed: SPEEDS.slow, id: "speedSlow"},
   {speed: SPEEDS.medium, id: "speedMed"},
   {speed: SPEEDS.fast, id: "speedFast"},
 ];
-
-// The speed the window shows: the speed the city runs at, or while it is paused, the speed Play resumes it at. Tested
-// under node; the window only writes it into the DOM.
-export function shownSpeed(city: SettingsRecord, client: ClientSettings): number {
-  return city.speed === SPEEDS.paused ? client.resumeSpeed : city.speed;
-}
 
 // The radio button of the speed
 export function speedRadioID(speed: number): string {
@@ -77,7 +70,7 @@ export class SettingsWindow extends ClosableWindow {
   open(city: SettingsRecord, client: ClientSettings): void {
     checkYesOrNo("autoBudget", city.autoBudget);
     checkYesOrNo("autoBulldoze", client.autoBulldoze);
-    check(speedRadioID(shownSpeed(city, client)));
+    check(speedRadioID(city.speed));
     checkYesOrNo("disasters", city.disasters);
     requiredElement("settingsSeed").textContent = `${client.seed}`;
 
