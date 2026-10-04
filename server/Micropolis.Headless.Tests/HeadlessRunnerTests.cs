@@ -31,10 +31,11 @@ namespace Micropolis.Headless.Tests
             return CommandLog.Parse(File.ReadAllText(LogPath(name)));
         }
 
-        // The committed files, with a command log of the text given
-        private static HeadlessFiles Reading(string log)
+        // The replay of a log file of the text given
+        private static RunReport RunLog(string log)
         {
-            return HeadlessFiles.Committed with { ReadFile = _ => log };
+            using TemporaryDirectory directory = new TemporaryDirectory();
+            return HeadlessRunner.Run(new ReplayLog(directory.Write("log.json", log)), HeadlessFiles.Committed);
         }
 
         private static string Hash(Simulation city)
@@ -148,7 +149,7 @@ namespace Micropolis.Headless.Tests
                                "{\"step\":2,\"player\":\"local\",\"command\":{\"type\":\"addFunds\"}}," +
                                "{\"step\":2,\"player\":\"ada\",\"command\":{\"type\":\"nothing\"}}],\"checkpoints\":[]}";
 
-            RunReport report = HeadlessRunner.Run(new ReplayLog("log.json"), Reading(log));
+            RunReport report = RunLog(log);
 
             Assert.AreEqual("2 commands: 1 ok, 1 rejected", report.Lines[0]);
             Assert.AreEqual("The log has no checkpoints, so its replay verified nothing", report.Failure);
@@ -160,10 +161,10 @@ namespace Micropolis.Headless.Tests
             string log = File.ReadAllText(LogPath(MidRun.Name));
             Checkpoint checkpoint = Committed(MidRun.Name).Checkpoints[2];
 
-            InvalidDataException exception = Assert.ThrowsExactly<InvalidDataException>(
-                () => HeadlessRunner.Run(new ReplayLog("log.json"), Reading(log.Replace(checkpoint.Hash, new string('0', 64)))));
+            ReplayDiffersException exception = Assert.ThrowsExactly<ReplayDiffersException>(
+                () => RunLog(log.Replace(checkpoint.Hash, new string('0', 64))));
 
-            Assert.AreEqual($"The state hash at step {checkpoint.Step} differs: expected {new string('0', 64)}, was {checkpoint.Hash}.",
+            Assert.AreEqual($"At step {checkpoint.Step} the replay's state hash is {checkpoint.Hash}, but the log's checkpoint is {new string('0', 64)}",
                             exception.Message);
         }
 
@@ -174,10 +175,9 @@ namespace Micropolis.Headless.Tests
                                "{\"step\":0,\"player\":\"local\",\"command\":{\"type\":\"setSpeed\",\"speed\":0}}]," +
                                "\"checkpoints\":[{\"step\":5,\"hash\":\"" + "0000000000000000000000000000000000000000000000000000000000000000" + "\"}]}";
 
-            StepsFailedException exception = Assert.ThrowsExactly<StepsFailedException>(
-                () => HeadlessRunner.Run(new ReplayLog("log.json"), Reading(log)));
+            StepsFailedException exception = Assert.ThrowsExactly<StepsFailedException>(() => RunLog(log));
 
-            Assert.AreEqual("The log steps a paused city at step 0.", exception.Message);
+            Assert.AreEqual("The log steps a paused city, from step 0 to step 5", exception.Message);
         }
 
         [TestMethod]

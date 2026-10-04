@@ -54,8 +54,6 @@ namespace Micropolis.Headless
         /// </summary>
         public const string LogsDirectory = "conformance/logs";
 
-        public const string LogExtension = ".log.json";
-
         private const uint Seed = 8;
 
         // The town: two rows of ten zones either side of a road, a coal plant at the west end
@@ -266,7 +264,7 @@ namespace Micropolis.Headless
 
         public static string LogPath(string directory, string name)
         {
-            return Path.Combine(directory, $"{name}{LogExtension}");
+            return Path.Combine(directory, $"{name}{CommandLog.FileExtension}");
         }
 
         // A fixture built by commands, all sent before the first step, with checkpoints of the city as built and after

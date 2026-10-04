@@ -23,16 +23,16 @@ namespace Micropolis.Headless
     internal sealed record RunReport(IReadOnlyList<string> Lines, string? Failure);
 
     /// <summary>
-    /// The files a run reads and writes: a command log, read with <see cref="ReadFile"/>; the directory of the fixtures'
-    /// logs, which a fixture that starts from a save reads it from, and which the fixture tool writes; and the golden
-    /// playthrough, which the tool copies the playthrough's log from.
+    /// Where the files a run reads and writes beside a log it is given are: the directory of the fixtures' logs, which
+    /// a fixture that starts from a save reads it from, and which the fixture tool writes; and the golden playthrough,
+    /// which the tool copies the playthrough's log from.
     /// </summary>
-    internal sealed record HeadlessFiles(Func<string, string> ReadFile, string Logs, string GoldenPlaythrough)
+    internal sealed record HeadlessFiles(string Logs, string GoldenPlaythrough)
     {
         /// <summary>
         /// The repository's own files, as the command line runs on them.
         /// </summary>
-        public static HeadlessFiles Committed => new HeadlessFiles(File.ReadAllText, Fixtures.CommittedLogs, FixtureLogs.CommittedGoldenPlaythrough);
+        public static HeadlessFiles Committed => new HeadlessFiles(Fixtures.CommittedLogs, FixtureLogs.CommittedGoldenPlaythrough);
     }
 
     /// <summary>
@@ -53,7 +53,7 @@ namespace Micropolis.Headless
                 case WriteFixtures:
                     return new RunReport(FixtureLogs.WriteAll(files.Logs, files.GoldenPlaythrough).Select(path => $"wrote {path}").ToList(), null);
                 case ReplayLog replayLog:
-                    CommandLog log = CommandLog.Parse(files.ReadFile(replayLog.Path));
+                    CommandLog log = CommandLog.Parse(File.ReadAllText(replayLog.Path));
                     Replay replay = LogReplay.Verify(log);
 
                     return log.Checkpoints.Count == 0

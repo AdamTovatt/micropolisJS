@@ -48,6 +48,11 @@ namespace Micropolis.Rules
         public const int FormatVersion = 1;
 
         /// <summary>
+        /// How a command log's file name ends.
+        /// </summary>
+        public const string FileExtension = ".log.json";
+
+        /// <summary>
         /// The step a replay ends at: its last entry's or its last checkpoint's, whichever is later.
         /// </summary>
         public int LastStep => Math.Max(Entries.Count == 0 ? 0 : Entries[^1].Step, Checkpoints.Count == 0 ? 0 : Checkpoints[^1].Step);

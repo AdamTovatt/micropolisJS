@@ -11,8 +11,6 @@
  *
  */
 
-using Micropolis.SourceTree;
-
 namespace Micropolis.Rules.Tests
 {
     [TestClass]
@@ -25,15 +23,14 @@ namespace Micropolis.Rules.Tests
             "\"entries\":[{\"step\":0,\"player\":\"local\",\"command\":{\"type\":\"addFunds\"}}]," +
             "\"checkpoints\":[{\"step\":3,\"hash\":\"" + Hash + "\"}]}";
 
-        public static IEnumerable<object[]> CommittedLogs => Directory.GetFiles(RepositoryFiles.GetPath("conformance/logs"), "*.log.json")
-            .Select(path => new object[] { Path.GetFileName(path) });
+        public static IEnumerable<object[]> CommittedLogs => ConformanceLogs.Files().Select(file => new object[] { file });
 
         // A log is written as the conformance files lay it out, so each committed log reads and writes back unchanged
         [TestMethod]
         [DynamicData(nameof(CommittedLogs))]
         public void Write_CommittedLogParsed_GivesItsTextBack(string file)
         {
-            string text = File.ReadAllText(RepositoryFiles.GetPath($"conformance/logs/{file}"));
+            string text = ConformanceLogs.Read(file);
 
             Assert.AreEqual(text, CommandLog.Parse(text).Write());
         }

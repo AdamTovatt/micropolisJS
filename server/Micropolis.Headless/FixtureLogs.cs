@@ -43,14 +43,18 @@ namespace Micropolis.Headless
         public static IReadOnlyList<string> Names => [.. Fixtures.Logs.Select(fixture => fixture.Name), Playthrough];
 
         /// <summary>
-        /// The playthrough's log, as the golden playthrough at <paramref name="goldenPlaythrough"/> holds it, or an
-        /// <see cref="InvalidDataException"/> naming the file when it holds none.
+        /// The playthrough's log, as the golden playthrough at <paramref name="goldenPlaythrough"/> holds it, once its
+        /// replay has matched every checkpoint, as the generator checks it. An <see cref="InvalidDataException"/> names
+        /// the file when it holds no log, and a <see cref="ReplayDiffersException"/> asks for the playthrough to be
+        /// pinned again when its log no longer replays.
         /// </summary>
         public static CommandLog CopyPlaythrough(string goldenPlaythrough)
         {
+            CommandLog log;
+
             try
             {
-                return CommandLog.Read(JsonText.Parse(File.ReadAllText(goldenPlaythrough))?["log"]);
+                log = CommandLog.Read(JsonText.Parse(File.ReadAllText(goldenPlaythrough))?["log"]);
             }
             catch (JsonException exception)
             {
@@ -60,6 +64,18 @@ namespace Micropolis.Headless
             {
                 throw new InvalidDataException($"The golden playthrough {goldenPlaythrough} holds no log: {exception.Message}");
             }
+
+            try
+            {
+                LogReplay.Verify(log);
+            }
+            catch (Exception exception) when (exception is ReplayDiffersException or StepsFailedException)
+            {
+                throw new ReplayDiffersException(
+                    $"The golden playthrough's log does not replay: re-pin the playthrough with npm run e2e:golden first. {exception.Message}");
+            }
+
+            return log;
         }
 
         /// <summary>

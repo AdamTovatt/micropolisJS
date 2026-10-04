@@ -32,7 +32,7 @@ namespace Micropolis.Rules.Tests
                 LogReplay.Verify(log.Log);
                 return null;
             }
-            catch (Exception exception) when (exception is InvalidDataException or StepsFailedException)
+            catch (Exception exception) when (exception is ReplayDiffersException or StepsFailedException)
             {
                 return exception.Message;
             }

@@ -27,15 +27,28 @@ namespace Micropolis.Rules.Tests
     {
         private const string Directory = "logs";
 
-        private const string Extension = ".log.json";
+        /// <summary>
+        /// The name of each log's file, in order.
+        /// </summary>
+        public static IReadOnlyList<string> Files()
+        {
+            return System.IO.Directory.GetFiles(RepositoryFiles.GetPath($"conformance/{Directory}"), $"*{CommandLog.FileExtension}")
+                .Select(path => Path.GetFileName(path))
+                .Order(StringComparer.Ordinal)
+                .ToList();
+        }
+
+        /// <summary>
+        /// The text of the log in the file of that name.
+        /// </summary>
+        public static string Read(string file)
+        {
+            return ConformanceFile.Read($"{Directory}/{file}");
+        }
 
         public static IReadOnlyList<ConformanceLog> Load()
         {
-            List<ConformanceLog> logs = System.IO.Directory.GetFiles(RepositoryFiles.GetPath($"conformance/{Directory}"), $"*{Extension}")
-                .Select(Path.GetFileName)
-                .Order(StringComparer.Ordinal)
-                .Select(file => Parse(file![..^Extension.Length], ConformanceFile.Read($"{Directory}/{file}")))
-                .ToList();
+            List<ConformanceLog> logs = Files().Select(file => Parse(file[..^CommandLog.FileExtension.Length], Read(file))).ToList();
 
             ConformanceFile.NonEmpty(Directory, logs);
             return logs;
@@ -43,8 +56,10 @@ namespace Micropolis.Rules.Tests
 
         public static ConformanceLog Parse(string name, string json)
         {
+            JsonNode? node = JsonText.Parse(json);
+
             // What the shared reader leaves alone: a key the format doesn't define, and a level beside a save
-            JsonObject log = Members(JsonText.Parse(json), $"The log {name}", ["formatVersion", "entries", "checkpoints"],
+            JsonObject log = Members(node, $"The log {name}", ["formatVersion", "entries", "checkpoints"],
                                      ["description", "seed", "level", "save"]);
 
             if (log.ContainsKey("level") != log.ContainsKey("seed"))
@@ -66,7 +81,7 @@ namespace Micropolis.Rules.Tests
 
             try
             {
-                parsed = CommandLog.Parse(json);
+                parsed = CommandLog.Read(node);
             }
             catch (InvalidDataException exception)
             {

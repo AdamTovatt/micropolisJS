@@ -20,11 +20,6 @@ namespace Micropolis.Headless.Tests
     [TestClass]
     public sealed class HeadlessProgramTests
     {
-        private static (int Code, string Output, string Error) Run(string[] args, Func<string, string> readFile)
-        {
-            return Run(args, HeadlessFiles.Committed with { ReadFile = readFile });
-        }
-
         private static (int Code, string Output, string Error) Run(string[] args, HeadlessFiles files)
         {
             StringWriter output = new StringWriter();
@@ -34,15 +29,22 @@ namespace Micropolis.Headless.Tests
             return (code, output.ToString(), error.ToString());
         }
 
-        private static string NoFile(string path)
+        private static (int Code, string Output, string Error) Run(params string[] args)
         {
-            throw new InvalidOperationException($"The run read {path}.");
+            return Run(args, HeadlessFiles.Committed);
+        }
+
+        // The run of a log file of the text given
+        private static (int Code, string Output, string Error) RunLog(string log)
+        {
+            using TemporaryDirectory directory = new TemporaryDirectory();
+            return Run("--log", directory.Write("log.json", log));
         }
 
         [TestMethod]
         public void Run_SeedRun_PrintsTwoLinesAndPasses()
         {
-            (int code, string output, string error) = Run(["--seed", "1", "--steps", "10"], NoFile);
+            (int code, string output, string error) = Run("--seed", "1", "--steps", "10");
 
             Assert.AreEqual(HeadlessProgram.Passed, code);
             Assert.HasCount(2, output.Split('\n', StringSplitOptions.RemoveEmptyEntries));
@@ -52,7 +54,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_WrongArguments_PrintsTheProblemAndTheUsage()
         {
-            (int code, string output, string error) = Run(["--seed", "1"], NoFile);
+            (int code, string output, string error) = Run("--seed", "1");
 
             Assert.AreEqual(HeadlessProgram.Misused, code);
             Assert.AreEqual("", output);
@@ -63,7 +65,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_StartItRefuses_PrintsTheReasonAndFails()
         {
-            (int code, string output, string error) = Run(["--seed", "1", "--fixture", "town", "--steps", "1"], NoFile);
+            (int code, string output, string error) = Run("--seed", "1", "--fixture", "town", "--steps", "1");
 
             Assert.AreEqual(HeadlessProgram.Failed, code);
             Assert.AreEqual("", output);
@@ -71,35 +73,57 @@ namespace Micropolis.Headless.Tests
         }
 
         [TestMethod]
-        [DataRow(typeof(FileNotFoundException), DisplayName = "a missing file")]
-        [DataRow(typeof(UnauthorizedAccessException), DisplayName = "a file it may not read")]
-        public void Run_LogItCannotRead_PrintsTheReasonAndFails(Type problem)
+        public void Run_LogThatIsMissing_PrintsTheReasonAndFails()
         {
-            Exception thrown = (Exception)Activator.CreateInstance(problem, "can't read log.json")!;
+            using TemporaryDirectory directory = new TemporaryDirectory();
+            string path = Path.Combine(directory.Path, "log.json");
 
-            (int code, string output, string error) = Run(["--log", "log.json"], _ => throw thrown);
+            (int code, string output, string error) = Run("--log", path);
 
             Assert.AreEqual(HeadlessProgram.Failed, code);
             Assert.AreEqual("", output);
-            Assert.AreEqual($"can't read log.json{Environment.NewLine}", error);
+            StringAssert.StartsWith(error, "Could not find file");
+            StringAssert.Contains(error, path);
+        }
+
+        // A directory is a path the run may not read as a file
+        [TestMethod]
+        public void Run_LogItMayNotRead_PrintsTheReasonAndFails()
+        {
+            using TemporaryDirectory directory = new TemporaryDirectory();
+
+            (int code, string output, string error) = Run("--log", directory.Path);
+
+            Assert.AreEqual(HeadlessProgram.Failed, code);
+            Assert.AreEqual("", output);
+            StringAssert.StartsWith(error, "Access to the path");
         }
 
         [TestMethod]
         public void Run_LogThatIsNoLog_PrintsTheReasonAndFails()
         {
-            (int code, _, string error) = Run(["--log", "log.json"], _ => "[]");
+            (int code, _, string error) = RunLog("[]");
 
             Assert.AreEqual(HeadlessProgram.Failed, code);
             StringAssert.StartsWith(error, "A command log is a JSON object");
+        }
+
+        [TestMethod]
+        public void Run_LogWhoseReplayDiffers_PrintsTheCheckpointAndFails()
+        {
+            (int code, string output, string error) = RunLog(
+                "{\"formatVersion\":1,\"seed\":8,\"level\":0,\"entries\":[],\"checkpoints\":[{\"step\":0,\"hash\":\"" + new string('0', 64) + "\"}]}");
+
+            Assert.AreEqual(HeadlessProgram.Failed, code);
+            Assert.AreEqual("", output);
+            StringAssert.StartsWith(error, "At step 0 the replay's state hash is ");
         }
 
         // A run that ran to its end but verified nothing prints what it found, then why it fails
         [TestMethod]
         public void Run_LogWithoutCheckpoints_PrintsItsLinesThenFails()
         {
-            const string log = "{\"formatVersion\":1,\"seed\":8,\"level\":0,\"entries\":[],\"checkpoints\":[]}";
-
-            (int code, string output, string error) = Run(["--log", "log.json"], _ => log);
+            (int code, string output, string error) = RunLog("{\"formatVersion\":1,\"seed\":8,\"level\":0,\"entries\":[],\"checkpoints\":[]}");
 
             Assert.AreEqual(HeadlessProgram.Failed, code);
             StringAssert.StartsWith(output, "0 commands");
@@ -109,46 +133,30 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_WriteFixtures_PrintsEachLogWrittenAndPasses()
         {
-            string logs = FixtureLogsTests.CopyOfTheLogs();
+            using TemporaryDirectory logs = TemporaryDirectory.WithTheLogs();
 
-            try
-            {
-                (int code, string output, string error) = Run(["--write-fixtures"], HeadlessFiles.Committed with { Logs = logs, ReadFile = NoFile });
+            (int code, string output, string error) = Run(["--write-fixtures"], HeadlessFiles.Committed with { Logs = logs.Path });
 
-                Assert.AreEqual(HeadlessProgram.Passed, code);
-                CollectionAssert.AreEqual(FixtureLogs.Names.Select(name => $"wrote {Fixtures.LogPath(logs, name)}").ToArray(),
-                                          output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
-                Assert.AreEqual("", error);
-            }
-            finally
-            {
-                Directory.Delete(logs, true);
-            }
+            Assert.AreEqual(HeadlessProgram.Passed, code);
+            CollectionAssert.AreEqual(FixtureLogs.Names.Select(name => $"wrote {Fixtures.LogPath(logs.Path, name)}").ToArray(),
+                                      output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+            Assert.AreEqual("", error);
         }
 
         // A golden playthrough it can't copy is a file the run refuses, not a defect to trace, and every log stays as it was
         [TestMethod]
         public void Run_WriteFixturesFromABrokenGoldenPlaythrough_PrintsTheReasonAndFails()
         {
-            string logs = FixtureLogsTests.CopyOfTheLogs();
-            string golden = Path.Combine(logs, "goldenPlaythrough.json");
+            using TemporaryDirectory logs = TemporaryDirectory.WithTheLogs();
+            string golden = logs.Write("goldenPlaythrough.json", "{\"log\":");
+            logs.Write($"town{Rules.CommandLog.FileExtension}", "stale");
 
-            try
-            {
-                File.WriteAllText(golden, "{\"log\":");
-                File.WriteAllText(Fixtures.LogPath(logs, "town"), "stale");
+            (int code, string output, string error) = Run(["--write-fixtures"], new HeadlessFiles(logs.Path, golden));
 
-                (int code, string output, string error) = Run(["--write-fixtures"], new HeadlessFiles(NoFile, logs, golden));
-
-                Assert.AreEqual(HeadlessProgram.Failed, code);
-                Assert.AreEqual("", output);
-                StringAssert.StartsWith(error, $"The golden playthrough {golden} is not JSON: ");
-                Assert.AreEqual("stale", File.ReadAllText(Fixtures.LogPath(logs, "town")));
-            }
-            finally
-            {
-                Directory.Delete(logs, true);
-            }
+            Assert.AreEqual(HeadlessProgram.Failed, code);
+            Assert.AreEqual("", output);
+            StringAssert.StartsWith(error, $"The golden playthrough {golden} is not JSON: ");
+            Assert.AreEqual("stale", File.ReadAllText(Fixtures.LogPath(logs.Path, "town")));
         }
     }
 }

@@ -11,6 +11,7 @@
  *
  */
 
+using System.Text.Json.Nodes;
 using Micropolis.Rules;
 
 namespace Micropolis.Headless.Tests
@@ -42,8 +43,8 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Logs_ComparedWithTheCommittedFiles_AreOneEach()
         {
-            List<string> committed = Directory.GetFiles(Fixtures.CommittedLogs, $"*{Fixtures.LogExtension}")
-                .Select(path => Path.GetFileName(path)[..^Fixtures.LogExtension.Length])
+            List<string> committed = Directory.GetFiles(Fixtures.CommittedLogs, $"*{CommandLog.FileExtension}")
+                .Select(path => Path.GetFileName(path)[..^CommandLog.FileExtension.Length])
                 .ToList();
 
             CollectionAssert.AreEquivalent(committed, FixtureLogs.Names.ToList());
@@ -60,20 +61,29 @@ namespace Micropolis.Headless.Tests
         [DataRow("{\"checkpoints\":[]}", "holds no log: A command log is a JSON object", DisplayName = "JSON with no log")]
         public void CopyPlaythrough_GoldenPlaythroughWithNoLog_ThrowsNamingTheFile(string golden, string problem)
         {
-            string path = Path.Combine(Directory.CreateTempSubdirectory("micropolis-golden-").FullName, "goldenPlaythrough.json");
+            using TemporaryDirectory directory = new TemporaryDirectory();
+            string path = directory.Write("goldenPlaythrough.json", golden);
 
-            try
-            {
-                File.WriteAllText(path, golden);
+            InvalidDataException exception = Assert.ThrowsExactly<InvalidDataException>(() => FixtureLogs.CopyPlaythrough(path));
 
-                InvalidDataException exception = Assert.ThrowsExactly<InvalidDataException>(() => FixtureLogs.CopyPlaythrough(path));
+            StringAssert.StartsWith(exception.Message, $"The golden playthrough {path} {problem}");
+        }
 
-                StringAssert.StartsWith(exception.Message, $"The golden playthrough {path} {problem}");
-            }
-            finally
-            {
-                Directory.Delete(Path.GetDirectoryName(path)!, true);
-            }
+        // As the generator does, the tool copies only a log that still replays, since a rule change that moves the
+        // playthrough is pinned by running it again, not by copying its log
+        [TestMethod]
+        public void CopyPlaythrough_GoldenLogThatNoLongerReplays_ThrowsAskingForItToBeRepinned()
+        {
+            using TemporaryDirectory directory = new TemporaryDirectory();
+            JsonObject golden = JsonNode.Parse(File.ReadAllText(FixtureLogs.CommittedGoldenPlaythrough))!.AsObject();
+            JsonNode checkpoint = golden["log"]!["checkpoints"]!.AsArray()[^1]!;
+            checkpoint["hash"] = new string('0', 64);
+            string path = directory.Write("goldenPlaythrough.json", golden.ToJsonString());
+
+            ReplayDiffersException exception = Assert.ThrowsExactly<ReplayDiffersException>(() => FixtureLogs.CopyPlaythrough(path));
+
+            StringAssert.StartsWith(exception.Message, "The golden playthrough's log does not replay: re-pin the playthrough with npm run e2e:golden first. ");
+            StringAssert.Contains(exception.Message, $"but the log's checkpoint is {new string('0', 64)}");
         }
 
         // The save is committed data, so the byte-for-byte check holds it to itself: what it proves is that the tool
@@ -105,23 +115,15 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void WriteAll_CopyOfTheLogs_WritesEachAsCommitted()
         {
-            string directory = CopyOfTheLogs();
+            using TemporaryDirectory logs = TemporaryDirectory.WithTheLogs();
+            logs.Write($"town{CommandLog.FileExtension}", "stale");
 
-            try
+            IReadOnlyList<string> written = FixtureLogs.WriteAll(logs.Path, FixtureLogs.CommittedGoldenPlaythrough);
+
+            Assert.HasCount(FixtureLogs.Names.Count, written);
+            foreach (string name in FixtureLogs.Names)
             {
-                File.WriteAllText(Fixtures.LogPath(directory, "town"), "stale");
-
-                IReadOnlyList<string> written = FixtureLogs.WriteAll(directory, FixtureLogs.CommittedGoldenPlaythrough);
-
-                Assert.HasCount(FixtureLogs.Names.Count, written);
-                foreach (string name in FixtureLogs.Names)
-                {
-                    Assert.AreEqual(Committed(name), File.ReadAllText(Fixtures.LogPath(directory, name)), name);
-                }
-            }
-            finally
-            {
-                Directory.Delete(directory, true);
+                Assert.AreEqual(Committed(name), File.ReadAllText(Fixtures.LogPath(logs.Path, name)), name);
             }
         }
 
@@ -129,21 +131,13 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void WriteAll_LogThatFailsToBuild_WritesNoFile()
         {
-            string directory = CopyOfTheLogs();
+            using TemporaryDirectory logs = TemporaryDirectory.WithTheLogs();
+            logs.Write($"broke{CommandLog.FileExtension}", "stale");
+            logs.Write($"disasters{CommandLog.FileExtension}", "{}");
 
-            try
-            {
-                File.WriteAllText(Fixtures.LogPath(directory, "broke"), "stale");
-                File.WriteAllText(Fixtures.LogPath(directory, "disasters"), "{}");
+            Assert.ThrowsExactly<InvalidDataException>(() => FixtureLogs.WriteAll(logs.Path, FixtureLogs.CommittedGoldenPlaythrough));
 
-                Assert.ThrowsExactly<InvalidDataException>(() => FixtureLogs.WriteAll(directory, FixtureLogs.CommittedGoldenPlaythrough));
-
-                Assert.AreEqual("stale", File.ReadAllText(Fixtures.LogPath(directory, "broke")));
-            }
-            finally
-            {
-                Directory.Delete(directory, true);
-            }
+            Assert.AreEqual("stale", File.ReadAllText(Fixtures.LogPath(logs.Path, "broke")));
         }
 
         [TestMethod]
@@ -152,19 +146,6 @@ namespace Micropolis.Headless.Tests
             ArgumentException exception = Assert.ThrowsExactly<ArgumentException>(() => Fixtures.Named("metropolis"));
 
             StringAssert.Contains(exception.Message, "No fixture named metropolis: the fixtures are broke, disasters");
-        }
-
-        // A temporary directory holding a copy of each committed log, which the caller deletes
-        internal static string CopyOfTheLogs()
-        {
-            string directory = Directory.CreateTempSubdirectory("micropolis-logs-").FullName;
-
-            foreach (string file in Directory.GetFiles(Fixtures.CommittedLogs, $"*{Fixtures.LogExtension}"))
-            {
-                File.Copy(file, Path.Combine(directory, Path.GetFileName(file)));
-            }
-
-            return directory;
         }
     }
 }

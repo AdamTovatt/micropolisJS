@@ -22,6 +22,8 @@ namespace Micropolis.Headless
     /// </summary>
     internal static class HeadlessProgram
     {
+        // Exit codes are constants rather than an enum, since the process returns an int and they mean nothing else
+
         public const int Passed = 0;
 
         // A run that failed, or a file or start it refused, which the message names
@@ -51,11 +53,11 @@ namespace Micropolis.Headless
             {
                 report = HeadlessRunner.Run(command, files);
             }
-            catch (Exception exception) when (exception is ArgumentException or InvalidDataException or StepsFailedException or
-                                                  SaveFormatException or IOException or UnauthorizedAccessException)
+            catch (Exception exception) when (exception is ArgumentException or InvalidDataException or ReplayDiffersException or
+                                                  StepsFailedException or SaveFormatException or IOException or UnauthorizedAccessException)
             {
-                // A start the run refuses, a file it can't read, a log or save that is malformed or doesn't match, or a
-                // city that stalls: not a defect to trace
+                // A start the run refuses, a file it can't read, a log or save that is malformed, a log whose replay
+                // differs, or a city that stalls: not a defect to trace
                 error.WriteLine(exception.Message);
                 return Failed;
             }

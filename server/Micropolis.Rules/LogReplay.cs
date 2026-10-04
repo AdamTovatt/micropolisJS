@@ -65,12 +65,12 @@ namespace Micropolis.Rules
                     return new Replay(city, results, hashed);
                 }
 
+                int next = Math.Min(entry < entries.Count ? entries[entry].Step : int.MaxValue, to);
+
                 if (city.IsPaused)
                 {
-                    throw new StepsFailedException($"The log steps a paused city at step {step}.");
+                    throw new StepsFailedException($"The log steps a paused city, from step {step} to step {next}");
                 }
-
-                int next = Math.Min(entry < entries.Count ? entries[entry].Step : int.MaxValue, to);
 
                 CityTimeModel.TakeSteps(city, next - step, () =>
                 {
@@ -82,8 +82,8 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Replays the whole log, matching each of its checkpoints, or an <see cref="InvalidDataException"/> naming the
-        /// earliest that it didn't match.
+        /// Replays the whole log, matching each of its checkpoints, or a <see cref="ReplayDiffersException"/> naming the
+        /// earliest that it didn't match, worded as <c>headless/runner.ts</c> words it.
         /// </summary>
         public static Replay Verify(CommandLog log)
         {
@@ -93,8 +93,8 @@ namespace Micropolis.Rules
             {
                 if (replay.Hashed[i].Hash != log.Checkpoints[i].Hash)
                 {
-                    throw new InvalidDataException(
-                        $"The state hash at step {log.Checkpoints[i].Step} differs: expected {log.Checkpoints[i].Hash}, was {replay.Hashed[i].Hash}.");
+                    throw new ReplayDiffersException(
+                        $"At step {log.Checkpoints[i].Step} the replay's state hash is {replay.Hashed[i].Hash}, but the log's checkpoint is {log.Checkpoints[i].Hash}");
                 }
             }
 

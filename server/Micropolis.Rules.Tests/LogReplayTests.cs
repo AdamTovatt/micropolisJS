@@ -89,7 +89,7 @@ namespace Micropolis.Rules.Tests
 
             string? difference = LogReplayer.FirstDifference(WithEntries(log, log.Log.Entries.Skip(1).ToList()));
 
-            StringAssert.StartsWith(difference, "The state hash at step 0 differs");
+            StringAssert.StartsWith(difference, "At step 0 the replay's state hash is ");
         }
 
         // The check can fail on a command after the city's first step, which only a later checkpoint sees
@@ -100,7 +100,7 @@ namespace Micropolis.Rules.Tests
 
             string? difference = LogReplayer.FirstDifference(WithEntries(log, [.. log.Log.Entries, Entry(1, new JsonObject { ["type"] = "addFunds" })]));
 
-            StringAssert.StartsWith(difference, $"The state hash at step {log.Log.Checkpoints[1].Step} differs");
+            StringAssert.StartsWith(difference, $"At step {log.Log.Checkpoints[1].Step} the replay's state hash is ");
         }
 
         [TestMethod]
@@ -111,7 +111,7 @@ namespace Micropolis.Rules.Tests
 
             string? difference = LogReplayer.FirstDifference(WithEntries(log, [.. log.Log.Entries, Entry(1, pause)]));
 
-            Assert.AreEqual("The log steps a paused city at step 1.", difference);
+            Assert.AreEqual($"The log steps a paused city, from step 1 to step {log.Log.LastStep}", difference);
         }
 
         // Only what the conformance reader refuses beyond CommandLog.Parse, whose own tests cover the rest
