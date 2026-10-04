@@ -388,8 +388,17 @@ def power_line(sides, pole=True, base=0.0):
     # A power line reaching `sides`, its wires at WIRE_Z above ground at height base. With a pole,
     # each wire runs from the pole's crossarm out to the edge; without one, as where the line
     # crosses a road, it runs straight across the tile. Each runs on past the edge by its sheared
-    # lift, where the next tile's copy takes over (tileart.spans_edge).
+    # lift, where the next tile's copy takes over (tileart.spans_edge). The wires cast no shadow,
+    # as a wire that thin barely does in daylight: the shear lifts an east-west wire up the screen
+    # and the sun drops its shadow down it, so a horizontal line would draw as two, its wires and
+    # their shadow more than half a tile apart. The poles keep their shadows.
     m = power_materials()
+
+    def wire(p, q):
+        ob = t.spans_edge(t.strut(p, q, WIRE_R, m['wire'], 6))
+        ob.visible_shadow = False
+
+
     runs = {axis: [s for s in sides if s in axis] for axis in WIRE_Z}
     for axis, ends in runs.items():
         if not ends:
@@ -404,12 +413,12 @@ def power_line(sides, pole=True, base=0.0):
                     dx, dy = SIDES[s]
                     p = (0.5 + ox, 0.5 + oy, z)
                     q = (0.5 + ox + dx * (0.5 + past), 0.5 + oy + dy * (0.5 + past), z)
-                    t.spans_edge(t.strut(p, q, WIRE_R, m['wire'], 6))
+                    wire(p, q)
             else:
                 dx, dy = SIDES[ends[0]]
                 p = (0.5 + ox - dx * (0.5 + past), 0.5 + oy - dy * (0.5 + past), z)
                 q = (0.5 + ox + dx * (0.5 + past), 0.5 + oy + dy * (0.5 + past), z)
-                t.spans_edge(t.strut(p, q, WIRE_R, m['wire'], 6))
+                wire(p, q)
         if pole:
             ax, ay = across[0] * (ARM + 0.015), across[1] * (ARM + 0.015)
             t.strut((0.5 - ax, 0.5 - ay, z - 0.012), (0.5 + ax, 0.5 + ay, z - 0.012), 0.008, m['pole'], 6)
