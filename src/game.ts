@@ -48,21 +48,18 @@ import { SpeedControl } from "./speedControl";
 import { StatusPanel } from "./statusPanel";
 import { Storage } from "./storage";
 import { attachToTestHook } from "./testHook";
-import type { TileSet } from "./tileSet";
 import { TouchWarnWindow } from "./touchWarnWindow";
 import type { TilePoint } from "./viewPosition";
 import { budgetCommand, settingsCommands, toolOutcome, toolOutputText } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
 // What a game is made from: the city source and the client's copy of its city, the server's word of the other players,
-// and the art the game draws with: the map's, and the 16 px sheets the monster TV draws from
+// and the art the map, the monster TV and the splash screen's preview draw with
 export interface GameParts {
   source: CitySource;
   state: CityState;
   presence: Presence;
   mapArt: MapArt;
-  tileSet: TileSet;
-  spriteSheet: HTMLImageElement;
 }
 
 // Where sprites are drawn: the view's top-left tile, and the map pixels it shows across and down
@@ -87,7 +84,7 @@ export class Game {
   private readonly inputStatus: InputStatus;
   private readonly toolPaths = new ToolPaths();
   private readonly speedControl: SpeedControl;
-  private readonly monsterTV: MonsterTV;
+  readonly monsterTV: MonsterTV;
   private readonly windows: WindowManager;
   private readonly evalWindow: EvaluationWindow;
   private readonly disasterWindow: DisasterWindow;
@@ -165,7 +162,7 @@ export class Game {
   private readonly animate: () => void;
 
   // A game of the city the source has started, which the state has followed from its start
-  constructor({source, state, presence, mapArt, tileSet, spriteSheet}: GameParts, started: StartedCity) {
+  constructor({source, state, presence, mapArt}: GameParts, started: StartedCity) {
     this.source = source;
     this.state = state;
     this.seed = started.seed;
@@ -187,7 +184,7 @@ export class Game {
       this.source.send({type: "setSpeed", speed});
     }, (paused) => this.inputStatus.showPaused(paused));
 
-    this.monsterTV = new MonsterTV(state.map, tileSet, spriteSheet);
+    this.monsterTV = new MonsterTV(state.map, mapArt);
 
     const opacityLayerID = "opaque";
 
@@ -578,15 +575,8 @@ export class Game {
     return outlines;
   }
 
-  private calculateSpritesForPaint(canvas: SpriteViewport): PaintableSprite[] | null {
+  private calculateSpritesForPaint(canvas: SpriteViewport): PaintableSprite[] {
     const origin = canvas.getTileOrigin();
-    const spriteList = spritesInView(this.state.sprites, origin.x, origin.y, canvas.mapPixelWidth,
-                                     canvas.mapPixelHeight);
-
-    if (spriteList.length === 0) {
-      return null;
-    }
-
-    return spriteList;
+    return spritesInView(this.state.sprites, origin.x, origin.y, canvas.mapPixelWidth, canvas.mapPixelHeight);
   }
 }

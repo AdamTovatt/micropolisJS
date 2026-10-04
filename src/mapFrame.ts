@@ -13,7 +13,7 @@
 
 import type { Tint } from "./overlayRenderer";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
-import type { PaintableSprite } from "./paintable";
+import type { PaintableMap, PaintableSprite } from "./paintable";
 import type { Rect } from "./rect";
 import { WHITE } from "./renderManifest";
 import type { RenderArt } from "./renderManifest";
@@ -162,6 +162,22 @@ export interface FrameTiles {
   margin: number;
   values: readonly number[];
   frames: readonly number[];
+}
+
+// The whole map as a frame reads it, with no margin, since no tile lies past the map's edges: each tile's own value,
+// unanimated
+export function wholeMapTiles(map: Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting">): FrameTiles {
+  const {width, height} = map;
+  const values = map.getTileValuesForPainting(0, 0, width, height, []);
+  return {x: 0, y: 0, width, height, margin: 0, values, frames: values.map((value) => value & BIT_MASK)};
+}
+
+// Fills the frame with the quads that draw the whole map, tilePixels device pixels a tile, each tile's own value
+// unanimated, with no tints or sprites
+export function buildWholeMapFrame(frame: MapFrame, art: RenderArt,
+                                   map: Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting">,
+                                   tilePixels: number): void {
+  buildMapFrame(frame, art, wholeMapTiles(map), tilePixels, () => null, []);
 }
 
 // Fills the frame with the quads that draw the area's tiles, tilePixels device pixels a side, with the view's origin

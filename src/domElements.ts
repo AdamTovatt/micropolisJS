@@ -52,6 +52,20 @@ export function placeNewCanvas(parent: Node, id: string, before: Node | null = n
   return canvas;
 }
 
+// The canvas sized to show width by height CSS pixels, with a backing store of the given pixels for each CSS pixel, so
+// what is drawn on it is sharp on a dense screen
+export function sizeCanvas(canvas: HTMLCanvasElement, width: number, height: number, pixelRatio: number): void {
+  canvas.width = Math.round(width * pixelRatio);
+  canvas.height = Math.round(height * pixelRatio);
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+}
+
+// The screen's device pixels for each CSS pixel, which a canvas's backing store matches
+export function screenPixelRatio(): number {
+  return window.devicePixelRatio || 1;
+}
+
 // What showing and hiding an element reads and writes
 // The window whose stylesheets lay out elements of type E
 export interface StylingWindow<E> {

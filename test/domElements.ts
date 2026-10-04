@@ -11,7 +11,7 @@
  *
  */
 
-import { Displayable, isHidden, isShown, setShown, toggleShown } from "../src/domElements";
+import { Displayable, isHidden, isShown, setShown, sizeCanvas, toggleShown } from "../src/domElements";
 import { styledBy } from "./helpers/stylingWindow";
 
 type FakeElement = Displayable<FakeElement>;
@@ -67,5 +67,13 @@ describe("showing and hiding an element", () => {
     it("finds an element shown when it has a box on the page", () => {
         expect([isShown({getClientRects: () => ({length: 1})}), isShown({getClientRects: () => ({length: 0})})])
             .toEqual([true, false]);
+    });
+
+    it("sizes a canvas's backing store to the pixel ratio, rounded, and its box in CSS pixels", () => {
+        const canvas = {width: 0, height: 0, style: {width: "", height: ""}};
+
+        sizeCanvas(canvas as unknown as HTMLCanvasElement, 177, 128, 1.1);
+
+        expect(canvas).toEqual({width: 195, height: 141, style: {width: "177px", height: "128px"}});
     });
 });

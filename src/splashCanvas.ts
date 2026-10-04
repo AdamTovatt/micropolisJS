@@ -11,60 +11,75 @@
  *
  */
 
-import { placeNewCanvas, requiredElement } from "./domElements";
-import type { TileSet } from "./tileSet";
-import type { PixelPoint } from "./viewPosition";
+import { placeNewCanvas, requiredElement, screenPixelRatio, sizeCanvas } from "./domElements";
+import { MapFrame, buildWholeMapFrame } from "./mapFrame";
+import type { PaintableMap } from "./paintable";
+import type { MapArt } from "./renderAssets";
+import type { RenderArt } from "./renderManifest";
+import { WebGLRenderer } from "./webglRenderer";
+import type { AtlasImage } from "./webglRenderer";
 
 // What the preview reads of the map
-interface PreviewMap {
-  readonly width: number;
-  readonly height: number;
-  getTileValue(x: number, y: number): number;
-}
+type PreviewMap = Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting">;
 
-// Each tile is drawn this many pixels square: the canvas scales the tile's image down
+// Each tile is drawn this many CSS pixels square
 const PREVIEW_TILE_SIZE = 3;
 
 const CANVAS_ID = "SplashCanvas";
 
-// Where the tile at map position (x, y) is drawn on the preview, in canvas pixels
-function previewTileOrigin(x: number, y: number): PixelPoint {
-  return {x: x * PREVIEW_TILE_SIZE, y: y * PREVIEW_TILE_SIZE};
+// The atlases the preview draws from: the 16 px sheets are filtered as the rendered art is. At the preview's few pixels
+// a tile, nearest-neighbour would draw each tile as the few of its texels that happen to land on a pixel.
+function previewAtlases(atlases: ReadonlyMap<string, AtlasImage>): Map<string, AtlasImage> {
+  const filtered = new Map<string, AtlasImage>();
+  atlases.forEach((atlas, name) => filtered.set(name, {...atlas, crisp: false}));
+  return filtered;
 }
 
-// Paints the minimap the player sees when choosing a map to play on. It is a far lighter cousin of GameCanvas: the
-// map is painted once, and again whenever the player generates a new one.
+// Paints the minimap the player sees when choosing a map to play on, from the map's art with the map's renderer: the
+// whole map, painted once, and again whenever the player generates a new one, or the browser restores a context it
+// lost. The canvas's backing store has devicePixelRatio pixels for each CSS pixel, as the map's does.
 class SplashCanvas {
   static readonly DEFAULT_WIDTH = 360;
   static readonly DEFAULT_HEIGHT = 300;
 
-  private readonly canvas: HTMLCanvasElement;
+  private readonly art: RenderArt;
+  private readonly renderer: WebGLRenderer;
+  private readonly frame = new MapFrame();
+  private readonly pixelRatio: number;
+  // The map last asked for, or null before the first
+  private map: PreviewMap | null = null;
 
   // Creates the canvas in the container with the given id, replacing an earlier preview's canvas there. It paints
   // nothing until asked to paint a map.
-  constructor(parentId: string, private readonly tileSet: TileSet) {
-    if (!tileSet.isValid) {
-      throw new Error("Tileset is not valid!");
-    }
+  constructor(parentId: string, {art, atlases}: MapArt) {
+    const canvas = placeNewCanvas(requiredElement(parentId), CANVAS_ID);
+    this.pixelRatio = screenPixelRatio();
+    sizeCanvas(canvas, SplashCanvas.DEFAULT_WIDTH, SplashCanvas.DEFAULT_HEIGHT, this.pixelRatio);
 
-    this.canvas = placeNewCanvas(requiredElement(parentId), CANVAS_ID);
-    this.canvas.width = SplashCanvas.DEFAULT_WIDTH;
-    this.canvas.height = SplashCanvas.DEFAULT_HEIGHT;
+    this.art = art;
+    this.renderer = new WebGLRenderer(canvas, previewAtlases(atlases), () => this.draw());
   }
 
   paint(map: PreviewMap): void {
-    const ctx = this.canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.map = map;
+    this.draw();
+  }
 
-    for (let y = 0; y < map.height; y++) {
-      for (let x = 0; x < map.width; x++) {
-        const origin = previewTileOrigin(x, y);
-        ctx.drawImage(this.tileSet.tile(map.getTileValue(x, y)), origin.x, origin.y, PREVIEW_TILE_SIZE,
-                      PREVIEW_TILE_SIZE);
-      }
+  // Lets go of the context and the textures it holds, after which the preview paints nothing: for when the splash
+  // screen closes, before the map's own context is made
+  release(): void {
+    this.renderer.release();
+  }
+
+  private draw(): void {
+    if (this.map === null) {
+      return;
     }
+
+    buildWholeMapFrame(this.frame, this.art, this.map, PREVIEW_TILE_SIZE * this.pixelRatio);
+    this.renderer.draw(this.frame, null);
   }
 }
 
-export { PREVIEW_TILE_SIZE, SplashCanvas, previewTileOrigin };
+export { PREVIEW_TILE_SIZE, SplashCanvas, previewAtlases };
 export type { PreviewMap };

@@ -160,13 +160,14 @@ describe("monsterTV", () => {
             expect(showing()).toBe(true);
         });
 
-        it("stays open when shown again", () => {
-            const {state, showing} = newState();
+        it("stays open when shown again, opening once: each opening makes the view's WebGL context", () => {
+            const {state, render, showing} = newState();
 
             state.show();
             state.show();
 
             expect(showing()).toBe(true);
+            expect(render).toHaveBeenCalledTimes(1);
         });
 
         it("closes when asked", () => {

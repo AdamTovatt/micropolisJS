@@ -11,21 +11,15 @@
  *
  */
 
-import { AnimationManager } from "./animationManager";
-import { placeNewCanvas, requiredElement } from "./domElements";
-import { FrameRecord, damagedPixels } from "./mapDamage";
-import { MapFrame, buildMapFrame } from "./mapFrame";
-import type { FrameTiles } from "./mapFrame";
+import { placeNewCanvas, requiredElement, screenPixelRatio, sizeCanvas } from "./domElements";
+import { MapPainter, paintedView } from "./mapPainter";
 import { drawBoxLabel, drawMouseBox } from "./mouseBox";
 import type { OverlayView } from "./overlayRenderer";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { PaintableMap, PaintableSprite } from "./paintable";
 import type { MapArt } from "./renderAssets";
-import type { RenderArt } from "./renderManifest";
-import { BIT_MASK } from "./tileFlags";
 import { ViewPosition, ZOOM_STEPS, canvasPointToTile, steppedZoom, viewport } from "./viewPosition";
 import type { OriginLimits, PixelPoint, TilePoint, Viewport } from "./viewPosition";
-import { WebGLRenderer } from "./webglRenderer";
 
 // A tool's outline. x and y are the tile under the mouse, in tile offsets from the view's origin: the top-left of a
 // tool up to 2x2, and one tile in from the top-left of a bigger one. width and height are tiles. label is the name of
@@ -102,17 +96,14 @@ class GameCanvas {
   private readonly canvas: HTMLCanvasElement;
   // The marks, drawn with Canvas 2D over the map, which the pointer's events pass through
   private readonly marks: HTMLCanvasElement;
-  private readonly frame = new MapFrame();
+  private readonly painter: MapPainter;
   // The map overlay tinting each tile, under the sprites
   private overlay: OverlayView | null = null;
   // The overlay of the last frame drawn, and who hears of each new one
   private overlayDrawn: OverlayView | null = null;
   private readonly overlayDrawnListeners: ((view: OverlayView | null) => void)[] = [];
-  // What the map and the marks were last drawn from, so a paint that would draw the same again doesn't
-  private readonly drawn = new FrameRecord();
+  // What the marks were last drawn from, so a paint that would draw the same again doesn't
   private marksDrawn = "";
-  // Whether the last paint left the map as it was, the GPU still drawing the frame before
-  private mapBehind = false;
 
   // The CSS pixels a tile is drawn
   private zoom = ZOOM_STEPS[0];
@@ -122,14 +113,6 @@ class GameCanvas {
   private height = 0;
   private pixelRatio = 1;
 
-  // The raw values of the tiles a paint reads, and the tile ids it draws, kept from paint to paint
-  private readonly values: number[] = [];
-  private readonly frames: number[] = [];
-
-  private readonly art: RenderArt;
-  private readonly renderer: WebGLRenderer;
-  // The canvas's own: the manager remembers what this view painted last
-  private readonly animationManager: AnimationManager;
   private readonly position: ViewPosition;
 
   // Has the window been resized since the last paint?
@@ -137,15 +120,13 @@ class GameCanvas {
 
   // Creates the canvases in the container with the given id, replacing elements of the canvases' ids there, and draws
   // the map on them from the art, centred
-  constructor(parentId: string, private readonly map: PaintableMap, {art, atlases}: MapArt) {
+  constructor(parentId: string, private readonly map: PaintableMap, mapArt: MapArt) {
     const parentNode = requiredElement(parentId);
     this.canvas = placeLayer(parentNode, GameCanvas.DEFAULT_ID, parentNode.firstChild);
     this.marks = placeLayer(parentNode, GameCanvas.MARKS_ID, this.canvas.nextSibling);
     this.marks.style.pointerEvents = "none";
 
-    this.art = art;
-    this.renderer = new WebGLRenderer(this.canvas, atlases, () => this.drawn.invalidate());
-    this.animationManager = new AnimationManager(map);
+    this.painter = MapPainter.onCanvas(this.canvas, map, mapArt);
 
     this.fitContainer();
     this.position = new ViewPosition(this.viewportAt(this.zoom));
@@ -154,7 +135,7 @@ class GameCanvas {
     }, false);
 
     this.centreOn(Math.floor(map.width / 2), Math.floor(map.height / 2));
-    this.paint([], null);
+    this.paint([], []);
   }
 
   // The CSS pixels a tile is drawn, at the zoom the view is at
@@ -165,7 +146,7 @@ class GameCanvas {
   // Whether the map shows what the last paint read, drawn to the end: the last paint drew it, or found it drawn
   // already, and the GPU has finished drawing it
   get mapCurrent(): boolean {
-    return !this.mapBehind && !this.renderer.busy;
+    return this.painter.current;
   }
 
   // The map pixels the view shows across and down, at 16 a tile, as sprites are positioned
@@ -234,7 +215,7 @@ class GameCanvas {
   // Shows an overlay view, or none, from the next frame drawn
   setOverlay(view: OverlayView | null): void {
     this.overlay = view;
-    this.drawn.invalidate();
+    this.painter.invalidate();
   }
 
   // Calls the listener with the overlay of each frame drawn with another overlay than the frame before, null for none
@@ -245,23 +226,16 @@ class GameCanvas {
   // The whole map at 16 pixels a tile, as a PNG's data URI: each tile's own value, unanimated, with no sprites or
   // overlay, drawn offscreen
   screenshotMap(): string {
-    const {width, height} = this.map;
-    const values = this.map.getTileValuesForPainting(0, 0, width, height, []);
-    const tiles: FrameTiles = {x: 0, y: 0, width, height, margin: 0, values, frames: values.map((value) => value & BIT_MASK)};
-
-    const frame = new MapFrame();
-    buildMapFrame(frame, this.art, tiles, SCREENSHOT_TILE_PIXELS, () => null, []);
-    const pixelWidth = width * SCREENSHOT_TILE_PIXELS;
-    const pixelHeight = height * SCREENSHOT_TILE_PIXELS;
-    const pixels = this.renderer.drawOffscreen(frame, pixelWidth, pixelHeight);
-    if (pixels === null) {
+    const drawn = this.painter.drawWholeMap(SCREENSHOT_TILE_PIXELS);
+    if (drawn === null) {
       throw new Error("The map can't be drawn while the browser has lost its WebGL context");
     }
 
+    const {pixels, width, height} = drawn;
     const picture = document.createElement("canvas");
-    picture.width = pixelWidth;
-    picture.height = pixelHeight;
-    picture.getContext("2d")!.putImageData(new ImageData(pixels, pixelWidth, pixelHeight), 0, 0);
+    picture.width = width;
+    picture.height = height;
+    picture.getContext("2d")!.putImageData(new ImageData(pixels, width, height), 0, 0);
     return picture.toDataURL();
   }
 
@@ -279,7 +253,7 @@ class GameCanvas {
   }
 
   // Paints the map, then the outlines in order, each over the last, then the sprites
-  paint(outlines: readonly MouseOutline[], sprites: ReadonlyArray<PaintableSprite> | null, isPaused?: boolean): void {
+  paint(outlines: readonly MouseOutline[], sprites: readonly PaintableSprite[], isPaused?: boolean): void {
     // Recompute our dimensions if there has been a resize since last paint. The origin stays where it is until it next
     // moves.
     if (this.pendingDimensionChange) {
@@ -287,34 +261,23 @@ class GameCanvas {
       this.position.viewport = this.viewportAt(this.zoom);
       this.pendingDimensionChange = false;
       // Sizing a canvas clears it, at the same size too
-      this.drawn.invalidate();
+      this.painter.invalidate();
       this.marksDrawn = "";
     }
 
-    // While the GPU is still drawing the last frame, the map is left as it is, and the paint after it catches up
     const origin = this.position.origin;
-    this.mapBehind = this.renderer.busy;
-    if (!this.mapBehind) {
-      const tiles = this.readTiles(origin, isPaused);
-      const overlay = this.overlay;
-      const view = {originX: origin.x, originY: origin.y, tilePixels: this.zoom * this.pixelRatio,
-                    width: this.canvas.width, height: this.canvas.height};
-      const damage = this.drawn.damage(view, tiles, sprites ?? []);
-      if (damage !== null) {
-        const areas = damage === "all" ? null : damagedPixels(damage, view.tilePixels);
-        buildMapFrame(this.frame, this.art, tiles, view.tilePixels,
-                      overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites ?? [], areas);
-        this.renderer.draw(this.frame, areas);
+    const overlay = this.overlay;
+    const drew = this.painter.paint(paintedView(this.position, this.zoom * this.pixelRatio),
+                                    overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites,
+                                    isPaused);
 
-        // Setting the overlay forgets the frame drawn, so the first frame drawn after it is drawn whole, with it. While
-        // the WebGL context is lost the renderer draws nothing and this still reports the overlay, but the map is
-        // blank then, so no other layer's tint shows under the legend, and the restored context's first frame draws
-        // the map whole with the overlay reported
-        if (overlay !== this.overlayDrawn) {
-          this.overlayDrawn = overlay;
-          this.overlayDrawnListeners.forEach((listener) => listener(overlay));
-        }
-      }
+    // Setting the overlay forgets the frame drawn, so the first frame drawn after it is drawn whole, with it. While the
+    // WebGL context is lost the renderer draws nothing and this still reports the overlay, but the map is blank then,
+    // so no other layer's tint shows under the legend, and the restored context's first frame draws the map whole with
+    // the overlay reported
+    if (drew && overlay !== this.overlayDrawn) {
+      this.overlayDrawn = overlay;
+      this.overlayDrawnListeners.forEach((listener) => listener(overlay));
     }
 
     const boxes = outlines.map((outline) => ({
@@ -344,25 +307,6 @@ class GameCanvas {
     }
   }
 
-  // The tiles in view, and a margin around them as wide as the farthest shadow reaches, whose anchors' shadows may
-  // reach into the view
-  private readTiles(origin: TilePoint, isPaused?: boolean): FrameTiles {
-    const margin = this.art.shadowReach;
-    const x = origin.x - margin;
-    const y = origin.y - margin;
-    const width = this.position.viewport.totalTilesInViewX + 2 * margin;
-    const height = this.position.viewport.totalTilesInViewY + 2 * margin;
-
-    const values = this.map.getTileValuesForPainting(x, y, width, height, this.values);
-    const frames = this.frames;
-    for (let i = 0; i < width * height; i++) {
-      frames[i] = values[i];
-    }
-    this.animationManager.getTiles(frames, x, y, width, height, isPaused);
-
-    return {x, y, width, height, margin, values, frames};
-  }
-
   private viewportAt(zoom: number): Viewport {
     return viewport(this.width, this.height, zoom, this.map.width, this.map.height, true);
   }
@@ -372,13 +316,10 @@ class GameCanvas {
     const parentNode = this.canvas.parentNode as HTMLElement;
     this.width = parentNode.clientWidth;
     this.height = parentNode.clientHeight;
-    this.pixelRatio = window.devicePixelRatio || 1;
+    this.pixelRatio = screenPixelRatio();
 
     for (const canvas of [this.canvas, this.marks]) {
-      canvas.width = Math.round(this.width * this.pixelRatio);
-      canvas.height = Math.round(this.height * this.pixelRatio);
-      canvas.style.width = `${this.width}px`;
-      canvas.style.height = `${this.height}px`;
+      sizeCanvas(canvas, this.width, this.height, this.pixelRatio);
     }
   }
 }

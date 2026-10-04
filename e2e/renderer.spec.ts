@@ -17,7 +17,7 @@ import { join } from "path";
 
 import { ANIMBIT } from "../src/tileFlags";
 import { tileImageOrigin } from "../src/tileSet";
-import { collectPageProblems } from "./page";
+import { collectPageProblems, contextLoss } from "./page";
 import { GameSave, Player, startGame, Tile } from "./player";
 import { samplePixels } from "./png";
 import { rawTileAt, tileAt } from "./savedMap";
@@ -183,22 +183,13 @@ test("a WebGL context the browser loses is drawn again once it is restored", asy
   const player = await startGame(page, SEED, "Restored");
   const before = await player.mapScreenshot();
 
-  // The extension is taken while the context is there, and kept for the restore
-  await page.locator(CANVAS).evaluate((canvas: HTMLCanvasElement) => {
-    (window as unknown as {loser: WEBGL_lose_context}).loser =
-      canvas.getContext("webgl2")!.getExtension("WEBGL_lose_context")!;
-  });
-  const call = (action: "loseContext" | "restoreContext") => page.evaluate(
-    (name) => (window as unknown as {loser: WEBGL_lose_context}).loser[name](), action);
-  const isLost = () => page.locator(CANVAS).evaluate((canvas: HTMLCanvasElement) =>
-    canvas.getContext("webgl2")!.isContextLost());
-
-  await call("loseContext");
-  await expect.poll(isLost).toBe(true);
+  const context = await contextLoss(page, CANVAS);
+  await context.lose();
+  await expect.poll(context.isLost).toBe(true);
   // Frames go on while the context is lost, drawing nothing rather than failing
   await player.settle();
-  await call("restoreContext");
-  await expect.poll(isLost).toBe(false);
+  await context.restore();
+  await expect.poll(context.isLost).toBe(false);
 
   expect((await player.mapScreenshot()).equals(before), "the map drawn after the restore, as before the loss")
     .toBe(true);

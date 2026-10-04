@@ -116,6 +116,7 @@ interface Resources {
   shadow: Program;
   composite: Program;
   vertexArray: WebGLVertexArrayObject;
+  corners: WebGLBuffer;
   instances: WebGLBuffer;
   textures: Map<string, Texture>;
   // The shadow buffer, kept at the size of the target it was last drawn for
@@ -187,6 +188,36 @@ export class WebGLRenderer {
     });
 
     this.resources = this.createResources();
+  }
+
+  // Lets go of the context and everything it holds, the atlases' textures and all, so the browser can free them at
+  // once rather than when the canvas is collected. The renderer draws nothing after: a context lost this way is
+  // restored only when asked, which nothing in the page does.
+  release(): void {
+    const gl = this.gl;
+    const resources = this.resources;
+    this.resources = null;
+    if (resources !== null) {
+      for (const program of [resources.textured, resources.shadow, resources.composite]) {
+        gl.deleteProgram(program.program);
+      }
+      gl.deleteVertexArray(resources.vertexArray);
+      gl.deleteBuffer(resources.corners);
+      gl.deleteBuffer(resources.instances);
+      resources.textures.forEach(({texture}) => gl.deleteTexture(texture));
+      if (resources.shadowBuffer !== null) {
+        gl.deleteFramebuffer(resources.shadowBuffer.framebuffer);
+        gl.deleteTexture(resources.shadowBuffer.texture);
+      }
+    }
+
+    if (this.drawing !== null) {
+      gl.deleteSync(this.drawing);
+      this.drawing = null;
+    }
+
+    // A page may hold only a few contexts: losing this one gives its place back
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 
   // Draws the frame on the canvas within each area, in device pixels from its top-left, leaving the rest as it was
@@ -401,7 +432,7 @@ export class WebGLRenderer {
     const vertexArray = gl.createVertexArray()!;
     gl.bindVertexArray(vertexArray);
 
-    const corners = gl.createBuffer();
+    const corners = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, corners);
     gl.bufferData(gl.ARRAY_BUFFER, CORNERS, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0);
@@ -425,6 +456,7 @@ export class WebGLRenderer {
       shadow: this.createProgram(SHADOW_SHADER),
       composite: this.createProgram(COMPOSITE_SHADER),
       vertexArray,
+      corners,
       instances,
       textures,
       shadowBuffer: null,

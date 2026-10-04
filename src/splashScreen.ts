@@ -158,7 +158,7 @@ class SplashScreen {
   };
 
   constructor(private readonly parts: GameParts, seed: number | null) {
-    this.splashCanvas = new SplashCanvas("splashContainer", parts.tileSet);
+    this.splashCanvas = new SplashCanvas("splashContainer", parts.mapArt);
     this.seed = seed === null ? UiRandom.newSeed() : seed;
     this.choose(this.seed);
 
@@ -198,7 +198,7 @@ class SplashScreen {
     });
   }
 
-  // Removes the splash screen's listeners and hides it
+  // Removes the splash screen's listeners and hides it, letting go of the preview's context
   private leave(): void {
     this.loadButton.removeEventListener("click", this.onLoad);
     this.loadFileButton.removeEventListener("click", this.onChooseFile);
@@ -207,6 +207,7 @@ class SplashScreen {
     this.playButton.removeEventListener("click", this.onPlay);
 
     setShown(this.splash, false);
+    this.splashCanvas.release();
     this.departed = true;
   }
 
@@ -220,8 +221,9 @@ class SplashScreen {
     this.loading = true;
     this.parts.source.start({save: text}).then((started) => {
       this.loading = false;
-      this.play(started);
+      // The preview's context goes before the map's is made
       this.leave();
+      this.play(started);
     }, (err: unknown) => {
       this.loading = false;
       failed(errorMessage(err));
