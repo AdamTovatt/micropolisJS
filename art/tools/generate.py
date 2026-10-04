@@ -17,6 +17,8 @@
 
 --reference passes images the model works from: a layout to follow, or an image to change.
 --tiles also writes <out>-tiled.png, four copies 2x2, to look for seams before using a texture.
+--seamless blends away the seam the model often leaves, as on directional grass; --from-file
+applies it to an image already generated, without asking the model again.
 
 Reads the API key from GEMINI_API_KEY. Needs Pillow. Record what you keep, with its prompt
 and the model, in the README beside it.
@@ -64,6 +66,23 @@ def generate(prompt, references=(), aspect='1:1', model=MODEL):
     sys.exit('no image in the answer: ' + json.dumps(answer)[:500])
 
 
+def seamless(image):
+    # Blend the image with itself shifted by half its size, weighted so that each copy shows
+    # where the other has its edges: the result wraps without a seam on any side, at the cost
+    # of a faint double image where the two copies cross.
+    w, h = image.size
+    shifted = Image.new('RGB', (w, h))
+    shifted.paste(image.crop((w // 2, h // 2, w, h)), (0, 0))
+    shifted.paste(image.crop((0, h // 2, w // 2, h)), (w - w // 2, 0))
+    shifted.paste(image.crop((w // 2, 0, w, h // 2)), (0, h - h // 2))
+    shifted.paste(image.crop((0, 0, w // 2, h // 2)), (w - w // 2, h - h // 2))
+    # the original's weight: 1 at the middle, 0 along every edge
+    mask = Image.new('L', (w, h))
+    mask.putdata([round(255 * min(1.0, 2 * min(x, w - 1 - x) / (w / 2)) * min(1.0, 2 * min(y, h - 1 - y) / (h / 2)))
+                  for y in range(h) for x in range(w)])
+    return Image.composite(image, shifted, mask)
+
+
 def tiled(image):
     w, h = image.size
     grid = Image.new('RGB', (2 * w, 2 * h))
@@ -81,8 +100,15 @@ if __name__ == '__main__':
     p.add_argument('--aspect', default='1:1', help='aspect ratio, such as 1:1, 3:2 or 16:9')
     p.add_argument('--model', default=MODEL)
     p.add_argument('--tiles', action='store_true', help='also write <out>-tiled.png, four copies 2x2')
+    p.add_argument('--seamless', action='store_true',
+                   help='blend the image with its half-shifted copy so it wraps without a seam')
+    p.add_argument('--from-file', metavar='IMAGE',
+                   help='skip generating and work on this image instead: with --seamless, to fix one already made')
     a = p.parse_args()
-    image = generate(a.prompt, a.reference, a.aspect, a.model)
+    image = Image.open(a.from_file).convert('RGB') if a.from_file else generate(a.prompt, a.reference, a.aspect,
+                                                                                a.model)
+    if a.seamless:
+        image = seamless(image)
     image.save(a.out)
     print(f'{a.out}: {image.size[0]}x{image.size[1]}')
     if a.tiles:

@@ -10,7 +10,7 @@ Sources for rendering the game's tile art in Blender, one zone at a time. Every 
 - `blender/tileart.py`: the shared module: materials, shapes, cutout cards, and the render.
 - `blender/zones/`: one script per zone.
 - `blender/out/`: rendered zones, one directory of layers each. Ignored by git: a render is rebuilt from its script.
-- `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone, cutting sheets into cutouts, and previewing rendered zones side by side.
+- `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), and previewing rendered zones side by side (`preview.py`).
 
 ## Rendering a zone
 

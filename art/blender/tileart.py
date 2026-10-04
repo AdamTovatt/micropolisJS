@@ -373,10 +373,88 @@ def building(points, height, walls, roof, rim):
     parapet(points, height, rim)
 
 
+def pitched_roof(x0, y0, x1, y1, z, rise, material, ridge='x', hip=False, overhang=0.03):
+    # A roof over the rectangle (x0, y0)-(x1, y1) standing on walls of height z: a gable roof
+    # whose ridge runs along x or y, or with hip=True a hipped roof, sloping on all four sides,
+    # whose ridge is shortened by the roof's depth (a pyramid on a square). UVs are the top view.
+    x0, y0, x1, y1 = x0 - overhang, y0 - overhang, x1 + overhang, y1 + overhang
+    xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+    if ridge == 'x':
+        inset = min((y1 - y0) / 2, (x1 - x0) / 2) if hip else 0.0
+        a, b = (x0 + inset, ym, z + rise), (x1 - inset, ym, z + rise)
+    else:
+        inset = min((x1 - x0) / 2, (y1 - y0) / 2) if hip else 0.0
+        a, b = (xm, y0 + inset, z + rise), (xm, y1 - inset, z + rise)
+    bm = bmesh.new()
+    uvs = bm.loops.layers.uv.new()
+    sw, se, ne, nw = [bm.verts.new(c) for c in [(x0, y0, z), (x1, y0, z), (x1, y1, z), (x0, y1, z)]]
+    ra = bm.verts.new(a)
+    # a hipped roof on a square has a single apex, where the two ridge ends meet
+    rb = ra if math.dist(a, b) < 1e-6 else bm.verts.new(b)
+    if ridge == 'x':
+        faces = [(sw, se, rb, ra), (ne, nw, ra, rb), (nw, sw, ra), (se, ne, rb)]
+    else:
+        faces = [(se, ne, rb, ra), (nw, sw, ra, rb), (sw, se, ra), (ne, nw, rb)]
+    for verts in faces:
+        f = bm.faces.new(list(dict.fromkeys(verts)))  # a quad with one apex is a triangle
+        for loop in f.loops:
+            loop[uvs].uv = (loop.vert.co.x, loop.vert.co.y)
+    bm.faces.new([sw, nw, ne, se])  # the underside, so the roof is a closed solid
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return _link('roof', bm, [material])
+
+
+def house(x0, y0, x1, y1, height, rise, walls, roof, ridge='x', hip=False):
+    # a building with a pitched roof
+    box(x0, y0, 0, x1, y1, height, walls, name='house')
+    pitched_roof(x0, y0, x1, y1, height, rise, roof, ridge, hip)
+
+
+def mansard_roof(x0, y0, x1, y1, z, rise, inset, slope, top=None, overhang=0.03):
+    # A roof over the rectangle (x0, y0)-(x1, y1) standing on walls of height z: four slopes rising
+    # `rise` as they come in by `inset`, to a flat top, which can take its own material.
+    # UVs are the top view.
+    x0, y0, x1, y1 = x0 - overhang, y0 - overhang, x1 + overhang, y1 + overhang
+    bm = bmesh.new()
+    uvs = bm.loops.layers.uv.new()
+    low = [bm.verts.new(c) for c in [(x0, y0, z), (x1, y0, z), (x1, y1, z), (x0, y1, z)]]
+    high = [bm.verts.new(c) for c in [(x0 + inset, y0 + inset, z + rise), (x1 - inset, y0 + inset, z + rise),
+                                      (x1 - inset, y1 - inset, z + rise), (x0 + inset, y1 - inset, z + rise)]]
+    for i in range(4):
+        j = (i + 1) % 4
+        bm.faces.new([low[i], low[j], high[j], high[i]]).material_index = 0
+    bm.faces.new(high).material_index = 1 if top is not None else 0
+    bm.faces.new(list(reversed(low)))  # the underside, so the roof is a closed solid
+    for f in bm.faces:
+        for loop in f.loops:
+            loop[uvs].uv = (loop.vert.co.x, loop.vert.co.y)
+    return _link('roof', bm, [slope] + ([top] if top is not None else []))
+
+
+def strut(p, q, r, material, verts=8):
+    # a round bar from the point p to the point q, (x, y, z) each: a leg, a brace or a boom
+    p, q = Vector(p), Vector(q)
+    d = q - p
+    bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=d.length, location=(p + q) / 2)
+    ob = bpy.context.object
+    ob.rotation_euler = d.to_track_quat('Z', 'Y').to_euler()
+    ob.data.materials.append(material)
+    return ob
+
+
 def circle(cx, cy, r, sides=40):
     # the outline of a circle as a polygon, for round buildings and their roofs
     return [(cx + r * math.cos(2 * math.pi * i / sides), cy + r * math.sin(2 * math.pi * i / sides))
             for i in range(sides)]
+
+
+def patch(cx, cy, rx, ry, rng, wobble=0.3, sides=28):
+    # an irregular blob round (cx, cy), about rx by ry, for worn ground and clearings: each point's
+    # radius strays by up to `wobble` of itself, smoothed with its neighbours so the edge stays soft
+    raw = [1 + rng.uniform(-wobble, wobble) for _ in range(sides)]
+    smooth = [(raw[i - 1] + 2 * raw[i] + raw[(i + 1) % sides]) / 4 for i in range(sides)]
+    return [(cx + rx * s * math.cos(2 * math.pi * i / sides), cy + ry * s * math.sin(2 * math.pi * i / sides))
+            for i, s in enumerate(smooth)]
 
 
 def round_building(cx, cy, r, height, walls, roof, rim):
@@ -438,6 +516,15 @@ def zone_letter(letter, cx, cy, z, height, material, thickness=0.03):
     mx, my = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
     for v in ob.data.vertices:
         v.co = ((v.co.x - mx) * scale + cx, (v.co.y - my) * scale + cy, v.co.z + thickness / 2 + z)
+    # a mesh made from text keeps the font's own UVs, in glyph units, so a textured material would
+    # stretch a speck of its image over the letter: replace them with the top view, in world units,
+    # as every other shape has
+    while ob.data.uv_layers:
+        ob.data.uv_layers.remove(ob.data.uv_layers[0])
+    uvs = ob.data.uv_layers.new(name='UVMap')
+    for loop in ob.data.loops:
+        co = ob.data.vertices[loop.vertex_index].co
+        uvs.data[loop.index].uv = (co.x, co.y)
     ob.data.materials.append(material)
     return ob
 
