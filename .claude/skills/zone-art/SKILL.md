@@ -47,7 +47,7 @@ The pipeline's layout, conventions and tools are in `art/README.md`, the texture
 ## Working with Adam
 
 - Generate the textures and sprite sheets a scene needs with `generate.py`, one prompt per image, written to the rules in `art/textures/README.md`, and send him each one. Sprite sheets are objects on plain black that touch neither each other nor the border, so `cutout.py` can separate them. Record every image you keep, with its prompt and the model, in the README beside it.
-- Running a finished render through an image model to make it look more realistic is untried, and Adam has not decided on it. What it risks: merging the zone's three layers into one picture, moving edges the edge check cannot see, and giving each zone its own light and colour. Realism put into what the render uses, its textures and cutouts, risks none of that. Try the pass on one zone, beside the plain render, before relying on it.
+- Finished renders are repainted by an image model into painted layers beside them; the `art-painting` skill holds that process.
 - Zones render at 64 px per tile. That is his decision: detail reads at that size, and the map stays a size a canvas can hold.
 - He judges by eye. Send images often and say plainly what still falls short of the reference.
 - A zone holds no street, no shadow falls on a roof, and the zone letters use the Tomorrow font. These rules came from him and are in `art/README.md`.
