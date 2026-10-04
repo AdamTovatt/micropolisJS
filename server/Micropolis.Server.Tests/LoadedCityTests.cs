@@ -41,10 +41,16 @@ namespace Micropolis.Server.Tests
             CityConnection connection = new CityConnection(new PlayerInfo("a", "Ada"));
             await city.JoinAsync(new Joining(connection, 0, Hold: false));
             InvalidOperationException thrown = new InvalidOperationException("the work threw");
+            // Holds the city's work until both are queued, or the city may fail before the second is, which it then
+            // refuses as stopped
+            using ManualResetEventSlim gate = new ManualResetEventSlim();
+            Task<bool> held = city.RunAsync(_ => gate.Wait(WorkTimeout));
 
             Task throwing = city.RunAsync(_ => throw thrown);
             Task<string> waiting = city.RunAsync(host => host.Save());
+            gate.Set();
 
+            Assert.IsTrue(await held);
             Assert.AreSame(thrown, await failed.Task.WaitAsync(WorkTimeout));
             Assert.AreSame(thrown, (await Assert.ThrowsExactlyAsync<CityStoppedException>(() => throwing)).InnerException);
             Assert.AreSame(thrown, (await Assert.ThrowsExactlyAsync<CityStoppedException>(() => waiting)).InnerException);

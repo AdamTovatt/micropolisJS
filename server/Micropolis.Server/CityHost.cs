@@ -120,7 +120,7 @@ namespace Micropolis.Server
             try
             {
                 // Before anything is applied, so a call refused changes nothing
-                CityTimeModel.CheckStepCount(steps);
+                long count = WholeSteps(steps);
 
                 if (!_driver.IsHeld)
                 {
@@ -139,7 +139,7 @@ namespace Micropolis.Server
 
                 try
                 {
-                    CityTimeModel.TakeSteps(_city.Simulation, steps, () =>
+                    CityTimeModel.TakeSteps(_city.Simulation, count, () =>
                     {
                         _city.Queue.Step();
                         taken++;
@@ -218,6 +218,17 @@ namespace Micropolis.Server
         private string? NotSteppingReason()
         {
             return _city.Simulation.IsPaused ? "it is paused" : null;
+        }
+
+        // The steps a request asks for, which arrive as any JSON number, as a count to take
+        private static long WholeSteps(double steps)
+        {
+            if (!double.IsInteger(steps) || steps < 0)
+            {
+                throw new StepsFailedException($"Steps are taken in whole numbers from 0, got {CanonicalJson.FormatNumber(steps)}");
+            }
+
+            return (long)steps;
         }
 
         private void SendState()

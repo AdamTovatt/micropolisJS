@@ -102,7 +102,7 @@ namespace Micropolis.Server.Tests
             Assert.AreEqual(
                 CanonicalJson.Write(new JsonObject
                 {
-                    ["formatVersion"] = CommandLogFormat.Version,
+                    ["formatVersion"] = CommandLog.FormatVersion,
                     ["seed"] = 2026,
                     ["level"] = 0,
                     ["entries"] = new JsonArray(),
@@ -118,7 +118,7 @@ namespace Micropolis.Server.Tests
             CommandRecorder recorder = new CommandRecorder(city, CommandRecorder.NewCityStart(2026, Level.Easy));
             CommandQueue queue = new CommandQueue(city, recorder);
 
-            for (int i = 0; i <= CommandLogFormat.CheckpointInterval; i++)
+            for (int i = 0; i <= CommandLog.CheckpointInterval; i++)
             {
                 queue.Step();
             }
@@ -126,10 +126,10 @@ namespace Micropolis.Server.Tests
             // Each checkpoint is the hash of the city before the step it names, as a twin stepped that far has it
             Simulation twin = NewCity();
             List<(long, string)> expected = new List<(long, string)> { (0, StateHash.HashSavedState(twin.Save())) };
-            StepTimes(twin, CommandLogFormat.CheckpointInterval);
-            expected.Add((CommandLogFormat.CheckpointInterval, StateHash.HashSavedState(twin.Save())));
+            StepTimes(twin, CommandLog.CheckpointInterval);
+            expected.Add((CommandLog.CheckpointInterval, StateHash.HashSavedState(twin.Save())));
             StepTimes(twin, 1);
-            expected.Add((CommandLogFormat.CheckpointInterval + 1, StateHash.HashSavedState(twin.Save())));
+            expected.Add((CommandLog.CheckpointInterval + 1, StateHash.HashSavedState(twin.Save())));
             CollectionAssert.AreEqual(expected, recorder.Log()["checkpoints"]!.AsArray()
                 .Select(checkpoint => ((long)checkpoint!["step"]!, (string)checkpoint["hash"]!)).ToList());
         }

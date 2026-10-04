@@ -63,7 +63,7 @@ namespace Micropolis.Server
 
         public void BeforeStep(long step)
         {
-            if (step % CommandLogFormat.CheckpointInterval == 0)
+            if (step % CommandLog.CheckpointInterval == 0)
             {
                 _checkpoints.Add((step, Hash()));
             }
@@ -77,7 +77,7 @@ namespace Micropolis.Server
         /// </summary>
         public JsonObject Log()
         {
-            JsonObject log = new JsonObject { ["formatVersion"] = CommandLogFormat.Version };
+            JsonObject log = new JsonObject { ["formatVersion"] = CommandLog.FormatVersion };
 
             foreach ((string key, JsonNode? value) in _start)
             {

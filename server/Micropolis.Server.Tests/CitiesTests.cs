@@ -632,6 +632,22 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        [DataRow(0.5, "0.5", DisplayName = "a fraction")]
+        [DataRow(-1.0, "-1", DisplayName = "a negative number")]
+        public async Task Advance_StepsNotWhole_FailsSayingSoAndTakesNone(double steps, string written)
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync();
+            await ada.RequestAsync(id => new HoldRequest(id));
+
+            JsonObject refused = (await ada.RequestAsync(id => new AdvanceRequest(id, steps)))!.AsObject();
+
+            Assert.AreEqual($"Steps are taken in whole numbers from 0, got {written}", (string)refused["error"]!);
+            Assert.AreEqual(0, (long)refused["steps"]!);
+        }
+
+        [TestMethod]
         public async Task Advance_DriverHeld_TakesExactlyTheStepsAsked()
         {
             await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);

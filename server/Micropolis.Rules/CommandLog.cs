@@ -48,6 +48,12 @@ namespace Micropolis.Rules
         public const int FormatVersion = 1;
 
         /// <summary>
+        /// A recorder's checkpoint every this many steps, a minute of play, as <c>CHECKPOINT_INTERVAL</c> in
+        /// <c>src/commandLog.ts</c>.
+        /// </summary>
+        public const int CheckpointInterval = 3600;
+
+        /// <summary>
         /// How a command log's file name ends.
         /// </summary>
         public const string FileExtension = ".log.json";
