@@ -159,7 +159,7 @@ namespace Micropolis.Server
 
             try
             {
-                city = await _registry.StartCityAsync(start);
+                city = await _registry.StartCityAsync(start, _held);
             }
             catch (CityStoreException exception)
             {
@@ -185,7 +185,7 @@ namespace Micropolis.Server
 
             try
             {
-                city = await _registry.EnterAsync(join.City);
+                city = await _registry.EnterAsync(join.City, _held);
             }
             catch (SaveFormatException exception)
             {

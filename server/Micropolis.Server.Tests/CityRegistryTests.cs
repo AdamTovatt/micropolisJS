@@ -30,6 +30,9 @@ namespace Micropolis.Server.Tests
         // Two cycles of the simulation's 16 phases at medium speed, which lets a phase through every third step
         private const int TwoCycles = 2 * 16 * 3;
 
+        // Half a second of the server's clock, in which a city that isn't held takes a step on most frames
+        private const int ManyFrames = 30;
+
         // How long a test waits for registry work that holds nothing up
         private static readonly TimeSpan WorkTimeout = TimeSpan.FromSeconds(5);
 
@@ -73,7 +76,7 @@ namespace Micropolis.Server.Tests
             string saved = await ChangedAsync(city);
 
             await _registry.LeaveAsync(_ada, city);
-            LoadedCity? entered = await _registry.EnterAsync(city.Id);
+            LoadedCity? entered = await _registry.EnterAsync(city.Id, held: true);
 
             Assert.AreEqual(saved, await StoredAsync(city));
             Assert.AreNotSame(city, entered);
@@ -89,7 +92,7 @@ namespace Micropolis.Server.Tests
             Assert.AreEqual(unloadedAt, HashOf(await ChangedAsync(stayed)));
 
             await _registry.LeaveAsync(_ada, city);
-            LoadedCity again = (await _registry.EnterAsync(city.Id))!;
+            LoadedCity again = (await _registry.EnterAsync(city.Id, held: true))!;
             await again.JoinAsync(new Joining(_ada, 0, Hold: true));
 
             Assert.AreNotSame(city, again);
@@ -102,11 +105,11 @@ namespace Micropolis.Server.Tests
         public async Task LeaveAsync_OneOfTwoPlayers_KeepsTheCityLoaded()
         {
             LoadedCity city = await StartedAsync();
-            Assert.AreSame(city, await _registry.EnterAsync(city.Id));
+            Assert.AreSame(city, await _registry.EnterAsync(city.Id, held: true));
 
             await _registry.LeaveAsync(_ada, city);
 
-            Assert.AreSame(city, await _registry.EnterAsync(city.Id));
+            Assert.AreSame(city, await _registry.EnterAsync(city.Id, held: true));
         }
 
         [TestMethod]
@@ -118,7 +121,7 @@ namespace Micropolis.Server.Tests
             await Assert.ThrowsExactlyAsync<CityStoppedException>(() => city.RunAsync<bool>(_ => throw new InvalidOperationException("the rules threw")));
 
             await _registry.LeaveAsync(_ada, city);
-            LoadedCity? entered = await _registry.EnterAsync(city.Id);
+            LoadedCity? entered = await _registry.EnterAsync(city.Id, held: true);
 
             Assert.AreEqual(started, await StoredAsync(city));
             Assert.AreNotSame(city, entered);
@@ -133,7 +136,7 @@ namespace Micropolis.Server.Tests
 
             await _registry.LeaveAsync(_ada, city);
 
-            Assert.AreSame(city, await _registry.EnterAsync(city.Id));
+            Assert.AreSame(city, await _registry.EnterAsync(city.Id, held: true));
             // Still running, and saved as its next player leaves, once the store can keep it
             string saved = await ChangedAsync(city);
             TestCityDatabase.MakeWritable(_database);
@@ -150,7 +153,7 @@ namespace Micropolis.Server.Tests
             Task leaving = _registry.LeaveAsync(_ada, city);
             await begun;
 
-            Task<LoadedCity?> entering = _registry.EnterAsync(city.Id);
+            Task<LoadedCity?> entering = _registry.EnterAsync(city.Id, held: true);
 
             Assert.IsFalse(entering.IsCompleted, "Entered the city before its save was kept");
             _heldStore.Release();
@@ -166,11 +169,11 @@ namespace Micropolis.Server.Tests
             LoadedCity city = await StartedAsync();
             await _registry.LeaveAsync(_ada, city);
             Task begun = _heldStore.HoldNext();
-            Task<LoadedCity?> first = _registry.EnterAsync(city.Id);
+            Task<LoadedCity?> first = _registry.EnterAsync(city.Id, held: true);
             await begun;
 
-            Task<LoadedCity?> second = _registry.EnterAsync(city.Id);
-            LoadedCity other = await _registry.StartCityAsync(StartingCity.New("Other", 2027, Level.Easy)).WaitAsync(WorkTimeout);
+            Task<LoadedCity?> second = _registry.EnterAsync(city.Id, held: true);
+            LoadedCity other = await _registry.StartCityAsync(StartingCity.New("Other", 2027, Level.Easy), held: true).WaitAsync(WorkTimeout);
 
             Assert.IsFalse(first.IsCompleted || second.IsCompleted, "Entered the city before it was read");
             _heldStore.Release();
@@ -181,7 +184,49 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public async Task EnterAsync_NoSuchCity_IsNull()
         {
-            Assert.IsNull(await _registry.EnterAsync(CityId.New()));
+            Assert.IsNull(await _registry.EnterAsync(CityId.New(), held: true));
+        }
+
+        // On the server's clock, a city's loop turns from the moment it starts: one started for a held connection takes no
+        // step before that connection joins it and holds it
+        [TestMethod]
+        public async Task StartCityAsync_HeldOnTheServersClock_TakesNoStepBeforeTheConnectionJoins()
+        {
+            FakeTimeProvider time = new FakeTimeProvider();
+            CityRegistry registry = new CityRegistry(_heldStore, new ServerClock(time, Manual: false), NullLogger<CityRegistry>.Instance);
+
+            LoadedCity city = await registry.StartCityAsync(StartingCity.New("Town", 2026, Level.Easy), held: true);
+            await FramesAsync(city, time, ManyFrames);
+
+            Assert.AreEqual(await StoredAsync(city), await city.RunAsync(host => host.Save()));
+            await ((IHostedService)registry).StopAsync(CancellationToken.None);
+        }
+
+        // As a new city does, so does one loaded from the store for a held connection
+        [TestMethod]
+        public async Task EnterAsync_HeldCityItLoadsOnTheServersClock_TakesNoStepBeforeTheConnectionJoins()
+        {
+            LoadedCity stored = await StartedAsync();
+            await ChangedAsync(stored);
+            await _registry.LeaveAsync(_ada, stored);
+            FakeTimeProvider time = new FakeTimeProvider();
+            CityRegistry registry = new CityRegistry(_heldStore, new ServerClock(time, Manual: false), NullLogger<CityRegistry>.Instance);
+
+            LoadedCity city = (await registry.EnterAsync(stored.Id, held: true))!;
+            await FramesAsync(city, time, ManyFrames);
+
+            Assert.AreEqual(await StoredAsync(city), await city.RunAsync(host => host.Save()));
+            await ((IHostedService)registry).StopAsync(CancellationToken.None);
+        }
+
+        // Moves the server's clock on a frame at a time, and lets the city take each turn of its loop that falls due
+        private static async Task FramesAsync(LoadedCity city, FakeTimeProvider time, int frames)
+        {
+            for (int frame = 0; frame < frames; frame++)
+            {
+                time.Advance(TimerTicker.FrameInterval);
+                await city.RunAsync(_ => { });
+            }
         }
 
         // A new city with Ada in it
@@ -193,7 +238,7 @@ namespace Micropolis.Server.Tests
         // A new city with the player in it, the same as every other new city here
         private async Task<LoadedCity> StartedAsync(CityConnection player)
         {
-            LoadedCity city = await _registry.StartCityAsync(StartingCity.New("Town", 2026, Level.Easy));
+            LoadedCity city = await _registry.StartCityAsync(StartingCity.New("Town", 2026, Level.Easy), held: true);
             await city.JoinAsync(new Joining(player, 0, Hold: true));
             return city;
         }

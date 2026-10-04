@@ -42,14 +42,15 @@ namespace Micropolis.Server
         }
 
         /// <summary>
-        /// Starts the city under a new id, keeps it in the store, and counts in the connection that will join it.
+        /// Starts the city under a new id, keeps it in the store, and counts in the connection that will join it, held
+        /// from its first step when that connection's debug channel holds it.
         /// </summary>
         /// <exception cref="CityStoreException">The store couldn't keep the city, which then doesn't start.</exception>
-        public async Task<LoadedCity> StartCityAsync(StartingCity start)
+        public async Task<LoadedCity> StartCityAsync(StartingCity start, bool held)
         {
             string id = CityId.New();
             await _store.WriteAsync(id, SavedGame.Write(start.Name, start.City));
-            LoadedCity city = new LoadedCity(id, start, _clock, Failed);
+            LoadedCity city = new LoadedCity(id, start, _clock, held, Failed);
 
             await _lock.WaitAsync();
             try
@@ -64,11 +65,12 @@ namespace Micropolis.Server
 
         /// <summary>
         /// The city with the id, loaded from the store if no one is in it, with the connection that will join it
-        /// counted in; or null when there is no such city.
+        /// counted in; or null when there is no such city. A city it loads is held from its first step when that
+        /// connection's debug channel holds it; one already loaded is held as the connection joins it.
         /// </summary>
         /// <exception cref="SaveFormatException">The store keeps the city as a save the rules don't load.</exception>
         /// <exception cref="CityStoreException">The store couldn't be read.</exception>
-        public async Task<LoadedCity?> EnterAsync(string id)
+        public async Task<LoadedCity?> EnterAsync(string id, bool held)
         {
             while (true)
             {
@@ -95,7 +97,7 @@ namespace Micropolis.Server
 
                 if (moving is null)
                 {
-                    return await LoadAsync(id, loading);
+                    return await LoadAsync(id, held, loading);
                 }
 
                 // The city is loading for another player, or its last player has just left: once it has loaded, or its
@@ -186,12 +188,12 @@ namespace Micropolis.Server
 
         // Reads the city from the store and loads it, outside the lock, so no other city waits on it. Those entering it
         // meanwhile wait on loading.
-        private async Task<LoadedCity?> LoadAsync(string id, TaskCompletionSource loading)
+        private async Task<LoadedCity?> LoadAsync(string id, bool held, TaskCompletionSource loading)
         {
             try
             {
                 string? savedGame = await _store.ReadAsync(id);
-                LoadedCity? city = savedGame is null ? null : new LoadedCity(id, StartingCity.FromSave(savedGame), _clock, Failed);
+                LoadedCity? city = savedGame is null ? null : new LoadedCity(id, StartingCity.FromSave(savedGame), _clock, held, Failed);
 
                 await _lock.WaitAsync();
                 try
