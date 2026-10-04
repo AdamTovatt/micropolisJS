@@ -18,7 +18,8 @@
 --reference passes images the model works from: a layout to follow, or an image to change.
 --tiles also writes <out>-tiled.png, four copies 2x2, to look for seams before using a texture.
 --seamless blends away the seam the model often leaves, as on directional grass; --from-file
-applies it to an image already generated, without asking the model again.
+applies it to an image already generated, without asking the model again. --flatten evens out
+the broad light falloff the model often bakes in, which bands when the image repeats.
 
 Reads the API key from GEMINI_API_KEY. Needs Pillow. Record what you keep, with its prompt
 and the model, in the README beside it.
@@ -83,6 +84,29 @@ def seamless(image):
     return Image.composite(image, shifted, mask)
 
 
+def flatten(image, radius_fraction=0.08):
+    # Even out the changes of brightness the model often bakes in, which band when the image
+    # repeats: a sky's light falling off down water, sometimes stacked twice in one image with a
+    # hard step between. First scale every row, then every column, to the image's mean, which
+    # takes out a falloff along either axis however sharp; then divide by a wide blur of the
+    # image, taken with it wrapped round so the edges blur like the middle, which takes out
+    # broad blotches. Needs NumPy.
+    import numpy as np
+    from PIL import ImageFilter
+    pixels = np.asarray(image, dtype=np.float64)
+    mean = pixels.mean(axis=(0, 1))
+    pixels = pixels / np.maximum(pixels.mean(axis=1, keepdims=True), 1) * mean
+    pixels = pixels / np.maximum(pixels.mean(axis=0, keepdims=True), 1) * mean
+    image = Image.fromarray(np.clip(pixels, 0, 255).round().astype(np.uint8))
+    w, h = image.size
+    wrapped = tiled(tiled(image)).crop((w // 2, h // 2, w // 2 + 2 * w, h // 2 + 2 * h))
+    broad = wrapped.filter(ImageFilter.GaussianBlur(radius_fraction * max(w, h)))
+    broad = np.asarray(broad.crop((w // 2, h // 2, w // 2 + w, h // 2 + h)), dtype=np.float64)
+    pixels = np.asarray(image, dtype=np.float64)
+    even = pixels / np.maximum(broad, 1) * broad.mean(axis=(0, 1))
+    return Image.fromarray(np.clip(even, 0, 255).round().astype(np.uint8))
+
+
 def tiled(image):
     w, h = image.size
     grid = Image.new('RGB', (2 * w, 2 * h))
@@ -102,13 +126,18 @@ if __name__ == '__main__':
     p.add_argument('--tiles', action='store_true', help='also write <out>-tiled.png, four copies 2x2')
     p.add_argument('--seamless', action='store_true',
                    help='blend the image with its half-shifted copy so it wraps without a seam')
+    p.add_argument('--flatten', action='store_true',
+                   help='even out broad changes of brightness, such as light falling off across the image')
     p.add_argument('--from-file', metavar='IMAGE',
-                   help='skip generating and work on this image instead: with --seamless, to fix one already made')
+                   help='skip generating and work on this image instead: with --seamless or --flatten, '
+                        'to fix one already made')
     a = p.parse_args()
     image = Image.open(a.from_file).convert('RGB') if a.from_file else generate(a.prompt, a.reference, a.aspect,
                                                                                 a.model)
     if a.seamless:
         image = seamless(image)
+    if a.flatten:
+        image = flatten(image)
     image.save(a.out)
     print(f'{a.out}: {image.size[0]}x{image.size[1]}')
     if a.tiles:

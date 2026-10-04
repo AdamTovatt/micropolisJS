@@ -19,20 +19,52 @@ each pixel, so overlapping shadows never darken twice, then every zone's objects
         commercial_office_park,residential_courtyard_block
 
 Each argument after the output is a row, west to east, of zone names under art/blender/out;
-an empty name leaves a bare lawn. Needs Pillow.
+an empty name leaves a bare lawn. A number names a single tile by its id, rendered by a tile
+set (art/blender/tiles/) into art/blender/out/<set>/<id>, so a row of ids is a strip of map:
+
+    python art/tools/preview.py map.png 0,13,13,0 9,2,2,17 0,5,5,0 --original
+
+--original also writes <out>-original.png, the same grid from the game's 16 px tiles
+(images/tiles.png) scaled up to the same size. Needs Pillow.
 """
 
 import argparse
+import glob
 import json
 import os
 
 from PIL import Image, ImageChops
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'blender', 'out')
+TILES = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'images', 'tiles.png')
+
+
+def _directory(name):
+    if not name.isdigit():
+        return os.path.join(OUT, name)
+    found = glob.glob(os.path.join(OUT, '*', f'{int(name):04d}'))
+    if len(found) != 1:
+        raise ValueError(f'tile {name} is rendered by {len(found)} sets, not one: {found}')
+    return found[0]
+
+
+def original(rows, out_path, tile_px):
+    # the grid as the game's 16 px tiles draw it, each scaled up to tile_px; a name that is not
+    # a tile id is left black
+    sheet = Image.open(TILES).convert('RGB')
+    w, h = tile_px * max(len(r) for r in rows), tile_px * len(rows)
+    grid = Image.new('RGB', (w, h))
+    for r, row in enumerate(rows):
+        for c, name in enumerate(row):
+            if name.isdigit():
+                t = int(name)
+                tile = sheet.crop(((t % 32) * 16, (t // 32) * 16, (t % 32) * 16 + 16, (t // 32) * 16 + 16))
+                grid.paste(tile.resize((tile_px, tile_px), Image.NEAREST), (c * tile_px, r * tile_px))
+    grid.save(out_path)
 
 
 def zone(name):
-    d = os.path.join(OUT, name)
+    d = _directory(name)
     with open(os.path.join(d, 'layers.json')) as f:
         info = json.load(f)
     layers = {k: Image.open(os.path.join(d, k + '.png')).convert('RGBA') for k in ('ground', 'shadow', 'objects')}
@@ -66,11 +98,17 @@ def preview(rows, out_path, empty=(86, 118, 52)):
     ground.alpha_composite(dark)
     ground.alpha_composite(objects)
     ground.convert('RGB').save(out_path)
+    return next(z[0]['tile_px'] for row in grid for z in row if z)
 
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     p.add_argument('out')
-    p.add_argument('rows', nargs='+', help='comma-separated zone names, one argument per row')
+    p.add_argument('rows', nargs='+', help='comma-separated zone names or tile ids, one argument per row')
+    p.add_argument('--original', action='store_true', help="also write <out>-original.png from the game's tiles")
     a = p.parse_args()
-    preview([row.split(',') for row in a.rows], a.out)
+    rows = [row.split(',') for row in a.rows]
+    tile_px = preview(rows, a.out)
+    if a.original:
+        stem, _ = os.path.splitext(a.out)
+        original(rows, stem + '-original.png', tile_px)

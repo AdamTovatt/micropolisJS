@@ -115,6 +115,64 @@ def textured(name, file, width, height, rough=0.9, shade=1.0, tint='ffffff', hue
     return m
 
 
+def tiling_noise(nt, scale, period=1.0, detail=6):
+    # A noise texture's Fac that repeats every `period` world units in x and y, read from the UVs
+    # (world units on the top faces), so tiles drawn side by side join without a seam: the plane
+    # is wrapped onto a torus in four dimensions, which the noise samples. scale is about the
+    # number of features across one period.
+    def node(kind, *inputs, op=None):
+        n = nt.nodes.new(kind)
+        if op:
+            n.operation = op
+        for i, value in enumerate(inputs):
+            if isinstance(value, (int, float)):
+                n.inputs[i].default_value = value
+            else:
+                nt.links.new(value, n.inputs[i])
+        return n
+    uv = nt.nodes.new('ShaderNodeTexCoord')
+    xyz = node('ShaderNodeSeparateXYZ', uv.outputs['UV'])
+    radius = scale / (2 * math.pi)
+    ring = []
+    for axis in ('X', 'Y'):
+        angle = node('ShaderNodeMath', xyz.outputs[axis], 2 * math.pi / period, op='MULTIPLY').outputs[0]
+        for op in ('COSINE', 'SINE'):
+            wave = node('ShaderNodeMath', angle, op=op).outputs[0]
+            ring.append(node('ShaderNodeMath', wave, radius, op='MULTIPLY').outputs[0])
+    point = node('ShaderNodeCombineXYZ', ring[0], ring[1], ring[2])
+    noise = nt.nodes.new('ShaderNodeTexNoise')
+    noise.noise_dimensions = '4D'
+    noise.inputs['Scale'].default_value = 1
+    noise.inputs['Detail'].default_value = detail
+    nt.links.new(point.outputs[0], noise.inputs['Vector'])
+    nt.links.new(ring[3], noise.inputs['W'])
+    return noise.outputs['Fac']
+
+
+def tiling_mottle(m, hex_colour, amount, scale=6, period=1.0, low=0.35, high=0.65):
+    # Blend a material's colour toward hex_colour in soft patches of tiling_noise, so a ground
+    # that repeats every tile varies within it without a seam: amount is the most it blends
+    nt = m.node_tree
+    base = _bsdf(m).inputs['Base Color']
+    src = base.links[0].from_socket if base.links else None
+    ramp = nt.nodes.new('ShaderNodeValToRGB')
+    ramp.color_ramp.elements[0].position = low
+    ramp.color_ramp.elements[0].color = (0, 0, 0, 1)
+    ramp.color_ramp.elements[1].position = high
+    ramp.color_ramp.elements[1].color = (amount, amount, amount, 1)
+    nt.links.new(tiling_noise(nt, scale, period), ramp.inputs['Fac'])
+    mix = nt.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    nt.links.new(ramp.outputs['Color'], mix.inputs['Factor'])
+    if src is not None:
+        nt.links.new(src, mix.inputs['A'])
+    else:
+        mix.inputs['A'].default_value = base.default_value
+    mix.inputs['B'].default_value = (*srgb(hex_colour), 1)
+    nt.links.new(mix.outputs['Result'], base)
+    return m
+
+
 def weathered(m, dirt=0.3, dirt_scale=4, specks=0.0, speck_hex='2a2824'):
     # darken a material in broad stains, and optionally scatter small specks over it
     nt = m.node_tree
@@ -265,26 +323,48 @@ CAR_SCALE = 0.26 / 330    # world units per pixel of a car cutout, so vans come 
 VANS = {'car-06', 'car-07', 'car-13', 'car-14', 'car-20', 'car-21'}
 
 
-def car(name, x, y, turn):
-    # a car from cutouts/cars centred on (x, y); turn 0 points its nose north. Under the card
-    # is a body only the sun sees, so the car's shadow starts at the ground
+def car_size(name):
+    # a car's height and its card's width and depth, nose north, in world units
     cutout = f'cars/{name}.png'
     image = bpy.data.images.load(os.path.join(CUTOUTS, cutout), check_existing=True)
-    length = CAR_SCALE * max(image.size)
-    height = 0.07 if name in VANS else 0.05
-    _card(cutout, x, y, height, length, turn)
-    _, w, d = _cutout_size(cutout, length)
-    body = prism(_rotated_rect(x, y, w * 0.85, d * 0.92, turn), 0.0, height - 0.002,
+    _, w, d = _cutout_size(cutout, CAR_SCALE * max(image.size))
+    return (0.07 if name in VANS else 0.05), w, d
+
+
+def car(name, x, y, turn, base=0.0):
+    # a car from cutouts/cars centred on (x, y), standing on ground at height base, such as a
+    # bridge's deck; turn 0 points its nose north. Under the card is a body only the sun sees,
+    # so the car's shadow starts at the ground
+    cutout = f'cars/{name}.png'
+    height, w, d = car_size(name)
+    _card(cutout, x, y, base + height, max(w, d), turn)
+    body = prism(_rotated_rect(x, y, w * 0.85, d * 0.92, turn), base, base + height - 0.002,
                  _shadow_material(), name='car_body')
     _shadow_only(body)
 
 
 def tree(name, x, y, size, turn=0):
-    # a tree from cutouts/plants: its crown, `size` across, on a trunk from the ground
+    # a tree from cutouts/plants: its crown, `size` across, on a trunk from the ground. Returns
+    # the crown and the trunk
     height = 0.8 * size
-    _card(f'plants/{name}.png', x, y, height, size, turn)
+    crown = _card(f'plants/{name}.png', x, y, height, size, turn)
     trunk = bpy.data.materials.get('trunk') or plain('trunk', '4a3522', 0.9)
     cylinder(x, y, 0, height - 0.002, 0.016, trunk, 8)
+    return crown, bpy.context.object
+
+
+def neighbours_shade(ob):
+    # Make an object stand in for one in a neighbouring tile, such as a tree in the woods next
+    # door, so that it shades this tile's objects as the neighbour's would: the camera never
+    # sees it, and render() leaves it out of the shadow layer, where the neighbour casts its own.
+    # Without it, the trees along a tile's sunny edges would be lit brighter than the rest,
+    # marking out the grid.
+    ob['neighbours_shade'] = True
+    ob.visible_camera = False
+    ob.visible_diffuse = False
+    ob.visible_glossy = False
+    ob.visible_transmission = False
+    return ob
 
 
 def shrub(name, x, y, size, height, turn=0):
@@ -548,6 +628,15 @@ def dashes(x0, y0, x1, y1, material, dash=0.08, gap=0.06, width=0.012, z=0.006):
 FIT_TOLERANCE = 0.003  # how far a sheared point may stray past the edge: a flat ground layer's rim
 
 
+def spans_edge(ob):
+    # Mark an object that crosses a tile's edge by design, running on into the neighbouring tile
+    # that continues it: a power line's wire, a bridge's deck. The fit check passes it. The scene
+    # builds it past the edge by at least its sheared lift, so that where the frame cuts it off,
+    # the neighbour's copy of it, built the same way, takes over without a gap.
+    ob['spans_edge'] = True
+    return ob
+
+
 def _shear_scene(scene, tiles):
     # Shear every point up and to the right by its height, then fail if anything the camera
     # sees stands past the zone's edge: the game draws each tile on its own, so it would be cut off.
@@ -562,7 +651,7 @@ def _shear_scene(scene, tiles):
         for v in ob.data.vertices:
             v.co.x += SHEAR * v.co.z
             v.co.y += SHEAR * v.co.z
-            if ob.visible_camera and v.co.z >= 0 and not (
+            if ob.visible_camera and not ob.get('spans_edge') and v.co.z >= 0 and not (
                     -FIT_TOLERANCE <= v.co.x <= tiles + FIT_TOLERANCE and
                     -FIT_TOLERANCE <= v.co.y <= tiles + FIT_TOLERANCE):
                 outside.add(ob.name)
@@ -652,6 +741,10 @@ def render(scene, out_dir, tiles, samples=192,
     scene.cycles.device = 'CPU'
     scene.cycles.samples = samples
     scene.cycles.use_denoising = False
+    # each pixel samples only its own square: the default filter, wider than a pixel, reaches
+    # past the frame's edge, where nothing of the zone is, and darkens its outermost pixels, a
+    # faint line where it meets its neighbour. Rendering at twice the size smooths edges instead.
+    scene.cycles.filter_width = 1.0
     scene.render.image_settings.color_mode = 'RGBA'
     scene.view_settings.view_transform = 'AgX'
     scene.view_settings.look = 'AgX - Punchy'
@@ -678,6 +771,8 @@ def render(scene, out_dir, tiles, samples=192,
         ob.hide_render = True
     for ob in standing:
         ob.visible_camera = False
+        if ob.get('neighbours_shade'):
+            ob.hide_render = True
     reach = tallest / math.tan(math.radians(sun_elevation)) + 0.05
     away = math.radians(sun_azimuth + 180)
     dx, dy = math.sin(away) * reach, math.cos(away) * reach
@@ -697,3 +792,25 @@ def render(scene, out_dir, tiles, samples=192,
     with open(os.path.join(out_dir, 'layers.json'), 'w') as f:
         json.dump({'tiles': tiles, 'tile_px': TILE_PX, 'shadow_margin': margin}, f, indent=2)
         f.write('\n')
+
+
+def render_tiles(script, builders, **render_args):
+    # Render a set of single tiles, such as every road piece: builders maps a tile id, as
+    # src/tileValues.ts numbers them, to a function that builds that tile's scene, from nothing,
+    # with the tile's south-west corner at the origin. Each renders as a zone of one tile into
+    # <out>/<id, four digits>, where <out> is out_dir(script). Ids after the directory on the
+    # command line (`-- <directory> 66,70-75`) render only those.
+    import sys
+    out = out_dir(script)
+    wanted = None
+    if '--' in sys.argv and len(sys.argv) > sys.argv.index('--') + 2:
+        wanted = set()
+        for part in sys.argv[sys.argv.index('--') + 2].split(','):
+            first, _, last = part.partition('-')
+            wanted.update(range(int(first), int(last or first) + 1))
+    for tile, build in sorted(builders.items()):
+        if wanted is not None and tile not in wanted:
+            continue
+        scene = new_scene()
+        build()
+        render(scene, os.path.join(out, f'{tile:04d}'), tiles=1, **render_args)
