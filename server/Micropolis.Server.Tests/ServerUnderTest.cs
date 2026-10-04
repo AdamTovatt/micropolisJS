@@ -33,15 +33,15 @@ namespace Micropolis.Server.Tests
     {
         public const string Secret = "test-only-signing-secret-for-the-server-tests";
 
-        // Whether the store is this server's alone, to delete when it stops
-        private readonly bool _ownsStore;
+        // Whether the database is this server's alone, to delete when it stops
+        private readonly bool _ownsDatabase;
 
-        private ServerUnderTest(WebApplication app, FakeTimeProvider time, string store, bool ownsStore)
+        private ServerUnderTest(WebApplication app, FakeTimeProvider time, string database, bool ownsDatabase)
         {
             App = app;
             Time = time;
-            Store = store;
-            _ownsStore = ownsStore;
+            Database = database;
+            _ownsDatabase = ownsDatabase;
             Server = app.GetTestServer();
             Client = Server.CreateClient();
         }
@@ -52,28 +52,33 @@ namespace Micropolis.Server.Tests
         public HttpClient Client { get; }
 
         /// <summary>
-        /// The directory the server keeps its cities in, which is the test's own.
+        /// The SQLite file the server keeps its cities in, which is the test's own.
         /// </summary>
-        public string Store { get; }
+        public string Database { get; }
 
         /// <summary>
-        /// The file the server keeps the city in.
+        /// The server's store.
         /// </summary>
-        public string StoredPathOf(string city)
+        public CityStore Store => App.Services.GetRequiredService<CityStore>();
+
+        /// <summary>
+        /// The save the server's store keeps for the city, or null when it keeps none, read without opening the city.
+        /// </summary>
+        public async Task<string?> StoredAsync(string city)
         {
-            return new CityStore(Store).PathOf(city);
+            return (await TestCityDatabase.ReadRowAsync(Database, city))?.SavedGame;
         }
 
         /// <param name="manualClock">Whether the server's cities turn only when the debug channel says, rather than on
         /// the clock the test moves.</param>
-        /// <param name="store">The directory the server keeps its cities in, which outlives the server, such as another
-        /// test server's; or none, for a store of the server's own, deleted when it stops.</param>
-        public static async Task<ServerUnderTest> StartAsync(string trustedProxies = ServerApplication.NoTrustedProxies, bool manualClock = false, string? store = null)
+        /// <param name="database">The file the server keeps its cities in, which outlives the server, such as another
+        /// test server's; or none, for a database of the server's own, deleted when it stops.</param>
+        public static async Task<ServerUnderTest> StartAsync(string trustedProxies = ServerApplication.NoTrustedProxies, bool manualClock = false, string? database = null)
         {
             FakeTimeProvider time = new FakeTimeProvider();
-            bool ownsStore = store is null;
-            store ??= NewStore();
-            WebApplicationBuilder builder = CreateBuilder(Secret, trustedProxies, store);
+            bool ownsDatabase = database is null;
+            database ??= TestCityDatabase.NewFile();
+            WebApplicationBuilder builder = CreateBuilder(database, Secret, trustedProxies);
 
             if (manualClock)
             {
@@ -83,9 +88,17 @@ namespace Micropolis.Server.Tests
 
             builder.Services.AddSingleton<TimeProvider>(time);
 
-            WebApplication app = ServerApplication.Build(builder);
-            await app.StartAsync();
-            return new ServerUnderTest(app, time, store, ownsStore);
+            try
+            {
+                WebApplication app = ServerApplication.Build(builder);
+                await app.StartAsync();
+                return new ServerUnderTest(app, time, database, ownsDatabase);
+            }
+            catch when (ownsDatabase)
+            {
+                TestCityDatabase.Delete(database);
+                throw;
+            }
         }
 
         /// <summary>
@@ -100,25 +113,16 @@ namespace Micropolis.Server.Tests
         }
 
         /// <summary>
-        /// A directory for a server to keep its cities in, which no one has used: the server makes it when it first
-        /// keeps a city.
+        /// A builder configured as the tests run the server: the given secret, trusted proxies and city database, pinned
+        /// over any in the environment. The server makes the database as it builds, so the test deletes it.
         /// </summary>
-        public static string NewStore()
-        {
-            return Path.Combine(Path.GetTempPath(), $"micropolis-cities-{Guid.NewGuid():N}");
-        }
-
-        /// <summary>
-        /// A builder configured as the tests run the server: the given secret, trusted proxies and store, pinned over any
-        /// in the environment.
-        /// </summary>
-        public static WebApplicationBuilder CreateBuilder(string? secret, string? trustedProxies = ServerApplication.NoTrustedProxies, string? store = null)
+        public static WebApplicationBuilder CreateBuilder(string database, string? secret, string? trustedProxies = ServerApplication.NoTrustedProxies)
         {
             WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
             builder.Configuration.AddInMemoryCollection([
                 new KeyValuePair<string, string?>(ServerApplication.JwtSecretKey, secret),
                 new KeyValuePair<string, string?>(ServerApplication.TrustedProxiesKey, trustedProxies),
-                new KeyValuePair<string, string?>(ServerApplication.CityStoreKey, store ?? NewStore()),
+                new KeyValuePair<string, string?>(ServerApplication.CityDatabaseKey, database),
                 new KeyValuePair<string, string?>(ServerApplication.CityClockKey, null),
             ]);
             builder.WebHost.UseTestServer();
@@ -201,7 +205,7 @@ namespace Micropolis.Server.Tests
         }
 
         /// <summary>
-        /// Stops the server, which saves its cities, then deletes its store if the store is its own.
+        /// Stops the server, which saves its cities, then deletes its database if the database is its own.
         /// </summary>
         public async ValueTask DisposeAsync()
         {
@@ -214,26 +218,10 @@ namespace Micropolis.Server.Tests
             }
             finally
             {
-                if (_ownsStore)
+                if (_ownsDatabase)
                 {
-                    DeleteStore(Store);
+                    TestCityDatabase.Delete(Database);
                 }
-            }
-        }
-
-        /// <summary>
-        /// Deletes a store a test is done with, a directory, or a file a test put in its place so it can't be made.
-        /// </summary>
-        public static void DeleteStore(string store)
-        {
-            if (File.Exists(store))
-            {
-                File.Delete(store);
-            }
-
-            if (Directory.Exists(store))
-            {
-                Directory.Delete(store, recursive: true);
             }
         }
     }

@@ -16,7 +16,7 @@ using System.Security.Cryptography;
 namespace Micropolis.Server
 {
     /// <summary>
-    /// A city's id on the server, which any player joins it by and the store names its file by: 128 random bits as
+    /// A city's id on the server, which any player joins it by and the store keeps it under: 128 random bits as
     /// lower-case hex, which no one can guess.
     /// </summary>
     internal static class CityId
@@ -29,7 +29,7 @@ namespace Micropolis.Server
         }
 
         /// <summary>
-        /// Whether the text is an id as <see cref="New"/> writes one, which is safe to name a file with and to quote.
+        /// Whether the text is an id as <see cref="New"/> writes one, which is safe to quote.
         /// </summary>
         public static bool IsOne(string text)
         {

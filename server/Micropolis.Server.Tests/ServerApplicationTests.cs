@@ -19,6 +19,21 @@ namespace Micropolis.Server.Tests
     [TestClass]
     public sealed class ServerApplicationTests
     {
+        // The city database a server the test builds makes
+        private string _database = "";
+
+        [TestInitialize]
+        public void NewDatabase()
+        {
+            _database = TestCityDatabase.NewFile();
+        }
+
+        [TestCleanup]
+        public void DeleteDatabase()
+        {
+            TestCityDatabase.Delete(_database);
+        }
+
         [TestMethod]
         [DataRow(null, DisplayName = "no secret")]
         [DataRow("", DisplayName = "an empty secret")]
@@ -26,7 +41,7 @@ namespace Micropolis.Server.Tests
         public void Build_WithoutSigningSecret_Fails(string? secret)
         {
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
-                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(secret)));
+                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(_database, secret)));
 
             StringAssert.Contains(exception.Message, ServerApplication.JwtSecretKey);
             StringAssert.Contains(exception.Message, "required");
@@ -36,7 +51,7 @@ namespace Micropolis.Server.Tests
         public void Build_SigningSecretShorterThan32Bytes_Fails()
         {
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
-                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(new string('x', 31))));
+                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(_database, new string('x', 31))));
 
             StringAssert.Contains(exception.Message, "32 bytes");
         }
@@ -47,7 +62,7 @@ namespace Micropolis.Server.Tests
         [DataRow("10.0.0.1, 2001:db8::1", DisplayName = "two proxies")]
         public async Task Build_SigningSecretAndTrustedProxies_Starts(string trustedProxies)
         {
-            await using WebApplication app = ServerApplication.Build(ServerUnderTest.CreateBuilder(ServerUnderTest.Secret, trustedProxies));
+            await using WebApplication app = ServerApplication.Build(ServerUnderTest.CreateBuilder(_database, ServerUnderTest.Secret, trustedProxies));
 
             await app.StartAsync();
             await app.StopAsync();
@@ -59,7 +74,7 @@ namespace Micropolis.Server.Tests
         public void Build_WithoutTrustedProxies_Fails(string? trustedProxies)
         {
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
-                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(ServerUnderTest.Secret, trustedProxies)));
+                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(_database, ServerUnderTest.Secret, trustedProxies)));
 
             StringAssert.Contains(exception.Message, ServerApplication.TrustedProxiesKey);
             StringAssert.Contains(exception.Message, "required");
@@ -69,21 +84,41 @@ namespace Micropolis.Server.Tests
         [DataRow(null, DisplayName = "no setting")]
         [DataRow("", DisplayName = "an empty setting")]
         [DataRow("   ", DisplayName = "a whitespace setting")]
-        public void Build_WithoutCityStore_Fails(string? cityStore)
+        public void Build_WithoutCityDatabase_Fails(string? cityDatabase)
         {
-            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(ServerUnderTest.Secret);
-            builder.Configuration[ServerApplication.CityStoreKey] = cityStore;
+            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(_database, ServerUnderTest.Secret);
+            builder.Configuration[ServerApplication.CityDatabaseKey] = cityDatabase;
 
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(() => ServerApplication.Build(builder));
 
-            StringAssert.Contains(exception.Message, ServerApplication.CityStoreKey);
+            StringAssert.Contains(exception.Message, ServerApplication.CityDatabaseKey);
             StringAssert.Contains(exception.Message, "required");
+        }
+
+        [TestMethod]
+        public async Task Build_CityDatabaseThatIsntOne_FailsAsTheStore()
+        {
+            await TestCityDatabase.WriteNotADatabaseAsync(_database);
+
+            Assert.ThrowsExactly<CityStoreException>(() => ServerApplication.Build(ServerUnderTest.CreateBuilder(_database, ServerUnderTest.Secret)));
+        }
+
+        [TestMethod]
+        public async Task Build_NewCityDatabase_MakesItForTheStore()
+        {
+            await using WebApplication app = ServerApplication.Build(ServerUnderTest.CreateBuilder(_database, ServerUnderTest.Secret));
+            CityStore store = app.Services.GetRequiredService<CityStore>();
+            string city = CityId.New();
+
+            await store.WriteAsync(city, "a save");
+
+            Assert.AreEqual("a save", await store.ReadAsync(city));
         }
 
         [TestMethod]
         public void Build_CityClockNeitherManualNorUnset_Fails()
         {
-            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(ServerUnderTest.Secret);
+            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(_database, ServerUnderTest.Secret);
             builder.Configuration[ServerApplication.CityClockKey] = "fast";
 
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(() => ServerApplication.Build(builder));
@@ -101,7 +136,7 @@ namespace Micropolis.Server.Tests
                 Assert.Inconclusive("A Debug build takes the manual clock.");
             }
 
-            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(ServerUnderTest.Secret);
+            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(_database, ServerUnderTest.Secret);
             builder.Configuration[ServerApplication.CityClockKey] = ServerApplication.ManualClock;
 
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(() => ServerApplication.Build(builder));
@@ -110,21 +145,30 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
-        public async Task Build_RelativeCityStore_ResolvesItAgainstTheContentRoot()
+        public async Task Build_RelativeCityDatabase_ResolvesItAgainstTheContentRoot()
         {
-            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(ServerUnderTest.Secret);
-            builder.Configuration[ServerApplication.CityStoreKey] = "relative-store";
+            string relative = Path.GetFileName(_database);
+            WebApplicationBuilder builder = ServerUnderTest.CreateBuilder(relative, ServerUnderTest.Secret);
+            string resolved = Path.Combine(builder.Environment.ContentRootPath, relative);
 
-            await using WebApplication app = ServerApplication.Build(builder);
+            try
+            {
+                await using WebApplication app = ServerApplication.Build(builder);
 
-            Assert.AreEqual(Path.Combine(app.Environment.ContentRootPath, "relative-store"), app.Services.GetRequiredService<CityStore>().Location);
+                Assert.AreEqual(resolved, app.Services.GetRequiredService<CityStore>().Location);
+                Assert.IsTrue(File.Exists(resolved), "The server didn't make the database where it resolved it");
+            }
+            finally
+            {
+                TestCityDatabase.Delete(resolved);
+            }
         }
 
         [TestMethod]
         public void Build_TrustedProxyNotAnAddress_Fails()
         {
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
-                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(ServerUnderTest.Secret, "10.0.0.1, proxy.example")));
+                () => ServerApplication.Build(ServerUnderTest.CreateBuilder(_database, ServerUnderTest.Secret, "10.0.0.1, proxy.example")));
 
             StringAssert.Contains(exception.Message, "proxy.example");
         }

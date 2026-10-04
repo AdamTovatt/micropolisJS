@@ -11,6 +11,9 @@
  *
  */
 
+using System.Data.Common;
+using System.Text.Json.Nodes;
+using EasyReasy.Database;
 using Micropolis.Rules;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,23 +33,26 @@ namespace Micropolis.Server.Tests
         // How long a test waits for registry work that holds nothing up
         private static readonly TimeSpan WorkTimeout = TimeSpan.FromSeconds(5);
 
-        private string _store = "";
+        // The registry's store outlives the registry's loading and unloading, so it is a file of the test's own
+        private string _database = "";
         private HeldStore _heldStore = null!;
         private CityRegistry _registry = null!;
         private readonly CityConnection _ada = new CityConnection(new PlayerInfo("a", "Ada"));
+        private readonly CityConnection _grace = new CityConnection(new PlayerInfo("g", "Grace"));
 
         [TestInitialize]
         public void StartRegistry()
         {
-            _store = ServerUnderTest.NewStore();
-            _heldStore = new HeldStore(_store);
+            _database = TestCityDatabase.NewFile();
+            DbDataSource dataSource = TestCityDatabase.OpenDataSource(_database);
+            _heldStore = new HeldStore(dataSource, new DbSessionFactory(dataSource));
             _registry = new CityRegistry(_heldStore, new ServerClock(new FakeTimeProvider(), Manual: true), NullLogger<CityRegistry>.Instance);
         }
 
         [TestCleanup]
-        public void DeleteStore()
+        public void DeleteDatabase()
         {
-            ServerUnderTest.DeleteStore(_store);
+            TestCityDatabase.Delete(_database);
         }
 
         [TestMethod]
@@ -72,6 +78,24 @@ namespace Micropolis.Server.Tests
             Assert.AreEqual(saved, await StoredAsync(city));
             Assert.AreNotSame(city, entered);
             Assert.AreEqual(saved, await entered!.RunAsync(host => host.Save()));
+        }
+
+        [TestMethod]
+        public async Task EnterAsync_CityUnloadedAndLoadedAgain_ContinuesToTheStateHashOfOneThatStayedLoaded()
+        {
+            LoadedCity city = await StartedAsync(_ada);
+            LoadedCity stayed = await StartedAsync(_grace);
+            string unloadedAt = HashOf(await ChangedAsync(city));
+            Assert.AreEqual(unloadedAt, HashOf(await ChangedAsync(stayed)));
+
+            await _registry.LeaveAsync(_ada, city);
+            LoadedCity again = (await _registry.EnterAsync(city.Id))!;
+            await again.JoinAsync(new Joining(_ada, 0, Hold: true));
+
+            Assert.AreNotSame(city, again);
+            string continued = HashOf(await ChangedAsync(again));
+            Assert.AreNotEqual(unloadedAt, continued, "The city didn't move on after it loaded again");
+            Assert.AreEqual(HashOf(await ChangedAsync(stayed)), continued);
         }
 
         [TestMethod]
@@ -105,16 +129,14 @@ namespace Micropolis.Server.Tests
         public async Task LeaveAsync_StoreThatCantKeepTheCity_KeepsItLoaded()
         {
             LoadedCity city = await StartedAsync();
-            // A file where the store's directory was, which no city can be written into
-            ServerUnderTest.DeleteStore(_store);
-            await File.WriteAllTextAsync(_store, "");
+            TestCityDatabase.MakeReadOnly(_database);
 
             await _registry.LeaveAsync(_ada, city);
 
             Assert.AreSame(city, await _registry.EnterAsync(city.Id));
             // Still running, and saved as its next player leaves, once the store can keep it
             string saved = await ChangedAsync(city);
-            ServerUnderTest.DeleteStore(_store);
+            TestCityDatabase.MakeWritable(_database);
             await _registry.LeaveAsync(_ada, city);
             Assert.AreEqual(saved, await StoredAsync(city));
         }
@@ -165,9 +187,22 @@ namespace Micropolis.Server.Tests
         // A new city with Ada in it
         private async Task<LoadedCity> StartedAsync()
         {
+            return await StartedAsync(_ada);
+        }
+
+        // A new city with the player in it, the same as every other new city here
+        private async Task<LoadedCity> StartedAsync(CityConnection player)
+        {
             LoadedCity city = await _registry.StartCityAsync(StartingCity.New("Town", 2026, Level.Easy));
-            await city.JoinAsync(new Joining(_ada, 0, Hold: true));
+            await city.JoinAsync(new Joining(player, 0, Hold: true));
             return city;
+        }
+
+        // The state hash of the city a save holds
+        private static string HashOf(string savedGame)
+        {
+            JsonNode state = SavedGame.Load(savedGame, out _).Save();
+            return StateHash.HashSavedState(state);
         }
 
         // Moves the city on from its start, and gives its save. A held driver advances by the debug channel's calls.
@@ -182,7 +217,7 @@ namespace Micropolis.Server.Tests
 
         private async Task<string> StoredAsync(LoadedCity city)
         {
-            return await File.ReadAllTextAsync(new CityStore(_store).PathOf(city.Id));
+            return (await TestCityDatabase.ReadRowAsync(_database, city.Id))!.SavedGame;
         }
 
         // A store the test holds up: once told, its next read or write waits until the test releases it
@@ -191,7 +226,7 @@ namespace Micropolis.Server.Tests
             private TaskCompletionSource? _begun;
             private TaskCompletionSource? _released;
 
-            public HeldStore(string directory) : base(directory)
+            public HeldStore(DbDataSource dataSource, IDbSessionFactory sessionFactory) : base(dataSource, sessionFactory, TimeProvider.System)
             {
             }
 
@@ -208,16 +243,16 @@ namespace Micropolis.Server.Tests
                 _released!.SetResult();
             }
 
-            public override async Task<string?> ReadAsync(string city)
+            public override async Task<string?> ReadAsync(string city, IDbSession? session = null)
             {
                 await WaitIfHeldAsync();
-                return await base.ReadAsync(city);
+                return await base.ReadAsync(city, session);
             }
 
-            public override async Task WriteAsync(string city, string savedGame)
+            public override async Task WriteAsync(string city, string savedGame, IDbSession? session = null)
             {
                 await WaitIfHeldAsync();
-                await base.WriteAsync(city, savedGame);
+                await base.WriteAsync(city, savedGame, session);
             }
 
             private async Task WaitIfHeldAsync()

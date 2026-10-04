@@ -20,8 +20,8 @@ import type { CityClientEnvironment, SessionStore, SocketLike, StoredSession } f
 import { repositoryPath } from "./repository";
 
 // The real C# server, as the client's tests run against it: the Debug build, which answers the debug channel, with its
-// cities on a clock only the debug channel moves, a store of its own, and a port the system picks. It needs the build
-// `dotnet build server/Micropolis.slnx` makes, which CI's server job has.
+// cities on a clock only the debug channel moves, a city database of its own, and a port the system picks. It needs the
+// build `dotnet build server/Micropolis.slnx` makes, which CI's server job has.
 
 // The environment variable that runs the tests against the server. Only CI's server job, which has .NET, sets it; the
 // tests that need the server are skipped without it. Any value but 1 is refused, so a mistyped one doesn't skip them
@@ -65,7 +65,8 @@ export function startTestServer(repositoryRoot = repositoryPath(".")): Promise<T
         throw new Error(`No server build at ${build}: run dotnet build server/Micropolis.slnx first`);
     }
 
-    const store = mkdtempSync(join(tmpdir(), "micropolis-cities-"));
+    // The server makes its database in this directory, and SQLite its journal beside it
+    const databaseDirectory = mkdtempSync(join(tmpdir(), "micropolis-cities-"));
     // Pinned over whatever the environment holds, which may name another server's address or start its client
     const env: NodeJS.ProcessEnv = {...process.env};
     delete env.ASPNETCORE_HOSTINGSTARTUPASSEMBLIES;
@@ -74,7 +75,7 @@ export function startTestServer(repositoryRoot = repositoryPath(".")): Promise<T
         ASPNETCORE_ENVIRONMENT: "Testing",
         JWT_SECRET: "test-only-signing-secret-for-the-client-contract-tests",
         TRUSTED_PROXIES: "none",
-        CITY_STORE: store,
+        CITY_DATABASE: join(databaseDirectory, "cities.db"),
         CITY_CLOCK: "manual",
     });
 
@@ -96,7 +97,7 @@ export function startTestServer(repositoryRoot = repositoryPath(".")): Promise<T
             clearTimeout(killing);
         }
 
-        rmSync(store, {recursive: true, force: true});
+        rmSync(databaseDirectory, {recursive: true, force: true});
     };
 
     return new Promise((resolve, reject) => {
