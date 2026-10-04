@@ -48,6 +48,8 @@ export class WorkerCitySource implements CitySource {
       flush: () => this.call({method: "flush"}),
       advance: (steps) => this.call({method: "advance", steps}),
       cityTime: () => this.call({method: "cityTime"}),
+      // A city in the browser is kept only where the page keeps the text, so the runner's read is the save itself
+      savedGame: () => this.call({method: "save"}),
     });
   }
 

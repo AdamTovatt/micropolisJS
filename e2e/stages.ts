@@ -264,8 +264,10 @@ export const STAGES: Stage[] = [
     async play(player) {
       await player.saveGame();
       const saved = await player.save();
+      // Before the reload, whose leaving would save the city to the store whether or not the button had
+      expect(player.storedSave(), "the city the Save button kept in the game server's store").toEqual(saved);
 
-      await player.reloadSavedGame();
+      await player.reloadCity();
       expect(await player.save(), "the city after a reload is the city that was saved").toEqual(saved);
 
       await player.advance(YEAR / 2);

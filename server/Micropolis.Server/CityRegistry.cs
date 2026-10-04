@@ -17,8 +17,9 @@ namespace Micropolis.Server
 {
     /// <summary>
     /// The cities the server runs: each loaded while at least one player is in it, and kept in the store, by its id,
-    /// while none is. A city is saved to the store when it starts, and when its last player leaves, which unloads it;
-    /// entering it again loads it and it resumes. The registry counts who is in each city under one lock, and waits on
+    /// while none is. A city is saved to the store when it starts, when a player saves it, when its last player leaves,
+    /// which unloads it, and as the server stops; entering it again loads it and it resumes. One city's saves are kept
+    /// in the order they were taken. The registry counts who is in each city under one lock, and waits on
     /// a city's work and the store outside it, so one busy city holds up no other. A player entering a city as its last
     /// player leaves finds it loaded, or waits for its save and loads it again.
     /// </summary>
@@ -149,6 +150,27 @@ namespace Micropolis.Server
             }
         }
 
+        /// <summary>
+        /// Saves the loaded city to the store as it stands now, once every save of it taken before is kept or has failed
+        /// to be, so the store never keeps an older save over a newer one, its unloading's included. The city steps on
+        /// meanwhile: its work only takes the save.
+        /// </summary>
+        /// <exception cref="CityStoreException">The store couldn't keep the save. The city stays loaded, so the next
+        /// save, its last player's leaving or the server's stopping saves it again.</exception>
+        /// <exception cref="CityStoppedException">The city stopped before the save was taken.</exception>
+        public async Task SaveAsync(LoadedCity city)
+        {
+            try
+            {
+                await city.SaveAsync(savedGame => _store.WriteAsync(city.Id, savedGame));
+            }
+            catch (CityStoreException exception)
+            {
+                _logger.LogError(exception, "City {City} couldn't be saved, and stays loaded", city.Id);
+                throw;
+            }
+        }
+
         // Nothing loads before a player enters a city
         Task IHostedService.StartAsync(CancellationToken cancellationToken)
         {
@@ -245,18 +267,16 @@ namespace Micropolis.Server
         {
             try
             {
-                string savedGame = await city.RunAsync(host => host.Save());
-                await _store.WriteAsync(city.Id, savedGame);
+                await SaveAsync(city);
                 await city.StopAsync();
             }
             catch (CityStoppedException)
             {
                 // The store keeps the city as it was last saved
             }
-            catch (CityStoreException exception)
+            catch (CityStoreException)
             {
-                _logger.LogError(exception, "City {City} couldn't be saved, and stays loaded", city.Id);
-
+                // SaveAsync logged it
                 await _lock.WaitAsync();
                 try
                 {

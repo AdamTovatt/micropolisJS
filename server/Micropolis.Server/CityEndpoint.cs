@@ -115,6 +115,8 @@ namespace Micropolis.Server
                 }
                 finally
                 {
+                    // Only once the connection has left its city, which its city's last player leaving saves to the store
+                    // and unloads: the end-to-end runner waits for a player to go offline before joining their city again
                     presence.Disconnect(connection);
                     connection.Close(WebSocketCloseStatus.NormalClosure, null);
 

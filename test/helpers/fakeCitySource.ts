@@ -60,6 +60,7 @@ export class FakeCitySource implements CitySource {
             },
             advance: async (steps) => this.play("advance", [steps]) as AdvanceResult,
             cityTime: async () => this.play("cityTime", []) as number,
+            savedGame: async () => this.play("savedGame", []) as string,
         });
     }
 
@@ -90,8 +91,8 @@ export class FakeCitySource implements CitySource {
         this.play("setViewerVisible", [visible]);
     }
 
-    async save(): Promise<string> {
-        return this.play("save", []) as string;
+    async save(): Promise<string | null> {
+        return this.play("save", []) as string | null;
     }
 
     async commandLog(): Promise<SessionLog> {

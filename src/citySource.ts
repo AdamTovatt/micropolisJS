@@ -47,6 +47,8 @@ export interface CityDriver {
   advance(steps: number): Promise<AdvanceResult>;
   // The city's time, in the units its date counts: 48 a year
   cityTime(): Promise<number>;
+  // The saved game's text, the city's name with it, which the runner checks the city by: it is kept nowhere
+  savedGame(): Promise<string>;
 }
 
 export interface CitySource extends QuerySource {
@@ -65,8 +67,9 @@ export interface CitySource extends QuerySource {
   // the browser stops stepping while the player can't, as single-player always has; a shared city on a server steps on.
   // It is not a command: it is never logged, and the simulation's rules never see it.
   setViewerVisible(visible: boolean): void;
-  // The saved game's text, the city's name with it
-  save(): Promise<string>;
+  // Saves the city where it is kept. A source in the browser gives the saved game's text, the city's name with it, for
+  // the page to keep; the server's keeps the city in its store, and gives null once the store has.
+  save(): Promise<string | null>;
   // The session's command log: every command applied since the city started, and checkpoints of its state hash
   commandLog(): Promise<SessionLog>;
 }

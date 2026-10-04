@@ -23,8 +23,6 @@ import type { OriginLimits } from "./viewPosition";
 // What the hook needs of the game
 interface HookedGame {
   sendToolPaths(): void;
-  // The saved game's text
-  save(): Promise<string>;
   onCommandResult(listener: () => void): void;
   gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits, readonly tileWidth: number,
                readonly mapCurrent: boolean};
@@ -54,9 +52,31 @@ class TestHook {
   // The commands the attached game has applied
   private commands = 0;
 
+  // The hold the page started with, once the runner has asked for one
+  private startHold: Promise<void> | null = null;
+
   // Called as the page creates its city source, before any city starts
   attachDriver(driver: CityDriver): void {
     this.driver = driver;
+  }
+
+  // Holds the driver as the page starts, before it starts or joins any city: a page opened with a city's link joins the
+  // city as it starts, before the runner could hold it, and the city would step unheld until the runner did
+  holdAtStart(): void {
+    const hold = this.holdDriver();
+    // A hold that fails is the runner's to report, as it waits on it, not the page's console's in the meantime
+    hold.catch(() => {});
+    this.startHold = hold;
+  }
+
+  // Once the hold the page started with is in place. Fails as the hold did, or when the page started with none, since
+  // a runner that went on would take a city stepping on its own for a held one.
+  async untilHeldAtStart(): Promise<void> {
+    if (this.startHold === null) {
+      throw new Error("The page started without holding its driver: the runner asks for that before the page loads");
+    }
+
+    await this.startHold;
   }
 
   // Called by the game as it starts, before its first command
@@ -125,21 +145,21 @@ class TestHook {
     return this.steps;
   }
 
-  // The save, as the object the game writes to storage
+  // The save, as the object the game writes to storage, which is kept nowhere: online the Save button keeps the city in
+  // the server's store, past a limit on how often
   async save(): Promise<object> {
-    return JSON.parse(await this.attachedGame().save()) as object;
+    this.requireGame();
+    return JSON.parse(await this.attachedDriver().savedGame()) as object;
   }
 
   // The commands the game has applied since it started, rejected ones included: one entry each in its command log
   commandsApplied(): number {
-    // Only to fail when no game has started
-    this.attachedGame();
+    this.requireGame();
     return this.commands;
   }
 
   async cityTime(): Promise<number> {
-    // Only to fail when no game has started
-    this.attachedGame();
+    this.requireGame();
     return this.attachedDriver().cityTime();
   }
 
@@ -158,11 +178,15 @@ class TestHook {
   }
 
   private attachedGame(): HookedGame {
+    this.requireGame();
+    return this.game!;
+  }
+
+  // Fails when no game has started, before a call reaches the driver, whose own failure wouldn't say so
+  private requireGame(): void {
     if (this.game === null) {
       throw new Error("No game has started");
     }
-
-    return this.game;
   }
 
   private attachedDriver(): CityDriver {
@@ -177,6 +201,8 @@ class TestHook {
 declare global {
   interface Window {
     micropolisTestHook?: TestHook;
+    // Set by the runner before the page's scripts run, to have the hook hold the driver as the page starts
+    micropolisHoldDriverAtStart?: boolean;
   }
 }
 
@@ -184,9 +210,18 @@ function installTestHook(): void {
   window.micropolisTestHook = new TestHook();
 }
 
-// Attaches the source's driver to the hook, if one is installed
+// Attaches the source's driver to the hook, if one is installed, and holds it there and then when the runner asked: the
+// hold goes out before anything the page sends to start or join a city, so it holds the city from its first step
 function attachDriverToTestHook(driver: CityDriver): void {
-  window.micropolisTestHook?.attachDriver(driver);
+  const hook = window.micropolisTestHook;
+  if (hook === undefined) {
+    return;
+  }
+
+  hook.attachDriver(driver);
+  if (window.micropolisHoldDriverAtStart === true) {
+    hook.holdAtStart();
+  }
 }
 
 // Attaches a starting game to the hook, if one is installed

@@ -36,6 +36,10 @@ namespace Micropolis.Server.Tests
         // How long a test waits for registry work that holds nothing up
         private static readonly TimeSpan WorkTimeout = TimeSpan.FromSeconds(5);
 
+        // How long a test gives a store write it expects to wait on another to land anyway, were it not waiting: well past
+        // a write's time, so one that lands too soon fails the test, while a busy machine can only let it pass
+        private static readonly TimeSpan LandingTime = TimeSpan.FromMilliseconds(500);
+
         // The registry's store outlives the registry's loading and unloading, so it is a file of the test's own
         private string _database = "";
         private HeldStore _heldStore = null!;
@@ -141,6 +145,93 @@ namespace Micropolis.Server.Tests
             string saved = await ChangedAsync(city);
             TestCityDatabase.MakeWritable(_database);
             await _registry.LeaveAsync(_ada, city);
+            Assert.AreEqual(saved, await StoredAsync(city));
+        }
+
+        [TestMethod]
+        public async Task SaveAsync_CityLoaded_KeepsItsSaveInTheStoreAndKeepsItLoaded()
+        {
+            LoadedCity city = await StartedAsync();
+            string saved = await ChangedAsync(city);
+
+            await _registry.SaveAsync(city);
+
+            Assert.AreEqual(saved, await StoredAsync(city));
+            Assert.AreSame(city, await _registry.EnterAsync(city.Id, held: true));
+        }
+
+        [TestMethod]
+        public async Task SaveAsync_WhileTheStoreKeepsAnEarlierSave_KeepsTheLaterOneLastWithoutHoldingUpTheCity()
+        {
+            LoadedCity city = await StartedAsync();
+            await ChangedAsync(city);
+            Task begun = _heldStore.HoldNext();
+            Task earlier = _registry.SaveAsync(city);
+            await begun;
+
+            // The city's work goes on while the store holds the save it took
+            string saved = await ChangedAsync(city).WaitAsync(WorkTimeout);
+            Task later = _registry.SaveAsync(city);
+
+            await AssertStillWaitingAsync(later, "Kept the later save before the earlier one");
+            _heldStore.Release();
+            await Task.WhenAll(earlier, later);
+            Assert.AreEqual(saved, await StoredAsync(city));
+        }
+
+        [TestMethod]
+        public async Task LeaveAsync_WhileTheStoreKeepsAnEarlierSave_KeepsTheUnloadsSaveLast()
+        {
+            LoadedCity city = await StartedAsync();
+            await ChangedAsync(city);
+            Task begun = _heldStore.HoldNext();
+            Task earlier = _registry.SaveAsync(city);
+            await begun;
+            string saved = await ChangedAsync(city);
+
+            Task leaving = _registry.LeaveAsync(_ada, city);
+
+            await AssertStillWaitingAsync(leaving, "Unloaded the city before the earlier save was kept");
+            _heldStore.Release();
+            await Task.WhenAll(earlier, leaving);
+            Assert.AreEqual(saved, await StoredAsync(city));
+            Assert.AreNotSame(city, await _registry.EnterAsync(city.Id, held: true));
+        }
+
+        [TestMethod]
+        public async Task SaveAsync_EarlierSaveTheStoreCouldntKeep_KeepsTheLaterOne()
+        {
+            LoadedCity city = await StartedAsync();
+            await ChangedAsync(city);
+            Task begun = _heldStore.HoldNext();
+            Task earlier = _registry.SaveAsync(city);
+            await begun;
+            string saved = await ChangedAsync(city);
+            Task later = _registry.SaveAsync(city);
+
+            _heldStore.ReleaseFailing();
+
+            await Assert.ThrowsExactlyAsync<CityStoreException>(() => earlier);
+            await later;
+            Assert.AreEqual(saved, await StoredAsync(city));
+        }
+
+        [TestMethod]
+        public async Task SaveAsync_StoreThatCantKeepTheCity_FailsAndKeepsItLoaded()
+        {
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+            await ChangedAsync(city);
+            TestCityDatabase.MakeReadOnly(_database);
+
+            await Assert.ThrowsExactlyAsync<CityStoreException>(() => _registry.SaveAsync(city));
+
+            Assert.AreEqual(started, await StoredAsync(city));
+            Assert.AreSame(city, await _registry.EnterAsync(city.Id, held: true));
+            // Still running, and saved by the next save, once the store can keep it
+            string saved = await ChangedAsync(city);
+            TestCityDatabase.MakeWritable(_database);
+            await _registry.SaveAsync(city);
             Assert.AreEqual(saved, await StoredAsync(city));
         }
 
@@ -265,6 +356,13 @@ namespace Micropolis.Server.Tests
             return (await TestCityDatabase.ReadRowAsync(_database, city.Id))!.SavedGame;
         }
 
+        // Fails, saying why, when the work finishes within the time a store write takes to land
+        private static async Task AssertStillWaitingAsync(Task work, string message)
+        {
+            await Task.WhenAny(work, Task.Delay(LandingTime));
+            Assert.IsFalse(work.IsCompleted, message);
+        }
+
         // A store the test holds up: once told, its next read or write waits until the test releases it
         private sealed class HeldStore : CityStore
         {
@@ -286,6 +384,12 @@ namespace Micropolis.Server.Tests
             public void Release()
             {
                 _released!.SetResult();
+            }
+
+            // Releases the read or write held, failing it as a database the store can't reach does
+            public void ReleaseFailing()
+            {
+                _released!.SetException(new CityStoreException("The test's store failed.", new InvalidOperationException("held")));
             }
 
             public override async Task<string?> ReadAsync(string city, IDbSession? session = null)

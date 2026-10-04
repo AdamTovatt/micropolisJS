@@ -22,11 +22,14 @@ namespace Micropolis.Server
     /// What one connection does in the cities, as protocol/README.md describes it: the city it is in, at most one, and
     /// its messages, handled in the order they came, each done before the next is read. So what follows a request that
     /// starts or joins a city reaches that city, and a connection has at most one piece of a city's work waiting.
-    /// <see cref="CityLimits"/> bounds the cities and commands of the client address it comes from.
+    /// <see cref="CityLimits"/> bounds the cities, commands and saves of the client address it comes from.
     /// </summary>
     internal sealed class CitySession
     {
         private const string StoreFailed = "The server couldn't reach the store it keeps its cities in";
+
+        // A save is allowed again within seconds, at CityLimits.SaveInterval
+        private const string TooManySaves = "Too many saves were made from here. Try again in a few seconds.";
 
         private readonly CityConnection _connection;
         private readonly CityRegistry _registry;
@@ -105,7 +108,7 @@ namespace Micropolis.Server
                     break;
 
                 case SaveRequest save:
-                    await InCityAsync(save.Id, host => JsonValue.Create(host.Save()));
+                    await SaveAsync(save.Id);
                     break;
 
                 case CommandLogRequest commandLog:
@@ -260,6 +263,34 @@ namespace Micropolis.Server
             await WaitForCityAsync(_city.RunAsync(host => host.Send(player, command)));
         }
 
+        // Keeps the city in the store, answering once it is kept. A save past the client address's limit fails and the
+        // connection stays: unlike a command, a save comes from a player pressing a button. A save the store can't keep
+        // fails too, and the city stays loaded, so a later save keeps it.
+        private Task SaveAsync(long requestId)
+        {
+            return WithCityAsync(requestId, async city =>
+            {
+                if (!_limits.TrySave(_address))
+                {
+                    _connection.Fail(requestId, TooManySaves);
+                    return;
+                }
+
+                try
+                {
+                    await _registry.SaveAsync(city);
+                }
+                catch (CityStoreException)
+                {
+                    // The registry logged it
+                    _connection.Fail(requestId, StoreFailed);
+                    return;
+                }
+
+                _connection.Answer(requestId, null);
+            });
+        }
+
         // A hover box goes to the city's other players. One from a connection in no city, one no tool makes on the city's
         // map, and one past the connection's limit are dropped, and the connection kept: a box is worth no more than the
         // next one, which comes within seconds. A box dropped for not fitting isn't counted.
@@ -330,6 +361,11 @@ namespace Micropolis.Server
 
                 case CityTimeRequest cityTime:
                     await InCityAsync(cityTime.Id, host => JsonValue.Create(host.CityTime()));
+                    break;
+
+                // The text alone, which reaches no store, so the end-to-end runner reads it as often as it checks the city
+                case SavedGameRequest savedGame:
+                    await InCityAsync(savedGame.Id, host => JsonValue.Create(host.Save()));
                     break;
 
                 case TurnRequest turn:

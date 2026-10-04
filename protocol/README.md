@@ -84,7 +84,12 @@ but `command` and `cursor`:
   what came of it is a `commandResult` state message, which every player in the city receives.
 - `query`, with `query`: a query (see Queries). The answer is the query's answer. Before the connection is in a city,
   a map preview is answered and any other query rejected.
-- `save`: the answer is the city's saved game's text, as the game saves one.
+- `save`: keeps the city in the server's store as it stands, the one place a city on the server is kept, and is
+  answered with null once the store has kept it. One city's saves are kept in the order the city took them, whichever
+  players asked, and the save the server takes as the city's last player leaves is kept after them all. A save the
+  store can't keep fails, saying the server couldn't reach its store, and the city stays loaded, so a later save keeps
+  it. One client address may save 10 times at once, and once every 6 seconds after that; a save past that fails,
+  saying so, and the connection stays open.
 - `commandLog`: the answer is the city's session log, `{"log", "step", "unhashed"}`: the log (`docs/command-log.md`)
   since the server last started or loaded the city, the steps the city has taken since, and `null`, since the server
   always works out its checkpoints' hashes.
@@ -96,12 +101,14 @@ but `command` and `cursor`:
   `{"steps", "budgetReviewDue", "error"}`, where `error` says why it took fewer steps than asked, or none (the steps
   aren't a whole number from 0, the driver isn't held, or the city isn't stepping), or why city time fell short of the
   steps taken, and is null otherwise: an advance that goes wrong is still answered, not failed;
-  `cityTime` is answered with the city's time; and on a server whose cities run on a clock only the debug channel
-  moves, `turn`, with `milliseconds`, moves the city's clock on and has it take a turn of its loop if one is due, and
-  fails in a city on the server's clock. Each but `advance` and `cityTime` is answered with null.
+  `cityTime` is answered with the city's time; `savedGame` is answered with the city's saved game's text, as the game
+  saves one, which reaches no store and counts toward no limit; and on a server whose cities run on a clock only the
+  debug channel moves, `turn`, with `milliseconds`, moves the city's clock on and has it take a turn of its loop if one
+  is due, and fails in a city on the server's clock. Each but `advance`, `cityTime` and `savedGame` is answered with
+  null.
 
-`save`, `commandLog`, `flush`, `advance`, `cityTime` and `turn` fail with "No city has started" before the connection
-is in a city; `hold` and `release` then answer null and apply to the city it starts or joins next.
+`save`, `commandLog`, `flush`, `advance`, `cityTime`, `savedGame` and `turn` fail with "No city has started" before the
+connection is in a city; `hold` and `release` then answer null and apply to the city it starts or joins next.
 
 A city's name is 1 to 15 characters, counted as a display name's are but not trimmed, and holds none of the
 characters a display name can't. A `start` whose name breaks the rule fails, and so does an `upload` of a save whose

@@ -35,6 +35,9 @@ namespace Micropolis.Server.Tests
         // What a request fails with when the store can't be reached
         private const string StoreFailed = "The server couldn't reach the store it keeps its cities in";
 
+        // What a save past the client address's limit fails with
+        private const string TooManySaves = "Too many saves were made from here. Try again in a few seconds.";
+
         // A tornado's sprite type, as src/spriteConstants.ts numbers it
         private const int Tornado = (int)SpriteType.Tornado;
 
@@ -61,7 +64,7 @@ namespace Micropolis.Server.Tests
 
             string city = await ada.StartAsync();
 
-            Assert.AreEqual(await ada.SaveAsync(), await server.StoredAsync(city));
+            Assert.AreEqual(await ada.SavedGameAsync(), await server.StoredAsync(city));
         }
 
         [TestMethod]
@@ -107,7 +110,7 @@ namespace Micropolis.Server.Tests
             Assert.AreEqual("ok", (string)ada.CommandResults.Single()["outcome"]!);
             JsonObject map = grace.StateMessages.First();
             Assert.AreEqual("map", (string)map["type"]!);
-            Assert.AreEqual(CanonicalJson.Write(SavedTiles(await ada.SaveAsync())), CanonicalJson.Write(map["tiles"]));
+            Assert.AreEqual(CanonicalJson.Write(SavedTiles(await ada.SavedGameAsync())), CanonicalJson.Write(map["tiles"]));
         }
 
         [TestMethod]
@@ -183,14 +186,14 @@ namespace Micropolis.Server.Tests
             await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
             await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
             await ada.StartAsync();
-            string before = await ada.SaveAsync();
+            string before = await ada.SavedGameAsync();
             string broken = CityId.New();
             await server.Store.WriteAsync(broken, "not a save");
 
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.JoinAsync(broken));
 
             StringAssert.StartsWith(failed.Message, $"The city with the id {broken} won't load: The save's state is not JSON");
-            Assert.AreEqual(before, await ada.SaveAsync());
+            Assert.AreEqual(before, await ada.SavedGameAsync());
         }
 
         [TestMethod]
@@ -317,7 +320,7 @@ namespace Micropolis.Server.Tests
                 city = await ada.StartAsync();
                 await ada.SendAsync(Road(ClearX, ClearY));
                 await PlaySecondAsync(ada);
-                saved = await ada.SaveAsync();
+                saved = await ada.SavedGameAsync();
                 await ada.Socket.CloseAsync();
             }
 
@@ -325,7 +328,7 @@ namespace Micropolis.Server.Tests
             await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
             await grace.JoinAsync(city);
 
-            Assert.AreEqual(saved, await grace.SaveAsync());
+            Assert.AreEqual(saved, await grace.SavedGameAsync());
             // A city loaded again starts a new log, from its saved state, which a city that stayed loaded wouldn't
             JsonObject log = await grace.CommandLogAsync();
             Assert.AreEqual(0, log["entries"]!.AsArray().Count);
@@ -347,14 +350,14 @@ namespace Micropolis.Server.Tests
                     await using TestPlayer ada = await TestPlayer.ConnectAsync(first, "Ada");
                     city = await ada.StartAsync();
                     await PlaySecondAsync(ada);
-                    saved = await ada.SaveAsync();
+                    saved = await ada.SavedGameAsync();
                 }
 
                 await using ServerUnderTest second = await ServerUnderTest.StartAsync(manualClock: true, database: database);
                 await using TestPlayer grace = await TestPlayer.ConnectAsync(second, "Grace");
                 await grace.JoinAsync(city);
 
-                Assert.AreEqual(saved, await grace.SaveAsync());
+                Assert.AreEqual(saved, await grace.SavedGameAsync());
             }
             finally
             {
@@ -388,7 +391,7 @@ namespace Micropolis.Server.Tests
             await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
             await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
             await ada.StartAsync();
-            string before = await ada.SaveAsync();
+            string before = await ada.SavedGameAsync();
             TestCityDatabase.MakeReadOnly(server.Database);
 
             RequestFailedException started = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.StartAsync());
@@ -397,7 +400,66 @@ namespace Micropolis.Server.Tests
 
             Assert.AreEqual(StoreFailed, started.Message);
             Assert.AreEqual(StoreFailed, uploaded.Message);
-            Assert.AreEqual(before, await ada.SaveAsync());
+            Assert.AreEqual(before, await ada.SavedGameAsync());
+        }
+
+        [TestMethod]
+        public async Task Save_CityChangedSinceItStarted_KeepsItInTheStore()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            string city = await ada.StartAsync();
+            string? started = await server.StoredAsync(city);
+            await PlaySecondAsync(ada);
+
+            await ada.SaveAsync();
+
+            string saved = await ada.SavedGameAsync();
+            Assert.AreNotEqual(started, saved, "The city didn't change from its start");
+            Assert.AreEqual(saved, await server.StoredAsync(city));
+        }
+
+        [TestMethod]
+        public async Task Save_StoreThatCantKeepTheCity_FailsSayingSoAndKeepsTheCityLoaded()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            string city = await ada.StartAsync();
+            await PlaySecondAsync(ada);
+            TestCityDatabase.MakeReadOnly(server.Database);
+
+            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.SaveAsync());
+
+            Assert.AreEqual(StoreFailed, failed.Message);
+            // The city plays on, and the next save keeps it once the store can
+            await PlaySecondAsync(ada);
+            TestCityDatabase.MakeWritable(server.Database);
+            await ada.SaveAsync();
+            Assert.AreEqual(await ada.SavedGameAsync(), await server.StoredAsync(city));
+        }
+
+        [TestMethod]
+        public async Task Save_MoreThanAnAddressMay_FailsSayingSoAndKeepsTheConnection()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
+            string city = await ada.StartAsync();
+            await grace.JoinAsync(city);
+
+            for (int i = 0; i < CityLimits.SaveBurst; i++)
+            {
+                await ada.SaveAsync();
+            }
+
+            await PlaySecondAsync(ada);
+            // Another player from the same address shares its limit
+            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => grace.SaveAsync());
+
+            Assert.AreEqual(TooManySaves, failed.Message);
+            Assert.AreNotEqual(await grace.SavedGameAsync(), await server.StoredAsync(city));
+            // Still connected, and still in the city
+            await PlaySecondAsync(grace);
         }
 
         [TestMethod]
@@ -412,7 +474,7 @@ namespace Micropolis.Server.Tests
                 city = await ada.StartAsync();
                 // Changed from its start, so the store holds the save of its leaving once that is kept
                 await PlaySecondAsync(ada);
-                saved = await ada.SaveAsync();
+                saved = await ada.SavedGameAsync();
                 await ada.Socket.CloseAsync();
             }
 
@@ -439,7 +501,7 @@ namespace Micropolis.Server.Tests
             await stopping.StopAsync();
 
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.JoinAsync(city));
-            RequestFailedException inNoCity = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.SaveAsync());
+            RequestFailedException inNoCity = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.SavedGameAsync());
 
             Assert.AreEqual("The city failed", failed.Message);
             Assert.AreEqual("No city has started", inNoCity.Message);
@@ -484,13 +546,13 @@ namespace Micropolis.Server.Tests
             await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
             await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
             await ada.StartAsync();
-            string before = await ada.SaveAsync();
+            string before = await ada.SavedGameAsync();
 
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(
                 () => ada.RequestAsync(id => new UploadRequest(id, "not a save")));
 
             StringAssert.StartsWith(failed.Message, "The save's state is not JSON");
-            Assert.AreEqual(before, await ada.SaveAsync());
+            Assert.AreEqual(before, await ada.SavedGameAsync());
         }
 
         [TestMethod]
@@ -501,7 +563,7 @@ namespace Micropolis.Server.Tests
             await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
             await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
             await ada.StartAsync();
-            JsonObject save = JsonNode.Parse(await ada.SaveAsync())!.AsObject();
+            JsonObject save = JsonNode.Parse(await ada.SavedGameAsync())!.AsObject();
             save.Remove("name");
 
             if (name is not null)
@@ -523,13 +585,13 @@ namespace Micropolis.Server.Tests
             string first = await ada.StartAsync("Saved");
             await ada.SendAsync(Road(ClearX, ClearY));
             await ada.RequestAsync(id => new TurnRequest(id, 1000));
-            string saved = await ada.SaveAsync();
+            string saved = await ada.SavedGameAsync();
 
             JsonObject started = (await ada.RequestAsync(id => new UploadRequest(id, saved)))!.AsObject();
 
             Assert.AreNotEqual(first, (string)started["city"]!);
             Assert.AreEqual("Saved", (string)started["name"]!);
-            Assert.AreEqual(saved, await ada.SaveAsync());
+            Assert.AreEqual(saved, await ada.SavedGameAsync());
         }
 
         [TestMethod]
@@ -687,6 +749,7 @@ namespace Micropolis.Server.Tests
         [DataRow("advance", DisplayName = "advance")]
         [DataRow("cityTime", DisplayName = "cityTime")]
         [DataRow("turn", DisplayName = "turn")]
+        [DataRow("savedGame", DisplayName = "savedGame")]
         public async Task Request_BeforeAnyCity_FailsSayingSo(string type)
         {
             ServerUnderTest.RequireDebugChannel();
@@ -701,6 +764,7 @@ namespace Micropolis.Server.Tests
                 "advance" => new AdvanceRequest(id, 1),
                 "cityTime" => new CityTimeRequest(id),
                 "turn" => new TurnRequest(id, 1),
+                "savedGame" => new SavedGameRequest(id),
                 _ => throw new ArgumentException(type),
             }));
 

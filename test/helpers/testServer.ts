@@ -59,6 +59,8 @@ export type TestServerClock = "manual" | "server";
 export interface TestServer {
     // Where the server answers, such as http://127.0.0.1:41234
     origin: string;
+    // The SQLite file the server keeps its cities in, which a test may read but never writes
+    database: string;
     stop(): Promise<void>;
 }
 
@@ -72,6 +74,7 @@ export function startTestServer(clock: TestServerClock, repositoryRoot = reposit
 
     // The server makes its database in this directory, and SQLite its journal beside it
     const databaseDirectory = mkdtempSync(join(tmpdir(), "micropolis-cities-"));
+    const database = join(databaseDirectory, "cities.db");
     // Pinned over whatever the environment holds, which may name another server's address or start its client
     const env: NodeJS.ProcessEnv = {...process.env};
     delete env.ASPNETCORE_HOSTINGSTARTUPASSEMBLIES;
@@ -80,7 +83,7 @@ export function startTestServer(clock: TestServerClock, repositoryRoot = reposit
         ASPNETCORE_ENVIRONMENT: "Testing",
         JWT_SECRET: "test-only-signing-secret-for-the-client-contract-tests",
         TRUSTED_PROXIES: "none",
-        CITY_DATABASE: join(databaseDirectory, "cities.db"),
+        CITY_DATABASE: database,
     });
     if (clock === "manual") {
         env.CITY_CLOCK = "manual";
@@ -120,7 +123,7 @@ export function startTestServer(clock: TestServerClock, repositoryRoot = reposit
             if (listening !== null) {
                 clearTimeout(timeout);
                 server.stdout?.off("data", listen);
-                resolve({origin: listening[1], stop});
+                resolve({origin: listening[1], database, stop});
             }
         };
 

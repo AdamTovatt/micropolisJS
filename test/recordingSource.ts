@@ -43,6 +43,7 @@ function stubSource() {
             })),
             advance: async () => ({steps: 1, budgetReviewDue: false, error: null}),
             cityTime: async () => 0,
+            savedGame: async () => "",
         }),
         subscribe: (listener) => subscribers.subscribe(listener),
         start: async () => ({name: "Town", seed: 1, city: `city id ${++cities}`}),

@@ -36,6 +36,8 @@ namespace Micropolis.Server
         private readonly ManualTicker? _manualTicker;
         private readonly CityHost _host;
         private readonly Task _working;
+        // The keeping of the last save taken, which the next waits for. Only the city's work touches it.
+        private Task _keeping = Task.CompletedTask;
 
         /// <param name="held">Whether the debug channel of the connection the city loads for holds it: it is then held
         /// from before its first turn, so it takes no step before that connection joins it.</param>
@@ -113,6 +115,23 @@ namespace Micropolis.Server
                 work(host);
                 return true;
             });
+        }
+
+        /// <summary>
+        /// Takes the city's save as its work, and hands it to keep once every save taken before has been kept or has
+        /// failed to be, so the saves are kept in the order they were taken. The city's work only takes the save, and
+        /// never waits on its keeping. It finishes once keep has, and fails as keep does, or as <see cref="RunAsync{T}"/>
+        /// does when the city stops before taking the save.
+        /// </summary>
+        public async Task SaveAsync(Func<string, Task> keep)
+        {
+            Task kept = await RunAsync(host =>
+            {
+                _keeping = KeepAfterAsync(_keeping, host.Save(), keep);
+                return _keeping;
+            });
+
+            await kept;
         }
 
         /// <summary>
@@ -196,6 +215,15 @@ namespace Micropolis.Server
             _work.Writer.TryComplete();
             await _working;
             _stopped.Cancel();
+        }
+
+        // Keeps the save after the one taken before it, off the city's work: a store's asynchronous calls may run as
+        // they are made, as SQLite's do. One taken before that failed to be kept doesn't hold this newer one back.
+        private static async Task KeepAfterAsync(Task before, string savedGame, Func<string, Task> keep)
+        {
+            await Task.Yield();
+            await before.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await keep(savedGame);
         }
 
         // Work the city gives itself, such as its loop's turns, which no one waits on
