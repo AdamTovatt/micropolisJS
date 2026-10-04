@@ -1,7 +1,8 @@
 # Conformance data
 
 Data that the C# implementation of the game rules tests against, read from here rather than copied: the random
-stream's vectors, which the TypeScript tests read too, and files the TypeScript reference writes.
+stream's vectors, which the TypeScript tests read too, and files the TypeScript reference writes, among them the
+end-to-end playthrough's log, which the browser recorded and the generator copies.
 
 ## random.json
 
@@ -185,11 +186,20 @@ each checkpoint, so a diff shows which moved:
 
 - `<fixture>.log.json`: the log `npm run fixtures` exports for each fixture, with its golden hashes as its
   checkpoints.
-- `suburbMidRun.log.json`: the suburb's log with commands sent partway through its run, which no fixture's log has,
-  since a fixture's commands all precede its first step: tool commands, and a step that pauses the city, takes a
-  command and resumes it. Its checkpoints are the TypeScript replay's state hash where it starts, at each step that
-  applies commands, after them, and at its last step, so a command applied a step early or late moves the hash at its
-  own step. The generator fails unless each of those commands applies.
+- The mid-run logs, `MID_RUN_LOGS` in `generate.ts`: a fixture's log with commands sent partway through its run,
+  which no fixture's log has, since a fixture's commands all precede its first step. `suburbMidRun.log.json` sends
+  tool commands, and has a step that pauses the city, takes a command and resumes it. `suburbBrokeDisasters.log.json`
+  triggers every disaster a player may, one after another, each running into the next, in the broke suburb, which has
+  the nuclear plant a meltdown needs. A mid-run log's checkpoints are the TypeScript replay's state hash where it
+  starts, at each step that applies commands, after them, and at its last step, so a command applied a step early or
+  late moves the hash at its own step. The generator fails unless each of those commands applies, and unless each
+  step's commands change the city.
+- `playthrough.log.json`: the end-to-end playthrough's log, from `e2e/goldenPlaythrough.json`, with the game's own
+  checkpoints. `npm run e2e:golden` rewrites the golden file, and the generator copies its log, so a change that moves
+  the playthrough runs `npm run e2e:golden` first: until then the generator fails, since the golden log no longer
+  replays, and the end-to-end run needs Chromium. The generator fails too when there is no golden file. A stage's
+  checkpoint is not a checkpoint of the log, since a stage may end partway through a step's commands, so only
+  `test/playthroughReplay.ts` checks those.
 
 The generator reads each file back as a replayer reads it, and fails unless it replays to every checkpoint. It fails
 too unless one log starts from a seed and another from a save.

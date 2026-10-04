@@ -89,7 +89,8 @@ fails.
   that one. A stage may end partway through a step's commands, before those the next stage applies first, so its hash
   is not a checkpoint of the log: `test/playthroughReplay.ts` replays each stage from the one before it, with the
   log's entries between the two. A run that took its log puts it in its report, `e2e-report/command-log.json`; one
-  that ended at a failed stage, or couldn't join its sessions, has none.
+  that ended at a failed stage, or couldn't join its sessions, has none. `npm run conformance` copies the golden log
+  to `conformance/logs/playthrough.log.json`, which the C# replays.
 
 `npm run simulate -- --log <file>` replays the whole log and counts its commands' outcomes. It then reports that the
 checkpoints all match, or fails naming the earliest that didn't, or, for a log with no checkpoints, fails because it

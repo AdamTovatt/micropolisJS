@@ -17,6 +17,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as zlib from "zlib";
+import { goldenFile, NO_GOLDEN_PLAYTHROUGH, readGoldenRun } from "../e2e/goldenPlaythrough";
 import {
   cityFromSave, cityOnMap, Level, LevelName, RUNNING_SPEEDS, RunningSpeed, SaveData, Speed,
 } from "../headless/city";
@@ -908,45 +909,82 @@ const REJECTION_REASONS = [
 
 const LOGS_DIRECTORY = "logs";
 
-// A log that is no fixture's: the suburb's, with commands sent partway through its run, as a fixture's log, whose
-// commands all precede its first step, never has. One step pauses the city, takes a command and resumes it.
-const MID_RUN_LOG = "suburbMidRun";
+// A fixture's log with commands added partway through its run, which no fixture's log has, since a fixture's commands
+// all precede its first step. It runs on to its last step, and its description is the fixture's name and its purpose.
+interface MidRunLog {
+  fixture: string;
+  purpose: string;
+  entries: StampedCommand[];
+  steps: number;
+}
 
-const MID_RUN_BASE = "suburb";
+const MID_RUN_LOGS: Record<string, MidRunLog> = {
+  // Among them a step that pauses the city, takes a command and resumes it
+  suburbMidRun: {
+    fixture: "suburb",
+    purpose: "with commands sent partway through its run",
+    entries: [
+      {step: 100, player: LOCAL_PLAYER, command: {type: "addFunds"}},
+      {step: 700, player: LOCAL_PLAYER, command: {type: "tool", tool: "residential", path: [{x: 33, y: 21}], autoBulldoze: true}},
+      {step: 700, player: LOCAL_PLAYER, command: {
+        type: "tool", tool: "road", path: [{x: 31, y: 23}, {x: 32, y: 23}, {x: 33, y: 23}, {x: 34, y: 23}, {x: 35, y: 23}],
+        autoBulldoze: true,
+      }},
+      {step: 1200, player: LOCAL_PLAYER, command: {type: "setSpeed", speed: Speed.paused}},
+      {step: 1200, player: LOCAL_PLAYER, command: {type: "setBudget", tax: 12}},
+      {step: 1200, player: LOCAL_PLAYER, command: {type: "setSpeed", speed: Speed.fast}},
+    ],
+    steps: 2000,
+  },
+  // Each running into the next: the broke suburb has the nuclear plant a meltdown needs, and a crash makes the plane it
+  // brings down
+  suburbBrokeDisasters: {
+    fixture: "suburbBroke",
+    purpose: "with every disaster a player may trigger, one after another, partway through its run",
+    entries: DISASTER_KINDS.map((kind, i) => ({
+      step: 100 + 200 * i, player: LOCAL_PLAYER, command: {type: "triggerDisaster", kind},
+    })),
+    steps: 3000,
+  },
+};
 
-const MID_RUN_ENTRIES: StampedCommand[] = [
-  {step: 100, player: LOCAL_PLAYER, command: {type: "addFunds"}},
-  {step: 700, player: LOCAL_PLAYER, command: {type: "tool", tool: "residential", path: [{x: 33, y: 21}], autoBulldoze: true}},
-  {step: 700, player: LOCAL_PLAYER, command: {
-    type: "tool", tool: "road", path: [{x: 31, y: 23}, {x: 32, y: 23}, {x: 33, y: 23}, {x: 34, y: 23}, {x: 35, y: 23}],
-    autoBulldoze: true,
-  }},
-  {step: 1200, player: LOCAL_PLAYER, command: {type: "setSpeed", speed: Speed.paused}},
-  {step: 1200, player: LOCAL_PLAYER, command: {type: "setBudget", tax: 12}},
-  {step: 1200, player: LOCAL_PLAYER, command: {type: "setSpeed", speed: Speed.fast}},
-];
+// The end-to-end playthrough's log, from its golden file, which `npm run e2e:golden` rewrites
+const PLAYTHROUGH_LOG = "playthrough";
 
-const MID_RUN_STEPS = 2000;
+// Relative to the repository root, where npm runs scripts
+const E2E_DIRECTORY = "e2e";
 
-// The mid-run log, with a checkpoint where it starts, at each step that applies commands, after them, and at its last
+// A mid-run log, with a checkpoint where it starts, at each step that applies commands, after them, and at its last
 // step, each the state hash of the TypeScript's replay to it: a command applied a step early or late moves the hash at
-// its own step
-async function midRunLog(): Promise<CommandLog> {
-  const base = fixtureLog(MID_RUN_BASE);
-  const unchecked: CommandLog = {
-    ...base, description: `The ${MID_RUN_BASE} fixture's log with commands sent partway through its run`,
-    entries: [...base.entries, ...MID_RUN_ENTRIES], checkpoints: [],
-  };
-
-  const results = replay(unchecked, {to: MID_RUN_STEPS, verify: false}).results.slice(base.entries.length);
-  ensureCovers(results.every((result) => result.outcome === "ok"), "a command applied partway through a run");
-
-  const steps = Array.from(new Set([0, ...MID_RUN_ENTRIES.map((entry) => entry.step), MID_RUN_STEPS]));
-  const checkpoints: Checkpoint[] = [];
-  for (const step of steps) {
-    checkpoints.push({step, hash: await stateHash(replay(unchecked, {to: step, verify: false}).city)});
+// its own step. It fails unless each command comes partway through the run, applies, and changes the city where it does.
+async function midRunLog(name: string, {fixture, purpose, entries, steps}: MidRunLog): Promise<CommandLog> {
+  for (const entry of entries) {
+    ensureCovers(entry.step > 0 && entry.step < steps, `${name}'s command at step ${entry.step}, partway through its ${steps} steps`);
   }
 
+  const base = fixtureLog(fixture);
+  const withEntries = (added: StampedCommand[]): CommandLog => ({
+    ...base, description: `The ${fixture} fixture's log ${purpose}`, entries: [...base.entries, ...added], checkpoints: [],
+  });
+  const unchecked = withEntries(entries);
+  const hashAt = (log: CommandLog, step: number) => stateHash(replay(log, {to: step, verify: false}).city);
+
+  const results = replay(unchecked, {to: steps, verify: false}).results.slice(base.entries.length);
+  for (let i = 0; i < results.length; i++) {
+    ensureCovers(results[i].outcome === "ok", `${name}'s command ${i} applying: its outcome was ${results[i].outcome}`);
+  }
+
+  const checkpoints: Checkpoint[] = [{step: 0, hash: await hashAt(unchecked, 0)}];
+
+  // Each step's commands together, since a pause and a resume at one step change nothing between them
+  for (const step of Array.from(new Set(entries.map((entry) => entry.step)))) {
+    const hash = await hashAt(unchecked, step);
+    const unchanged = await hashAt(withEntries(entries.filter((entry) => entry.step !== step)), step);
+    ensureCovers(hash !== unchanged, `${name}'s commands at step ${step} changing the city`);
+    checkpoints.push({step, hash});
+  }
+
+  checkpoints.push({step: steps, hash: await hashAt(unchecked, steps)});
   return {...unchecked, checkpoints};
 }
 
@@ -967,15 +1005,28 @@ function logLines(log: CommandLog): string[] {
 async function writeLogs(): Promise<void> {
   fs.mkdirSync(path.join(CONFORMANCE_DIRECTORY, LOGS_DIRECTORY));
 
+  const playthrough = readGoldenRun(goldenFile(E2E_DIRECTORY));
+  if (playthrough === null) {
+    throw new Error(NO_GOLDEN_PLAYTHROUGH);
+  }
+
   const logs: [string, CommandLog][] = fixtureNames().map((name) => [name, fixtureLog(name)]);
-  logs.push([MID_RUN_LOG, await midRunLog()]);
+  for (const [name, midRun] of Object.entries(MID_RUN_LOGS)) {
+    logs.push([name, await midRunLog(name, midRun)]);
+  }
+  logs.push([PLAYTHROUGH_LOG, playthrough.log]);
 
   for (const [name, log] of logs) {
     const file = path.join(LOGS_DIRECTORY, `${name}.log.json`);
     writeFile(file, logLines(log));
 
     // Fails unless the file, read back as a replayer reads it, replays to every checkpoint
-    await replay(parseLog(JSON.parse(fs.readFileSync(path.join(CONFORMANCE_DIRECTORY, file), "utf8")))).verified;
+    try {
+      await replay(parseLog(JSON.parse(fs.readFileSync(path.join(CONFORMANCE_DIRECTORY, file), "utf8")))).verified;
+    } catch (error) {
+      const repin = name === PLAYTHROUGH_LOG ? `: re-pin the playthrough with npm run e2e:golden first` : "";
+      throw new Error(`The log ${name} does not replay${repin}. ${(error as Error).message}`, {cause: error});
+    }
   }
 
   ensureCovers(logs.some(([, log]) => "seed" in log), "a log that starts from a seed");
