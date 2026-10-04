@@ -14,7 +14,7 @@
 import { expect, Page, test } from "@playwright/test";
 import { writeFileSync } from "fs";
 
-import { blockNetwork, collectPageProblems } from "./page";
+import { blockNetwork, collectPageProblems, isContextLost } from "./page";
 import { Player } from "./player";
 import { SEED, SITE } from "./stages";
 
@@ -47,6 +47,8 @@ test("debug mode loads a save file as the city it saved", async ({page}) => {
 
   expect(await player.save()).toEqual(saved);
   await expect(page.locator("#name")).toHaveText("Saved");
+  expect(await isContextLost(page, "#SplashCanvas"), "the splash preview's context, once the saved game started")
+    .toBe(true);
   expect(problems).toEqual([]);
 });
 

@@ -25,14 +25,14 @@ import { loadMapArt, MapArt } from "./renderAssets";
 import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
 import { attachDriverToTestHook, installTestHook } from "./testHook";
-import { TileSet } from "./tileSet";
+import { isAcceptableTileImage } from "./tileSet";
 import { debugOption, seedOption } from "./urlOptions";
 import { webGL2TextureLimit } from "./webglRenderer";
 import { WebSocketCitySource } from "./webSocketCitySource";
 import { WorkerCitySource } from "./workerCitySource";
 
-// The page's entry point: it loads the tile set, waits for the sprites, signs in where a server answers, and joins the
-// city the page was opened with, or shows the splash screen
+// The page's entry point: it waits for the tile set and the sprites, loads the map's art, signs in where a server
+// answers, and joins the city the page was opened with, or shows the splash screen
 
 // The game seed the page was opened with, or null for none. One that isn't a seed is refused out loud, and the map is
 // picked at random.
@@ -43,13 +43,6 @@ function pageSeed(): number | null {
     alert(errorMessage(e));
     return null;
   }
-}
-
-// The tile set the image splits into, or null when the image is not a whole tile set
-function tileSetFrom(image: HTMLImageElement): Promise<TileSet | null> {
-  return new Promise((resolve) => {
-    const tileSet = new TileSet(image, () => resolve(tileSet), () => resolve(null));
-  });
 }
 
 // Resolves once the image has loaded, or failed to
@@ -64,13 +57,12 @@ function settled(image: HTMLImageElement): Promise<void> {
   });
 }
 
-// The tile set from the page's tile image once it has loaded, or null when the image is not one, such as one that
-// failed to load
-async function loadTileSet(): Promise<TileSet | null> {
+// The page's tile image once it has loaded, or null when it is not a whole tile set, such as one that failed to load
+async function loadTiles(): Promise<HTMLImageElement | null> {
   const tiles = requiredElement("tiles", HTMLImageElement);
   await settled(tiles);
 
-  return tileSetFrom(tiles);
+  return isAcceptableTileImage(tiles.naturalWidth, tiles.naturalHeight) ? tiles : null;
 }
 
 // Starts the page: the game seed to offer first (?seed=<n>), or null to pick one at random, and the city on the server
@@ -84,14 +76,13 @@ async function start(seed: number | null, city: string | null): Promise<void> {
     return;
   }
 
-  const tileSet = await loadTileSet();
-  if (tileSet === null) {
+  const tiles = await loadTiles();
+  if (tiles === null) {
     // XXX Replace with an error dialog
     alert("Failed to load tileset!");
     return;
   }
 
-  const tiles = requiredElement("tiles", HTMLImageElement);
   const sprites = requiredElement("sprites", HTMLImageElement);
   await settled(sprites);
 
@@ -128,7 +119,7 @@ async function start(seed: number | null, city: string | null): Promise<void> {
     attachDriverToTestHook(source.driver);
   }
 
-  const parts = {source, state, presence: cityClient, mapArt, tileSet, spriteSheet: sprites};
+  const parts = {source, state, presence: cityClient, mapArt};
   if (city !== null && await joinLinkedCity(city, webSocketSource, (started) => new Game(parts, started), window)) {
     return;
   }

@@ -38,6 +38,7 @@ function gameOn(source: CitySource, state: CityState) {
         // Not the tile set's 16 pixels, so the view's tile width is seen to be the canvas's
         gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS, tileWidth: 32,
                      mapCurrent: false},
+        monsterTV: {current: false},
         dismissals: 0,
         notificationBar: {dismiss: () => {
             game.dismissals++;
@@ -52,6 +53,7 @@ const IDLE_GAME = {
     sendToolPaths: () => {},
     onCommandResult: () => {},
     gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true},
+    monsterTV: {current: true},
     notificationBar: {dismiss: () => {}},
 };
 
@@ -190,11 +192,11 @@ describe("the test hook", () => {
             await expect(call()).rejects.toThrow("No game has started");
         });
 
-        it.each(["view", "commandsApplied", "dismissNotification", "mapCurrent"])("can't %s", (method) => {
+        it.each(["view", "commandsApplied", "dismissNotification", "viewsCurrent"])("can't %s", (method) => {
             const hook = new TestHook();
             const call = {view: () => hook.view(), commandsApplied: () => hook.commandsApplied(),
                           dismissNotification: () => hook.dismissNotification(),
-                          mapCurrent: () => hook.mapCurrent()}[method]!;
+                          viewsCurrent: () => hook.viewsCurrent()}[method]!;
 
             expect(call).toThrow("No game has started");
         });
@@ -355,12 +357,16 @@ describe("the test hook", () => {
         expect(hook.view()).toEqual({originX: 3, originY: 4, limits: LIMITS, tileWidth: 32});
     });
 
-    it("tells whether the canvas's map is current", async () => {
+    it("tells whether the map and the monster TV are both current", async () => {
         const {hook, game} = await holdingGame("nothing");
-        const behind = hook.mapCurrent();
+        const bothBehind = hook.viewsCurrent();
         game.gameCanvas.mapCurrent = true;
+        const tvBehind = hook.viewsCurrent();
+        game.monsterTV.current = true;
+        const both = hook.viewsCurrent();
+        game.gameCanvas.mapCurrent = false;
 
-        expect([behind, hook.mapCurrent()]).toEqual([false, true]);
+        expect([bothBehind, tvBehind, both, hook.viewsCurrent()]).toEqual([false, false, true, false]);
     });
 
     it("dismisses the game's notification bar", async () => {

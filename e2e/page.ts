@@ -33,3 +33,37 @@ export function collectPageProblems(page: Page): string[] {
 
   return problems;
 }
+
+// Whether the WebGL2 context of the canvas the selector picks is lost, or null for a canvas with none, such as one
+// drawn in 2D
+export async function isContextLost(page: Page, selector: string): Promise<boolean | null> {
+  return page.locator(selector).evaluate((canvas: HTMLCanvasElement) => {
+    const gl = canvas.getContext("webgl2");
+    return gl === null ? null : gl.isContextLost();
+  });
+}
+
+// Losing and restoring the WebGL2 context of the canvas the selector picks, as the browser may, and whether it is lost
+export interface ContextLoss {
+  lose(): Promise<void>;
+  restore(): Promise<void>;
+  isLost(): Promise<boolean | null>;
+}
+
+// The context's loss, through WEBGL_lose_context. The extension is taken while the context is there, and kept in the
+// page for the restore, as the canvas can't give it once the context is lost.
+export async function contextLoss(page: Page, selector: string): Promise<ContextLoss> {
+  type Losers = {losers?: Record<string, WEBGL_lose_context>};
+  await page.locator(selector).evaluate((canvas: HTMLCanvasElement, key) => {
+    const losers = (window as unknown as Losers).losers ??= {};
+    losers[key] = canvas.getContext("webgl2")!.getExtension("WEBGL_lose_context")!;
+  }, selector);
+
+  const call = (action: "loseContext" | "restoreContext") => page.evaluate(
+    ({key, name}) => (window as unknown as Losers).losers![key][name](), {key: selector, name: action});
+  return {
+    lose: () => call("loseContext"),
+    restore: () => call("restoreContext"),
+    isLost: () => isContextLost(page, selector),
+  };
+}

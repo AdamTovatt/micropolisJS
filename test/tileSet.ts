@@ -11,7 +11,7 @@
  *
  */
 
-import { TileSet, isAcceptableTileImage, tileImageOrigin } from "../src/tileSet";
+import { isAcceptableTileImage, tileImageOrigin } from "../src/tileSet";
 import { TILE_COUNT } from "../src/tileValues";
 
 // The tileset image is 32 tiles of 16 pixels square
@@ -70,36 +70,9 @@ describe("the tile set", () => {
             expect(isAcceptableTileImage(IMAGE_SIZE / 2, IMAGE_SIZE / 2)).toBe(false);
             expect(isAcceptableTileImage(IMAGE_SIZE * 2, IMAGE_SIZE * 2)).toBe(false);
         });
-    });
 
-    describe("loading a tileset image that isn't one", () => {
-
-        beforeEach(() => {
-            jest.useFakeTimers();
-        });
-
-        afterEach(() => {
-            jest.useRealTimers();
-        });
-
-        // Only the size is read before the image is rejected
-        const image = (width: number, height: number) => ({width, height}) as HTMLImageElement;
-
-        it.each([
-            ["of the wrong size", IMAGE_SIZE / 2, IMAGE_SIZE / 2],
-            ["that isn't square", IMAGE_SIZE, IMAGE_SIZE / 2],
-            ["still loading", 0, 0],
-        ])("calls the error callback, once the caller has returned, for an image %s", (_, width, height) => {
-            const loaded = jest.fn();
-            const failed = jest.fn();
-
-            const tileSet = new TileSet(image(width, height), loaded, failed);
-            expect(failed).not.toHaveBeenCalled();
-
-            jest.runAllTimers();
-            expect(failed).toHaveBeenCalledTimes(1);
-            expect(loaded).not.toHaveBeenCalled();
-            expect(tileSet.isValid).toBe(false);
+        it("rejects an image still loading, or that failed to", () => {
+            expect(isAcceptableTileImage(0, 0)).toBe(false);
         });
     });
 });

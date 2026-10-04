@@ -365,7 +365,7 @@ export class Player {
     await this.page.evaluate(() => new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     }));
-    await this.page.waitForFunction(() => window.micropolisTestHook!.mapCurrent());
+    await this.page.waitForFunction(() => window.micropolisTestHook!.viewsCurrent());
   }
 
   // A screenshot of the page showing nothing but the map's canvas: the panels over it, the marks and the panels' drop

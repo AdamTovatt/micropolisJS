@@ -1,6 +1,6 @@
 # Render assets
 
-The map is drawn with WebGL2 from a manifest and the atlases it names, in `images/render/`. This document specifies the manifest: what an atlas build must write from the zones' rendered layers (`art/README.md`), which `art/tools/atlas.py` does, and what the client (`renderManifest.ts`, `renderAssets.ts`) reads. A tile id or sprite frame the manifest leaves out is drawn from the 16 px sheets, `images/tiles.png` and `images/sprites.png`, so a manifest of no entries draws the game as those sheets always have.
+The map, the monster TV and the splash screen's map preview are drawn with WebGL2 from a manifest and the atlases it names, in `images/render/`. This document specifies the manifest: what an atlas build must write from the zones' rendered layers (`art/README.md`), which `art/tools/atlas.py` does, and what the client (`renderManifest.ts`, `renderAssets.ts`) reads. A tile id or sprite frame the manifest leaves out is drawn from the 16 px sheets, `images/tiles.png` and `images/sprites.png`, so a manifest of no entries draws the game as those sheets always have.
 
 ## How the map is drawn
 
@@ -15,6 +15,8 @@ The map is drawn in this order:
 The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as their shadows reach.
 
 A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. A shadow is drawn from the anchor's own tile id, so it doesn't blink. The bolt's entry has objects as well as ground, the whole tile, opaque, which no shadow darkens: the bolt replaces the centre tile of a zone or a service building, whose own shadow lies dense under the roof the bolt replaces.
+
+The monster TV draws its view in the same passes, but for the overlay's tint. The splash screen's preview draws the whole map in the first three, with no overlay and no sprites, each tile's own id unanimated, and the shadows of none but the tiles on the map.
 
 ## The manifest
 
@@ -75,7 +77,7 @@ The shadow image is then `left` + 1 + `right` tiles wide and `top` + 1 + `bottom
 
 - PNG, with straight (not premultiplied) alpha. The client premultiplies on upload.
 - At most 4096 pixels a side. WebGL2 guarantees only 2048, but practically every device draws 4096; an atlas past the browser's own limit fails the page's start as a broken manifest does, naming it.
-- Rendered atlases are mipmapped and filtered trilinearly, so the art scales smoothly down to 16 px a tile. A rectangle's neighbours bleed into it at the smaller mip levels unless each rectangle starts on a multiple of 4 pixels and is surrounded by a gutter of its own edge pixels repeated 4 pixels outward, which at 64 px a tile covers the two mip levels down to 16 px. The client samples no level past those two, so the art drawn smaller still, such as on a page zoomed out, is minified from the second rather than bled into. The 16 px sheets are drawn with nearest-neighbour filtering, so they stay crisp at every zoom.
+- Rendered atlases are mipmapped and filtered trilinearly, so the art scales smoothly down to 16 px a tile. A rectangle's neighbours bleed into it at the smaller mip levels unless each rectangle starts on a multiple of 4 pixels and is surrounded by a gutter of its own edge pixels repeated 4 pixels outward, which at 64 px a tile covers the two mip levels down to 16 px. The client samples no level past those two, so the art drawn smaller still, such as on a page zoomed out, is minified from the second rather than bled into. The 16 px sheets are drawn with nearest-neighbour filtering, so they stay crisp at every zoom, except on the splash screen's preview: at its 3 CSS pixels a tile, it filters them as it filters the rendered art.
 
 ## The fallback
 

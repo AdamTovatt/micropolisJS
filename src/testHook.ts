@@ -26,6 +26,7 @@ interface HookedGame {
   onCommandResult(listener: () => void): void;
   gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits, readonly tileWidth: number,
                readonly mapCurrent: boolean};
+  monsterTV: {readonly current: boolean};
   notificationBar: {dismiss(): void};
 }
 
@@ -171,10 +172,12 @@ class TestHook {
             tileWidth: game.gameCanvas.tileWidth};
   }
 
-  // Whether the map shows what the canvas last painted from, drawn to the end. A paint leaves the map as it is while
-  // the GPU is still drawing the frame before, so a runner that waits for the paint waits for this too.
-  mapCurrent(): boolean {
-    return this.attachedGame().gameCanvas.mapCurrent;
+  // Whether the map, and the monster TV while it shows, show what they last painted from, drawn to the end. A paint
+  // leaves a view as it is while the GPU is still drawing the frame before, so a runner that waits for the paint waits
+  // for this too.
+  viewsCurrent(): boolean {
+    const game = this.attachedGame();
+    return game.gameCanvas.mapCurrent && game.monsterTV.current;
   }
 
   private attachedGame(): HookedGame {

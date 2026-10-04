@@ -11,7 +11,7 @@
  *
  */
 
-import { FrameTiles, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame } from "../src/mapFrame";
+import { FrameTiles, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles } from "../src/mapFrame";
 import type { Tint } from "../src/overlayRenderer";
 import type { SpriteView } from "../src/protocol";
 import type { Rect } from "../src/rect";
@@ -282,6 +282,41 @@ describe("a frame of the map", () => {
             expect(list.count).toBe(1000);
             expect(list.runs[0].floats.length).toBe(1000 * QUAD_FLOATS);
             expect(list.runs[0].floats[999 * QUAD_FLOATS]).toBe(999);
+        });
+    });
+
+    describe("the whole map", () => {
+
+        // A 2 by 2 map of a powered zone centre, a lawn, the zone tile with no flags, and dirt, and the areas read of it
+        const values = [ZONE | ZONEBIT | POWERBIT, LAWN, ZONE, 0];
+        function newMap() {
+            const reads: number[][] = [];
+            const map = {
+                width: 2,
+                height: 2,
+                getTileValuesForPainting: (x: number, y: number, w: number, h: number, result: number[]) => {
+                    reads.push([x, y, w, h]);
+                    values.forEach((value, i) => result[i] = value);
+                    return result;
+                },
+            };
+            return {map, reads};
+        }
+
+        it("reads every tile with no margin, and draws each tile's own id, without its flags", () => {
+            const {map, reads} = newMap();
+
+            expect(wholeMapTiles(map)).toEqual({x: 0, y: 0, width: 2, height: 2, margin: 0, values,
+                                                frames: [ZONE, LAWN, ZONE, 0]});
+            expect(reads).toEqual([[0, 0, 2, 2]]);
+        });
+
+        it("draws the shadow of a tile at the map's edge, though it reaches past the edge, where nothing lies", () => {
+            const frame = new MapFrame();
+            buildMapFrame(frame, art, wholeMapTiles(newMap().map), 3, noTint, []);
+
+            // Both zone tiles are in the first column, and cast their shadow a tile left and down
+            expect(frame.shadows.count).toBe(2);
         });
     });
 });

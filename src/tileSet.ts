@@ -13,6 +13,9 @@
 
 import { TILE_COUNT } from "./tileValues";
 
+// The tile set, images/tiles.png: every tile id's 16 px tile, which the map's art draws from where the rendered art
+// leaves the tile out
+
 // Tiles must be 16px square
 const TILE_SIZE = 16;
 const TILES_PER_ROW = Math.sqrt(TILE_COUNT);
@@ -31,69 +34,4 @@ function tileImageOrigin(tileValue: number): {x: number, y: number} {
   };
 }
 
-// Splits a tileset image into one image per tile. Creation is asynchronous: the set calls back once every tile's
-// image has loaded, or calls the error callback if the image is not an acceptable tileset.
-class TileSet {
-  readonly tileWidth = TILE_SIZE;
-  private loaded = false;
-  private readonly images: HTMLImageElement[] = [];
-
-  // An image of the wrong size, such as one still loading, calls the error callback
-  constructor(image: HTMLImageElement, callback: () => void, errorCallback: () => void) {
-    if (!isAcceptableTileImage(image.width, image.height)) {
-      // Spin the event loop
-      setTimeout(errorCallback, 0);
-      return;
-    }
-
-    this.splitImage(image, callback);
-  }
-
-  // Whether every tile's image has loaded
-  get isValid(): boolean {
-    return this.loaded;
-  }
-
-  // The image of the tile with the given value
-  tile(tileValue: number): HTMLImageElement {
-    return this.images[tileValue];
-  }
-
-  // Break up the source image into tiles by painting each tile onto a canvas, computing the dataURI of the canvas, and
-  // using that to create a new image
-  private splitImage(image: HTMLImageElement, callback: () => void): void {
-    const tileWidth = this.tileWidth;
-
-    // We paint the image onto a canvas so we can split it up
-    const c = document.createElement("canvas");
-    c.width = tileWidth;
-    c.height = tileWidth;
-    const cx = c.getContext("2d")!;
-
-    // Checks to see if we are done creating images, and if so notifies the caller
-    let notifications = 0;
-    const imageLoad = () => {
-      notifications++;
-
-      if (notifications === TILE_COUNT) {
-        this.loaded = true;
-        // Spin the event loop
-        setTimeout(callback, 0);
-      }
-    };
-
-    for (let i = 0; i < TILE_COUNT; i++) {
-      cx.clearRect(0, 0, tileWidth, tileWidth);
-
-      const source = tileImageOrigin(i);
-      cx.drawImage(image, source.x, source.y, tileWidth, tileWidth, 0, 0, tileWidth, tileWidth);
-
-      const tile = new Image();
-      tile.onload = imageLoad;
-      tile.src = c.toDataURL();
-      this.images[i] = tile;
-    }
-  }
-}
-
-export { TileSet, isAcceptableTileImage, tileImageOrigin };
+export { isAcceptableTileImage, tileImageOrigin };
