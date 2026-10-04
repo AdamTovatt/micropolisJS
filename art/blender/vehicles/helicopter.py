@@ -13,8 +13,9 @@
 # The traffic helicopter, sprite 2, in its eight frames: 0 heading north and each next frame an
 # eighth of a turn clockwise (src/copterSprite.js). It flies HEIGHT above the ground it is over,
 # so its shadow falls away from it by that height and it reads as flying. It is drawn SIZE times
-# its modelled size, about as long as the original's sprite, low enough that its shadow stays in
-# the frame.
+# its modelled size, as small and as low as it must be for it and its shadow to stay inside the
+# middle two tiles of the frame: the game draws a helicopter into a square of two tiles, as the
+# original's 32 px sprite, and the atlas build crops each frame to it (docs/render-assets.md).
 
 import math
 import os
@@ -23,8 +24,8 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 import tileart as t  # noqa: E402
 
-HEIGHT = 0.18
-SIZE = 1.3
+HEIGHT = 0.06
+SIZE = 0.95
 
 
 def helicopter(turn):
