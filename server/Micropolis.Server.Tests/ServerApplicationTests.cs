@@ -93,6 +93,7 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        [TestCategory(ReleaseBuild.Category)]
         public void Build_ManualCityClockInAReleaseBuild_Fails()
         {
             if (DebugChannel.IsBuiltIn)

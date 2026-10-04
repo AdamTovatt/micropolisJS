@@ -23,6 +23,7 @@ import { Random } from "../src/random";
 import { SaveFormat } from "../src/savedGame";
 import { STEPS_PER_SECOND } from "../src/stepDriver";
 import { BIT_MASK } from "../src/tileFlags";
+import { CITY_ID } from "../src/urlOptions";
 import { pageSource, SourceFactory, SourceUnderTest, WebSocketSourceFactory, workerSource } from "./helpers/citySources";
 import { serverTestsEnabled, START_SERVER_TIMEOUT_MS } from "./helpers/testServer";
 
@@ -58,7 +59,11 @@ function contract(factory: SourceFactory): void {
         tested.source.subscribe((message) => messages.push(message));
     });
 
-    afterEach(() => tested.close());
+    // A source that lost its city fails the test that lost it: no test loses one on purpose
+    afterEach(() => {
+        tested.close();
+        expect(tested.lost()).toEqual([]);
+    });
 
     function ask(query: Query): Promise<QueryAnswer> {
         return new Promise((resolve) => tested.source.ask(query, resolve));
@@ -88,7 +93,7 @@ function contract(factory: SourceFactory): void {
 
     // A city as a start resolves with it: only a city on the server has an id another player could join it by
     function startedCity(name: string, seed: number) {
-        return {name, seed, city: factory.onServer ? expect.stringMatching(/^[0-9a-f]{32}$/) : null};
+        return {name, seed, city: factory.onServer ? expect.stringMatching(CITY_ID) : null};
     }
 
     // Starts a new city on the seed's map, and takes the first turn of the source's loop, which starts its clock

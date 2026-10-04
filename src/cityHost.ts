@@ -16,6 +16,7 @@ import { checkStepCount, ClockedSimulation, takeSteps } from "./cityTimeModel";
 import type { CityStart, StartedCity } from "./citySource";
 import { CommandRecorder, LogStart } from "./commandLog";
 import { CommandQueue, CommandTarget } from "./commandQueue";
+import { errorMessage } from "./errorMessage";
 import { MapGenerator } from "./mapGenerator.js";
 import * as Messages from "./messages";
 import {
@@ -378,7 +379,7 @@ export class CityHost {
 
       return {steps: taken, budgetReviewDue, error: null};
     } catch (e) {
-      return {steps: taken, budgetReviewDue, error: e instanceof Error ? e.message : String(e)};
+      return {steps: taken, budgetReviewDue, error: errorMessage(e)};
     } finally {
       if (this.city !== null) {
         this.sendState();

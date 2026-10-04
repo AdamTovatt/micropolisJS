@@ -24,16 +24,6 @@ namespace Micropolis.Server
     /// </summary>
     internal sealed class CommandRecorder
     {
-        /// <summary>
-        /// The log format's version.
-        /// </summary>
-        public const int LogFormatVersion = 1;
-
-        /// <summary>
-        /// A checkpoint every this many steps, a minute of play.
-        /// </summary>
-        public const int CheckpointInterval = 3600;
-
         private readonly Simulation _city;
         private readonly JsonObject _start;
         private readonly List<(long Step, ReceivedCommand Command)> _entries = new List<(long, ReceivedCommand)>();
@@ -73,7 +63,7 @@ namespace Micropolis.Server
 
         public void BeforeStep(long step)
         {
-            if (step % CheckpointInterval == 0)
+            if (step % CommandLogFormat.CheckpointInterval == 0)
             {
                 _checkpoints.Add((step, Hash()));
             }
@@ -87,7 +77,7 @@ namespace Micropolis.Server
         /// </summary>
         public JsonObject Log()
         {
-            JsonObject log = new JsonObject { ["formatVersion"] = LogFormatVersion };
+            JsonObject log = new JsonObject { ["formatVersion"] = CommandLogFormat.Version };
 
             foreach ((string key, JsonNode? value) in _start)
             {

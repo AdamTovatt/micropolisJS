@@ -30,7 +30,7 @@ namespace Micropolis.Server.Tests
             }
 
             connection.Close(WebSocketCloseStatus.NormalClosure, null);
-            (int messages, WebSocketCloseStatus? status) = await SendAllAndReadBackAsync(connection);
+            (int messages, WebSocketCloseStatus? status, _) = await ConnectionWire.ReadBackAsync(connection);
 
             Assert.AreEqual(CityConnection.MaximumQueued, messages);
             Assert.AreEqual(WebSocketCloseStatus.NormalClosure, status);
@@ -48,7 +48,7 @@ namespace Micropolis.Server.Tests
 
             // Too late: the first close wins
             connection.Close(WebSocketCloseStatus.NormalClosure, null);
-            (int messages, WebSocketCloseStatus? status) = await SendAllAndReadBackAsync(connection);
+            (int messages, WebSocketCloseStatus? status, _) = await ConnectionWire.ReadBackAsync(connection);
 
             Assert.AreEqual(CityConnection.MaximumQueued, messages);
             Assert.AreEqual(WebSocketCloseStatus.PolicyViolation, status);
@@ -61,7 +61,7 @@ namespace Micropolis.Server.Tests
 
             // Two bytes of UTF-8 each: 61 fit in a close frame's 123 bytes, and the 62nd would split
             connection.Close(WebSocketCloseStatus.PolicyViolation, new string('é', 100));
-            (_, _, string? description) = await SendAllAndReadBackWithDescriptionAsync(connection);
+            (_, _, string? description) = await ConnectionWire.ReadBackAsync(connection);
 
             Assert.AreEqual(new string('é', 61), description);
         }
@@ -79,37 +79,6 @@ namespace Micropolis.Server.Tests
             Assert.IsFalse(connection.IsClosing);
             connection.Send("one more than it holds");
             Assert.IsTrue(connection.IsClosing);
-        }
-
-        // Writes the connection's frames as the server would, then reads them as a client: how many messages came
-        // before the close, and the close's status
-        private static async Task<(int Messages, WebSocketCloseStatus? Status)> SendAllAndReadBackAsync(CityConnection connection)
-        {
-            (int messages, WebSocketCloseStatus? status, _) = await SendAllAndReadBackWithDescriptionAsync(connection);
-            return (messages, status);
-        }
-
-        private static async Task<(int Messages, WebSocketCloseStatus? Status, string? Description)> SendAllAndReadBackWithDescriptionAsync(CityConnection connection)
-        {
-            using MemoryStream wire = new MemoryStream();
-            using WebSocket server = WebSocket.CreateFromStream(wire, isServer: true, subProtocol: null, keepAliveInterval: Timeout.InfiniteTimeSpan);
-            await connection.SendAllAsync(server, CancellationToken.None);
-
-            using WebSocket client = WebSocket.CreateFromStream(new MemoryStream(wire.ToArray()), isServer: false, subProtocol: null, keepAliveInterval: Timeout.InfiniteTimeSpan);
-            byte[] buffer = new byte[1024];
-            int messages = 0;
-
-            while (true)
-            {
-                WebSocketReceiveResult result = await client.ReceiveAsync(buffer, CancellationToken.None);
-
-                if (result.MessageType == WebSocketMessageType.Close)
-                {
-                    return (messages, result.CloseStatus, result.CloseStatusDescription);
-                }
-
-                messages++;
-            }
         }
     }
 }

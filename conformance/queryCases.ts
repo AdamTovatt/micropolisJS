@@ -13,8 +13,8 @@
 
 import { cityFromSave, cityFromSeed, SaveData, Simulation, Speed } from "../headless/city";
 import {
-  BudgetRecord, EvaluationRecord, OVERLAY_LAYERS, OverlayAnswer, QueryAnswer, SettingsRecord, TileReportAnswer,
-  ZONE_CATEGORIES,
+  BudgetForecastAnswer, BudgetRecord, EvaluationRecord, OVERLAY_LAYERS, OverlayAnswer, QueryAnswer, SettingsRecord,
+  TileReportAnswer, ZONE_CATEGORIES,
 } from "../src/protocol";
 import { answerQueryWithoutCity, zoneCategory } from "../src/queries";
 import { TILE_COUNT } from "../src/tileValues";
@@ -29,9 +29,11 @@ export interface NamedSave {
   save: SaveData;
 }
 
-// A query and its answer, about the named save's city, or asked before any city has started when save is null
+// A query and its answer, about the named save's city, or asked before any city has started when save is null. funds,
+// where given, replaces the funds the save holds before the query is asked.
 export interface AnsweredQuery {
   save: string | null;
+  funds?: number;
   query: unknown;
   answer: QueryAnswer;
 }
@@ -55,7 +57,7 @@ export interface QueryFile {
   answers: AnsweredQuery[];
 }
 
-// Records the fixtures never produce: a city at the hardest level, with disasters on, the budget set by hand and the
+// Records the fixtures never produce: a city at the hardest level, with disasters on, auto-budget off and the
 // game paused
 const VARIED_RECORDS: {city: {seed: number, level: number}, commands: unknown[]}[] = [
   {city: {seed: 7, level: 2}, commands: [
@@ -111,6 +113,38 @@ const REJECTION_REASONS = [
 
 function answered(save: string | null, query: unknown, answer: QueryAnswer): AnsweredQuery {
   return {save, query, answer};
+}
+
+// What the cash the year end would have is short of: nothing, as in a broke city, or every service's cost
+function shortfall(answer: QueryAnswer): "none" | "partly" | "wholly" {
+  const {budget, costs} = answer as BudgetForecastAnswer;
+  const cash = budget.funds + budget.taxesCollected;
+  const cost = costs.road + costs.fire + costs.police;
+  return cash > cost || cost === 0 ? "none" : cash > 0 ? "partly" : "wholly";
+}
+
+// The forecasts in the first save whose year end has no cash for its services, with the funds set to half of what
+// the services cost and to exactly what they cost: the funds pay some services and scale one back, as no fixture's
+// year end leaves them to
+function shortForecasts(saves: NamedSave[]): AnsweredQuery[] {
+  const broke = saves.find(({save}) => shortfall(cityFromSave(save).answerQuery(FORECASTS[0])) === "wholly");
+  if (broke === undefined) {
+    return [];
+  }
+
+  const cost = (cityFromSave(broke.save).answerQuery(FORECASTS[0]) as BudgetForecastAnswer).costs;
+  const total = cost.road + cost.fire + cost.police;
+
+  return [Math.floor(total / 2), total].flatMap((funds) => {
+    const city = cityFromSave(withFunds(broke.save, funds));
+    return FORECASTS.map((query) => ({save: broke.name, funds, query, answer: city.answerQuery(query)}));
+  });
+}
+
+// The save with its funds replaced, as an answer that names funds asks about it
+function withFunds(save: SaveData, funds: number): SaveData {
+  const {budget} = save as SaveData & {budget: object};
+  return {...save, budget: {...budget, totalFunds: funds}} as SaveData;
 }
 
 function recorded(city: RecordedCity, commands: unknown[], simulation: Simulation): CityRecords {
@@ -181,6 +215,7 @@ export function queryFile(saves: NamedSave[], ensureCovers: (condition: boolean,
   answers.push(answered(saves[0].name, {type: "tileReport", x: 119, y: 99}, first.answerQuery({type: "tileReport", x: 119, y: 99})));
   answers.push(...REJECTED_QUERIES.map((query) => answered(saves[0].name, query, first.answerQuery(query))));
   answers.push(...QUERIES_WITHOUT_CITY.map((query) => answered(null, query, answerQueryWithoutCity(query))));
+  answers.push(...shortForecasts(saves));
 
   for (const layer of OVERLAY_LAYERS) {
     ensureCovers(overlaid.has(layer), `an overlay of ${layer} holding a value other than 0`);
@@ -196,6 +231,8 @@ export function queryFile(saves: NamedSave[], ensureCovers: (condition: boolean,
                "a tile report covered by fire and police stations");
   ensureCovers(answers.some(({answer}) => answer.type === "budgetForecast" && answer.fundsChange < 0),
                "a forecast of a year that takes funds away");
+  ensureCovers(answers.some(({answer}) => answer.type === "budgetForecast" && shortfall(answer) === "partly"),
+               "a forecast of a year whose cash pays only some of the services");
   ensureCovers(records.some(({evaluation}) => evaluation.problems.length > 0 && evaluation.scoreBreakdown.length > 0),
                "an evaluation with problems and a score breakdown");
   ensureCovers(records.some(({budget}) => [budget.funding.road, budget.funding.fire, budget.funding.police]

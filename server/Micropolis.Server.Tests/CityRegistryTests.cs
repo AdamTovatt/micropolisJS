@@ -24,7 +24,14 @@ namespace Micropolis.Server.Tests
     [TestClass]
     public sealed class CityRegistryTests
     {
+        // Two cycles of the simulation's 16 phases at medium speed, which lets a phase through every third step
+        private const int TwoCycles = 2 * 16 * 3;
+
+        // How long a test waits for registry work that holds nothing up
+        private static readonly TimeSpan WorkTimeout = TimeSpan.FromSeconds(5);
+
         private string _store = "";
+        private HeldStore _heldStore = null!;
         private CityRegistry _registry = null!;
         private readonly CityConnection _ada = new CityConnection(new PlayerInfo("a", "Ada"));
 
@@ -32,17 +39,13 @@ namespace Micropolis.Server.Tests
         public void StartRegistry()
         {
             _store = ServerUnderTest.NewStore();
-            _registry = new CityRegistry(new CityStore(_store), new CityClock(new FakeTimeProvider(), Manual: true), NullLogger<CityRegistry>.Instance);
+            _heldStore = new HeldStore(_store);
+            _registry = new CityRegistry(_heldStore, new ServerClock(new FakeTimeProvider(), Manual: true), NullLogger<CityRegistry>.Instance);
         }
 
         [TestCleanup]
         public void DeleteStore()
         {
-            if (File.Exists(_store))
-            {
-                File.Delete(_store);
-            }
-
             ServerUnderTest.DeleteStore(_store);
         }
 
@@ -109,6 +112,48 @@ namespace Micropolis.Server.Tests
             await _registry.LeaveAsync(_ada, city);
 
             Assert.AreSame(city, await _registry.EnterAsync(city.Id));
+            // Still running, and saved as its next player leaves, once the store can keep it
+            string saved = await ChangedAsync(city);
+            ServerUnderTest.DeleteStore(_store);
+            await _registry.LeaveAsync(_ada, city);
+            Assert.AreEqual(saved, await StoredAsync(city));
+        }
+
+        [TestMethod]
+        public async Task EnterAsync_AsTheLastPlayersLeaveSaves_WaitsForTheSaveAndLoadsIt()
+        {
+            LoadedCity city = await StartedAsync();
+            string saved = await ChangedAsync(city);
+            Task begun = _heldStore.HoldNext();
+            Task leaving = _registry.LeaveAsync(_ada, city);
+            await begun;
+
+            Task<LoadedCity?> entering = _registry.EnterAsync(city.Id);
+
+            Assert.IsFalse(entering.IsCompleted, "Entered the city before its save was kept");
+            _heldStore.Release();
+            await leaving;
+            LoadedCity again = (await entering)!;
+            Assert.AreNotSame(city, again);
+            Assert.AreEqual(saved, await again.RunAsync(host => host.Save()));
+        }
+
+        [TestMethod]
+        public async Task EnterAsync_StoredCityTwiceWhileItIsRead_LoadsItOnceWithoutHoldingUpAnotherCity()
+        {
+            LoadedCity city = await StartedAsync();
+            await _registry.LeaveAsync(_ada, city);
+            Task begun = _heldStore.HoldNext();
+            Task<LoadedCity?> first = _registry.EnterAsync(city.Id);
+            await begun;
+
+            Task<LoadedCity?> second = _registry.EnterAsync(city.Id);
+            LoadedCity other = await _registry.StartCityAsync(StartingCity.New("Other", 2027, Level.Easy)).WaitAsync(WorkTimeout);
+
+            Assert.IsFalse(first.IsCompleted || second.IsCompleted, "Entered the city before it was read");
+            _heldStore.Release();
+            Assert.AreSame(await first, await second);
+            Assert.AreNotSame(city, other);
         }
 
         [TestMethod]
@@ -125,19 +170,66 @@ namespace Micropolis.Server.Tests
             return city;
         }
 
-        // Moves the city on from its start, and gives its save
+        // Moves the city on from its start, and gives its save. A held driver advances by the debug channel's calls.
         private static async Task<string> ChangedAsync(LoadedCity city)
         {
             return await city.RunAsync(host =>
             {
-                Assert.IsNull(host.Advance(96).Error);
+                Assert.IsNull(host.Advance(TwoCycles).Error);
                 return host.Save();
             });
         }
 
         private async Task<string> StoredAsync(LoadedCity city)
         {
-            return await File.ReadAllTextAsync(Path.Combine(_store, city.Id + ".json"));
+            return await File.ReadAllTextAsync(new CityStore(_store).PathOf(city.Id));
+        }
+
+        // A store the test holds up: once told, its next read or write waits until the test releases it
+        private sealed class HeldStore : CityStore
+        {
+            private TaskCompletionSource? _begun;
+            private TaskCompletionSource? _released;
+
+            public HeldStore(string directory) : base(directory)
+            {
+            }
+
+            // Holds the next read or write, and gives what finishes once it has begun, and waits
+            public Task HoldNext()
+            {
+                _begun = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _released = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                return _begun.Task;
+            }
+
+            public void Release()
+            {
+                _released!.SetResult();
+            }
+
+            public override async Task<string?> ReadAsync(string city)
+            {
+                await WaitIfHeldAsync();
+                return await base.ReadAsync(city);
+            }
+
+            public override async Task WriteAsync(string city, string savedGame)
+            {
+                await WaitIfHeldAsync();
+                await base.WriteAsync(city, savedGame);
+            }
+
+            private async Task WaitIfHeldAsync()
+            {
+                TaskCompletionSource? begun = Interlocked.Exchange(ref _begun, null);
+
+                if (begun is not null)
+                {
+                    begun.SetResult();
+                    await _released!.Task;
+                }
+            }
         }
     }
 }

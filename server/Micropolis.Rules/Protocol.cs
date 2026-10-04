@@ -380,6 +380,16 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// A value of the protocol's read from the JSON the wire carries it as, such as an event's payload the
+        /// simulation writes with a record's fields. It holds no string a player sent: the serializer's reader would
+        /// replace a lone surrogate in one.
+        /// </summary>
+        public static T FromNode<T>(JsonNode value)
+        {
+            return value.Deserialize<T>(Options) ?? throw new JsonException($"The value is not a {typeof(T).Name}.");
+        }
+
+        /// <summary>
         /// The message a player sends as the wire carries it.
         /// </summary>
         public static string Serialize(ClientMessage message)

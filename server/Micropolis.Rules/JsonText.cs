@@ -21,8 +21,9 @@ namespace Micropolis.Rules
     /// <summary>
     /// Untrusted JSON text, such as a command a player sends, read as ECMAScript's <c>JSON.parse</c> reads it, so the
     /// simulation takes it as the TypeScript does: every string and key as the UTF-16 code units it escapes, a lone
-    /// surrogate included, which System.Text.Json refuses to read as a key; a key written twice as its last value; and
-    /// every number as a double, one too large for a double as infinite.
+    /// surrogate included, which System.Text.Json refuses to read as a key; a key written twice as its last value; an
+    /// object's keys in the order JSON.parse gives them, array indices first; and every number as a double, one too
+    /// large for a double as infinite.
     /// </summary>
     public static class JsonText
     {
@@ -69,6 +70,9 @@ namespace Micropolis.Rules
                         continue;
 
                     case JsonTokenType.EndObject:
+                        value = InPropertyOrder(open.Pop().Container.AsObject());
+                        break;
+
                     case JsonTokenType.EndArray:
                         value = open.Pop().Container;
                         break;
@@ -117,6 +121,36 @@ namespace Micropolis.Rules
             }
 
             return read ? root : throw new JsonException("The text holds no JSON value.");
+        }
+
+        // The object's keys in ECMAScript's order for an object's own keys, which JSON.parse gives and JSON.stringify
+        // writes: those that are array indices first, ascending, then the rest in the order they were first written
+        private static JsonObject InPropertyOrder(JsonObject value)
+        {
+            if (!value.Any(member => IsArrayIndex(member.Key)))
+            {
+                return value;
+            }
+
+            List<KeyValuePair<string, JsonNode?>> members = value.ToList();
+            value.Clear();
+
+            IEnumerable<KeyValuePair<string, JsonNode?>> indices = members.Where(member => IsArrayIndex(member.Key))
+                .OrderBy(member => uint.Parse(member.Key, CultureInfo.InvariantCulture));
+
+            foreach (KeyValuePair<string, JsonNode?> member in indices.Concat(members.Where(member => !IsArrayIndex(member.Key))))
+            {
+                value.Add(member.Key, member.Value);
+            }
+
+            return value;
+        }
+
+        // An array index, as ECMAScript defines one: the canonical decimal text of an integer from 0 to 2^32 − 2
+        private static bool IsArrayIndex(string key)
+        {
+            return uint.TryParse(key, NumberStyles.None, CultureInfo.InvariantCulture, out uint index) && index != uint.MaxValue &&
+                   index.ToString(CultureInfo.InvariantCulture) == key;
         }
 
         // A string's or key's raw text, its escapes decoded into the UTF-16 code units they stand for

@@ -22,7 +22,7 @@ namespace Micropolis.Server
     /// What one connection does in the cities, as protocol/README.md describes it: the city it is in, at most one, and
     /// its messages, handled in the order they came, each done before the next is read. So what follows a request that
     /// starts or joins a city reaches that city, and a connection has at most one piece of a city's work waiting.
-    /// Nothing bounds how many cities a player starts: that bound belongs with accounts, which players don't have.
+    /// <see cref="CityLimits"/> bounds the cities and commands of the client address it comes from.
     /// </summary>
     internal sealed class CitySession
     {
@@ -30,16 +30,21 @@ namespace Micropolis.Server
 
         private readonly CityConnection _connection;
         private readonly CityRegistry _registry;
+        private readonly CityLimits _limits;
+        // The client address the connection comes from, as the limits count it
+        private readonly string _address;
         private readonly ILogger _logger;
         private LoadedCity? _city;
         // Whether the debug channel holds the cities the connection is in, as of its last hold or release: a hold before
         // a city starts applies from its first step
         private bool _held;
 
-        public CitySession(CityConnection connection, CityRegistry registry, ILogger logger)
+        public CitySession(CityConnection connection, CityRegistry registry, CityLimits limits, string address, ILogger logger)
         {
             _connection = connection;
             _registry = registry;
+            _limits = limits;
+            _address = address;
             _logger = logger;
         }
 
@@ -75,12 +80,13 @@ namespace Micropolis.Server
                     break;
 
                 case CommandMessage command:
-                    await SendAsync(command.Command);
+                    await SendAsync(command.Command, text.Length);
                     break;
 
                 case QueryRequest query:
-                    // A map preview is answered before any city has started
-                    if (_city is null)
+                    // A map preview is answered before any city has started, and in a city off its work, which generating a
+                    // whole map would hold up for every player in it
+                    if (_city is null || Queries.NeedsNoCity(query.Query))
                     {
                         _connection.Answer(query.Id, ProtocolJson.ToNode(Queries.AnswerWithoutCity(query.Query)));
                     }
@@ -124,6 +130,13 @@ namespace Micropolis.Server
         // left, so a start that fails leaves it there
         private async Task StartAsync(long requestId, Func<StartingCity> build)
         {
+            // Counted before the save is read, which a start that fails costs as much as one that doesn't
+            if (!_limits.TryStartCity(_address))
+            {
+                _connection.Fail(requestId, "Too many cities were started from here. Try again in a few minutes.");
+                return;
+            }
+
             StartingCity start;
 
             try
@@ -213,9 +226,10 @@ namespace Micropolis.Server
             }
         }
 
-        // A command bigger than any the game sends is no command of a player's: it never reaches the city, which would
-        // log it and echo it to every player in its result
-        private async Task SendAsync(JsonNode? command)
+        // A command message of this many characters. A command bigger than any the game sends is no command of a
+        // player's, and commands faster than a player sends them are no player's either: neither reaches the city,
+        // which would keep them in its log for as long as it is loaded and echo them to every player in their results.
+        private async Task SendAsync(JsonNode? command, int characters)
         {
             if (_city is null)
             {
@@ -229,11 +243,24 @@ namespace Micropolis.Server
                 return;
             }
 
+            if (!_limits.TrySendCommand(_address, characters))
+            {
+                Close("commands faster than a player sends them");
+                return;
+            }
+
             string player = _connection.Player.Id;
             await WaitForCityAsync(_city.RunAsync(host => host.Send(player, command)));
         }
 
-        private async Task InCityAsync(long requestId, Func<CityHost, JsonNode?> work)
+        // The work, done in the city and answered with what it gives
+        private Task InCityAsync(long requestId, Func<CityHost, JsonNode?> work)
+        {
+            return WithCityAsync(requestId, city => city.AnswerAsync(_connection, requestId, work));
+        }
+
+        // Does what the request asks of the city the connection is in, or fails it before any city has started
+        private async Task WithCityAsync(long requestId, Func<LoadedCity, Task> request)
         {
             if (_city is null)
             {
@@ -241,7 +268,7 @@ namespace Micropolis.Server
                 return;
             }
 
-            await WaitForCityAsync(_city.AnswerAsync(_connection, requestId, work));
+            await WaitForCityAsync(request(_city));
         }
 
         // The debug channel, which only a build with it answers. A hold or release before any city has started applies
@@ -293,20 +320,18 @@ namespace Micropolis.Server
             }
         }
 
-        private async Task TurnAsync(TurnRequest turn)
+        private Task TurnAsync(TurnRequest turn)
         {
-            if (_city is null)
+            return WithCityAsync(turn.Id, city =>
             {
-                _connection.Fail(turn.Id, "No city has started");
-            }
-            else if (!_city.RunsOnManualClock)
-            {
-                _connection.Fail(turn.Id, "The city runs on the server's clock");
-            }
-            else
-            {
-                await WaitForCityAsync(_city.TurnAsync(turn.Milliseconds, _connection, turn.Id));
-            }
+                if (!city.RunsOnManualClock)
+                {
+                    _connection.Fail(turn.Id, "The city runs on the server's clock");
+                    return Task.CompletedTask;
+                }
+
+                return city.TurnAsync(turn.Milliseconds, _connection, turn.Id);
+            });
         }
 
         // A request whose answer is null, once it is done

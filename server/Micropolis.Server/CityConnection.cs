@@ -31,6 +31,9 @@ namespace Micropolis.Server
         /// </summary>
         public const int MaximumQueued = 256;
 
+        // The most a close frame's description holds, in bytes of UTF-8
+        private const int MaxCloseDescriptionBytes = 123;
+
         private readonly Channel<string> _outbox = Channel.CreateBounded<string>(
             new BoundedChannelOptions(MaximumQueued) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
         private readonly object _closeLock = new object();
@@ -142,7 +145,5 @@ namespace Micropolis.Server
 
             return description[..length];
         }
-
-        private const int MaxCloseDescriptionBytes = 123;
     }
 }

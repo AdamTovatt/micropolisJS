@@ -18,7 +18,7 @@ namespace Micropolis.Server
     /// <summary>
     /// The counters city time follows from, as <c>CityClock</c> in <c>src/cityTimeModel.ts</c>.
     /// </summary>
-    internal readonly record struct CityTimeCounters(Speed Speed, long SpeedCycle, long Phase, long CityTime);
+    internal readonly record struct CityClock(Speed Speed, long SpeedCycle, long Phase, long CityTime);
 
     /// <summary>
     /// How far city time gets in a number of steps, from the step and phase counters alone, as
@@ -31,17 +31,17 @@ namespace Micropolis.Server
         private const int PhasesPerCycle = 16;
         private const int SpeedCycleMax = 1023;
 
-        public static CityTimeCounters CountersOf(Simulation city)
+        public static CityClock ClockOf(Simulation city)
         {
-            return new CityTimeCounters(city.Speed, city.SpeedCycle, city.PhaseCycle, city.CityTime);
+            return new CityClock(city.Speed, city.SpeedCycle, city.PhaseCycle, city.CityTime);
         }
 
-        public static long ImpliedCityTime(CityTimeCounters counters, long steps)
+        public static long ImpliedCityTime(CityClock clock, long steps)
         {
-            int perPhase = StepsPerPhase(counters.Speed);
-            long speedCycle = counters.SpeedCycle;
-            long phase = counters.Phase;
-            long cityTime = counters.CityTime;
+            int perPhase = StepsPerPhase(clock.Speed);
+            long speedCycle = clock.SpeedCycle;
+            long phase = clock.Phase;
+            long cityTime = clock.CityTime;
 
             for (long i = 0; i < steps; i++)
             {
@@ -81,7 +81,7 @@ namespace Micropolis.Server
         public static void TakeSteps(Simulation city, double steps, Action step)
         {
             long count = CheckStepCount(steps);
-            CityTimeCounters before = CountersOf(city);
+            CityClock before = ClockOf(city);
 
             for (long i = 0; i < count; i++)
             {

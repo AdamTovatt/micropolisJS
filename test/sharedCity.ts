@@ -13,6 +13,7 @@
 
 import { RUN_STEPS } from "../headless/fixtures/fixture";
 import { fixtureSave, replay } from "../headless/runner";
+import type { SessionStore } from "../src/cityClient";
 import type { CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
 import { CHECKPOINT_INTERVAL, CommandLog } from "../src/commandLog";
@@ -78,8 +79,14 @@ describeOnServer("a city two players share", () => {
         players = [];
     });
 
+    // Each name signs in once for the suite, and connects as that player again in each test after, as a returning
+    // browser does, so the suite stays well inside the server's limit on sign-ins from one address
+    const sessions = new Map<string, SessionStore>();
+
     async function signIn(name: string): Promise<Player> {
-        const {client, environment} = await signedInClient(server!.origin, memorySessionStore(), name);
+        const store = sessions.get(name) ?? memorySessionStore();
+        sessions.set(name, store);
+        const {client, environment} = await signedInClient(server!.origin, store, name);
         const lost: Error[] = [];
         const source = new WebSocketCitySource(client, (error) => lost.push(error));
         const messages: StateMessage[] = [];
@@ -230,11 +237,27 @@ describeOnServer("a city two players share", () => {
         await waitFor(() => ada.messages.slice(before).some(({type}) => type === "map"), "Ada to join the city again");
 
         expect(tiles(ada)).toEqual(tiles(grace));
-        // Still held, as Ada's driver was, and in the city's one stream
+        // In the city's one stream again
         await sendArrived(ada.source, COMMANDS[2]);
         await ada.source.driver.flush();
-        expect(await ada.source.driver.cityTime()).toBe(0);
         expect(results(grace.messages).map(({player}) => player)).toEqual([grace.source.player, ada.source.player]);
+        expect(ada.lost).toEqual([]);
+    });
+
+    // The city's last player dropping unloads it, so it loads again as she rejoins, unheld unless she holds it again
+    it("holds its city again as it joins it again, as its driver was held", async () => {
+        const ada = await signIn("Ada");
+        await ada.source.driver.hold();
+        await ada.source.start({name: "Alone", seed: SEED, level: 0});
+        const before = ada.messages.length;
+
+        ada.environment.drop();
+        await waitFor(() => ada.messages.slice(before).some(({type}) => type === "map"), "Ada to join the city again");
+        // A second on the city's clock: the first turn only starts it
+        await ada.source.turn(1000);
+        await ada.source.turn(1000);
+
+        expect(await ada.source.driver.cityTime()).toBe(0);
         expect(ada.lost).toEqual([]);
     });
 });

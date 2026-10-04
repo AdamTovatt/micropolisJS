@@ -41,8 +41,8 @@ namespace Micropolis.Server
             app.Map(Path, ConnectAsync).RequireAuthorization();
         }
 
-        private static async Task ConnectAsync(HttpContext context, PlayerPresence presence, CityRegistry registry, TimeProvider time,
-            IHostApplicationLifetime lifetime, ILogger<CitySession> logger)
+        private static async Task ConnectAsync(HttpContext context, PlayerPresence presence, CityRegistry registry, CityLimits limits,
+            TimeProvider time, IHostApplicationLifetime lifetime, ILogger<CitySession> logger)
         {
             if (!context.WebSockets.IsWebSocketRequest)
             {
@@ -72,7 +72,8 @@ namespace Micropolis.Server
             using CancellationTokenRegistration stopping = lifetime.ApplicationStopping.Register(
                 () => connection.Close(WebSocketCloseStatus.EndpointUnavailable, "server stopping"));
 
-            CitySession session = new CitySession(connection, registry, logger);
+            // The address as the server resolves it from any trusted proxy, as the sign-in rate limit takes it
+            CitySession session = new CitySession(connection, registry, limits, context.Connection.RemoteIpAddress?.ToString() ?? "", logger);
             presence.Connect(connection);
             Task sending = SendAsync();
 

@@ -11,7 +11,7 @@
  *
  */
 
-using System.Text.Json;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Nodes;
 using Micropolis.Rules;
 
@@ -57,11 +57,13 @@ namespace Micropolis.Server
             Simulation = city;
             Recorder = new CommandRecorder(city, logStart);
             Queue = new CommandQueue(city, Recorder);
-            _tiles = city.Map.RawValues();
+            MarkSent();
 
             EventEmitter events = city.Events;
-            events.AddEventListener(Messages.FRONT_END_MESSAGE, payload => _events.Add(News(payload)));
-            events.AddEventListener(Messages.COMMAND_RESULT, payload => _events.Add(new CommandResultMessage(CommandResult(payload))));
+            // The rules write each of these payloads with the fields of the message or record the client is sent, as
+            // newsMessage in src/cityHost.ts reads the news
+            events.AddEventListener(Messages.FRONT_END_MESSAGE, payload => _events.Add(ProtocolJson.FromNode<NewsMessage>(payload!)));
+            events.AddEventListener(Messages.COMMAND_RESULT, payload => _events.Add(new CommandResultMessage(CommandResult.FromPayload(payload!))));
             events.AddEventListener(Messages.BUDGET_REVIEW_DUE, _ =>
             {
                 BudgetReviewsDue++;
@@ -76,9 +78,8 @@ namespace Micropolis.Server
                     _events.Add(new OverlayUpdatedMessage(layer));
                 }
             });
-            events.AddEventListener(Messages.CITY_STATUS_UPDATED, payload => _status = _lastStatus = Status(payload!.AsObject()));
-            events.AddEventListener(Messages.VALVES_UPDATED, payload => _demand = _lastDemand = new DemandMessage(
-                WholeNumber(payload!["residential"]), WholeNumber(payload["commercial"]), WholeNumber(payload["industrial"])));
+            events.AddEventListener(Messages.CITY_STATUS_UPDATED, payload => _status = _lastStatus = ProtocolJson.FromNode<StatusRecord>(payload!));
+            events.AddEventListener(Messages.VALVES_UPDATED, payload => _demand = _lastDemand = ProtocolJson.FromNode<DemandMessage>(payload!));
         }
 
         public string Name { get; }
@@ -94,10 +95,10 @@ namespace Micropolis.Server
         /// </summary>
         public int BudgetReviewsDue { get; private set; }
 
-        /// <summary>
-        /// Takes the city as it stands as sent, so the first messages are what changes from here.
-        /// </summary>
-        public void MarkSent()
+        // Takes the city as it stands as sent, as it is loaded, so the first messages are what changes from here: a
+        // player who joins is sent the whole city
+        [MemberNotNull(nameof(_tiles))]
+        private void MarkSent()
         {
             _tiles = Simulation.Map.RawValues();
 
@@ -208,68 +209,6 @@ namespace Micropolis.Server
         {
             (int width, int xOffset, int yOffset) = SpriteGeometry[sprite.Type];
             return new SpriteView((int)sprite.Type, sprite.Frame, sprite.X + xOffset, sprite.Y + yOffset, width);
-        }
-
-        // The news as the client reads it, as newsMessage in src/cityHost.ts: a sprite to follow is named by its type,
-        // of which the map holds at most one
-        private static NewsMessage News(JsonNode? payload)
-        {
-            string subject = (string)payload!["subject"]!;
-
-            if (payload["data"] is not JsonObject data)
-            {
-                return new NewsMessage(subject, null);
-            }
-
-            long x = WholeNumber(data["x"]);
-            long y = WholeNumber(data["y"]);
-
-            if (IsTrue(data["trackable"]))
-            {
-                return new NewsMessage(subject, new NewsPlace(x, y, null, true, (int)WholeNumber(data["sprite"])));
-            }
-
-            if (IsTrue(data["showable"]))
-            {
-                return new NewsMessage(subject, new NewsPlace(x, y, true, null, null));
-            }
-
-            return new NewsMessage(subject, new NewsPlace(x, y, null, null, null));
-        }
-
-        // A number an event carries, whatever type the rules built it from: a JsonValue converts only to the type it
-        // holds, and the rules write a place's x as an int in one event and a long in another
-        private static long WholeNumber(JsonNode? value)
-        {
-            return value is JsonValue number && number.GetValueKind() == JsonValueKind.Number
-                ? number.Deserialize<long>()
-                : throw new InvalidOperationException($"An event carries a whole number here, not {value?.ToJsonString() ?? "nothing"}.");
-        }
-
-        private static bool IsTrue(JsonNode? value)
-        {
-            return value is JsonValue flag && flag.GetValueKind() == JsonValueKind.True;
-        }
-
-        private static CommandResult CommandResult(JsonNode? payload)
-        {
-            JsonObject result = payload!.AsObject();
-            Outcome outcome = ProtocolJson.TryParseName((string)result["outcome"]!, out Outcome named)
-                ? named
-                : throw new InvalidOperationException($"A command result's outcome is one of the protocol's, not {result["outcome"]}.");
-
-            return new CommandResult((string)result["player"]!, result["command"]?.DeepClone(), outcome, (string?)result["reason"]);
-        }
-
-        private static StatusRecord Status(JsonObject status)
-        {
-            return new StatusRecord(
-                WholeNumber(status["powerCapacity"]),
-                WholeNumber(status["powerLoad"]),
-                (bool)status["residentialCapped"]!,
-                (bool)status["commercialCapped"]!,
-                (bool)status["industrialCapped"]!,
-                status["conditions"]!.AsArray().Select(condition => (string)condition!).ToList());
         }
     }
 }

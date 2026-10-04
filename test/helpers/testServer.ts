@@ -24,14 +24,22 @@ import { repositoryPath } from "./repository";
 // `dotnet build server/Micropolis.slnx` makes, which CI's server job has.
 
 // The environment variable that runs the tests against the server. Only CI's server job, which has .NET, sets it; the
-// tests that need the server are skipped without it.
+// tests that need the server are skipped without it. Any value but 1 is refused, so a mistyped one doesn't skip them
+// while the job passes.
 const SERVER_TESTS = "MICROPOLIS_SERVER_TESTS";
 
 export function serverTestsEnabled(): boolean {
-    return process.env[SERVER_TESTS] === "1";
+    const value = process.env[SERVER_TESTS];
+
+    if (value !== undefined && value !== "1") {
+        throw new Error(`${SERVER_TESTS} runs the tests against the server when it is 1, and is unset otherwise, not "${value}"`);
+    }
+
+    return value === "1";
 }
 
-const SERVER_BUILD = repositoryPath("server/Micropolis.Server/bin/Debug/net10.0/Micropolis.Server.dll");
+// The server's Debug build, under the repository's root
+const SERVER_BUILD = "server/Micropolis.Server/bin/Debug/net10.0/Micropolis.Server.dll";
 
 // How long the server has to listen, within the time a suite gives its hook to start it, so the server's own output
 // says why it didn't, rather than Jest's timeout
@@ -50,10 +58,11 @@ export interface TestServer {
 }
 
 // Starts the server and resolves once it listens. What the server writes is kept, and shown if it exits before it is
-// stopped.
-export function startTestServer(): Promise<TestServer> {
-    if (!existsSync(SERVER_BUILD)) {
-        throw new Error(`No server build at ${SERVER_BUILD}: run dotnet build server/Micropolis.slnx first`);
+// stopped. The end-to-end suite, whose modules have no __dirname, names the repository's root.
+export function startTestServer(repositoryRoot = repositoryPath(".")): Promise<TestServer> {
+    const build = join(repositoryRoot, SERVER_BUILD);
+    if (!existsSync(build)) {
+        throw new Error(`No server build at ${build}: run dotnet build server/Micropolis.slnx first`);
     }
 
     const store = mkdtempSync(join(tmpdir(), "micropolis-cities-"));
@@ -69,7 +78,7 @@ export function startTestServer(): Promise<TestServer> {
         CITY_CLOCK: "manual",
     });
 
-    const server: ChildProcess = spawn("dotnet", [SERVER_BUILD], {cwd: dirname(SERVER_BUILD), env, stdio: ["ignore", "pipe", "pipe"]});
+    const server: ChildProcess = spawn("dotnet", [build], {cwd: dirname(build), env, stdio: ["ignore", "pipe", "pipe"]});
     let output = "";
     let stopping = false;
     const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));

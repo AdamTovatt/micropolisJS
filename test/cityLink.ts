@@ -12,7 +12,7 @@
  */
 
 import type { StartedCity } from "../src/citySource";
-import { joinLinkedCity, leaveLostCity, linkToCity, PageWindow } from "../src/cityLink";
+import { joinLinkedCity, leaveLostCity, linkedCity, linkToCity, PageWindow } from "../src/cityLink";
 
 const CITY = "0123456789abcdef0123456789abcdef";
 
@@ -65,6 +65,7 @@ describe("a city's link", () => {
         expect(page.alerts).toEqual(["The city in this link is on the server, which isn't answering, so the game plays " +
                                      "in the browser: choose a city to start."]);
         expect(play).not.toHaveBeenCalled();
+        expect(page.replaced).toEqual([{data: {entry: 1}, url: "http://localhost:44903/"}]);
     });
 
     it("says why the server refused the join, in its words, and plays nothing", async () => {
@@ -77,6 +78,27 @@ describe("a city's link", () => {
         expect(result).toBe(false);
         expect(page.alerts).toEqual(["The city in this link can't be joined: No city has the id"]);
         expect(play).not.toHaveBeenCalled();
+        expect(page.replaced).toEqual([{data: {entry: 1}, url: "http://localhost:44903/"}]);
+    });
+
+    it("is read from the page's address", () => {
+        const page = new FakePage(`http://localhost:44903/?debug=1&city=${CITY}`);
+
+        expect(linkedCity(page)).toBe(CITY);
+        expect(page.alerts).toEqual([]);
+        expect(page.replaced).toEqual([]);
+    });
+
+    it("is none when the address names no city", () => {
+        expect(linkedCity(new FakePage("http://localhost:44903/?debug=1"))).toBeNull();
+    });
+
+    it("that isn't a city's id is said out loud and taken out of the address", () => {
+        const page = new FakePage("http://localhost:44903/?debug=1&city=nope");
+
+        expect(linkedCity(page)).toBeNull();
+        expect(page.alerts).toEqual(["?city must be a city's id, 32 hexadecimal digits, got \"nope\""]);
+        expect(page.replaced).toEqual([{data: {entry: 1}, url: "http://localhost:44903/?debug=1"}]);
     });
 
     it("is put in the page's address in place of its history entry, keeping the entry's state", () => {

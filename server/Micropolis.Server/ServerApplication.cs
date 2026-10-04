@@ -90,8 +90,9 @@ namespace Micropolis.Server
             builder.Services.TryAddSingleton(TimeProvider.System);
             builder.Services.AddSingleton<PlayerPresence>();
             builder.Services.AddSingleton(new CityStore(cityStore));
-            builder.Services.AddSingleton(services => new CityClock(services.GetRequiredService<TimeProvider>(), manualClock));
+            builder.Services.AddSingleton(services => new ServerClock(services.GetRequiredService<TimeProvider>(), manualClock));
             builder.Services.AddSingleton<CityRegistry>();
+            builder.Services.AddSingleton<CityLimits>();
             builder.Services.AddHostedService(services => services.GetRequiredService<CityRegistry>());
 
             WebApplication app = builder.Build();

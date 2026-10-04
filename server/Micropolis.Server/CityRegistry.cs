@@ -25,15 +25,16 @@ namespace Micropolis.Server
     internal sealed class CityRegistry : IHostedService
     {
         private readonly CityStore _store;
-        private readonly CityClock _clock;
+        private readonly ServerClock _clock;
         private readonly ILogger<CityRegistry> _logger;
         private readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
         // The cities loaded, by id, each with how many connections are in it or entering it
         private readonly Dictionary<string, Loaded> _loaded = new Dictionary<string, Loaded>(StringComparer.Ordinal);
-        // The cities saving as they unload, by id, each finishing once its save is kept or has failed
-        private readonly Dictionary<string, Task> _unloading = new Dictionary<string, Task>(StringComparer.Ordinal);
+        // The cities loading from the store or saving to it as they unload, by id, each finishing once that is done or
+        // has failed. A player entering one waits for it, then looks again.
+        private readonly Dictionary<string, Task> _moving = new Dictionary<string, Task>(StringComparer.Ordinal);
 
-        public CityRegistry(CityStore store, CityClock clock, ILogger<CityRegistry> logger)
+        public CityRegistry(CityStore store, ServerClock clock, ILogger<CityRegistry> logger)
         {
             _store = store;
             _clock = clock;
@@ -48,11 +49,12 @@ namespace Micropolis.Server
         {
             string id = CityId.New();
             await _store.WriteAsync(id, SavedGame.Write(start.Name, start.City));
+            LoadedCity city = new LoadedCity(id, start, _clock, Failed);
 
             await _lock.WaitAsync();
             try
             {
-                return Enter(Load(id, start));
+                return Enter(Add(city));
             }
             finally
             {
@@ -70,20 +72,20 @@ namespace Micropolis.Server
         {
             while (true)
             {
-                Task? unloading;
+                Task? moving;
+                TaskCompletionSource loading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
                 await _lock.WaitAsync();
                 try
                 {
-                    if (!_unloading.TryGetValue(id, out unloading))
+                    if (!_moving.TryGetValue(id, out moving))
                     {
                         if (_loaded.TryGetValue(id, out Loaded? loaded))
                         {
                             return Enter(loaded);
                         }
 
-                        string? savedGame = await _store.ReadAsync(id);
-                        return savedGame is null ? null : Enter(Load(id, StartingCity.FromSave(savedGame)));
+                        _moving[id] = loading.Task;
                     }
                 }
                 finally
@@ -91,8 +93,14 @@ namespace Micropolis.Server
                     _lock.Release();
                 }
 
-                // The city's last player has just left: once its save is kept, it loads from there
-                await unloading;
+                if (moving is null)
+                {
+                    return await LoadAsync(id, loading);
+                }
+
+                // The city is loading for another player, or its last player has just left: once it has loaded, or its
+                // save is kept, the next look finds it
+                await moving;
             }
         }
 
@@ -122,26 +130,21 @@ namespace Micropolis.Server
                 }
 
                 _loaded.Remove(city.Id);
-                _unloading[city.Id] = unloaded.Task;
+                _moving[city.Id] = unloaded.Task;
             }
             finally
             {
                 _lock.Release();
             }
 
-            await UnloadAsync(city);
-
-            await _lock.WaitAsync();
             try
             {
-                _unloading.Remove(city.Id);
+                await UnloadAsync(city);
             }
             finally
             {
-                _lock.Release();
+                await DoneMovingAsync(city.Id, unloaded);
             }
-
-            unloaded.SetResult();
         }
 
         // Nothing loads before a player enters a city
@@ -153,18 +156,19 @@ namespace Micropolis.Server
         /// <summary>
         /// Saves and unloads every city still loaded as the server stops, and waits for those already saving. The
         /// connections close before the server's services stop, so this finds a city loaded only where a player's
-        /// leaving didn't unload it.
+        /// leaving didn't unload it. It saves every city however long that takes, past the host's shutdown timeout,
+        /// which would otherwise stop it before a city it hadn't saved yet.
         /// </summary>
         async Task IHostedService.StopAsync(CancellationToken cancellationToken)
         {
             List<LoadedCity> loaded;
-            List<Task> unloading;
+            List<Task> moving;
 
-            await _lock.WaitAsync(cancellationToken);
+            await _lock.WaitAsync();
             try
             {
                 loaded = _loaded.Values.Select(entry => entry.City).ToList();
-                unloading = _unloading.Values.ToList();
+                moving = _moving.Values.ToList();
                 _loaded.Clear();
             }
             finally
@@ -177,13 +181,53 @@ namespace Micropolis.Server
                 await UnloadAsync(city);
             }
 
-            await Task.WhenAll(unloading);
+            await Task.WhenAll(moving);
         }
 
-        private Loaded Load(string id, StartingCity start)
+        // Reads the city from the store and loads it, outside the lock, so no other city waits on it. Those entering it
+        // meanwhile wait on loading.
+        private async Task<LoadedCity?> LoadAsync(string id, TaskCompletionSource loading)
         {
-            Loaded loaded = new Loaded(new LoadedCity(id, start, _clock, Failed));
-            _loaded[id] = loaded;
+            try
+            {
+                string? savedGame = await _store.ReadAsync(id);
+                LoadedCity? city = savedGame is null ? null : new LoadedCity(id, StartingCity.FromSave(savedGame), _clock, Failed);
+
+                await _lock.WaitAsync();
+                try
+                {
+                    return city is null ? null : Enter(Add(city));
+                }
+                finally
+                {
+                    _lock.Release();
+                }
+            }
+            finally
+            {
+                await DoneMovingAsync(id, loading);
+            }
+        }
+
+        private async Task DoneMovingAsync(string id, TaskCompletionSource moved)
+        {
+            await _lock.WaitAsync();
+            try
+            {
+                _moving.Remove(id);
+            }
+            finally
+            {
+                _lock.Release();
+            }
+
+            moved.SetResult();
+        }
+
+        private Loaded Add(LoadedCity city)
+        {
+            Loaded loaded = new Loaded(city);
+            _loaded[city.Id] = loaded;
             return loaded;
         }
 

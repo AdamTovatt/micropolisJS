@@ -14,6 +14,7 @@
 using System.Net.WebSockets;
 using System.Text.Json.Nodes;
 using Micropolis.Rules;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Micropolis.Server.Tests
 {
@@ -30,6 +31,9 @@ namespace Micropolis.Server.Tests
         // Clear land on seed 2026's map, where a road is built
         private const int ClearX = 30;
         private const int ClearY = 30;
+
+        // What a request fails with when the store can't be reached
+        private const string StoreFailed = "The server couldn't reach the store it keeps its cities in";
 
         // A tornado's sprite type, as src/spriteConstants.ts numbers it
         private const int Tornado = (int)SpriteType.Tornado;
@@ -57,7 +61,7 @@ namespace Micropolis.Server.Tests
 
             string city = await ada.StartAsync();
 
-            Assert.AreEqual(await ada.SaveAsync(), await File.ReadAllTextAsync(Path.Combine(server.Store, city + ".json")));
+            Assert.AreEqual(await ada.SaveAsync(), await File.ReadAllTextAsync(server.StoredPathOf(city)));
         }
 
         [TestMethod]
@@ -73,6 +77,19 @@ namespace Micropolis.Server.Tests
                 () => ada.RequestAsync(id => new StartRequest(id, name, 2026, 0)));
 
             Assert.AreEqual(reason, failed.Message);
+        }
+
+        // A lone surrogate travels escaped, as JSON.stringify writes one, and the socket's reader keeps it as JSON.parse does
+        [TestMethod]
+        public async Task Start_NameWithALoneSurrogate_FailsSayingWhy()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+
+            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.RequestTextAsync(
+                id => $"{{\"type\":\"start\",\"id\":{id},\"name\":\"Town\\ud800\",\"seed\":2026,\"level\":0}}"));
+
+            Assert.AreEqual("A city's name cannot contain control or invisible formatting characters.", failed.Message);
         }
 
         [TestMethod]
@@ -148,12 +165,16 @@ namespace Micropolis.Server.Tests
             string second = await grace.StartAsync("Second");
 
             await ada.JoinAsync(second);
+            int batches = ada.Batches.Count;
             await grace.JoinAsync(first);
             await grace.SendAsync(Road(ClearX, ClearY));
             await grace.RequestAsync(id => new FlushRequest(id));
+            // Answered after anything the first city sent Ada while Grace's command applied there, which comes first on
+            // Ada's connection; the second city, on a clock only the debug channel moves, sends nothing
+            await ada.CityTimeAsync();
 
             Assert.AreEqual("ok", (string)grace.CommandResults.Single()["outcome"]!);
-            await ada.Socket.ExpectNothingAsync();
+            Assert.AreEqual(batches, ada.Batches.Count);
         }
 
         [TestMethod]
@@ -164,7 +185,7 @@ namespace Micropolis.Server.Tests
             await ada.StartAsync();
             string before = await ada.SaveAsync();
             string broken = CityId.New();
-            await File.WriteAllTextAsync(Path.Combine(server.Store, broken + ".json"), "not a save");
+            await File.WriteAllTextAsync(server.StoredPathOf(broken), "not a save");
 
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.JoinAsync(broken));
 
@@ -295,13 +316,12 @@ namespace Micropolis.Server.Tests
             {
                 city = await ada.StartAsync();
                 await ada.SendAsync(Road(ClearX, ClearY));
-                await ada.RequestAsync(id => new TurnRequest(id, 1000));
-                await ada.RequestAsync(id => new TurnRequest(id, 1000));
+                await PlaySecondAsync(ada);
                 saved = await ada.SaveAsync();
                 await ada.Socket.CloseAsync();
             }
 
-            await WaitForStoreAsync(server.Store, city, saved);
+            await WaitForStoreAsync(server.StoredPathOf(city), saved);
             await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
             await grace.JoinAsync(city);
 
@@ -326,8 +346,7 @@ namespace Micropolis.Server.Tests
                 {
                     await using TestPlayer ada = await TestPlayer.ConnectAsync(first, "Ada");
                     city = await ada.StartAsync();
-                    await ada.RequestAsync(id => new TurnRequest(id, 1000));
-                    await ada.RequestAsync(id => new TurnRequest(id, 1000));
+                    await PlaySecondAsync(ada);
                     saved = await ada.SaveAsync();
                 }
 
@@ -361,6 +380,111 @@ namespace Micropolis.Server.Tests
 
             Assert.AreEqual(2, await ada.CityTimeAsync());
             Assert.AreEqual(1, ada.Batches.Count - before);
+        }
+
+        [TestMethod]
+        public async Task StartAndUpload_StoreThatCantKeepTheCity_FailSayingSoAndKeepTheCity()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync();
+            string before = await ada.SaveAsync();
+            // A file where the store's directory was, which no city can be written into
+            ServerUnderTest.DeleteStore(server.Store);
+            await File.WriteAllTextAsync(server.Store, "");
+
+            RequestFailedException started = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.StartAsync());
+            RequestFailedException uploaded = await Assert.ThrowsExactlyAsync<RequestFailedException>(
+                () => ada.RequestAsync(id => new UploadRequest(id, before)));
+
+            Assert.AreEqual(StoreFailed, started.Message);
+            Assert.AreEqual(StoreFailed, uploaded.Message);
+            Assert.AreEqual(before, await ada.SaveAsync());
+        }
+
+        [TestMethod]
+        public async Task Join_StoredCityTheStoreCantRead_FailsSayingSo()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            string city;
+            string saved;
+
+            await using (TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada"))
+            {
+                city = await ada.StartAsync();
+                // Changed from its start, so the store holds the save of its leaving once that is kept
+                await PlaySecondAsync(ada);
+                saved = await ada.SaveAsync();
+                await ada.Socket.CloseAsync();
+            }
+
+            await WaitForStoreAsync(server.StoredPathOf(city), saved);
+
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.Inconclusive("The test makes the file unreadable by its Unix mode.");
+                return;
+            }
+
+            File.SetUnixFileMode(server.StoredPathOf(city), UnixFileMode.None);
+            await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
+
+            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => grace.JoinAsync(city));
+
+            Assert.AreEqual(StoreFailed, failed.Message);
+        }
+
+        // A city whose work fails stops before the registry hears of it, so a join may find it listed but stopped
+        [TestMethod]
+        public async Task Join_CityThatStoppedAsItIsJoined_FailsAndLeavesTheConnectionInNoCity()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
+            await ada.StartAsync();
+            string city = await grace.StartAsync("Stopping");
+            // Counted in, so the registry keeps it listed while it stops
+            LoadedCity stopping = (await server.App.Services.GetRequiredService<CityRegistry>().EnterAsync(city))!;
+            await stopping.StopAsync();
+
+            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.JoinAsync(city));
+            RequestFailedException inNoCity = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.SaveAsync());
+
+            Assert.AreEqual("The city failed", failed.Message);
+            Assert.AreEqual("No city has started", inNoCity.Message);
+        }
+
+        [TestMethod]
+        public async Task Start_MoreCitiesThanAnAddressMay_FailsSayingSo()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+
+            for (int i = 0; i < CityLimits.CitiesPerWindow; i++)
+            {
+                await ada.StartAsync();
+            }
+
+            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.StartAsync());
+
+            Assert.AreEqual("Too many cities were started from here. Try again in a few minutes.", failed.Message);
+        }
+
+        [TestMethod]
+        public async Task Send_CommandsFasterThanAPlayerSendsThem_ClosesTheConnection()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync();
+            // No command, but as long as one may be: three are past what one client address may send at once
+            JsonObject padded = new JsonObject { ["type"] = "padded", ["pad"] = new string('a', CityLimits.CommandBurstCharacters * 2 / 5) };
+
+            for (int i = 0; i < 3; i++)
+            {
+                await ada.SendAsync(padded);
+            }
+
+            Assert.AreEqual(WebSocketCloseStatus.PolicyViolation, await ada.Socket.ReceiveCloseAsync());
         }
 
         [TestMethod]
@@ -484,8 +608,12 @@ namespace Micropolis.Server.Tests
             // A binary message closes the connection, which then reads nothing more of what the client sends
             await ada.Socket.SendBinaryAsync([1]);
             await ada.SendAsync(Road(ClearX, ClearY));
-            await ada.Socket.ReceiveCloseAsync(answer: false);
+            await ada.Socket.ReceiveCloseAsync();
+            // Ada goes offline once the server has stopped reading her connection: anything it read went to the city
+            PlayersMessage left = await grace.Socket.ReceiveAsync<PlayersMessage>();
             await grace.RequestAsync(id => new FlushRequest(id));
+
+            CollectionAssert.DoesNotContain(left.Players.Select(player => player.Name).ToList(), "Ada");
 
             Assert.AreEqual(0, grace.CommandResults.Count());
         }
@@ -526,8 +654,7 @@ namespace Micropolis.Server.Tests
 
             await ada.RequestAsync(id => new HoldRequest(id));
             await ada.StartAsync();
-            await ada.RequestAsync(id => new TurnRequest(id, 1000));
-            await ada.RequestAsync(id => new TurnRequest(id, 1000));
+            await PlaySecondAsync(ada);
 
             Assert.AreEqual(0, await ada.CityTimeAsync());
         }
@@ -574,6 +701,7 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        [TestCategory(ReleaseBuild.Category)]
         public async Task Debug_ReleaseBuild_FailsSayingSo()
         {
             if (DebugChannel.IsBuiltIn)
@@ -587,6 +715,14 @@ namespace Micropolis.Server.Tests
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.RequestAsync(id => new HoldRequest(id)));
 
             Assert.AreEqual("This server has no debug channel", failed.Message);
+        }
+
+        // A second of play on the server's manual clock. The first turn only starts the city's step driver, which owes
+        // nothing until it has a time to count from; the second takes a second's steps.
+        private static async Task PlaySecondAsync(TestPlayer player)
+        {
+            await player.RequestAsync(id => new TurnRequest(id, 1000));
+            await player.RequestAsync(id => new TurnRequest(id, 1000));
         }
 
         private static string Sprites(JsonObject message)
@@ -625,9 +761,8 @@ namespace Micropolis.Server.Tests
         }
 
         // The city's file in the store once it holds the save, which the server writes as the last player leaves
-        private static async Task WaitForStoreAsync(string store, string city, string saved)
+        private static async Task WaitForStoreAsync(string path, string saved)
         {
-            string path = Path.Combine(store, city + ".json");
             DateTime giveUp = DateTime.UtcNow + ServerWorkTimeout;
 
             while (!File.Exists(path) || await File.ReadAllTextAsync(path) != saved)

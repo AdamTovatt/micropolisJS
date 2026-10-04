@@ -11,11 +11,14 @@
  *
  */
 
-namespace Micropolis.Server
+namespace Micropolis.Server.Tests
 {
     /// <summary>
-    /// What the server's cities run on: the server's clock, or, in a build with the debug channel, a clock only the
-    /// debug channel moves, for tests that need each turn to come when they say.
+    /// The tests only a Release build of the server can pass, which a Debug build finds inconclusive: CI runs them in a
+    /// Release build of their own (<c>.github/workflows/ci.yml</c>).
     /// </summary>
-    internal sealed record CityClock(TimeProvider Time, bool Manual);
+    internal static class ReleaseBuild
+    {
+        public const string Category = "ReleaseBuild";
+    }
 }

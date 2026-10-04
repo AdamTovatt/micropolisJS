@@ -21,6 +21,7 @@ import { DebugAction, DebugWindow } from "./debugWindow";
 import { DisasterWindow } from "./disasterWindow";
 import { isShown, requiredElement, toggleShown } from "./domElements";
 import { ToolPaths } from "./dragPath";
+import { errorMessage } from "./errorMessage";
 import { EvaluationWindow } from "./evaluationWindow";
 import { GameCanvas, MouseOutline, PaintableSprite, spritesInView } from "./gameCanvas";
 import { InfoBar, placeInfoBar } from "./infoBar";
@@ -368,9 +369,10 @@ export class Game {
   }
 
   // Saves the session's command log as a file, for the headless runner to replay: `npm run simulate -- --log <file>`.
-  // Where the source can't work out state hashes, the log has no checkpoints, and the player is told.
+  // Where the source can't work out state hashes, the log has no checkpoints, and the player is told. A log the source
+  // can't give is said out loud, as a save is.
   private downloadLog(): void {
-    void this.source.commandLog().then((recorded) => {
+    this.source.commandLog().then((recorded) => {
       const url = URL.createObjectURL(new Blob([JSON.stringify(recorded.log)], {type: "application/json"}));
       const link = document.createElement("a");
       link.href = url;
@@ -385,7 +387,7 @@ export class Game {
         console.error(`The command log has no checkpoints: ${recorded.unhashed}`);
         this.notificationBar.show({subject: Messages.LOG_UNCHECKED});
       }
-    });
+    }, (error: unknown) => window.alert(`The command log couldn't be downloaded: ${errorMessage(error)}`));
   }
 
   private handleScreenshotWindowClosure(area: ScreenshotArea | null): void {
@@ -459,12 +461,13 @@ export class Game {
     this.inputStatus.showToolOutput(toolOutputText(outcome));
   }
 
-  // The window opens once the save is written
+  // The window opens once the save is written. A save the source can't give, such as one on a server the connection
+  // to is down, is said out loud.
   private handleSave(): void {
-    void this.save().then((text) => {
+    this.save().then((text) => {
       Storage.saveText(text);
       this.windows.open(this.saveWindow);
-    });
+    }, (error: unknown) => window.alert(`The city couldn't be saved: ${errorMessage(error)}`));
   }
 
   private handleInput(): void {

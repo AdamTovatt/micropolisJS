@@ -141,7 +141,9 @@ namespace Micropolis.Rules
         // its requests up to
         private const long MaxId = 9007199254740991;
 
-        // Each message's fields but its type, all required
+        // Each message's fields but its type, all required. A type listed among ClientMessage's derived types but not
+        // here, or not in Read's switch, fails ProtocolTests: every derived type has an example, and each example is
+        // read through these fields and that switch.
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> MessageFields =
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.Ordinal)
             {

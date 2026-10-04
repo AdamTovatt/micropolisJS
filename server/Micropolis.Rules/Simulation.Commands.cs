@@ -40,6 +40,20 @@ namespace Micropolis.Rules
         {
             return ProtocolJson.ToNode(this)!.AsObject();
         }
+
+        /// <summary>
+        /// The result a <see cref="ToPayload"/> payload carries. The command is copied as the node it is, not read
+        /// through the serializer, which would replace a lone surrogate a player sent.
+        /// </summary>
+        public static CommandResult FromPayload(JsonNode payload)
+        {
+            JsonObject result = payload.AsObject();
+            Outcome outcome = ProtocolJson.TryParseName((string)result["outcome"]!, out Outcome named)
+                ? named
+                : throw new InvalidOperationException($"A command result's outcome is one of the protocol's, not {result["outcome"]}.");
+
+            return new CommandResult((string)result["player"]!, result["command"]?.DeepClone(), outcome, (string?)result["reason"]);
+        }
     }
 
     public sealed partial class Simulation

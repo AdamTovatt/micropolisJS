@@ -37,8 +37,7 @@ function seedOption(query: string): number | null {
   return Number(value);
 }
 
-// ?city=<id> joins the city on the server with that id, which a city started on the server puts in the page's address,
-// so a link to the page invites another player into the city, and loading the page again rejoins it
+// ?city=<id> names a city on the server, which cityLink.ts follows
 
 // The id a city on the server has, as the server writes one: 32 lower-case hexadecimal digits
 const CITY_ID = /^[0-9a-f]{32}$/;
@@ -72,4 +71,4 @@ function withoutCityOption(url: string): string {
   return withoutCity.toString();
 }
 
-export { cityOption, debugOption, seedOption, withCityOption, withoutCityOption };
+export { CITY_ID, cityOption, debugOption, seedOption, withCityOption, withoutCityOption };

@@ -164,13 +164,15 @@ What the simulation answers to queries, and the records it produces, over the fi
 the queries, and the generator asks them. `categories` is what the query tool calls each tile value, from 0. Each of
 `records` has a `city`, the name of a save of `saves/` (`<fixture>.<point>`) or `{"seed", "level"}` for a new city on
 that seed's map at that level; `commands`, applied to the city in order before its records are taken, as they would
-arrive from a player; and the `evaluation`, `budget` and `settings` records the city then produces. The new cities
-reach what the fixtures never do: the hardest level, disasters on, the budget set by hand and the game paused. Each
-of `answers` holds a `query` and its `answer`, about the city of the `save` it names, or asked before any city has
-started where `save` is null: in each save, a tile report at the city's centre and at the first tile of each category
-no save before it reported, and budget forecasts with no service, every service and one service named; each overlay
-layer from the first save where it holds a value other than 0; and queries the simulation rejects, on the first save
-and before any city has started. The queries reach every reason the simulation rejects one for, and
+arrive from a player; and the `evaluation`, `budget` and `settings` records the city then produces. The new city
+reaches what the fixtures never do: the hardest level, disasters on, auto-budget off and the game paused. Each of
+`answers` holds a `query` and its `answer`, about the city of the `save` it names, with its funds replaced by `funds`
+where an answer has one, or asked before any city has started where `save` is null: in each save, a tile report at
+the city's centre and at the first tile of each category no save before it reported, and budget forecasts with no
+service, every service and one service named; the same forecasts on the first save whose year end has no cash for its
+services, with half of what they cost and exactly what they cost, so the funds pay some services and scale one back;
+each overlay layer from the first save where it holds a value other than 0; and queries the simulation rejects, on
+the first save and before any city has started. The queries reach every reason the simulation rejects one for, and
 the generator fails unless they do. The C# must give the same records and answers, each rejection's reason word for
 word. A map preview's answer is the map the seed generates, which the C# checks against `maps.json`.
 

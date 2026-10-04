@@ -13,32 +13,32 @@
 
 import { browserCityEnvironment } from "./browserCityEnvironment";
 import { CityClient } from "./cityClient";
-import { joinLinkedCity, leaveLostCity } from "./cityLink";
+import { joinLinkedCity, leaveLostCity, linkedCity } from "./cityLink";
 import type { CitySource } from "./citySource";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { requiredElement } from "./domElements";
+import { errorMessage } from "./errorMessage";
 import { Game } from "./game";
 import { showOnlineList } from "./onlineList";
 import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
 import { attachDriverToTestHook, installTestHook } from "./testHook";
 import { TileSet } from "./tileSet";
-import { cityOption, debugOption, seedOption } from "./urlOptions";
+import { debugOption, seedOption } from "./urlOptions";
 import { WebSocketCitySource } from "./webSocketCitySource";
 import { WorkerCitySource } from "./workerCitySource";
 
 // The page's entry point: it loads the tile set, waits for the sprites, signs in where a server answers, and joins the
 // city the page was opened with, or shows the splash screen
 
-// An option the page was opened with, or null for none. One the player can't have meant is refused out loud, and the
-// page goes on as if it had none: a seed that isn't one picks the map at random, and a city's id that isn't one has the
-// player choose a city.
-function pageOption<T>(read: (query: string) => T | null): T | null {
+// The game seed the page was opened with, or null for none. One that isn't a seed is refused out loud, and the map is
+// picked at random.
+function pageSeed(): number | null {
   try {
-    return read(window.location.search);
+    return seedOption(window.location.search);
   } catch (e) {
-    alert(e instanceof Error ? e.message : String(e));
+    alert(errorMessage(e));
     return null;
   }
 }
@@ -118,4 +118,4 @@ async function start(seed: number | null, city: string | null): Promise<void> {
 
 ClientConfig.debug = debugOption(window.location.search);
 
-void start(pageOption(seedOption), pageOption(cityOption));
+void start(pageSeed(), linkedCity(window));

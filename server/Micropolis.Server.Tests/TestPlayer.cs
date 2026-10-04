@@ -79,10 +79,19 @@ namespace Micropolis.Server.Tests
         /// Makes the request, and gives its answer once it comes, keeping the state batches before it. A request that
         /// fails throws, saying why.
         /// </summary>
-        public async Task<JsonNode?> RequestAsync(Func<long, ClientMessage> request)
+        public Task<JsonNode?> RequestAsync(Func<long, ClientMessage> request)
+        {
+            return RequestTextAsync(id => ProtocolJson.Serialize(request(id)));
+        }
+
+        /// <summary>
+        /// Makes the request as the text given, such as one holding what the C# serializer can't write, as
+        /// <see cref="RequestAsync"/> does.
+        /// </summary>
+        public async Task<JsonNode?> RequestTextAsync(Func<long, string> request)
         {
             long id = _nextId++;
-            await Socket.SendAsync(request(id));
+            await Socket.SendTextAsync(request(id));
 
             while (true)
             {

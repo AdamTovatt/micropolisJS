@@ -25,7 +25,8 @@ show, and the state messages the city sends the client; the server defines those
   cannot set an `Authorization` header on a WebSocket, so the token travels in the `access_token` query parameter. A
   connection without a valid token is refused. The server closes a connection with status 1008 when its token expires,
   when the client falls 256 messages behind, or when the client sends something that is not a message a player sends,
-  or a command before it is in a city; with 1003 for a binary message, 1007 for text that isn't UTF-8 and 1009 for a
+  a command before it is in a city, a command longer or deeper than a command can be (see Commands), or commands
+  faster than one client address may send them; with 1003 for a binary message, 1007 for text that isn't UTF-8 and 1009 for a
   message longer than 4 MiB; with 1011 when the city it is in fails; and with 1001 when the server stops. It pings
   every 15 seconds, which browsers answer on their own, and drops a connection that leaves a ping unanswered for 15
   seconds.
@@ -59,12 +60,6 @@ but `command`:
   it. The city the save came from is untouched: the upload is a copy.
 - `join`, with `city`, a city's id: joins the city, which any signed-in player may. A city's id is 32 lower-case
   hexadecimal digits.
-
-A city's name is 1 to 15 characters, counted as a display name's are, and holds none of the characters a display name
-can't. A `start` whose name breaks the rule fails, and so does an `upload` of a save whose name does, a save that won't
-load, a `join` of a city that doesn't exist or whose save won't load, and any of them when the server can't reach the
-store it keeps its cities in. Each of those leaves the connection in the city it was in. A city that fails as the
-connection joins it fails the request with the connection in no city.
 - `command`, with `command`: a command (see Commands) for the city the connection is in. The server doesn't answer it:
   what came of it is a `commandResult` state message, which every player in the city receives.
 - `query`, with `query`: a query (see Queries). The answer is the query's answer. Before the connection is in a city,
@@ -78,13 +73,22 @@ connection joins it fails the request with the connection in no city.
   starts or joins after, until a `release`, so that the city steps only when `advance`d; `release` lets the city the
   connection is in step again, and leaves each it joins after as other players hold it or not; `flush` applies the
   commands sent so far; `advance`, with `steps`, applies them and takes that many steps, and is answered with
-  `{"steps", "budgetReviewDue", "error"}`, where `error` says why city time fell short of the steps taken, or is null;
+  `{"steps", "budgetReviewDue", "error"}`, where `error` says why it took fewer steps than asked, or none (the steps
+  aren't a whole number from 0, the driver isn't held, or the city isn't stepping), or why city time fell short of the
+  steps taken, and is null otherwise: an advance that goes wrong is still answered, not failed;
   `cityTime` is answered with the city's time; and on a server whose cities run on a clock only the debug channel
   moves, `turn`, with `milliseconds`, moves the city's clock on and has it take a turn of its loop if one is due, and
   fails in a city on the server's clock. Each but `advance` and `cityTime` is answered with null.
 
 `save`, `commandLog`, `flush`, `advance`, `cityTime` and `turn` fail with "No city has started" before the connection
 is in a city; `hold` and `release` then answer null and apply to the city it starts or joins next.
+
+A city's name is 1 to 15 characters, counted as a display name's are but not trimmed, and holds none of the
+characters a display name can't. A `start` whose name breaks the rule fails, and so does an `upload` of a save whose
+name does, a save that won't load, a `join` of a city that doesn't exist or whose save won't load, any of them when
+the server can't reach the store it keeps its cities in, and a `start` or an `upload` past the cities one client
+address may start in ten minutes. Each of those leaves the connection in the city it was in. A city that fails as the
+connection joins it fails the request with the connection in no city.
 
 The answer to `start`, `upload` and `join` is `{"city", "name", "seed"}`: the city's id, its name and its game seed. It
 comes after the city's whole state, sent as one `state` batch: the whole map, the sprites, the date, the population,
@@ -109,8 +113,10 @@ simulation validates each command as it receives it (`src/commands.ts`, and `Com
 with a field missing, a field the command doesn't have, or a value of the wrong kind or outside the range the game
 offers, giving the same reason on either side. Fields may come in any order, and writers put them in the protocol's
 order. A command is any JSON a player sends, read as `JSON.parse` reads it, so the C# reads one with `JsonText`, which
-takes a key or string holding a lone surrogate, and keeps the last value of a key written twice. A command nesting
-objects and lists more than 64 deep is rejected before anything else is read. `JsonText` reads text nested at most
+takes a key or string holding a lone surrogate, keeps the last value of a key written twice, and puts the keys that
+are array indices first, as `JSON.parse` does. A command nesting objects and lists more than 64 deep, or longer than
+a tool command over the whole map, is rejected before anything else is read; the server never takes one from a
+player, and closes the connection that sends one, since the game sends none. `JsonText` reads text nested at most
 1,000 deep and throws on deeper text, which `JSON.parse` reads, so the C# takes text nested deeper than that as no
 JSON at all rather than as a command to reject.
 

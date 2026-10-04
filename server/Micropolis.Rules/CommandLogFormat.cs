@@ -11,29 +11,22 @@
  *
  */
 
-using System.Security.Cryptography;
-
-namespace Micropolis.Server
+namespace Micropolis.Rules
 {
     /// <summary>
-    /// A city's id on the server, which any player joins it by and the store names its file by: 128 random bits as
-    /// lower-case hex, which no one can guess.
+    /// The command log's format, which <c>docs/command-log.md</c> specifies and <c>src/commandLog.ts</c> writes and
+    /// reads in the browser: what every C# writer and reader of a log shares.
     /// </summary>
-    internal static class CityId
+    public static class CommandLogFormat
     {
-        public const int Length = 32;
-
-        public static string New()
-        {
-            return Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(Length / 2));
-        }
+        /// <summary>
+        /// The format's version, a log's <c>formatVersion</c>.
+        /// </summary>
+        public const int Version = 1;
 
         /// <summary>
-        /// Whether the text is an id as <see cref="New"/> writes one, which is safe to name a file with and to quote.
+        /// A recorder's checkpoint every this many steps, a minute of play, as <c>CHECKPOINT_INTERVAL</c>.
         /// </summary>
-        public static bool IsOne(string text)
-        {
-            return text.Length == Length && text.All(char.IsAsciiHexDigitLower);
-        }
+        public const int CheckpointInterval = 3600;
     }
 }

@@ -36,8 +36,9 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// The text ECMAScript's <c>JSON.stringify</c> writes for a value read from JSON text, as a command log or a
-        /// message carries a command as it arrived: the canonical text, but with each object's keys in their order,
-        /// and a number JSON can't hold written as <c>null</c>. A JSON number too large for a double parses as
+        /// message carries a command as it arrived: the canonical text, but with each object's keys in the order the
+        /// object holds them, which for a value <see cref="JsonText"/> read is the order <c>JSON.parse</c> gives, and
+        /// a number JSON can't hold written as <c>null</c>. A JSON number too large for a double parses as
         /// infinite, as in JavaScript.
         /// </summary>
         internal static string Stringify(JsonNode? value)

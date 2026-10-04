@@ -27,11 +27,6 @@ namespace Micropolis.Server.Tests
         [TestCleanup]
         public void DeleteDirectory()
         {
-            if (File.Exists(_directory))
-            {
-                File.Delete(_directory);
-            }
-
             ServerUnderTest.DeleteStore(_directory);
         }
 
@@ -61,6 +56,20 @@ namespace Micropolis.Server.Tests
 
             Assert.AreEqual("the second save", await store.ReadAsync(city));
             CollectionAssert.AreEqual(new[] { city + ".json" }, Directory.GetFiles(_directory).Select(Path.GetFileName).ToArray());
+        }
+
+        [TestMethod]
+        public async Task WriteAsync_ThatFails_KeepsTheLastSave()
+        {
+            CityStore store = new CityStore(_directory);
+            string city = CityId.New();
+            await store.WriteAsync(city, "the first save");
+            // A directory where the store writes the next save before it replaces the last, which no file can be written to
+            Directory.CreateDirectory(store.PathOf(city) + ".writing");
+
+            await Assert.ThrowsExactlyAsync<CityStoreException>(() => store.WriteAsync(city, "the second save"));
+
+            Assert.AreEqual("the first save", await store.ReadAsync(city));
         }
 
         [TestMethod]

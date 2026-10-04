@@ -44,12 +44,10 @@ namespace Micropolis.Server
         public uint Seed => _city.Simulation.Seed;
 
         /// <summary>
-        /// Starts the loop. The state of the city as it stands is what <see cref="FullState"/> gives a player who
-        /// joins, so nothing is published.
+        /// Starts the loop.
         /// </summary>
         public void Start()
         {
-            _city.MarkSent();
             Wake();
         }
 

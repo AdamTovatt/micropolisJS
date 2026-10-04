@@ -12,11 +12,17 @@
  */
 
 import type { CityClient, CityStatus } from "./cityClient";
-import { PendingCalls, Subscribers, trackingHold } from "./citySource";
+import { PendingCalls, queryReply, Subscribers, trackingHold } from "./citySource";
 import type { CityDriver, CitySource, CityStart, Pending, StartedCity } from "./citySource";
+import { errorMessage } from "./errorMessage";
 import type {
-  AdvanceResult, CityJoined, CityMessage, ClientMessage, Command, PlayerId, Query, QueryAnswer, SessionLog, StateMessage,
+  CityJoined, CityMessage, ClientRequest, Command, PlayerId, Query, QueryAnswer, RequestAnswer, RequestAnswers, SessionLog,
+  StateMessage,
 } from "./protocol";
+
+// The requests the server answers with null, once they are done
+type DoneType = {[Type in keyof RequestAnswers]: RequestAnswers[Type] extends null ? Type : never}[keyof RequestAnswers];
+type DoneRequest = Extract<ClientRequest, {type: DoneType}>;
 
 // The WebSocket source: the city runs on the server, which owns it, and the page reaches it over the city's socket,
 // which the city client holds (protocol/README.md). Any signed-in player may join a city by its id, and every player in
@@ -31,7 +37,7 @@ export class WebSocketCitySource implements CitySource {
   private readonly calls = new PendingCalls("The server answered request");
   // The city the source is in, which it joins again once it reconnects, or null before it has started one or once it
   // lost it
-  private city: string | null = null;
+  private current: string | null = null;
   private online = false;
 
   // lost is told why the source is no longer in its city: it failed on the server, or joining it again failed
@@ -41,12 +47,17 @@ export class WebSocketCitySource implements CitySource {
     client.onStatus((status) => this.statusChanged(status));
 
     this.driver = trackingHold({
-      hold: () => this.request((id) => ({type: "hold", id})),
-      release: () => this.request((id) => ({type: "release", id})),
-      flush: () => this.request((id) => ({type: "flush", id})),
-      advance: (steps) => this.request<AdvanceResult>((id) => ({type: "advance", id, steps})),
-      cityTime: () => this.request<number>((id) => ({type: "cityTime", id})),
+      hold: () => this.done((id) => ({type: "hold", id})),
+      release: () => this.done((id) => ({type: "release", id})),
+      flush: () => this.done((id) => ({type: "flush", id})),
+      advance: (steps) => this.request((id) => ({type: "advance", id, steps})),
+      cityTime: () => this.request((id) => ({type: "cityTime", id})),
     });
+  }
+
+  // The id of the city on the server the source is in, or null before it has started or joined one, or once it lost it
+  get city(): string | null {
+    return this.current;
   }
 
   // The player the server knows this browser as, once it has said
@@ -61,14 +72,14 @@ export class WebSocketCitySource implements CitySource {
 
   // A new city starts on the server, and a saved game is uploaded to start there, under a new id
   async start(start: CityStart): Promise<StartedCity> {
-    return this.joined(await this.request<CityJoined>((id) => ("seed" in start
-      ? {type: "start", id, name: start.name, seed: start.seed, level: start.level}
-      : {type: "upload", id, save: start.save})));
+    return this.joined(await ("seed" in start
+      ? this.request((id) => ({type: "start", id, name: start.name, seed: start.seed, level: start.level}))
+      : this.request((id) => ({type: "upload", id, save: start.save}))));
   }
 
   // Joins the city with the id, as another player started it, once its whole state has been delivered
   async join(city: string): Promise<StartedCity> {
-    return this.joined(await this.request<CityJoined>((id) => ({type: "join", id, city})));
+    return this.joined(await this.request((id) => ({type: "join", id, city})));
   }
 
   // A command sent while the connection is down never reaches the city, which is said out loud
@@ -78,19 +89,12 @@ export class WebSocketCitySource implements CitySource {
     }
   }
 
-  // The reply is called as the answer arrives, so what goes wrong in it, or in the query, is thrown there, as the
-  // in-page source throws it at the call, rather than lost in a promise. A query asked while the connection is down is
-  // never answered, which is said out loud, as a command sent then is: what asked it carries on without the answer.
+  // A query asked while the connection is down is never answered, as one waiting when it drops isn't
   ask(query: Query, reply: (answer: QueryAnswer) => void): void {
-    const asked = this.requestWith((id) => ({type: "query", id, query}), {
-      resolve: (answer) => reply(answer as QueryAnswer),
-      reject: (error) => {
-        throw error;
-      },
-    });
+    const pending = queryReply(query, reply);
 
-    if (!asked) {
-      console.warn("A query went unanswered: the connection to the server is down", query);
+    if (!this.requestWith((id) => ({type: "query", id, query}), pending)) {
+      pending.abandon(new Error("The connection to the server is down"));
     }
   }
 
@@ -98,25 +102,26 @@ export class WebSocketCitySource implements CitySource {
   setViewerVisible(): void {}
 
   save(): Promise<string> {
-    return this.request<string>((id) => ({type: "save", id}));
+    return this.request((id) => ({type: "save", id}));
   }
 
   commandLog(): Promise<SessionLog> {
-    return this.request<SessionLog>((id) => ({type: "commandLog", id}));
+    return this.request((id) => ({type: "commandLog", id}));
   }
 
   // On a server whose cities run on a clock only the debug channel moves, as a test server's do: moves the city's clock
   // on by the milliseconds given, then has the city take a turn of its loop if one is due
   turn(milliseconds: number): Promise<void> {
-    return this.request((id) => ({type: "turn", id, milliseconds}));
+    return this.done((id) => ({type: "turn", id, milliseconds}));
   }
 
   private joined({city, name, seed}: CityJoined): StartedCity {
-    this.city = city;
+    this.current = city;
     return {name, seed, city};
   }
 
-  private request<T = void>(build: (id: number) => ClientMessage): Promise<T> {
+  // The request's answer, of the type the protocol gives requests of its type
+  private request<Request extends ClientRequest>(build: (id: number) => Request): Promise<RequestAnswer<Request>> {
     return new Promise((resolve, reject) => {
       if (!this.requestWith(build, {resolve: resolve as (value: unknown) => void, reject})) {
         reject(new Error("The connection to the server is down"));
@@ -124,8 +129,13 @@ export class WebSocketCitySource implements CitySource {
     });
   }
 
+  // Once a request whose answer is null is answered
+  private async done(build: (id: number) => DoneRequest): Promise<void> {
+    await this.request(build);
+  }
+
   // Sends the request and waits on its answer, or says it couldn't: the connection is down
-  private requestWith(build: (id: number) => ClientMessage, pending: Pending): boolean {
+  private requestWith(build: (id: number) => ClientRequest, pending: Pending): boolean {
     const id = this.calls.add(pending);
     if (!this.client.send(build(id))) {
       this.calls.settle(id);
@@ -154,7 +164,7 @@ export class WebSocketCitySource implements CitySource {
   // The server unloaded the city without saving it: joining it again would load it as it was last saved, which the
   // page decides on, so the source doesn't
   private cityFailed(): void {
-    if (this.city !== null) {
+    if (this.current !== null) {
       this.loseCity(new Error("The city failed on the server, which keeps it as it was last saved"));
     }
   }
@@ -169,8 +179,8 @@ export class WebSocketCitySource implements CitySource {
       this.calls.failAll(new Error("The connection to the server dropped"));
     }
 
-    if (!wasOnline && status.online && this.city !== null) {
-      const city = this.city;
+    if (!wasOnline && status.online && this.current !== null) {
+      const city = this.current;
       if (this.driver.isHeld()) {
         this.driver.hold().catch((error: unknown) => console.error(`Holding city ${city} again failed`, error));
       }
@@ -178,14 +188,14 @@ export class WebSocketCitySource implements CitySource {
       this.join(city).catch((error: unknown) => {
         // A connection that drops again before the answer joins again once it is back
         if (this.online) {
-          this.loseCity(new Error(`Joining the city again failed: ${error instanceof Error ? error.message : String(error)}`));
+          this.loseCity(new Error(`Joining the city again failed: ${errorMessage(error)}`));
         }
       });
     }
   }
 
   private loseCity(error: Error): void {
-    this.city = null;
+    this.current = null;
     this.lost(error);
   }
 }

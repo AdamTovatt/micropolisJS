@@ -24,7 +24,8 @@ namespace Micropolis.Rules.Tests
     public sealed class ClientMessageReaderTests
     {
         [TestMethod]
-        [DataRow("not JSON", "", DisplayName = "text that isn't JSON")]
+        // The JSON reader's own words, which name what is invalid
+        [DataRow("not JSON", "invalid", DisplayName = "text that isn't JSON")]
         [DataRow("[]", "an object whose type is one a player sends", DisplayName = "a list")]
         [DataRow("{\"id\":1}", "an object whose type is one a player sends", DisplayName = "no type")]
         [DataRow("{\"type\":7,\"id\":1}", "an object whose type is one a player sends", DisplayName = "a type that isn't a string")]

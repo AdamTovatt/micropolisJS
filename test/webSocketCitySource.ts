@@ -13,64 +13,36 @@
 
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { CityClient, CityClientEnvironment, SocketLike, StoredSession } from "../src/cityClient";
+import { CityClient } from "../src/cityClient";
 import { CITY_FAILED_CLOSE, QueryAnswer, StateMessage } from "../src/protocol";
 import { WebSocketCitySource } from "../src/webSocketCitySource";
+import { FakeBrowser, FakeSocket, respond, settle } from "./helpers/fakeBrowser";
 import { repositoryPath } from "./helpers/repository";
 
-// The WebSocket source over a fake socket: what it sends, how it reads the answers, and what it does as the connection
+// The WebSocket source over a fake browser: what it sends, how it reads the answers, and what it does as the connection
 // drops and comes back. test/citySource.ts runs the contract every source keeps against the real server.
 
 const CLIENT_EXAMPLES = repositoryPath("protocol/examples/client");
 const CITY = "0123456789abcdef0123456789abcdef";
 
-// The close status a browser gives a connection that went without a close frame
-const ABNORMAL_CLOSE = 1006;
+// A source over a browser whose stored session the server accepts, and what it says when it loses its city
+class Connected {
+    readonly browser = new FakeBrowser(() => respond(200, {playerId: "id-Ada", name: "Ada"}));
+    readonly client = new CityClient(this.browser);
+    readonly lost: Error[] = [];
+    readonly source = new WebSocketCitySource(this.client, (error) => this.lost.push(error));
 
-class FakeSocket implements SocketLike {
-    onmessage: ((event: {data: unknown}) => void) | null = null;
-    onclose: ((event: {code: number}) => void) | null = null;
-    readonly sent: Record<string, unknown>[] = [];
-
-    send(data: string): void {
-        this.sent.push(JSON.parse(data) as Record<string, unknown>);
-    }
-
-    deliver(message: unknown): void {
-        this.onmessage?.({data: JSON.stringify(message)});
-    }
-
-    close(code = ABNORMAL_CLOSE): void {
-        this.onclose?.({code});
-    }
-}
-
-// A browser with a session the server accepts, whose reconnects the test runs
-class FakeServer implements CityClientEnvironment {
-    readonly sockets: FakeSocket[] = [];
-    readonly reconnects: (() => void)[] = [];
-    store = {load: (): StoredSession => ({token: "token", name: "Ada"}), save: () => {}};
-
-    request(): Promise<{status: number, json(): Promise<unknown>}> {
-        return Promise.resolve({status: 200, json: () => Promise.resolve({playerId: "id-Ada", name: "Ada"})});
-    }
-
-    openSocket(): SocketLike {
-        const socket = new FakeSocket();
-        this.sockets.push(socket);
-        return socket;
-    }
-
-    exclusively<T>(task: () => Promise<T>): Promise<T> {
-        return task();
-    }
-
-    schedule(callback: () => void): void {
-        this.reconnects.push(callback);
+    constructor() {
+        this.browser.stored = {token: "token", name: "Ada"};
     }
 
     get socket(): FakeSocket {
-        return this.sockets[this.sockets.length - 1];
+        return this.browser.lastSocket();
+    }
+
+    // What the source sent on the socket now open, each read back as the object it is
+    get sent(): Record<string, unknown>[] {
+        return this.socket.sentMessages();
     }
 
     welcome(): void {
@@ -79,41 +51,33 @@ class FakeServer implements CityClientEnvironment {
 
     // Runs the reconnect the client scheduled, and welcomes it
     async reconnect(): Promise<void> {
-        this.reconnects.splice(0).forEach((reconnect) => reconnect());
-        await settle();
+        await this.browser.runScheduled();
         this.welcome();
     }
 
     // Answers the request last sent
     answer(value: unknown): void {
-        this.socket.deliver({type: "answer", id: this.socket.sent[this.socket.sent.length - 1].id, value});
+        this.socket.deliver({type: "answer", id: this.sent[this.sent.length - 1].id, value});
+    }
+
+    // Fails the request last sent
+    fail(error: string): void {
+        this.socket.deliver({type: "failed", id: this.sent[this.sent.length - 1].id, error});
     }
 }
 
-function settle(): Promise<void> {
-    return new Promise((resolve) => setImmediate(resolve));
-}
-
-interface Connected {
-    server: FakeServer;
-    source: WebSocketCitySource;
-    lost: Error[];
-}
-
 async function connected(): Promise<Connected> {
-    const server = new FakeServer();
-    const client = new CityClient(server);
-    await client.start();
-    server.welcome();
-    const lost: Error[] = [];
-    return {server, source: new WebSocketCitySource(client, (error) => lost.push(error)), lost};
+    const tested = new Connected();
+    await tested.client.start();
+    tested.welcome();
+    return tested;
 }
 
 // Connected, and in the city, which the server started
 async function inCity(): Promise<Connected> {
     const tested = await connected();
     const started = tested.source.start({name: "Town", seed: 2026, level: 0});
-    tested.server.answer({city: CITY, name: "Town", seed: 2026});
+    tested.answer({city: CITY, name: "Town", seed: 2026});
     await started;
     return tested;
 }
@@ -128,15 +92,17 @@ function withoutId(message: Record<string, unknown>): Record<string, unknown> {
 describe("the WebSocket source", () => {
 
     let warn: jest.SpyInstance;
+    let error: jest.SpyInstance;
 
     beforeEach(() => {
         warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+        error = jest.spyOn(console, "error").mockImplementation(() => undefined);
     });
 
-    afterEach(() => warn.mockRestore());
+    afterEach(() => jest.restoreAllMocks());
 
     it("sends each message as its example has it, in its fields' order", async () => {
-        const {server, source} = await connected();
+        const {source, socket} = await connected();
         const examples = readdirSync(CLIENT_EXAMPLES).map((file) =>
             JSON.parse(readFileSync(join(CLIENT_EXAMPLES, file), "utf8")) as Record<string, unknown>);
         const example = (type: string) => examples.find((message) => message.type === type)!;
@@ -156,23 +122,23 @@ describe("the WebSocket source", () => {
         source.commandLog().catch(() => {});
         source.turn(field("turn", "milliseconds")).catch(() => {});
 
-        const sent = new Map(server.socket.sent.map((message) => [message.type as string, message]));
+        const sent = new Map(socket.sentMessages().map((message) => [message.type as string, message]));
         expect(examples.map((message) => JSON.stringify(withoutId(sent.get(message.type as string)!))))
             .toEqual(examples.map((message) => JSON.stringify(withoutId(message))));
     });
 
     it("delivers each batch's state messages in order, and answers each request by its id", async () => {
-        const {server, source} = await connected();
+        const tested = await connected();
         const delivered: StateMessage[] = [];
-        source.subscribe((message) => delivered.push(message));
+        tested.source.subscribe((message) => delivered.push(message));
         const answers: QueryAnswer[] = [];
 
-        const started = source.start({name: "Town", seed: 2026, level: 0});
-        source.ask({type: "tileReport", x: 1, y: 1}, (answer) => answers.push(answer));
-        const [start, query] = server.socket.sent;
-        server.socket.deliver({type: "state", messages: [{type: "date", month: 0, year: 1900}, {type: "population", population: 0}]});
-        server.socket.deliver({type: "answer", id: query.id, value: {type: "rejected", reason: "a reason"}});
-        server.socket.deliver({type: "answer", id: start.id, value: {city: CITY, name: "Town", seed: 2026}});
+        const started = tested.source.start({name: "Town", seed: 2026, level: 0});
+        tested.source.ask({type: "tileReport", x: 1, y: 1}, (answer) => answers.push(answer));
+        const [start, query] = tested.sent;
+        tested.socket.deliver({type: "state", messages: [{type: "date", month: 0, year: 1900}, {type: "population", population: 0}]});
+        tested.socket.deliver({type: "answer", id: query.id, value: {type: "rejected", reason: "a reason"}});
+        tested.socket.deliver({type: "answer", id: start.id, value: {city: CITY, name: "Town", seed: 2026}});
 
         expect(await started).toEqual({name: "Town", seed: 2026, city: CITY});
         expect(answers).toEqual([{type: "rejected", reason: "a reason"}]);
@@ -180,139 +146,170 @@ describe("the WebSocket source", () => {
     });
 
     it("fails a request with the server's words", async () => {
-        const {server, source} = await connected();
+        const tested = await connected();
 
-        const saved = source.save();
-        server.socket.deliver({type: "failed", id: server.socket.sent[0].id, error: "No city has started"});
+        const saved = tested.source.save();
+        tested.fail("No city has started");
 
         await expect(saved).rejects.toThrow("No city has started");
     });
 
     it("throws a failed query's error from its reply", async () => {
-        const {server, source} = await connected();
-        source.ask({type: "tileReport", x: 1, y: 1}, () => {});
+        const tested = await connected();
+        tested.source.ask({type: "tileReport", x: 1, y: 1}, () => {});
 
-        expect(() => server.socket.deliver({type: "failed", id: server.socket.sent[0].id, error: "No city has started"}))
-            .toThrow("No city has started");
+        expect(() => tested.fail("No city has started")).toThrow("No city has started");
     });
 
-    it("fails a request waiting when the connection drops", async () => {
-        const {server, source} = await connected();
-        const waiting = source.save();
+    it("is the player the server welcomed, and no player while the connection is down", async () => {
+        const tested = await connected();
+        const welcomed = tested.source.player;
 
-        server.socket.close();
+        tested.socket.drop();
+
+        expect(welcomed).toBe("id-Ada");
+        expect(tested.source.player).toBe("");
+    });
+
+    it.each([
+        ["a request", (tested: Connected) => tested.source.save()],
+        ["a start", (tested: Connected) => tested.source.start({name: "Town", seed: 2026, level: 0})],
+        ["a join", (tested: Connected) => tested.source.join(CITY)],
+    ])("fails %s waiting when the connection drops", async (_, call) => {
+        const tested = await connected();
+        const waiting = call(tested);
+
+        tested.socket.drop();
 
         await expect(waiting).rejects.toThrow("The connection to the server dropped");
     });
 
     it("fails a request at once while the connection is down", async () => {
-        const {server, source} = await connected();
-        server.socket.close();
+        const tested = await connected();
+        tested.socket.drop();
 
-        await expect(source.save()).rejects.toThrow("The connection to the server is down");
+        await expect(tested.source.save()).rejects.toThrow("The connection to the server is down");
     });
 
     it("says a command sent while the connection is down is lost", async () => {
-        const {server, source} = await connected();
-        server.socket.close();
+        const tested = await connected();
+        tested.socket.drop();
 
-        source.send({type: "setSpeed", speed: 0});
+        tested.source.send({type: "setSpeed", speed: 0});
 
         expect(warn).toHaveBeenCalledWith("A command was lost: the connection to the server is down", {type: "setSpeed", speed: 0});
     });
 
     it("says a query asked while the connection is down goes unanswered, and never replies", async () => {
-        const {server, source} = await connected();
-        server.socket.close();
+        const tested = await connected();
+        tested.socket.drop();
         const reply = jest.fn();
 
-        source.ask({type: "tileReport", x: 1, y: 1}, reply);
+        tested.source.ask({type: "tileReport", x: 1, y: 1}, reply);
 
-        expect(warn).toHaveBeenCalledWith("A query went unanswered: the connection to the server is down", {type: "tileReport", x: 1, y: 1});
+        expect(warn).toHaveBeenCalledWith("A query went unanswered: The connection to the server is down", {type: "tileReport", x: 1, y: 1});
         expect(reply).not.toHaveBeenCalled();
     });
 
-    it("never replies to a query waiting when the connection drops", async () => {
-        const {server, source} = await connected();
+    it("says a query waiting when the connection drops goes unanswered, and never replies", async () => {
+        const tested = await connected();
         const reply = jest.fn();
-        source.ask({type: "tileReport", x: 1, y: 1}, reply);
+        tested.source.ask({type: "tileReport", x: 1, y: 1}, reply);
 
-        server.socket.close();
+        tested.socket.drop();
 
+        expect(warn).toHaveBeenCalledWith("A query went unanswered: The connection to the server dropped", {type: "tileReport", x: 1, y: 1});
         expect(reply).not.toHaveBeenCalled();
     });
 
     it("joins its city again once the client reconnects, held as its driver was", async () => {
-        const {server, source} = await inCity();
-        const held = source.driver.hold();
-        server.answer(null);
+        const tested = await inCity();
+        const held = tested.source.driver.hold();
+        tested.answer(null);
         await held;
 
-        server.socket.close();
-        await server.reconnect();
+        tested.socket.drop();
+        await tested.reconnect();
 
-        expect(server.socket.sent.map(withoutId)).toEqual([{type: "hold"}, {type: "join", city: CITY}]);
+        expect(tested.sent.map(withoutId)).toEqual([{type: "hold"}, {type: "join", city: CITY}]);
+    });
+
+    it("says so when holding its city again fails as it rejoins, and joins it all the same", async () => {
+        const tested = await inCity();
+        const held = tested.source.driver.hold();
+        tested.answer(null);
+        await held;
+        tested.socket.drop();
+        await tested.reconnect();
+        const [hold] = tested.sent;
+
+        tested.socket.deliver({type: "failed", id: hold.id, error: "This server has no debug channel"});
+        tested.answer({city: CITY, name: "Town", seed: 2026});
+        await settle();
+
+        expect(error).toHaveBeenCalledWith(`Holding city ${CITY} again failed`, new Error("This server has no debug channel"));
+        expect(tested.lost).toEqual([]);
     });
 
     it("joins its city again unheld once the client reconnects, when its driver wasn't held", async () => {
-        const {server} = await inCity();
+        const tested = await inCity();
 
-        server.socket.close();
-        await server.reconnect();
+        tested.socket.drop();
+        await tested.reconnect();
 
-        expect(server.socket.sent.map(withoutId)).toEqual([{type: "join", city: CITY}]);
+        expect(tested.sent.map(withoutId)).toEqual([{type: "join", city: CITY}]);
     });
 
     it("joins no city once the client reconnects, before any city has started", async () => {
-        const {server} = await connected();
+        const tested = await connected();
 
-        server.socket.close();
-        await server.reconnect();
+        tested.socket.drop();
+        await tested.reconnect();
 
-        expect(server.socket.sent).toEqual([]);
+        expect(tested.sent).toEqual([]);
     });
 
     it("loses its city when joining it again fails, and joins no city after", async () => {
-        const {server, lost} = await inCity();
-        server.socket.close();
-        await server.reconnect();
+        const tested = await inCity();
+        tested.socket.drop();
+        await tested.reconnect();
 
-        server.socket.deliver({type: "failed", id: server.socket.sent[0].id, error: "No city has the id"});
+        tested.fail("No city has the id");
         await settle();
-        server.socket.close();
-        await server.reconnect();
+        tested.socket.drop();
+        await tested.reconnect();
 
-        expect(lost.map(({message}) => message)).toEqual(["Joining the city again failed: No city has the id"]);
-        expect(server.socket.sent).toEqual([]);
+        expect(tested.lost.map(({message}) => message)).toEqual(["Joining the city again failed: No city has the id"]);
+        expect(tested.sent).toEqual([]);
     });
 
     it("loses its city when the city fails on the server, and doesn't join it again", async () => {
-        const {server, lost} = await inCity();
+        const tested = await inCity();
 
-        server.socket.close(CITY_FAILED_CLOSE);
-        await server.reconnect();
+        tested.socket.drop(CITY_FAILED_CLOSE);
+        await tested.reconnect();
 
-        expect(lost.map(({message}) => message)).toEqual(["The city failed on the server, which keeps it as it was last saved"]);
-        expect(server.socket.sent).toEqual([]);
+        expect(tested.lost.map(({message}) => message)).toEqual(["The city failed on the server, which keeps it as it was last saved"]);
+        expect(tested.sent).toEqual([]);
     });
 
     it("keeps its city when the connection drops again before it has joined it again", async () => {
-        const {server, lost} = await inCity();
-        server.socket.close();
-        await server.reconnect();
+        const tested = await inCity();
+        tested.socket.drop();
+        await tested.reconnect();
 
-        server.socket.close();
+        tested.socket.drop();
         await settle();
-        await server.reconnect();
+        await tested.reconnect();
 
-        expect(lost).toEqual([]);
-        expect(server.socket.sent.map(withoutId)).toEqual([{type: "join", city: CITY}]);
+        expect(tested.lost).toEqual([]);
+        expect(tested.sent.map(withoutId)).toEqual([{type: "join", city: CITY}]);
     });
 
     it("refuses an answer to a request it never made", async () => {
-        const {server} = await connected();
+        const tested = await connected();
 
-        expect(() => server.socket.deliver({type: "answer", id: 99, value: null}))
+        expect(() => tested.socket.deliver({type: "answer", id: 99, value: null}))
             .toThrow("The server answered request 99, which was never made or already answered");
     });
 });

@@ -23,6 +23,9 @@ namespace Micropolis.Server.Tests
     [TestClass]
     public sealed class CommandQueueTests
     {
+        // What an addFunds command grants, the debug menu's grant
+        private const long AddedFunds = 20000;
+
         [TestMethod]
         public void ApplyCommands_Queued_AppliesThemInTheOrderTheyArrived()
         {
@@ -51,7 +54,7 @@ namespace Micropolis.Server.Tests
             queue.ApplyCommands();
 
             Assert.AreEqual(0, queue.ApplyCommands());
-            Assert.AreEqual(funds + 20000, city.Budget.TotalFunds);
+            Assert.AreEqual(funds + AddedFunds, city.Budget.TotalFunds);
         }
 
         [TestMethod]
@@ -99,7 +102,7 @@ namespace Micropolis.Server.Tests
             Assert.AreEqual(
                 CanonicalJson.Write(new JsonObject
                 {
-                    ["formatVersion"] = CommandRecorder.LogFormatVersion,
+                    ["formatVersion"] = CommandLogFormat.Version,
                     ["seed"] = 2026,
                     ["level"] = 0,
                     ["entries"] = new JsonArray(),
@@ -115,14 +118,28 @@ namespace Micropolis.Server.Tests
             CommandRecorder recorder = new CommandRecorder(city, CommandRecorder.NewCityStart(2026, Level.Easy));
             CommandQueue queue = new CommandQueue(city, recorder);
 
-            for (int i = 0; i <= CommandRecorder.CheckpointInterval; i++)
+            for (int i = 0; i <= CommandLogFormat.CheckpointInterval; i++)
             {
                 queue.Step();
             }
 
-            CollectionAssert.AreEqual(
-                new long[] { 0, CommandRecorder.CheckpointInterval, CommandRecorder.CheckpointInterval + 1 },
-                recorder.Log()["checkpoints"]!.AsArray().Select(checkpoint => (long)checkpoint!["step"]!).ToArray());
+            // Each checkpoint is the hash of the city before the step it names, as a twin stepped that far has it
+            Simulation twin = NewCity();
+            List<(long, string)> expected = new List<(long, string)> { (0, StateHash.HashSavedState(twin.Save())) };
+            StepTimes(twin, CommandLogFormat.CheckpointInterval);
+            expected.Add((CommandLogFormat.CheckpointInterval, StateHash.HashSavedState(twin.Save())));
+            StepTimes(twin, 1);
+            expected.Add((CommandLogFormat.CheckpointInterval + 1, StateHash.HashSavedState(twin.Save())));
+            CollectionAssert.AreEqual(expected, recorder.Log()["checkpoints"]!.AsArray()
+                .Select(checkpoint => ((long)checkpoint!["step"]!, (string)checkpoint["hash"]!)).ToList());
+        }
+
+        private static void StepTimes(Simulation city, int steps)
+        {
+            for (int i = 0; i < steps; i++)
+            {
+                city.Step();
+            }
         }
 
         [TestMethod]

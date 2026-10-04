@@ -67,9 +67,10 @@ namespace Micropolis.Rules.Tests
 
         private static AnsweredQuery ReadAnswer(JsonNode? node)
         {
-            JsonObject answered = Members(node, "an answered query", ["save", "query", "answer"]);
+            JsonObject answered = Members(node, "an answered query", ["save", "query", "answer"], ["funds"]);
             string? save = answered["save"] is null ? null : String(answered["save"], "save");
-            return new AnsweredQuery(save, answered["query"], Object(answered["answer"], "answer"));
+            long? funds = answered.ContainsKey("funds") ? WholeNumber(answered["funds"], "funds", 0, long.MaxValue) : null;
+            return new AnsweredQuery(save, funds, answered["query"], Object(answered["answer"], "answer"));
         }
     }
 
@@ -102,11 +103,22 @@ namespace Micropolis.Rules.Tests
     /// <summary>
     /// A query and its answer, about the named save's city, or asked before any city has started when the save is null.
     /// </summary>
-    public sealed record AnsweredQuery(string? Save, JsonNode? Query, JsonObject Answer)
+    public sealed record AnsweredQuery(string? Save, long? Funds, JsonNode? Query, JsonObject Answer)
     {
+        /// <summary>
+        /// The city the query is about, from the save, with its funds replaced where the answer names them.
+        /// </summary>
+        public Simulation City()
+        {
+            int dot = Save!.LastIndexOf('.');
+            return FixtureCities.City(Save[..dot], Save[(dot + 1)..],
+                Funds is long funds ? save => save["budget"]!["totalFunds"] = funds : null);
+        }
+
         public override string ToString()
         {
-            return $"{Save ?? "no city"}: {(Query is null ? "null" : Query.ToJsonString())}";
+            string city = Funds is null ? Save ?? "no city" : $"{Save} with {Funds} funds";
+            return $"{city}: {(Query is null ? "null" : Query.ToJsonString())}";
         }
     }
 }

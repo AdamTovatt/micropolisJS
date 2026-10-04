@@ -11,24 +11,9 @@
  *
  */
 
-import {
-    CITY_PATH, CityClient, CityClientEnvironment, CityStatus, ResponseLike, SESSION_PATH, SocketLike, StoredSession,
-} from "../src/cityClient";
+import { CITY_PATH, CityClient, CityStatus, ResponseLike, SESSION_PATH } from "../src/cityClient";
 import { CITY_FAILED_CLOSE, CityMessage, ErrorResponse, PlayerResponse, SessionResponse } from "../src/protocol";
-
-interface Request {
-    method: string;
-    path: string;
-    headers: Record<string, string>;
-    body?: string;
-}
-
-// Answers a request: a response, or a thrown error for no server at all
-type Handler = (request: Request) => ResponseLike;
-
-function respond(status: number, body: unknown): ResponseLike {
-    return {status, json: () => Promise.resolve(body)};
-}
+import { FakeBrowser, Handler, respond } from "./helpers/fakeBrowser";
 
 // The server's bodies, typed by the protocol, so a field renamed there fails to compile here
 function session(body: SessionResponse): ResponseLike {
@@ -45,96 +30,6 @@ function refusal(status: 400 | 429, body: ErrorResponse): ResponseLike {
 
 function notJson(status: number): ResponseLike {
     return {status, json: () => Promise.reject(new SyntaxError("Unexpected token <"))};
-}
-
-class FakeSocket implements SocketLike {
-    onmessage: ((event: {data: unknown}) => void) | null = null;
-    onclose: ((event: {code: number}) => void) | null = null;
-    // What the client sent, as the wire carried it
-    readonly sent: string[] = [];
-
-    constructor(readonly pathAndQuery: string) {}
-
-    send(data: string): void {
-        this.sent.push(data);
-    }
-
-    deliver(message: unknown): void {
-        this.onmessage?.({data: typeof message === "string" ? message : JSON.stringify(message)});
-    }
-
-    // A browser gives a connection that went without a close frame 1006
-    drop(code = 1006): void {
-        this.onclose?.({code});
-    }
-}
-
-// One browser: every client given it is a tab, sharing its stored session and its lock
-class FakeBrowser implements CityClientEnvironment {
-    readonly requests: Request[] = [];
-    readonly sockets: FakeSocket[] = [];
-    readonly scheduled: {callback: () => void; delayMs: number}[] = [];
-    stored: StoredSession | null = null;
-    private lockQueue: Promise<unknown> = Promise.resolve();
-
-    constructor(public handler: Handler) {}
-
-    store = {
-        load: () => this.stored,
-        save: (session: StoredSession) => { this.stored = session; },
-    };
-
-    request(path: string, init: {method: string; headers: Record<string, string>; body?: string}): Promise<ResponseLike> {
-        const request = {path, ...init};
-        this.requests.push(request);
-
-        try {
-            return Promise.resolve(this.handler(request));
-        } catch (error) {
-            return Promise.reject(error);
-        }
-    }
-
-    openSocket(pathAndQuery: string): SocketLike {
-        const socket = new FakeSocket(pathAndQuery);
-        this.sockets.push(socket);
-        return socket;
-    }
-
-    exclusively<T>(task: () => Promise<T>): Promise<T> {
-        const result = this.lockQueue.then(task);
-        this.lockQueue = result.catch(() => undefined);
-        return result;
-    }
-
-    schedule(callback: () => void, delayMs: number): void {
-        this.scheduled.push({callback, delayMs});
-    }
-
-    lastSocket(): FakeSocket {
-        return this.sockets[this.sockets.length - 1];
-    }
-
-    signIns(): Request[] {
-        return this.requests.filter((request) => request.method === "POST");
-    }
-
-    // Runs the scheduled reconnects due now, every tab's, and lets their requests settle
-    async runScheduled(count = 1): Promise<void> {
-        const due = this.scheduled.splice(0, count);
-
-        if (due.length < count) {
-            throw new Error(`${count} scheduled, ${due.length} found`);
-        }
-
-        due.forEach((entry) => entry.callback());
-        await settle();
-    }
-}
-
-// Every fake answers at once, so everything pending has run by the next turn of the event loop
-function settle(): Promise<void> {
-    return new Promise((resolve) => setImmediate(resolve));
 }
 
 const noServer: Handler = () => { throw new TypeError("Failed to fetch"); };

@@ -11,7 +11,7 @@
  *
  */
 
-import { PendingCalls, Subscribers, trackingHold } from "./citySource";
+import { PendingCalls, queryReply, Subscribers, trackingHold } from "./citySource";
 import type { CityDriver, CitySource, CityStart, Pending, StartedCity } from "./citySource";
 import { rebuiltError } from "./cityWorkerMessages";
 import type { Call, CallResults, PageMessage, Port, WorkerMessage } from "./cityWorkerMessages";
@@ -63,15 +63,8 @@ export class WorkerCitySource implements CitySource {
     this.post({type: "send", command});
   }
 
-  // The reply is called as the answer arrives, so what goes wrong in it, or in the call, is thrown there, as the in-page
-  // source throws it at the call, rather than lost in a promise
   ask(query: Query, reply: (answer: QueryAnswer) => void): void {
-    this.request({method: "ask", query}, {
-      resolve: (answer) => reply(answer as QueryAnswer),
-      reject: (error) => {
-        throw error;
-      },
-    });
+    this.request({method: "ask", query}, queryReply(query, reply));
   }
 
   setViewerVisible(visible: boolean): void {

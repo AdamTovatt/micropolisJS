@@ -11,6 +11,7 @@
  *
  */
 
+using System.Buffers;
 using System.Globalization;
 using System.Text;
 
@@ -24,13 +25,26 @@ namespace Micropolis.Server
         /// <summary>
         /// Whether the text holds a character that draws nothing or breaks the line it is shown on. Format characters
         /// draw nothing and can reorder the text after them, such as a right-to-left override in the list of who is
-        /// online, and line and paragraph separators break that list's line.
+        /// online, and line and paragraph separators break that list's line. A lone surrogate, which the socket's JSON
+        /// reader keeps as JSON.parse does, is no character at all, and is shown as a replacement character.
         /// </summary>
         public static bool HasInvisibleOrControl(string text)
         {
-            // A lone surrogate never gets this far: the JSON reader refuses the message
-            return text.EnumerateRunes().Any(rune => Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control
-                or UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator);
+            ReadOnlySpan<char> rest = text;
+
+            while (!rest.IsEmpty)
+            {
+                if (Rune.DecodeFromUtf16(rest, out Rune rune, out int read) != OperationStatus.Done ||
+                    Rune.GetUnicodeCategory(rune) is UnicodeCategory.Control or UnicodeCategory.Format
+                        or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator)
+                {
+                    return true;
+                }
+
+                rest = rest[read..];
+            }
+
+            return false;
         }
     }
 }

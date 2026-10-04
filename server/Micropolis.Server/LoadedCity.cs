@@ -35,7 +35,7 @@ namespace Micropolis.Server
 
         /// <param name="failed">Called, once, when the city's work throws: the city is then in no state to save, and
         /// takes no more work.</param>
-        public LoadedCity(string id, StartingCity start, CityClock clock, Action<LoadedCity, Exception> failed)
+        public LoadedCity(string id, StartingCity start, ServerClock clock, Action<LoadedCity, Exception> failed)
         {
             Id = id;
             MapWidth = start.City.Map.Width;

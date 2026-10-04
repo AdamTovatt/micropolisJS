@@ -15,10 +15,10 @@ namespace Micropolis.Server
 {
     /// <summary>
     /// The server's cities at rest: a directory holding each city's saved game, as the game saves one, in a file named
-    /// by the city's id. Nothing removes a city from it: what a player may keep on the server is bounded only by
-    /// accounts, which players don't have.
+    /// by the city's id. Nothing removes a city from it; <see cref="CityLimits"/> bounds how fast a client address adds
+    /// them. Reading and writing are virtual so a test can hold the store up between them.
     /// </summary>
-    internal sealed class CityStore
+    internal class CityStore
     {
         /// <param name="directory">Made when the first city is kept, if it doesn't exist.</param>
         public CityStore(string directory)
@@ -35,7 +35,7 @@ namespace Micropolis.Server
         /// The city's saved game, or null when the store holds no city with that id.
         /// </summary>
         /// <exception cref="CityStoreException">The store couldn't be read.</exception>
-        public async Task<string?> ReadAsync(string city)
+        public virtual async Task<string?> ReadAsync(string city)
         {
             string path = PathOf(city);
 
@@ -58,7 +58,7 @@ namespace Micropolis.Server
         /// last, so a write cut short leaves the last save.
         /// </summary>
         /// <exception cref="CityStoreException">The store couldn't be written.</exception>
-        public async Task WriteAsync(string city, string savedGame)
+        public virtual async Task WriteAsync(string city, string savedGame)
         {
             string path = PathOf(city);
             string written = path + ".writing";
@@ -75,8 +75,11 @@ namespace Micropolis.Server
             }
         }
 
-        // A city's id is checked before it names a file, so no id reaches outside the directory
-        private string PathOf(string city)
+        /// <summary>
+        /// The file the city's saved game is kept in. A city's id is checked before it names a file, so no id reaches
+        /// outside the directory.
+        /// </summary>
+        public string PathOf(string city)
         {
             if (!CityId.IsOne(city))
             {

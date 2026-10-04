@@ -23,8 +23,9 @@ namespace Micropolis.Rules.Tests
     [TestClass]
     public sealed class ConformanceQueriesTests
     {
-        // A city per save, which answering a query never changes, as Answers_EverySavesQueries_LeaveItsCityAsItWas checks
-        private static readonly ConcurrentDictionary<string, Lazy<Simulation>> Cities = new ConcurrentDictionary<string, Lazy<Simulation>>();
+        // A city per save and funds, which answering a query never changes, as
+        // Answers_EverySavesQueries_LeaveItsCityAsItWas checks
+        private static readonly ConcurrentDictionary<(string, long?), Lazy<Simulation>> Cities = new ConcurrentDictionary<(string, long?), Lazy<Simulation>>();
 
         public static IEnumerable<object[]> Records => ConformanceQueries.Load().Records.Select(records => new object[] { records });
 
@@ -52,7 +53,7 @@ namespace Micropolis.Rules.Tests
         {
             QueryAnswer answer = answered.Save is null
                 ? Queries.AnswerWithoutCity(answered.Query?.DeepClone())
-                : City(answered.Save).AnswerQuery(answered.Query?.DeepClone());
+                : City(answered).AnswerQuery(answered.Query?.DeepClone());
 
             Assert.AreEqual(CanonicalJson.Write(answered.Answer), Written(answer));
         }
@@ -60,9 +61,10 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void Answers_EverySavesQueries_LeaveItsCityAsItWas()
         {
-            foreach (IGrouping<string?, AnsweredQuery> save in ConformanceQueries.Load().Answers.Where(answered => answered.Save is not null).GroupBy(answered => answered.Save))
+            foreach (IGrouping<(string?, long?), AnsweredQuery> save in ConformanceQueries.Load().Answers.Where(answered => answered.Save is not null)
+                         .GroupBy(answered => (answered.Save, answered.Funds)))
             {
-                Simulation city = FixtureCities.City(save.Key!);
+                Simulation city = save.First().City();
                 string before = StateHash.HashSavedState(city.Save());
 
                 foreach (AnsweredQuery answered in save)
@@ -70,7 +72,7 @@ namespace Micropolis.Rules.Tests
                     city.AnswerQuery(answered.Query?.DeepClone());
                 }
 
-                Assert.AreEqual(before, StateHash.HashSavedState(city.Save()), save.Key);
+                Assert.AreEqual(before, StateHash.HashSavedState(city.Save()), $"{save.Key}");
             }
         }
 
@@ -96,7 +98,7 @@ namespace Micropolis.Rules.Tests
             {
                 JsonObject query = new JsonObject { ["type"] = "mapPreview", ["seed"] = listed.Seed };
 
-                foreach (QueryAnswer answer in new[] { Queries.AnswerWithoutCity(query), City("town.built").AnswerQuery(query) })
+                foreach (QueryAnswer answer in new[] { Queries.AnswerWithoutCity(query), FixtureCities.City("town.built").AnswerQuery(query) })
                 {
                     MapPreviewAnswer preview = (MapPreviewAnswer)answer;
                     Assert.AreEqual(listed.Seed, preview.Seed);
@@ -123,6 +125,9 @@ namespace Micropolis.Rules.Tests
                  "{\"categories\":[\"CLEAR\"],\"records\":[{\"city\":\"s\",\"commands\":[],\"evaluation\":{},\"budget\":{},\"settings\":{}}],\"answers\":[]}",
                  "answers is empty")]
         [DataRow("an answer without its query", "{\"categories\":[\"CLEAR\"],\"records\":[],\"answers\":[{\"save\":null,\"answer\":{}}]}", "lacks query")]
+        [DataRow("an answer naming negative funds",
+                 "{\"categories\":[\"CLEAR\"],\"records\":[],\"answers\":[{\"save\":\"broke.run\",\"funds\":-1,\"query\":null,\"answer\":{}}]}",
+                 "funds is not a whole number")]
         [DataRow("records with an unknown member",
                  "{\"categories\":[\"CLEAR\"],\"records\":[{\"city\":\"s\",\"commands\":[],\"evaluation\":{},\"budget\":{},\"settings\":{},\"sprites\":{}}],\"answers\":[]}",
                  "unknown member sprites")]
@@ -134,9 +139,9 @@ namespace Micropolis.Rules.Tests
             ConformanceAssert.Broken(() => ConformanceQueries.Parse(json), description, message);
         }
 
-        private static Simulation City(string save)
+        private static Simulation City(AnsweredQuery answered)
         {
-            return Cities.GetOrAdd(save, name => new Lazy<Simulation>(() => FixtureCities.City(name))).Value;
+            return Cities.GetOrAdd((answered.Save!, answered.Funds), _ => new Lazy<Simulation>(answered.City)).Value;
         }
 
         private static string Canonical(string json)

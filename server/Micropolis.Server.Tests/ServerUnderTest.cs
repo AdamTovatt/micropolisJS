@@ -56,6 +56,14 @@ namespace Micropolis.Server.Tests
         /// </summary>
         public string Store { get; }
 
+        /// <summary>
+        /// The file the server keeps the city in.
+        /// </summary>
+        public string StoredPathOf(string city)
+        {
+            return new CityStore(Store).PathOf(city);
+        }
+
         /// <param name="manualClock">Whether the server's cities turn only when the debug channel says, rather than on
         /// the clock the test moves.</param>
         /// <param name="store">The directory the server keeps its cities in, which outlives the server, such as another
@@ -214,10 +222,15 @@ namespace Micropolis.Server.Tests
         }
 
         /// <summary>
-        /// Deletes a store a test is done with.
+        /// Deletes a store a test is done with, a directory, or a file a test put in its place so it can't be made.
         /// </summary>
         public static void DeleteStore(string store)
         {
+            if (File.Exists(store))
+            {
+                File.Delete(store);
+            }
+
             if (Directory.Exists(store))
             {
                 Directory.Delete(store, recursive: true);

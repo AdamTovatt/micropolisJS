@@ -293,7 +293,8 @@ namespace Micropolis.Server.Tests
         public async Task Receive_BinaryMessage_ClosesAsTheWrongType()
         {
             await using ServerUnderTest city = await ServerUnderTest.StartAsync();
-            await using TestSocket socket = await ConnectedAsync(city);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(city, "Ada");
+            TestSocket socket = ada.Socket;
 
             await socket.SendBinaryAsync([1, 2, 3]);
 
@@ -304,7 +305,8 @@ namespace Micropolis.Server.Tests
         public async Task Receive_MessageLongerThanAnyTheProtocolHas_ClosesAsTooBig()
         {
             await using ServerUnderTest city = await ServerUnderTest.StartAsync();
-            await using TestSocket socket = await ConnectedAsync(city);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(city, "Ada");
+            TestSocket socket = ada.Socket;
 
             await socket.SendFramesAsync(new byte[CityEndpoint.MaxMessageBytes], [(byte)' ']);
 
@@ -315,7 +317,8 @@ namespace Micropolis.Server.Tests
         public async Task Receive_MessageThatIsNotUtf8_ClosesAsInvalidData()
         {
             await using ServerUnderTest city = await ServerUnderTest.StartAsync();
-            await using TestSocket socket = await ConnectedAsync(city);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(city, "Ada");
+            TestSocket socket = ada.Socket;
 
             await socket.SendFramesAsync([0x7b, 0xff, 0x7d]);
 
@@ -326,7 +329,8 @@ namespace Micropolis.Server.Tests
         public async Task Receive_MessageInSeveralFrames_IsReadAsOne()
         {
             await using ServerUnderTest city = await ServerUnderTest.StartAsync();
-            await using TestSocket socket = await ConnectedAsync(city);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(city, "Ada");
+            TestSocket socket = ada.Socket;
             byte[] message = Encoding.UTF8.GetBytes(ProtocolJson.Serialize(new QueryRequest(7, new JsonObject { ["type"] = "mapPreview", ["seed"] = 2026 })));
             // Split inside the seed, so neither half is a message on its own
             int split = message.Length - 4;
@@ -336,15 +340,6 @@ namespace Micropolis.Server.Tests
             AnswerMessage answer = await socket.ReceiveAsync<AnswerMessage>();
             Assert.AreEqual(7, answer.Id);
             Assert.AreEqual("mapPreview", (string)answer.Value!["type"]!);
-        }
-
-        // Signs in and connects a new player, past the welcome
-        private static async Task<TestSocket> ConnectedAsync(ServerUnderTest city)
-        {
-            SignedIn session = await city.SignInAsync("Ada");
-            TestSocket socket = await city.ConnectAsync(session.Token);
-            await socket.ReceiveAsync<HelloMessage>();
-            return socket;
         }
 
         // Signs in and connects a new player, and gives the players message that join sends the listener. Every

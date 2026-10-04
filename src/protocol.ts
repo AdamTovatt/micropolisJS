@@ -690,41 +690,49 @@ export function stateMessageTypes(): string[] {
   return Object.keys(STATE_MESSAGE_TYPES);
 }
 
-// The messages a player's browser sends the server on the city's WebSocket. A request carries an id, a whole number
-// from 0, which the server's answer to it, or its failure, carries back. A connection is in at most one city at a time:
-// starting or joining one leaves the one before. The commands a connection sends go into its city's one command stream,
-// with every other player's, in the order the server receives them.
+// The messages a player's browser sends the server on the city's WebSocket, which protocol/README.md specifies: each a
+// request carrying an id, which the server's answer to it, or its failure, carries back, but a command
 export type ClientMessage =
-  // Starts a new city on the server, as CityStart's new city describes it, and joins it. The answer is a CityJoined.
   | {type: "start", id: number, name: string, seed: number, level: number}
-  // Starts a city on the server from a saved game's text, and joins it. The answer is a CityJoined.
   | {type: "upload", id: number, save: string}
-  // Joins the city with the id, which any signed-in player may. The answer is a CityJoined.
   | {type: "join", id: number, city: string}
-  // A command for the city the connection is in, which the server doesn't answer: what came of it is a state message
   | {type: "command", command: Command}
-  // The answer is the query's. Before the connection is in a city, only a map preview is answered.
   | {type: "query", id: number, query: Query}
-  // The answer is the saved game's text
   | {type: "save", id: number}
-  // The answer is the city's session log: {log, step, unhashed}, as CitySource's commandLog gives it
   | {type: "commandLog", id: number}
-  // The debug channel, which only a Debug build of the server answers. Holding applies to the city the connection is in
-  // and to each it starts or joins after; releasing applies to the city it is in, and a city it joins after stays as
-  // another player's hold left it. Each answer is null.
+  // The debug channel, which only a Debug build of the server answers
   | {type: "hold", id: number}
   | {type: "release", id: number}
-  // Applies the commands sent so far. The answer is null.
   | {type: "flush", id: number}
-  // Applies the commands sent so far, then takes this many steps. The answer is {steps, budgetReviewDue, error}.
   | {type: "advance", id: number, steps: number}
-  // The answer is the city's time, in the units its date counts: 48 a year
   | {type: "cityTime", id: number}
-  // On a server whose cities run on a clock only the debug channel moves (CITY_CLOCK=manual): moves the city's clock on
-  // by the milliseconds given, then takes a turn of its loop if one is due. The answer is null.
   | {type: "turn", id: number, milliseconds: number};
 
 export type ClientMessageType = ClientMessage["type"];
+
+// The messages the server answers
+export type ClientRequest = Exclude<ClientMessage, {type: "command"}>;
+
+// The answer to each request, by its type. A request type missing here fails to compile where its answer is read.
+export interface RequestAnswers {
+  start: CityJoined;
+  upload: CityJoined;
+  join: CityJoined;
+  query: QueryAnswer;
+  // The saved game's text
+  save: string;
+  commandLog: SessionLog;
+  hold: null;
+  release: null;
+  flush: null;
+  advance: AdvanceResult;
+  // In the units the city's date counts: 48 a year
+  cityTime: number;
+  turn: null;
+}
+
+// The answer to the request
+export type RequestAnswer<Request extends ClientRequest> = RequestAnswers[Request["type"]];
 
 // Every message type a player sends, as the compiler checks against the union: a type added to ClientMessage and not
 // here fails to compile, and the tests fail on a type with no example.

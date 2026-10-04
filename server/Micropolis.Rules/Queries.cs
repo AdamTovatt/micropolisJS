@@ -121,14 +121,23 @@ namespace Micropolis.Rules
         /// </summary>
         public static QueryAnswer AnswerWithoutCity(JsonNode? query)
         {
-            if (query is not JsonObject fields || !TryGetString(fields["type"], out string? type) || type != "mapPreview")
+            if (!NeedsNoCity(query))
             {
                 return new QueryRejection("no city has started");
             }
 
             // No map is needed to check a preview: only a tile report's checks read its size
             string? reason = Rejection(query, 0, 0);
-            return reason is null ? MapPreview(SeedOf(fields)) : new QueryRejection(reason);
+            return reason is null ? MapPreview(SeedOf(query!.AsObject())) : new QueryRejection(reason);
+        }
+
+        /// <summary>
+        /// Whether the query is one a city answers as <see cref="AnswerWithoutCity"/> does, a map preview, which reads
+        /// nothing of the city.
+        /// </summary>
+        public static bool NeedsNoCity(JsonNode? query)
+        {
+            return query is JsonObject fields && TryGetString(fields["type"], out string? type) && type == "mapPreview";
         }
 
         /// <summary>

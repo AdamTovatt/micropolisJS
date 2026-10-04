@@ -27,7 +27,7 @@ namespace Micropolis.Server.Tests
         [DataRow(Speed.Fast, 16, DisplayName = "fast")]
         public void ImpliedCityTime_AUnitsSteps_AdvancesCityTimeByOne(Speed speed, int steps)
         {
-            CityTimeCounters start = new CityTimeCounters(speed, SpeedCycle: 0, Phase: 1, CityTime: 0);
+            CityClock start = new CityClock(speed, SpeedCycle: 0, Phase: 1, CityTime: 0);
 
             Assert.AreEqual(1, CityTimeModel.ImpliedCityTime(start, steps));
             Assert.AreEqual(0, CityTimeModel.ImpliedCityTime(start, steps - 1));
@@ -37,14 +37,14 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public void ImpliedCityTime_AcrossTheSpeedCyclesWrap_LetsAPhaseThroughOnBothSides()
         {
-            Assert.AreEqual(6, CityTimeModel.ImpliedCityTime(new CityTimeCounters(Speed.Medium, 1022, 15, 5), 2));
+            Assert.AreEqual(6, CityTimeModel.ImpliedCityTime(new CityClock(Speed.Medium, 1022, 15, 5), 2));
         }
 
         [TestMethod]
         public void ImpliedCityTime_Paused_Fails()
         {
             InvalidOperationException exception = Assert.ThrowsExactly<InvalidOperationException>(
-                () => CityTimeModel.ImpliedCityTime(new CityTimeCounters(Speed.Paused, 0, 0, 0), 1));
+                () => CityTimeModel.ImpliedCityTime(new CityClock(Speed.Paused, 0, 0, 0), 1));
 
             Assert.AreEqual("City time doesn't advance at speed 0", exception.Message);
         }
@@ -62,7 +62,7 @@ namespace Micropolis.Server.Tests
                 city.Step();
             }
 
-            CityTimeCounters start = CityTimeModel.CountersOf(city);
+            CityClock start = CityTimeModel.ClockOf(city);
 
             CityTimeModel.TakeSteps(city, 1000, city.Step);
 

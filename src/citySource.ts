@@ -11,7 +11,7 @@
  *
  */
 
-import type { AdvanceResult, Command, PlayerId, SessionLog, StateMessage } from "./protocol";
+import type { AdvanceResult, Command, PlayerId, Query, QueryAnswer, SessionLog, StateMessage } from "./protocol";
 import type { QuerySource } from "./querySource";
 
 // The only way the client reaches the city. A source sends the city commands and queries, and delivers the state
@@ -84,10 +84,25 @@ export class Subscribers {
   }
 }
 
-// What becomes of a call's answer, or of its failure, once it comes
+// What becomes of a call's answer, or of its failure, once it comes; and, where it isn't a failure like any other, of
+// the call when the source gives up on it with every other, as when the connection to the server drops
 export interface Pending {
   resolve(value: unknown): void;
   reject(error: Error): void;
+  abandon?(error: Error): void;
+}
+
+// What becomes of a query a remote source asks. The reply is called as the answer arrives, so what goes wrong in it, or
+// in the query, is thrown there, as the in-page source throws it at the call, rather than lost in a promise. A query
+// the source gives up on is never answered, which is said out loud: what asked it carries on without the answer.
+export function queryReply(query: Query, reply: (answer: QueryAnswer) => void): Required<Pending> {
+  return {
+    resolve: (answer) => reply(answer as QueryAnswer),
+    reject: (error) => {
+      throw error;
+    },
+    abandon: (error) => console.warn(`A query went unanswered: ${error.message}`, query),
+  };
 }
 
 // The calls a source has made of what runs the city and waits on, each by the id its answer comes back with
@@ -116,17 +131,11 @@ export class PendingCalls {
     return pending;
   }
 
-  // Fails every call waited on, which none of them will be answered now
+  // Gives up on every call waited on, none of which will be answered now
   failAll(error: Error): void {
     const pending = Array.from(this.pending.values());
     this.pending.clear();
-    pending.forEach(({reject}) => {
-      try {
-        reject(error);
-      } catch {
-        // A query's reply throws what the query failed with, which the source reports once, as it fails them all
-      }
-    });
+    pending.forEach((call) => (call.abandon ?? call.reject)(error));
   }
 }
 
