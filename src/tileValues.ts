@@ -253,7 +253,7 @@ export const RADAR5         = 837;
 export const RADAR6         = 838;
 export const RADAR7         = 839;
 export const FOUNTAIN       = 840;
-// tile 841 -- 843: fountain animation.
+// tile 841 -- 843: the original's fountain animation, which the client never draws.
 export const INDBASE2       = 844;
 export const TELEBASE       = 844;
 // tile 845 -- 850 ?
