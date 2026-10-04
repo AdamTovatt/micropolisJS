@@ -55,7 +55,7 @@ export interface Internals {
     doDisasters(gameLevel: number, census: unknown): void, doMeltdown(x: number, y: number): void,
     disastersEnabled: boolean,
   };
-  spriteManager: {makeExplosion(x: number, y: number): void, spriteList: unknown[]};
+  spriteManager: {makeExplosion(x: number, y: number): void, getLiveSprites(): {x: number, y: number}[]};
   // The block maps, by name, as the Simulation constructor makes them
   blockMaps: Record<string, BlockMap>;
   random: unknown;

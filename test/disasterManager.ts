@@ -13,19 +13,25 @@
 
 import { DisasterManager } from "../src/disasterManager.js";
 import { GameMap } from "../src/gameMap.js";
+import { EARTHQUAKE, PLANE_CRASHED } from "../src/messages";
+import { Random } from "../src/random";
 import { Simulation } from "../src/simulation.js";
-import { BLBNBIT, BULLBIT } from "../src/tileFlags";
-import { DIRT, FIRSTRIVEDGE, FLOOD, RIVER, RUBBLE, WOODS, WOODS5 } from "../src/tileValues";
-import { streamAlwaysDrawing } from "./helpers/streams";
+import { SPRITE_AIRPLANE } from "../src/spriteConstants";
+import { SpriteManager } from "../src/spriteManager.js";
+import { BLBNBIT, BULLBIT, BURNBIT } from "../src/tileFlags";
+import {
+    DIRT, FIRE, FIRSTRIVEDGE, FLOOD, HOUSE, LASTFIRE, LASTRUBBLE, RADTILE, RIVER, RUBBLE, WOODS, WOODS5,
+} from "../src/tileValues";
+import { streamAlwaysDrawing, streamDrawing } from "./helpers/streams";
 
 
 describe("the disaster manager", () => {
 
     // A draw of 1 is no disaster at any level, so the manager draws once and stops
     it.each([
-        ["easy", Simulation.LEVEL_EASY, 479],
-        ["medium", Simulation.LEVEL_MED, 239],
-        ["hard", Simulation.LEVEL_HARD, 59],
+        ["easy", Simulation.LEVEL_EASY, 480],
+        ["medium", Simulation.LEVEL_MED, 240],
+        ["hard", Simulation.LEVEL_HARD, 60],
     ])("draws a disaster's chance from the %s level's odds", (_, level, odds) => {
         const stream = streamAlwaysDrawing(1);
         const getRandom = jest.spyOn(stream, "getRandom");
@@ -131,6 +137,137 @@ describe("the disaster manager", () => {
             ["a flood", FLOOD, 0],
         ])("should not flood %s", (_, value, flags) => {
             expect(spread(value, flags)).toBe(value | flags);
+        });
+    });
+
+    // Every tile the stream draws is (10, 10)
+    describe("when setting a fire", () => {
+
+        function managerOver(value: number, flags: number) {
+            const map = new GameMap(120, 100);
+            map.setTile(10, 10, value, flags);
+            const random = streamAlwaysDrawing(10);
+            return {map, manager: new DisasterManager(map, new SpriteManager(map, random), random)};
+        }
+
+        const burning = (map: InstanceType<typeof GameMap>) => {
+            const value = map.getTileValue(10, 10);
+            return value >= FIRE && value <= LASTFIRE;
+        };
+
+        it.each([
+            ["woods", WOODS, BLBNBIT, false],
+            ["a house", HOUSE + 1, BURNBIT, true],
+        ])("burns %s at random only if it is a building", (_, value, flags, burns) => {
+            const {map, manager} = managerOver(value, flags);
+
+            manager.setFire();
+
+            expect(burning(map)).toBe(burns);
+        });
+
+        it.each([
+            ["rubble, which cannot burn", RUBBLE, BULLBIT, false],
+            ["woods", WOODS, BLBNBIT, true],
+        ])("burns %s when the player sets one only if it can burn", (_, value, flags, burns) => {
+            const {map, manager} = managerOver(value, flags);
+
+            manager.makeFire();
+
+            expect(burning(map)).toBe(burns);
+        });
+    });
+
+    // The stream's every draw is 13: a strength of 313, and every tile drawn at (13, 13), which a house stands on. The
+    // first strike sets it on fire, as one strike in four does, with the fire tile a draw of 13 picks, the sixth of the
+    // eight; after that it is no building, and the strikes leave it.
+    it("shakes the city centre, burning the first building it strikes", () => {
+        const map = new GameMap(120, 100);
+        map.setTile(13, 13, HOUSE, BURNBIT);
+        const random = streamAlwaysDrawing(13);
+        const manager = new DisasterManager(map, new SpriteManager(map, random), random);
+        const heard: unknown[] = [];
+        manager.addEventListener(EARTHQUAKE, (data: unknown) => heard.push(data));
+
+        manager.makeEarthquake();
+
+        expect(heard).toEqual([{showable: true, x: 60, y: 50}]);
+        expect(map.getTileValue(13, 13)).toBe(FIRE + 5);
+    });
+
+    // A city of houses, where every strike lands on a building until it has struck there before
+    it("leaves rubble three strikes in four, and fire the fourth", () => {
+        const map = new GameMap(120, 100);
+        for (let x = 0; x < map.width; x++) {
+            for (let y = 0; y < map.height; y++) {
+                map.setTile(x, y, HOUSE, BURNBIT);
+            }
+        }
+        const random = Random.simulationStream(7);
+
+        new DisasterManager(map, new SpriteManager(map, random), random).makeEarthquake();
+
+        const struck = {rubble: 0, fire: 0};
+        for (let x = 0; x < map.width; x++) {
+            for (let y = 0; y < map.height; y++) {
+                const value = map.getTileValue(x, y);
+                if (value >= RUBBLE && value <= LASTRUBBLE) {
+                    struck.rubble++;
+                } else if (value >= FIRE && value <= LASTFIRE) {
+                    struck.fire++;
+                }
+            }
+        }
+        expect(struck.rubble).toBeGreaterThan(2 * struck.fire);
+        expect(struck.fire).toBeGreaterThan(0);
+    });
+
+    // Every draw is 5. The plane made for tile (15, 10) starts 48 pixels east and 12 south of it, at (288, 172), and
+    // explodes at its hot spot, 48 east and 16 south of that: (336, 188), in tile (21, 11).
+    it("crashes a plane over the land away from the map's edges when none flies", () => {
+        const map = new GameMap(120, 100);
+        const random = streamAlwaysDrawing(5);
+        const spriteManager = new SpriteManager(map, random);
+        const crashes: unknown[] = [];
+        spriteManager.addEventListener(PLANE_CRASHED, (data: unknown) => crashes.push(data));
+
+        new DisasterManager(map, spriteManager, random).makeCrash();
+
+        expect(crashes).toEqual([{showable: true, x: 21, y: 11}]);
+    });
+
+    // A stream that fails the test if it is drawn from
+    it("crashes the plane in the air, drawing nothing, when one flies", () => {
+        const map = new GameMap(120, 100);
+        const random = streamDrawing([]);
+        const spriteManager = new SpriteManager(map, random);
+        spriteManager.generatePlane(15, 10);
+        const crashes: unknown[] = [];
+        spriteManager.addEventListener(PLANE_CRASHED, (data: unknown) => crashes.push(data));
+
+        new DisasterManager(map, spriteManager, random).makeCrash();
+
+        expect(crashes).toEqual([{showable: true, x: 21, y: 11}]);
+        expect(spriteManager.getSprite(SPRITE_AIRPLANE)).toBeNull();
+    });
+
+    // Only dirt without flags counts as dirt, as in the original
+    describe.each([
+        ["bare dirt", 0, RADTILE],
+        ["dirt with a flag", BULLBIT, DIRT],
+    ])("after a meltdown, on %s", (_, flags, left) => {
+
+        // A meltdown at (50, 50), with every draw 20: the radiation falls 20 tiles east of 20 west, and 20 south of 15
+        // north, on (50, 55)
+        it(`leaves ${left === RADTILE ? "radiation" : "the dirt"}`, () => {
+            const map = new GameMap(120, 100);
+            map.setTile(50, 55, DIRT, flags);
+            const random = streamAlwaysDrawing(20);
+            const manager = new DisasterManager(map, new SpriteManager(map, random), random);
+
+            manager.doMeltdown(50, 50);
+
+            expect(map.getTileValue(50, 55)).toBe(left);
         });
     });
 });

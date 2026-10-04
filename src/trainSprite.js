@@ -26,7 +26,8 @@ function TrainSprite(map, spriteManager, random, x, y) {
 }
 
 
-BaseSprite(TrainSprite, {width: 32, height: 32, xOffset: -16, yOffset: -16});
+BaseSprite(TrainSprite, {width: 32, height: 32, xOffset: 32, yOffset: -16, xHot: 40, yHot: -8,
+                         crashMessage: TRAIN_CRASHED});
 
 
 var tileDeltaX = [  0, 16, 0, -16];
@@ -80,7 +81,7 @@ TrainSprite.prototype.move = function(spriteCycle) {
             continue;
       }
 
-      var tileValue = SpriteUtils.getTileValue(this.map, this.x + tileDeltaX[dir2], this.y + tileDeltaY[dir2]);
+      var tileValue = SpriteUtils.getTileValue(this.map, this.x + tileDeltaX[dir2] + 48, this.y + tileDeltaY[dir2]);
 
       if ((tileValue >= TileValues.RAILBASE && tileValue <= TileValues.LASTRAIL) ||
           tileValue === TileValues.RAILVPOWERH || tileValue === TileValues.RAILHPOWERV) {
@@ -111,13 +112,6 @@ TrainSprite.prototype.move = function(spriteCycle) {
     // next time around
     this.dir = CANTMOVE;
   }
-};
-
-
-TrainSprite.prototype.explodeSprite = function() {
-  this.frame = 0;
-  this.spriteManager.makeExplosionAt(this.x, this.y);
-  this._emitEvent(TRAIN_CRASHED, {showable: true, x: this.worldX, y: this.worldY});
 };
 
 

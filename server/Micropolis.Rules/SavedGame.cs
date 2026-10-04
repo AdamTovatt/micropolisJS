@@ -63,6 +63,16 @@ namespace Micropolis.Rules
 
                 evaluation["problemOrder"] = problems;
             },
+
+            // From version 9: sprites were placed and ordered in a frame of the port's own, which no rewriting of the
+            // fields turns into the original's, so the sprites in flight are dropped, as the original saves none; the
+            // distance getDir last found starts at 0
+            savedGame =>
+            {
+                JsonObject sprites = Group(savedGame, "sprites");
+                sprites["list"] = new JsonArray();
+                sprites["absDist"] = 0;
+            },
         ];
 
         /// <summary>

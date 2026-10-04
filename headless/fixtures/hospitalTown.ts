@@ -15,9 +15,8 @@ import { SPEEDS } from "../../src/protocol";
 import { builtFixture, RUN_STEPS } from "./fixture";
 import { buildingAt, lineOf, zoneRow } from "./toolCommands";
 
-// A sprite-free city made to reach branches of the zone handlers that the suburbs never reach, whose unit snapshots
-// are recorded from it alone (conformance/snapshotPoints.ts). Seed 8's map has open land and woods from (10, 10) to
-// (53, 33).
+// A city made to reach branches of the zone handlers that the suburbs never reach, whose unit snapshots are recorded
+// from it alone (conformance/snapshotPoints.ts). Seed 8's map has open land and woods from (10, 10) to (53, 33).
 
 const LEFT = 14;
 const TOP = 10;
@@ -46,6 +45,6 @@ export const hospitalTown = builtFixture(
     {type: "setBudget", road: 100, fire: 100, police: 100, tax: 7},
     {type: "setSpeed", speed: SPEEDS.fast},
   ], [
-    {step: 0, hash: "a7a53ca6c2c63da9a239e01be0d426052a637cc6047aeaaae549a5a4542f3604"},
-    {step: RUN_STEPS, hash: "7f12ed18e624220a698aea6f314a71a210abaf8862983fb7a452cad4aa8f18c5"},
+    {step: 0, hash: "1733cfeb5cc6c15b6129f2481a8f3adc1962d28001922c904117a1440996a5d9"},
+    {step: RUN_STEPS, hash: "4fd55aeb5ee314c5f72d68e5c9c7a17829ea4d563a94ff497065d5977933aa0a"},
   ]);

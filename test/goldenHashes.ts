@@ -11,10 +11,9 @@
  *
  */
 
-import { fixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index";
+import { fixtureNames } from "../headless/fixtures/index";
 import { fixtureLog, replay } from "../headless/runner";
 import { Simulation } from "../headless/city";
-import { SpriteManager } from "../src/spriteManager.js";
 import { savedState } from "../src/stateHash";
 
 // Each fixture's golden hashes are its log's checkpoints: the built hash at step 0, of the city once the log's
@@ -31,32 +30,6 @@ describe("the golden hashes", () => {
 
     it.each(fixtureNames())("hold for %s", async (name) => {
         await expect(replay(fixtureLog(name)).verified).resolves.toBe(fixtureLog(name).checkpoints.length);
-    });
-});
-
-// The unit snapshots are recorded from these fixtures because the C# port can run their every step before it ports the
-// sprites: a sprite created on the way would make that untrue without moving a hash
-describe("the sprite-free fixtures", () => {
-
-    afterEach(() => {
-        jest.restoreAllMocks();
-    });
-
-    it.each(spriteFreeFixtureNames())("create no sprite in %s's run", (name) => {
-        const makeSprite = jest.spyOn(SpriteManager.prototype, "makeSprite");
-
-        replay(fixtureLog(name), {verify: false});
-
-        expect(makeSprite).not.toHaveBeenCalled();
-    });
-
-    // The same watch sees a fixture that does create sprites, so it is not one that passes every fixture
-    it("sees the town's run create sprites", () => {
-        const makeSprite = jest.spyOn(SpriteManager.prototype, "makeSprite");
-
-        replay(fixtureLog("town"), {verify: false});
-
-        expect(makeSprite).toHaveBeenCalled();
     });
 });
 

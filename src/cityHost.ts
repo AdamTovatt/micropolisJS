@@ -36,7 +36,7 @@ import { StepDriver } from "./stepDriver";
 // What the host reads of the simulation, which is JavaScript, so its reader declares the shape
 interface HostedSimulation extends CommandTarget, ClockedSimulation, Saveable {
   readonly seed: number;
-  readonly spriteManager: {getSpriteList(): HostedSprite[]};
+  readonly spriteManager: {getLiveSprites(): HostedSprite[]};
   getMap(): HostedMap;
   getDate(): {month: number, year: number};
   getPopulation(): number;
@@ -68,7 +68,7 @@ interface HostedSprite {
 // The news the simulation sends: where it happened is a place, or a sprite to follow
 interface SimulationNews {
   subject: string;
-  data?: {x: number, y: number, showable?: true, trackable?: true, sprite?: {type: number}};
+  data?: {x: number, y: number, showable?: true, trackable?: true, sprite?: number};
 }
 
 // The news as the client reads it: a sprite to follow is named by its type, of which the map holds at most one
@@ -79,7 +79,7 @@ export function newsMessage(news: SimulationNews): NewsMessage {
   }
 
   if (data.trackable) {
-    return {type: "news", subject: news.subject, data: {x: data.x, y: data.y, trackable: true, sprite: data.sprite!.type}};
+    return {type: "news", subject: news.subject, data: {x: data.x, y: data.y, trackable: true, sprite: data.sprite!}};
   }
 
   if (data.showable) {
@@ -150,7 +150,7 @@ class HostedCity {
       messages.push(tiles);
     }
 
-    const sprites: SpriteView[] = simulation.spriteManager.getSpriteList().map((sprite) => ({
+    const sprites: SpriteView[] = simulation.spriteManager.getLiveSprites().map((sprite) => ({
       type: sprite.type, frame: sprite.frame, x: sprite.x + sprite.xOffset, y: sprite.y + sprite.yOffset,
       width: sprite.width,
     }));

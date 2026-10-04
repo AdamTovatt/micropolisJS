@@ -24,8 +24,6 @@ namespace Micropolis.Rules.Tests
     [TestClass]
     public sealed class SavedGameTests
     {
-        private const string AwaitingBudgetSample = "version7AwaitingBudget.json";
-
         public static IEnumerable<object[]> Samples => Directory.GetFiles(RepositoryFiles.GetPath("conformance/saveVersions"), "*.json")
             .Order(StringComparer.Ordinal)
             .Select(path => new object[] { Path.GetFileName(path) });
@@ -35,20 +33,7 @@ namespace Micropolis.Rules.Tests
         public void Load_SampleSave_IsTheStateTypeScriptMigratesItTo(string fileName)
         {
             string expected = ConformanceFile.Read($"migrated/{fileName}");
-            Simulation city;
-            string name;
-
-            try
-            {
-                city = SavedGame.Load(ConformanceFile.Read($"saveVersions/{fileName}"), out name);
-            }
-            catch (NotPortedException exception) when (fileName == AwaitingBudgetSample && exception.Unit == "budget.doBudgetNow")
-            {
-                // The one sample whose migration runs a game rule, the year end, which another lane ports. The stand-in
-                // that throws here goes when that lane merges (PortStandInsTests), and the sample is held then.
-                Assert.Inconclusive($"{exception.Unit} is not ported yet.");
-                return;
-            }
+            Simulation city = SavedGame.Load(ConformanceFile.Read($"saveVersions/{fileName}"), out string name);
 
             Assert.AreEqual("Sample", name);
             JsonObject state = city.Save();
@@ -82,9 +67,9 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         [DataRow("an older version", "4", "The save's version is 4, older than version 5")]
         [DataRow("the first version", "1", "The save's version is 1, older than version 5")]
-        [DataRow("a newer version", "10", "The save's version is 10, newer than version 9")]
+        [DataRow("a newer version", "11", "The save's version is 11, newer than version 10")]
         [DataRow("a negative version", "-3", "The save's version is -3, older than version 5")]
-        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 9")]
+        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 10")]
         [DataRow("a version that is not whole", "5.5", "The save's version must be a whole number, not 5.5")]
         [DataRow("a version that is text", "\"5\"", "The save's version must be a whole number, not a string.")]
         [DataRow("a version that is a list", "[5]", "The save's version must be a whole number, not a list.")]
@@ -142,14 +127,7 @@ namespace Micropolis.Rules.Tests
             {
                 string text = Edited("version7.json", savedGame => editBudget(savedGame["budget"]!.AsObject()));
 
-                try
-                {
-                    return CanonicalJson.Write(SavedGame.Load(text, out _).Save());
-                }
-                catch (NotPortedException exception)
-                {
-                    return $"stopped at {exception.Unit}";
-                }
+                return CanonicalJson.Write(SavedGame.Load(text, out _).Save());
             }
 
             string expected = paid

@@ -448,6 +448,10 @@ Simulation.prototype._triggerDisaster = function(kind) {
     case 'tornado':
       this.spriteManager.makeTornado();
       break;
+
+    case 'earthquake':
+      this.disasterManager.makeEarthquake();
+      break;
   }
 };
 

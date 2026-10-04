@@ -145,6 +145,7 @@ namespace Micropolis.Rules
         [JsonStringEnumMemberName("crash")] Crash,
         [JsonStringEnumMemberName("meltdown")] Meltdown,
         [JsonStringEnumMemberName("tornado")] Tornado,
+        [JsonStringEnumMemberName("earthquake")] Earthquake,
     }
 
     /// <summary>

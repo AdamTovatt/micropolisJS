@@ -23,7 +23,7 @@ function TornadoSprite(map, spriteManager, random, x, y) {
 }
 
 
-BaseSprite(TornadoSprite, {width: 48, height: 48, xOffset: -24, yOffset: -40});
+BaseSprite(TornadoSprite, {width: 48, height: 48, xOffset: 24, yOffset: 0, xHot: 40, yHot: 36});
 
 
 var xDelta = [2, 3, 2, 0, -2, -3];
@@ -78,7 +78,7 @@ TornadoSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps)
   if (this.count !== 0 && this.random.getRandom(500) === 0)
     this.frame = 0;
 
-  SpriteUtils.destroyMapTile(this.spriteManager, this.map, blockMaps, this.x, this.y);
+  SpriteUtils.destroyMapTile(this.spriteManager, this.map, blockMaps, this.x + 48, this.y + 40);
 };
 
 

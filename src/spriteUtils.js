@@ -20,6 +20,13 @@ var pixToWorld = function(p) {
 };
 
 
+// The tile of a pixel by C's integer division, which truncates toward zero, as the original's p / 16: the pixels from
+// -15 to -1 fall in tile 0, where pixToWorld's shift puts them in tile -1
+var truncatingPixToWorld = function(p) {
+  return p < 0 ? 0 - ((-p) >> 4) : p >> 4;
+};
+
+
 var worldToPix = function(w) {
   return w << 4;
 };
@@ -62,55 +69,6 @@ var getTileValue = function(map, x, y) {
     return -1;
 
   return map.getTileValue(wX, wY);
-};
-
-
-// Choose the best direction to get from the origin to the destination
-// If the destination is equidistant in both x and y deltas, a diagonal
-// will be chosen, otherwise the most 'dominant' difference will be selected
-// (so if a destination is 4 units north and 2 units east, north will be chosen).
-// This code seems to always choose south if we're already there which seems like
-// a bug
-var directionTable = [0, 3, 2, 1, 3, 4, 5, 7, 6, 5, 7, 8, 1];
-
-var getDir = function(orgX, orgY, destX, destY) {
-  var deltaX = destX - orgX;
-  var deltaY = destY - orgY;
-  var i;
-
-  if (deltaX < 0) {
-    if (deltaY < 0) {
-      i = 11;
-    } else {
-      i = 8;
-    }
-  } else {
-    if (deltaY < 0) {
-      i = 2;
-    } else {
-      i = 5;
-    }
-  }
-
-  deltaX = Math.abs(deltaX);
-  deltaY = Math.abs(deltaY);
-
-  if (deltaX * 2 < deltaY)
-    i++;
-  else if (deltaY * 2 < deltaX)
-    i--;
-
-  if (i < 0 || i > 12)
-    i = 0;
-
-  return directionTable[i];
-};
-
-
-var absoluteDistance = function(orgX, orgY, destX, destY) {
-  var deltaX = destX - orgX;
-  var deltaY = destY - orgY;
-  return Math.abs(deltaX) + Math.abs(deltaY);
 };
 
 
@@ -163,20 +121,20 @@ var getDistance = function(x1, y1, x2, y2) {
 };
 
 
+// Whether two live sprites' hot spots are close enough to collide
 var checkSpriteCollision = function(s1, s2) {
   return s1.frame !== 0 && s2.frame !== 0 &&
-         getDistance(s1.x, s1.y, s2.x, s2.y) < 30;
+         getDistance(s1.x + s1.xHot, s1.y + s1.yHot, s2.x + s2.xHot, s2.y + s2.yHot) < 30;
 };
 
 
 var SpriteUtils = {
-  absoluteDistance: absoluteDistance,
   checkSpriteCollision: checkSpriteCollision,
   destroyMapTile: destroyMapTile,
-  getDir: getDir,
   getTileValue: getTileValue,
   turnTo: turnTo,
   pixToWorld: pixToWorld,
+  truncatingPixToWorld: truncatingPixToWorld,
   worldToPix: worldToPix
 };
 

@@ -16,7 +16,7 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// Every city run in C#: a new city from each conformance seed and each sprite-free fixture's city, run at each
+    /// Every city run in C#: a new city from each conformance seed and each fixture's city, run at each
     /// speed, must emit the TypeScript's events in order and match its state hash at every checkpoint.
     /// </summary>
     [TestClass]

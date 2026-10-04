@@ -31,20 +31,24 @@ function sprites(simulation: SimulationInstance) {
         ({type: sprite.type, x: sprite.x, y: sprite.y, frame: sprite.frame}));
 }
 
-// A year of growth, then a monster and a tornado for half a year, while both are still in flight: their moves draw
-// from the stream, and their damage leaves fires and explosions for the scan to clear
+// A year of growth, then a monster and a tornado for half a year: their moves draw from the stream, and their damage
+// leaves fires and explosions for the scan to clear. The monster rises from tile (15, 35), with its hot spot on land;
+// one from a river, where makeMonster raises it, may rise with its hot spot in the river, and drown at once.
 function run(first: SimulationInstance, second: SimulationInstance) {
     stepBoth(first, second, YEAR);
     const grown = first._census.resPop;
 
     for (const simulation of [first, second]) {
-        simulation.spriteManager.makeMonster();
+        simulation.spriteManager.makeMonsterAt(15, 35);
         simulation.spriteManager.makeTornado();
     }
     const unleashed = sprites(first).length;
 
-    stepBoth(first, second, YEAR / 2);
-    return {grown, unleashed};
+    stepBoth(first, second, YEAR / 16);
+    const inFlight = first.spriteManager.getLiveSprites().map((sprite: {type: number}) => sprite.type);
+
+    stepBoth(first, second, YEAR / 2 - YEAR / 16);
+    return {grown, unleashed, inFlight};
 }
 
 function savedState(simulation: SimulationInstance) {
@@ -59,12 +63,12 @@ describe("two simulations stepped together", () => {
         const first = buildCity(SEED, SEED);
         const second = buildCity(SEED, SEED);
 
-        const {grown, unleashed} = run(first, second);
+        const {grown, unleashed, inFlight} = run(first, second);
 
         // The comparison covers zones the simulation grew and sprites it moved, not just the map it started from
         expect(grown).toBeGreaterThan(0);
         expect(unleashed).toBe(2);
-        expect(sprites(first).map((sprite: {type: number}) => sprite.type)).toEqual(expect.arrayContaining([SPRITE_MONSTER, SPRITE_TORNADO]));
+        expect(inFlight).toEqual(expect.arrayContaining([SPRITE_MONSTER, SPRITE_TORNADO]));
         expect(savedState(second)).toEqual(savedState(first));
         expect(sprites(second)).toEqual(sprites(first));
     });

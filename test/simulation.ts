@@ -16,6 +16,7 @@ import { advance, fixtureSave, startCity } from "../headless/runner";
 import { canonicalJson } from "../src/canonicalJson";
 import { GameMap } from "../src/gameMap.js";
 import * as Messages from "../src/messages";
+import { LOCAL_PLAYER } from "../src/protocol";
 import { Simulation } from "../src/simulation.js";
 import { plainSavedState, stateHash } from "../src/stateHash";
 import { InspectedSave } from "./helpers/savedState";
@@ -159,6 +160,8 @@ describe("a simulation", () => {
         it("evolves as it would have loaded over a blank city, whatever city it is loaded over", async () => {
             const other = startCity({fixture: "town", reseed: OTHER_SEED, speed: "slow"});
             advance(other, 4000);
+            other.applyCommands([{player: LOCAL_PLAYER, command: {type: "triggerDisaster", kind: "tornado"}}]);
+            advance(other, 10);
             expect((plainSavedState(other) as InspectedSave).sprites.list.length).toBeGreaterThan(0);
             other.load(grownTownSave);
             const overBlank = cityFromSave(grownTownSave);

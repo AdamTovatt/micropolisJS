@@ -21,18 +21,19 @@ namespace Micropolis.Rules
     /// </summary>
     internal static class JsonNumber
     {
-        // A number parsed from text, or one the state model wrote as an int, a uint, a long or a double
+        // A number parsed from text, or one the state model wrote as an int, a uint, a long or a double. An int, which
+        // most of a save's numbers are, is tried first: a parsed integer read as one is the double its text parses to.
         public static bool TryGetDouble(JsonValue value, out double number)
         {
-            if (value.TryGetValue(out JsonElement element) && element.ValueKind == JsonValueKind.Number)
-            {
-                number = element.GetDouble();
-                return true;
-            }
-
             if (value.TryGetValue(out int intValue))
             {
                 number = intValue;
+                return true;
+            }
+
+            if (value.TryGetValue(out JsonElement element) && element.ValueKind == JsonValueKind.Number)
+            {
+                number = element.GetDouble();
                 return true;
             }
 

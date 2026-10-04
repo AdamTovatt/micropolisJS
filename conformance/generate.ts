@@ -21,7 +21,7 @@ import {
   cityFromSave, cityOnMap, Level, LevelName, RUNNING_SPEEDS, RunningSpeed, SaveData, Speed,
 } from "../headless/city";
 import { RUN_STEPS } from "../headless/fixtures/fixture";
-import { fixtureNames, spriteFreeFixtureNames } from "../headless/fixtures/index";
+import { fixtureNames } from "../headless/fixtures/index";
 import { builtSave, fixtureLog, replay, startFromSave } from "../headless/runner";
 import { BlockMap } from "../src/blockMap";
 import { canonicalJson } from "../src/canonicalJson";
@@ -37,19 +37,20 @@ import { CITY_CLASSES, DISASTER_KINDS, LOCAL_PLAYER, OUTCOMES, SCORE_REASONS, TO
 import { Random } from "../src/random";
 import { Residential } from "../src/residential.js";
 import { SaveFormat } from "../src/savedGame";
-import { SPRITE_EXPLOSION, SPRITE_SHIP } from "../src/spriteConstants";
+import { SPRITE_EXPLOSION, SPRITE_MONSTER, SPRITE_SHIP } from "../src/spriteConstants";
 import { hashSavedState, plainSavedState, savedState, stateHash } from "../src/stateHash";
 import { Tile } from "../src/tile";
 import * as TileFlags from "../src/tileFlags";
 import { TileUtils } from "../src/tileUtils.js";
 import * as TileValues from "../src/tileValues";
 import { Traffic } from "../src/traffic.js";
-import { isRecord } from "../src/validation";
 import { ZoneUtils } from "../src/zoneUtils.js";
-import { CityRun, describeStart, recordRun, RunStart } from "./cityRuns";
+import { CityRun, describeStart, RANDOM_DISASTER_NAMES, recordRun, RunStart } from "./cityRuns";
 import { COMMAND_CASES } from "./commandCases";
 import { Internals } from "./instrumentation";
 import { COMMAND_POINTS, SNAPSHOT_POINTS } from "./snapshotPoints";
+import { TRACES } from "./tracePoints";
+import { recordTraces } from "./traces";
 import {
   COMMAND_UNIT, recordCommandSnapshots, recordSnapshots, recordSpeed, SnapshotRecord, UNIT_NAMES,
 } from "./unitSnapshots";
@@ -142,6 +143,8 @@ function numberVectors(): {bits: string, text: string}[] {
     0.007, 0.1, 0.000001, 0.0000015, 1e-7, 1.5e-7, -1.5e-7, 9.999999999999997e-7,
     Number.MAX_VALUE, Number.MIN_VALUE, -Number.MAX_VALUE, Number.MAX_SAFE_INTEGER, Number.EPSILON, 2.2250738585072014e-308,
     1e100, 1.7976931348623157e+308, 5e-324, 9.999999999999999e22, 1e23, 0.1 + 0.2,
+    // Integers past 2^53 whose shortest digits end in zeros where a long's digits don't
+    2 ** 62, 1e18 + 128,
   ];
 
   // Each funding share the budget sets, as the single-precision value the save writes
@@ -621,17 +624,21 @@ function putZoneVectors(): object[] {
   return puts;
 }
 
-// The city whose sprites are read, with ships added: a dead one, which counts for nothing, and two at sea
+// The city whose sprites are read, with a ship at sea added, and a monster that has died, which getSprite finds none
+// of while no pass has taken it out of the list. A list holds at most one sprite of each type but explosions, so these
+// are types the city's list holds none of.
 const SPRITE_FIXTURE = "town";
 const SPRITE_TILES = [[0, 0], [1, 1], [37, 31], [56, 12], [119, 99]];
 
 function spriteVector(): object {
   const save = writtenSave(SPRITE_FIXTURE, "run");
-  const list = (save as unknown as {sprites: {list: object[]}}).sprites.list;
+  const list = (save as unknown as {sprites: {list: {type: number}[]}}).sprites.list;
   const template = list[0];
-  const added = [{...template, type: SPRITE_SHIP, frame: 0, x: 24, y: 24},
-                 {...template, type: SPRITE_SHIP, frame: 3, x: 600, y: 500},
-                 {...template, type: SPRITE_SHIP, frame: 1, x: 900, y: 210}];
+  const added = [{...template, type: SPRITE_SHIP, frame: 3, x: 600, y: 500},
+                 {...template, type: SPRITE_MONSTER, frame: 0, x: 900, y: 210}];
+  if (list.some((sprite) => added.some((each) => each.type === sprite.type))) {
+    throw new Error(`${SPRITE_FIXTURE}'s list already holds a ship or a monster, which a list holds one of at most`);
+  }
   list.push(...added);
 
   const sprites = helperCity(save).spriteManager;
@@ -641,7 +648,10 @@ function spriteVector(): object {
     return {type, index: index === -1 ? null : index};
   });
 
-  ensureCovers(firstOfType.some(({index}) => index === null), "a type with no live sprite");
+  ensureCovers(firstOfType.some(({index}) => index !== null), "a type with a live sprite");
+  // The monster added is the list's one monster, and dead
+  ensureCovers(firstOfType.some(({type, index}) => type === SPRITE_MONSTER && index === null),
+               "a type whose sprite has died");
 
   return {
     fixture: SPRITE_FIXTURE, point: "run", added, firstOfType,
@@ -898,14 +908,6 @@ const REJECTION_REASONS = [
 
 const LOGS_DIRECTORY = "logs";
 
-// Whether the C# can replay a fixture's log while the disasters' triggers are stand-ins (PortStandIns.cs) and it runs
-// no sprite: the log of a sprite-free fixture, whose golden run the runs check creates no sprite, that triggers no
-// disaster. The filter goes once those are ported, and every fixture's log is written.
-function replayableWithoutSpritesOrDisasters(name: string): boolean {
-  return spriteFreeFixtureNames().includes(name) &&
-         !fixtureLog(name).entries.some((entry) => isRecord(entry.command) && entry.command.type === "triggerDisaster");
-}
-
 // A log that is no fixture's: the suburb's, with commands sent partway through its run, as a fixture's log, whose
 // commands all precede its first step, never has. One step pauses the city, takes a command and resumes it.
 const MID_RUN_LOG = "suburbMidRun";
@@ -965,8 +967,7 @@ function logLines(log: CommandLog): string[] {
 async function writeLogs(): Promise<void> {
   fs.mkdirSync(path.join(CONFORMANCE_DIRECTORY, LOGS_DIRECTORY));
 
-  const logs: [string, CommandLog][] = fixtureNames().filter(replayableWithoutSpritesOrDisasters)
-    .map((name) => [name, fixtureLog(name)]);
+  const logs: [string, CommandLog][] = fixtureNames().map((name) => [name, fixtureLog(name)]);
   logs.push([MID_RUN_LOG, await midRunLog()]);
 
   for (const [name, log] of logs) {
@@ -993,11 +994,11 @@ const RUN_CHECKPOINT_INTERVAL = 256;
 // What the runs' events may take in the repository, compressed
 const RUN_LIMIT = 5 * 1024 * 1024;
 
-// A new city from each seed, at each level in turn, and each sprite-free fixture's city as built
+// A new city from each seed, at each level in turn, and each fixture's city as built
 async function runStarts(seeds: number[]): Promise<RunStart[]> {
   const levels = Object.keys(Level) as LevelName[];
   const fixtures: RunStart[] = [];
-  for (const fixture of spriteFreeFixtureNames()) {
+  for (const fixture of fixtureNames()) {
     fixtures.push({fixture, built: await builtSave(fixture)});
   }
 
@@ -1054,6 +1055,10 @@ function ensureRunsCover(runs: CityRun[]): void {
   ensureCovers(budgets.some((budget) => budget.autoBudget && !budget.shortfall), "a year's budget auto-budget paid");
   ensureCovers(budgets.some((budget) => budget.shortfall), "a year's budget auto-budget ran short of");
   ensureCovers(budgets.some((budget) => !budget.autoBudget), "a year's budget with auto-budget off");
+  ensureCovers(runs.some((run) => run.sprites), "a run with a live sprite moving");
+  for (const disaster of RANDOM_DISASTER_NAMES) {
+    ensureCovers(runs.some((run) => run.disasters.includes(disaster)), `a run a random disaster strikes by ${disaster}`);
+  }
 }
 
 async function writeRuns(seeds: number[]): Promise<void> {
@@ -1077,6 +1082,29 @@ async function writeRuns(seeds: number[]): Promise<void> {
   }));
 
   writeFile(path.join(RUNS_DIRECTORY, RUN_INDEX), ["{", ...listLines("runs", index, true), "}"]);
+}
+
+// --- traces/: calls into the sprites, the disasters and the transport handlers, gzipped, from the fixtures' saves
+
+const TRACES_DIRECTORY = "traces";
+
+// What the traces may take in the repository, compressed
+const TRACE_LIMIT = 1024 * 1024;
+
+async function writeTraces(): Promise<void> {
+  const directory = path.join(CONFORMANCE_DIRECTORY, TRACES_DIRECTORY);
+  fs.mkdirSync(directory, {recursive: true});
+
+  const traces = await recordTraces(TRACES, writtenSave);
+  const files = new Set(traces.map((trace) => `${trace.name}.json.gz`));
+
+  let size = 0;
+  for (const trace of traces) {
+    size += writeGzipped(path.join(TRACES_DIRECTORY, `${trace.name}.json.gz`), canonicalJson(trace));
+  }
+
+  ensureCovers(size <= TRACE_LIMIT, `its traces in ${TRACE_LIMIT} bytes: they take ${size}`);
+  removeUnwritten(directory, files);
 }
 
 // The files in conformance/ another program writes: random.c writes random.json
@@ -1111,6 +1139,7 @@ async function main() {
   await writeLogs();
   await writeSnapshots();
   await writeRuns(maps.map((map) => map.seed));
+  await writeTraces();
 }
 
 main().catch((error: Error) => {

@@ -138,11 +138,11 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// One of the four fire tiles, animated, picked by one draw.
+        /// One of the eight fire tiles, animated, picked by one draw.
         /// </summary>
         public static Tile RandomFire(RandomStream random)
         {
-            return new Tile(TileValues.FIRE + (random.GetRandom16() & 3), TileFlags.ANIMBIT);
+            return new Tile(TileValues.FIRE + (random.GetRandom16() & 7), TileFlags.ANIMBIT);
         }
 
         /// <summary>

@@ -205,6 +205,16 @@ const UPGRADES: ReadonlyArray<(savedGame: SavedGame) => void> = [
       return problem === null ? 7 : problem;
     });
   },
+
+  // From version 9
+  (savedGame) => {
+    // Sprites were placed and ordered in a frame of the port's own, which no rewriting of the fields turns into the
+    // original's: the sprites in flight are dropped, as the original saves none, and the trains, ships and aircraft
+    // come again as the city runs. The distance getDir last found starts at 0, as the original's does.
+    const sprites = group(savedGame, "sprites");
+    sprites.list = [];
+    sprites.absDist = 0;
+  },
 ];
 
 const CURRENT_VERSION = UPGRADES.length + 1;

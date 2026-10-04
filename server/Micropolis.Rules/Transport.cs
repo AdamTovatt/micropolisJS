@@ -18,19 +18,83 @@ namespace Micropolis.Rules
     /// </summary>
     public static class Transport
     {
+        /// <summary>
+        /// A rail tile, as the original's doRail: it counts, may send out a train, and with roads underfunded may
+        /// decay, a rail bridge to the river and other rail to rubble, unless it carries a wire.
+        /// </summary>
         public static void RailFound(GameMap map, int x, int y, SimData simData)
         {
-            throw new NotPortedException("transport.railFound");
+            simData.Census.RailTotal += 1;
+            simData.SpriteManager.GenerateTrain(simData.Census, x, y);
+
+            if (!simData.Budget.ShouldDegradeRoad() || !simData.Random.GetChance(511))
+            {
+                return;
+            }
+
+            Tile currentTile = map.GetTile(x, y);
+
+            // Don't degrade tiles with power lines
+            if (currentTile.IsConductive())
+            {
+                return;
+            }
+
+            if (simData.Budget.RoadEffect < (simData.Random.GetRandom16() & 31))
+            {
+                if (currentTile.GetValue() < TileValues.RAILBASE + 2)
+                {
+                    map.SetTile(x, y, TileValues.RIVER, TileFlags.NOFLAGS);
+                }
+                else
+                {
+                    map.SetTo(x, y, TileUtils.RandomRubble(simData.Random));
+                }
+            }
         }
 
+        /// <summary>
+        /// A seaport's centre: it counts, and powered, sends out a ship when none sails.
+        /// </summary>
         public static void PortFound(GameMap map, int x, int y, SimData simData)
         {
-            throw new NotPortedException("transport.portFound");
+            simData.Census.SeaportPop += 1;
+
+            if (map.GetTile(x, y).IsPowered() && simData.SpriteManager.GetSprite(SpriteType.Ship) is null)
+            {
+                simData.SpriteManager.GenerateShip();
+            }
         }
 
+        /// <summary>
+        /// An airport's centre: it counts, and powered, turns its radar and may send out a plane, or failing that a
+        /// helicopter; unpowered, its radar stands still.
+        /// </summary>
         public static void AirportFound(GameMap map, int x, int y, SimData simData)
         {
-            throw new NotPortedException("transport.airportFound");
+            simData.Census.AirportPop += 1;
+
+            if (!map.GetTile(x, y).IsPowered())
+            {
+                map.SetTile(x + 1, y - 1, TileValues.RADAR, TileFlags.CONDBIT | TileFlags.BURNBIT);
+                return;
+            }
+
+            if (map.GetTileValue(x + 1, y - 1) == TileValues.RADAR)
+            {
+                map.SetTile(x + 1, y - 1, TileValues.RADAR0, TileFlags.CONDBIT | TileFlags.ANIMBIT | TileFlags.BURNBIT);
+            }
+
+            if (simData.Random.GetRandom(5) == 0)
+            {
+                simData.SpriteManager.GeneratePlane(x, y);
+                return;
+            }
+
+            if (simData.Random.GetRandom(12) == 0)
+            {
+                simData.SpriteManager.GenerateCopter(x, y);
+            }
         }
 
         public static void RegisterHandlers(MapScanner mapScanner, RepairManager repairManager)

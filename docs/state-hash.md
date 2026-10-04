@@ -36,6 +36,10 @@ The canonical text is JSON with these rules:
     `|n − 1|` (`1e+21`, `1.5e-7`).
   - A negative number is `-` followed by the form of its magnitude. Negative zero is written `0`.
 
+  An integer must be an exact double, from −2^53 to 2^53: a JavaScript number holds no other, so the C# port refuses
+  to write an integer its model holds beyond them rather than round it. A number parsed from text is the double
+  `JSON.parse` reads.
+
   .NET's shortest round-trip formatting produces the same digits `s` but lays them out differently, so the port
   formats them by the rules above.
 - **Nothing else** has a canonical form. Undefined values, NaN, infinities and non-data objects are errors, never
@@ -134,7 +138,8 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 | Key | Value |
 |-----|-------|
 | `sprites.spriteCycle` | The sprite movement counter |
-| `sprites.list` | Every sprite in the order they move, each an object with `type` (1 train, 2 helicopter, 3 airplane, 4 ship, 5 monster, 6 tornado, 7 explosion), `frame` (0 for a sprite that has died this pass), `x`, `y` (pixels), `origX`, `origY`, `destX`, `destY`, `count`, `soundCount`, `dir`, `newDir`, `step` and `flag`, and for a monster also `_seenLand` (boolean). A sprite's size and drawing offset are fixed by its type and not saved |
+| `sprites.absDist` | The distance, in pixels across and down, that the sprites' direction finder last measured, which every sprite shares as in the original |
+| `sprites.list` | Every sprite in the order they move: a new sprite joins at the front, but one restarted in the place of the dead sprite of its type keeps that sprite's place. The list holds at most one sprite of each type but explosions, of which it may hold any number. Each sprite is an object with `type` (1 train, 2 helicopter, 3 airplane, 4 ship, 5 monster, 6 tornado, 7 explosion), `frame` (0 for a sprite that has died and that no pass has reached since, and otherwise from 1 to its type's last frame: 5 for a train, 8 for a helicopter, 11 for an airplane, 8 for a ship, 16 for a monster, 3 for a tornado, 6 for an explosion), `x`, `y` (pixels, in the original's frame: the type's hot spot and drawing offset are fixed offsets from it), `origX`, `origY`, `destX`, `destY`, `count`, `soundCount`, `dir` (for a train, 0 to 3 north, east, south and west, or 4 for none), `newDir`, `step` and `flag`. A sprite's size, drawing offset and hot spot are fixed by its type and not saved |
 | `disasters.floodCount` | Passes left until a flood recedes |
 | `disasters.disastersEnabled` | Whether random disasters happen |
 
@@ -153,11 +158,11 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 ## Golden hashes
 
 Each fixture is a command log (`docs/command-log.md`) whose checkpoints are its golden hashes: the **built** hash at
-step 0, of the state its log builds before its first step, and the **run** hash after a fixed run at the medium speed
-a new city starts at. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtures` exports each
+step 0, of the state its log builds before its first step, and the **run** hash after a fixed run at the speed its
+built state holds. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtures` exports each
 fixture's log to `headless/fixtures/export/<name>.log.json`, and `conformance/README.md` describes the copies of each
-fixture's state at both checkpoints. The C# port replays the log, or takes the built state as its starting state and
-steps it at medium speed to the run checkpoint's step, and must produce the run hash.
+fixture's state at both checkpoints. The C# port takes the built state as its starting state and steps it at that
+speed to the run checkpoint's step, and must produce the run hash: `CityRunTests` does, with the fixture's city run.
 
 `e2e/goldenPlaythrough.json` pins the hash of the city at each stage of the end-to-end playthrough: the hash of the
 keys `Simulation.save` writes, taken from the browser's save (`src/gameSaveHash.ts`), which leaves out what the next

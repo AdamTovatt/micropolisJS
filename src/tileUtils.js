@@ -97,8 +97,9 @@ var normalizeRoad = unwrapTile(function(tile) {
 });
 
 
+// One of the eight fire tiles, FIRE to LASTFIRE
 var randomFire = function(random) {
-  return new Tile(TileValues.FIRE + (random.getRandom16() & 3), ANIMBIT);
+  return new Tile(TileValues.FIRE + (random.getRandom16() & 7), ANIMBIT);
 };
 
 

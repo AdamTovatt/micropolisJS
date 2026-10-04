@@ -237,8 +237,8 @@ describe("the protocol's state messages", () => {
         expect([...types, ...recordTypes()].sort()).toEqual(stateMessageTypes().sort());
     });
 
-    // What city hosts publish over a year and a half of a town with residents, auto-budget off, a monster, a fire and a
-    // road, and of a new city, whose advisor asks for zones
+    // What city hosts publish over a year and a half of a town with residents, auto-budget off, a monster, a tornado, a
+    // fire, an earthquake, which the news shows, and a road, and of a new city, whose advisor asks for zones
     let published: StateMessage[];
     beforeAll(() => {
         const town = hostedCity();
@@ -246,7 +246,9 @@ describe("the protocol's state messages", () => {
         town.host.hold();
         town.host.send(LOCAL_PLAYER, {type: "setAutoBudget", on: false});
         town.host.send(LOCAL_PLAYER, {type: "triggerDisaster", kind: "monster"});
+        town.host.send(LOCAL_PLAYER, {type: "triggerDisaster", kind: "tornado"});
         town.host.send(LOCAL_PLAYER, {type: "triggerDisaster", kind: "fire"});
+        town.host.send(LOCAL_PLAYER, {type: "triggerDisaster", kind: "earthquake"});
         town.host.send(LOCAL_PLAYER, {type: "tool", tool: "road", path: [{x: 40, y: 52}, {x: 41, y: 52}],
                                       autoBulldoze: true});
         for (let taken = 0; taken < YEAR * 1.5; taken += 16) {

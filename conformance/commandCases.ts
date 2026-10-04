@@ -15,7 +15,7 @@
 // the result the simulation gave it. Every reason commandRejection gives is reached, and every outcome.
 
 import { maxCommandLength, ReceivedCommand } from "../src/commands";
-import { LOCAL_PLAYER } from "../src/protocol";
+import { DISASTER_KINDS, LOCAL_PLAYER } from "../src/protocol";
 
 export interface CommandCase {
   description: string;
@@ -201,4 +201,11 @@ export const COMMAND_CASES: CommandCase[] = [
       tool("road", [tile(0, 0), tile(1, 0)], false),
     ),
   },
+  // Each disaster triggered alone, so the hash after it shows what it did: the meltdown in the broke suburb, which has
+  // a nuclear plant, and every other in the town
+  ...DISASTER_KINDS.map((kind): CommandCase => ({
+    description: `A ${kind} triggered`,
+    fixture: kind === "meltdown" ? "suburbBroke" : "town",
+    received: local({type: "triggerDisaster", kind}),
+  })),
 ];

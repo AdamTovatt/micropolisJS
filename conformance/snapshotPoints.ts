@@ -11,9 +11,9 @@
  *
  */
 
-// The calls the unit snapshots record (conformance/README.md): each unit's first calls in each sprite-free fixture not
-// made for a branch, and the points a unit's rarer branches need, which name the branch they reach so the generator
-// fails when a point stops reaching it.
+// The calls the unit snapshots record (conformance/README.md): each unit's first calls in each fixture of the kind
+// snapshots, and the points a unit's rarer branches need, which name the branch they reach so the generator fails when
+// a point stops reaching it.
 
 import { SaveData } from "../headless/city";
 import { BRIDGE_STRIP, FIRE_STRIP, RADIATION_STRIP, STADIUM_STRIP } from "../headless/fixtures/disasters";

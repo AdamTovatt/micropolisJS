@@ -31,8 +31,8 @@ Seeds and 32-bit words are hex strings, as the C reference prints them.
 ## Files the TypeScript reference writes
 
 `generate.ts` writes `tiles.json`, `canonicalJson.json`, `maps.json`, `saveStrings.json`, `messages.json`,
-`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/`, `logs/`, `snapshots/` and `runs/` from the
-TypeScript game rules. Regenerate them in the commit that changes what they are computed from:
+`saves/`, `helpers.json`, `speedGate.json`, `commands.json`, `migrated/`, `logs/`, `snapshots/`, `runs/` and `traces/`
+from the TypeScript game rules. Regenerate them in the commit that changes what they are computed from:
 
 ```bash
 npm run conformance
@@ -125,9 +125,11 @@ What the helpers the tile handlers share answered in the TypeScript:
   centre, overwritten, then checked by the repair manager at a `cityTime`: whether it `repaired` anything, and the six
   by six tiles from the centre's upper left neighbour after it (`area`), as raw values row by row. The generator fails
   unless a zone is repaired and a zone is left for another time.
-- `sprites`: a fixture's save with the sprites `added` to the end of its list: the index of the sprite
-  `spriteManager.getSprite` finds first of each type (`firstOfType`), or `null`, and `getBoatDistance` from tiles
-  (`boatDistances`).
+- `sprites`: a fixture's save with the sprites `added` to the end of its list, a live ship and a dead monster, of
+  types the list held none of, since a list holds at most one sprite of each type but explosions: the index of the
+  sprite `spriteManager.getSprite` finds of each type, the type's one sprite while it is alive, or `null`
+  (`firstOfType`), and `getBoatDistance` from tiles (`boatDistances`). The generator fails unless a type's sprite is
+  found and a dead one is not.
 
 ### speedGate.json
 
@@ -151,8 +153,7 @@ The cases reach every reason `commandRejection` gives and every outcome, and the
 small map's longest command, 3072 characters, is short enough to list one either side of it, with characters
 `JSON.stringify` escapes, in a type and in a key, and numbers it writes as `Number::toString` does. The commands are
 any JSON, a key that is a lone surrogate included, so the C# reads the file as `JSON.parse` does (`JsonText`).
-`triggerDisaster` is listed only as rejected: what an accepted one does is the disasters' rules rather than the
-command's, and no file here holds it.
+Each disaster the player can trigger is a case of its own, so its hash shows what that disaster did.
 
 ### saveVersions/ and migrated/
 
@@ -162,8 +163,8 @@ Each was written by the game of its version, and they are never regenerated, sin
 `version7AwaitingBudget.json` was saved while a year end waited for the player, which the step from version 7 pays.
 The generator writes nothing there, but fails unless every version from 5 to the current one has a sample, so a new
 version adds one, written by the game of the commit that adds it. A sample is the output of the game that wrote it,
-byte for byte, so writing it again from that commit gives the same file. The samples of the versions that came before
-the C# migrated saves were written by these commits on `main`:
+byte for byte, so writing it again from that commit gives the same file. The samples were written by these commits on
+`main`:
 
 | Sample | Commit |
 |--------|--------|
@@ -172,6 +173,7 @@ the C# migrated saves were written by these commits on `main`:
 | `version7.json`, `version7AwaitingBudget.json` | `824956a` |
 | `version8.json` | `051aa86` |
 | `version9.json` | `17098d0` |
+| `version10.json` | `faeaf92` |
 
 `migrated/<sample>.json` is what the TypeScript loads each sample to, `SaveFormat.parse` and then the simulation's
 load, as canonical text: the C#'s `SavedGame.Load` must load the sample to the same state.
@@ -181,10 +183,8 @@ load, as canonical text: the C#'s `SavedGame.Load` must load the sample to the s
 Command logs (`docs/command-log.md`), which the C# replays to every checkpoint, each laid out a line to each entry and
 each checkpoint, so a diff shows which moved:
 
-- `<fixture>.log.json`: the log `npm run fixtures` exports for a fixture, with its golden hashes as its checkpoints.
-  While the disasters' triggers are stand-ins in `server/Micropolis.Rules/PortStandIns.cs`, which throw, and the C#
-  runs no sprite, a log is written for each fixture whose golden run creates no sprite, which the runs check, and
-  that triggers no disaster. Porting them removes the filter, and every fixture's log is written.
+- `<fixture>.log.json`: the log `npm run fixtures` exports for each fixture, with its golden hashes as its
+  checkpoints.
 - `suburbMidRun.log.json`: the suburb's log with commands sent partway through its run, which no fixture's log has,
   since a fixture's commands all precede its first step: tool commands, and a step that pauses the city, takes a
   command and resumes it. Its checkpoints are the TypeScript replay's state hash where it starts, at each step that
@@ -221,17 +221,18 @@ their modules, `FAMILIES` in `unitSnapshots.ts` and `Simulation.HandlerFamilies`
 `Simulation.init`'s order, and a C# test checks that order against the records. Where a unit reaches the sprites or
 the disasters, the names are `spriteManager.makeExplosion` and `disasterManager.doMeltdown`.
 
-These names are the contract between the two sides: a unit the C# has no port of is a stub that throws
-`NotPortedException` with the unit's name, and a record names every unit it reached. One stub is outside it:
-`spriteManager.moveObjects`, which the step loop calls and no unit does, throws for a city with sprites, and the
-snapshots come from cities without them.
+These names are the contract between the two sides: the C# runs a record's unit by its name, and a record names every
+unit it reached. A record whose call reaches the disasters or a transport handler, such as phase 15's or a map scan's
+over a rail tile, holds the C# to them as to any other unit. The sprites' moves are no unit, since the step makes
+them outside the phases: the traces prove them, and call the disasters and the transport handlers directly besides,
+for runs too long for snapshots, which keep the whole state before and after each call.
 
 #### Records
 
 Each file is `<fixture>.<unit>.json.gz`: gzip over the canonical text (`docs/state-hash.md`) of a list of records, each
 an object of:
 
-- `fixture` and `step`: the sprite-free fixture whose city made the call, run at its saved speed from its built save,
+- `fixture` and `step`: the fixture whose city made the call, run at its saved speed from its built save,
   checked against its golden hash, and the step, counted from 0, during which the call came.
 - `unit` and `args`: the unit's name, and its arguments that are not simulation state. `mapScanner.mapScan`'s are its
   first column and the column after its last; `simulation.applyCommands`'s one argument is the commands it applies,
@@ -251,19 +252,20 @@ payloads, with the speed by name and the events by name. A pull request's index 
 
 #### Points
 
-A point names a call to record: a `fixture` of the sprite-free ones, whose city runs at its saved speed, a `unit`, and
-which of its calls (`call`, counting from 0 among the calls `where` accepts, given the city as the call finds it).
-`handlers` is every family when left out, or `"each"` for `mapScanner.mapScan`: one record with no handlers, and one
-with each family alone whose handlers the call reaches with every family registered. `reaches` names a branch, and
-tests that a record of the point reaches it, so a point with `"each"` reaches a family's branch in that family's
-record, though not in the record with no handlers. On a point with `"each"`, `reaches` may name a `family`, and then
-that family's record alone must reach the branch: the generator fails when the call makes no record of that family.
-A point's `where` that tries a unit on a copy of the city runs it in `unrecorded`, which `unitSnapshots.ts` exports;
-otherwise the copy's call of the unit counts among the city's own calls.
+A point names a call to record: a `fixture` of a kind below that records snapshots, whose city runs at its saved
+speed, a `unit`, and which of its calls (`call`, counting from 0 among the calls `where` accepts, given the city as
+the call finds it). `handlers` is every family when left out, or `"each"` for `mapScanner.mapScan`: one record with
+no handlers, and one with each family alone whose handlers the call reaches with every family registered. `reaches`
+names a branch, and tests that a record of the point reaches it, so a point with `"each"` reaches a family's branch in
+that family's record, though not in the record with no handlers. On a point with `"each"`, `reaches` may name a
+`family`, and then that family's record alone must reach the branch: the generator fails when the call makes no
+record of that family. A point's `where` that tries a unit on a copy of the city runs it in `unrecorded`, which
+`unitSnapshots.ts` exports; otherwise the copy's call of the unit counts among the city's own calls.
 
-Each fixture in `headless/fixtures/index.ts` has a `kind`. A `"snapshots"` fixture is sprite-free and records the
-points seeded below; a `"branch"` fixture, made for a branch of a unit, is sprite-free but records only the points
-that name it; a `"sprites"` fixture creates sprites and records none.
+Each fixture in `headless/fixtures/index.ts` has a `kind`, which says what proves its city beside its runs (`runs/`),
+which every fixture has. A `"snapshots"` fixture records the points seeded below, and a `"branch"` fixture, made for a
+branch of a unit, records only the points that name it. A `"runs"` fixture records none: its runs prove its city, with
+any traces that start from it.
 
 The points seeded are, in each `"snapshots"` fixture, the map scan's first sweep, its eight calls, with `"each"`, and
 every other unit's first two calls; every phase of the suburb's first cycle; and phase 0 alone in each such fixture: a
@@ -281,9 +283,7 @@ several where one call reaches them together, since each point records the whole
 the branch in `reaches`, so a change that stops the point reaching it fails the generator rather than leaving the
 branch unproven.
 
-The generator watches a fixture's city for sprites only until its last point; `test/goldenHashes.ts` checks that every
-sprite-free fixture, a `"branch"` fixture included, creates none over its whole golden run. A test fails on a point
-naming a fixture that is not sprite-free.
+A test fails on a point naming a `"runs"` fixture.
 
 No step applies a command, so `simulation.applyCommands` has points of its own, `COMMAND_POINTS` in
 `snapshotPoints.ts`, recorded by `recordCommandSnapshots`: a fixture, the steps its city runs from its built save
@@ -296,7 +296,6 @@ and each names in `reaches` the outcomes it must come to.
 The generator fails when:
 
 - a fixture's city as built does not match the golden hash its log pins at step 0, or the log pins none there;
-- a fixture's city creates a sprite;
 - registering the families as it does registers what `Simulation.init` does differently, or a family registers
   handlers other in number or name than `FAMILIES` lists;
 - an event is emitted with a `null` payload, which a record could not tell from none: emit it without one, or with an
@@ -315,15 +314,8 @@ The generator fails when:
 `Simulation.RegisterHandlers` when they are fewer. It calls the unit as the cycle does, or for
 `simulation.applyCommands` as a city source does, from a table with a case per unit name, and compares `after` key by
 key in the canonical text's order, then the events in order. A difference names the first key that differs and both
-values, and for an entry of the tiles, a block map or the power grid, the tile's or the block's position. A record
-passes when nothing differs. It is inconclusive when the run stops at a stub the TypeScript's call reached, the unit
-itself or one in `reached`, and fails when it stops at any other stub: the C# called what the TypeScript did not.
-
-What is ported is held to passing. `UnitSnapshotTests` lists the units, handlers and sprite or disaster functions not
-yet ported, and fails unless the list names exactly the stubs in `server/Micropolis.Rules`, each of which names its
-unit in a string literal, `new NotPortedException("census.take10Census")`: a port removes its units from it, and a
-stub that comes back fails rather than turning its records inconclusive. Every record whose call reaches no listed
-unit, the unit itself included, must pass.
+values, and for an entry of the tiles, a block map or the power grid, the tile's or the block's position. Every record
+must pass: nothing may differ.
 
 ### runs/
 
@@ -332,26 +324,28 @@ simulation emitted, so the C# port proves the whole cycle, every unit running to
 `cityRuns.ts` records them.
 
 A run starts from a new city on the map a seed generates, as the browser starts one, for each seed of `maps.json`, the
-seeds taking the levels easy, medium and hard in turn; or from a sprite-free fixture's city as built (`saves/`), at its
-saved level. Each start is run at slow, medium and fast speed, a fixture's saved speed overridden as the headless
-runner overrides it, for as many steps as the fixtures' golden run takes, `RUN_STEPS` in
-`headless/fixtures/fixture.ts`, in which a city reaches a year end at every speed. A start that is the state another
-run starts from, such as a fixture that differs from another only in its saved speed, makes the same run and is
-recorded once.
+seeds taking the levels easy, medium and hard in turn; or from a fixture's city as built (`saves/`), at its saved
+level, with the sprites it makes and, in `harbourWithDisasters`, random disasters striking. Each start is run at
+slow, medium and fast speed, a fixture's saved speed overridden as the headless runner overrides it, for as many
+steps as the fixtures' golden run takes, `RUN_STEPS` in `headless/fixtures/fixture.ts`, in which a city reaches a
+year end at every speed. A start that is the state another run starts from, such as a fixture that differs from
+another only in its saved speed, makes the same run and is recorded once.
 
 `index.json` lists each run: its `file`; its `seed` and its `fixture`, one of them `null`; the `level` its city is at,
-which for a fixture is its saved level; its `speed`, `steps`, how many `events` it emitted, and its `checkpoints`, each a `step` and the state `hash` after that many steps: at step 0, as the
-city starts, after its first scans for a new city, and then every 256 steps and at the last. A pull request's index diff
+which for a fixture is its saved level; its `speed`, `steps`, how many `events` it emitted, and its `checkpoints`,
+each a `step` and the state `hash` after that many steps: at step 0, as the city starts, after its first scans for a
+new city, and then every 256 steps and at the last. A pull request's index diff
 shows which hashes it moves. Each file, `<fixture>.<speed>.json.gz` or `seed<seed>.<speed>.json.gz`, is gzip over the
 canonical text of the run's events, in order, each with the `step`, counted from 0, during which it was emitted, its
 `name` and its `payload`, as a unit snapshot's record holds them.
 
 The generator fails when:
 
-- a run's city has random disasters enabled, or creates a sprite: runs are what the C# can run before it ports them;
 - a fixture's run at its saved speed, which is its golden run, does not end at its golden run hash;
 - a run reaches no year end, or the runs together don't cover a year's budget that auto-budget paid, one it ran short
   of, and one with auto-budget off;
+- no run has a live sprite moving, or a random disaster of some kind, a fire, a flood, an earthquake, a tornado or a
+  monster, strikes no run;
 - no new city runs at one of the levels, or the gzipped files take more than 5 MB.
 
 `CityRunTests` runs every run the index lists, through `CityRunner`: it starts the city, `Simulation.NewCity` for a
@@ -360,3 +354,40 @@ difference names the first event that differs, with its step, or the first check
 diverges is diagnosed with the unit snapshots: a record whose unit fails names the unit, key and tile. When every
 unit's snapshots pass and a run still diverges, the gap is in the snapshots, which don't reach the branch the run
 does, or in the integration, how the cycle calls the units; a point recorded at the step the run names tells which.
+
+### traces/
+
+Traces: a fixture's saved city, then a run of calls into the sprites, the disasters and the transport handlers, each
+with the state hash after it and the events it emitted. `traces.ts` records them, and `tracePoints.ts` lists them, with
+the calls each makes. A unit snapshot keeps the whole state before and after one call; a trace keeps a hash, so it
+affords thousands of calls, the sprites' moves among them, and a mismatch names the first call after which the states
+differ.
+
+Each file is `<name>.json.gz`: gzip over the canonical text of one trace, an object of:
+
+- `name`, and `fixture` and `point`: the fixture's save in `saves/`, `built` or `run`, the city starts from.
+- `changes`: keys of the save, as dotted paths, set to the values given before the city is built from it, such as
+  `disasters.disastersEnabled`, `sprites.list` set to `[]` to clear the sprites in flight, or set to sprites placed
+  where they collide.
+- `tiles`: tiles of the saved map, each an object of `x`, `y` and `value`, the raw value it is set to after the
+  changes, for a layout no fixture builds, such as a loop of rail or a channel alone on an edge of the map.
+- `calls`: each an object of `unit` and `args`, the call; `hash`, the first 12 hex digits of the state hash
+  (`docs/state-hash.md`) after it; and `events`, every event `Simulation` emitted during it, as a snapshot record holds
+  them. The units are `spriteManager.moveObjects`, the pass of the sprites a step makes; the disasters, by their
+  function, `disasterManager.makeEarthquake` and the rest, with `disasterManager.doDisasters` taking the game level as
+  its argument; `spriteManager.makeMonster`, `makeMonsterAt`, `makeTornado` and `makeExplosion`; and the transport
+  handlers, `transport.railFound`, `portFound` and `airportFound`, each with the tile it is found on.
+
+A trace sets off a disaster by calling the disaster manager's or the sprite manager's own function directly, where a
+command log sends a `triggerDisaster` command, so the trigger's own code is compared. Each trace is built for the
+branches it names in `tracePoints.ts`, and runs until what shows them has happened: a train turning both ways and
+crossing a bridge, the vehicles a monster stands on crashing, each random disaster drawn, and the monster drawn where
+the pollution is too low to raise one. The generator fails when a trace would
+not reach what it is for, when a unit is called by no trace, and when the gzipped files take more than 1 MB. It checks
+what a trace reaches by what the city shows, never by the C#: whether every branch of the C# is reached is for a
+coverage run of `TraceTests` to show.
+
+The C# side, `TraceTests`, replays each trace through `TraceRunner`: it builds the city from the save with the
+changes and the tiles, makes each call from a table with a case per unit name, and fails naming the first call whose
+hash or events differ from the TypeScript's. It compares the hash after every call, since a state may differ for one
+call only, such as the frame a train shows on a bend.

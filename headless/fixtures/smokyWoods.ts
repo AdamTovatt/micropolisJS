@@ -14,7 +14,7 @@
 import { builtFixture, RUN_STEPS } from "./fixture";
 import { buildingAt } from "./toolCommands";
 
-// A sprite-free city made for one branch of the residential zones, whose unit snapshots are recorded from it alone
+// A city made for one branch of the residential zones, whose unit snapshots are recorded from it alone
 // (conformance/snapshotPoints.ts): growth held back by pollution. Land value counts against a block the pollution the
 // scan before worked out, so a zone is polluted past the 128 at which growZone builds nothing, and yet passes the test
 // for growth, only between a scan that finds the pollution new and the next.
@@ -29,6 +29,6 @@ export const smokyWoods = builtFixture(
     buildingAt("coal", 45, 9),
     buildingAt("coal", 48, 13),
   ], [
-    {step: 0, hash: "67100d9ea4d668d4d76d0847cc8e925a1aed8960fe49a5ecbd273fdc872af892"},
-    {step: RUN_STEPS, hash: "a3df5d73d3d452f37d34242bde7cb328e34f7ab3828b7fc7a7e4dde2acbbbe93"},
+    {step: 0, hash: "ed6a605998dc4b4bac1efdc18d38f045fb86df4d00637cf844f7e63eadca2cf7"},
+    {step: RUN_STEPS, hash: "a64c91027b7785c1f4db07737d87ea38b0db6778de0ca77e5f32d15d3a79a62c"},
   ]);

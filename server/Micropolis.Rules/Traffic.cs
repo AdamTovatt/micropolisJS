@@ -140,8 +140,8 @@ namespace Micropolis.Rules
                         Sprite? sprite = _spriteManager.GetSprite(SpriteType.Helicopter);
                         if (sprite is not null)
                         {
-                            sprite.DestX = SpriteManager.WorldToPix(pos.X);
-                            sprite.DestY = SpriteManager.WorldToPix(pos.Y);
+                            sprite.DestX = SpriteUtils.WorldToPix(pos.X);
+                            sprite.DestY = SpriteUtils.WorldToPix(pos.Y);
                         }
                     }
                 }

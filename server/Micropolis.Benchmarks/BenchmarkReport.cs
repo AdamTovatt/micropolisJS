@@ -56,21 +56,10 @@ namespace Micropolis.Benchmarks
                 bytesMeasured
                     ? $"- Bytes/step: {MessageBytes.Source}, over the same steps as the timing."
                     : "- Bytes/step: not measured in this run.",
-            ];
-
-            if (BenchmarkCases.NotRun.Count > 0)
-            {
-                lines.Add("- Fixtures not run:");
-                lines.AddRange(BenchmarkCases.NotRun.OrderBy(fixture => fixture.Key, StringComparer.Ordinal)
-                    .Select(fixture => $"  - {fixture.Key}: {fixture.Value}"));
-            }
-
-            lines.AddRange(
-            [
                 "",
                 "| Fixture | Speed | Steps/s | ms/step | Bytes/step |",
                 "|---------|-------|--------:|--------:|-----------:|",
-            ]);
+            ];
 
             foreach (BenchmarkRow row in rows)
             {

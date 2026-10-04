@@ -175,7 +175,7 @@ export const TOOL_NAMES = [
 
 export type ToolName = typeof TOOL_NAMES[number];
 
-export const DISASTER_KINDS = ["monster", "fire", "flood", "crash", "meltdown", "tornado"] as const;
+export const DISASTER_KINDS = ["monster", "fire", "flood", "crash", "meltdown", "tornado", "earthquake"] as const;
 
 export type DisasterKind = typeof DISASTER_KINDS[number];
 

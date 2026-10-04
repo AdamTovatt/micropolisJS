@@ -159,9 +159,9 @@ describe("the save format", () => {
         });
 
         // The version is one past the last upgrade step, so a step inserted rather than appended would move it
-        it("is at version 9", async () => {
+        it("is at version 10", async () => {
 
-            expect(SaveFormat.CURRENT_VERSION).toBe(9);
+            expect(SaveFormat.CURRENT_VERSION).toBe(10);
         });
     });
 
@@ -370,6 +370,36 @@ describe("the save format", () => {
             SaveFormat.transitionOldSave(savedGame);
 
             expect((savedGame.evaluation as Save).problemOrder).toEqual(migrated);
+        });
+    });
+
+    describe("when migrating a version 9 save", () => {
+
+        // The town with a train and a monster in flight, in the port's old frame, the monster with the flag it saved,
+        // and no distance getDir last found
+        function version9Save(): Save {
+            const saved = fixtureSave("town") as unknown as Save;
+            const sprite = {frame: 1, x: 168, y: 328, origX: 0, origY: 0, destX: 0, destY: 0, count: 0, soundCount: 0,
+                            dir: 4, newDir: 0, step: 0, flag: 0};
+            return {...saved, version: 9,
+                    sprites: {spriteCycle: 41, list: [{type: 1, ...sprite}, {type: 5, ...sprite, _seenLand: true}]}};
+        }
+
+        it("drops the sprites in flight, keeps the sprite cycle, and starts getDir's distance from 0", async () => {
+            const savedGame = version9Save();
+
+            SaveFormat.transitionOldSave(savedGame);
+
+            expect(savedGame.sprites).toEqual({spriteCycle: 41, absDist: 0, list: []});
+        });
+
+        it("loads as a city with no sprites in flight", async () => {
+            const savedGame = version9Save();
+
+            SaveFormat.transitionOldSave(savedGame);
+
+            const restored = plainSavedState(Simulation.fromSave(savedGame)) as {sprites: object};
+            expect(restored.sprites).toEqual({spriteCycle: 41, absDist: 0, list: []});
         });
     });
 });

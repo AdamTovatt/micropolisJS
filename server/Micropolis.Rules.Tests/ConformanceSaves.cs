@@ -19,6 +19,8 @@ namespace Micropolis.Rules.Tests
     /// </summary>
     public static class ConformanceSaves
     {
+        public static IEnumerable<object[]> AllSaves => Load().Select(save => new object[] { save });
+
         public static IReadOnlyList<ConformanceSave> Load()
         {
             return Parse(ConformanceFile.Read("saves/checkpoints.json"));

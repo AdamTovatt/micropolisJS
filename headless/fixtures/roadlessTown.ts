@@ -14,9 +14,9 @@
 import { builtFixture, RUN_STEPS } from "./fixture";
 import { buildingAt, lineOf, zoneRow } from "./toolCommands";
 
-// A sprite-free city made to reach branches of the zone handlers and their drives that neither the suburbs nor the
-// hospital town reach, whose unit snapshots are recorded from it alone (conformance/snapshotPoints.ts). Seed 8's map
-// has open land and woods from (10, 10) to (53, 33).
+// A city made to reach branches of the zone handlers and their drives that neither the suburbs nor the hospital town
+// reach, whose unit snapshots are recorded from it alone (conformance/snapshotPoints.ts). Seed 8's map has open land
+// and woods from (10, 10) to (53, 33).
 
 // A row of ten zones along a road, which gives the city its demand
 const TOWN_LEFT = 14;
@@ -52,6 +52,6 @@ export const roadlessTown = builtFixture(
     // Across the town's road to the zone at the end of the spur
     lineOf("wire", SPUR_ZONE_X, TOWN_ROAD_Y, SPUR_ZONE_X, SPUR_ZONE_Y - 2),
   ], [
-    {step: 0, hash: "9f0bddee288962544c3e8ff2f940235f2a5f3dbaa3161a86c60155e4524eb111"},
-    {step: RUN_STEPS, hash: "cb1ed9714035fac4185855d0df4dc85dc5d4c0f4429bf327bf357a39573866ff"},
+    {step: 0, hash: "95fdb0f1bad52ead924a0ca17601a65b2338c280f485a676d3597869432c1a70"},
+    {step: RUN_STEPS, hash: "3b3cd2194981315a38165a2a6ed24c2b731b7ab372d7831dbd2c79d0726a4aad"},
   ]);

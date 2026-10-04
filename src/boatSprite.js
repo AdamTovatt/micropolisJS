@@ -38,7 +38,8 @@ function BoatSprite(map, spriteManager, random, x, y) {
 }
 
 
-BaseSprite(BoatSprite, {width: 48, height: 48, xOffset: -24, yOffset: -24});
+BaseSprite(BoatSprite, {width: 48, height: 48, xOffset: 32, yOffset: -16, xHot: 48, yHot: 0,
+                        crashMessage: SHIP_CRASHED});
 
 
 // This is an odd little function. It returns true if
@@ -113,8 +114,8 @@ BoatSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) {
       if (frame === this.dir)
         continue;
 
-      x = this.worldX + tileDeltaX[frame];
-      y = this.worldY + tileDeltaY[frame];
+      x = ((this.x + 47) >> 4) + tileDeltaX[frame];
+      y = (this.y >> 4) + tileDeltaY[frame];
 
       if (this.map.testBounds(x, y)) {
         tile = this.map.getTileValue(x, y);
@@ -160,16 +161,9 @@ BoatSprite.prototype.move = function(spriteCycle, disasterManager, blockMaps) {
 
     if (i === 7) {
       this.explodeSprite();
-      SpriteUtils.destroyMapTile(this.spriteManager, this.map, blockMaps, this.x, this.y);
+      SpriteUtils.destroyMapTile(this.spriteManager, this.map, blockMaps, this.x + 48, this.y);
     }
   }
-};
-
-
-BoatSprite.prototype.explodeSprite = function() {
-  this.frame = 0;
-  this.spriteManager.makeExplosionAt(this.x, this.y);
-  this._emitEvent(SHIP_CRASHED, {showable: true, x: this.worldX, y: this.worldY});
 };
 
 

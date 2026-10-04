@@ -19,14 +19,11 @@ namespace Micropolis.Benchmarks.Tests
     [TestClass]
     public sealed class BenchmarkCasesTests
     {
-        private static readonly IReadOnlyDictionary<string, string> NoneNotRun = new Dictionary<string, string>();
-
         [TestMethod]
-        public void All_Fixtures_AreEveryRunSaveButThoseNotRunInNameOrder()
+        public void All_Fixtures_AreEveryRunSaveInNameOrder()
         {
             List<string> runSaves = Directory.GetFiles(Path.Combine(RepositoryFiles.Root, "conformance", "saves"), "*.run.json")
                 .Select(path => Path.GetFileName(path)[..^".run.json".Length])
-                .Where(name => !BenchmarkCases.NotRun.ContainsKey(name))
                 .Order(StringComparer.Ordinal)
                 .ToList();
 
@@ -67,30 +64,12 @@ namespace Micropolis.Benchmarks.Tests
         [TestMethod]
         public void Of_Fixtures_RunWithDisastersOnWhenMadeForThem()
         {
-            List<FixtureCase> fixtures = BenchmarkCases.Of(["disasters", "forestFire", "suburb"], NoneNotRun).OfType<FixtureCase>().ToList();
+            List<FixtureCase> fixtures = BenchmarkCases.Of(["disasters", "forestFire", "suburb"]).OfType<FixtureCase>().ToList();
 
             CollectionAssert.AreEqual(
                 new[] { new FixtureCase("disasters", Speed.Medium, true), new FixtureCase("forestFire", Speed.Medium, true),
                         new FixtureCase("suburb", Speed.Medium, false) },
                 fixtures);
-        }
-
-        [TestMethod]
-        public void Of_FixturesNotRun_AreLeftOut()
-        {
-            IReadOnlyList<BenchmarkCase> cases = BenchmarkCases.Of(
-                ["suburb", "town"], new Dictionary<string, string> { ["town"] = "a reason" });
-
-            CollectionAssert.AreEqual(new[] { "suburb" }, cases.OfType<FixtureCase>().Select(fixture => fixture.Name).ToList());
-        }
-
-        [TestMethod]
-        public void Of_AFixtureNotRunThatIsntAFixture_FailsNamingIt()
-        {
-            InvalidDataException exception = Assert.ThrowsExactly<InvalidDataException>(
-                () => BenchmarkCases.Of(["suburb"], new Dictionary<string, string> { ["suburbia"] = "a reason" }));
-
-            StringAssert.Contains(exception.Message, "The fixture suburbia isn't run");
         }
 
         [TestMethod]
@@ -104,19 +83,6 @@ namespace Micropolis.Benchmarks.Tests
         public void FixtureNames_NoFixtures_Fails()
         {
             Assert.ThrowsExactly<InvalidDataException>(() => BenchmarkCases.FixtureNames("{}"));
-        }
-
-        [TestMethod]
-        public void NotRun_EachFixture_StillFailsToRunInCSharp()
-        {
-            // An entry the C# simulation can now run fails here, so it leaves the list and its fixture joins the report
-            foreach (string fixture in BenchmarkCases.NotRun.Keys)
-            {
-                FixtureCase benchmarkCase = (FixtureCase)BenchmarkCases.Of([fixture], NoneNotRun)[0];
-
-                Assert.Throws<Exception>(() => StepTimer.Measure(benchmarkCase, BenchmarkSettings.Default with { Repeats = 1 }),
-                                         fixture);
-            }
         }
 
         [TestMethod]

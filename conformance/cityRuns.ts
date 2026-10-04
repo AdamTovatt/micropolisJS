@@ -20,8 +20,8 @@ import { startFromSave } from "../headless/runner";
 import { stateHash } from "../src/stateHash";
 import { captureEvents, Internals, RecordedEvent, replaceMethod } from "./instrumentation";
 
-// Where a run's city starts: a new city on the map a seed generates, at a level, or a sprite-free fixture's city as
-// built, at its saved level
+// Where a run's city starts: a new city on the map a seed generates, at a level, or a fixture's city as built, at its
+// saved level
 export type RunStart = {seed: number, level: LevelName} | {fixture: string, built: SaveData};
 
 export interface RunEvent extends RecordedEvent {
@@ -50,9 +50,43 @@ export interface CityRun {
   // The state hash at step 0, as the city starts, after every interval of steps, and after the last step
   checkpoints: Checkpoint[];
   events: RunEvent[];
-  // Not written: what the generator checks the runs cover. Each year end the run reaches, and each year's budget.
+  // Not written: what the generator checks the runs cover. Each year end the run reaches, each year's budget, whether
+  // a live sprite moved, and each random disaster that struck, by the method that made it.
   yearEnds: number;
   budgets: YearBudget[];
+  sprites: boolean;
+  disasters: string[];
+}
+
+// What a random disaster calls to strike, on the disaster manager or the sprite manager
+const RANDOM_DISASTERS = {
+  disasterManager: ["setFire", "makeFlood", "makeEarthquake"],
+  spriteManager: ["makeTornado", "makeMonster"],
+} as const;
+
+export const RANDOM_DISASTER_NAMES: string[] = Object.values(RANDOM_DISASTERS).flat();
+
+// Notes each random disaster that strikes the city: a run applies no commands, so no player triggers one
+function watchRandomDisasters(city: Internals, struck: string[]): void {
+  for (const owner of Object.keys(RANDOM_DISASTERS) as (keyof typeof RANDOM_DISASTERS)[]) {
+    for (const method of RANDOM_DISASTERS[owner]) {
+      replaceMethod(city[owner], method, (original) => function(this: unknown, ...args: unknown[]) {
+        struck.push(method);
+        return original.apply(this, args);
+      });
+    }
+  }
+}
+
+// Whether a sprite live before the step is live after it, somewhere else
+function liveSpriteMoved(city: Internals, step: () => void): boolean {
+  const before = new Map(city.spriteManager.getLiveSprites().map((sprite) => [sprite, {x: sprite.x, y: sprite.y}]));
+  step();
+
+  return city.spriteManager.getLiveSprites().some((sprite) => {
+    const was = before.get(sprite);
+    return was !== undefined && (was.x !== sprite.x || was.y !== sprite.y);
+  });
 }
 
 function startCity(start: RunStart, speed: RunningSpeed): Internals {
@@ -66,16 +100,13 @@ export function describeStart(start: {seed?: number | null, fixture?: string | n
   return start.fixture ?? `seed ${start.seed}`;
 }
 
-// The city run for the steps at the speed, checkpointed every interval of steps. A run is one the C# can make before it
-// ports the sprites and the disasters: one that creates a sprite or has random disasters enabled fails.
+// The city run for the steps at the speed, checkpointed every interval of steps
 export async function recordRun(start: RunStart, speed: RunningSpeed, steps: number,
                                 interval: number): Promise<CityRun> {
   const city = startCity(start, speed);
-  const name = `${describeStart(start)} at ${speed} speed`;
-
-  if (city.disasterManager.disastersEnabled) {
-    throw new Error(`${name} has disasters enabled: a run is made with disasters off`);
-  }
+  const disasters: string[] = [];
+  watchRandomDisasters(city, disasters);
+  let sprites = false;
 
   const capturing = captureEvents(city);
   const checkpoints: Checkpoint[] = [{step: 0, hash: await stateHash(city)}];
@@ -97,13 +128,9 @@ export async function recordRun(start: RunStart, speed: RunningSpeed, steps: num
   for (let step = 0; step < steps; step++) {
     const stepEvents: RecordedEvent[] = [];
     capturing.push(stepEvents);
-    city.step();
+    sprites = liveSpriteMoved(city, () => city.step()) || sprites;
     capturing.pop();
     events.push(...stepEvents.map((event) => ({step, ...event})));
-
-    if (city.spriteManager.spriteList.length > 0) {
-      throw new Error(`${name} created a sprite at step ${step}: runs are made of sprite-free cities`);
-    }
 
     if ((step + 1) % interval === 0 || step + 1 === steps) {
       checkpoints.push({step: step + 1, hash: await stateHash(city)});
@@ -112,6 +139,6 @@ export async function recordRun(start: RunStart, speed: RunningSpeed, steps: num
 
   return {
     seed: "seed" in start ? start.seed : null, fixture: "fixture" in start ? start.fixture : null,
-    level: nameOf(Level, city._gameLevel), speed, steps, checkpoints, events, yearEnds, budgets,
+    level: nameOf(Level, city._gameLevel), speed, steps, checkpoints, events, yearEnds, budgets, sprites, disasters,
   };
 }

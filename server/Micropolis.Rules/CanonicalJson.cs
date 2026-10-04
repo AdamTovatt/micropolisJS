@@ -26,11 +26,12 @@ namespace Micropolis.Rules
     /// </summary>
     public static class CanonicalJson
     {
+        // 2^53: a double holds every integer up to it exactly. JavaScript's safe integers stop one below.
+        private const long ExactIntegerLimit = 1L << 53;
+
         public static string Write(JsonNode? value)
         {
-            StringBuilder output = new StringBuilder();
-            Write(value, "the state", false, output);
-            return output.ToString();
+            return WriteText(value, "the state", false);
         }
 
         /// <summary>
@@ -41,9 +42,7 @@ namespace Micropolis.Rules
         /// </summary>
         internal static string Stringify(JsonNode? value)
         {
-            StringBuilder output = new StringBuilder();
-            Write(value, "the value", true, output);
-            return output.ToString();
+            return WriteText(value, "the value", true);
         }
 
         /// <summary>
@@ -57,6 +56,12 @@ namespace Micropolis.Rules
             if (value == 0)
             {
                 return "0";
+            }
+
+            // An integer a double holds exactly is written as its digits, as ECMAScript writes every integer below 10^21
+            if (Math.Abs(value) <= ExactIntegerLimit && Math.Floor(value) == value)
+            {
+                return ((long)value).ToString(CultureInfo.InvariantCulture);
             }
 
             if (value < 0)
@@ -120,8 +125,24 @@ namespace Micropolis.Rules
             return (digits[leadingZeros..].TrimEnd('0'), n - leadingZeros);
         }
 
-        // Writes the canonical text, or JSON.stringify's when stringify is true
-        private static void Write(JsonNode? value, string path, bool stringify, StringBuilder output)
+        // The canonical text, or JSON.stringify's when stringify is true, of a value the root names in a failure
+        private static string WriteText(JsonNode? value, string root, bool stringify)
+        {
+            StringBuilder output = new StringBuilder();
+
+            try
+            {
+                Write(value, stringify, output);
+            }
+            catch (CanonicalFailure failure)
+            {
+                throw new InvalidOperationException($"Cannot canonicalize {root}{failure.Path}: {failure.Reason}.", failure);
+            }
+
+            return output.ToString();
+        }
+
+        private static void Write(JsonNode? value, bool stringify, StringBuilder output)
         {
             switch (value)
             {
@@ -130,23 +151,23 @@ namespace Micropolis.Rules
                     break;
 
                 case JsonObject jsonObject:
-                    WriteObject(jsonObject, path, stringify, output);
+                    WriteObject(jsonObject, stringify, output);
                     break;
 
                 case JsonArray jsonArray:
-                    WriteArray(jsonArray, path, stringify, output);
+                    WriteArray(jsonArray, stringify, output);
                     break;
 
                 case JsonValue jsonValue:
-                    WriteValue(jsonValue, path, stringify, output);
+                    WriteValue(jsonValue, stringify, output);
                     break;
 
                 default:
-                    throw Fail(path, $"a {value.GetType().Name} has no canonical form");
+                    throw new CanonicalFailure($"a {value.GetType().Name} has no canonical form");
             }
         }
 
-        private static void WriteObject(JsonObject value, string path, bool stringify, StringBuilder output)
+        private static void WriteObject(JsonObject value, bool stringify, StringBuilder output)
         {
             List<KeyValuePair<string, JsonNode?>> members = value.ToList();
 
@@ -167,13 +188,13 @@ namespace Micropolis.Rules
 
                 WriteString(members[i].Key, output);
                 output.Append(':');
-                Write(members[i].Value, $"{path}.{members[i].Key}", stringify, output);
+                WriteChild(members[i].Value, members[i].Key, 0, stringify, output);
             }
 
             output.Append('}');
         }
 
-        private static void WriteArray(JsonArray value, string path, bool stringify, StringBuilder output)
+        private static void WriteArray(JsonArray value, bool stringify, StringBuilder output)
         {
             output.Append('[');
 
@@ -184,14 +205,41 @@ namespace Micropolis.Rules
                     output.Append(',');
                 }
 
-                Write(value[i], $"{path}[{i}]", stringify, output);
+                WriteChild(value[i], null, i, stringify, output);
             }
 
             output.Append(']');
         }
 
-        private static void WriteValue(JsonValue value, string path, bool stringify, StringBuilder output)
+        // A member's value, under its key, or an element, at its index: a failure inside it gains the key or index at
+        // the front of its path
+        private static void WriteChild(JsonNode? child, string? key, int index, bool stringify, StringBuilder output)
         {
+            try
+            {
+                Write(child, stringify, output);
+            }
+            catch (CanonicalFailure failure)
+            {
+                failure.Path = (key is null ? $"[{index}]" : $".{key}") + failure.Path;
+                throw;
+            }
+        }
+
+        private static void WriteValue(JsonValue value, bool stringify, StringBuilder output)
+        {
+            // A number first, which most values are, without asking the value its kind
+            if (JsonNumber.TryGetDouble(value, out double number))
+            {
+                if (Math.Abs(number) >= ExactIntegerLimit)
+                {
+                    RefuseInexactInteger(value);
+                }
+
+                output.Append(stringify && !double.IsFinite(number) ? "null" : FormatFiniteNumber(number));
+                return;
+            }
+
             switch (value.GetValueKind())
             {
                 case JsonValueKind.True:
@@ -207,30 +255,30 @@ namespace Micropolis.Rules
                     break;
 
                 case JsonValueKind.Number:
-                    double number = GetNumber(value, path);
-                    output.Append(stringify && !double.IsFinite(number) ? "null" : FormatNumberAt(number, path));
-                    break;
+                    throw new CanonicalFailure("a number of this type has no canonical form");
 
                 default:
-                    throw Fail(path, $"a {value.GetValueKind()} value has no canonical form");
+                    throw new CanonicalFailure($"a {value.GetValueKind()} value has no canonical form");
             }
         }
 
-        private static double GetNumber(JsonValue value, string path)
+        // An integer the model holds beyond 2^53, which no double is exactly: the C# has worked out a value the
+        // TypeScript's numbers can't hold, and writing it would round it. A number parsed from text is the double
+        // JSON.parse reads, and passes.
+        private static void RefuseInexactInteger(JsonValue value)
         {
-            if (!JsonNumber.TryGetDouble(value, out double number))
+            if (!value.TryGetValue(out JsonElement _) && value.TryGetValue(out long integer) &&
+                (integer > ExactIntegerLimit || integer < -ExactIntegerLimit))
             {
-                throw Fail(path, "a number of this type has no canonical form");
+                throw new CanonicalFailure($"the integer {integer} is beyond 2^53, so no double holds it exactly");
             }
-
-            return number;
         }
 
-        private static string FormatNumberAt(double value, string path)
+        private static string FormatFiniteNumber(double value)
         {
             if (!double.IsFinite(value))
             {
-                throw Fail(path, $"{value} is not a finite number");
+                throw new CanonicalFailure($"{value} is not a finite number");
             }
 
             return FormatNumber(value);
@@ -299,9 +347,18 @@ namespace Micropolis.Rules
             output.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
         }
 
-        private static InvalidOperationException Fail(string path, string message)
+        // A value with no canonical form, named by its path, which each object and array prepends its key or index to
+        // as the failure passes out through it: the path is built only for a failure, not for every value written
+        private sealed class CanonicalFailure : Exception
         {
-            return new InvalidOperationException($"Cannot canonicalize {path}: {message}.");
+            public CanonicalFailure(string reason)
+            {
+                Reason = reason;
+            }
+
+            public string Reason { get; }
+
+            public string Path { get; set; } = string.Empty;
         }
     }
 }
