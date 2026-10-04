@@ -103,8 +103,10 @@ describe("the WebSocket source", () => {
 
     it("sends each message as its example has it, in its fields' order", async () => {
         const {source, socket} = await connected();
+        // A hover box is the city client's to send, not the source's, and test/protocol.ts pins its examples
         const examples = readdirSync(CLIENT_EXAMPLES).map((file) =>
-            JSON.parse(readFileSync(join(CLIENT_EXAMPLES, file), "utf8")) as Record<string, unknown>);
+            JSON.parse(readFileSync(join(CLIENT_EXAMPLES, file), "utf8")) as Record<string, unknown>)
+            .filter((message) => message.type !== "cursor");
         const example = (type: string) => examples.find((message) => message.type === type)!;
         const field = <T>(type: string, name: string) => example(type)[name] as T;
 

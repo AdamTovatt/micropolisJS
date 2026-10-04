@@ -28,6 +28,8 @@ namespace Micropolis.Server
     {
         private readonly Channel<Work> _work = Channel.CreateUnbounded<Work>(new UnboundedChannelOptions { SingleReader = true });
         private readonly List<CityConnection> _members = new List<CityConnection>();
+        // The last hover box each connection passed on, while it was one and not null
+        private readonly Dictionary<CityConnection, Cursor> _showingCursors = new Dictionary<CityConnection, Cursor>();
         private readonly CancellationTokenSource _stopped = new CancellationTokenSource();
         private readonly ManualTicker? _manualTicker;
         private readonly CityHost _host;
@@ -130,11 +132,25 @@ namespace Micropolis.Server
         }
 
         /// <summary>
-        /// Removes a player's connection, after which nothing more of the city is sent to it.
+        /// Removes a player's connection, after which nothing more of the city is sent to it, and takes its hover box
+        /// away, as a null from it would.
         /// </summary>
         public Task LeaveAsync(CityConnection connection)
         {
-            return RunAsync(_ => _members.Remove(connection));
+            return RunAsync(_ =>
+            {
+                _members.Remove(connection);
+                PassOnCursor(connection, null);
+            });
+        }
+
+        /// <summary>
+        /// Passes the hover box a player's connection sent on to the city's other players, and to nothing else: the city's
+        /// host never sees it. It is the city's work only so that it reaches the players in the city as it is then.
+        /// </summary>
+        public Task PassOnCursorAsync(CityConnection from, Cursor? cursor)
+        {
+            return RunAsync(_ => PassOnCursor(from, cursor));
         }
 
         /// <summary>
@@ -180,6 +196,37 @@ namespace Micropolis.Server
         private CityJoined Joined(CityHost host)
         {
             return new CityJoined(Id, host.Name, host.Seed);
+        }
+
+        // A player has one box on the wire, however many connections they have in the city. A null for a connection whose
+        // box isn't showing passes on nothing, so only a box that showed is taken away, and a null for one while another
+        // of the player's connections shows a box passes on that box instead. A player's own connections aren't sent
+        // their box, which a browser shows only for the others.
+        private void PassOnCursor(CityConnection from, Cursor? cursor)
+        {
+            if (cursor is not null)
+            {
+                _showingCursors[from] = cursor;
+            }
+            else if (!_showingCursors.Remove(from))
+            {
+                return;
+            }
+            else
+            {
+                cursor = _showingCursors.Where(showing => showing.Key.Player.Id == from.Player.Id)
+                    .Select(showing => (Cursor?)showing.Value).FirstOrDefault();
+            }
+
+            string message = ProtocolJson.Serialize(new CursorMessage(from.Player.Id, cursor));
+
+            foreach (CityConnection member in _members)
+            {
+                if (member.Player.Id != from.Player.Id)
+                {
+                    member.Send(message);
+                }
+            }
         }
 
         private void Publish(IReadOnlyList<StateMessage> messages)

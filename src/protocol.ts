@@ -38,7 +38,8 @@ export interface PlayersMessage {
   players: PlayerInfo[];
 }
 
-// Another player in the city moved their hover box, or it left the map: null when it did. The server passes it on to
+// Another player in the city moved their hover box, or it went: null when no connection of theirs in the city shows
+// one any longer. The server passes it on to
 // every other player in the city, and to nothing else: the simulation never sees it, and no log keeps it.
 export interface CursorMessage {
   type: "cursor";

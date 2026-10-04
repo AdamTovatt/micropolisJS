@@ -33,18 +33,21 @@ namespace Micropolis.Server
         private readonly CityLimits _limits;
         // The client address the connection comes from, as the limits count it
         private readonly string _address;
+        private readonly CursorLimit _cursorLimit;
         private readonly ILogger _logger;
         private LoadedCity? _city;
         // Whether the debug channel holds the cities the connection is in, as of its last hold or release: a hold before
         // a city starts applies from its first step
         private bool _held;
 
-        public CitySession(CityConnection connection, CityRegistry registry, CityLimits limits, string address, ILogger logger)
+        public CitySession(CityConnection connection, CityRegistry registry, CityLimits limits, string address, TimeProvider time,
+            ILogger logger)
         {
             _connection = connection;
             _registry = registry;
             _limits = limits;
             _address = address;
+            _cursorLimit = new CursorLimit(time);
             _logger = logger;
         }
 
@@ -67,6 +70,10 @@ namespace Micropolis.Server
 
             switch (message)
             {
+                case CursorReport cursor:
+                    await PassOnCursorAsync(cursor.Cursor);
+                    break;
+
                 case StartRequest start:
                     await StartAsync(start.Id, () => StartingCity.New(start.Name, start.Seed, (Level)start.Level));
                     break;
@@ -251,6 +258,20 @@ namespace Micropolis.Server
 
             string player = _connection.Player.Id;
             await WaitForCityAsync(_city.RunAsync(host => host.Send(player, command)));
+        }
+
+        // A hover box goes to the city's other players. One from a connection in no city, one no tool makes on the city's
+        // map, and one past the connection's limit are dropped, and the connection kept: a box is worth no more than the
+        // next one, which comes within seconds. A box dropped for not fitting isn't counted.
+        private async Task PassOnCursorAsync(Cursor? cursor)
+        {
+            if (_city is null || (cursor is not null && !CursorBounds.Fits(cursor, _city.MapWidth, _city.MapHeight)) ||
+                !_cursorLimit.TryCount())
+            {
+                return;
+            }
+
+            await WaitForCityAsync(_city.PassOnCursorAsync(_connection, cursor));
         }
 
         // The work, done in the city and answered with what it gives

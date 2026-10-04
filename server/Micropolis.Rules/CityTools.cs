@@ -19,26 +19,54 @@ namespace Micropolis.Rules
     /// </summary>
     internal static class CityTools
     {
+        /// <summary>
+        /// The side in tiles of what each tool puts down, the side of its hover box too: a building's, and one tile
+        /// for the rest.
+        /// </summary>
+        public static readonly IReadOnlyDictionary<ToolName, int> Sizes = new Dictionary<ToolName, int>
+        {
+            [ToolName.Airport] = 6,
+            [ToolName.Bulldozer] = 1,
+            [ToolName.Coal] = 4,
+            [ToolName.Commercial] = 3,
+            [ToolName.Fire] = 3,
+            [ToolName.Industrial] = 3,
+            [ToolName.Nuclear] = 4,
+            [ToolName.Park] = 1,
+            [ToolName.Police] = 3,
+            [ToolName.Port] = 4,
+            [ToolName.Rail] = 1,
+            [ToolName.Residential] = 3,
+            [ToolName.Road] = 1,
+            [ToolName.Stadium] = 4,
+            [ToolName.Wire] = 1,
+        };
+
         public static IReadOnlyDictionary<ToolName, CityTool> Create(GameMap map)
         {
             return new Dictionary<ToolName, CityTool>
             {
-                [ToolName.Airport] = new BuildingTool(10000, TileValues.AIRPORT, map, size: 6, animated: false),
+                [ToolName.Airport] = Building(10000, TileValues.AIRPORT, map, ToolName.Airport, animated: false),
                 [ToolName.Bulldozer] = new BulldozerTool(map),
-                [ToolName.Coal] = new BuildingTool(3000, TileValues.POWERPLANT, map, size: 4, animated: false),
-                [ToolName.Commercial] = new BuildingTool(100, TileValues.COMCLR, map, size: 3, animated: false),
-                [ToolName.Fire] = new BuildingTool(500, TileValues.FIRESTATION, map, size: 3, animated: false),
-                [ToolName.Industrial] = new BuildingTool(100, TileValues.INDCLR, map, size: 3, animated: false),
-                [ToolName.Nuclear] = new BuildingTool(5000, TileValues.NUCLEAR, map, size: 4, animated: true),
+                [ToolName.Coal] = Building(3000, TileValues.POWERPLANT, map, ToolName.Coal, animated: false),
+                [ToolName.Commercial] = Building(100, TileValues.COMCLR, map, ToolName.Commercial, animated: false),
+                [ToolName.Fire] = Building(500, TileValues.FIRESTATION, map, ToolName.Fire, animated: false),
+                [ToolName.Industrial] = Building(100, TileValues.INDCLR, map, ToolName.Industrial, animated: false),
+                [ToolName.Nuclear] = Building(5000, TileValues.NUCLEAR, map, ToolName.Nuclear, animated: true),
                 [ToolName.Park] = new ParkTool(map),
-                [ToolName.Police] = new BuildingTool(500, TileValues.POLICESTATION, map, size: 3, animated: false),
-                [ToolName.Port] = new BuildingTool(3000, TileValues.PORT, map, size: 4, animated: false),
+                [ToolName.Police] = Building(500, TileValues.POLICESTATION, map, ToolName.Police, animated: false),
+                [ToolName.Port] = Building(3000, TileValues.PORT, map, ToolName.Port, animated: false),
                 [ToolName.Rail] = new RailTool(map),
-                [ToolName.Residential] = new BuildingTool(100, TileValues.FREEZ, map, size: 3, animated: false),
+                [ToolName.Residential] = Building(100, TileValues.FREEZ, map, ToolName.Residential, animated: false),
                 [ToolName.Road] = new RoadTool(map),
-                [ToolName.Stadium] = new BuildingTool(5000, TileValues.STADIUM, map, size: 4, animated: false),
+                [ToolName.Stadium] = Building(5000, TileValues.STADIUM, map, ToolName.Stadium, animated: false),
                 [ToolName.Wire] = new WireTool(map),
             };
+        }
+
+        private static BuildingTool Building(long cost, int centreTile, GameMap map, ToolName tool, bool animated)
+        {
+            return new BuildingTool(cost, centreTile, map, Sizes[tool], animated);
         }
     }
 }

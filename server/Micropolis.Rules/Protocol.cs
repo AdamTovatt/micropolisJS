@@ -143,8 +143,8 @@ namespace Micropolis.Rules
     /// other players and to nothing else: the simulation never sees it, and no log keeps it.
     /// </summary>
     /// <param name="Player">The id of the player whose box it is.</param>
-    /// <param name="Cursor">The box, or null when it left the map, the player put their tool down, or the connection
-    /// it came from left the city.</param>
+    /// <param name="Cursor">The box, or null when no connection of the player's in the city shows one any
+    /// longer.</param>
     public sealed record CursorMessage(
         [property: JsonPropertyName("player")] string Player,
         [property: JsonPropertyName("cursor")] Cursor? Cursor) : ServerMessage;
