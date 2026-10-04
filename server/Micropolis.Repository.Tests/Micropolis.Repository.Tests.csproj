@@ -13,7 +13,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Micropolis.Repository\Micropolis.Repository.csproj" />
-    <ProjectReference Include="..\Micropolis.Rules\Micropolis.Rules.csproj" />
   </ItemGroup>
 
 </Project>

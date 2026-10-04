@@ -13,25 +13,30 @@
 
 using System.Reflection;
 
-namespace Micropolis.Rules.Tests
+namespace Micropolis.Repository
 {
     /// <summary>
-    /// Files the C# and TypeScript tests share, read in place from the repository root the build recorded.
+    /// Files of the repository the build was made in, such as those the C# and TypeScript tests share, read in place
+    /// from the root the build recorded.
     /// </summary>
-    internal static class RepositoryFiles
+    public static class RepositoryFiles
     {
-        private static readonly string Root = typeof(RepositoryFiles).Assembly
+        public static readonly string Root = typeof(RepositoryFiles).Assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
             .Single(attribute => attribute.Key == "RepositoryRoot")
             .Value ?? throw new InvalidOperationException("The build recorded no repository root.");
 
+        /// <summary>
+        /// The full path of a file or directory, given relative to the repository root.
+        /// </summary>
+        /// <exception cref="FileNotFoundException">Nothing is at that path.</exception>
         public static string GetPath(string relativePath)
         {
             string path = Path.Combine(Root, relativePath);
 
             if (!File.Exists(path) && !Directory.Exists(path))
             {
-                throw new FileNotFoundException($"No shared test file at {path}.", path);
+                throw new FileNotFoundException($"No file or directory at {path}.", path);
             }
 
             return path;

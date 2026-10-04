@@ -15,6 +15,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Micropolis.Repository;
 
 namespace Micropolis.Rules.Tests
 {

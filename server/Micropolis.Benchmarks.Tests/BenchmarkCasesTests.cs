@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Repository;
 using Micropolis.Rules;
 
 namespace Micropolis.Benchmarks.Tests

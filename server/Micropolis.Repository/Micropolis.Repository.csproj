@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Reads files of the repository in place, from the root the build recorded, for the tests and tools that read the
+       files the repository shares between its sides; the server never references it, so no build path ships with the
+       game -->
+
+  <!-- Recorded at build time, so a copy in the build output can never go stale -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>RepositoryRoot</_Parameter1>
+      <_Parameter2>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

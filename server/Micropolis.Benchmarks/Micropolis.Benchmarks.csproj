@@ -11,15 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Micropolis.Repository\Micropolis.Repository.csproj" />
     <ProjectReference Include="..\Micropolis.Rules\Micropolis.Rules.csproj" />
-  </ItemGroup>
-
-  <!-- The fixtures' saves are read in place, from the repository root, as the tests read them -->
-  <ItemGroup>
-    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-      <_Parameter1>RepositoryRoot</_Parameter1>
-      <_Parameter2>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))</_Parameter2>
-    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>
