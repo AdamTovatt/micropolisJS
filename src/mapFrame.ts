@@ -172,6 +172,14 @@ export function wholeMapTiles(map: Pick<PaintableMap, "width" | "height" | "getT
   return {x: 0, y: 0, width, height, margin: 0, values, frames: values.map((value) => value & BIT_MASK)};
 }
 
+// Fills the frame with the quads that draw the whole map, tilePixels device pixels a tile, each tile's own value
+// unanimated, with no tints or sprites
+export function buildWholeMapFrame(frame: MapFrame, art: RenderArt,
+                                   map: Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting">,
+                                   tilePixels: number): void {
+  buildMapFrame(frame, art, wholeMapTiles(map), tilePixels, () => null, []);
+}
+
 // Fills the frame with the quads that draw the area's tiles, tilePixels device pixels a side, with the view's origin
 // margin tiles in from the area's top-left; then the tints of the tiles in view; then the sprites given. Given areas
 // of the view, in device pixels from its top-left, only the quads that reach into one are added: the renderer draws no

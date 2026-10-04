@@ -12,7 +12,7 @@
  */
 
 import { placeNewCanvas, requiredElement, screenPixelRatio, sizeCanvas } from "./domElements";
-import { MapPainter } from "./mapPainter";
+import { MapPainter, paintedView } from "./mapPainter";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { PaintableMap, PaintableSprite } from "./paintable";
 import type { SpriteView } from "./protocol";
@@ -188,7 +188,7 @@ class TVCanvas {
     sizeCanvas(canvas, this.width, this.height, this.pixelRatio);
     canvas.style.margin = "0";
     canvas.style.padding = "0";
-    this.painter = new MapPainter(canvas, this.map, this.mapArt);
+    this.painter = MapPainter.onCanvas(canvas, this.map, this.mapArt);
   }
 
   // Whether the canvas shows what the last paint read, drawn to the end, or the TV is closed, with nothing to draw
@@ -208,9 +208,8 @@ class TVCanvas {
       return;
     }
 
-    const {totalTilesInViewX, totalTilesInViewY} = this.position.viewport;
-    this.painter.paint({origin: this.position.origin, across: totalTilesInViewX, down: totalTilesInViewY,
-                        tilePixels: SPRITE_PIXELS_PER_TILE * this.pixelRatio}, () => null, sprites, isPaused);
+    this.painter.paint(paintedView(this.position, SPRITE_PIXELS_PER_TILE * this.pixelRatio), () => null, sprites,
+                       isPaused);
   }
 }
 

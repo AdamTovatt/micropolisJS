@@ -12,7 +12,7 @@
  */
 
 import { placeNewCanvas, requiredElement, screenPixelRatio, sizeCanvas } from "./domElements";
-import { MapFrame, buildMapFrame, wholeMapTiles } from "./mapFrame";
+import { MapFrame, buildWholeMapFrame } from "./mapFrame";
 import type { PaintableMap } from "./paintable";
 import type { MapArt } from "./renderAssets";
 import type { RenderArt } from "./renderManifest";
@@ -76,7 +76,7 @@ class SplashCanvas {
       return;
     }
 
-    buildMapFrame(this.frame, this.art, wholeMapTiles(this.map), PREVIEW_TILE_SIZE * this.pixelRatio, () => null, []);
+    buildWholeMapFrame(this.frame, this.art, this.map, PREVIEW_TILE_SIZE * this.pixelRatio);
     this.renderer.draw(this.frame, null);
   }
 }
