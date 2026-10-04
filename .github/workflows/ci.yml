@@ -44,7 +44,7 @@ jobs:
       # so no timing is checked.
       - name: Run the benchmark briefly
         run: |
-          dotnet run --project server/Micropolis.Benchmarks --no-build -- report --warmup 16 --steps 16 --repeats 1 --output "$RUNNER_TEMP/benchmarks.md"
+          dotnet run --project server/Micropolis.Benchmarks --no-build -- --warmup 16 --steps 16 --repeats 1 --output "$RUNNER_TEMP/benchmarks.md"
           cat "$RUNNER_TEMP/benchmarks.md"
           grep -q '^| Fixture | Speed | Steps/s | ms/step | Bytes/step |$' "$RUNNER_TEMP/benchmarks.md"
       - run: npm ci

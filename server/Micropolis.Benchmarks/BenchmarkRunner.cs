@@ -14,29 +14,15 @@
 namespace Micropolis.Benchmarks
 {
     /// <summary>
-    /// Carries out a command line: writes the case list, or times every case and writes the report, naming each case
-    /// on the progress writer as it starts.
+    /// Carries out a command line: times every case and measures its message bytes, then writes the report, naming
+    /// each case on the progress writer as it starts.
     /// </summary>
     internal static class BenchmarkRunner
     {
-        public static void Run(BenchmarkCommandLine commandLine, TextReader input, TextWriter output, TextWriter progress)
+        public static void Run(BenchmarkCommandLine commandLine, TextWriter output, TextWriter progress)
         {
             IReadOnlyList<BenchmarkCase> cases = BenchmarkCases.All();
             BenchmarkSettings settings = commandLine.Settings;
-
-            if (commandLine.Command == BenchmarkCommand.Cases)
-            {
-                output.WriteLine(BenchmarkCases.ToJson(cases, settings));
-                return;
-            }
-
-            MessageBytes? messageBytes = commandLine.MessageBytesPath switch
-            {
-                null => null,
-                "-" => MessageBytes.Parse(input.ReadToEnd(), cases, settings),
-                string path => MessageBytes.Parse(File.ReadAllText(path), cases, settings),
-            };
-
             List<BenchmarkRow> rows = new List<BenchmarkRow>();
             string? loadBefore = RunEnvironment.ReadLoadAverage();
 
@@ -44,22 +30,13 @@ namespace Micropolis.Benchmarks
             {
                 progress.WriteLine($"Timing {benchmarkCase.Name} at {benchmarkCase.SpeedName}");
                 CaseMeasurement measurement = StepTimer.Measure(benchmarkCase, settings);
-                CaseBytes? bytes = messageBytes?.For(benchmarkCase);
-
-                // Both figures must be of one city: a city that diverged from the TypeScript's would also be a port
-                // defect
-                if (bytes is not null && bytes.StateHash != measurement.StateHash)
-                {
-                    throw new InvalidDataException(
-                        $"{benchmarkCase.Name} at {benchmarkCase.SpeedName} ends at the state hash {measurement.StateHash} in C#, " +
-                        $"but at {bytes.StateHash} where its message bytes were measured.");
-                }
-
-                rows.Add(new BenchmarkRow(benchmarkCase, measurement.Timing, bytes?.BytesPerStep));
+                CaseBytes bytes = MessageBytes.Measure(benchmarkCase, settings);
+                CheckOneCity(benchmarkCase, measurement, bytes);
+                rows.Add(new BenchmarkRow(benchmarkCase, measurement.Timing, bytes.BytesPerStep));
             }
 
             RunEnvironment environment = RunEnvironment.Describe(commandLine.OutputPath, loadBefore, RunEnvironment.ReadLoadAverage());
-            string report = BenchmarkReport.Write(environment, settings, rows, messageBytes is not null);
+            string report = BenchmarkReport.Write(environment, settings, rows);
 
             if (commandLine.OutputPath is null)
             {
@@ -68,6 +45,22 @@ namespace Micropolis.Benchmarks
             else
             {
                 File.WriteAllText(commandLine.OutputPath, report);
+            }
+        }
+
+        /// <summary>
+        /// Fails unless both figures are of one city: the city whose messages were measured must end where the timed
+        /// city does, or building the messages changed the city.
+        /// </summary>
+        // Kept although CityStateMessagesTests also holds that building the messages leaves the city alone: issue #61
+        // asks that the report's two figures be checked as of one city, on every case the report tables.
+        internal static void CheckOneCity(BenchmarkCase benchmarkCase, CaseMeasurement measurement, CaseBytes bytes)
+        {
+            if (bytes.StateHash != measurement.StateHash)
+            {
+                throw new InvalidDataException(
+                    $"{benchmarkCase.Name} at {benchmarkCase.SpeedName} ends at the state hash {measurement.StateHash} where it was timed, " +
+                    $"but at {bytes.StateHash} where its message bytes were measured.");
             }
         }
     }

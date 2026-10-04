@@ -29,7 +29,7 @@ catch (ArgumentException exception)
 
 try
 {
-    BenchmarkRunner.Run(commandLine, Console.In, Console.Out, Console.Error);
+    BenchmarkRunner.Run(commandLine, Console.Out, Console.Error);
 }
 catch (Exception exception) when (exception is InvalidDataException or JsonException or IOException)
 {

@@ -20,9 +20,8 @@ namespace Micropolis.Benchmarks
     {
         /// <summary>
         /// The committed report's. Both step counts are whole cycles of the city's 16 phases at every speed, a cycle
-        /// taking 80 steps at slow, 48 at medium and 16 at fast, so no row times a part of a cycle. A timed run lasts tens
-        /// of milliseconds or more, far past the timer's resolution, while the bytes, which the TypeScript host measures
-        /// over the same steps, take minutes rather than hours.
+        /// taking 80 steps at slow, 48 at medium and 16 at fast, so no row times or measures a part of a cycle. A timed
+        /// run lasts tens of milliseconds or more, far past the timer's resolution.
         /// </summary>
         public static readonly BenchmarkSettings Default = new BenchmarkSettings(Warmup: 4800, Steps: 24000, Repeats: 5);
     }

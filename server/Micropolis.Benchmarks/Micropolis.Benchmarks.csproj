@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Times the C# simulation on the committed fixtures and writes the report docs/benchmarks.md holds, from the game
-       rules alone: no host, no rule file touched -->
+  <!-- Times the C# simulation on the committed fixtures, measures the state messages its players are sent, and writes
+       the report docs/benchmarks.md holds, from the game rules alone: no host, no rule file touched -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
   </PropertyGroup>

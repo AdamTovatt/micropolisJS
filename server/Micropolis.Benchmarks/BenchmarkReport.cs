@@ -16,9 +16,9 @@ using System.Globalization;
 namespace Micropolis.Benchmarks
 {
     /// <summary>
-    /// One case's figures: its timing, and its state-message bytes per step when they were measured.
+    /// One case's figures: its timing, and its state-message bytes per step.
     /// </summary>
-    internal sealed record BenchmarkRow(BenchmarkCase Case, StepTiming Timing, double? BytesPerStep);
+    internal sealed record BenchmarkRow(BenchmarkCase Case, StepTiming Timing, double BytesPerStep);
 
     /// <summary>
     /// The report as Markdown, with Unix line endings on every platform: what was measured and on what, then a row per
@@ -26,8 +26,7 @@ namespace Micropolis.Benchmarks
     /// </summary>
     internal static class BenchmarkReport
     {
-        public static string Write(RunEnvironment environment, BenchmarkSettings settings, IReadOnlyList<BenchmarkRow> rows,
-                                   bool bytesMeasured)
+        public static string Write(RunEnvironment environment, BenchmarkSettings settings, IReadOnlyList<BenchmarkRow> rows)
         {
             List<string> withDisasters = rows.Select(row => row.Case).OfType<FixtureCase>()
                 .Where(fixture => fixture.DisastersEnabled)
@@ -40,8 +39,8 @@ namespace Micropolis.Benchmarks
             [
                 "# Benchmarks",
                 "",
-                "How fast the C# simulation steps a city, and how many bytes of state messages a client would receive " +
-                "per step, on the committed fixtures and on new cities. `npm run benchmark` writes this file, with " +
+                "How fast the C# simulation steps a city, and how many bytes of state messages each player in a city on " +
+                "the server receives per step, on the committed fixtures and on new cities. `npm run benchmark` writes this file, with " +
                 "`server/Micropolis.Benchmarks`.",
                 "",
                 $"- Commit: {environment.Commit}",
@@ -53,9 +52,7 @@ namespace Micropolis.Benchmarks
                 $"- Steps/s and ms/step: the city is loaded, steps {settings.Warmup} times to warm up, then " +
                 $"{settings.Steps} steps are timed; the median of {settings.Repeats} " +
                 $"{(settings.Repeats == 1 ? "repeat" : "repeats")}, each from a fresh load.",
-                bytesMeasured
-                    ? $"- Bytes/step: {MessageBytes.Source}, over the same steps as the timing."
-                    : "- Bytes/step: not measured in this run.",
+                $"- Bytes/step: {MessageBytes.Source}, over the same steps as the timing.",
                 "",
                 "| Fixture | Speed | Steps/s | ms/step | Bytes/step |",
                 "|---------|-------|--------:|--------:|-----------:|",
@@ -63,10 +60,8 @@ namespace Micropolis.Benchmarks
 
             foreach (BenchmarkRow row in rows)
             {
-                string bytes = row.BytesPerStep is double bytesPerStep ? Format(bytesPerStep, "N1") : "–";
-
                 lines.Add($"| {row.Case.Name} | {row.Case.SpeedName} | {Format(row.Timing.StepsPerSecond, "N0")} | " +
-                          $"{Format(row.Timing.MillisecondsPerStep, "N4")} | {bytes} |");
+                          $"{Format(row.Timing.MillisecondsPerStep, "N4")} | {Format(row.BytesPerStep, "N1")} |");
             }
 
             return string.Join("\n", lines) + "\n";

@@ -11,7 +11,6 @@
  *
  */
 
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Micropolis.Rules;
 using Micropolis.SourceTree;
@@ -32,8 +31,7 @@ namespace Micropolis.Benchmarks
             new HashSet<string> { "disasters", "forestFire", "harbourWithDisasters" };
 
         /// <summary>
-        /// The seed the new cities are generated from: any generated map would do, as long as both measurements take
-        /// the same one.
+        /// The seed the new cities are generated from: any generated map would do.
         /// </summary>
         public const uint NewCitySeed = 0;
 
@@ -60,21 +58,6 @@ namespace Micropolis.Benchmarks
             }
 
             return cases;
-        }
-
-        /// <summary>
-        /// The case list the TypeScript measurement reads: the cases, with the steps to warm each up and to measure.
-        /// </summary>
-        public static string ToJson(IReadOnlyList<BenchmarkCase> cases, BenchmarkSettings settings)
-        {
-            JsonObject caseList = new JsonObject
-            {
-                ["warmup"] = settings.Warmup,
-                ["steps"] = settings.Steps,
-                ["cases"] = new JsonArray(cases.Select(benchmarkCase => (JsonNode)benchmarkCase.ToJson()).ToArray()),
-            };
-
-            return caseList.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
         }
 
         /// <summary>
