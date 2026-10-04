@@ -240,6 +240,9 @@ describeOnServer("a city two players share", () => {
         // In the city's one stream again
         await sendArrived(ada.source, COMMANDS[2]);
         await ada.source.driver.flush();
+        // Ada's flush is answered on her socket alone: a request of Grace's own, answered after it, comes after the
+        // batch on hers
+        await grace.source.driver.cityTime();
         expect(results(grace.messages).map(({player}) => player)).toEqual([grace.source.player, ada.source.player]);
         expect(ada.lost).toEqual([]);
     });
