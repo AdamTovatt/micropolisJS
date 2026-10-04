@@ -44,7 +44,6 @@ function copyStaticAssets() {
     "patterns": [
       recursivelyCopy('css'),
       recursivelyCopy('images'),
-      recursivelyCopy('sprites'),
       'LICENSE',
       'COPYING',
     ]
