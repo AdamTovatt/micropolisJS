@@ -11,11 +11,13 @@
  *
  */
 
+using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Text.Json.Nodes;
 using EasyReasy.Database;
 using Micropolis.Rules;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
@@ -43,6 +45,9 @@ namespace Micropolis.Server.Tests
         // The registry's store outlives the registry's loading and unloading, so it is a file of the test's own
         private string _database = "";
         private HeldStore _heldStore = null!;
+        // The server's clock, which only the autosave tests move: the cities run on the debug channel's manual clock
+        private FakeTimeProvider _time = null!;
+        private ErrorLog _log = null!;
         private CityRegistry _registry = null!;
         private readonly CityConnection _ada = new CityConnection(new PlayerInfo("a", "Ada"));
         private readonly CityConnection _grace = new CityConnection(new PlayerInfo("g", "Grace"));
@@ -53,7 +58,9 @@ namespace Micropolis.Server.Tests
             _database = TestCityDatabase.NewFile();
             DbDataSource dataSource = TestCityDatabase.OpenDataSource(_database);
             _heldStore = new HeldStore(dataSource, new DbSessionFactory(dataSource));
-            _registry = new CityRegistry(_heldStore, new ServerClock(new FakeTimeProvider(), Manual: true), NullLogger<CityRegistry>.Instance);
+            _time = new FakeTimeProvider();
+            _log = new ErrorLog();
+            _registry = new CityRegistry(_heldStore, new ServerClock(_time, Manual: true), _log);
         }
 
         [TestCleanup]
@@ -236,6 +243,227 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        public async Task Autosave_CityThatStepped_StoresItAfterTheInterval()
+        {
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+            string stepped = await ChangedAsync(city);
+
+            _time.Advance(CityRegistry.AutosaveInterval);
+
+            CollectionAssert.AreEqual(new[] { started, stepped }, await SavesKeptBeforeOneMoreAsync(city));
+        }
+
+        [TestMethod]
+        public async Task Autosave_CityThatOnlyAppliedACommand_StoresItAfterTheInterval()
+        {
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+            string commanded = await city.RunAsync(host =>
+            {
+                host.Send("a", new JsonObject { ["type"] = "addFunds" });
+                host.Flush();
+                return host.Save();
+            });
+            Assert.AreNotEqual(started, commanded, "The command changed nothing saved");
+
+            _time.Advance(CityRegistry.AutosaveInterval);
+
+            CollectionAssert.AreEqual(new[] { started, commanded }, await SavesKeptBeforeOneMoreAsync(city));
+        }
+
+        [TestMethod]
+        public async Task Autosave_CityUnchangedSinceItStarted_StoresNothing()
+        {
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+
+            _time.Advance(CityRegistry.AutosaveInterval);
+
+            CollectionAssert.AreEqual(new[] { started }, await SavesKeptBeforeOneMoreAsync(city));
+        }
+
+        [TestMethod]
+        public async Task Autosave_CityUnchangedSinceAPlayerSavedIt_StoresNothing()
+        {
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+            string saved = await ChangedAsync(city);
+            await _registry.SaveAsync(city);
+
+            _time.Advance(CityRegistry.AutosaveInterval);
+
+            CollectionAssert.AreEqual(new[] { started, saved }, await SavesKeptBeforeOneMoreAsync(city));
+        }
+
+        // A player's save restarts the countdown, so the autosave due before it doesn't come, and the next comes an
+        // interval after the save
+        [TestMethod]
+        public async Task Autosave_AfterAPlayersSave_ComesAnIntervalAfterIt()
+        {
+            TimeSpan beforeDue = TimeSpan.FromMinutes(1);
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+            _time.Advance(CityRegistry.AutosaveInterval - beforeDue);
+            string saved = await ChangedAsync(city);
+            await _registry.SaveAsync(city);
+
+            string missedByTheOldCountdown = await ChangedAsync(city);
+            _time.Advance(beforeDue);
+            string later = await ChangedAsync(city);
+            _time.Advance(CityRegistry.AutosaveInterval - beforeDue);
+
+            List<string> kept = await SavesKeptBeforeOneMoreAsync(city);
+            CollectionAssert.DoesNotContain(kept, missedByTheOldCountdown, "The autosave due before the player's save came");
+            CollectionAssert.AreEqual(new[] { started, saved, later }, kept);
+        }
+
+        [TestMethod]
+        public async Task Autosave_WhileTheStoreKeepsItAndAPlayerSavesANewerOne_KeepsThePlayersSaveLast()
+        {
+            LoadedCity city = await StartedAsync();
+            await ChangedAsync(city);
+            Task begun = _heldStore.HoldNext();
+            _time.Advance(CityRegistry.AutosaveInterval);
+            await begun.WaitAsync(WorkTimeout);
+
+            string newer = await ChangedAsync(city).WaitAsync(WorkTimeout);
+            Task saving = _registry.SaveAsync(city);
+
+            await AssertStillWaitingAsync(saving, "Kept the player's save before the autosave taken earlier");
+            _heldStore.Release();
+            await saving;
+            Assert.AreEqual(newer, await StoredAsync(city));
+        }
+
+        // An autosave taken behind a save the store is still keeping would only queue up saves while the store is slow
+        [TestMethod]
+        public async Task Autosave_WhileTheStoreKeepsAPlayersSave_TakesNone()
+        {
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+            string older = await ChangedAsync(city);
+            Task begun = _heldStore.HoldNext();
+            Task saving = _registry.SaveAsync(city);
+            await begun;
+
+            await ChangedAsync(city).WaitAsync(WorkTimeout);
+            _time.Advance(CityRegistry.AutosaveInterval);
+            _heldStore.Release();
+            await saving;
+
+            CollectionAssert.AreEqual(new[] { started, older }, await SavesKeptBeforeOneMoreAsync(city));
+        }
+
+        // The failed autosave doesn't restart the countdown or count the city as stored, so the next stores it unchanged
+        [TestMethod]
+        public async Task Autosave_StoreThatFailsIt_KeepsTheCityLoadedAndTheNextAutosaveStoresIt()
+        {
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+            string stepped = await ChangedAsync(city);
+            Task begun = _heldStore.HoldNext();
+            _time.Advance(CityRegistry.AutosaveInterval);
+            await begun.WaitAsync(WorkTimeout);
+
+            _heldStore.ReleaseFailing();
+
+            Assert.IsInstanceOfType<CityStoreException>(await _log.FirstError.WaitAsync(WorkTimeout));
+            Assert.AreSame(city, await _registry.EnterAsync(city.Id, held: true));
+            _time.Advance(CityRegistry.AutosaveInterval);
+            CollectionAssert.AreEqual(new[] { started, stepped }, await SavesKeptBeforeOneMoreAsync(city));
+        }
+
+        // As the store stops keeping it in its unloading, which leaves it loaded and its countdown running
+        [TestMethod]
+        public async Task Autosave_CityItsLastPlayersLeavingCouldntStore_StoresItAtTheNext()
+        {
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+            string stepped = await ChangedAsync(city);
+            TestCityDatabase.MakeReadOnly(_database);
+            await _registry.LeaveAsync(_ada, city);
+            TestCityDatabase.MakeWritable(_database);
+
+            _time.Advance(CityRegistry.AutosaveInterval);
+
+            CollectionAssert.AreEqual(new[] { started, stepped }, await SavesKeptBeforeOneMoreAsync(city));
+        }
+
+        // The countdown starts as a city loads from the store, as it does when one starts
+        [TestMethod]
+        public async Task Autosave_CityLoadedFromTheStore_StoresItAnIntervalAfterItLoaded()
+        {
+            LoadedCity unloaded = await StartedAsync();
+            await _registry.LeaveAsync(_ada, unloaded);
+            List<string> keptBefore = _heldStore.Kept(unloaded.Id);
+            LoadedCity city = (await _registry.EnterAsync(unloaded.Id, held: true))!;
+            await city.JoinAsync(new Joining(_ada, 0, Hold: true));
+            string stepped = await ChangedAsync(city);
+
+            _time.Advance(CityRegistry.AutosaveInterval);
+
+            CollectionAssert.AreEqual(keptBefore.Append(stepped).ToList(), await SavesKeptBeforeOneMoreAsync(city));
+        }
+
+        // Its stopping saves every city it can, and a city that it couldn't, or that loads after, is left as the store
+        // last kept it rather than saved on to a store that is stopping too
+        [TestMethod]
+        public async Task Autosave_AfterTheServerStopped_StoresNothing()
+        {
+            LoadedCity city = await StartedAsync();
+            string started = await StoredAsync(city);
+            await ChangedAsync(city);
+            TestCityDatabase.MakeReadOnly(_database);
+            await ((IHostedService)_registry).StopAsync(CancellationToken.None);
+            TestCityDatabase.MakeWritable(_database);
+
+            _time.Advance(CityRegistry.AutosaveInterval);
+
+            CollectionAssert.AreEqual(new[] { started }, await SavesKeptBeforeOneMoreAsync(city));
+        }
+
+        // A city on the server's clock, which neither the debug channel holds nor moves on, changes in its loop's turns
+        [TestMethod]
+        public async Task Autosave_CitySteppingOnTheServersClock_StoresItAfterTheInterval()
+        {
+            FakeTimeProvider time = new FakeTimeProvider();
+            CityRegistry registry = new CityRegistry(_heldStore, new ServerClock(time, Manual: false), _log);
+            LoadedCity city = await registry.StartCityAsync(StartingCity.New("Town", 2026, Level.Easy), held: false);
+            string started = await StoredAsync(city);
+            await FramesAsync(city, time, ManyFrames);
+
+            time.Advance(CityRegistry.AutosaveInterval);
+
+            List<string> kept = await SavesKeptBeforeOneMoreAsync(registry, city);
+            Assert.AreEqual(2, kept.Count);
+            Assert.AreEqual(started, kept[0]);
+            Assert.AreNotEqual(started, kept[1], "Stored the city as it started");
+            await ((IHostedService)registry).StopAsync(CancellationToken.None);
+        }
+
+        // As a city paused by a command its loop applied, which takes no step
+        [TestMethod]
+        public async Task Autosave_CityPausedByACommandOnTheServersClock_StoresItAfterTheInterval()
+        {
+            FakeTimeProvider time = new FakeTimeProvider();
+            CityRegistry registry = new CityRegistry(_heldStore, new ServerClock(time, Manual: false), _log);
+            LoadedCity city = await registry.StartCityAsync(StartingCity.New("Town", 2026, Level.Easy), held: false);
+            string started = await StoredAsync(city);
+            await city.RunAsync(host => host.Send("a", new JsonObject { ["type"] = "setSpeed", ["speed"] = 0 }));
+            await FramesAsync(city, time, ManyFrames);
+            Assert.AreEqual(1, await city.RunAsync(host => host.ChangeCount), "The city stepped before it paused");
+
+            time.Advance(CityRegistry.AutosaveInterval);
+
+            List<string> kept = await SavesKeptBeforeOneMoreAsync(registry, city);
+            Assert.AreEqual(2, kept.Count);
+            Assert.AreEqual(started, kept[0]);
+            Assert.AreNotEqual(started, kept[1], "Stored the city as it started");
+            await ((IHostedService)registry).StopAsync(CancellationToken.None);
+        }
+
+        [TestMethod]
         public async Task EnterAsync_AsTheLastPlayersLeaveSaves_WaitsForTheSaveAndLoadsIt()
         {
             LoadedCity city = await StartedAsync();
@@ -356,6 +584,24 @@ namespace Micropolis.Server.Tests
             return (await TestCityDatabase.ReadRowAsync(_database, city.Id))!.SavedGame;
         }
 
+        // Every save the store has kept of the city, oldest first, its start's included, up to now. A player's save of the
+        // city is kept only after every save of it taken before, so it takes one, and reads the saves once that is kept,
+        // leaving it out once it has checked that it is the city as it stands
+        private async Task<List<string>> SavesKeptBeforeOneMoreAsync(LoadedCity city)
+        {
+            return await SavesKeptBeforeOneMoreAsync(_registry, city);
+        }
+
+        private async Task<List<string>> SavesKeptBeforeOneMoreAsync(CityRegistry registry, LoadedCity city)
+        {
+            string now = await city.RunAsync(host => host.Save());
+            await registry.SaveAsync(city);
+            List<string> kept = _heldStore.Kept(city.Id);
+            Assert.AreEqual(now, kept[^1], "The last save kept wasn't the one taken to wait for the others");
+            kept.RemoveAt(kept.Count - 1);
+            return kept;
+        }
+
         // Fails, saying why, when the work finishes within the time a store write takes to land
         private static async Task AssertStillWaitingAsync(Task work, string message)
         {
@@ -363,9 +609,37 @@ namespace Micropolis.Server.Tests
             Assert.IsFalse(work.IsCompleted, message);
         }
 
-        // A store the test holds up: once told, its next read or write waits until the test releases it
+        // The registry's log, which gives the exception of the first error logged, once one is
+        private sealed class ErrorLog : ILogger<CityRegistry>
+        {
+            private readonly TaskCompletionSource<Exception?> _firstError = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public Task<Exception?> FirstError => _firstError.Task;
+
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+            {
+                return null;
+            }
+
+            public bool IsEnabled(LogLevel logLevel)
+            {
+                return true;
+            }
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                if (logLevel >= LogLevel.Error)
+                {
+                    _firstError.TrySetResult(exception);
+                }
+            }
+        }
+
+        // A store the test holds up: once told, its next read or write waits until the test releases it. It records each
+        // save it keeps.
         private sealed class HeldStore : CityStore
         {
+            private readonly ConcurrentQueue<(string City, string SavedGame)> _kept = new ConcurrentQueue<(string City, string SavedGame)>();
             private TaskCompletionSource? _begun;
             private TaskCompletionSource? _released;
 
@@ -402,6 +676,13 @@ namespace Micropolis.Server.Tests
             {
                 await WaitIfHeldAsync();
                 await base.WriteAsync(city, savedGame, session);
+                _kept.Enqueue((city, savedGame));
+            }
+
+            // The saves of the city kept so far, in the order they were kept
+            public List<string> Kept(string city)
+            {
+                return _kept.Where(kept => kept.City == city).Select(kept => kept.SavedGame).ToList();
             }
 
             private async Task WaitIfHeldAsync()

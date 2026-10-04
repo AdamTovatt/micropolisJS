@@ -17,14 +17,23 @@ namespace Micropolis.Server
 {
     /// <summary>
     /// The cities the server runs: each loaded while at least one player is in it, and kept in the store, by its id,
-    /// while none is. A city is saved to the store when it starts, when a player saves it, when its last player leaves,
-    /// which unloads it, and as the server stops; entering it again loads it and it resumes. One city's saves are kept
-    /// in the order they were taken. The registry counts who is in each city under one lock, and waits on
+    /// while none is. A city is saved to the store when it starts, when a player saves it, every
+    /// <see cref="AutosaveInterval"/> while it is loaded if it has changed since the store last kept it, when its last
+    /// player leaves, which unloads it, and as the server stops; entering it again loads it and it resumes. One city's
+    /// saves are kept in the order they were taken. The registry counts who is in each city under one lock, and waits on
     /// a city's work and the store outside it, so one busy city holds up no other. A player entering a city as its last
     /// player leaves finds it loaded, or waits for its save and loads it again.
     /// </summary>
     internal sealed class CityRegistry : IHostedService
     {
+        /// <summary>
+        /// How long a loaded city goes, on the server's clock, from loading or from the store last keeping it, before the
+        /// registry saves it on its own: the most play a server that stops uncleanly loses. The countdown runs on real time
+        /// even when the cities run on the debug channel's manual clock. That is harmless, since a save changes nothing a
+        /// player is sent.
+        /// </summary>
+        public static readonly TimeSpan AutosaveInterval = TimeSpan.FromMinutes(5);
+
         private readonly CityStore _store;
         private readonly ServerClock _clock;
         private readonly ILogger<CityRegistry> _logger;
@@ -34,6 +43,9 @@ namespace Micropolis.Server
         // The cities loading from the store or saving to it as they unload, by id, each finishing once that is done or
         // has failed. A player entering one waits for it, then looks again.
         private readonly Dictionary<string, Task> _moving = new Dictionary<string, Task>(StringComparer.Ordinal);
+        // Whether the server is stopping, after which no autosave runs: a city its stopping couldn't unload, or that
+        // loaded after, would otherwise write on to a store that is stopping too. Set under the lock, and read outside it.
+        private bool _stopping;
 
         public CityRegistry(CityStore store, ServerClock clock, ILogger<CityRegistry> logger)
         {
@@ -123,11 +135,12 @@ namespace Micropolis.Server
             }
 
             TaskCompletionSource unloaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            Loaded? loaded;
 
             await _lock.WaitAsync();
             try
             {
-                if (!_loaded.TryGetValue(city.Id, out Loaded? loaded) || loaded.City != city || --loaded.Players > 0)
+                if (!_loaded.TryGetValue(city.Id, out loaded) || loaded.City != city || --loaded.Players > 0)
                 {
                     return;
                 }
@@ -142,7 +155,7 @@ namespace Micropolis.Server
 
             try
             {
-                await UnloadAsync(city);
+                await UnloadAsync(loaded);
             }
             finally
             {
@@ -156,13 +169,13 @@ namespace Micropolis.Server
         /// meanwhile: its work only takes the save.
         /// </summary>
         /// <exception cref="CityStoreException">The store couldn't keep the save. The city stays loaded, so the next
-        /// save, its last player's leaving or the server's stopping saves it again.</exception>
+        /// save, its next autosave, its last player's leaving or the server's stopping saves it again.</exception>
         /// <exception cref="CityStoppedException">The city stopped before the save was taken.</exception>
         public async Task SaveAsync(LoadedCity city)
         {
             try
             {
-                await city.SaveAsync(savedGame => _store.WriteAsync(city.Id, savedGame));
+                await city.SaveAsync(savedGame => KeepAsync(city, savedGame));
             }
             catch (CityStoreException exception)
             {
@@ -185,13 +198,14 @@ namespace Micropolis.Server
         /// </summary>
         async Task IHostedService.StopAsync(CancellationToken cancellationToken)
         {
-            List<LoadedCity> loaded;
+            List<Loaded> loaded;
             List<Task> moving;
 
             await _lock.WaitAsync();
             try
             {
-                loaded = _loaded.Values.Select(entry => entry.City).ToList();
+                _stopping = true;
+                loaded = _loaded.Values.ToList();
                 moving = _moving.Values.ToList();
                 _loaded.Clear();
             }
@@ -200,9 +214,9 @@ namespace Micropolis.Server
                 _lock.Release();
             }
 
-            foreach (LoadedCity city in loaded)
+            foreach (Loaded entry in loaded)
             {
-                await UnloadAsync(city);
+                await UnloadAsync(entry);
             }
 
             await Task.WhenAll(moving);
@@ -248,9 +262,56 @@ namespace Micropolis.Server
             moved.SetResult();
         }
 
+        // Writes a save of the city to the store, and once it is kept, restarts the city's autosave countdown, while the
+        // city is loaded
+        private async Task KeepAsync(LoadedCity city, string savedGame)
+        {
+            await _store.WriteAsync(city.Id, savedGame);
+
+            await _lock.WaitAsync();
+            try
+            {
+                if (_loaded.TryGetValue(city.Id, out Loaded? loaded) && loaded.City == city)
+                {
+                    loaded.Autosave.Change(AutosaveInterval, AutosaveInterval);
+                }
+            }
+            finally
+            {
+                _lock.Release();
+            }
+        }
+
+        // The registry's own save of a city, if it changed since the store last kept it, which no player waits on, and no
+        // client address's save limit counts. Whatever stops it is logged here, since no caller hears it. A store that
+        // can't keep it leaves it loaded, and the countdown running, so the next autosave, a player's save, its unloading
+        // or the server's stopping keeps it. Once the server is stopping, its stopping saves every city it can instead.
+        private async Task AutosaveAsync(LoadedCity city)
+        {
+            if (Volatile.Read(ref _stopping))
+            {
+                return;
+            }
+
+            try
+            {
+                await city.SaveIfChangedAsync(savedGame => KeepAsync(city, savedGame));
+            }
+            catch (CityStoppedException)
+            {
+                // The city is unloading, which saves it, or failed, which Failed logs
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "City {City} couldn't be saved, and stays loaded", city.Id);
+            }
+        }
+
+        // The city's countdown starts as it loads, on the server's clock, and comes round again every interval
         private Loaded Add(LoadedCity city)
         {
-            Loaded loaded = new Loaded(city);
+            ITimer autosave = _clock.Time.CreateTimer(_ => _ = AutosaveAsync(city), null, AutosaveInterval, AutosaveInterval);
+            Loaded loaded = new Loaded(city, autosave);
             _loaded[city.Id] = loaded;
             return loaded;
         }
@@ -262,13 +323,14 @@ namespace Micropolis.Server
         }
 
         // Saves the city to the store and stops it. A city that fails as it saves is gone, as Failed says. One the store
-        // can't keep stays loaded, so it isn't lost, and is saved again when its next player leaves or the server stops.
-        private async Task UnloadAsync(LoadedCity city)
+        // can't keep stays loaded, so it isn't lost, and is saved again by its next autosave, when its next player leaves
+        // or as the server stops. Its autosave countdown runs on, which the save that failed didn't restart.
+        private async Task UnloadAsync(Loaded loaded)
         {
             try
             {
-                await SaveAsync(city);
-                await city.StopAsync();
+                await SaveAsync(loaded.City);
+                await loaded.City.StopAsync();
             }
             catch (CityStoppedException)
             {
@@ -280,13 +342,18 @@ namespace Micropolis.Server
                 await _lock.WaitAsync();
                 try
                 {
-                    _loaded[city.Id] = new Loaded(city);
+                    loaded.Players = 0;
+                    _loaded[loaded.City.Id] = loaded;
                 }
                 finally
                 {
                     _lock.Release();
                 }
+
+                return;
             }
+
+            loaded.Autosave.Dispose();
         }
 
         // A city whose work threw is unloaded without saving: the store keeps it as it was last saved
@@ -304,6 +371,7 @@ namespace Micropolis.Server
                     if (_loaded.TryGetValue(city.Id, out Loaded? loaded) && loaded.City == city)
                     {
                         _loaded.Remove(city.Id);
+                        loaded.Autosave.Dispose();
                     }
                 }
                 finally
@@ -313,15 +381,19 @@ namespace Micropolis.Server
             }
         }
 
-        // A loaded city, and how many connections are in it or entering it, which only changes under the lock
+        // A loaded city, how many connections are in it or entering it, which only changes under the lock, and its
+        // autosave countdown, which is restarted only under the lock and only while the city is loaded
         private sealed class Loaded
         {
-            public Loaded(LoadedCity city)
+            public Loaded(LoadedCity city, ITimer autosave)
             {
                 City = city;
+                Autosave = autosave;
             }
 
             public LoadedCity City { get; }
+
+            public ITimer Autosave { get; }
 
             public int Players { get; set; }
         }

@@ -38,6 +38,9 @@ namespace Micropolis.Server
         private readonly Task _working;
         // The keeping of the last save taken, which the next waits for. Only the city's work touches it.
         private Task _keeping = Task.CompletedTask;
+        // The host's change count as of the last save kept, or of its loading, when the store held the city as it loaded.
+        // Only the city's work touches it.
+        private long _keptChangeCount;
 
         /// <param name="held">Whether the debug channel of the connection the city loads for holds it: it is then held
         /// from before its first turn, so it takes no step before that connection joins it.</param>
@@ -123,15 +126,28 @@ namespace Micropolis.Server
         /// never waits on its keeping. It finishes once keep has, and fails as keep does, or as <see cref="RunAsync{T}"/>
         /// does when the city stops before taking the save.
         /// </summary>
+        /// <param name="keep">Keeps the save in the store: once it has, the city counts as unchanged until it changes
+        /// again.</param>
         public async Task SaveAsync(Func<string, Task> keep)
         {
-            Task kept = await RunAsync(host =>
-            {
-                _keeping = KeepAfterAsync(_keeping, host.Save(), keep);
-                return _keeping;
-            });
-
+            Task kept = await RunAsync(host => TakeSave(host, keep));
             await kept;
+        }
+
+        /// <summary>
+        /// Saves the city as <see cref="SaveAsync"/> does, but only when it has taken a step or applied a command since
+        /// the last save kept, or since it loaded if none has been, and no save taken before is still being kept. A save
+        /// still being kept leaves the store behind until it is, and taking another behind it would only queue up saves
+        /// while the store is slow, so the next save brings the store up to date instead.
+        /// </summary>
+        public async Task SaveIfChangedAsync(Func<string, Task> keep)
+        {
+            Task? kept = await RunAsync<Task?>(host => _keeping.IsCompleted && host.ChangeCount != _keptChangeCount ? TakeSave(host, keep) : null);
+
+            if (kept is not null)
+            {
+                await kept;
+            }
         }
 
         /// <summary>
@@ -217,13 +233,23 @@ namespace Micropolis.Server
             _stopped.Cancel();
         }
 
+        // Takes the save, as the city's work, to keep after the one taken before it
+        private Task TakeSave(CityHost host, Func<string, Task> keep)
+        {
+            _keeping = KeepAfterAsync(_keeping, host.Save(), host.ChangeCount, keep);
+            return _keeping;
+        }
+
         // Keeps the save after the one taken before it, off the city's work: a store's asynchronous calls may run as
-        // they are made, as SQLite's do. One taken before that failed to be kept doesn't hold this newer one back.
-        private static async Task KeepAfterAsync(Task before, string savedGame, Func<string, Task> keep)
+        // they are made, as SQLite's do. One taken before that failed to be kept doesn't hold this newer one back. Once
+        // kept, the city counts as unchanged since the save's change count, which the city's work learns before any
+        // later save's keeping can finish, so in the order the saves were taken.
+        private async Task KeepAfterAsync(Task before, string savedGame, long changeCount, Func<string, Task> keep)
         {
             await Task.Yield();
             await before.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             await keep(savedGame);
+            Post(_ => _keptChangeCount = changeCount);
         }
 
         // Work the city gives itself, such as its loop's turns, which no one waits on
