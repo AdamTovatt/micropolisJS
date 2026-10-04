@@ -264,6 +264,16 @@ def cylinder(x, y, z0, z1, r, material, verts=16):
     bpy.context.object.data.materials.append(material)
 
 
+def frustum(x, y, z0, z1, r0, r1, material, verts=32):
+    # a round section tapering from radius r0 at z0 to r1 at z1, open at both ends: stacked,
+    # they turn a profile such as a cooling tower's
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r0, radius2=r1, depth=z1 - z0,
+                                    end_fill_type='NOTHING', location=(x, y, (z0 + z1) / 2))
+    ob = bpy.context.object
+    ob.data.materials.append(material)
+    return ob
+
+
 def sphere(x, y, z, r, material, shadow=True):
     # a ball of radius r centred at (x, y, z); shadow=False for one that casts none, such as smoke
     bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=r, location=(x, y, z))
@@ -401,6 +411,37 @@ def lorry(x, y, turn, cab, body=None, kind='box', load=None, length=0.54):
             for i in range(3):
                 s0 = -half + i * span
                 part(s0 + 0.006, s0 + span - 0.006, width * 0.8, 0.038 * k, 0.075 * k, load, name='load')
+
+
+def plane(x, y, turn, body, trim, length=0.6, base=0.0):
+    # an airliner centred on (x, y), its belly `base` above the ground under it: a fuselage,
+    # swept wings with an engine under each, a tailplane and a fin painted `trim`. turn 0 points
+    # its nose north, turning anticlockwise in degrees. Parked, it stands on its wheels.
+    a = math.radians(turn)
+    ux, uy = -math.sin(a), math.cos(a)         # forward
+    k = length / 0.6
+
+    def at(s, w):
+        return (x + (ux * s + uy * w) * k, y + (uy * s - ux * w) * k)
+
+    def part(outline, z0, z1, material, name):
+        return prism([at(s, w) for s, w in outline], base + z0 * k, base + z1 * k, material, name=name)
+
+    nose = [(0.3, 0), (0.27, -0.022), (0.2, -0.03), (-0.24, -0.03), (-0.3, -0.008), (-0.3, 0.008), (-0.24, 0.03),
+            (0.2, 0.03), (0.27, 0.022)]
+    part(nose, 0.02, 0.06, body, 'fuselage')
+    part([(0.08, 0), (-0.06, -0.29), (-0.11, -0.29), (-0.03, 0), (-0.11, 0.29), (-0.06, 0.29)], 0.035, 0.044, body,
+         'wings')
+    part([(-0.21, 0), (-0.28, -0.1), (-0.31, -0.1), (-0.27, 0), (-0.31, 0.1), (-0.28, 0.1)], 0.052, 0.058, body,
+         'tailplane')
+    part([(-0.22, -0.006), (-0.22, 0.006), (-0.3, 0.006), (-0.3, -0.006)], 0.058, 0.13, trim, 'fin')
+    for w in (-0.12, 0.12):
+        p, q = at(0.04, w), at(-0.04, w)
+        strut((p[0], p[1], base + 0.028 * k), (q[0], q[1], base + 0.028 * k), 0.013 * k, trim)
+    if base == 0:
+        for s, w in ((0.2, 0), (-0.03, -0.05), (-0.03, 0.05)):
+            gx, gy = at(s, w)
+            cylinder(gx, gy, 0, 0.02 * k, 0.006 * k, body, 8)
 
 
 def excavator(x, y, turn, paint, reach=0.3, size=1.0):
@@ -829,6 +870,29 @@ def _render_to(scene, path):
     final.save()
 
 
+def _stage(scene, samples, sun_azimuth, sun_elevation, sun_colour, sun_strength, sky_strength):
+    # the camera, the light and the render settings every render shares; returns the camera
+    cam = bpy.data.objects.new('camera', bpy.data.cameras.new('camera'))
+    cam.data.type = 'ORTHO'
+    cam.data.clip_end = 100
+    scene.collection.objects.link(cam)
+    scene.camera = cam
+    _sun(scene, sun_azimuth, sun_elevation, sun_colour, sun_strength)
+    _sky(scene, sun_elevation, sky_strength)
+    scene.render.engine = 'CYCLES'
+    scene.cycles.device = 'CPU'
+    scene.cycles.samples = samples
+    scene.cycles.use_denoising = False
+    # each pixel samples only its own square: the default filter, wider than a pixel, reaches
+    # past the frame's edge, where nothing of the zone is, and darkens its outermost pixels, a
+    # faint line where it meets its neighbour. Rendering at twice the size smooths edges instead.
+    scene.cycles.filter_width = 1.0
+    scene.render.image_settings.color_mode = 'RGBA'
+    scene.view_settings.view_transform = 'AgX'
+    scene.view_settings.look = 'AgX - Punchy'
+    return cam
+
+
 def render(scene, out_dir, tiles, samples=192,
            sun_azimuth=300, sun_elevation=35, sun_colour=(1.0, 0.88, 0.72), sun_strength=5.5,
            sky_strength=0.17):
@@ -848,25 +912,7 @@ def render(scene, out_dir, tiles, samples=192,
     ground = [ob for ob in meshes if _top(ob) <= GROUND_TOP]
     standing = [ob for ob in meshes if _top(ob) > GROUND_TOP]
     tallest = max((_top(ob) for ob in standing), default=0.0)
-
-    cam = bpy.data.objects.new('camera', bpy.data.cameras.new('camera'))
-    cam.data.type = 'ORTHO'
-    cam.data.clip_end = 100
-    scene.collection.objects.link(cam)
-    scene.camera = cam
-    _sun(scene, sun_azimuth, sun_elevation, sun_colour, sun_strength)
-    _sky(scene, sun_elevation, sky_strength)
-    scene.render.engine = 'CYCLES'
-    scene.cycles.device = 'CPU'
-    scene.cycles.samples = samples
-    scene.cycles.use_denoising = False
-    # each pixel samples only its own square: the default filter, wider than a pixel, reaches
-    # past the frame's edge, where nothing of the zone is, and darkens its outermost pixels, a
-    # faint line where it meets its neighbour. Rendering at twice the size smooths edges instead.
-    scene.cycles.filter_width = 1.0
-    scene.render.image_settings.color_mode = 'RGBA'
-    scene.view_settings.view_transform = 'AgX'
-    scene.view_settings.look = 'AgX - Punchy'
+    cam = _stage(scene, samples, sun_azimuth, sun_elevation, sun_colour, sun_strength, sky_strength)
     os.makedirs(out_dir, exist_ok=True)
 
     # the ground, with nothing standing on it to cast a shadow

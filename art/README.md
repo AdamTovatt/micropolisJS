@@ -11,6 +11,7 @@ Sources for rendering the game's tile art in Blender, one zone or one set of sin
 - `blender/zones/`: one script per zone.
 - `blender/tilesets.py`: what the single-tile sets share: the land and water, and the shores, roads, rails and power lines that must meet where two tiles touch.
 - `blender/tiles/`: one script per set of single tiles, such as every road piece, rendering each tile id the set covers.
+- `blender/stadium.py`: the stands, pitch and game that the empty and the full stadium share.
 - `blender/out/`: rendered zones and tiles, one directory of layers each. Ignored by git: a render is rebuilt from its script.
 - `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), and previewing rendered zones side by side (`preview.py`).
 
@@ -25,6 +26,18 @@ blender --background --python art/blender/zones/commercial_glass_tower.py
 This writes the zone's layers into `art/blender/out/commercial_glass_tower/`. Passing `-- <directory>` after the script name writes there instead.
 
 A zone with animated tiles, such as a factory whose chimney smokes, renders through `render_animated()`: the still zone as above, then the whole zone again for each frame into `frame-<n>` inside its directory, from which the atlas build cuts the animated tiles. Whatever moves stays inside its tile in every frame. Frame numbers after the directory (`-- <directory> 0,4`) render the still zone and only those frames.
+
+The service buildings and the hospital are zones, each listed by the tiles it renders and, for an animated one, the tiles whose frames it renders into `frame-<n>`:
+
+- `seaport.py`: 693 to 708.
+- `airport.py`: 709 to 744; the radar at 711 turns through 832 to 839.
+- `coal_power_plant.py`: 745 to 760; the stacks at 747, 748, 751 and 752 smoke through 916 to 931.
+- `fire_station.py`: 761 to 769.
+- `police_station.py`: 770 to 778.
+- `stadium_empty.py`: 779 to 794.
+- `stadium_full.py`: 795 to 810; the game at 801 and 805 plays through 932 to 939 and 940 to 947.
+- `nuclear_power_plant.py`: 811 to 826; the atom at 820 turns through 952 to 955.
+- `hospital.py`: 405 to 413.
 
 ## Rendering a set of tiles
 
