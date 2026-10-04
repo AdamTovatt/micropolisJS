@@ -66,6 +66,21 @@ namespace Micropolis.Rules.Tests
                           "No log checks a command sent partway through its run at the step it applies.");
         }
 
+        // Each disaster a player triggers, then the city running on from it, as only a log shows
+        [TestMethod]
+        public void Load_SharedLogs_TriggerEveryDisasterPartwayThroughARun()
+        {
+            HashSet<string> triggered = Logs
+                .SelectMany(log => log.Entries.Where(entry => entry.Step > 0 && entry.Step < log.LastStep))
+                .Where(entry => (string?)entry.Command?["type"] == "triggerDisaster")
+                .Select(entry => (string)entry.Command!["kind"]!)
+                .ToHashSet();
+
+            List<string> missing = ProtocolJson.Names<DisasterKind>().Where(kind => !triggered.Contains(kind)).ToList();
+
+            Assert.IsEmpty(missing, $"No log triggers these partway through its run and runs on: {string.Join(", ", missing)}.");
+        }
+
         // The check can fail: the city a log builds without its first command differs where it is built
         [TestMethod]
         public void FirstDifference_FirstCommandLeftOut_NamesTheCheckpointAtStep0()
