@@ -132,6 +132,19 @@ namespace Micropolis.Headless
         private static readonly Fixture Suburb = Built(
             "suburb", "The town without its airport and railway, with a fire and a police station", [.. ZonedTown, .. Stations]);
 
+        private static readonly Fixture SuburbBroke = Built(
+            "suburbBroke", "The suburb with a stadium, a nuclear plant and eight stations, no tax, and too little in the bank for their upkeep",
+            [
+                .. ZonedTown,
+                .. Stations,
+                .. MoreStations,
+                BuildingAt(ToolName.Stadium, 16, 23),
+                BuildingAt(ToolName.Nuclear, 22, 23),
+                BuildingAt(ToolName.Police, 27, 23),
+                BuildingAt(ToolName.Police, 31, 23),
+                new SetBudgetCommand(100, 100, 100, 0),
+            ]);
+
         /// <summary>
         /// Every fixture, in name order.
         /// </summary>
@@ -197,18 +210,7 @@ namespace Micropolis.Headless
                 BuildingAt(ToolName.Coal, 48, 13),
             ]),
             Suburb,
-            Built("suburbBroke",
-                  "The suburb with a stadium, a nuclear plant and eight stations, no tax, and too little in the bank for their upkeep",
-            [
-                .. ZonedTown,
-                .. Stations,
-                .. MoreStations,
-                BuildingAt(ToolName.Stadium, 16, 23),
-                BuildingAt(ToolName.Nuclear, 22, 23),
-                BuildingAt(ToolName.Police, 27, 23),
-                BuildingAt(ToolName.Police, 31, 23),
-                new SetBudgetCommand(100, 100, 100, 0),
-            ]),
+            SuburbBroke,
             Built("suburbFast", "The suburb at fast speed", [.. ZonedTown, .. Stations, new SetSpeedCommand(Speed.Fast)]),
             Built("suburbSlow", "The suburb at slow speed", [.. ZonedTown, .. Stations, new SetSpeedCommand(Speed.Slow)]),
             Built("suburbUnderfunded", "The suburb with its services funded below their need and auto-budget off",
@@ -238,6 +240,12 @@ namespace Micropolis.Headless
                 Logged(1200, new SetBudgetCommand(null, null, null, 12)),
                 Logged(1200, new SetSpeedCommand(Speed.Fast)),
             ], 2000),
+
+            // Each running into the next: the broke suburb has the nuclear plant a meltdown needs, and a crash makes the
+            // plane it brings down
+            MidRunLog("suburbBrokeDisasters", SuburbBroke,
+                      "with every disaster a player may trigger, one after another, partway through its run",
+                      Enum.GetValues<DisasterKind>().Select((kind, i) => Logged(100 + 200 * i, new TriggerDisasterCommand(kind))).ToList(), 3000),
         ];
 
         /// <summary>

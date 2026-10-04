@@ -208,8 +208,9 @@ too unless one log starts from a seed and another from a save.
 server/Micropolis.Headless -- --log conformance/logs/<name>.log.json` in C#.
 
 The C# fixture tool writes every file here too, from the C# rules: `dotnet run --project server/Micropolis.Headless
--- --write-fixtures`. It lays out each log's commands as the fixture scripts do, in `Fixtures.cs`, and works out the
-checkpoints by replaying them. A log that starts from a save, the city a fixture's script writes onto, keeps the save
+-- --write-fixtures`. It lays out each fixture's and mid-run log's commands as the scripts do, in `Fixtures.cs`, and
+works out the checkpoints by replaying them, and copies the playthrough's log from its golden file, as the generator
+does. A log that starts from a save, the city a fixture's script writes onto, keeps the save
 the file holds: that save is committed data, which no C# code builds. While the TypeScript simulation exists, the
 generator writes the logs, and `FixtureLogsTests` fails unless each log the tool writes is the file here byte for byte.
 

@@ -70,6 +70,14 @@ namespace Micropolis.Rules
                 throw new InvalidDataException($"A command log is JSON: {exception.Message}");
             }
 
+            return Read(parsed);
+        }
+
+        /// <summary>
+        /// A log already read as JSON, such as one another file holds, checked as <see cref="Parse"/> checks it.
+        /// </summary>
+        public static CommandLog Read(JsonNode? parsed)
+        {
             if (parsed is not JsonObject log)
             {
                 throw new InvalidDataException("A command log is a JSON object");

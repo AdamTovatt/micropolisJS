@@ -12,6 +12,7 @@
  */
 
 using Micropolis.Rules;
+using Micropolis.SourceTree;
 
 namespace Micropolis.Headless
 {
@@ -19,10 +20,33 @@ namespace Micropolis.Headless
     /// The fixture tool: builds each fixture's log, its checkpoints the state hashes its replay in C# reaches, and
     /// writes every log. While the TypeScript simulation exists, <c>npm run conformance</c> writes the committed logs
     /// and this tool must write the same, which <c>FixtureLogsTests</c> checks; once it is deleted, writing them here is
-    /// how every checkpoint is regenerated after a deliberate rule change.
+    /// how every fixture's checkpoints are regenerated after a deliberate rule change. The playthrough's come from its
+    /// golden file, which the end-to-end run rewrites.
     /// </summary>
     internal static class FixtureLogs
     {
+        /// <summary>
+        /// The end-to-end playthrough's log, which no script builds: the browser recorded it, and the tool copies it from
+        /// the golden playthrough, as the generator does.
+        /// </summary>
+        public const string Playthrough = "playthrough";
+
+        // Where the golden playthrough is, from the repository root, which `npm run e2e:golden` rewrites
+        private const string GoldenPlaythrough = "e2e/goldenPlaythrough.json";
+
+        /// <summary>
+        /// Every log the tool writes: each fixture's and mid-run log, then the playthrough's.
+        /// </summary>
+        public static IReadOnlyList<string> Names => [.. Fixtures.Logs.Select(fixture => fixture.Name), Playthrough];
+
+        /// <summary>
+        /// The playthrough's log, as the golden playthrough holds it.
+        /// </summary>
+        public static CommandLog CopyPlaythrough()
+        {
+            return CommandLog.Read(JsonText.Parse(File.ReadAllText(RepositoryFiles.GetPath(GoldenPlaythrough)))?["log"]);
+        }
+
         /// <summary>
         /// The fixture's log, with the state hash its replay reaches at each of its checkpoint steps, a fixture that
         /// starts from a save reading it from its log in <paramref name="directory"/>.
@@ -43,6 +67,7 @@ namespace Micropolis.Headless
         {
             List<(string Path, string Text)> logs = Fixtures.Logs
                 .Select(fixture => (Fixtures.LogPath(directory, fixture.Name), Build(fixture, directory).Write()))
+                .Append((Fixtures.LogPath(directory, Playthrough), CopyPlaythrough().Write()))
                 .ToList();
 
             foreach ((string path, string text) in logs)

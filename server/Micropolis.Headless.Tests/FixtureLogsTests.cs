@@ -46,7 +46,13 @@ namespace Micropolis.Headless.Tests
                 .Select(path => Path.GetFileName(path)[..^Fixtures.LogExtension.Length])
                 .ToList();
 
-            CollectionAssert.AreEquivalent(committed, Fixtures.Logs.Select(fixture => fixture.Name).ToList());
+            CollectionAssert.AreEquivalent(committed, FixtureLogs.Names.ToList());
+        }
+
+        [TestMethod]
+        public void CopyPlaythrough_GoldenPlaythrough_WritesTheCommittedFileByteForByte()
+        {
+            Assert.AreEqual(Committed(FixtureLogs.Playthrough), FixtureLogs.CopyPlaythrough().Write());
         }
 
         // The save is committed data, so the byte-for-byte check holds it to itself: what it proves is that the tool
@@ -86,10 +92,10 @@ namespace Micropolis.Headless.Tests
 
                 IReadOnlyList<string> written = FixtureLogs.WriteAll(directory);
 
-                Assert.HasCount(Fixtures.Logs.Count, written);
-                foreach (Fixture fixture in Fixtures.Logs)
+                Assert.HasCount(FixtureLogs.Names.Count, written);
+                foreach (string name in FixtureLogs.Names)
                 {
-                    Assert.AreEqual(Committed(fixture.Name), File.ReadAllText(Fixtures.LogPath(directory, fixture.Name)), fixture.Name);
+                    Assert.AreEqual(Committed(name), File.ReadAllText(Fixtures.LogPath(directory, name)), name);
                 }
             }
             finally
