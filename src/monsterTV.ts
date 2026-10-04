@@ -13,7 +13,7 @@
 
 import { placeNewCanvas, requiredElement, screenPixelRatio, sizeCanvas } from "./domElements";
 import { MapPainter, paintedView } from "./mapPainter";
-import { SPRITE_PIXELS_PER_TILE } from "./paintable";
+import { SPRITE_PIXELS_PER_TILE, spriteTile } from "./paintable";
 import type { PaintableMap, PaintableSprite } from "./paintable";
 import type { SpriteView } from "./protocol";
 import type { MapArt } from "./renderAssets";
@@ -52,15 +52,6 @@ function renderView(element: ViewElement, open: boolean): void {
 // centre on it again. The last row and column count as out: they may be only partly in view.
 function isOutOfView(position: TilePoint, min: TilePoint, max: TilePoint): boolean {
   return position.x < min.x || position.y < min.y || position.x >= max.x || position.y >= max.y;
-}
-
-// The map tile under the middle of the square a sprite is drawn in, which the view centres on: what the player sees of
-// the sprite. For most sprites it is the tile the sprite is at; a tornado's funnel rises from its position, and the
-// middle of it is a tile above.
-function spriteTile(sprite: SpriteView): TilePoint {
-  const middle = sprite.width / 2;
-  return {x: Math.floor((sprite.x + middle) / SPRITE_PIXELS_PER_TILE),
-          y: Math.floor((sprite.y + middle) / SPRITE_PIXELS_PER_TILE)};
 }
 
 // Follows one sprite at a time, by its type, of which the map holds at most one: the monster or the tornado. Each time
@@ -154,8 +145,7 @@ class TVCanvas {
     this.container = requiredElement(CONTAINER_ID);
     this.width = this.container.clientWidth;
     this.height = this.container.clientHeight;
-    this.position = new ViewPosition(viewport(this.width, this.height, SPRITE_PIXELS_PER_TILE, map.width, map.height,
-                                              false));
+    this.position = new ViewPosition(viewport(this.width, this.height, SPRITE_PIXELS_PER_TILE, map.width, map.height));
     this.centreOn(Math.floor(map.width / 2), Math.floor(map.height / 2));
   }
 
@@ -276,5 +266,5 @@ class MonsterTV {
   }
 }
 
-export { MonsterTV, SpriteFollower, ViewState, isOutOfView, renderView, spriteTile };
+export { MonsterTV, SpriteFollower, ViewState, isOutOfView, renderView };
 export type { ViewElement };

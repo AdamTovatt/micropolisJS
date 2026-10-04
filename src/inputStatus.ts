@@ -15,7 +15,7 @@ import { requiredElement } from "./domElements";
 import { Emitter } from "./emitter";
 import { GameCanvas } from "./gameCanvas";
 import * as UiMessages from "./uiMessages";
-import type { PixelPoint } from "./viewPosition";
+import type { PixelPoint, TilePoint } from "./viewPosition";
 
 // The player's input as the game reads it each tick: the keys held, where the mouse is over the canvas and the tool
 // chosen. A click or a drag with the tool, and a press of a control button, are events.
@@ -52,43 +52,139 @@ export function heldKey(keyCode: number): HeldKey | null {
   }
 }
 
-// The keys that scroll the map, in the order the game takes the first held when several are
+// The keys that scroll the map
 export type ScrollKey = Exclude<HeldKey, "escape">;
-const SCROLL_KEYS: readonly ScrollKey[] = ["left", "up", "right", "down"];
 
-// The scroll keys held, and those pressed since the game last took a scroll. The game takes one on each of its ticks
-// and moves the view a tile for it: a key held moves it on every tick, and a press that comes and goes between two
-// ticks still moves it a tile.
-export class ScrollKeys {
-  private readonly held = new Set<ScrollKey>();
-  private readonly pressed = new Set<ScrollKey>();
+// How fast a scroll key held moves the view, in CSS pixels a second, at every zoom
+export const SCROLL_SPEED = 600;
 
-  // A key's keydown. A key held repeats its keydown, which is no new press: a repeat that comes after the last tick
-  // took a scroll, of a key let go before the next, scrolls no further.
-  press(key: ScrollKey, repeat: boolean): void {
-    this.held.add(key);
-    if (!repeat) {
-      this.pressed.add(key);
+// The most time held one take scrolls for, in milliseconds: after a stall of the page, such as a slow frame or a tab in
+// the background, the view moves on at most a second's worth, as the step driver catches up at most a second's steps
+export const MAX_SCROLL_TIME = 1000;
+
+type Axis = "x" | "y";
+type Way = 1 | -1;
+
+// The axis each scroll key moves the view's origin along, and which way
+const SCROLL_WAYS: Record<ScrollKey, {axis: Axis, way: Way}> = {
+  left: {axis: "x", way: -1},
+  right: {axis: "x", way: 1},
+  up: {axis: "y", way: -1},
+  down: {axis: "y", way: 1},
+};
+
+// The scrolling along one axis. The key last pressed of those held sets the way. The time it is held builds up into
+// pixels at SCROLL_SPEED, and the pixels into whole tiles, which leaves the view's origin on whole tiles; what is left
+// over carries to the next take. A press moves the view a tile at once, even one that comes and goes between two takes.
+class AxisScroll {
+  // The ways of the keys held, the last pressed last
+  private held: Way[] = [];
+  // The way of a press since the last take, or 0 for none
+  private pressed: Way | 0 = 0;
+  // The pixels scrolled toward the next whole tile, and the time, in milliseconds, they were counted to
+  private pixels = 0;
+  private since = 0;
+
+  // A key's keydown at the time given. A key held repeats its keydown, which is no new press. The repeat of a key not
+  // held, as one pressed while a window held the keyboard and still down once it closed, holds it without the press's
+  // tile at once.
+  press(way: Way, repeat: boolean, now: number): void {
+    if (repeat && this.held.includes(way)) {
+      return;
     }
+
+    const before = this.way();
+    this.held = [...this.held.filter((held) => held !== way), way];
+    if (!repeat) {
+      this.pressed = way;
+    }
+    this.restartIfTurned(before, now);
   }
 
-  release(key: ScrollKey): void {
-    this.held.delete(key);
+  release(way: Way, now: number): void {
+    const before = this.way();
+    this.held = this.held.filter((held) => held !== way);
+    this.restartIfTurned(before, now);
   }
 
-  // The way to scroll on this tick, the first held or pressed in SCROLL_KEYS' order, or null for none. The presses
-  // are forgotten, so the next tick scrolls only for the keys held then, or pressed since.
-  take(): ScrollKey | null {
-    const scroll = SCROLL_KEYS.find((key) => this.held.has(key) || this.pressed.has(key)) ?? null;
-    this.pressed.clear();
-    return scroll;
+  // The whole tiles to move the origin along the axis at the time given, negative for back
+  take(now: number, tileWidth: number): number {
+    const way = this.way();
+    let tiles = this.pressed;
+    this.pressed = 0;
+
+    if (way !== 0) {
+      this.pixels += SCROLL_SPEED * Math.min(now - this.since, MAX_SCROLL_TIME) / 1000;
+      this.since = now;
+      const whole = Math.floor(this.pixels / tileWidth);
+      this.pixels -= whole * tileWidth;
+      tiles += way * whole;
+    }
+
+    return tiles;
+  }
+
+  // The way the keys held scroll, or 0 for none held
+  private way(): Way | 0 {
+    return this.held.length === 0 ? 0 : this.held[this.held.length - 1];
+  }
+
+  // The time held counts from now in a way the keys held have just turned to
+  private restartIfTurned(before: Way | 0, now: number): void {
+    if (this.way() !== before) {
+      this.pixels = 0;
+      this.since = now;
+    }
   }
 }
 
-// The zoom steps a key press asks for: + (or =, the same key unshifted) zooms in a step, and - zooms out. With Ctrl,
-// Alt or Meta held the key is the browser's, which zooms the page.
-export function zoomKey(e: {key: string, altKey: boolean, ctrlKey: boolean, metaKey: boolean}): number | null {
-  if (e.altKey || e.ctrlKey || e.metaKey) {
+// The scroll keys held and pressed, which the game takes on each of its ticks as the whole tiles to move the view
+// across and down: a key held moves it at SCROLL_SPEED whatever the zoom, however often the game ticks, and a press
+// moves it a tile at once. Each axis scrolls apart, so keys of both scroll the view on a slant.
+export class ScrollKeys {
+  private readonly axes: Record<Axis, AxisScroll> = {x: new AxisScroll(), y: new AxisScroll()};
+
+  // A key's keydown at the time given, in milliseconds
+  press(key: ScrollKey, repeat: boolean, now: number): void {
+    const {axis, way} = SCROLL_WAYS[key];
+    this.axes[axis].press(way, repeat, now);
+  }
+
+  release(key: ScrollKey, now: number): void {
+    const {axis, way} = SCROLL_WAYS[key];
+    this.axes[axis].release(way, now);
+  }
+
+  // Lets every key go, as when the page loses the keyboard and would never hear the keys come up
+  releaseAll(now: number): void {
+    for (const key of Object.keys(SCROLL_WAYS) as ScrollKey[]) {
+      this.release(key, now);
+    }
+  }
+
+  // The whole tiles to move the view across and down at the time given, when a tile is tileWidth CSS pixels
+  take(now: number, tileWidth: number): TilePoint {
+    return {x: this.axes.x.take(now, tileWidth), y: this.axes.y.take(now, tileWidth)};
+  }
+}
+
+// The modifier keys of a key press
+interface Modifiers {
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+}
+
+// Whether Ctrl, Alt or Meta is held, which makes a key press the browser's shortcut, never the game's: Ctrl or Cmd with
+// + zooms the page and with A selects it, and on macOS a key pressed with Cmd never reports coming up
+export function isShortcut(e: Modifiers): boolean {
+  return e.altKey || e.ctrlKey || e.metaKey;
+}
+
+// The zoom steps a key press asks for: + (or =, the same key unshifted) zooms in a step, and - zooms out. A shortcut is
+// the browser's.
+export function zoomKey(e: {key: string} & Modifiers): number | null {
+  if (isShortcut(e)) {
     return null;
   }
 
@@ -103,6 +199,11 @@ export function zoomKey(e: {key: string, altKey: boolean, ctrlKey: boolean, meta
     default:
       return null;
   }
+}
+
+// Whether a key press hides or shows the minimap: M, unless it is a shortcut
+export function isMinimapKey(e: {key: string} & Modifiers): boolean {
+  return (e.key === "m" || e.key === "M") && !isShortcut(e);
 }
 
 // The pixels a wheel turns for each zoom step, about a notch of a mouse wheel, and the pixels a wheel's line and page
@@ -175,8 +276,9 @@ export interface ToolClick {
 
 export class InputStatus extends Emitter {
   // Keyboard Movement
-  readonly scrollKeys = new ScrollKeys();
-  escape = false;
+  private readonly scrollKeys = new ScrollKeys();
+  // Whether Escape was pressed since the game last took it
+  private escapePressed = false;
 
   // Mouse movement: -1 while the mouse is off the canvas
   mouseX = -1;
@@ -206,8 +308,9 @@ export class InputStatus extends Emitter {
   // Where the pointer is over the canvas, tool or no tool, which the zoom keys zoom around, or null while it is off it
   private pointer: PixelPoint | null = null;
 
-  // tileWidth gives the CSS pixels a tile is drawn, at the zoom the canvas is at
-  constructor(private readonly tileWidth: () => number) {
+  // tileWidth gives the CSS pixels a tile is drawn, at the zoom the canvas is at, and windowHoldsInput whether a window
+  // holds the keyboard and mouse, which leaves the keys to it but Escape
+  constructor(private readonly tileWidth: () => number, private readonly windowHoldsInput: () => boolean) {
     super();
     this.canvas = requiredElement(GameCanvas.DEFAULT_ID);
     this.pauseButton = requiredElement("pauseRequest");
@@ -215,6 +318,8 @@ export class InputStatus extends Emitter {
     // Add the listeners
     document.addEventListener("keydown", (e) => this.onKeyDown(e));
     document.addEventListener("keyup", (e) => this.onKeyUp(e));
+    // A page that loses the keyboard never hears the keys held come up
+    window.addEventListener("blur", () => this.scrollKeys.releaseAll(performance.now()));
 
     this.canvas.addEventListener("mouseenter", () => this.onMouseEnter());
     this.canvas.addEventListener("mouseleave", () => this.onMouseLeave());
@@ -265,14 +370,39 @@ export class InputStatus extends Emitter {
     }
   }
 
+  // The whole tiles to scroll the view across and down at the time given, since the last take. A window holding the
+  // keyboard holds the view still: the scroll owed for a key held as it opened is dropped.
+  takeScroll(now: number): TilePoint {
+    const scroll = this.scrollKeys.take(now, this.tileWidth());
+    return this.windowHoldsInput() ? {x: 0, y: 0} : scroll;
+  }
+
+  // Whether Escape was pressed since the last take: a press is latched until the game takes it, so a tap that comes and
+  // goes between two of its ticks is not lost
+  takeEscape(): boolean {
+    const pressed = this.escapePressed;
+    this.escapePressed = false;
+    return pressed;
+  }
+
+  // A window holding the keyboard keeps every key but Escape, which closes it: its sliders, selects and radio groups
+  // take the arrow keys, and its inputs any key
   private onKeyDown(e: KeyboardEvent): void {
     const key = heldKey(e.keyCode);
     if (key === "escape") {
-      this.escape = true;
-    } else if (key !== null) {
-      this.scrollKeys.press(key, e.repeat);
+      if (!e.repeat) {
+        this.escapePressed = true;
+      }
+      e.preventDefault();
+      return;
     }
-    if (key !== null) {
+
+    if (this.windowHoldsInput()) {
+      return;
+    }
+
+    if (key !== null && !isShortcut(e)) {
+      this.scrollKeys.press(key, e.repeat, performance.now());
       e.preventDefault();
     }
 
@@ -283,6 +413,13 @@ export class InputStatus extends Emitter {
       e.preventDefault();
       if (!this.dragging) {
         this.emit(UiMessages.ZOOM_REQUESTED, {steps, point: this.pointer} satisfies ZoomRequest);
+      }
+    }
+
+    if (isMinimapKey(e)) {
+      e.preventDefault();
+      if (!e.repeat) {
+        this.emit(UiMessages.MINIMAP_TOGGLE_REQUESTED);
       }
     }
   }
@@ -297,11 +434,10 @@ export class InputStatus extends Emitter {
   }
 
   private onKeyUp(e: KeyboardEvent): void {
+    // A key held as a window opened comes up while it holds the keyboard
     const key = heldKey(e.keyCode);
-    if (key === "escape") {
-      this.escape = false;
-    } else if (key !== null) {
-      this.scrollKeys.release(key);
+    if (key !== null && key !== "escape") {
+      this.scrollKeys.release(key, performance.now());
     }
   }
 

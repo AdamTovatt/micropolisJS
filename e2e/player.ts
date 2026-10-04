@@ -60,6 +60,14 @@ const MAX_SCROLL_PRESSES = 500;
 // The longest a held key may leave the view where it was
 const HOLD_STALL_MS = 1000;
 
+// An origin along an axis held within the view's limits there, as the view holds it
+export function heldWithin(origin: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, origin));
+}
+
+// The most arrow key presses setSlider makes, past the widest slider's steps
+const MAX_SLIDER_PRESSES = 200;
+
 // The pixels a notch of a mouse wheel turns, as Chromium reports it
 const WHEEL_NOTCH = 100;
 
@@ -254,8 +262,8 @@ export class Player {
   }
 
   // Zooms with the mouse wheel over a tile, a notch a step: up to zoom in, down to zoom out. Fails unless the view
-  // comes to the zoom step the notches lead to with the tile still under the pointer, as it does away from the view's
-  // limits.
+  // comes to the zoom step the notches lead to with the tile still under the pointer, as far as the view's limits
+  // allow: at the map's edges the view stops, and the tile under the pointer moves.
   async zoomWithWheel(tile: Tile, steps: number): Promise<void> {
     const point = await this.tilePoint(tile);
     const expected = steppedZoom((await this.view()).tileWidth, steps);
@@ -267,9 +275,10 @@ export class Player {
     await expect.poll(async () => (await this.view()).tileWidth, "the zoom the wheel led to").toBe(expected);
     const view = await this.view();
     const canvas = await this.canvasBox();
-    expect({x: view.originX + Math.floor((point.x - canvas.x) / view.tileWidth),
-            y: view.originY + Math.floor((point.y - canvas.y) / view.tileWidth)}, "the tile under the pointer")
-      .toEqual(tile);
+    const {minX, maxX, minY, maxY} = view.limits;
+    expect({x: view.originX, y: view.originY}, "the origin that keeps the tile under the pointer, within the limits")
+      .toEqual({x: heldWithin(tile.x - Math.floor((point.x - canvas.x) / view.tileWidth), minX, maxX),
+                y: heldWithin(tile.y - Math.floor((point.y - canvas.y) / view.tileWidth), minY, maxY)});
   }
 
   // Zooms with the + and - keys, a press a step. Fails unless the view comes to the zoom step the presses lead to.
@@ -324,31 +333,21 @@ export class Player {
     await this.applyInput();
   }
 
-  // Sets a range input with the mouse: presses on the track, which takes the thumb there, then drags a pixel at a time
-  // until the input reads the value. The keyboard can't do it: the game takes the arrow keys for scrolling the map, on
-  // the whole page.
+  // Sets a range input in the window showing with the arrow keys, a step a press, as a player can: the window holds the
+  // keyboard, so the game leaves the keys to it
   async setSlider(selector: string, value: number): Promise<void> {
     const slider = this.page.locator(selector);
-    const box = await slider.boundingBox();
-    if (box === null) {
-      throw new Error(`${selector} is not on screen`);
-    }
-
-    const y = box.y + box.height / 2;
-    let x = Math.round(box.x + box.width / 2);
     const read = async () => Number(await slider.inputValue());
+    const view = await this.view();
 
-    await this.page.mouse.move(x, y);
-    await this.page.mouse.down();
-
-    const direction = await read() < value ? 1 : -1;
-    while (await read() !== value && x >= box.x && x <= box.x + box.width) {
-      x += direction;
-      await this.page.mouse.move(x, y);
+    await slider.focus();
+    const key = await read() < value ? "ArrowRight" : "ArrowLeft";
+    for (let presses = 0; await read() !== value && presses < MAX_SLIDER_PRESSES; presses++) {
+      await this.page.keyboard.press(key);
     }
 
-    await this.page.mouse.up();
-    expect(await read(), `${selector} set by mouse`).toBe(value);
+    expect(await read(), `${selector} set by keyboard`).toBe(value);
+    expect(await this.view(), "the view, which the window's keys leave where it was").toEqual(view);
   }
 
   async saveGame(): Promise<void> {
@@ -453,8 +452,8 @@ export class Player {
     const canvas = await this.canvasBox();
     const {minX, maxX, minY, maxY} = view.limits;
     const stops: Record<Axis, number> = {
-      x: Math.max(minX, Math.min(maxX, Math.floor(middle((tile) => tile.x) - canvas.width / view.tileWidth / 2))),
-      y: Math.max(minY, Math.min(maxY, Math.floor(middle((tile) => tile.y) - canvas.height / view.tileWidth / 2))),
+      x: heldWithin(Math.floor(middle((tile) => tile.x) - canvas.width / view.tileWidth / 2), minX, maxX),
+      y: heldWithin(Math.floor(middle((tile) => tile.y) - canvas.height / view.tileWidth / 2), minY, maxY),
     };
 
     await this.scrollTo("x", stops.x);
@@ -473,8 +472,8 @@ export class Player {
   }
 
   // Scrolls the view along the axis until its origin is the stop given, which is within the view's limits. The view
-  // moves a tile on each of the game's ticks while a key is down, and a tile for a press no tick saw, and how many ticks
-  // a press spans depends on timing, so the view is brought to the stop, never moved a number of tiles: it comes to rest
+  // moves a tile at once for a press, and on with the time while a key is down, and how long a key stays down depends
+  // on timing, so the view is brought to the stop, never moved a number of tiles: it comes to rest
   // there on every run, and the screenshot that follows shows the same frame. While the view is far from the stop and
   // has not yet passed it, a key is held until the view moves. Otherwise a key is let go as soon as it is pressed, and
   // the view waited for to move, a tile and seldom more, so a hold that carried the view past the stop is undone a tile

@@ -37,37 +37,35 @@ interface Viewport {
 // How far the origin may move each way
 type OriginLimits = Pick<Viewport, "minX" | "maxX" | "minY" | "maxY">;
 
-function viewport(canvasWidth: number, canvasHeight: number, tileWidth: number, mapWidth: number, mapHeight: number,
-                  allowOffMap: boolean): Viewport {
+// The origin's limits along one axis, for a view of the tiles given, whole and in all, of a map the length given: the
+// origin moves so far that every map tile can be seen whole, and no whole tile of void shows beyond the map. A view
+// longer than the map along the axis centres it, which leaves the origin no room to move.
+function axisLimits(wholeTiles: number, viewTiles: number, mapLength: number): {min: number, max: number} {
+  if (wholeTiles <= mapLength) {
+    return {min: 0, max: mapLength - wholeTiles};
+  }
+
+  const centred = Math.round((mapLength - viewTiles) / 2);
+  return {min: centred, max: centred};
+}
+
+function viewport(canvasWidth: number, canvasHeight: number, tileWidth: number, mapWidth: number,
+                  mapHeight: number): Viewport {
   // How many tiles fit?
   const wholeTilesInViewX = Math.floor(canvasWidth / tileWidth);
   const wholeTilesInViewY = Math.floor(canvasHeight / tileWidth);
   const totalTilesInViewX = Math.ceil(canvasWidth / tileWidth);
   const totalTilesInViewY = Math.ceil(canvasHeight / tileWidth);
-  const tiles = {wholeTilesInViewX, wholeTilesInViewY, totalTilesInViewX, totalTilesInViewY};
-
-  if (allowOffMap) {
-    // The map should be visible in at least half the canvas
-    return {
-      ...tiles,
-      minX: 0 - Math.ceil(wholeTilesInViewX / 2),
-      maxX: (mapWidth - 1) - Math.ceil(wholeTilesInViewX / 2),
-      minY: 0 - Math.ceil(wholeTilesInViewY / 2),
-      maxY: (mapHeight - 1) - Math.ceil(wholeTilesInViewY / 2),
-    };
-  }
+  const x = axisLimits(wholeTilesInViewX, canvasWidth / tileWidth, mapWidth);
+  const y = axisLimits(wholeTilesInViewY, canvasHeight / tileWidth, mapHeight);
 
   return {
-    ...tiles,
-    minX: 0,
-    maxX: mapWidth - totalTilesInViewX,
-    minY: 0,
-    maxY: mapHeight - totalTilesInViewY,
+    wholeTilesInViewX, wholeTilesInViewY, totalTilesInViewX, totalTilesInViewY,
+    minX: x.min, maxX: x.max, minY: y.min, maxY: y.max,
   };
 }
 
-// The origin (x, y) held within the viewport's limits. Where the limits cross, as on a view wider than the map that
-// can't scroll off it, the minimum wins.
+// The origin (x, y) held within the viewport's limits
 function heldOrigin(x: number, y: number, view: Viewport): TilePoint {
   return {x: Math.max(view.minX, Math.min(view.maxX, x)), y: Math.max(view.minY, Math.min(view.maxY, y))};
 }
@@ -128,39 +126,19 @@ class ViewPosition {
     return this.view;
   }
 
-  // The canvas changed size. The origin stays where it is until it next moves.
+  // The canvas changed size: the origin stays where it is, held within the new limits
   set viewport(view: Viewport) {
     this.view = view;
+    this.moveTo(this.origin);
   }
 
-  moveNorth(): void {
-    if (this.originY > this.view.minY) {
-      this.originY--;
-    }
-  }
-
-  moveEast(): void {
-    if (this.originX < this.view.maxX) {
-      this.originX++;
-    }
-  }
-
-  moveSouth(): void {
-    if (this.originY < this.view.maxY) {
-      this.originY++;
-    }
-  }
-
-  moveWest(): void {
-    if (this.originX > this.view.minX) {
-      this.originX--;
-    }
+  // Moves the origin the whole tiles given across and down, held within the limits
+  scrollBy(tilesX: number, tilesY: number): void {
+    this.moveTo({x: this.originX + tilesX, y: this.originY + tilesY});
   }
 
   centreOn(x: number, y: number): void {
-    const origin = centredOrigin(x, y, this.view);
-    this.originX = origin.x;
-    this.originY = origin.y;
+    this.moveTo(centredOrigin(x, y, this.view));
   }
 
   // The tile width changed from one zoom step to another, to the viewport given: the tile under the point of the
@@ -168,8 +146,14 @@ class ViewPosition {
   zoom(view: Viewport, point: PixelPoint, from: number, to: number): void {
     const origin = zoomedOrigin(this.origin, point, from, to, view);
     this.view = view;
-    this.originX = origin.x;
-    this.originY = origin.y;
+    this.moveTo(origin);
+  }
+
+  // The one place the origin moves, held within the limits
+  private moveTo(origin: TilePoint): void {
+    const held = heldOrigin(origin.x, origin.y, this.view);
+    this.originX = held.x;
+    this.originY = held.y;
   }
 }
 

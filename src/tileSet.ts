@@ -34,4 +34,4 @@ function tileImageOrigin(tileValue: number): {x: number, y: number} {
   };
 }
 
-export { isAcceptableTileImage, tileImageOrigin };
+export { TILE_SIZE, isAcceptableTileImage, tileImageOrigin };

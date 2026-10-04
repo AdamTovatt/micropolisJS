@@ -21,7 +21,7 @@ import { ClientConfig } from "./clientConfig";
 import { DebugAction, DebugWindow } from "./debugWindow";
 import { DisasterWindow } from "./disasterWindow";
 import { downloadJson } from "./download";
-import { isShown, requiredElement, toggleShown } from "./domElements";
+import { isShown, requiredElement, setShown, toggleShown } from "./domElements";
 import { ToolPaths } from "./dragPath";
 import { errorMessage } from "./errorMessage";
 import { EvaluationWindow } from "./evaluationWindow";
@@ -29,8 +29,9 @@ import { GameCanvas, MouseOutline } from "./gameCanvas";
 import { InfoBar, placeInfoBar } from "./infoBar";
 import { InputStatus, ToolClick, ZoomRequest } from "./inputStatus";
 import * as Messages from "./messages";
+import { Minimap } from "./minimap";
 import { MonsterTV } from "./monsterTV";
-import { NewsHold, routeMessage } from "./news";
+import { LastEvent, NewsHold, routeMessage } from "./news";
 import { NotificationBar, placeNotificationBar } from "./notification";
 import { OtherPlayers } from "./otherPlayers";
 import { cityOverlaySource, OverlayPicker } from "./overlayPicker";
@@ -39,7 +40,7 @@ import { CommandResult, DisasterKind, NewsMessage, SettingsRecord, ToolName } fr
 import { QueryTool } from "./queryTool";
 import { QueryWindow } from "./queryWindow";
 import { placeRCI, RCI } from "./rci";
-import type { MapArt } from "./renderAssets";
+import { MapArt, tileSetPixels } from "./renderAssets";
 import { SaveWindow } from "./saveWindow";
 import { ScreenshotLinkWindow } from "./screenshotLinkWindow";
 import { ScreenshotArea, ScreenshotWindow } from "./screenshotWindow";
@@ -102,10 +103,13 @@ export class Game {
   private readonly otherPlayers: OtherPlayers;
   readonly notificationBar: NotificationBar<HTMLElement>;
   readonly toolToast: PlacedToast;
+  private readonly minimap: Minimap;
   private readonly tooSmall = requiredElement("tooSmall");
+  private readonly lastEventButton = requiredElement("lastEvent");
 
   private mouse: MouseOutline | null = null;
   private readonly newsHold = new NewsHold();
+  private readonly lastEvent = new LastEvent();
   // The city settings as the settings window showed them, which its choices are compared with when it closes
   private settingsShown: SettingsRecord | null = null;
   // Whether the source was last told the player can see the city
@@ -148,6 +152,8 @@ export class Game {
     sprites = this.calculateSpritesForPaint(this.monsterTV.canvas);
     this.monsterTV.paint(sprites, paused);
 
+    this.minimap.paint();
+
     requestAnimationFrame(this.animate);
   };
 
@@ -180,9 +186,21 @@ export class Game {
 
     // Note: must init canvas before inputStatus
     this.gameCanvas = new GameCanvas("canvasContainer", state.map, mapArt);
-    this.inputStatus = new InputStatus(() => this.gameCanvas.tileWidth);
+    this.inputStatus = new InputStatus(() => this.gameCanvas.tileWidth, () => this.windows.holdsInput());
 
     new OverlayPicker("overlayPanel", cityOverlaySource(source, state), this.gameCanvas);
+
+    this.minimap = new Minimap(state, tileSetPixels(mapArt), this.gameCanvas, pageStore());
+    this.inputStatus.addEventListener(UiMessages.MINIMAP_TOGGLE_REQUESTED, () => this.minimap.toggle());
+
+    // The Last event button centres the view on the last news with a place, which brings the player back to it after
+    // the bar has moved on
+    this.lastEventButton.addEventListener("click", () => {
+      const place = this.lastEvent.where(this.state.sprites);
+      if (place !== null) {
+        this.gameCanvas.centreOn(place.x, place.y);
+      }
+    });
 
     this.speedControl = new SpeedControl(state.current("settings").speed, (speed) => {
       this.source.send({type: "setSpeed", speed});
@@ -488,22 +506,12 @@ export class Game {
   }
 
   private handleInput(): void {
-    // Keyboard movement. A press taken while a window holds the keyboard is dropped.
-    const scroll = this.inputStatus.scrollKeys.take();
-    if (!this.windows.holdsInput()) {
-      if (scroll === "left") {
-        this.gameCanvas.moveWest();
-      } else if (scroll === "up") {
-        this.gameCanvas.moveNorth();
-      } else if (scroll === "right") {
-        this.gameCanvas.moveEast();
-      } else if (scroll === "down") {
-        this.gameCanvas.moveSouth();
-      }
-    }
+    // Keyboard movement
+    const scroll = this.inputStatus.takeScroll(performance.now());
+    this.gameCanvas.scrollBy(scroll.x, scroll.y);
 
-    if (this.inputStatus.escape) {
-      // We need to handle escape, as InputStatus won't know what windows are showing
+    // Escape closes the window showing, or else clears the tool
+    if (this.inputStatus.takeEscape()) {
       if (this.windows.holdsInput()) {
         this.windows.closeShown();
       } else {
@@ -529,6 +537,8 @@ export class Game {
 
     if (route.notify) {
       this.notificationBar.show(message);
+      this.lastEvent.heard(message);
+      setShown(this.lastEventButton, this.lastEvent.known);
     }
   }
 
