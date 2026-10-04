@@ -101,7 +101,6 @@ export class InputStatus extends Emitter {
   // Tool buttons
   toolName: string | null = null;
   toolWidth = 0;
-  toolColour = "";
 
   // Each tool's outline colour, by the tool's name, as its button gives it
   private readonly toolColours = new Map<string, string>();
@@ -166,7 +165,6 @@ export class InputStatus extends Emitter {
   clearTool(): void {
     this.toolName = null;
     this.toolWidth = 0;
-    this.toolColour = "";
     deselectToolButtons();
     this.showCursor();
   }
@@ -300,7 +298,6 @@ export class InputStatus extends Emitter {
 
     this.toolName = button.dataset.tool ?? null;
     this.toolWidth = Number(button.dataset.size);
-    this.toolColour = button.dataset.colour ?? "";
     this.showToolOutput(Text.toolMessages.label);
 
     this.showCursor();

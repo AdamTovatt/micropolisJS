@@ -30,6 +30,8 @@ namespace Micropolis.Server
         private readonly List<CityConnection> _members = new List<CityConnection>();
         // The last hover box each connection passed on, while it was one and not null
         private readonly Dictionary<CityConnection, Cursor> _showingCursors = new Dictionary<CityConnection, Cursor>();
+        // The box last passed on for each player whose box shows, by their id, which a connection that joins is sent
+        private readonly Dictionary<string, Cursor> _passedOnCursors = new Dictionary<string, Cursor>();
         private readonly CancellationTokenSource _stopped = new CancellationTokenSource();
         private readonly ManualTicker? _manualTicker;
         private readonly CityHost _host;
@@ -114,7 +116,8 @@ namespace Micropolis.Server
         }
 
         /// <summary>
-        /// Adds a player's connection, which is sent the whole state of the city, then the answer to its request.
+        /// Adds a player's connection, which is sent the whole state of the city and the other players' hover boxes
+        /// showing in it, then the answer to its request.
         /// </summary>
         public Task JoinAsync(Joining joining)
         {
@@ -127,6 +130,15 @@ namespace Micropolis.Server
 
                 _members.Add(joining.Connection);
                 joining.Connection.Send(ProtocolJson.Serialize(StateBatchMessage.Of(host.FullState())));
+
+                foreach ((string player, Cursor cursor) in _passedOnCursors)
+                {
+                    if (player != joining.Connection.Player.Id)
+                    {
+                        joining.Connection.Send(ProtocolJson.Serialize(new CursorMessage(player, cursor)));
+                    }
+                }
+
                 joining.Connection.Answer(joining.RequestId, ProtocolJson.ToNode(Joined(host)));
             });
         }
@@ -216,6 +228,15 @@ namespace Micropolis.Server
             {
                 cursor = _showingCursors.Where(showing => showing.Key.Player.Id == from.Player.Id)
                     .Select(showing => (Cursor?)showing.Value).FirstOrDefault();
+            }
+
+            if (cursor is null)
+            {
+                _passedOnCursors.Remove(from.Player.Id);
+            }
+            else
+            {
+                _passedOnCursors[from.Player.Id] = cursor;
             }
 
             string message = ProtocolJson.Serialize(new CursorMessage(from.Player.Id, cursor));

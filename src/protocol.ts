@@ -39,8 +39,8 @@ export interface PlayersMessage {
 }
 
 // Another player in the city moved their hover box, or it went: null when no connection of theirs in the city shows
-// one any longer. The server passes it on to
-// every other player in the city, and to nothing else: the simulation never sees it, and no log keeps it.
+// one any longer. The server passes it on to every other player in the city, and to nothing else: the simulation
+// never sees it, and no log keeps it. A player joining a city is sent the boxes showing in it.
 export interface CursorMessage {
   type: "cursor";
   player: PlayerId;
@@ -169,11 +169,12 @@ export function parseErrorResponse(value: unknown): ErrorResponse {
   return {error: stringField(body, "error", "an error")};
 }
 
-function wholeNumberField(object: JsonObject, field: string, what: string): number {
+// A whole number, from the least given if one is
+function wholeNumberField(object: JsonObject, field: string, what: string, least?: number): number {
   const value = object[field];
 
-  if (typeof value !== "number" || !Number.isSafeInteger(value)) {
-    fail(`${what}.${field} must be a whole number`);
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || (least !== undefined && value < least)) {
+    fail(`${what}.${field} must be a whole number${least === undefined ? "" : ` from ${least}`}`);
   }
 
   return value;
@@ -209,12 +210,7 @@ function parsePlayers(value: unknown): PlayerInfo[] {
 
 // A request's id: a whole number from 0
 function requestId(object: JsonObject, what: string): number {
-  const id = object.id;
-  if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 0) {
-    fail(`${what}.id must be a whole number from 0`);
-  }
-
-  return id;
+  return wholeNumberField(object, "id", what, 0);
 }
 
 // Reads one message from the server. The result is built field by field in the protocol's order, so writing it

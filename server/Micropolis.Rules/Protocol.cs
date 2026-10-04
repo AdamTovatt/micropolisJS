@@ -188,28 +188,6 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// Reads and writes an enumeration by its members' protocol names, compared exactly, as the client's reader
-    /// compares them: a number, names joined as flags, or a name with spaces round it is an error.
-    /// </summary>
-    public sealed class ProtocolNameConverter<TEnum> : JsonConverter<TEnum> where TEnum : struct, Enum
-    {
-        public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            if (reader.TokenType != JsonTokenType.String || !ProtocolJson.TryParseName(reader.GetString()!, out TEnum value))
-            {
-                throw new JsonException($"A {typeof(TEnum).Name} is one of {string.Join(", ", ProtocolJson.Names<TEnum>())}.");
-            }
-
-            return value;
-        }
-
-        public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options)
-        {
-            writer.WriteStringValue(ProtocolJson.Name(value));
-        }
-    }
-
-    /// <summary>
     /// A request or response body of <c>/api/session</c>. Each body's endpoint and status say what it is, so a body
     /// carries no type.
     /// </summary>
@@ -364,6 +342,29 @@ namespace Micropolis.Rules
         /// The largest game seed, <c>MAX_SEED</c>: a seed is a uint32.
         /// </summary>
         public const uint MaxSeed = uint.MaxValue;
+    }
+
+    /// <summary>
+    /// Reads and writes an enumeration by its members' protocol names, compared exactly, as the client's reader
+    /// compares them: a number, names joined as flags, or a name with spaces round it is an error. Public, unlike
+    /// <see cref="ProtocolJson"/>'s own converters, because the enumerations' attributes name it.
+    /// </summary>
+    public sealed class ProtocolNameConverter<TEnum> : JsonConverter<TEnum> where TEnum : struct, Enum
+    {
+        public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.String || !ProtocolJson.TryParseName(reader.GetString()!, out TEnum value))
+            {
+                throw new JsonException($"A {typeof(TEnum).Name} is one of {string.Join(", ", ProtocolJson.Names<TEnum>())}.");
+            }
+
+            return value;
+        }
+
+        public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(ProtocolJson.Name(value));
+        }
     }
 
     /// <summary>

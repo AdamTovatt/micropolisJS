@@ -203,6 +203,38 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        public async Task Join_CityWithBoxesShowing_IsSentThoseStillShowingAsTheyWereLastPassedOn()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using InOneCity players = await InOneCity.StartAsync(server);
+            await using TestPlayer bo = await TestPlayer.ConnectAsync(server, "Bo");
+            await players.Ada.ReportCursorAsync(Rail);
+            await players.Ada.ReportCursorAsync(Road);
+            await players.Grace.ReportCursorAsync(Rail);
+            await players.Grace.ReportCursorAsync(null);
+            await players.SettleAsync();
+
+            await bo.JoinAsync(players.City);
+
+            CollectionAssert.AreEqual(new[] { Wire(players.Ada, Road) }, bo.Cursors);
+        }
+
+        [TestMethod]
+        public async Task Join_CityWhereThePlayerShowsABox_IsNotSentTheirOwn()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using InOneCity players = await InOneCity.StartAsync(server);
+            await using TestPlayer adasOtherTab = await players.Ada.ConnectAgainAsync(server);
+            await players.Ada.ReportCursorAsync(Road);
+            await players.Grace.ReportCursorAsync(Rail);
+            await players.SettleAsync();
+
+            await adasOtherTab.JoinAsync(players.City);
+
+            CollectionAssert.AreEqual(new[] { Wire(players.Grace, Rail) }, adasOtherTab.Cursors);
+        }
+
+        [TestMethod]
         public async Task Leave_WhileAnotherOfThePlayersConnectionsShowsABox_PassesOnThatBox()
         {
             await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);

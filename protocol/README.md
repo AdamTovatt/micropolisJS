@@ -68,9 +68,11 @@ but `command` and `cursor`:
   server can't read. A player has one box however many of their connections are in the city, and a connection's box
   shows from the box it sends until the null it sends or until it leaves the city. When a connection's box stops
   showing, the server passes on the box another of the player's connections in the city shows, or null when none
-  does; a null from a connection whose box isn't showing passes on nothing. A browser drops another player's box 5
-  seconds after the last `cursor` message for it, and when its player goes offline; its reader checks the kinds of a
-  box's values, not their ranges, which are the server's to check.
+  does; a null from a connection whose box isn't showing passes on nothing. A connection that joins a city is sent,
+  after the whole city and before the join's answer, a `cursor` message for each other player whose box shows there,
+  with the box last passed on for them. A browser drops another player's box 5 seconds after the last `cursor`
+  message for it, and when its player goes offline; its reader checks the kinds of a box's values, not their ranges,
+  which are the server's to check.
 
 - `start`, with `name`, `seed` and `level`: starts a new city on the server, on the map the seed generates, at the level
   by its number in `GAME_LEVELS`, under a new id, and joins it.

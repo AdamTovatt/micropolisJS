@@ -11,7 +11,6 @@
  *
  */
 
-import { ActivityList } from "./activityList";
 import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetChoice, BudgetWindow } from "./budgetWindow";
 import type { Presence } from "./cityClient";
@@ -32,9 +31,8 @@ import * as Messages from "./messages";
 import { MonsterTV } from "./monsterTV";
 import { NewsHold, routeMessage } from "./news";
 import { NotificationBar, placeNotificationBar } from "./notification";
+import { OtherPlayers } from "./otherPlayers";
 import { cityOverlaySource, OverlayPicker } from "./overlayPicker";
-import { CursorReporter, OtherCursors, otherOutlines, reportedCursor } from "./playerCursors";
-import { PlayerRoster } from "./playerRoster";
 import { CommandResult, DisasterKind, NewsMessage, SettingsRecord, ToolName } from "./protocol";
 import { QueryTool } from "./queryTool";
 import { QueryWindow } from "./queryWindow";
@@ -90,10 +88,7 @@ export class Game {
   private readonly touchWindow: TouchWarnWindow;
   private readonly queryWindow: QueryWindow;
   private readonly queryTool: QueryTool;
-  private readonly roster = new PlayerRoster();
-  private readonly activityList: ActivityList;
-  private readonly otherCursors = new OtherCursors(this.roster);
-  private readonly cursorReporter: CursorReporter;
+  private readonly otherPlayers: OtherPlayers;
   readonly notificationBar: NotificationBar<HTMLElement>;
   private readonly tooSmall = requiredElement("tooSmall");
 
@@ -256,12 +251,7 @@ export class Game {
 
     this.notificationBar = placeNotificationBar(this.gameCanvas);
 
-    // The other players' commands are named in the activity list, and their hover boxes show on the map, as this
-    // player's goes to them
-    this.activityList = new ActivityList(requiredElement("activityList"), this.roster);
-    this.cursorReporter = new CursorReporter((cursor) => presence.reportCursor(cursor));
-    presence.onStatus((status) => this.roster.update(status));
-    presence.onCursor((message) => this.otherCursors.receive(message, Date.now()));
+    this.otherPlayers = new OtherPlayers(presence, requiredElement("activityList"));
 
     // Unhide controls, before the demand meter first draws: it sizes its canvas to its container on screen
     this.revealControls();
@@ -330,7 +320,7 @@ export class Game {
     state.on("news", (news) => this.showNews(news));
     state.on("commandResult", ({result}) => {
       this.handleCommandResult(result);
-      this.activityList.add(result);
+      this.otherPlayers.commandResult(result);
     });
     state.on("budgetReviewDue", () => this.windows.budgetReviewDue());
   }
@@ -548,7 +538,7 @@ export class Game {
     }
 
     return {x: tileCoords.x, y: tileCoords.y, width: this.inputStatus.toolWidth, height: this.inputStatus.toolWidth,
-            colour: this.inputStatus.toolColour || "yellow", label: null};
+            colour: this.inputStatus.toolColourOf(this.inputStatus.toolName ?? ""), label: null};
   }
 
   // Tells the others where this player's hover box is: nowhere while it isn't drawn, a window holding the mouse, or
@@ -559,14 +549,13 @@ export class Game {
       ? this.gameCanvas.canvasCoordinateToTileCoordinate(this.inputStatus.mouseX, this.inputStatus.mouseY)
       : null;
 
-    this.cursorReporter.update(reportedCursor(this.inputStatus.toolName, this.inputStatus.toolWidth, tile,
-                                              (x, y) => this.state.map.testBounds(x, y)), Date.now());
+    this.otherPlayers.reportCursor(this.inputStatus.toolName, this.inputStatus.toolWidth, tile,
+                                   (x, y) => this.state.map.testBounds(x, y));
   }
 
   // The other players' hover boxes, named, under this player's own
   private outlinesForPaint(): MouseOutline[] {
-    const outlines = otherOutlines(this.otherCursors.showing(Date.now()), this.gameCanvas.getTileOrigin(),
-                                   (tool) => this.inputStatus.toolColourOf(tool));
+    const outlines = this.otherPlayers.outlines(this.gameCanvas.getTileOrigin(), (tool) => this.inputStatus.toolColourOf(tool));
 
     if (this.mouse !== null) {
       outlines.push(this.mouse);
