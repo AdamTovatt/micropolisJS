@@ -338,4 +338,16 @@ namespace Micropolis.Rules
             }
         }
     }
+
+    /// <summary>
+    /// Player ids the protocol defines.
+    /// </summary>
+    public static class PlayerIds
+    {
+        /// <summary>
+        /// The one player of a city played in the browser alone, <c>LOCAL_PLAYER</c> in <c>src/protocol.ts</c>, whom a
+        /// single-player session's log names.
+        /// </summary>
+        public const string Local = "local";
+    }
 }

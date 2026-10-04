@@ -149,6 +149,12 @@ namespace Micropolis.Rules
         public long CityTime { get; private set; }
 
         /// <summary>
+        /// The city's date from its city time, as <c>getDate</c> in <c>src/simulation.js</c>: the month from 0, and
+        /// the year. The month is JavaScript's >> on the remainder, which keeps the city time's sign.
+        /// </summary>
+        public (long Month, long Year) Date => ((int)(CityTime % 48) >> 2, JsMath.FloorDiv(CityTime, 48) + StartingYear);
+
+        /// <summary>
         /// The step counter, 0–1023.
         /// </summary>
         public int SpeedCycle { get; private set; }
@@ -854,9 +860,7 @@ namespace Micropolis.Rules
         private void UpdateTime()
         {
             const long megalinium = 1000000;
-            long cityYear = JsMath.FloorDiv(CityTime, 48) + StartingYear;
-            // JavaScript's >> on the remainder, which keeps the city time's sign
-            long cityMonth = (int)(CityTime % 48) >> 2;
+            (long cityMonth, long cityYear) = Date;
 
             // As updateDate in the original, a city reaching the year one million goes back to its starting year
             if (cityYear >= megalinium)

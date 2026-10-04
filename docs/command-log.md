@@ -3,8 +3,9 @@
 A command log records a city's session: where the city started, every command it was sent, and the state hashes it
 reached along the way. Replaying a log reproduces the city, so logs are the end-to-end suite and the conformance
 suite (`CLAUDE.md`, Direction 3): replayed headless and in the browser while the TypeScript simulation exists, and on
-the server after. `src/commandLog.ts` reads and writes them, and `headless/runner.ts` replays them. In C#, the
-game-rules tests read and replay the logs under `conformance/logs/` (`conformance/README.md`).
+the server after. `src/commandLog.ts` reads and writes them, and `headless/runner.ts` replays them. In C#,
+`CommandLog` and `LogReplay` in `server/Micropolis.Rules` read, write and replay them: the C# headless runner replays
+any log, and the game-rules tests every log under `conformance/logs/` (`conformance/README.md`).
 
 ## The file
 
@@ -19,8 +20,9 @@ A log is a JSON object:
 | `entries` | The commands, in the order they were applied |
 | `checkpoints` | The state hashes to check, in order of step |
 
-A log has exactly one of `seed` and `save`, and a `level` only with a `seed`. It holds no other key: `parseLog` ignores
-one, and a `level` beside a `save`, while the C# tests' reader refuses both. A log that builds on a fixture starts
+A log has exactly one of `seed` and `save`, and a `level` only with a `seed`. It holds no other key: `parseLog` and the
+C# `CommandLog` ignore one, and a `level` beside a `save`, while the C# tests' reader of the conformance logs refuses
+both. A log that builds on a fixture starts
 from the fixture's built state, `conformance/saves/<name>.built.json`, as its `save`.
 
 The format version covers the file and the commands it holds: a change to the file's keys, or to the commands, their
@@ -80,7 +82,7 @@ fails.
   of the city as its log builds it, and one after a fixed run. A fixture that needs what no command places starts
   from a save instead: the city another fixture's commands build, with its script's writes. `npm run fixtures`
   exports each as `headless/fixtures/export/<name>.log.json`, and `npm run conformance` writes those the C# replays
-  to `conformance/logs/`.
+  to `conformance/logs/`, which `server/Micropolis.Headless` writes the same from the C# rules (`conformance/README.md`).
 - **The end-to-end playthrough.** The runner downloads each session's log from the debug window and joins them into
   one from the seed (`joinSessions`): a session that loaded the save the one before it ended on carries on its steps,
   with no entry for the load. A joined session may apply no command before its first step: the joined log takes its
@@ -95,4 +97,5 @@ fails.
 `npm run simulate -- --log <file>` replays the whole log and counts its commands' outcomes. It then reports that the
 checkpoints all match, or fails naming the earliest that didn't, or, for a log with no checkpoints, fails because it
 verified nothing; and it prints the state hash it ended at. A log without checkpoints ends at its last command, so
-its replay stops there, wherever the session went on to.
+its replay stops there, wherever the session went on to. `dotnet run --project server/Micropolis.Headless -- --log
+<file>` does the same in C#.
