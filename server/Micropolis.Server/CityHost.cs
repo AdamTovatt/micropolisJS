@@ -84,7 +84,7 @@ namespace Micropolis.Server
 
         public SessionLog CommandLog()
         {
-            return new SessionLog(_city.Recorder.Log(), _city.Queue.StepIndex, null);
+            return new SessionLog(_city.Recorder.Log().ToJson(), _city.Queue.StepIndex, null);
         }
 
         // The debug channel (CityDriver in src/citySource.ts)

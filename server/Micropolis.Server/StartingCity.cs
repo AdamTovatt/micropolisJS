@@ -11,7 +11,6 @@
  *
  */
 
-using System.Text.Json.Nodes;
 using Micropolis.Rules;
 
 namespace Micropolis.Server
@@ -20,14 +19,14 @@ namespace Micropolis.Server
     /// A city as it starts to be hosted, as <c>startCity</c> in <c>src/cityHost.ts</c> builds one: its name, the
     /// simulation, and where its command log starts.
     /// </summary>
-    internal sealed record StartingCity(string Name, Simulation City, JsonObject LogStart)
+    internal sealed record StartingCity(string Name, Simulation City, LogStart LogStart)
     {
         /// <summary>
         /// A new city on the map the seed generates, at the level, whose log starts from the seed and level.
         /// </summary>
         public static StartingCity New(string name, uint seed, Level level)
         {
-            return new StartingCity(name, Simulation.NewCity(seed, level, Speed.Medium), CommandRecorder.NewCityStart(seed, level));
+            return new StartingCity(name, Simulation.NewCity(seed, level, Speed.Medium), new SeedStart(seed, level));
         }
 
         /// <summary>
@@ -38,7 +37,7 @@ namespace Micropolis.Server
         public static StartingCity FromSave(string savedGame)
         {
             Simulation city = SavedGame.Load(savedGame, out string name);
-            return new StartingCity(name, city, CommandRecorder.SavedStart(city));
+            return new StartingCity(name, city, new SaveStart(city.Save()));
         }
     }
 }

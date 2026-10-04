@@ -26,7 +26,7 @@ namespace Micropolis.Server.Tests
         public void BudgetReviewsDue_YearEndsWithAutoBudgetOff_CountsEachReviewSent()
         {
             Simulation town = Simulation.FromSave(File.ReadAllText(RepositoryFiles.GetPath("conformance/saves/town.run.json")));
-            HostedCity hosted = new HostedCity("Town", town, CommandRecorder.SavedStart(town));
+            HostedCity hosted = new HostedCity("Town", town, new SaveStart(town.Save()));
             hosted.Queue.Send(new ReceivedCommand("ada", new JsonObject { ["type"] = "setAutoBudget", ["on"] = false }));
             hosted.Queue.Send(new ReceivedCommand("ada", new JsonObject { ["type"] = "setSpeed", ["speed"] = (int)Speed.Fast }));
             hosted.Queue.ApplyCommands();

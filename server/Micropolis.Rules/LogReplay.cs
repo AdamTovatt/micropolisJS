@@ -32,16 +32,16 @@ namespace Micropolis.Rules
         /// Replays the entries from the start to step <paramref name="to"/>, after that step's commands, hashing the
         /// city at each of <paramref name="checkpointSteps"/> it reaches, which ascend.
         /// </summary>
-        public static Replay Run(LogStart start, IReadOnlyList<LoggedCommand> entries, IReadOnlyList<int> checkpointSteps, int to)
+        public static Replay Run(LogStart start, IReadOnlyList<LoggedCommand> entries, IReadOnlyList<long> checkpointSteps, long to)
         {
             Simulation city = StartCity(start);
             List<CommandResult> results = new List<CommandResult>();
             List<Checkpoint> hashed = new List<Checkpoint>();
             int entry = 0;
             int checkpoint = 0;
-            int step = 0;
+            long step = 0;
 
-            void CheckpointAt(int at)
+            void CheckpointAt(long at)
             {
                 for (; checkpoint < checkpointSteps.Count && checkpointSteps[checkpoint] == at; checkpoint++)
                 {
@@ -65,7 +65,7 @@ namespace Micropolis.Rules
                     return new Replay(city, results, hashed);
                 }
 
-                int next = Math.Min(entry < entries.Count ? entries[entry].Step : int.MaxValue, to);
+                long next = Math.Min(entry < entries.Count ? entries[entry].Step : long.MaxValue, to);
 
                 if (city.IsPaused)
                 {

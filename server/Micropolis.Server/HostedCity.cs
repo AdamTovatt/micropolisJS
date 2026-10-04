@@ -11,7 +11,6 @@
  *
  */
 
-using System.Text.Json.Nodes;
 using Micropolis.Rules;
 
 namespace Micropolis.Server
@@ -25,7 +24,7 @@ namespace Micropolis.Server
     {
         private readonly CityStateMessages _messages;
 
-        public HostedCity(string name, Simulation city, JsonObject logStart)
+        public HostedCity(string name, Simulation city, LogStart logStart)
         {
             Name = name;
             Simulation = city;
