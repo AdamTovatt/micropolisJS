@@ -297,15 +297,24 @@ def build(job):
 
     full, ground = painting('full'), painting('ground')
     renders = {m['asset']: render(m['asset']) for m in canvas['members']}
-    # the shadow over the whole canvas: the painting's darkness with the strength of Blender's
+    # the shadow over the whole canvas: the painting's darkness with the strength of Blender's,
+    # matched over the ground that shows. Under a building Blender's shadow is full and hidden,
+    # and the model paints a cast shadow as dark as it: matched with it, a soft shadow turns black
     blender = np.zeros((side, side), np.float32)
+    covered = np.zeros((side, side), bool)
     for m in canvas['members']:
-        a = np.asarray(renders[m['asset']][1]['shadow'].getchannel('A')).astype(np.float32)
+        info, layers = renders[m['asset']]
+        a = np.asarray(layers['shadow'].getchannel('A')).astype(np.float32)
         h, w = min(a.shape[0], side - m['y']), min(a.shape[1], side - m['x'])
         region = blender[m['y']:m['y'] + h, m['x']:m['x'] + w]
         np.maximum(region, a[:h, :w], out=region)
+        fx, fy, n = m['x'] + info['shadow_margin']['left'] * px, m['y'] + info['shadow_margin']['top'] * px, \
+            info['tiles'] * px
+        covered[fy:fy + n, fx:fx + n] |= np.asarray(layers['objects'].getchannel('A')) >= 128
     darkness = 255 - np.asarray(painting('shadow').convert('L')).astype(np.float32)
-    shadow = Image.fromarray(np.clip(match(darkness, blender), 0, 255).astype(np.uint8))
+    matched = blender.copy()
+    matched[~covered] = match(darkness[~covered], blender[~covered])
+    shadow = Image.fromarray(np.clip(matched, 0, 255).astype(np.uint8))
 
     for m in canvas['members']:
         info, layers = renders[m['asset']]

@@ -37,7 +37,7 @@ These are Adam's decisions. Don't reopen them.
 5. **Build the layers** (`paint.py build <job>`), each painting scaled down to the canvas at `tile_px`:
    - *objects*: the full painting cropped to the footprint, with Blender's objects alpha. Blender's outline is the stencil, so the objects line up with their shadows, and whatever the model added outside it is cut away.
    - *ground*: the painted ground cropped to the footprint, then held to Blender's own grass and paving (below).
-   - *shadow*: the painting's darkness (`255 − luminance`), histogram-matched over the canvas to Blender's shadow alpha, written as black with that alpha at the size and offset of Blender's `shadow.png`. The brushwork stays and the strength is Blender's: left alone, the model paints a tower's faint long shadow nearly black.
+   - *shadow*: the painting's darkness (`255 − luminance`), histogram-matched to Blender's shadow alpha over the canvas's visible ground, written as black with that alpha at the size and offset of Blender's `shadow.png`. The brushwork stays and the strength is Blender's: left alone, the model paints a tower's faint long shadow nearly black. Under the buildings, where the objects hide it, the shadow is Blender's own: the model paints a cast shadow as dark as the full shadow there, and matched together, a soft shadow beside a building comes out black.
    - *letters*: the render's own pixels wherever its letter mask shows a zone letter (below), the roof letters into the objects and the empty zones' ground letters into the ground.
 6. **Preview it among neighbours**: `art/tools/preview.py --root art/painted/out` composites as the game does. Look at the joins between assets and at shadows crossing into the next tile.
 
