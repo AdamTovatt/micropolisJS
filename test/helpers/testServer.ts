@@ -20,8 +20,9 @@ import type { CityClientEnvironment, SessionStore, SocketLike, StoredSession } f
 import { repositoryPath } from "./repository";
 
 // The real C# server, as the client's tests run against it: the Debug build, which answers the debug channel, with its
-// cities on a clock only the debug channel moves, a city database of its own, and a port the system picks. It needs the
-// build `dotnet build server/Micropolis.slnx` makes, which CI's server job has.
+// cities on a clock only the debug channel moves unless asked for the server's own, a city database of its own, and a
+// port the system picks. It needs the build `dotnet build server/Micropolis.slnx` makes, which CI's server and e2e jobs
+// have.
 
 // The environment variable that runs the tests against the server. Only CI's server job, which has .NET, sets it; the
 // tests that need the server are skipped without it. Any value but 1 is refused, so a mistyped one doesn't skip them
@@ -51,6 +52,10 @@ export const START_SERVER_TIMEOUT_MS = STARTUP_TIMEOUT_MS + 10000;
 // How long the server has to stop once asked before it is killed
 const STOP_TIMEOUT_MS = 10000;
 
+// What moves the cities' loops: the debug channel's turns alone, or the server's own clock, on which a city the debug
+// channel doesn't hold steps in real time
+export type TestServerClock = "manual" | "server";
+
 export interface TestServer {
     // Where the server answers, such as http://127.0.0.1:41234
     origin: string;
@@ -59,7 +64,7 @@ export interface TestServer {
 
 // Starts the server and resolves once it listens. What the server writes is kept, and shown if it exits before it is
 // stopped. The end-to-end suite, whose modules have no __dirname, names the repository's root.
-export function startTestServer(repositoryRoot = repositoryPath(".")): Promise<TestServer> {
+export function startTestServer(clock: TestServerClock, repositoryRoot = repositoryPath(".")): Promise<TestServer> {
     const build = join(repositoryRoot, SERVER_BUILD);
     if (!existsSync(build)) {
         throw new Error(`No server build at ${build}: run dotnet build server/Micropolis.slnx first`);
@@ -76,8 +81,12 @@ export function startTestServer(repositoryRoot = repositoryPath(".")): Promise<T
         JWT_SECRET: "test-only-signing-secret-for-the-client-contract-tests",
         TRUSTED_PROXIES: "none",
         CITY_DATABASE: join(databaseDirectory, "cities.db"),
-        CITY_CLOCK: "manual",
     });
+    if (clock === "manual") {
+        env.CITY_CLOCK = "manual";
+    } else {
+        delete env.CITY_CLOCK;
+    }
 
     const server: ChildProcess = spawn("dotnet", [build], {cwd: dirname(build), env, stdio: ["ignore", "pipe", "pipe"]});
     let output = "";

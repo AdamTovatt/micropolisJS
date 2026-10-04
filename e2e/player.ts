@@ -16,6 +16,7 @@ import { readFileSync } from "fs";
 
 import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
 import type { Advanced, View } from "../src/testHook";
+import { CITY_LINK, signIn } from "./gameServer";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
 // step driver, and moves the city on only through the hook's advance. Every input lands between the same two steps on
@@ -66,13 +67,22 @@ export class Player {
   private readonly sessionLogs: CommandLog[] = [];
   // The commands those sessions applied
   private commandsBefore = 0;
+  // Whether the player has signed in to the game server: the session the page then stores signs it in from then on
+  private signedIn = false;
 
-  constructor(readonly page: Page) {}
+  // A player of a city on the game server signs in under its name, the first time the page opens; with none, the page
+  // plays single-player in the browser
+  constructor(readonly page: Page, private readonly signInAs: string | null = null) {}
 
-  // Opens the page in debug mode, with more of a query string if given, and holds the driver before the game exists,
-  // so it never steps unasked
+  // Opens the page in debug mode, with more of a query string if given, signs in if the player has yet to, and holds
+  // the driver before the game exists, so it never steps unasked
   async open(query = ""): Promise<void> {
     await this.page.goto(`/?debug=1${query === "" ? "" : `&${query}`}`);
+    if (this.signInAs !== null && !this.signedIn) {
+      await signIn(this.page, this.signInAs);
+      this.signedIn = true;
+    }
+
     await this.holdOnceHooked();
   }
 
@@ -87,16 +97,26 @@ export class Player {
     await this.waitForGame();
   }
 
-  // Ends the session, then reloads the page and loads the game saved in storage, as a player would
+  // Ends the session, then opens the page again and loads the game saved in storage, as a player would. A page playing
+  // a city on the game server has the city's link in its address, which would join the city again, so the page opens
+  // at its address without it, as one opened afresh.
   async reloadSavedGame(): Promise<void> {
     await this.endSession();
-    await this.page.reload();
+    const address = new URL(this.page.url());
+    address.searchParams.delete("city");
+    await this.page.goto(`${address.pathname}${address.search}`);
     await this.holdOnceHooked();
     await this.page.click("#splashLoad");
     await this.waitForGame();
   }
 
+  // Waits for the game to show. A player signed in to the game server plays a city there, which puts its link in the
+  // page's address: without one, the page would be playing single-player in the browser.
   async waitForGame(): Promise<void> {
+    if (this.signInAs !== null) {
+      await expect(this.page, "the city's link, of a city on the game server").toHaveURL(CITY_LINK);
+    }
+
     await this.page.locator(CANVAS).waitFor();
     await this.page.waitForFunction(() => {
       try {

@@ -38,8 +38,9 @@ Each entry is `{"step", "player", "command"}`:
   when the command applied. Steps are counted as the simulation takes them, so a paused city, which never steps,
   stays on the same index however long it is paused. Entries are in order of step, and entries with the same step
   are in the order they applied.
-- `player` is the id of the player who sent it, a string. Single player has the one player, `"local"`. The
-  simulation never branches on the player.
+- `player` is the id of the player who sent it, a string. A city in the browser has the one player, `"local"`; on
+  the game server it is the id the server gave the player as it signed in. The simulation never branches on the
+  player.
 - `command` is the command as it arrived. `src/protocol.ts` defines the commands, and `src/commands.ts` how they are
   validated. A log holds every command the city was sent, rejected ones included: a rejected command changes nothing,
   and a replay rejects it again, which checks that the validation agrees. A command nesting objects and lists deeper
@@ -97,9 +98,12 @@ fails.
   city there for the city as loaded, which such a command would have changed. `e2e/goldenPlaythrough.json` holds the
   log, beside each stage's step, the number of the log's entries before it and its hash, and every run's log must be
   that one. A stage may end partway through a step's commands, before those the next stage applies first, so its hash
-  is not a checkpoint of the log: `test/playthroughReplay.ts` replays each stage from the one before it, with the
-  log's entries between the two. A run that took its log puts it in its report, `e2e-report/command-log.json`; one
-  that ended at a failed stage, or couldn't join its sessions, has none. `npm run conformance` copies the golden log
+  is not a checkpoint of the log: `GoldenPlaythroughTests` in `server/Micropolis.Headless.Tests` replays each stage
+  from the one before it, with the log's entries between the two. The playthrough plays a city on the game server,
+  which logs each command under the id of the player who sent it, a new one each time a player signs in, so the run
+  names its players by when each first appears in its log, `"player 1"` first, and the golden log holds those names.
+  A run that took its log puts it in its report, `e2e-report/command-log.json`; one that ended at a failed stage, or
+  couldn't join its sessions, has none. `npm run conformance` copies the golden log
   to `conformance/logs/playthrough.log.json`, which the C# replays.
 
 `npm run simulate -- --log <file>` replays the whole log and counts its commands' outcomes. It then reports that the

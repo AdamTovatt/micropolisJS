@@ -165,9 +165,9 @@ fixture's state at both checkpoints. The C# port takes the built state as its st
 speed to the run checkpoint's step, and must produce the run hash: `CityRunTests` does, with the fixture's city run.
 
 `e2e/goldenPlaythrough.json` pins the hash of the city at each stage of the end-to-end playthrough: the hash of the
-keys `Simulation.save` writes, taken from the browser's save (`src/gameSaveHash.ts`), which leaves out what the next
-section lists. It also holds the playthrough's command log, which `test/playthroughReplay.ts` replays to each of those
-hashes.
+keys `Simulation.save` writes, taken from the save the game server sends the page (`src/gameSaveHash.ts`), which
+leaves out what the next section lists. It also holds the playthrough's command log, which `GoldenPlaythroughTests`
+in `server/Micropolis.Headless.Tests` replays to each of those hashes.
 
 ## What the hash leaves out
 

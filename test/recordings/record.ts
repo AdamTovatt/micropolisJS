@@ -97,7 +97,7 @@ async function recordBranch(players: Players, scenario: Scenario, branch: string
 
 async function main(): Promise<void> {
     const root = process.cwd();
-    const server = await startTestServer(root);
+    const server = await startTestServer("manual", root);
     try {
         const players = new Players(server);
         for (const [name, scenario] of Object.entries(SCENARIOS)) {

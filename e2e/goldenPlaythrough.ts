@@ -18,8 +18,8 @@ import { CommandLog, parseLog } from "../src/commandLog";
 
 // The golden playthrough, e2e/goldenPlaythrough.json: each stage's checkpoint, in stage order, and the run's command
 // log. A run either checks itself against it, failing on the first stage that diverged but carrying on, and on a log
-// that differs, or takes itself down to write the file afresh (`npm run e2e:golden`). test/playthroughReplay.ts replays
-// the log headless to each stage's checkpoint.
+// that differs, or takes itself down to write the file afresh (`npm run e2e:golden`). GoldenPlaythroughTests, in
+// server/Micropolis.Headless.Tests, replays the log headless to each stage's checkpoint.
 
 // A stage's checkpoint: the steps the run had taken and the commands it had applied when the stage ended, which are
 // the log's entries before it, and the state hash of the city then. Since the next stage may apply commands before its
@@ -161,6 +161,23 @@ export class GoldenWriter implements GoldenPlaythrough {
 
     writeFileSync(goldenFile(e2eDirectory), goldenText({checkpoints: this.taken, log: this.takenLog}));
   }
+}
+
+// The log with each player named by when it first appears in it: "player 1", then "player 2", and so on. The game
+// server logs a command under the id of the player who sent it, a new one each time a player signs in, so a run's log
+// is the same on every run only once its players are named this way. The simulation never reads who sent a command,
+// so the names change no state hash.
+export function namedByAppearance(log: CommandLog): CommandLog {
+  const names = new Map<string, string>();
+  const nameOf = (player: string) => {
+    if (!names.has(player)) {
+      names.set(player, `player ${names.size + 1}`);
+    }
+
+    return names.get(player)!;
+  };
+
+  return {...log, entries: log.entries.map((entry) => ({...entry, player: nameOf(entry.player)}))};
 }
 
 // Where the run's log first differs from the golden one, or null when it doesn't

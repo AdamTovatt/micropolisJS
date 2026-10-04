@@ -94,7 +94,7 @@ export class WebSocketSourceFactory implements SourceFactory {
     private readonly sessions = memorySessionStore();
 
     async startServer(): Promise<void> {
-        this.server = await startTestServer();
+        this.server = await startTestServer("manual");
     }
 
     async stopServer(): Promise<void> {
