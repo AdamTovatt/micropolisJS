@@ -51,11 +51,11 @@ The pipeline's layout, conventions and tools are in `art/README.md`, the texture
 - Zones render at 64 px per tile. That is his decision: detail reads at that size, and the map stays a size a canvas can hold.
 - He judges by eye. Send images often and say plainly what still falls short of the reference.
 - A zone holds no street, no shadow falls on a roof, and the zone letters use the Tomorrow font. These rules came from him and are in `art/README.md`.
-- Issue #57 is the checklist of every asset. After a batch is pushed, tick each design it holds, naming its script, and leave the rest alone. The art goes straight to `main` when he says to commit; he may ask for several batches before one commit.
+- An art issue's checklist names every asset it covers: after a batch is pushed, tick each asset it renders, naming its script, and leave the rest alone. Commit to the branch and pull request the issue says; he may ask for several batches before one commit.
 - Keep a sheet's empty zone and any mostly-ground design on generated ground textures, such as `wild-meadow.png` and `bare-soil.png`; he asked for Nano Banana to be used for ground of that kind.
 
 ## Where this leads
 
-The layers are made for the client to composite: every zone's ground, then the shadows merged by their darkest value, then every zone's objects. Before planning work that assumes the game draws them, check what `src/gameCanvas.js` and `src/tileSet.js` actually load and draw.
+The layers are made for the client to composite: every zone's ground, then the shadows merged by their darkest value, then every zone's objects. Before planning work that assumes the game draws them, check what `src/gameCanvas.ts` and `src/tileSet.ts` actually load and draw.
 
 The original's zone tiles map onto these scenes as follows. A 3×3 zone is nine consecutive tile ids, in rows from its top-left (`src/buildingTool.js`). The populated residential zones start at 261, the populated commercial zones at 432, nine ids apart (names in `src/tileValues.ts`), and the single-tile houses are 249 to 260.
