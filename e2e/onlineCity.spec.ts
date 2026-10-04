@@ -29,16 +29,38 @@ import { SEED } from "./stages";
 const CITY_ID = /[?&]city=([0-9a-f]{32})(&|$)/;
 
 // The city's sockets the page has opened, latest last, and what the spec does to what the page sends on them: true for
-// a message it has answered itself, which the server never sees
+// a message it has answered itself, which the server never sees. stop ends the forwarding before the page closes: it
+// waits for the requests being forwarded, which the page may still be waiting on as a test ends, and closes the sockets
+// to the server without passing their closing on to the page.
 interface Forwarded {
   sockets: WebSocketRoute[];
   intercept?: (message: Record<string, unknown>, socket: WebSocketRoute) => boolean;
+  stop(): Promise<void>;
 }
+
+// Each page's forwarding in the running test, which the test stops before its pages close
+let forwarding: Forwarded[] = [];
 
 // Sends the page's requests to the game server's API and its city's socket to the test server, and refuses anything
 // else that leaves the page's host
 async function forwardToServer(page: Page, server: TestServer): Promise<Forwarded> {
-  const forwarded: Forwarded = {sockets: []};
+  const upstreams: WebSocket[] = [];
+  const stopForwarding = async () => {
+    await page.unrouteAll({behavior: "wait"});
+    await Promise.all(upstreams.map((upstream) => new Promise<void>((resolve) => {
+      if (upstream.readyState === WebSocket.CLOSED) {
+        resolve();
+        return;
+      }
+
+      upstream.onclose = () => resolve();
+      upstream.close();
+    })));
+  };
+  // Once, however often it is asked, so a test may stop a page it closes itself
+  let stopped: Promise<void> | undefined;
+  const forwarded: Forwarded = {sockets: [], stop: () => (stopped ??= stopForwarding())};
+  forwarding.push(forwarded);
 
   await page.route((url) => url.hostname !== "localhost", (route) => route.abort());
   await page.route((url) => url.hostname === "localhost" && url.pathname.startsWith("/api/"), async (route) => {
@@ -49,6 +71,7 @@ async function forwardToServer(page: Page, server: TestServer): Promise<Forwarde
     forwarded.sockets.push(socket);
     const url = new URL(socket.url());
     const upstream = new WebSocket(`${server.origin.replace(/^http/, "ws")}${url.pathname}${url.search}`);
+    upstreams.push(upstream);
     const unsent: string[] = [];
 
     upstream.onopen = () => unsent.splice(0).forEach((message) => upstream.send(message));
@@ -101,6 +124,11 @@ test.describe("a city on the server", () => {
     await server?.stop();
   });
 
+  test.afterEach(async () => {
+    await Promise.all(forwarding.map((forwarded) => forwarded.stop()));
+    forwarding = [];
+  });
+
   test("puts the city it starts in the address, which another player's page joins without the splash screen",
        async ({page, browser}) => {
     const problems = collectPageProblems(page);
@@ -113,9 +141,9 @@ test.describe("a city on the server", () => {
     await expect(page).toHaveURL(CITY_ID);
     const graceContext = await browser.newContext();
     const grace = await graceContext.newPage();
+    const graceForwarded = await forwardToServer(grace, server);
     try {
       const graceProblems = collectPageProblems(grace);
-      await forwardToServer(grace, server);
       await grace.goto(page.url());
       await signIn(grace, "Grace");
 
@@ -124,6 +152,7 @@ test.describe("a city on the server", () => {
       await expect(grace.locator("#onlineList")).toContainText("Ada");
       expect(graceProblems).toEqual([]);
     } finally {
+      await graceForwarded.stop();
       await graceContext.close();
     }
 
