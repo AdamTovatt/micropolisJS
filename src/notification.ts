@@ -16,7 +16,8 @@ import { MessageTone, Text } from "./text";
 import type { TilePoint } from "./viewPosition";
 
 // The bar along the bottom of the map that announces a message for a while, coloured by its tone. A message about a
-// place on the map is a link: clicking the bar centres the map there.
+// place on the map is a link: clicking the bar centres the map there. A message shown with an action of its own runs
+// that instead.
 
 const ELEMENT_ID = "notifications";
 const TIMEOUT_SECS = 30;
@@ -64,32 +65,40 @@ export function notificationView(message: NotificationMessage): NotificationView
 
 export class NotificationBar<E extends BarElement<E>> {
   private timeout: ReturnType<typeof setTimeout> | null = null;
-  // The tile a click on the bar centres the map on, or null when the message has none
-  private link: TilePoint | null = null;
+  // What a click on the bar does, or null when the message links to nothing
+  private action: (() => void) | null = null;
+  // Whether the action is the message's own, which is done once: the bar hides when it runs
+  private ownAction = false;
 
   constructor(private readonly element: E, private readonly map: CentringMap) {
     this.element.addEventListener("click", (e) => {
       e.preventDefault();
 
-      if (this.link !== null) {
-        this.map.centreOn(this.link.x, this.link.y);
+      if (this.action !== null) {
+        this.action();
+      }
+      if (this.ownAction) {
+        this.dismiss();
       }
     });
 
     this.close();
   }
 
-  // Announces the message in its tone, for TIMEOUT_SECS from now
-  show(message: NotificationMessage): void {
+  // Announces the message in its tone, for TIMEOUT_SECS from now. A click on the bar runs the action given, then hides
+  // the bar, or else centres the map on the message's place.
+  show(message: NotificationMessage, action: (() => void) | null = null): void {
     const view = notificationView(message);
+    const link = view.link;
 
     this.cancelTimeout();
 
+    this.action = action ?? (link === null ? null : () => this.map.centreOn(link.x, link.y));
+    this.ownAction = action !== null;
     this.element.classList.remove(...TONES);
     this.element.classList.add(view.tone);
-    this.element.classList.toggle("pointer", view.link !== null);
+    this.element.classList.toggle("pointer", this.action !== null);
     this.element.textContent = view.text;
-    this.link = view.link;
 
     setShown(this.element, true);
 

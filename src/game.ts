@@ -133,9 +133,6 @@ export class Game {
       this.sendToolPaths();
     }
 
-    // A year-end budget review that fell due, or fell due while a window showed
-    this.windows.openDue();
-
     this.mouse = this.windows.holdsInput() ? null : this.calculateMouseForPaint();
     this.reportCursor();
 
@@ -333,7 +330,11 @@ export class Game {
       this.handleCommandResult(result);
       this.otherPlayers.commandResult(result);
     });
-    state.on("budgetReviewDue", () => this.windows.budgetReviewDue());
+    // The year end paid for the services with the player's values. The budget window never opens unasked, since in a
+    // shared city it would open for every player at once: the notification offers it, and opens it when clicked.
+    state.on("budgetReviewDue", () => {
+      this.notificationBar.show({subject: Messages.BUDGET_REVIEW_DUE}, () => this.windows.openBudget());
+    });
   }
 
   // Tells the source whenever the player stops or starts being able to see the city: the city steps only while the

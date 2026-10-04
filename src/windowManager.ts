@@ -24,7 +24,6 @@ interface GameWindow {
 
 class WindowManager {
   private shown: GameWindow | null = null;
-  private reviewDue = false;
 
   // budgetValues gives the arguments the budget window opens with
   constructor(private readonly budgetWindow: GameWindow, private readonly budgetValues: () => unknown[]) {}
@@ -41,8 +40,7 @@ class WindowManager {
   }
 
   openBudget(): void {
-    if (this.open(this.budgetWindow, ...this.budgetValues()))
-      this.reviewDue = false;
+    this.open(this.budgetWindow, ...this.budgetValues());
   }
 
   closed(): void {
@@ -57,18 +55,6 @@ class WindowManager {
 
   holdsInput(): boolean {
     return this.shown !== null;
-  }
-
-  // The year-end budget was paid with the player's values, which the player is offered to review. It falls due during
-  // a step, maybe while another window shows.
-  budgetReviewDue(): void {
-    this.reviewDue = true;
-  }
-
-  // Called after each run of steps: opens a budget review that has fallen due once no window shows
-  openDue(): void {
-    if (this.reviewDue)
-      this.openBudget();
   }
 }
 

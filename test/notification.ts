@@ -120,6 +120,37 @@ describe("the notification bar", () => {
         expect([classes(), centred]).toEqual([["neutral"], []]);
     });
 
+    it("runs a message's own action when clicked, in place of centring on its place, then hides", () => {
+        const {bar: notifications, element, classes, click, centred} = bar();
+        let runs = 0;
+
+        notifications.show({subject: Messages.FIRE_REPORTED, data: {x: 31, y: 61}}, () => runs++);
+        click();
+
+        expect([runs, centred, classes(), element.style.display, jest.getTimerCount()])
+            .toEqual([1, [], ["bad", "pointer"], "none", 0]);
+    });
+
+    it("runs no earlier message's action when clicked", () => {
+        const {bar: notifications, classes, click} = bar();
+        let runs = 0;
+
+        notifications.show({subject: Messages.BUDGET_REVIEW_DUE}, () => runs++);
+        notifications.show({subject: Messages.NEED_AIRPORT});
+        click();
+
+        expect([runs, classes()]).toEqual([0, ["neutral"]]);
+    });
+
+    it("stays shown when clicked on a message with a place", () => {
+        const {bar: notifications, element, click} = bar();
+
+        notifications.show({subject: Messages.FIRE_REPORTED, data: {x: 31, y: 61}});
+        click();
+
+        expect(element.style.display).toBe("");
+    });
+
     it("hides 30 seconds after the latest message", () => {
         const {bar: notifications, element} = bar();
 
