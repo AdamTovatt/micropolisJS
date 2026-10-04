@@ -13,7 +13,6 @@
 
 import { replay } from "../headless/runner";
 import type { CityStart } from "../src/citySource";
-import { stepsPerCityTime } from "../src/cityTimeModel";
 import { CityState } from "../src/cityState";
 import { CommandLog } from "../src/commandLog";
 import { Config } from "../src/config.js";
@@ -21,17 +20,19 @@ import { MapGenerator } from "../src/mapGenerator.js";
 import { Query, QueryAnswer, SPEEDS, StateMessage } from "../src/protocol";
 import { Random } from "../src/random";
 import { SaveFormat } from "../src/savedGame";
+import { Simulation } from "../src/simulation.js";
 import { STEPS_PER_SECOND } from "../src/stepDriver";
 import { BIT_MASK } from "../src/tileFlags";
 import { CITY_ID } from "../src/urlOptions";
 import { pageSource, SourceFactory, SourceUnderTest, WebSocketSourceFactory, workerSource } from "./helpers/citySources";
+import { STEPS_PER_CITY_TIME } from "./helpers/cityTimes";
+import { answerTo } from "./helpers/queryAnswers";
 import { serverTestsEnabled, START_SERVER_TIMEOUT_MS } from "./helpers/testServer";
 
 // The contract every city source keeps, whatever runs the simulation behind it. The cities are new ones, and saves of
 // new ones.
 
 const SEED = 2026;
-const STEPS_PER_CITY_TIME = stepsPerCityTime(SPEEDS.medium);
 // The milliseconds a number of steps takes in real time
 const millisecondsFor = (steps: number) => steps * 1000 / STEPS_PER_SECOND;
 
@@ -66,7 +67,7 @@ function contract(factory: SourceFactory): void {
     });
 
     function ask(query: Query): Promise<QueryAnswer> {
-        return new Promise((resolve) => tested.source.ask(query, resolve));
+        return answerTo(tested.source, query);
     }
 
     // The raw values of the city's tiles, as its save holds them
@@ -377,6 +378,53 @@ function contract(factory: SourceFactory): void {
                                                      error: "Advance needs the driver held, or the driver's steps " +
                                                             "would land at times of its own"});
         });
+
+        // The pause applied before the check that the city steps: the commands may be the Pause button's
+        it.each([
+            ["paused", false],
+            ["paused by a command the advance applies", true],
+        ])("refuses to advance a city %s, and takes no step", async (_, pauseUnapplied) => {
+            const driver = tested.source.driver;
+            await driver.hold();
+            await startNewCity();
+            tested.source.send({type: "setSpeed", speed: SPEEDS.paused});
+            if (!pauseUnapplied) {
+                await driver.flush();
+            }
+
+            expect(await driver.advance(1)).toEqual({steps: 0, budgetReviewDue: false,
+                                                     error: "The city is not stepping: it is paused"});
+            expect(await driver.cityTime()).toBe(0);
+        });
+
+        // A city on the server steps whether or not a player sees it, and its simulation is out of a test's reach
+        if (!factory.onServer) {
+            it("refuses to advance a city the player can't see", async () => {
+                const driver = tested.source.driver;
+                await driver.hold();
+                await startNewCity();
+                tested.source.setViewerVisible(false);
+
+                expect(await driver.advance(1)).toEqual({steps: 0, budgetReviewDue: false,
+                                                         error: "The city is not stepping: the player can't see it"});
+            });
+
+            it("reports the steps a stalled advance took, and why it failed", async () => {
+                const driver = tested.source.driver;
+                await driver.hold();
+                await startNewCity();
+                const stalled = jest.spyOn(Simulation.prototype, "step").mockImplementation(() => undefined);
+
+                try {
+                    expect(await driver.advance(STEPS_PER_CITY_TIME)).toEqual({
+                        steps: STEPS_PER_CITY_TIME, budgetReviewDue: false,
+                        error: expect.stringMatching(/^The city stalled: /),
+                    });
+                } finally {
+                    stalled.mockRestore();
+                }
+            });
+        }
     });
 
     // The simulation's debug mode is a module both sides share under Jest, so the test puts it back. The server's

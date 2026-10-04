@@ -14,16 +14,11 @@
 import { CityState } from "../src/cityState";
 import { cityOverlaySource, OverlaySelection, OverlaySource } from "../src/overlayPicker";
 import { OverlayView } from "../src/overlayRenderer";
-import { PageCitySource } from "../src/pageCitySource";
 import { OverlayLayer, Query, QueryAnswer } from "../src/protocol";
-import { SaveFormat } from "../src/savedGame";
-import { plainSavedState } from "../src/stateHash";
-import { ManualTicker } from "./helpers/manualTicker";
-import { buildCity, YEAR } from "./helpers/simulations";
-
-// A year at fast speed is 48 cycles, and the power scan runs every 5th cycle (speedPowerScan in simulation.js)
-const CYCLES_IN_A_YEAR = 48;
-const FAST_POWER_SCAN_INTERVAL = 5;
+import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
+import { answerTo } from "./helpers/queryAnswers";
+import { CYCLES_IN_A_YEAR, FAST_CYCLE } from "./helpers/cityTimes";
+import { openTown, TOWN_OVERLAY } from "./recordings/scenarios";
 
 // A source that answers each query when the test says, as a server would some time after it was asked
 class FakeSource implements OverlaySource {
@@ -147,24 +142,37 @@ describe("the overlay selection", () => {
 
 describe("the overlay selection on a city source", () => {
 
-    it("shows the simulation's answer, and the new one each time the layer's phase recomputes it", async () => {
-        const source = new PageCitySource(new ManualTicker(), false);
+    afterEach(expectPlayedThrough);
+
+    // Once the answers the source has to give have arrived, each on a microtask of its own
+    const answersArrived = () => new Promise((resolve) => setImmediate(resolve));
+
+    it("shows the city's answer, and the new one each time the city recomputes the layer", async () => {
+        const source = playback("town", "a year of overlays");
         const state = new CityState(source);
-        await source.driver.hold();
-        await source.start({save: SaveFormat.serialise({...plainSavedState(buildCity(2026, 7)), name: "Town"})});
+        await openTown(source);
+        let announced = 0;
+        state.on("overlayUpdated", ({layer}) => {
+            announced += layer === TOWN_OVERLAY ? 1 : 0;
+        });
         const shown: (OverlayView | null)[] = [];
         const overlays = new OverlaySelection(cityOverlaySource(source, state), (view) => shown.push(view));
 
-        overlays.select("powerGrid");
+        // A source answers after the question, never during it
+        overlays.select(TOWN_OVERLAY);
+        expect(shown.length).toBe(0);
+        await answersArrived();
         expect(shown.length).toBe(1);
-        // A step at a time, so the source sends the state after each
-        for (let i = 0; i < YEAR; i++) {
-            expect((await source.driver.advance(1)).error).toBeNull();
+        // A cycle at a time, so the source sends the state after each, in which the layer is recomputed at most once
+        for (let cycle = 0; cycle < CYCLES_IN_A_YEAR; cycle++) {
+            expect((await source.driver.advance(FAST_CYCLE)).error).toBeNull();
         }
 
-        // Shown once when chosen, then once after each power scan
-        expect(shown.length).toBe(1 + Math.floor(CYCLES_IN_A_YEAR / FAST_POWER_SCAN_INTERVAL));
-        const latest = await new Promise((resolve) => source.ask({type: "overlay", layer: "powerGrid"}, resolve));
+        await answersArrived();
+        // Shown once when chosen, then once after each time the city recomputed it, as the town's pollution grew
+        expect(announced).toBeGreaterThan(1);
+        expect(shown.length).toBe(1 + announced);
+        const latest = await answerTo(source, {type: "overlay", layer: TOWN_OVERLAY});
         expect(shown[shown.length - 1]!.answer).toEqual(latest);
         expect(shown[shown.length - 1]!.answer).not.toEqual(shown[0]!.answer);
     });

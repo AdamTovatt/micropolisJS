@@ -53,6 +53,14 @@ jobs:
         run: npx jest --coverage=false test/citySource.ts test/sharedCity.ts
         env:
           MICROPOLIS_SERVER_TESTS: "1"
+      # What the client's other tests play back through the fake city source, recorded again from the server just built
+      - name: Check the recorded city streams against the server that records them
+        run: |
+          npm run record
+          git status --porcelain -- test/recordings
+          git diff --stat -- test/recordings
+          git diff -- test/recordings | head -c 20000
+          test -z "$(git status --porcelain -- test/recordings)"
 
   e2e:
     needs: check
