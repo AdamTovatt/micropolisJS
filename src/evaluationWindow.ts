@@ -60,6 +60,11 @@ export class EvaluationWindow extends ClosableWindow<[EvaluationRecord], void> {
   }
 
   protected fill(record: EvaluationRecord): void {
+    this.write(record);
+  }
+
+  // Writes a record into the window, as it writes the one it opens on
+  write(record: EvaluationRecord): void {
     render(evaluationView(record));
   }
 }
@@ -92,19 +97,15 @@ function render(view: EvaluationView): void {
   const listed = rows.length > 0 ? "" : "none";
   requiredElement("evalScoreBreakdownHeader").style.display = listed;
   list.style.display = listed;
-  list.replaceChildren(...rows.flatMap((row) => [
-    breakdownElement("dt", "evalItem statisticsItem", `${row.label}:`),
-    breakdownElement("dd", "elided statisticsRight evalItem evalRight", row.value),
-  ]));
+  list.replaceChildren(...rows.flatMap((row) => [breakdownElement("dt", row.label), breakdownElement("dd", row.value)]));
 }
 
 function setText(id: string, text: string): void {
   requiredElement(id).textContent = text;
 }
 
-function breakdownElement(tag: "dt" | "dd", className: string, text: string): HTMLElement {
+function breakdownElement(tag: "dt" | "dd", text: string): HTMLElement {
   const element = document.createElement(tag);
-  element.className = className;
   element.textContent = text;
   return element;
 }

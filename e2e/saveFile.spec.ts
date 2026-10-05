@@ -12,11 +12,11 @@
  *
  */
 
-import { expect, Page, test } from "@playwright/test";
-import { readFileSync, writeFileSync } from "fs";
-import { join } from "path";
+import { expect, test } from "@playwright/test";
+import { writeFileSync } from "fs";
 
 import { CITY_LINK, serverForTests } from "./gameServer";
+import { keepOldSave, oldSaveText, storedOldSave } from "./oldSave";
 import { collectPageProblems, isContextLost } from "./page";
 import { Player, TESTER } from "./player";
 import { SEED, SITE } from "./stages";
@@ -28,28 +28,8 @@ import { SEED, SITE } from "./stages";
 
 const server = serverForTests("manual");
 
-// The key the browser kept its saved game under, and the oldest sample save the game loads, as such a game may be
-const OLD_SAVE_KEY = "micropolisJSGame";
+// The name of the city in the oldest sample save, the old game the browser keeps (oldSave.ts)
 const OLD_SAVE_NAME = "Sample";
-
-function oldSaveText(): string {
-  return readFileSync(join(test.info().config.rootDir, "..", "conformance", "saveVersions", "version5.json"), "utf8");
-}
-
-// Has the browser keep the text as its old saved game when the page first opens, as a browser that played before cities
-// were kept on the server does: once only, so the page that takes it out finds it gone when it opens again
-async function keepOldSave(page: Page, text: string): Promise<void> {
-  await page.addInitScript(({key, text}) => {
-    if (sessionStorage.getItem("oldSaveKept") === null) {
-      sessionStorage.setItem("oldSaveKept", "yes");
-      localStorage.setItem(key, text);
-    }
-  }, {key: OLD_SAVE_KEY, text});
-}
-
-function storedOldSave(page: Page): Promise<string | null> {
-  return page.evaluate((key) => localStorage.getItem(key), OLD_SAVE_KEY);
-}
 
 // The id in the city's link in the page's address
 function linkedCity(url: string): string {

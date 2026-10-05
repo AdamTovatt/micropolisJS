@@ -31,15 +31,19 @@
   --type-line-height: 1.35;
   --type-title-size: 11px;
   --type-figure-size: 14px;
+  /* The windows' and the screens' text, read at length, their titles, and a screen's heading */
+  --type-window-size: 14px;
+  --type-window-title-size: 16px;
+  --type-heading-size: 20px;
   /* The widths of the side columns, so the tool dock knows the room between them */
   --left-column: 196px;
   --right-column: 264px;
 }
 
-/* The colours of the HUD: everything in the page's main element, the panels over the map, their buttons, the
-   notification bar and the splash screen among them. A text colour is --hud-<name>-text, and the background it is read
-   on is --hud-<name>-background. test/hudColours.ts holds each pair to WCAG AA's 4.5:1 for normal text, and every text
-   and background colour a HUD rule sets to one of these.
+/* The page's colours: those of everything it shows in its wrapper, the HUD's panels over the map, their buttons and the
+   notification bar, the windows and the screens before a city opens. A text colour is --hud-<name>-text, and the
+   background it is read on is --hud-<name>-background. test/hudColours.ts holds each pair to WCAG AA's 4.5:1 for
+   normal text, and every text and background colour a rule for the wrapper sets to one of these.
 
    A background may be see-through, as #rrggbbaa. One that lies on another, such as a button's on its panel's, names it
    as --hud-<name>-ground; one that names none lies on the map, which the ratio is held over at its darkest and its
@@ -104,7 +108,8 @@
   --hud-demand-residential-fill: #4ade80;
   --hud-demand-commercial-fill: #60a5fa;
   --hud-demand-industrial-fill: #facc15;
-  --hud-veil-fill: #808080;
+  /* What dims the map and the HUD under a window */
+  --hud-veil-fill: #05070ba6;
 
   /* Each tool's accent, which is also its outline on the map */
   --hud-tool-residential-fill: #00ff00;
@@ -124,42 +129,21 @@
   --hud-tool-airport-fill: #ee82ee;
   --hud-tool-park-fill: #006400;
 
-  /* The splash screen, the start and sign-in forms and the windows' headers, in their light look */
+  /* The windows and the screens before a city opens: the HUD's panels and buttons on a surface of their own that is
+     opaque, since they hold the input and are read at length. A button there lies on it, darker than the panels'
+     surface over the lightest map, so a button's pair held over the panels' surface holds there too. */
+  --hud-window-text: #f2f5f9;
+  --hud-window-background: #141924;
+  --hud-window-muted-text: #b9c3d0;
+  --hud-window-muted-background: var(--hud-window-background);
+  --hud-error-text: #ff9b8f;
+  --hud-error-background: var(--hud-window-background);
+  --hud-link-text: #7cc4ff;
+  --hud-link-background: var(--hud-window-background);
+
+  /* The about and name-license pages, in their light look */
   --hud-panel-text: #000000;
   --hud-panel-background: #f5fffa;
-  --hud-control-text: #ffffff;
-  --hud-control-background: #2f4f4f;
-
-  --hud-budget-text: #ffffff;
-  --hud-budget-background: #1565c0;
-  --hud-evaluation-text: #ffffff;
-  --hud-evaluation-background: #1e7b1e;
-  --hud-disasters-text: #ffff00;
-  --hud-disasters-background: #b00000;
-  --hud-save-text: #ffffff;
-  --hud-save-background: #3a7a7c;
-  --hud-settings-text: #ffffff;
-  --hud-settings-background: #663399;
-  --hud-picture-text: #ffffff;
-  --hud-picture-background: #c8402a;
-  --hud-query-text: #000000;
-  --hud-query-background: #00ffff;
-
-  --hud-go-text: #ffffff;
-  --hud-go-background: #008000;
-  --hud-error-text: #8b0000;
-  --hud-error-background: var(--hud-panel-background);
-
-  --hud-play-text: #000000;
-  --hud-play-background: #90ee90;
-  --hud-generate-text: #ffffff;
-  --hud-generate-background: #1565c0;
-  --hud-link-text: #1565c0;
-  --hud-link-background: var(--hud-panel-background);
-  --hud-city-list-text: #000000;
-  --hud-city-list-background: #efefef;
-  --hud-city-id-text: #5c5c5c;
-  --hud-city-id-background: var(--hud-city-list-background);
 }
 
 @font-face {
@@ -187,25 +171,11 @@ body {
   background-image: url('../images/dirtbg.png');
 }
 
-button, input[type="submit"] {
-  width: 140px;
-  height: 19px;
-  border-radius: 3px;
-  cursor: pointer;
-  border: none;
-  font-family: sans-serif;
-}
-
-/* The striped bar: a static page's header bar, and every window's title bar. Without specificity, so that a window's
-   own colour rule wins. */
-:where(body > header, .modal > header) {
+/* The striped bar along the top of the about and name-license pages */
+body > header {
   background-color: darkslategray;
   background-image: repeating-linear-gradient(-45deg, transparent, transparent 35px, rgba(255, 255, 255, 0.2) 35px, rgba(255, 255, 255, 0.2) 70px);
   font-family: 'Chunk', serif;
-}
-
-.modal > header {
-  height: 18px;
 }
 
 main {
@@ -224,54 +194,13 @@ main {
   display: none;
 }
 
-.block {
-  display: block;
-}
-
-.bold {
-  font-weight: bold;
-}
-
 .border-bottom {
   border-bottom: 1px solid black;
-}
-
-.budgetRight {
-   margin-left: 7px
-}
-
-.cancel, #playBack {
-  background-color: var(--hud-control-background);
-  color: var(--hud-control-text);
-}
-
-.centred, #tooSmallInner {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  border: 1px solid black;
-  width: 400px;
-  transform: translate(-50%, -50%);
 }
 
 .chunk {
   font-family: 'Chunk', serif;
   font-weight: normal;
-}
-
-.dialogOK {
-  color: white;
-  background-color: green;
-}
-
-.difficulty {
-  margin-left: 10px;
-}
-
-.elided {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .fontlarge {
@@ -282,36 +211,12 @@ main {
   cursor: help;
 }
 
-.inline {
-  display: inline;
-}
-
 .inlineblock {
   display: inline-block;
 }
 
 .left {
   float: left;
-}
-
-.loadSave, .saveHeader {
-  background-color: var(--hud-save-background);
-  color: var(--hud-save-text);
-}
-
-.margin10 {
-  margin: 10px 0;
-}
-
-.modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  border: 1px solid black;
-  transform: translate(-50%, -50%);
-  z-index: 20;
-  background-color: white;
-  width: 500px;
 }
 
 .mintcream {
@@ -323,14 +228,6 @@ main {
   font-family: 'Open Sans', sans-serif;
 }
 
-.opinion, .statistics {
-  font-size: 12px;
-}
-
-.opinionList dd {
-  font-style: italic;
-}
-
 .padding10 {
   padding: 10px;
 }
@@ -339,46 +236,12 @@ main {
   cursor: pointer;
 }
 
-.queryItem, .statisticsItem {
-  display: inline-block;
-  width: 200px;
-}
-
-.queryList dt {
-  font-weight: 600;
-}
-
 .right {
   float: right;
 }
 
-.row button {
-  display: inline-block;
-}
-
-.shadow {
-  -ms-box-shadow: 10px 0px 35px 0px rgba(31,28,31, 0.8);
-  -webkit-box-shadow: 10px 0px 35px 0px rgba(31,28,31, 0.8);
-  -moz-box-shadow: 10px 0px 35px 0px rgba(31,28,31, 0.8);
-  box-shadow: 10px 0px 35px 0px rgba(31,28,31, 0.8);
-}
-
-.statisticsItem {
-  display: inline-block;
-  width: 200px;
-}
-
-.statisticsRight {
-  display: inline-block;
-  width: 150px;
-}
-
 .white {
   color: white;
-}
-
-.width140 {
-  width: 140px;
 }
 
 .nameLicense {
@@ -386,219 +249,8 @@ main {
   margin-bottom: 0.5em;
 }
 
-#budgetForm > div:nth-child(9) {
-  align: center;
-  width: 100%;
-}
-
-#budgetForm > div, #budgetForm > fieldset {
-  display: inline-block;
-  width: 230px;
-}
-
-#budgetForm input[type="range"] {
-  max-width: 210px;
-  padding: 5px;
-}
-
-#budgetReset {
-  color: white;
-  background-color: dodgerblue;
-}
-
-#difficultyLabel {
-  margin-right: 5px;
-}
-
-#disasterLabel {
-  display: block;
-}
-
-#evalContainer {
-  font-size: 14px;
-  /* The score breakdown can make the window taller than the screen; keep OK reachable */
-  max-height: calc(100vh - 80px);
-  overflow-y: auto;
-}
-
-/* The scrolling container clips markers drawn outside it */
-#problemList {
-  list-style-position: inside;
-}
-
-#flagsTable {
-  text-align: center;
-  padding: 5px;
-  margin: 0 auto;
-  border: 1px solid black;
-}
-
-#flagsTable td, #flagsTable th {
-  padding: 0 5px;
-}
-
 #loadingBanner[data-hasscript=false] {
   display: none;
-}
-
-#nameForm {
-  font-size: 18px;
-  width: 150px;
-}
-
-#opaque {
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  opacity: .70;
-  filter: Alpha(Opacity=70);
-  background-color: var(--hud-veil-fill);
-  z-index: 10;
-}
-
-#playit {
-  background-color: var(--hud-go-background);
-  color: var(--hud-go-text);
-}
-
-/* The start form's buttons, Back and Play! */
-#playBack, #playit {
-  font-size: 18px;
-  height: 24px;
-}
-
-#screenshotLink, #screenshotLink:link, #screenshotLink:visited, #screenshotLink:hover {
-  text-decoration: none;
-  color: dodgerblue;
-}
-
-#noServer {
-  display: none;
-  text-align: center;
-  font-size: 18px;
-  max-width: 400px;
-}
-
-#signIn {
-  display: none;
-  text-align: center;
-  font-size: 18px;
-}
-
-#signInError {
-  min-height: 1.2em;
-  background-color: var(--hud-error-background);
-  color: var(--hud-error-text);
-  font-size: 14px;
-}
-
-#signInName {
-  font-size: 18px;
-  width: 250px;
-}
-
-#signInSubmit {
-  background-color: var(--hud-go-background);
-  color: var(--hud-go-text);
-  font-size: 18px;
-}
-
-/* The splash's contents stack in flow, so that its text and the map preview can't overlap however the text wraps. It
-   is as wide as the map row, which can't wrap, and the text wraps to fit. */
-#splash {
-  position: absolute;
-  width: min-content;
-}
-
-#splashButtons {
-  margin-left: 20px;
-}
-
-#splashCities {
-  margin: 15px 10px 0;
-}
-
-/* A long list scrolls, so the splash still fits a small screen */
-#splashCityList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 7.5em;
-  overflow-y: auto;
-}
-
-#splashCityList li {
-  display: flex;
-  gap: 10px;
-  margin: 4px 0;
-}
-
-#splashCityList button {
-  background-color: var(--hud-city-list-background);
-  color: var(--hud-city-list-text);
-}
-
-.splashRejoin {
-  flex: 1;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#splashCityList .splashCityId {
-  margin-left: 10px;
-  background-color: var(--hud-city-id-background);
-  color: var(--hud-city-id-text);
-  font-family: monospace;
-}
-
-#splashContainer canvas {
-  display: block;
-}
-
-#splashCredits {
-  margin-top: 15px;
-  font-size: 12px;
-}
-
-#splashGenerate {
-  background-color: var(--hud-generate-background);
-  color: var(--hud-generate-text);
-}
-
-#splashMapRow {
-  display: flex;
-  align-items: center;
-  margin: 10px 10px 0;
-}
-
-#splashPlay {
-  background-color: var(--hud-play-background);
-  color: var(--hud-play-text);
-}
-
-#start {
-  display: none;
-  text-align: center;
-  font-size: 18px;
-}
-
-#statisticsList, #evalScoreBreakdown, .queryList {
-  width: 400px;
-  margin: 0 auto;
-  padding: 0 110px;
-}
-
-#tooSmall {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: none;
-  z-index: 200;
 }
 
 #wrapper {
@@ -609,37 +261,6 @@ main {
   bottom: 0px;
 }
 
-
-/* The windows' headers, in the colours the menu's buttons had */
-#budgetHeader {
-  background-color: var(--hud-budget-background);
-  color: var(--hud-budget-text);
-}
-
-#disasterHeader {
-  background-color: var(--hud-disasters-background);
-  color: var(--hud-disasters-text);
-}
-
-#evalHeader {
-  background-color: var(--hud-evaluation-background);
-  color: var(--hud-evaluation-text);
-}
-
-.screenshotHeader {
-  background-color: var(--hud-picture-background);
-  color: var(--hud-picture-text);
-}
-
-#settingsHeader {
-  background-color: var(--hud-settings-background);
-  color: var(--hud-settings-text);
-}
-
-#queryHeader {
-  background-color: var(--hud-query-background);
-  color: var(--hud-query-text);
-}
 
 /* The screen is too small below these sizes, where the too-small overlay covers the page */
 @media (max-height: 582px) {
@@ -782,7 +403,7 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   bottom: 5px;
 }
 
-/* Player feedback: the tool toast, the evaluation's figures beside their labels */
+/* Player feedback: the tool toast */
 
 /* Why the player's tool command built nothing, beside the pointer. It sits over the map's panels and under the
    windows, and the pointer's events pass through it. toolToast.ts gives the fade its duration, the toast's whole
@@ -814,12 +435,6 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   }
 }
 
-/* An elided figure's overflow puts its baseline at its bottom edge, which lifts it above its label: both align by their
-   tops instead */
-#evalWindow .evalItem {
-  vertical-align: top;
-}
-
 /* Space held over the map shows the open hand, and a pan the closed one, over the tool's cursor */
 #MicropolisCanvas.grab {
   cursor: grab;
@@ -827,13 +442,6 @@ footer a, footer a:link, footer a:visited, footer a:hover {
 
 #MicropolisCanvas.grabbing {
   cursor: grabbing;
-}
-
-/* The start form's Back button, beside Play! */
-#playBack {
-  width: auto;
-  margin-right: 10px;
-  padding: 0 12px;
 }
 
 /* The HUD: the panels over the map, in regions round a clear middle. A grid holds three columns: the right one, the
@@ -920,11 +528,15 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   min-height: 22px;
 }
 
-.hudPanel .foldTitle {
+/* The small capitals a title is written in, on a panel's strip and over a part of a window or a screen alike */
+.hudPanel .foldTitle, .hudSectionTitle {
   font-size: var(--type-title-size);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.hudPanel .foldTitle {
   color: var(--hud-muted-text);
 }
 
@@ -1558,4 +1170,446 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   border: 1px solid white;
   outline: 1px solid black;
   pointer-events: none;
+}
+
+/* The windows and the screens before a city opens: the HUD's panels on an opaque surface of their own, with the HUD's
+   buttons and one set of form controls, hudField, hudRange and hudChoice. A window shows over a veil across the map
+   and the HUD, in the middle of the screen, and fits it at every size the HUD is laid out for; on a screen shorter than
+   those, it scrolls under its title. A window
+   shows as a block (windowBase.ts), so its parts are laid out inside it. */
+#opaque {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background-color: var(--hud-veil-fill);
+}
+
+.hudWindow, .hudScreen {
+  box-sizing: border-box;
+  max-width: calc(100vw - 2 * var(--panel-edge));
+  max-height: calc(100vh - 2 * var(--panel-edge));
+  overflow-y: auto;
+  background-color: var(--hud-window-background);
+  color: var(--hud-window-text);
+  font: var(--type-window-size)/var(--type-line-height) var(--type-font);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.hudWindow {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 20;
+  width: 480px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+}
+
+#budget, #evalWindow {
+  width: 540px;
+}
+
+.hudWindowTitle {
+  position: sticky;
+  top: 0;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--hud-edge-fill);
+  background-color: var(--hud-window-background);
+  color: var(--hud-window-text);
+  font-size: var(--type-window-title-size);
+  font-weight: 600;
+}
+
+.hudWindowBody {
+  padding: 14px 16px 16px;
+}
+
+.hudWindowBody p, .hudScreen p {
+  margin-bottom: 8px;
+}
+
+/* A part's title within a window or a screen, in the small capitals of a panel's strip */
+.hudSectionTitle {
+  margin: 14px 0 6px;
+  color: var(--hud-window-muted-text);
+}
+
+.hudSectionTitle:first-child {
+  margin-top: 0;
+}
+
+/* Figures beside their labels */
+.hudFigures {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+}
+
+.hudFigures dt {
+  color: var(--hud-window-muted-text);
+}
+
+.hudFigures dd {
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#problemList {
+  margin: 0;
+  list-style-position: inside;
+}
+
+.hudWindowBody section + section {
+  margin-top: 14px;
+}
+
+/* The budget: its figures two to a row, then a group for each rate, two to a row */
+#budgetFigures {
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 24px;
+}
+
+#budgetFigures > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#budgetRates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.hudGroup {
+  min-width: 0;
+  padding: 4px 10px 10px;
+  border: 1px solid var(--hud-edge-fill);
+  border-radius: var(--button-radius);
+}
+
+.hudGroup legend.hudSectionTitle {
+  margin: 0;
+  padding: 0 4px;
+}
+
+.budgetData {
+  display: block;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A setting's name beside its choices, a row each */
+.hudRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hud-edge-fill);
+}
+
+.hudRow:last-child {
+  border-bottom: none;
+}
+
+.hudRowName {
+  font-weight: 600;
+}
+
+.hudChoices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 4px;
+}
+
+.hudChoices label {
+  margin-right: 14px;
+  cursor: pointer;
+}
+
+.hudChoices label:last-child {
+  margin-right: 0;
+}
+
+/* The form controls: a text field or a select, a slider, and a radio button or a check box */
+.hudField {
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--hud-edge-fill);
+  border-radius: var(--button-radius);
+  background-color: var(--hud-field-background);
+  color: var(--hud-field-text);
+  font: inherit;
+}
+
+.hudField:focus-visible, .hudRange:focus-visible, .hudChoice:focus-visible {
+  outline: 2px solid var(--hud-accent-fill);
+  outline-offset: 1px;
+}
+
+.hudFieldName {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--hud-window-muted-text);
+}
+
+.hudRange {
+  width: 100%;
+  height: 18px;
+  margin: 6px 0 0;
+  background-color: var(--hud-window-background);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.hudRange::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--hud-meter-empty-fill);
+}
+
+.hudRange::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--hud-meter-empty-fill);
+}
+
+.hudRange::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border: 2px solid var(--hud-window-background);
+  border-radius: 50%;
+  background-color: var(--hud-accent-fill);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.hudRange::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--hud-window-background);
+  border-radius: 50%;
+  background-color: var(--hud-accent-fill);
+}
+
+.hudChoice {
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+  accent-color: var(--hud-accent-fill);
+  cursor: pointer;
+}
+
+.hudLink {
+  color: var(--hud-link-text);
+}
+
+/* The buttons at a window's or a screen's foot, its main one last */
+.hudActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.hudActions .hudButton, #splashButtons .hudButton {
+  min-width: 80px;
+  height: 30px;
+  padding: 0 16px;
+  font-size: var(--type-size);
+}
+
+/* The query's raw values and flags, in debug mode, under its figures */
+#queryDebugList {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hud-edge-fill);
+}
+
+#flagsTable {
+  margin: 12px auto 0;
+  border-collapse: collapse;
+  text-align: center;
+}
+
+#flagsTable td, #flagsTable th {
+  padding: 2px 8px;
+  border: 1px solid var(--hud-edge-fill);
+}
+
+#flagsTable th {
+  color: var(--hud-window-muted-text);
+  font-weight: 600;
+}
+
+/* A screen before a city opens, in the middle of the page */
+.hudScreen {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 420px;
+  padding: 18px 20px 20px;
+  transform: translate(-50%, -50%);
+}
+
+/* The heading over a screen's or a window's text */
+.hudHeading {
+  margin-bottom: 10px;
+  font-size: var(--type-heading-size);
+  font-weight: 700;
+}
+
+/* Shown by the code that runs them */
+#start, #signIn, #noServer {
+  display: none;
+}
+
+#nameForm, #signInName {
+  width: 100%;
+}
+
+#difficultyRow {
+  margin-top: 8px;
+}
+
+#signInError {
+  min-height: 1.35em;
+  margin: 6px 0 0;
+  color: var(--hud-error-text);
+  font-size: var(--type-size);
+}
+
+/* The splash's contents stack in flow, so that its text and the map preview can't overlap however the text wraps. It
+   is as wide as the map row, which can't wrap, and the text wraps to fit. */
+#splash {
+  width: min-content;
+}
+
+#splashSeedLine {
+  color: var(--hud-window-muted-text);
+}
+
+#splashMapRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 12px 0;
+}
+
+#splashContainer canvas {
+  display: block;
+  border-radius: var(--button-radius);
+}
+
+#splashButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 160px;
+}
+
+#splashButtons .hudButton {
+  width: 100%;
+}
+
+#splashOldSave .hudActions {
+  margin-bottom: 14px;
+}
+
+/* A long list scrolls, so the splash still fits a small screen */
+#splashCityList {
+  max-height: 120px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+#splashCityList li {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.splashRejoin.hudButton {
+  flex: 1;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+#splashCityList .splashCityId {
+  margin-left: 4px;
+  color: var(--hud-window-muted-text);
+  font-variant-numeric: tabular-nums;
+}
+
+#splashCredits {
+  margin-top: 16px;
+  color: var(--hud-window-muted-text);
+  font-size: 12px;
+  text-align: center;
+}
+
+#splashCredits p {
+  margin-bottom: 6px;
+}
+
+/* Where the screen is too short for their parts one under another at their fullest, the evaluation and the splash lay
+   them side by side, so no part is scrolled out of sight. The evaluation at its fullest lists every problem and every
+   step of the score, and puts its opinion and statistics beside why the score changed; the splash at its fullest
+   lists the browser's cities at their most before the list scrolls and a game it kept from before, and puts the map
+   and its buttons beside them. Each shows as a block (windowBase.ts, splashScreen.ts), so each lays its columns out on
+   the element inside it. */
+@media (max-height: 880px) {
+  #evalWindow {
+    width: 680px;
+  }
+
+  #evalContainer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas: "opinion changes" "statistics changes" "actions actions";
+    column-gap: 32px;
+  }
+
+  #opinion {
+    grid-area: opinion;
+  }
+
+  #statistics {
+    grid-area: statistics;
+  }
+
+  #scoreChanges {
+    grid-area: changes;
+    margin-top: 0;
+  }
+
+  #evalButtons {
+    grid-area: actions;
+  }
+
+  #splashBody {
+    display: grid;
+    grid-template-columns: min-content 340px;
+    align-items: start;
+    column-gap: 32px;
+  }
+}
+
+/* The screen too small to play on covers the page, its message in the middle */
+#tooSmall {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: none;
+  background-color: var(--hud-window-background);
 }

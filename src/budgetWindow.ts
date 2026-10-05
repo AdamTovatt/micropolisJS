@@ -174,6 +174,12 @@ export class BudgetWindow extends ClosableWindow<[BudgetRecord], BudgetChoice | 
     this.forecast();
   }
 
+  // Writes a forecast's figures into the window, as it writes the answer to each it asks for, at the funding the
+  // sliders are moved to
+  write(forecast: BudgetForecastAnswer): void {
+    render(budgetView(this.funding, forecast));
+  }
+
   // Asks for the forecast at the sliders' funding and tax rate
   private forecast(): void {
     this.forecasts.forecast(this.funding, sliderValue("taxRate"));

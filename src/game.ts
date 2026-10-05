@@ -85,6 +85,8 @@ export class Game {
   private readonly state: CityState;
   private readonly rci: RCI;
   readonly statusPanel: StatusPanel;
+  readonly budgetWindow: BudgetWindow;
+  readonly evaluationWindow: EvaluationWindow;
   private readonly infoBar: InfoBar;
   private readonly speedControl: SpeedControl;
   readonly monsterTV: MonsterTV;
@@ -202,13 +204,15 @@ export class Game {
 
     const opacityLayerID = "opaque";
     const budgetButton = requiredElement("budgetRequest");
+    this.budgetWindow = new BudgetWindow(opacityLayerID, "budget", source);
+    this.evaluationWindow = new EvaluationWindow(opacityLayerID, "evalWindow");
     this.controls = new GameControls({
       input: inputStatus,
       view: this.gameCanvas,
       windows,
       gameWindows: {
-        budget: new BudgetWindow(opacityLayerID, "budget", source),
-        evaluation: new EvaluationWindow(opacityLayerID, "evalWindow"),
+        budget: this.budgetWindow,
+        evaluation: this.evaluationWindow,
         disaster: new DisasterWindow(opacityLayerID, "disasterWindow"),
         debug: new DebugWindow(opacityLayerID, "debugWindow"),
         settings: new SettingsWindow(opacityLayerID, "settingsWindow"),
