@@ -34,7 +34,7 @@ namespace Micropolis.Rules
         public bool IndCap { get; internal set; }
 
         /// <summary>
-        /// Raises <see cref="Messages.VALVES_UPDATED"/>.
+        /// Raises <see cref="RulesEvents.ValvesUpdated"/> with the demand the valves set.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -129,7 +129,7 @@ namespace Micropolis.Rules
                 IndValve = 0;
             }
 
-            Events.Emit(Messages.VALVES_UPDATED);
+            Events.Emit(RulesEvents.ValvesUpdated, new DemandMessage(ResValve, ComValve, IndValve));
         }
 
         internal void Save(JsonObject saveData)

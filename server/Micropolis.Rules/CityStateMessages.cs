@@ -61,22 +61,19 @@ namespace Micropolis.Rules
             MarkSent();
 
             EventEmitter events = city.Events;
-            // The rules write each of these payloads with the fields of the message or record the client is sent, so
-            // each reads straight into it
-            events.AddEventListener(Messages.FRONT_END_MESSAGE, payload => _events.Add(ProtocolJson.FromNode<NewsMessage>(payload!)));
-            events.AddEventListener(Messages.COMMAND_RESULT, payload => _events.Add(new CommandResultMessage(CommandResult.FromPayload(payload!))));
-            events.AddEventListener(Messages.BUDGET_REVIEW_DUE, _ => _events.Add(new BudgetReviewDueMessage()));
-            events.AddEventListener(Messages.OVERLAY_UPDATED, payload =>
+            // The news, the overlays, the status and the demand are the messages the client is sent, as the rules emit them
+            events.AddEventListener(RulesEvents.FrontEndMessage, news => _events.Add(news));
+            events.AddEventListener(RulesEvents.CommandResult, result => _events.Add(new CommandResultMessage(result)));
+            events.AddEventListener(RulesEvents.BudgetReviewDue, () => _events.Add(new BudgetReviewDueMessage()));
+            events.AddEventListener(RulesEvents.OverlayUpdated, updated =>
             {
-                string layer = (string)payload!["layer"]!;
-
-                if (!_events.Any(message => message is OverlayUpdatedMessage overlay && overlay.Layer == layer))
+                if (!_events.Any(message => message is OverlayUpdatedMessage overlay && overlay.Layer == updated.Layer))
                 {
-                    _events.Add(new OverlayUpdatedMessage(layer));
+                    _events.Add(updated);
                 }
             });
-            events.AddEventListener(Messages.CITY_STATUS_UPDATED, payload => _status = _lastStatus = ProtocolJson.FromNode<StatusRecord>(payload!));
-            events.AddEventListener(Messages.VALVES_UPDATED, payload => _demand = _lastDemand = ProtocolJson.FromNode<DemandMessage>(payload!));
+            events.AddEventListener(RulesEvents.CityStatusUpdated, status => _status = _lastStatus = status);
+            events.AddEventListener(RulesEvents.ValvesUpdated, demand => _demand = _lastDemand = demand);
         }
 
         [MemberNotNull(nameof(_tiles))]

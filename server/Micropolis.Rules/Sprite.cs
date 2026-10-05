@@ -31,11 +31,11 @@ namespace Micropolis.Rules
 
     /// <summary>
     /// What a type fixes for every sprite of it: its hot spot, where it collides, crashes and leaves the map, in pixels
-    /// from the sprite's position, as the original's initSprite gives it; the message that reports its crash, for a
+    /// from the sprite's position, as the original's initSprite gives it; the event that reports its crash, for a
     /// type that can crash; and its last frame, the frames counting from 1. The size and drawing offset the original
     /// also gives are the client's, which draws it.
     /// </summary>
-    public readonly record struct SpriteTraits(int XHot, int YHot, string? CrashMessage, int LastFrame);
+    public readonly record struct SpriteTraits(int XHot, int YHot, EventName<NewsPlace>? Crash, int LastFrame);
 
     /// <summary>
     /// A sprite's saved state, at its position in the original's frame. Its traits are its type's, and not saved.
@@ -99,10 +99,10 @@ namespace Micropolis.Rules
         {
             return type switch
             {
-                SpriteType.Train => new SpriteTraits(40, -8, Messages.TRAIN_CRASHED, 5),
-                SpriteType.Helicopter => new SpriteTraits(40, -8, Messages.HELICOPTER_CRASHED, 8),
-                SpriteType.Airplane => new SpriteTraits(48, 16, Messages.PLANE_CRASHED, 11),
-                SpriteType.Ship => new SpriteTraits(48, 0, Messages.SHIP_CRASHED, 8),
+                SpriteType.Train => new SpriteTraits(40, -8, RulesEvents.TrainCrashed, 5),
+                SpriteType.Helicopter => new SpriteTraits(40, -8, RulesEvents.HelicopterCrashed, 8),
+                SpriteType.Airplane => new SpriteTraits(48, 16, RulesEvents.PlaneCrashed, 11),
+                SpriteType.Ship => new SpriteTraits(48, 0, RulesEvents.ShipCrashed, 8),
                 SpriteType.Monster => new SpriteTraits(40, 16, null, 16),
                 SpriteType.Tornado => new SpriteTraits(40, 36, null, 3),
                 SpriteType.Explosion => new SpriteTraits(40, 16, null, 6),

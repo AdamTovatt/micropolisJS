@@ -11,8 +11,6 @@
  *
  */
 
-using System.Text.Json.Nodes;
-
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
@@ -99,7 +97,7 @@ namespace Micropolis.Rules.Tests
         {
             CityFigures city = CityFigures.Calm("");
 
-            Assert.AreEqual(0, Build(city)["conditions"]!.AsArray().Count);
+            Assert.IsEmpty(Build(city).Conditions);
         }
 
         [TestMethod]
@@ -109,7 +107,7 @@ namespace Micropolis.Rules.Tests
 
             CollectionAssert.AreEqual(
                 new[] { Messages.NOT_ENOUGH_POWER, Messages.NEED_STADIUM, Messages.NEED_SEAPORT, Messages.HIGH_CRIME, Messages.TAX_TOO_HIGH },
-                Build(city)["conditions"]!.AsArray().Select(condition => (string)condition!).ToArray());
+                Build(city).Conditions.ToArray());
         }
 
         [TestMethod]
@@ -121,19 +119,13 @@ namespace Micropolis.Rules.Tests
             CityFigures city = CityFigures.Calm("powerCapacity=3100,powerLoad=2700");
             Valves valves = new Valves { ResCap = resCap, ComCap = comCap, IndCap = indCap };
 
-            JsonObject status = CityStatus.Build(city.Census, city.Budget, city.Power, valves);
+            StatusRecord status = CityStatus.Build(city.Census, city.Budget, city.Power, valves);
 
-            Assert.AreEqual(
-                $"{{\"commercialCapped\":{Json(comCap)},\"conditions\":[],\"industrialCapped\":{Json(indCap)},\"powerCapacity\":3100,\"powerLoad\":2700,\"residentialCapped\":{Json(resCap)}}}",
-                CanonicalJson.Write(status));
+            Assert.AreEqual((3100L, 2700L, resCap, comCap, indCap),
+                            (status.PowerCapacity, status.PowerLoad, status.ResidentialCapped, status.CommercialCapped, status.IndustrialCapped));
         }
 
-        private static string Json(bool value)
-        {
-            return value ? "true" : "false";
-        }
-
-        private static JsonObject Build(CityFigures city)
+        private static StatusRecord Build(CityFigures city)
         {
             return CityStatus.Build(city.Census, city.Budget, city.Power, new Valves());
         }

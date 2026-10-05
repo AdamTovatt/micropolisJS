@@ -15,7 +15,8 @@ namespace Micropolis.Rules
 {
     /// <summary>
     /// The events and message subjects of <c>src/messages.ts</c> that the game rules send, under the same names with
-    /// the same strings, which <c>conformance/messages.json</c> holds. An event is known by its string alone.
+    /// the same strings, which <c>conformance/messages.json</c> holds. Inside the rules an event is known by its key in
+    /// <see cref="RulesEvents"/>, which holds its string; outside them, by the string alone.
     /// </summary>
     public static class Messages
     {

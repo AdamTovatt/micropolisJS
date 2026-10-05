@@ -157,8 +157,9 @@ the same checkpoints. The C# tests start cities from them, the fixtures `Fixture
 
 `<log>.events.json`: every event the city emits as each log of `logs/` is replayed, to its last step, in the order
 emitted (`FixtureEvents`), one to a line: the `step` it came in, its `name` and its `payload`, which an event emitted
-without one leaves out. A state hash never sees an event, so these pin what the players are told: the news, the
-advisors' messages, the command results and every record the city publishes.
+without one leaves out, written as the protocol writes the payload's type (`RulesEvents` declares each), so a state
+message comes with its `type` first. A state hash never sees an event, so these pin what the players are told: the
+news, the advisors' messages, the command results and every record the city publishes.
 
 ### commands.json
 

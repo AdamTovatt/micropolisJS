@@ -11,29 +11,74 @@
  *
  */
 
-using System.Text.Json.Nodes;
-
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Listeners by event name: an event goes to its name's listeners in the order they were added, and an event no one
-    /// listens to goes nowhere. Names are the strings of <see cref="Messages"/>.
+    /// Listeners by event: an event goes to its key's listeners in the order they were added, and an event no one
+    /// listens to goes nowhere. The keys are those of <see cref="RulesEvents"/>, each with the payload it carries.
     /// </summary>
     public sealed class EventEmitter
     {
-        private readonly Dictionary<string, List<Action<JsonNode?>>> _listeners = new Dictionary<string, List<Action<JsonNode?>>>();
+        // Each listener is an Action of its key's payload, or a bare Action for a key without one
+        private readonly Dictionary<EventKey, List<Delegate>> _listeners = new Dictionary<EventKey, List<Delegate>>();
 
         /// <summary>
-        /// Sees every event before its listeners do, whatever its name, as a test records the simulation's.
+        /// Sees every event before its listeners do, whatever its key, by its name and its payload, or
+        /// <see langword="null"/> for an event without one, as a test records the simulation's.
         /// </summary>
-        internal Action<string, JsonNode?>? Observer { get; set; }
+        internal Action<string, object?>? Observer { get; set; }
 
         /// <summary>
         /// Adds a listener for the event, unless it already listens to it.
         /// </summary>
-        public void AddEventListener(string eventName, Action<JsonNode?> listener)
+        public void AddEventListener<TPayload>(EventName<TPayload> eventName, Action<TPayload> listener)
         {
-            List<Action<JsonNode?>> listeners = ListenersFor(eventName);
+            Add(eventName, listener);
+        }
+
+        /// <summary>
+        /// Adds a listener for the event without a payload, unless it already listens to it.
+        /// </summary>
+        public void AddEventListener(EventName eventName, Action listener)
+        {
+            Add(eventName, listener);
+        }
+
+        /// <summary>
+        /// Sends the event to its listeners.
+        /// </summary>
+        internal void Emit<TPayload>(EventName<TPayload> eventName, TPayload payload)
+        {
+            Observer?.Invoke(eventName.Name, payload);
+
+            // A copy, as a listener may add another
+            foreach (Delegate listener in ListenersFor(eventName).ToArray())
+            {
+                ((Action<TPayload>)listener)(payload);
+            }
+        }
+
+        /// <summary>
+        /// Sends the event without a payload to its listeners.
+        /// </summary>
+        internal void Emit(EventName eventName)
+        {
+            Observer?.Invoke(eventName.Name, null);
+
+            // A copy, as a listener may add another
+            foreach (Delegate listener in ListenersFor(eventName).ToArray())
+            {
+                ((Action)listener)();
+            }
+        }
+
+        private void Add(EventKey eventName, Delegate listener)
+        {
+            if (!_listeners.TryGetValue(eventName, out List<Delegate>? listeners))
+            {
+                listeners = new List<Delegate>();
+                _listeners[eventName] = listeners;
+            }
 
             if (!listeners.Contains(listener))
             {
@@ -41,34 +86,9 @@ namespace Micropolis.Rules
             }
         }
 
-        public void RemoveEventListener(string eventName, Action<JsonNode?> listener)
+        private IReadOnlyList<Delegate> ListenersFor(EventKey eventName)
         {
-            ListenersFor(eventName).Remove(listener);
-        }
-
-        /// <summary>
-        /// Sends the event to its listeners. A payload of <see langword="null"/> is an event emitted without one.
-        /// </summary>
-        internal void Emit(string eventName, JsonNode? payload = null)
-        {
-            Observer?.Invoke(eventName, payload);
-
-            // A copy, as a listener may remove itself
-            foreach (Action<JsonNode?> listener in ListenersFor(eventName).ToList())
-            {
-                listener(payload);
-            }
-        }
-
-        private List<Action<JsonNode?>> ListenersFor(string eventName)
-        {
-            if (!_listeners.TryGetValue(eventName, out List<Action<JsonNode?>>? listeners))
-            {
-                listeners = new List<Action<JsonNode?>>();
-                _listeners[eventName] = listeners;
-            }
-
-            return listeners;
+            return _listeners.TryGetValue(eventName, out List<Delegate>? listeners) ? listeners : [];
         }
     }
 }

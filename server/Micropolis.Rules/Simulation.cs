@@ -338,7 +338,7 @@ namespace Micropolis.Rules
             }
 
             Speed = speed;
-            Events.Emit(Messages.SPEED_CHANGED, (int)speed);
+            Events.Emit(RulesEvents.SpeedChanged, (int)speed);
         }
 
         /// <summary>
@@ -406,31 +406,29 @@ namespace Micropolis.Rules
         // Passes the components' events on, and registers every subsystem's tile handlers
         private void Init()
         {
-            foreach (string evaluationEvent in new[] { Messages.CLASSIFICATION_UPDATED, Messages.SCORE_UPDATED })
+            Evaluation.Events.AddEventListener(RulesEvents.ClassificationUpdated, cityClass => Events.Emit(RulesEvents.ClassificationUpdated, cityClass));
+            Evaluation.Events.AddEventListener(RulesEvents.ScoreUpdated, score => Events.Emit(RulesEvents.ScoreUpdated, score));
+
+            PowerManager.Events.AddEventListener(RulesEvents.NotEnoughPower, () => SendPowerMessage(Messages.NOT_ENOUGH_POWER));
+
+            Budget.Events.AddEventListener(RulesEvents.FundsChanged, funds => Events.Emit(RulesEvents.FundsChanged, funds));
+            Budget.Events.AddEventListener(RulesEvents.BudgetReviewDue, () => Events.Emit(RulesEvents.BudgetReviewDue));
+            Budget.Events.AddEventListener(RulesEvents.NoMoney, () => WrapMessage(Messages.NO_MONEY, null));
+
+            Valves.Events.AddEventListener(RulesEvents.ValvesUpdated, demand => Events.Emit(RulesEvents.ValvesUpdated, demand));
+
+            foreach (EventName<NewsPlace> disaster in RulesEvents.Disasters)
             {
-                Evaluation.Events.AddEventListener(evaluationEvent, payload => ReflectEvent(evaluationEvent, payload));
+                SpriteManager.Events.AddEventListener(disaster, place => WrapMessage(disaster.Name, place));
+                DisasterManager.Events.AddEventListener(disaster, place => WrapMessage(disaster.Name, place));
             }
 
-            PowerManager.Events.AddEventListener(Messages.NOT_ENOUGH_POWER, _ => SendPowerMessage(Messages.NOT_ENOUGH_POWER));
-
-            Budget.Events.AddEventListener(Messages.FUNDS_CHANGED, payload => ReflectEvent(Messages.FUNDS_CHANGED, payload));
-            Budget.Events.AddEventListener(Messages.BUDGET_REVIEW_DUE, payload => ReflectEvent(Messages.BUDGET_REVIEW_DUE, payload));
-            Budget.Events.AddEventListener(Messages.NO_MONEY, payload => WrapMessage(Messages.NO_MONEY, payload));
-
-            Valves.Events.AddEventListener(Messages.VALVES_UPDATED, _ => OnValveChange());
-
-            foreach (string disasterMessage in Messages.DISASTER_MESSAGES)
+            foreach (EventName<NewsPlace> crash in RulesEvents.Crashes)
             {
-                SpriteManager.Events.AddEventListener(disasterMessage, payload => WrapMessage(disasterMessage, payload));
-                DisasterManager.Events.AddEventListener(disasterMessage, payload => WrapMessage(disasterMessage, payload));
+                SpriteManager.Events.AddEventListener(crash, place => WrapMessage(crash.Name, place));
             }
 
-            foreach (string crash in Messages.CRASHES)
-            {
-                SpriteManager.Events.AddEventListener(crash, payload => WrapMessage(crash, payload));
-            }
-
-            SpriteManager.Events.AddEventListener(Messages.HEAVY_TRAFFIC, payload => WrapMessage(Messages.HEAVY_TRAFFIC, payload));
+            SpriteManager.Events.AddEventListener(RulesEvents.HeavyTraffic, place => WrapMessage(Messages.HEAVY_TRAFFIC, place));
 
             // Each component registers its tile handlers with the map scanner and its zones with the repair manager.
             // The first handler whose criterion matches a tile is the one the scan calls, so this order is part of
@@ -609,29 +607,17 @@ namespace Micropolis.Rules
                 return;
             }
 
-            Events.Emit(Messages.FRONT_END_MESSAGE, new JsonObject { ["subject"] = subject });
+            Events.Emit(RulesEvents.FrontEndMessage, new NewsMessage(subject));
             LastPowerMessage = CityTime;
         }
 
         /// <summary>
-        /// Sends a component's event as a front-end message with the event's payload, as <c>_wrapMessage</c> does: a
-        /// payload of <see langword="null"/>, an event emitted without one, leaves the message without data.
+        /// Sends a component's event as a front-end message with the place it carries, as <c>_wrapMessage</c> does: an
+        /// event without one, a place of <see langword="null"/>, leaves the message without data.
         /// </summary>
-        internal void WrapMessage(string message, JsonNode? data)
+        internal void WrapMessage(string message, NewsPlace? place)
         {
-            JsonObject payload = new JsonObject { ["subject"] = message };
-
-            if (data is not null)
-            {
-                payload["data"] = data.DeepClone();
-            }
-
-            Events.Emit(Messages.FRONT_END_MESSAGE, payload);
-        }
-
-        private void ReflectEvent(string eventName, JsonNode? payload)
-        {
-            Events.Emit(eventName, payload);
+            Events.Emit(RulesEvents.FrontEndMessage, new NewsMessage(message, place));
         }
 
         /// <summary>
@@ -692,7 +678,7 @@ namespace Micropolis.Rules
                 case 35:
                     if (Holds(Messages.HIGH_POLLUTION))
                     {
-                        WrapMessage(Messages.HIGH_POLLUTION, new JsonObject { ["x"] = Map.PollutionMaxX, ["y"] = Map.PollutionMaxY });
+                        WrapMessage(Messages.HIGH_POLLUTION, new NewsPlace(Map.PollutionMaxX, Map.PollutionMaxY));
                     }
 
                     break;
@@ -767,7 +753,7 @@ namespace Micropolis.Rules
                 return;
             }
 
-            Events.Emit(Messages.POPULATION_UPDATED, cityPop);
+            Events.Emit(RulesEvents.PopulationUpdated, cityPop);
 
             // The original compares classes only once the city has had people at a growth check
             if (CityPopLast > 0)
@@ -811,7 +797,7 @@ namespace Micropolis.Rules
         /// </summary>
         private void PublishCityStatus()
         {
-            Events.Emit(Messages.CITY_STATUS_UPDATED, CityStatus.Build(Census, Budget, PowerManager, Valves));
+            Events.Emit(RulesEvents.CityStatusUpdated, CityStatus.Build(Census, Budget, PowerManager, Valves));
         }
 
         // Each layer the phase running has just recomputed, by name, so that an overlay showing it asks for it again.
@@ -822,19 +808,9 @@ namespace Micropolis.Rules
             {
                 if (layer.Phase == PhaseCycle)
                 {
-                    Events.Emit(Messages.OVERLAY_UPDATED, new JsonObject { ["layer"] = layer.Name });
+                    Events.Emit(RulesEvents.OverlayUpdated, new OverlayUpdatedMessage(layer.Name));
                 }
             }
-        }
-
-        private void OnValveChange()
-        {
-            Events.Emit(Messages.VALVES_UPDATED, new JsonObject
-            {
-                ["residential"] = Valves.ResValve,
-                ["commercial"] = Valves.ComValve,
-                ["industrial"] = Valves.IndValve,
-            });
         }
 
         // As setYear in the original: the city keeps its month
@@ -866,7 +842,7 @@ namespace Micropolis.Rules
             {
                 _cityYearLast = cityYear;
                 _cityMonthLast = cityMonth;
-                Events.Emit(Messages.DATE_UPDATED, new JsonObject { ["month"] = cityMonth, ["year"] = cityYear });
+                Events.Emit(RulesEvents.DateUpdated, new DateMessage(cityMonth, cityYear));
             }
         }
 

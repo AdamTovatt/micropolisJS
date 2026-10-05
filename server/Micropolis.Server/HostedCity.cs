@@ -30,7 +30,7 @@ namespace Micropolis.Server
             Recorder = new CommandRecorder(city, logStart);
             Queue = new CommandQueue(city, Recorder);
             _messages = new CityStateMessages(city);
-            city.Events.AddEventListener(Messages.BUDGET_REVIEW_DUE, _ => BudgetReviewsDue++);
+            city.Events.AddEventListener(RulesEvents.BudgetReviewDue, () => BudgetReviewsDue++);
         }
 
         public string Name { get; }

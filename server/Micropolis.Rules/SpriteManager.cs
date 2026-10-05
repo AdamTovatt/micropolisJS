@@ -48,8 +48,9 @@ namespace Micropolis.Rules
         public IReadOnlyList<Sprite> SpriteList => _spriteList;
 
         /// <summary>
-        /// Raises the <see cref="Messages.DISASTER_MESSAGES"/>, the <see cref="Messages.CRASHES"/> and
-        /// <see cref="Messages.HEAVY_TRAFFIC"/>, its own and those it passes on from its sprites.
+        /// Raises the tornado, the monster and the explosion of <see cref="RulesEvents.Disasters"/>, the
+        /// <see cref="RulesEvents.Crashes"/> and <see cref="RulesEvents.HeavyTraffic"/>, its own and those it passes on
+        /// from its sprites.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -192,7 +193,7 @@ namespace Micropolis.Rules
             long y = Random.GetRandom((int)SpriteUtils.WorldToPix(Map.Height) - 200) + 100;
 
             MakeSprite(SpriteType.Tornado, x, y);
-            Events.Emit(Messages.TORNADO_SIGHTED,
+            Events.Emit(RulesEvents.TornadoSighted,
                         NewsPlaces.Trackable(SpriteUtils.PixToWorld(x) + 3, SpriteUtils.PixToWorld(y) + 2, SpriteType.Tornado));
         }
 
@@ -309,7 +310,7 @@ namespace Micropolis.Rules
         private void MakeMonsterAt(int x, int y)
         {
             MakeSprite(SpriteType.Monster, SpriteUtils.WorldToPix(x) + 48, SpriteUtils.WorldToPix(y));
-            Events.Emit(Messages.MONSTER_SIGHTED, NewsPlaces.Trackable(x + 5, y, SpriteType.Monster));
+            Events.Emit(RulesEvents.MonsterSighted, NewsPlaces.Trackable(x + 5, y, SpriteType.Monster));
         }
 
         /// <summary>
@@ -355,7 +356,7 @@ namespace Micropolis.Rules
             long y = sprite.Y + sprite.YHot;
             MakeExplosionAt(x, y);
 
-            string? crash = sprite.Traits.CrashMessage;
+            EventName<NewsPlace>? crash = sprite.Traits.Crash;
 
             if (crash is not null)
             {

@@ -42,7 +42,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Raises <see cref="Messages.NOT_ENOUGH_POWER"/> when a power scan finds the load above the capacity.
+        /// Raises <see cref="RulesEvents.NotEnoughPower"/> when a power scan finds the load above the capacity.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -121,7 +121,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Walks the conductive tiles from each power source on the stack, powering them in the grid until the walk
-        /// passes what the plants deliver, and raises <see cref="Messages.NOT_ENOUGH_POWER"/> when it does.
+        /// passes what the plants deliver, and raises <see cref="RulesEvents.NotEnoughPower"/> when it does.
         /// </summary>
         /// <remarks>
         /// As in the original, a plant beside another is walked as a load of the first rather than as a source. The
@@ -188,7 +188,7 @@ namespace Micropolis.Rules
 
             if (powerConsumption > maxPower)
             {
-                Events.Emit(Messages.NOT_ENOUGH_POWER);
+                Events.Emit(RulesEvents.NotEnoughPower);
             }
         }
 

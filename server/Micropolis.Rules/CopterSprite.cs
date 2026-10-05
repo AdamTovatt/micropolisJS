@@ -78,7 +78,7 @@ namespace Micropolis.Rules
                 {
                     if (blockMaps.TrafficDensityMap.WorldGet((int)x, (int)y) > 170 && (manager.Random.GetRandom16() & 7) == 0)
                     {
-                        manager.Events.Emit(Messages.HEAVY_TRAFFIC, NewsPlaces.Showable(x + 1, y + 1));
+                        manager.Events.Emit(RulesEvents.HeavyTraffic, NewsPlaces.Showable(x + 1, y + 1));
                         sprite.SoundCount = 200;
                     }
                 }

@@ -112,7 +112,7 @@ namespace Micropolis.Rules
         public IReadOnlyList<ScoreStep> CityScoreBreakdown { get; internal set; }
 
         /// <summary>
-        /// Raises <see cref="Messages.CLASSIFICATION_UPDATED"/> and <see cref="Messages.SCORE_UPDATED"/>.
+        /// Raises <see cref="RulesEvents.ClassificationUpdated"/> and <see cref="RulesEvents.ScoreUpdated"/>.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -247,7 +247,7 @@ namespace Micropolis.Rules
             if (CityClass != CityClassLast)
             {
                 CityClassLast = CityClass;
-                Events.Emit(Messages.CLASSIFICATION_UPDATED, SavedName.Of(CityClass));
+                Events.Emit(RulesEvents.ClassificationUpdated, SavedName.Of(CityClass));
             }
         }
 
@@ -498,7 +498,7 @@ namespace Micropolis.Rules
 
             if (CityScoreDelta != 0)
             {
-                Events.Emit(Messages.SCORE_UPDATED, CityScore);
+                Events.Emit(RulesEvents.ScoreUpdated, CityScore);
             }
         }
 
