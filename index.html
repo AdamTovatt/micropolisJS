@@ -43,6 +43,13 @@
               <button id="splashGenerate" class="width140 block margin10">Generate another</button>
             </div>
           </div>
+          <div id="splashOldSave" class="hidden">
+            <h3 class="chunk">A city saved in this browser</h3>
+            <p>This browser kept a city from before cities were kept on the server. Start it on the server as a new city, download it as a file, or discard it. The browser stops keeping it once it has started, been downloaded or been discarded.</p>
+            <button id="splashOldSaveStart" class="margin10">Start it</button>
+            <button id="splashOldSaveDownload" class="margin10">Download it</button>
+            <button id="splashOldSaveDiscard" class="margin10">Discard it</button>
+          </div>
           <div id="splashCities" class="hidden">
             <h3 class="chunk">Your cities</h3>
             <ul id="splashCityList"></ul>
@@ -150,6 +157,9 @@
             </div>
             <div>
               <button id="saveRequest" class="miscButton loadSave">Save</button>
+            </div>
+            <div>
+              <button id="downloadRequest" class="miscButton loadSave">Download</button>
             </div>
             <div>
               <button id="settingsRequest" class="miscButton">Settings</button>

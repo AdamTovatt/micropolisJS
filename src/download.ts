@@ -11,7 +11,20 @@
  *
  */
 
-// Files the page gives the player to keep, such as the debug window's command log
+// Files the page gives the player to keep: a city's save, which Load on the splash screen starts again as a new city,
+// and the debug window's command log
+
+// The characters a file name can't hold on one file system or another: path separators, the ones Windows reserves, and
+// control characters
+// eslint-disable-next-line no-control-regex
+const UNSAFE_IN_FILE_NAMES = /[\\/:*?"<>|\u0000-\u001f\u007f]/g;
+
+// The name of a city's save file: the city's name, with each character a file name can't hold made an underscore, and
+// without spaces at either end or the leading dots that would hide the file. A name with nothing left is "city".
+export function saveFileName(cityName: string): string {
+  const name = cityName.replace(UNSAFE_IN_FILE_NAMES, "_").replace(/^[\s.]+/, "").trimEnd();
+  return `${name === "" ? "city" : name}.json`;
+}
 
 // Has the browser save the JSON text as a file under the name
 export function downloadJson(fileName: string, text: string): void {

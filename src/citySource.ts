@@ -65,6 +65,8 @@ export interface CitySource extends QuerySource {
   send(command: Command): void;
   // Saves the city in the server's store, and resolves once the store has kept it
   save(): Promise<void>;
+  // The saved game's text, the city's name with it, for the player to keep as a file: it is kept nowhere
+  download(): Promise<string>;
   // The session's command log: every command applied since the city started, and checkpoints of its state hash
   commandLog(): Promise<SessionLog>;
 }

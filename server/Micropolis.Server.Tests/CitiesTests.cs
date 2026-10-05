@@ -35,8 +35,8 @@ namespace Micropolis.Server.Tests
         // What a request fails with when the store can't be reached
         private const string StoreFailed = "The server couldn't reach the store it keeps its cities in";
 
-        // What a save past the client address's limit fails with
-        private const string TooManySaves = "Too many saves were made from here. Try again in a few seconds.";
+        // What a save or a download past the client address's limit fails with
+        private const string TooManyCopies = "Too many saves and downloads were made from here. Try again in a few seconds.";
 
         // A tornado's sprite type, as the protocol numbers it
         private const int Tornado = (int)SpriteType.Tornado;
@@ -480,7 +480,7 @@ namespace Micropolis.Server.Tests
             string city = await ada.StartAsync();
             await grace.JoinAsync(city);
 
-            for (int i = 0; i < CityLimits.SaveBurst; i++)
+            for (int i = 0; i < CityLimits.CopyBurst; i++)
             {
                 await ada.SaveAsync();
             }
@@ -489,10 +489,96 @@ namespace Micropolis.Server.Tests
             // Another player from the same address shares its limit
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => grace.SaveAsync());
 
-            Assert.AreEqual(TooManySaves, failed.Message);
+            Assert.AreEqual(TooManyCopies, failed.Message);
             Assert.AreNotEqual(await grace.SavedGameAsync(), await server.StoredAsync(city));
             // Still connected, and still in the city
             await PlaySecondAsync(grace);
+        }
+
+        [TestMethod]
+        public async Task Download_CityChangedSinceItStarted_AnswersItsSaveAndKeepsItNowhere()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            string city = await ada.StartAsync();
+            string? started = await server.StoredAsync(city);
+            await PlaySecondAsync(ada);
+
+            string downloaded = await ada.DownloadAsync();
+
+            Assert.AreEqual(await ada.SavedGameAsync(), downloaded);
+            Assert.AreNotEqual(started, downloaded, "The city didn't change from its start");
+            Assert.AreEqual(started, await server.StoredAsync(city));
+        }
+
+        // A download takes the whole city as a save does, so the two share the address's limit
+        [TestMethod]
+        public async Task Download_PastTheSavesAnAddressMay_FailsSayingSoAndKeepsTheConnection()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync();
+
+            for (int i = 0; i < CityLimits.CopyBurst; i++)
+            {
+                await ada.SaveAsync();
+            }
+
+            RequestFailedException download = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.DownloadAsync());
+
+            Assert.AreEqual(TooManyCopies, download.Message);
+            // Still connected, and still in the city
+            await PlaySecondAsync(ada);
+        }
+
+        [TestMethod]
+        public async Task Save_PastTheDownloadsAnAddressMay_FailsSayingSo()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync();
+
+            for (int i = 0; i < CityLimits.CopyBurst; i++)
+            {
+                await ada.DownloadAsync();
+            }
+
+            RequestFailedException save = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.SaveAsync());
+
+            Assert.AreEqual(TooManyCopies, save.Message);
+        }
+
+        [TestMethod]
+        public async Task Download_BeforeAnyCity_FailsSayingSo()
+        {
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync();
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+
+            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.DownloadAsync());
+
+            Assert.AreEqual("No city has started", failed.Message);
+        }
+
+        // A player keeps a city as a file in every build, unlike the debug channel's saved game, which a Release build
+        // refuses
+        [TestMethod]
+        [TestCategory(ReleaseBuild.Category)]
+        public async Task Download_ReleaseBuild_AnswersTheCitysSave()
+        {
+            if (DebugChannel.IsBuiltIn)
+            {
+                Assert.Inconclusive("A Debug build answers the debug channel too.");
+            }
+
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync();
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync("Kept", seed: 7);
+
+            string downloaded = await ada.DownloadAsync();
+
+            Simulation city = SavedGame.Load(downloaded, out string name);
+            Assert.AreEqual("Kept", name);
+            Assert.AreEqual(7u, city.Seed);
         }
 
         [TestMethod]

@@ -461,6 +461,7 @@ export class InputStatus extends Emitter {
       [requiredElement("screenshotRequest"), UiMessages.SCREENSHOT_WINDOW_REQUESTED],
       [requiredElement("settingsRequest"), UiMessages.SETTINGS_WINDOW_REQUESTED],
       [requiredElement("saveRequest"), UiMessages.SAVE_REQUESTED],
+      [requiredElement("downloadRequest"), UiMessages.DOWNLOAD_REQUESTED],
       [requiredElement("debugRequest"), UiMessages.DEBUG_WINDOW_REQUESTED],
     ];
     for (const [button, message] of requests) {

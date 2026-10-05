@@ -52,6 +52,7 @@ function stubSource() {
         save: async () => {
             throw new Error("The city failed");
         },
+        download: async () => "a save's text",
         commandLog: async () => ({log: {}, step: 0}),
     };
 

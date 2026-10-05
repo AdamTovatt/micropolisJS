@@ -19,9 +19,9 @@ namespace Micropolis.Server
     /// <summary>
     /// What one client address may do in the cities, as the sign-in rate limit bounds the players it signs in: how fast
     /// its connections send commands, which a city keeps in its log for as long as it is loaded and echoes to every
-    /// player in it, how many cities it starts or uploads, which the store keeps, and how often it saves one, which
-    /// writes the whole city to the store. Players behind a proxy the server doesn't trust share one address, and so
-    /// these limits, as they share the sign-in limit.
+    /// player in it, how many cities it starts or uploads, which the store keeps, and how often it copies a whole city
+    /// out, saving it to the store or downloading it. Players behind a proxy the server doesn't trust share one
+    /// address, and so these limits, as they share the sign-in limit.
     /// </summary>
     internal sealed class CityLimits : IDisposable
     {
@@ -45,15 +45,15 @@ namespace Micropolis.Server
         public static readonly int CommandBurstCharacters = 2 * CommandReader.MaxCommandLength(MapGenerator.MapWidth, MapGenerator.MapHeight);
 
         /// <summary>
-        /// How many saves one client address may make at once, each a whole city written to the store: room for players
-        /// who share an address, each saving a few times in a row.
+        /// How many copies of a whole city one client address may make at once, saves and downloads alike: room for
+        /// players who share an address, each saving a few times in a row.
         /// </summary>
-        public const int SaveBurst = 10;
+        public const int CopyBurst = 10;
 
         /// <summary>
-        /// How often one client address may save, past the burst.
+        /// How often one client address may copy a city, past the burst.
         /// </summary>
-        public static readonly TimeSpan SaveInterval = TimeSpan.FromSeconds(6);
+        public static readonly TimeSpan CopyInterval = TimeSpan.FromSeconds(6);
 
         private readonly PartitionedRateLimiter<string> _cities = PartitionedRateLimiter.Create<string, string>(address =>
             RateLimitPartition.GetFixedWindowLimiter(address, _ => new FixedWindowRateLimiterOptions
@@ -70,20 +70,20 @@ namespace Micropolis.Server
                 ReplenishmentPeriod = TimeSpan.FromSeconds(1),
             }));
 
-        private readonly PartitionedRateLimiter<string> _saves = PartitionedRateLimiter.Create<string, string>(address =>
+        private readonly PartitionedRateLimiter<string> _copies = PartitionedRateLimiter.Create<string, string>(address =>
             RateLimitPartition.GetTokenBucketLimiter(address, _ => new TokenBucketRateLimiterOptions
             {
-                TokenLimit = SaveBurst,
+                TokenLimit = CopyBurst,
                 TokensPerPeriod = 1,
-                ReplenishmentPeriod = SaveInterval,
+                ReplenishmentPeriod = CopyInterval,
             }));
 
         /// <summary>
-        /// Whether the address may save a city now, counting it if so.
+        /// Whether the address may copy a whole city now, to save or download it, counting it if so.
         /// </summary>
-        public bool TrySave(string address)
+        public bool TryCopyCity(string address)
         {
-            using RateLimitLease lease = _saves.AttemptAcquire(address);
+            using RateLimitLease lease = _copies.AttemptAcquire(address);
             return lease.IsAcquired;
         }
 
@@ -114,7 +114,7 @@ namespace Micropolis.Server
         {
             _cities.Dispose();
             _commands.Dispose();
-            _saves.Dispose();
+            _copies.Dispose();
         }
     }
 }

@@ -96,6 +96,10 @@ export class RecordingSource implements CitySource {
         return this.record("save", [], () => this.recorded.save());
     }
 
+    download(): Promise<string> {
+        return this.record("download", [], () => this.recorded.download());
+    }
+
     commandLog(): Promise<SessionLog> {
         return this.record("commandLog", [], () => this.recorded.commandLog());
     }

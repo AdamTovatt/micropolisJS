@@ -20,7 +20,7 @@ import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { DebugAction, DebugWindow } from "./debugWindow";
 import { DisasterWindow } from "./disasterWindow";
-import { downloadJson } from "./download";
+import { downloadJson, saveFileName } from "./download";
 import { isShown, requiredElement, setShown, toggleShown } from "./domElements";
 import { ToolPaths } from "./dragPath";
 import { errorMessage } from "./errorMessage";
@@ -82,6 +82,8 @@ export class Game {
   private readonly source: CitySource;
   private readonly state: CityState;
   private readonly seed: number;
+  // The city's name, which its downloaded save file is named after
+  private readonly cityName: string;
   private readonly autoBulldoze: AutoBulldozePreference;
   private readonly rci: RCI;
   private readonly statusPanel: StatusPanel;
@@ -115,6 +117,10 @@ export class Game {
   private settingsShown: SettingsRecord | null = null;
   // Whether the player can see the city, which decides whether the other players see this player's hover box
   private viewerVisible = false;
+  // Whether a save or a download is waiting on the server, which a click on the same button again doesn't repeat: each
+  // counts toward the limit on them the server keeps
+  private saving = false;
+  private downloading = false;
 
   // Debug mode's frame counter
   private readonly fpsValue = requiredElement("fpsValue");
@@ -177,6 +183,7 @@ export class Game {
     this.source = source;
     this.state = state;
     this.seed = started.seed;
+    this.cityName = started.name;
     this.autoBulldoze = new AutoBulldozePreference(pageStore());
 
     // A city on the server goes in the page's address, so the address invites another player in, and a reload rejoins
@@ -266,8 +273,9 @@ export class Game {
     this.queryWindow.addEventListener(UiMessages.QUERY_WINDOW_CLOSED, this.handleWindowClosure);
     this.queryTool = new QueryTool(source, (report) => this.windows.open(this.queryWindow, report));
 
-    // Listen for clicks on the save button
+    // Listen for clicks on the save and download buttons
     this.inputStatus.addEventListener(UiMessages.SAVE_REQUESTED, () => this.handleSave());
+    this.inputStatus.addEventListener(UiMessages.DOWNLOAD_REQUESTED, () => this.handleDownload());
 
     // Listen for tool clicks
     this.inputStatus.addEventListener(UiMessages.TOOL_CLICKED, (data: ToolClick) => this.handleTool(data));
@@ -493,9 +501,33 @@ export class Game {
   // The server keeps the city in its store, and the window opens once it has. A save the server refuses, or one on a
   // server the connection to is down, is said out loud.
   private handleSave(): void {
+    if (this.saving) {
+      return;
+    }
+
+    this.saving = true;
     this.source.save().then(() => {
       this.windows.open(this.saveWindow);
-    }, (error: unknown) => window.alert(`The city couldn't be saved: ${errorMessage(error)}`));
+    }, (error: unknown) => window.alert(`The city couldn't be saved: ${errorMessage(error)}`))
+      .finally(() => {
+        this.saving = false;
+      });
+  }
+
+  // Gives the player the city's save as a file named after the city, which Load on the splash screen starts again as
+  // a new city. A download the server refuses, or one on a server the connection to is down, is said out loud.
+  private handleDownload(): void {
+    if (this.downloading) {
+      return;
+    }
+
+    this.downloading = true;
+    this.source.download().then((text) => {
+      downloadJson(saveFileName(this.cityName), text);
+    }, (error: unknown) => window.alert(`The city couldn't be downloaded: ${errorMessage(error)}`))
+      .finally(() => {
+        this.downloading = false;
+      });
   }
 
   private handleInput(): void {

@@ -33,6 +33,7 @@ namespace Micropolis.Rules
     [JsonDerivedType(typeof(CommandMessage), "command")]
     [JsonDerivedType(typeof(QueryRequest), "query")]
     [JsonDerivedType(typeof(SaveRequest), "save")]
+    [JsonDerivedType(typeof(DownloadRequest), "download")]
     [JsonDerivedType(typeof(CommandLogRequest), "commandLog")]
     [JsonDerivedType(typeof(HoldRequest), "hold")]
     [JsonDerivedType(typeof(ReleaseRequest), "release")]
@@ -100,6 +101,12 @@ namespace Micropolis.Rules
     /// it.
     /// </summary>
     public sealed record SaveRequest(long Id) : ClientRequest(Id);
+
+    /// <summary>
+    /// The saved game's text of the city the player is in, as the game saves one, for the player to keep as a file. It
+    /// reaches no store. The answer is the text.
+    /// </summary>
+    public sealed record DownloadRequest(long Id) : ClientRequest(Id);
 
     /// <summary>
     /// The city's session log. The answer is a <see cref="SessionLog"/>.
@@ -171,6 +178,7 @@ namespace Micropolis.Rules
                 ["command"] = Fields(required: ["command"]),
                 ["query"] = Fields(required: ["id", "query"]),
                 ["save"] = Fields(required: ["id"]),
+                ["download"] = Fields(required: ["id"]),
                 ["commandLog"] = Fields(required: ["id"]),
                 ["hold"] = Fields(required: ["id"]),
                 ["release"] = Fields(required: ["id"]),
@@ -221,6 +229,7 @@ namespace Micropolis.Rules
                 "join" => new JoinRequest(id, String(message, "city")),
                 "query" => new QueryRequest(id, message["query"]?.DeepClone()),
                 "save" => new SaveRequest(id),
+                "download" => new DownloadRequest(id),
                 "commandLog" => new CommandLogRequest(id),
                 "hold" => new HoldRequest(id),
                 "release" => new ReleaseRequest(id),

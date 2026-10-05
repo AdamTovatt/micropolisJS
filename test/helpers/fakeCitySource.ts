@@ -91,6 +91,10 @@ export class FakeCitySource implements CitySource {
         this.play("save", []);
     }
 
+    async download(): Promise<string> {
+        return this.play("download", []) as string;
+    }
+
     async commandLog(): Promise<SessionLog> {
         return this.play("commandLog", []) as SessionLog;
     }

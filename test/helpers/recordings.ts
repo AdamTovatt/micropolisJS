@@ -26,8 +26,8 @@ import { repositoryPath } from "./repository";
 export type SignalName = "send";
 
 // The calls a source answers once it has made them, after the state they changed
-export type RequestName = "start" | "save" | "commandLog" | "hold" | "release" | "flush" | "advance" | "cityTime"
-    | "savedGame";
+export type RequestName = "start" | "save" | "download" | "commandLog" | "hold" | "release" | "flush" | "advance"
+    | "cityTime" | "savedGame";
 
 // The calls of a city source and its driver that are recorded: every one but a query, and isHeld, which the source
 // answers from its own last hold or release

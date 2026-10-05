@@ -49,6 +49,9 @@ const RECORDING: Recording = {
         "save fails": [
             {call: "save", arguments: [], messages: [POPULATION], throws: "The city failed"},
         ],
+        "download": [
+            {call: "download", arguments: [], messages: [], returns: "a save's text"},
+        ],
     },
 };
 
@@ -139,6 +142,13 @@ describe("the fake city source", () => {
 
         await expect(source.save()).rejects.toThrow("The city failed");
         expect(delivered).toEqual([DATE, POPULATION]);
+    });
+
+    it("gives the save text recorded for a download", async () => {
+        const {source} = await started("download");
+
+        await expect(source.download()).resolves.toBe("a save's text");
+        expect(source.unplayed()).toEqual([]);
     });
 
     it("lists the calls not yet made", async () => {
