@@ -18,12 +18,11 @@ using Micropolis.Rules;
 namespace Micropolis.Headless
 {
     /// <summary>
-    /// What a run starts from: a map generated from a seed, or the named fixture, exactly one. A fixture's saved stream
-    /// is authoritative unless <paramref name="Reseed"/> replaces it with the simulation stream of that seed, and its
-    /// saved speed unless <paramref name="Speed"/> overrides it; a new city from a seed starts at medium, as in the
-    /// browser.
+    /// What a run starts from: a map generated from a seed, or the named fixture's city as built, exactly one. A
+    /// fixture runs at its saved speed unless <paramref name="Speed"/> overrides it; a new city from a seed starts at
+    /// medium, as in the browser.
     /// </summary>
-    internal sealed record RunStart(uint? Seed, string? Fixture, uint? Reseed, Speed? Speed);
+    internal sealed record RunStart(uint? Seed, string? Fixture, Speed? Speed);
 
     internal abstract record HeadlessCommand;
 
@@ -43,19 +42,19 @@ namespace Micropolis.Headless
     internal sealed record WriteFixtures : HeadlessCommand;
 
     /// <summary>
-    /// The headless runner's arguments: <c>(--seed &lt;n&gt; | --fixture &lt;name&gt; [--reseed &lt;n&gt;]) [--speed
-    /// &lt;speed&gt;] --steps &lt;n&gt;</c>, or <c>--log &lt;file&gt;</c> alone; and <c>--write-fixtures</c> alone.
+    /// The headless runner's arguments: <c>(--seed &lt;n&gt; | --fixture &lt;name&gt;) [--speed &lt;speed&gt;] --steps
+    /// &lt;n&gt;</c>, or <c>--log &lt;file&gt;</c> alone; and <c>--write-fixtures</c> alone.
     /// </summary>
     internal static partial class HeadlessCommandLine
     {
         public const string Usage =
-            "Usage: Micropolis.Headless (--seed <n> | --fixture <name> [--reseed <n>]) [--speed slow|medium|fast] --steps <n>\n" +
+            "Usage: Micropolis.Headless (--seed <n> | --fixture <name>) [--speed slow|medium|fast] --steps <n>\n" +
             "       Micropolis.Headless --log <file>\n" +
             "       Micropolis.Headless --write-fixtures";
 
         private const string WriteFixturesOption = "--write-fixtures";
 
-        private static readonly string[] ValueOptions = ["--seed", "--fixture", "--reseed", "--speed", "--steps", "--log"];
+        private static readonly string[] ValueOptions = ["--seed", "--fixture", "--speed", "--steps", "--log"];
 
         /// <summary>
         /// The arguments parsed, or an <see cref="ArgumentException"/> naming what is wrong with them.
@@ -118,8 +117,7 @@ namespace Micropolis.Headless
 
             long steps = WholeNumber(options, "--steps", long.MaxValue) ?? throw new ArgumentException("--steps is required.");
 
-            return new RunCity(new RunStart((uint?)WholeNumber(options, "--seed", uint.MaxValue), options.GetValueOrDefault("--fixture"),
-                                            (uint?)WholeNumber(options, "--reseed", uint.MaxValue), speed), steps);
+            return new RunCity(new RunStart((uint?)WholeNumber(options, "--seed", uint.MaxValue), options.GetValueOrDefault("--fixture"), speed), steps);
         }
 
         // A whole number from 0 to max, which a cast to the option's own type then holds

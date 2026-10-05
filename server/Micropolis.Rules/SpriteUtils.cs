@@ -20,7 +20,7 @@ namespace Micropolis.Rules
     internal static class SpriteUtils
     {
         /// <summary>
-        /// The tile of a pixel, as JavaScript's <c>p &gt;&gt; 4</c>, which rounds down: the pixels from -16 to -1 fall
+        /// The tile of a pixel, <c>p &gt;&gt; 4</c>, which rounds down: the pixels from -16 to -1 fall
         /// in tile -1.
         /// </summary>
         public static long PixToWorld(long p)
@@ -40,7 +40,6 @@ namespace Micropolis.Rules
         /// </summary>
         public static long WorldToPix(int w)
         {
-            // JavaScript's << on an int32
             return w << 4;
         }
 

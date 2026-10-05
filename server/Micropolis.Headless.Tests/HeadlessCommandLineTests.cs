@@ -23,15 +23,15 @@ namespace Micropolis.Headless.Tests
         {
             HeadlessCommand command = HeadlessCommandLine.Parse(["--seed", "4294967295", "--speed", "fast", "--steps", "3000"]);
 
-            Assert.AreEqual(new RunCity(new RunStart(uint.MaxValue, null, null, Speed.Fast), 3000), command);
+            Assert.AreEqual(new RunCity(new RunStart(uint.MaxValue, null, Speed.Fast), 3000), command);
         }
 
         [TestMethod]
-        public void Parse_FixtureReseeded_RunsTheFixture()
+        public void Parse_Fixture_RunsTheFixture()
         {
-            HeadlessCommand command = HeadlessCommandLine.Parse(["--steps", "0", "--fixture", "town", "--reseed", "7"]);
+            HeadlessCommand command = HeadlessCommandLine.Parse(["--steps", "0", "--fixture", "town"]);
 
-            Assert.AreEqual(new RunCity(new RunStart(null, "town", 7, null), 0), command);
+            Assert.AreEqual(new RunCity(new RunStart(null, "town", null), 0), command);
         }
 
         [TestMethod]

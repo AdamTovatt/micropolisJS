@@ -17,36 +17,13 @@ using static Micropolis.Rules.Tests.FixtureCities;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The step loop around the phases: the speed gate, the sprite seam and the date.
+    /// The step loop around the phases: the speed gate, the sprite seam and the date. The steps the gate lets a phase
+    /// through at each speed are <c>conformance/speedGate.json</c>, which the fixture tool's tests hold to the rules
+    /// byte for byte.
     /// </summary>
     [TestClass]
     public sealed class SimulationStepTests
     {
-        private static readonly ConformanceSpeedGate Gate = ConformanceSpeedGate.Load();
-
-        public static IEnumerable<object[]> GatedSpeeds => Gate.Speeds.Select(speed => new object[] { speed.Speed });
-
-        [TestMethod]
-        [DynamicData(nameof(GatedSpeeds))]
-        public void TakeSpeedCycle_ComparedWithSpeedGate_LetsAPhaseThroughAtTheSameSteps(string speedName)
-        {
-            GatedSpeed expected = Gate.Speeds.Single(speed => speed.Speed == speedName);
-            Simulation city = City(Gate.Fixture, "built");
-            city.SetSpeed(Enum.Parse<Speed>(speedName, ignoreCase: true));
-            List<int> phaseSteps = new List<int>();
-
-            Assert.AreEqual(expected.SpeedCycle, city.SpeedCycle);
-            for (int step = 0; step < Gate.Steps; step++)
-            {
-                if (city.TakeSpeedCycle())
-                {
-                    phaseSteps.Add(step);
-                }
-            }
-
-            CollectionAssert.AreEqual(expected.PhaseSteps.ToList(), phaseSteps);
-        }
-
         // A sprite-free city's steps that run no phase move nothing, and announce the date once
         [TestMethod]
         public void Step_SpriteFreeCityBetweenPhases_AdvancesTheCountersAndAnnouncesTheDate()

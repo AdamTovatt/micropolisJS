@@ -63,6 +63,29 @@ namespace Micropolis.Conformance.Tests
         }
 
         [TestMethod]
+        public void StartCity_NoSpeed_IsTheSavesCity()
+        {
+            string text = FixtureSaves.At("suburb", FixtureSaves.Built).ReadCommitted();
+
+            Assert.AreEqual(text, CanonicalJson.Write(FixtureSaves.StartCity(text, null).Save()));
+        }
+
+        // Only the speed changes: the city at another speed is the save's, its stream included
+        [TestMethod]
+        public void StartCity_GivenAnotherSpeed_ChangesOnlyTheSpeed()
+        {
+            string text = FixtureSaves.At("suburb", FixtureSaves.Built).ReadCommitted();
+            Speed saved = FixtureSaves.StartCity(text, null).Speed;
+            Speed other = saved == Speed.Fast ? Speed.Slow : Speed.Fast;
+
+            Simulation city = FixtureSaves.StartCity(text, other);
+
+            Assert.AreEqual(other, city.Speed);
+            city.SetSpeed(saved);
+            Assert.AreEqual(text, CanonicalJson.Write(city.Save()));
+        }
+
+        [TestMethod]
         public void TextOf_SaveNotAmongThem_ThrowsNamingIt()
         {
             InvalidDataException exception = Assert.ThrowsExactly<InvalidDataException>(() => FixtureSaves.TextOf([], "town", FixtureSaves.Run));

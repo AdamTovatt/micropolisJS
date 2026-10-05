@@ -72,7 +72,7 @@ namespace Micropolis.Rules
                     }
                     else
                     {
-                        // JavaScript's >> and C#'s on an int both shift arithmetically
+                        // A quarter of the sum, rounding down
                         edges = (edges + src.Get(x, y)) >> 2;
                         if (edges > 255)
                         {

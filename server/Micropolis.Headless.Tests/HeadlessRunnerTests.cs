@@ -48,7 +48,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_FixtureForItsRun_EndsAtItsRunCheckpoint()
         {
-            RunReport report = HeadlessRunner.Run(new RunCity(new RunStart(null, "town", null, null), Fixtures.RunSteps), HeadlessFiles.Committed);
+            RunReport report = HeadlessRunner.Run(new RunCity(new RunStart(null, "town", null), Fixtures.RunSteps), HeadlessFiles.Committed);
 
             Assert.AreEqual(Committed("town").Checkpoints[1].Hash, report.Lines[0]);
             Assert.IsNull(report.Failure);
@@ -61,7 +61,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_Seed_PrintsTheHashThenTheYearPopulationAndFunds()
         {
-            RunReport report = HeadlessRunner.Run(new RunCity(new RunStart(5, null, null, Speed.Fast), 2000), HeadlessFiles.Committed);
+            RunReport report = HeadlessRunner.Run(new RunCity(new RunStart(5, null, Speed.Fast), 2000), HeadlessFiles.Committed);
 
             Simulation city = Simulation.NewCity(5, Level.Easy, Speed.Fast);
             for (int i = 0; i < 2000; i++)
@@ -75,59 +75,44 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void StartCity_Fixture_IsItsCityAsBuilt()
         {
-            Assert.AreEqual(Committed("suburb").Checkpoints[0].Hash, Hash(HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null), ConformanceDirectories.Committed)));
+            Assert.AreEqual(Committed("suburb").Checkpoints[0].Hash, Hash(HeadlessRunner.StartCity(new RunStart(null, "suburb", null), ConformanceDirectories.Committed)));
         }
 
+        // The city is the built save the directories hold, read rather than built again from the fixture's log
         [TestMethod]
-        public void StartCity_FixtureAtAnotherSpeed_KeepsItsStream()
+        public void StartCity_Fixture_LoadsTheBuiltSaveInTheDirectories()
         {
-            Simulation saved = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null), ConformanceDirectories.Committed);
+            using TemporaryDirectory conformance = new TemporaryDirectory();
+            FixtureSavePoint built = FixtureSaves.At("suburb", FixtureSaves.Built);
+            JsonObject save = JsonNode.Parse(built.ReadCommitted())!.AsObject();
+            save["budget"]!["totalFunds"] = 12345;
+            conformance.Write(Path.Combine("saves", Path.GetFileName(built.FilePath(conformance.Conformance))), CanonicalJson.Write(save));
 
-            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, Speed.Fast), ConformanceDirectories.Committed);
+            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", null), conformance.Conformance);
 
-            Assert.AreEqual(Speed.Medium, saved.Speed);
-            Assert.AreEqual(Speed.Fast, city.Speed);
-            CollectionAssert.AreEqual(saved.Random.GetState(), city.Random.GetState());
+            Assert.AreEqual(12345L, city.Budget.TotalFunds);
         }
 
+        // That only the speed changes is FixtureSavesTests'; the run's speed reaching the city is the runner's
         [TestMethod]
-        public void StartCity_FixtureReseeded_TakesTheSeedAndItsSimulationStream()
+        [DataRow(Speed.Slow)]
+        [DataRow(Speed.Fast)]
+        public void StartCity_FixtureGivenASpeed_RunsAtIt(Speed speed)
         {
-            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", 7, null), ConformanceDirectories.Committed);
+            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", speed), ConformanceDirectories.Committed);
 
-            Assert.AreEqual(7u, city.Seed);
-            CollectionAssert.AreEqual(RandomStream.SimulationStream(7).GetState(), city.Random.GetState());
-            Assert.AreEqual(Speed.Medium, city.Speed);
+            Assert.AreEqual(speed, city.Speed);
         }
 
         [TestMethod]
-        [DataRow(null, null, null, "A run starts from either a seed or a fixture", DisplayName = "neither")]
-        [DataRow(1u, "town", null, "A run starts from either a seed or a fixture", DisplayName = "both")]
-        [DataRow(1u, null, 2u, "Reseeding replaces a fixture's stream", DisplayName = "a seed reseeded")]
-        public void StartCity_WrongStart_ThrowsNamingTheProblem(uint? seed, string? fixture, uint? reseed, string problem)
+        [DataRow(null, null, DisplayName = "neither")]
+        [DataRow(1u, "town", DisplayName = "both")]
+        public void StartCity_NotExactlyOneStart_ThrowsNamingTheProblem(uint? seed, string? fixture)
         {
             ArgumentException exception = Assert.ThrowsExactly<ArgumentException>(
-                () => HeadlessRunner.StartCity(new RunStart(seed, fixture, reseed, null), ConformanceDirectories.Committed));
+                () => HeadlessRunner.StartCity(new RunStart(seed, fixture, null), ConformanceDirectories.Committed));
 
-            StringAssert.Contains(exception.Message, problem);
-        }
-
-        [TestMethod]
-        public void StartFromSave_SavedPausedWithNoSpeed_ThrowsAskingForOne()
-        {
-            JsonObject save = Simulation.NewCity(1, Level.Easy, Speed.Paused).Save();
-
-            ArgumentException exception = Assert.ThrowsExactly<ArgumentException>(() => HeadlessRunner.StartFromSave(save, null, null));
-
-            Assert.AreEqual("The city is saved paused: give a speed to run it", exception.Message);
-        }
-
-        [TestMethod]
-        public void StartFromSave_SavedPausedGivenASpeed_RunsAtIt()
-        {
-            JsonObject save = Simulation.NewCity(1, Level.Easy, Speed.Paused).Save();
-
-            Assert.AreEqual(Speed.Slow, HeadlessRunner.StartFromSave(save, null, Speed.Slow).Speed);
+            Assert.AreEqual("A run starts from either a seed or a fixture", exception.Message);
         }
 
         [TestMethod]

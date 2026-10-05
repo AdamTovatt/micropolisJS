@@ -58,7 +58,7 @@ namespace Micropolis.Rules
         /// </summary>
         public void DoDisasters(Level gameLevel, Census census)
         {
-            // A JavaScript number's truthiness: a negative count, which no flood leaves, still counts down
+            // Any count but 0 counts down, a negative one too, though no flood leaves one
             if (FloodCount != 0)
             {
                 FloodCount--;

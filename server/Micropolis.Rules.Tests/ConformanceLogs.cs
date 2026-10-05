@@ -13,7 +13,6 @@
 
 using System.Text.Json.Nodes;
 using Micropolis.SourceTree;
-using static Micropolis.Rules.Tests.ConformanceJson;
 
 namespace Micropolis.Rules.Tests
 {
@@ -97,6 +96,31 @@ namespace Micropolis.Rules.Tests
 
             ConformanceFile.NonEmpty("checkpoints", parsed.Checkpoints);
             return new ConformanceLog(name, parsed);
+        }
+
+        // An object that holds every required key, and otherwise only optional ones
+        private static JsonObject Members(JsonNode? node, string what, string[] required, string[]? optional = null)
+        {
+            if (node is not JsonObject value)
+            {
+                throw Broken($"{what} is not an object");
+            }
+
+            string? unknown = value.Select(member => member.Key)
+                .FirstOrDefault(key => !required.Contains(key) && !(optional ?? []).Contains(key));
+            string? missing = required.FirstOrDefault(key => !value.ContainsKey(key));
+
+            if (unknown is not null || missing is not null)
+            {
+                throw Broken(unknown is not null ? $"{what} has an unknown member {unknown}" : $"{what} lacks {missing}");
+            }
+
+            return value;
+        }
+
+        private static InvalidDataException Broken(string problem)
+        {
+            return new InvalidDataException(problem);
         }
     }
 
