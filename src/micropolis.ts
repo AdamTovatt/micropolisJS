@@ -147,4 +147,6 @@ function showNoServer(): void {
 
 ClientConfig.debug = debugOption(window.location.search);
 
+// The page's entry, which nothing calls and so nothing waits on: start says what goes wrong on the page itself, and
+// anything it throws past that is a defect, left to the browser as an unhandled rejection
 void start(pageSeed(), linkedCity(window));

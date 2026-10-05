@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "es2020",
     "lib": ["es2020", "es2022.error", "dom"],
     "module": "commonjs",
     "outDir": "dist/src",
@@ -10,6 +10,9 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    // The type packages under node_modules disagree with each other, such as @types/eslint-scope, which webpack's
+    // types bring in, with eslint's own, so only our files are checked
+    "skipLibCheck": true
   }
 }

@@ -114,6 +114,7 @@ export function startTestServer(clock: TestServerClock, repositoryRoot = reposit
 
     return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
+            // The start fails at once with the server's output, and the caller, with no server, has no stop to wait on
             void stop();
             reject(new Error(`The server didn't listen within ${STARTUP_TIMEOUT_MS} ms:\n${output}`));
         }, STARTUP_TIMEOUT_MS);
