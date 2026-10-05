@@ -37,6 +37,7 @@ namespace Micropolis.Server
         private readonly Channel<string> _outbox = Channel.CreateBounded<string>(
             new BoundedChannelOptions(MaximumQueued) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
         private readonly object _closeLock = new object();
+        private readonly CancellationTokenSource _closed = new CancellationTokenSource();
         private WebSocketCloseStatus _closeStatus = WebSocketCloseStatus.NormalClosure;
         private string? _closeDescription;
         private volatile bool _closing;
@@ -52,6 +53,11 @@ namespace Micropolis.Server
         /// Whether the connection is closing, for whatever reason: what the client sends from then on is not read.
         /// </summary>
         public bool IsClosing => _closing;
+
+        /// <summary>
+        /// Cancelled as the connection starts to close, by the first <see cref="Close"/>.
+        /// </summary>
+        public CancellationToken Closing => _closed.Token;
 
         /// <summary>
         /// Queues the answer to the client's request with the id.
@@ -88,15 +94,23 @@ namespace Micropolis.Server
         /// </summary>
         public void Close(WebSocketCloseStatus status, string? description)
         {
+            bool first;
+
             lock (_closeLock)
             {
                 _closing = true;
+                first = _outbox.Writer.TryComplete();
 
-                if (_outbox.Writer.TryComplete())
+                if (first)
                 {
                     _closeStatus = status;
                     _closeDescription = description is null ? null : CutToCloseFrame(description);
                 }
+            }
+
+            if (first)
+            {
+                _closed.Cancel();
             }
         }
 

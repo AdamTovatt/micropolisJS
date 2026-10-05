@@ -20,6 +20,7 @@ using System.Text.Json.Nodes;
 using EasyReasy.Auth;
 using Micropolis.Rules;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Micropolis.Server.Tests
 {
@@ -214,11 +215,9 @@ namespace Micropolis.Server.Tests
             await adaSocket.ReceiveAsync<HelloMessage>();
             await graceSocket.ReceiveAsync<PlayersMessage>();
 
+            // The server starts the timeout as the expiry closes the connection
             city.Time.Advance(TimeSpan.FromHours(1));
             await adaSocket.ReceiveCloseAsync(answer: false);
-            // The server starts the timeout once its close frame is out; this quiet while lets it, so the clock moves
-            // from there
-            await graceSocket.ExpectNothingAsync();
             city.Time.Advance(CityEndpoint.CloseHandshakeTimeout - TimeSpan.FromSeconds(1));
             await graceSocket.ExpectNothingAsync();
             city.Time.Advance(TimeSpan.FromSeconds(1));
@@ -226,6 +225,34 @@ namespace Micropolis.Server.Tests
             PlayersMessage left = await graceSocket.ReceiveAsync<PlayersMessage>(within: TimeSpan.FromSeconds(1));
 
             CollectionAssert.AreEqual(new[] { new PlayerInfo(grace.PlayerId, "Grace") }, left.Players.ToArray());
+        }
+
+        // The test server's socket never blocks a send, so the test reaches the connection's loop through its seam, on a
+        // socket whose send waits as a real one's does once the client stops reading
+        [TestMethod]
+        public async Task Serve_ClientStopsReadingAndFallsTooFarBehind_DropsTheSocketOnceTheHandshakeTimeoutPassesOnTheServersClock()
+        {
+            FakeTimeProvider time = new FakeTimeProvider();
+            StalledSocket socket = new StalledSocket();
+            CityConnection connection = new CityConnection(new PlayerInfo("a", "Ada"));
+            Task serving = CityEndpoint.ServeAsync(socket, connection, _ => Task.CompletedTask, time, CancellationToken.None);
+            connection.Send("in flight");
+            await socket.Sending.WaitAsync(TimeSpan.FromSeconds(5));
+
+            for (int i = 0; i <= CityConnection.MaximumQueued; i++)
+            {
+                connection.Send($"queued {i}");
+            }
+
+            Assert.IsTrue(connection.IsClosing);
+            time.Advance(CityEndpoint.CloseHandshakeTimeout - TimeSpan.FromTicks(1));
+            // A quiet while, as TestSocket.ExpectNothingAsync gives, in which a connection dropped early would end
+            Assert.AreNotSame(serving, await Task.WhenAny(serving, Task.Delay(TimeSpan.FromMilliseconds(200))), "Dropped before the timeout");
+            time.Advance(TimeSpan.FromTicks(1));
+
+            // Well past what the connection's own work takes in real time, so only a send that never ends can miss it
+            await serving.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.IsTrue(socket.Dropped);
         }
 
         [TestMethod]

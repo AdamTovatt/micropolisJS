@@ -25,9 +25,6 @@ namespace Micropolis.Server.Tests
     [TestClass]
     public sealed class CitiesTests
     {
-        // How long a test waits for what the server does off the request it answers, such as saving a city a player left
-        private static readonly TimeSpan ServerWorkTimeout = TimeSpan.FromSeconds(5);
-
         // Clear land on seed 2026's map, where a road is built
         private const int ClearX = 30;
         private const int ClearY = 30;
@@ -345,6 +342,7 @@ namespace Micropolis.Server.Tests
         public async Task Leave_LastPlayer_SavesAndUnloadsTheCityWhichAJoinLoadsAgain()
         {
             await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
             string city;
             string saved;
 
@@ -355,10 +353,10 @@ namespace Micropolis.Server.Tests
                 await PlaySecondAsync(ada);
                 saved = await ada.SavedGameAsync();
                 await ada.Socket.CloseAsync();
+                await UntilOfflineAsync(ada, grace);
             }
 
-            await WaitForStoreAsync(server, city, saved);
-            await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
+            Assert.AreEqual(saved, await server.StoredAsync(city));
             await grace.JoinAsync(city);
 
             Assert.AreEqual(saved, await grace.SavedGameAsync());
@@ -493,6 +491,10 @@ namespace Micropolis.Server.Tests
             Assert.AreNotEqual(await grace.SavedGameAsync(), await server.StoredAsync(city));
             // Still connected, and still in the city
             await PlaySecondAsync(grace);
+            // The limit refills on the server's clock
+            server.Time.Advance(CityLimits.CopyInterval);
+            await grace.SaveAsync();
+            Assert.AreEqual(await grace.SavedGameAsync(), await server.StoredAsync(city));
         }
 
         [TestMethod]
@@ -585,6 +587,7 @@ namespace Micropolis.Server.Tests
         public async Task Join_StoredCityTheStoreCantRead_FailsSayingSo()
         {
             await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
             string city;
             string saved;
 
@@ -595,11 +598,11 @@ namespace Micropolis.Server.Tests
                 await PlaySecondAsync(ada);
                 saved = await ada.SavedGameAsync();
                 await ada.Socket.CloseAsync();
+                await UntilOfflineAsync(ada, grace);
             }
 
-            await WaitForStoreAsync(server, city, saved);
+            Assert.AreEqual(saved, await server.StoredAsync(city));
             TestCityDatabase.MakeUnreadable(server.Database);
-            await using TestPlayer grace = await TestPlayer.ConnectAsync(server, "Grace");
 
             RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => grace.JoinAsync(city));
 
@@ -950,20 +953,18 @@ namespace Micropolis.Server.Tests
             return JsonNode.Parse(savedGame)!["map"]!["tiles"]!;
         }
 
-        // Waits until the store holds the city's save, which the server writes as the last player leaves
-        private static async Task WaitForStoreAsync(ServerUnderTest server, string city, string saved)
+        // Waits until another player online hears that the player left, which the server says only once the player has
+        // left their city, and its last player leaving has saved it to the store, as the end-to-end suite's untilOffline
+        // relies on
+        private static async Task UntilOfflineAsync(TestPlayer left, TestPlayer online)
         {
-            DateTime giveUp = DateTime.UtcNow + ServerWorkTimeout;
+            PlayersMessage players;
 
-            while (await server.StoredAsync(city) != saved)
+            do
             {
-                if (DateTime.UtcNow > giveUp)
-                {
-                    Assert.Fail($"The store didn't hold the city's save within {ServerWorkTimeout}.");
-                }
-
-                await Task.Delay(20);
+                players = await online.Socket.ReceiveAsync<PlayersMessage>();
             }
+            while (players.Players.Any(player => player.Id == left.Session.PlayerId));
         }
     }
 }
