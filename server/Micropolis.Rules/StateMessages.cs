@@ -12,6 +12,7 @@
  *
  */
 
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
@@ -250,11 +251,70 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// The trips <see cref="Trips"/> offered since the last messages, each the route of a drive that arrived, in the
-    /// order they were offered: every tile the drive stood on, from the road it started on to the tile where it arrived.
+    /// The route of a drive that arrived, as the <c>trips</c> message carries it, <c>[x, y, "NESW…"]</c>: the tile the
+    /// drive started on, then a letter for each step it took to the next tile it stood on, to the tile where it arrived.
+    /// </summary>
+    [JsonConverter(typeof(TripConverter))]
+    public sealed record Trip(int X, int Y, string Steps)
+    {
+        /// <summary>
+        /// The letter of a step each way, in the order of <see cref="Direction.CardinalDirections"/>: north, up the map,
+        /// east, south and west.
+        /// </summary>
+        public const string StepLetters = "NESW";
+    }
+
+    /// <summary>
+    /// Writes a trip as <c>[x, y, "NESW…"]</c>, and reads one strictly: anything else, a step that isn't one of
+    /// <see cref="Trip.StepLetters"/> among it, is an error.
+    /// </summary>
+    internal sealed class TripConverter : JsonConverter<Trip>
+    {
+        public override Trip Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            Expect(reader.TokenType == JsonTokenType.StartArray);
+            int x = ReadWholeNumber(ref reader);
+            int y = ReadWholeNumber(ref reader);
+            Expect(reader.Read() && reader.TokenType == JsonTokenType.String);
+            string steps = reader.GetString()!;
+            Expect(steps.All(step => Trip.StepLetters.Contains(step)));
+            Expect(reader.Read() && reader.TokenType == JsonTokenType.EndArray);
+
+            return new Trip(x, y, steps);
+        }
+
+        public override void Write(Utf8JsonWriter writer, Trip value, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            writer.WriteNumberValue(value.X);
+            writer.WriteNumberValue(value.Y);
+            writer.WriteStringValue(value.Steps);
+            writer.WriteEndArray();
+        }
+
+        private static int ReadWholeNumber(ref Utf8JsonReader reader)
+        {
+            Expect(reader.Read() && reader.TokenType == JsonTokenType.Number);
+            Expect(reader.TryGetInt32(out int value));
+
+            return value;
+        }
+
+        private static void Expect(bool holds)
+        {
+            if (!holds)
+            {
+                throw new JsonException($"A trip is [x, y, steps], the steps a string of the letters {Trip.StepLetters}.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The trips <see cref="Trips"/> offered since the last messages, in the order they were offered, each the route of
+    /// a drive that arrived.
     /// </summary>
     public sealed record TripsMessage(
-        [property: JsonPropertyName("routes")] IReadOnlyList<IReadOnlyList<TilePosition>> Routes) : StateMessage
+        [property: JsonPropertyName("routes")] IReadOnlyList<Trip> Routes) : StateMessage
     {
         [JsonPropertyName("type")]
         [JsonPropertyOrder(-1)]

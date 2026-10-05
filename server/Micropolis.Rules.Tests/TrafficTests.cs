@@ -96,17 +96,16 @@ namespace Micropolis.Rules.Tests
 
             for (uint seed = 1; seed <= 16; seed++)
             {
-                // The trip is the route, offered as the step it arrived in ends: step 0, a multiple of six
+                // The trip is the route, offered as it arrives
                 Trips trips = new Trips(map);
-                List<IReadOnlyList<TilePosition>> offered = new List<IReadOnlyList<TilePosition>>();
+                List<Trip> offered = new List<Trip>();
                 trips.Offered += offered.Add;
 
                 Assert.AreEqual(TrafficResult.RouteFound,
                                 new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(seed), trips)
                                     .MakeTraffic(ZoneX, ZoneY, new BlockMaps(map.Width, map.Height), TrafficDestination.Commercial));
-                trips.Stepped();
 
-                List<TilePosition> route = offered.Single().ToList();
+                List<TilePosition> route = TripRoutes.Tiles(offered.Single());
                 CollectionAssert.AreEqual(route[^1] == northRoute[^1] ? northRoute : eastRoute, route);
                 taken.Add(route[^1] == northRoute[^1] ? "north" : "east");
             }

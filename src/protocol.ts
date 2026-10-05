@@ -744,12 +744,15 @@ export interface OverlayUpdatedMessage {
   layer: OverlayLayer;
 }
 
+// A trip, the route of a drive that arrived, on road alone, from the road it started on to the tile where it arrived:
+// the tile it started on, then a letter for each step it took to the next tile it stood on, N (up the map), E, S or W
+export type Trip = [x: number, y: number, steps: string];
+
 // The trips the traffic rule completed that the city offered since its last batch, for the client to draw as cars, in
-// the order they were offered: each the route of a drive that arrived, every tile it stood on, from the road it
-// started on to the tile where it arrived, on road alone
+// the order they were offered
 export interface TripsMessage {
   type: "trips";
-  routes: TilePosition[][];
+  routes: Trip[];
 }
 
 export type StateMessage = MapMessage | TilesMessage | SpritesMessage | DateMessage | PopulationMessage |
