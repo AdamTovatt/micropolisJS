@@ -25,7 +25,6 @@
   --panel-gap: 10px;
   --panel-radius: 10px;
   --button-radius: 6px;
-  --panel-blur: blur(10px) saturate(1.15);
   --type-font: Inter, system-ui, sans-serif;
   --type-size: 13px;
   --type-line-height: 1.35;
@@ -511,8 +510,6 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   background-color: var(--hud-surface-background);
   color: var(--hud-surface-text);
   box-shadow: 0 6px 18px var(--hud-shadow-fill);
-  -webkit-backdrop-filter: var(--panel-blur);
-  backdrop-filter: var(--panel-blur);
   pointer-events: auto;
 }
 
@@ -1192,8 +1189,6 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   background-color: var(--hud-window-background);
   color: var(--hud-window-text);
   font: var(--type-window-size)/var(--type-line-height) var(--type-font);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
 }
 
 .hudWindow {
