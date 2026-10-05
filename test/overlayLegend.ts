@@ -61,7 +61,7 @@ const MAP_WIDTH = 40;
 const MAP_HEIGHT = 30;
 const CONTAINER = "container";
 
-// An answer tinting the whole map at its layer's high end
+// An answer tinting the whole map, every block of it 1, so every tile has the one tint its layer gives that value
 function wholeMapAnswer(layer: OverlayLayer): OverlayAnswer {
     const width = MAP_WIDTH / 8;
     const height = Math.ceil(MAP_HEIGHT / 8);
@@ -73,7 +73,7 @@ const POWER = wholeMapAnswer("powerGrid");
 
 // The tint an answer's frame gives its quads: premultiplied, as floats
 function quadTint(answer: OverlayAnswer): number[] {
-    const {r, g, b, a} = rampColour(answer, answer.high)!;
+    const {r, g, b, a} = rampColour(answer, answer.values[0])!;
     return Array.from(new Float32Array([r / 255 * a, g / 255 * a, b / 255 * a, a]));
 }
 
