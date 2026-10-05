@@ -16,13 +16,10 @@ import { legendView, OverlayView, rampColour, Tint } from "../src/overlayRendere
 import { OVERLAY_LAYERS, OverlayAnswer, OverlayLayer } from "../src/protocol";
 import { Text } from "../src/text";
 
-function answer(layer: OverlayLayer, low: number, high: number, overrides: Partial<OverlayAnswer> = {}): OverlayAnswer {
-    return {type: "overlay", layer, blockSize: 2, width: 2, height: 2, low, high, values: [0, 0, 0, 0], ...overrides};
-}
-
-// A tint's alpha, 0 for none
-function alpha(tint: Tint | null): number {
-    return tint === null ? 0 : tint.a;
+// An answer of the layer, with its range from Queries in the C# rules, holding the values
+function answer(layer: OverlayLayer, values: number[], overrides: Partial<OverlayAnswer> = {}): OverlayAnswer {
+    const [low, high] = layer === "rateOfGrowth" ? [-200, 200] : layer === "powerGrid" ? [0, 1] : [0, 1000];
+    return {type: "overlay", layer, blockSize: 2, width: values.length, height: 1, low, high, values, ...overrides};
 }
 
 // A tint's colour, without its alpha
@@ -34,13 +31,18 @@ function rgb(tint: Tint | null): number[] {
     return [tint.r, tint.g, tint.b];
 }
 
-// The opacity overlayRenderer.ts gives a ramp's high end, its full opacity
-const FULL_OPACITY = 0.75;
+// The heatmap's hues
+const BLUE = [0, 0, 255];
+const CYAN = [0, 255, 255];
+const GREEN = [0, 255, 0];
+const YELLOW = [255, 255, 0];
+const RED = [255, 0, 0];
 
-// A value's tint's share of the opacity of the answer's high end
-function share(answer: OverlayAnswer, value: number): number {
-    return alpha(rampColour(answer, value)) / alpha(rampColour(answer, answer.high));
-}
+// The opacity overlayRenderer.ts gives every heatmap tint
+const HEAT_ALPHA = 0.55;
+
+// The layers drawn as a heatmap: all but the power grid
+const HEAT_LAYERS = OVERLAY_LAYERS.filter((layer) => layer !== "powerGrid");
 
 // A stop of the legend's gradient: its colour, its alpha, and its place along the bar, from 0 to 1
 interface Stop {
@@ -49,168 +51,157 @@ interface Stop {
     at: number;
 }
 
-const STOP = /rgba\((\d+), (\d+), (\d+), ([\d.]+)\) ([\d.]+)%/;
+const STOP = /rgba\((\d+), (\d+), (\d+), ([\d.]+)\)(?: ([\d.]+)%)?/;
 
-function stops(gradient: string): Stop[] {
-    return (gradient.match(new RegExp(STOP, "g")) ?? []).map((text) => {
-        const [, r, g, b, a, at] = STOP.exec(text)!.map(Number);
-        return {rgb: [r, g, b], a, at: at / 100};
+// The gradient's stops, an unplaced one at its end of the bar, as CSS places it
+function stops(gradient: string | null): Stop[] {
+    const found = (gradient?.match(new RegExp(STOP, "g")) ?? []).map((text) => {
+        const [, r, g, b, a, at] = STOP.exec(text)!;
+        return {rgb: [r, g, b].map(Number), a: Number(a), at: at === undefined ? NaN : Number(at) / 100};
     });
+    return found.map((stop, i) => Number.isNaN(stop.at) ? {...stop, at: i === 0 ? 0 : 1} : stop);
 }
 
-// Expects the legend's gradient to draw the answer's ramp: each stop the tint of the value at its place along the bar,
-// from the low end to the high end, and more stops than a straight line between them needs, for the curve
-function expectLegendDrawsRamp(answer: OverlayAnswer): void {
-    const found = stops(legendView(answer).gradient);
+describe("the overlay's heatmap", () => {
 
-    expect(found.length).toBeGreaterThan(4);
-    expect([found[0].at, found[found.length - 1].at]).toEqual([0, 1]);
-    // In order along the bar, which CSS would otherwise quietly clamp
-    expect(found.map(({at}) => at)).toEqual(found.map(({at}) => at).sort((a, b) => a - b));
-    for (const {rgb: colour, a, at} of found) {
-        const tint = rampColour(answer, answer.low + at * (answer.high - answer.low));
-        expect(a).toBeCloseTo(alpha(tint), 2);
-        if (tint !== null) {
-            expect(colour).toEqual(rgb(tint));
-        }
-    }
-}
+    // Fire coverage as the fixture cities' fire stations give it, up to their peak of 109 of the layer's 1000
+    const fire = answer("fireCoverage", [0, 2, 0, 54, 109, 0, 55.5]);
 
-describe("the overlay's colour ramp", () => {
-
-    const pollution = answer("pollution", 0, 255);
-
-    it("leaves the low end untinted", () => {
-        expect(rampColour(pollution, 0)).toBeNull();
+    it("tints the answer's least value but zero blue, its greatest red and the middle between them green", () => {
+        expect([rgb(rampColour(fire, 2)), rgb(rampColour(fire, 55.5)), rgb(rampColour(fire, 109))])
+            .toEqual([BLUE, GREEN, RED]);
     });
 
-    it("tints any value above the low end at least about a third of the full opacity, which the high end has", () => {
-        const fine = answer("pollution", 0, 10000);
+    it("tints a quarter and three quarters of the way cyan and yellow, and goes straight between the hues", () => {
+        const pollution = answer("pollution", [10, 50, 110]);
 
-        expect(share(fine, 1)).toBeGreaterThan(0.3);
-        expect(share(fine, 1)).toBeLessThan(0.4);
-        expect(alpha(rampColour(fine, 10000))).toBe(FULL_OPACITY);
+        expect([rgb(rampColour(pollution, 35)), rgb(rampColour(pollution, 85))]).toEqual([CYAN, YELLOW]);
+        // 20 is a tenth of the way along, 0.4 of the way from blue to cyan, so green is 0.4 of 255; 100 is nine tenths,
+        // 0.6 of the way from yellow to red, so green is 0.4 of 255 again
+        expect(rgb(rampColour(pollution, 20))).toEqual([0, 102, 255]);
+        expect(rgb(rampColour(pollution, 100))).toEqual([255, 102, 0]);
     });
 
-    it("grows with the square root of the value's place in the range", () => {
-        const fine = answer("pollution", 0, 10000);
-
-        // Measured from a place near the low end, so the floor drops out: from 0.01 to 0.25 of the range is 0.4 of
-        // the square root's growth from 0.01 to 0.64, 0.7
-        expect((share(fine, 2500) - share(fine, 100)) / (share(fine, 6400) - share(fine, 100))).toBeCloseTo(0.4 / 0.7, 2);
+    it("leaves zero untinted", () => {
+        expect(rampColour(fire, 0)).toBeNull();
     });
 
-    it("keeps the fire coverage real cities reach, a small part of its range, visible and distinct", () => {
-        const fire = answer("fireCoverage", 0, 1000);
-        // The coverage the fire stations of the fixture cities' saves in conformance/saves/ give, up to their peaks
-        // of 54 and 109 of the layer's 1000
-        const values = [1, 11, 27, 54, 109];
-        const alphas = values.map((value) => alpha(rampColour(fire, value)));
+    it.each(HEAT_LAYERS)("tints %s at one opacity throughout", (layer) => {
+        const values = layer === "rateOfGrowth" ? [-150, -7, 3, 90] : [4, 37, 120, 260];
+        const layerAnswer = answer(layer, values);
 
-        expect(Math.min(...values.map((value) => share(fire, value)))).toBeGreaterThan(0.3);
-        expect(alphas).toEqual([...alphas].sort((a, b) => a - b));
-        expect(new Set(alphas).size).toBe(alphas.length);
+        expect(values.map((value) => rampColour(layerAnswer, value)!.a)).toEqual(values.map(() => HEAT_ALPHA));
     });
 
-    it("tints in the layer's own colour throughout", () => {
-        const colours = [1, 128, 255].map((value) => rgb(rampColour(pollution, value)));
-
-        expect(colours).toEqual([colours[2], colours[2], colours[2]]);
+    it("spans the answer's values, not the layer's range", () => {
+        expect(rampColour(answer("pollution", [3, 162]), 162)).toEqual(rampColour(answer("pollution", [1, 255]), 255));
+        expect(rampColour(answer("pollution", [3, 162]), 162))
+            .not.toEqual(rampColour(answer("pollution", [3, 255]), 162));
     });
 
-    it("tints more strongly toward the high end", () => {
-        const alphas = [1, 64, 128, 192, 255].map((value) => alpha(rampColour(pollution, value)));
+    it("tints every value of an answer of one value but zero the middle of the ramp", () => {
+        const one = answer("crime", [0, 70, 70, 0]);
 
-        expect(alphas[0]).toBeGreaterThan(0);
-        expect(alphas).toEqual([...alphas].sort((a, b) => a - b));
-        expect(new Set(alphas).size).toBe(alphas.length);
-        expect(alphas[4]).toBeLessThan(1);
+        expect([rampColour(one, 0), rgb(rampColour(one, 70))]).toEqual([null, GREEN]);
     });
 
-    it("tints a value past an end as that end", () => {
-        const coverage = answer("policeCoverage", 0, 1000);
+    it("tints nothing when every value is zero", () => {
+        const none = answer("trafficDensity", [0, 0, 0]);
 
-        expect(rampColour(coverage, 1500)).toEqual(rampColour(coverage, 1000));
-        expect(rampColour(coverage, -5)).toBeNull();
+        expect(none.values.map((value) => rampColour(none, value))).toEqual([null, null, null]);
     });
 
-    it("scales to the answer's range, not a fixed one", () => {
-        expect(rampColour(answer("pollution", 0, 255), 255)).toEqual(rampColour(answer("pollution", 0, 510), 510));
-        expect(rampColour(answer("pollution", 0, 255), 255))
-            .not.toEqual(rampColour(answer("pollution", 0, 510), 255));
-    });
+    describe("for the rate of growth, which diverges", () => {
 
-    it("tints the power grid's powered tiles and leaves the rest", () => {
-        const power = answer("powerGrid", 0, 1);
+        const growth = answer("rateOfGrowth", [-40, 0, 12, 120]);
 
-        expect(rampColour(power, 0)).toBeNull();
-        expect(rampColour(power, 1)).not.toBeNull();
-    });
-
-    describe("for a range either side of zero", () => {
-
-        const growth = answer("rateOfGrowth", -200, 200);
-
-        it("leaves zero untinted, and tints decline and growth in different colours", () => {
+        it("tints minus the largest magnitude blue, plus it red, the middle green, and leaves zero untinted", () => {
+            expect([rgb(rampColour(growth, -120)), rgb(rampColour(growth, 120)), rgb(rampColour(growth, 1e-9))])
+                .toEqual([BLUE, RED, GREEN]);
             expect(rampColour(growth, 0)).toBeNull();
-            expect(alpha(rampColour(growth, -200))).toBe(alpha(rampColour(growth, 200)));
-            expect(rampColour(growth, -200)).not.toEqual(rampColour(growth, 200));
         });
 
-        it("tints any value either side of zero at least about a third of the full opacity, which each end has", () => {
-            // Each against the end on its own side
-            for (const [value, end] of [[-1, -200], [1, 200]]) {
-                expect(alpha(rampColour(growth, value)) / alpha(rampColour(growth, end))).toBeGreaterThan(0.3);
-                expect(alpha(rampColour(growth, value)) / alpha(rampColour(growth, end))).toBeLessThan(0.4);
-            }
-            expect([alpha(rampColour(growth, -200)), alpha(rampColour(growth, 200))])
-                .toEqual([FULL_OPACITY, FULL_OPACITY]);
+        it("tints the least value by its place from minus the largest magnitude, not as the low end", () => {
+            expect(rgb(rampColour(growth, -40))).not.toEqual(BLUE);
+            expect(rampColour(growth, -40)).toEqual(rampColour(answer("rateOfGrowth", [-40, 120, -120]), -40));
         });
 
-        it("tints each way in its own colour throughout", () => {
-            expect(rgb(rampColour(growth, -1))).toEqual(rgb(rampColour(growth, -200)));
-            expect(rgb(rampColour(growth, 1))).toEqual(rgb(rampColour(growth, 200)));
-        });
+        it("diverges about zero whatever the answer holds, all growth or all decline", () => {
+            const growing = answer("rateOfGrowth", [30, 60]);
+            const declining = answer("rateOfGrowth", [-30, -60]);
 
-        it("tints more strongly away from zero, each way", () => {
-            expect(alpha(rampColour(growth, -50))).toBeLessThan(alpha(rampColour(growth, -150)));
-            expect(alpha(rampColour(growth, 50))).toBeLessThan(alpha(rampColour(growth, 150)));
+            expect([rgb(rampColour(growing, 60)), rgb(rampColour(growing, 30))]).toEqual([RED, YELLOW]);
+            expect([rgb(rampColour(declining, -60)), rgb(rampColour(declining, -30))]).toEqual([BLUE, CYAN]);
         });
+    });
+
+    it("tints the power grid's powered tiles in one colour, and leaves the rest untinted", () => {
+        const power = answer("powerGrid", [0, 1, 1, 0]);
+
+        expect([rampColour(power, 0), rampColour(power, 1)]).toEqual([null, {r: 240, g: 200, b: 0, a: 0.75}]);
     });
 });
 
 describe("the overlay's legend", () => {
 
-    it.each(OVERLAY_LAYERS)("names the layer %s and the words for its ends", (layer) => {
-        const legend = legendView(answer(layer, 0, 100));
+    it.each(OVERLAY_LAYERS)("names the layer %s", (layer) => {
+        const legend = legendView(answer(layer, [0, 1]));
         const text = Text.overlays.layers[layer];
 
-        expect([legend.title, legend.lowLabel, legend.highLabel]).toEqual([text.name, text.low, text.high]);
+        expect(legend.title).toEqual(text.name);
         expect(text.name.length * text.low.length * text.high.length).toBeGreaterThan(0);
     });
 
-    it("draws the ramp's curve in the layer's colour, from transparent at the low end to the high end's tint", () => {
-        const pollution = answer("pollution", 0, 255);
-        const found = stops(legendView(pollution).gradient);
+    it("writes each end's value beside its word", () => {
+        const legend = legendView(answer("pollution", [0, 3, 80, 162]));
 
-        expectLegendDrawsRamp(pollution);
-        expect([found[0].a, found[found.length - 1].a]).toEqual([0, alpha(rampColour(pollution, 255))]);
+        expect([legend.lowLabel, legend.highLabel]).toEqual(["None (3)", "Heavy (162)"]);
+        expect(legend.note).toBeNull();
     });
 
-    it("draws a range either side of zero from decline, fading out to transparent at zero, then in to growth", () => {
-        const growth = answer("rateOfGrowth", -200, 200);
-        const zero = stops(legendView(growth).gradient).filter(({at}) => at === 0.5);
+    it("writes the diverging ends as minus and plus the largest magnitude", () => {
+        const legend = legendView(answer("rateOfGrowth", [-40, 0, 12, 120]));
 
-        expectLegendDrawsRamp(growth);
-        expect(zero.map(({rgb: colour, a}) => [colour, a]))
-            .toEqual([[rgb(rampColour(growth, -200)), 0], [rgb(rampColour(growth, 200)), 0]]);
+        expect([legend.lowLabel, legend.highLabel]).toEqual(["Declining (-120)", "Growing (120)"]);
     });
 
-    it("places zero where it falls in a range either side of it", () => {
-        const growth = answer("rateOfGrowth", -100, 300);
+    it.each(HEAT_LAYERS)("draws %s's ramp from blue to red, each stop the tint of the value at its place", (layer) => {
+        const values = layer === "rateOfGrowth" ? [-30, 0, 90] : [5, 0, 245];
+        const layerAnswer = answer(layer, values);
+        const found = stops(legendView(layerAnswer).gradient);
+        const [low, high] = layer === "rateOfGrowth" ? [-90, 90] : [5, 245];
 
-        expectLegendDrawsRamp(growth);
-        expect(stops(legendView(growth).gradient).filter(({a}) => a === 0).map(({at}) => at)).toEqual([0.25, 0.25]);
+        expect(found.map(({at}) => at)).toEqual([0, 0.25, 0.5, 0.75, 1]);
+        for (const {rgb: colour, a, at} of found) {
+            const tint = rampColour(layerAnswer, low + at * (high - low) || 1e-9);
+            expect([colour, a]).toEqual([rgb(tint), tint!.a]);
+        }
+    });
+
+    it("draws only the ramp's middle for an answer of one value but zero, which is all the map shows", () => {
+        const one = answer("crime", [0, 70, 70, 0]);
+        const legend = legendView(one);
+
+        expect(stops(legend.gradient).map(({rgb: colour, a, at}) => [colour, a, at]))
+            .toEqual([[GREEN, HEAT_ALPHA, 0], [GREEN, HEAT_ALPHA, 1]]);
+        expect([legend.lowLabel, legend.highLabel]).toEqual(["None (70)", "High (70)"]);
+    });
+
+    it("says the layer has nothing to show yet in place of the values, and draws no ramp, when every value is zero", () => {
+        const legend = legendView(answer("fireCoverage", [0, 0]));
+
+        expect([legend.lowLabel, legend.highLabel, legend.gradient, legend.note])
+            .toEqual(["None", "Full", null, Text.overlays.nothingToShow]);
+    });
+
+    it("leaves the power grid's words without values, and fades from untinted to its powered tint", () => {
+        const power = answer("powerGrid", [0, 1]);
+        const legend = legendView(power);
+        const found = stops(legend.gradient);
+
+        expect([legend.lowLabel, legend.highLabel, legend.note]).toEqual(["Unpowered", "Powered", null]);
+        expect(found.map(({rgb: colour, a, at}) => [colour, a, at]))
+            .toEqual([[rgb(rampColour(power, 1)), 0, 0], [rgb(rampColour(power, 1)), 0.75, 1]]);
     });
 });
 
@@ -218,7 +209,7 @@ describe("an overlay view", () => {
 
     // Blocks of 2 tiles, 3 across and 2 down, over a map of 5 by 3 tiles: the last column and row of blocks reach
     // past it
-    const view = new OverlayView(answer("crime", 0, 250, {width: 3, height: 2, values: [0, 50, 100, 150, 200, 250]}));
+    const view = new OverlayView(answer("crime", [0, 50, 100, 150, 200, 250], {width: 3, height: 2}));
 
     it("tints each tile with its block's value", () => {
         expect(view.tileTint(0, 0)).toBeNull();

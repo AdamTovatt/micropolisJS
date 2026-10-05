@@ -18,51 +18,23 @@ import { Text } from "./text";
 // Draws a map overlay: one layer of the simulation's maps as a semi-transparent tint over the tiles, with a legend.
 // It draws only from the simulation's answer to an overlay query, never from simulation objects, so it works the
 // same against any city source.
+//
+// Every layer but the power grid is a heatmap: a ramp of hues from blue at its low end, through cyan, green and
+// yellow, to red at its high end, all at one opacity, so the map shows through alike everywhere. The ramp spans the
+// values this answer holds, not the layer's range, since real cities use a small part of some ranges: from the least to the greatest of the answer's values but zero, which
+// stays clear and doesn't count. A layer whose range runs either side of zero, the rate of growth, diverges: its ramp
+// runs from minus the largest magnitude among the answer's values to plus it, so zero falls at its middle, and stays
+// clear. The power grid is either powered or not, and tints its powered tiles in one colour.
 
 type Rgb = readonly [number, number, number];
 
-// The colour a layer's undesirable high end, or a decline, is tinted: magenta, which stands out from the brown of the
-// bare ground where red would not
-const HARM: Rgb = [190, 0, 150];
+// The heatmap's hues, from its low end to its high end, evenly spaced along the ramp
+const HUES: readonly Rgb[] = [[0, 0, 255], [0, 255, 255], [0, 255, 0], [255, 255, 0], [255, 0, 0]];
 
-// The colour of each layer's tint. A layer's ramp is its colour throughout, only its opacity growing, from none at the
-// low end to MAX_ALPHA at the high end (see opacity), so the overlay marks where a layer has something to show, each
-// level of it tells from the next by how strongly it shows, and the tiles stay readable elsewhere.
-const LAYER_COLOURS: Record<OverlayLayer, Rgb> = {
-  landValue: [0, 150, 60],
-  pollution: HARM,
-  crime: HARM,
-  trafficDensity: HARM,
-  populationDensity: [0, 80, 220],
-  policeCoverage: [0, 80, 220],
-  fireCoverage: [230, 90, 0],
-  powerGrid: [240, 200, 0],
-  // A layer whose range runs both sides of zero, such as the rate of growth, is untinted at zero and fades in from
-  // there both ways: in this colour above it, and in DECLINE below
-  rateOfGrowth: [0, 150, 60],
-};
+// The opacity of every heatmap tint
+const HEAT_ALPHA = 0.55;
 
-const DECLINE = HARM;
-
-// The opacity of a ramp's high end
-const MAX_ALPHA = 0.75;
-
-// The share of MAX_ALPHA a value just above the low end is tinted at
-const FLOOR = 1 / 3;
-
-// The opacity of a value at place t of its ramp, from 0, the low end, to 1, the high end: none at the low end, and
-// above it from FLOOR of the full opacity, growing with the square root of t. The values real cities reach are a
-// small part of some layers' range, as fire coverage peaks around 50 to 110 of its 1000, and a tint that grew with t
-// would leave them all but invisible.
-function opacity(t: number): number {
-  return t === 0 ? 0 : MAX_ALPHA * (FLOOR + (1 - FLOOR) * Math.sqrt(t));
-}
-
-// The places along a ramp the legend's gradient draws the opacity at, going straight between them, close enough to
-// the curve, and with room at the low end for the bar to read as none there
-const LEGEND_PLACES = [0, 0.04, 0.1, 0.2, 0.35, 0.5, 0.7, 1];
-
-// A tint: red, green and blue from 0 to 255, and its alpha from 0 to 1, rounded to thousandths as CSS writes it
+// A tint: red, green and blue from 0 to 255, and its alpha from 0 to 1
 export interface Tint {
   r: number;
   g: number;
@@ -70,49 +42,124 @@ export interface Tint {
   a: number;
 }
 
-// A colour as CSS writes it, which the legend's gradient takes, its alpha rounded to thousandths as a tint's is
-function css([r, g, b]: Rgb, alpha: number): string {
-  return `rgba(${r}, ${g}, ${b}, ${Math.round(alpha * 1000) / 1000})`;
+// The power grid's tint of a powered tile
+const POWERED: Tint = {r: 240, g: 200, b: 0, a: 0.75};
+
+// A colour as CSS writes it, which the legend's gradient takes
+function css({r, g, b, a}: Tint): string {
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-// A value's place along its ramp, from 0, the low end, to 1, the high end, which opacity turns into the tint's alpha.
-// A value past an end of the range, as several stations' coverage can be, is placed at that end.
-function strength(value: number, from: number, to: number): number {
-  return Math.min(Math.max((value - from) / (to - from), 0), 1);
-}
-
-// The colour at place t of its ramp, or null for none, which leaves the tile untinted
-function tint([r, g, b]: Rgb, t: number): Tint | null {
-  if (t === 0) {
-    return null;
-  }
-
-  return {r, g, b, a: Math.round(opacity(t) * 1000) / 1000};
+// The heatmap's tint at place t of its ramp, from 0, the low end, to 1, the high end, each channel going straight
+// from one hue to the next, as the legend's gradient goes between its stops
+function heat(t: number): Tint {
+  const along = t * (HUES.length - 1);
+  const from = Math.min(Math.floor(along), HUES.length - 2);
+  const part = along - from;
+  const [r, g, b] = HUES[from].map((channel, i) => Math.round(channel + (HUES[from + 1][i] - channel) * part));
+  return {r, g, b, a: HEAT_ALPHA};
 }
 
 function isDiverging(answer: OverlayAnswer): boolean {
   return answer.low < 0 && answer.high > 0;
 }
 
-// The tint of a value of the answer's layer, or null to leave the tile untinted
-export function rampColour(answer: OverlayAnswer, value: number): Tint | null {
-  const colour = LAYER_COLOURS[answer.layer];
-
-  if (isDiverging(answer)) {
-    return value < 0 ? tint(DECLINE, strength(-value, 0, -answer.low)) : tint(colour, strength(value, 0, answer.high));
-  }
-
-  return tint(colour, strength(value, answer.low, answer.high));
+// The values a heatmap's ramp spans, from its low end to its high end
+interface Span {
+  low: number;
+  high: number;
 }
 
-// What the legend shows for an answer: the layer's name, the words for its low and high ends, and the colour ramp
-// between them as a CSS gradient, which the legend lays over a neutral background, as the tint lies over the map, so
-// its untinted end reads as none
+// The span of the answer's heatmap, or null when every value is zero, and the layer has nothing to show yet
+function heatSpan(answer: OverlayAnswer): Span | null {
+  let least = Infinity;
+  let greatest = -Infinity;
+  for (const value of answer.values) {
+    if (value !== 0) {
+      least = Math.min(least, value);
+      greatest = Math.max(greatest, value);
+    }
+  }
+
+  if (least > greatest) {
+    return null;
+  }
+
+  if (isDiverging(answer)) {
+    const magnitude = Math.max(-least, greatest);
+    return {low: -magnitude, high: magnitude};
+  }
+
+  return {low: least, high: greatest};
+}
+
+// A value's place along the span's ramp, from 0, the low end, to 1, the high end: the middle for every value when the
+// span is one value, and an end for a value past it
+function heatPlace(span: Span, value: number): number {
+  const t = span.high === span.low ? 0.5 : (value - span.low) / (span.high - span.low);
+  return Math.min(Math.max(t, 0), 1);
+}
+
+// An answer's ramp, worked out once for it: the tint of each value, and what the legend shows of it
+interface Ramp {
+  // The tint of a value, or null to leave its tile untinted
+  tint(value: number): Tint | null;
+  // The ramp as a CSS gradient, or null when nothing is tinted
+  gradient: string | null;
+  // The values the ramp spans at its low and high ends, or null when the legend writes none
+  ends: Span | null;
+  // What the legend says in place of the values, or null for nothing
+  note: string | null;
+}
+
+// The power grid's ramp: its powered tiles in one colour and the rest untinted, which the legend shows as a fade from
+// untinted to that colour
+function powerRamp(): Ramp {
+  return {
+    tint: (value) => value === 0 ? null : POWERED,
+    gradient: `linear-gradient(to right, ${css({...POWERED, a: 0})}, ${css(POWERED)})`,
+    ends: null,
+    note: null,
+  };
+}
+
+// A heatmap's ramp over the answer's own values. Zero is untinted. The legend draws the hues the ramp gives, or only
+// its middle when every value but zero is the same, which is all the map shows then.
+function heatRamp(answer: OverlayAnswer): Ramp {
+  const span = heatSpan(answer);
+  if (span === null) {
+    return {tint: () => null, gradient: null, ends: null, note: Text.overlays.nothingToShow};
+  }
+
+  const places = span.low === span.high ? [0.5, 0.5] : HUES.map((_, i) => i / (HUES.length - 1));
+  const stops = places.map((t, i) => `${css(heat(t))} ${i / (places.length - 1) * 100}%`);
+  return {
+    tint: (value) => value === 0 ? null : heat(heatPlace(span, value)),
+    gradient: `linear-gradient(to right, ${stops.join(", ")})`,
+    ends: span,
+    note: null,
+  };
+}
+
+function ramp(answer: OverlayAnswer): Ramp {
+  return answer.layer === "powerGrid" ? powerRamp() : heatRamp(answer);
+}
+
+// The tint of a value of the answer's layer, or null to leave the tile untinted
+export function rampColour(answer: OverlayAnswer, value: number): Tint | null {
+  return ramp(answer).tint(value);
+}
+
+// What the legend shows for an answer: the layer's name, the words for its low and high ends, with the value the ramp
+// spans at each where it has values, and the ramp between them as a CSS gradient, or null when nothing is tinted, and
+// a note in place of the values when the layer has nothing to show yet. The legend lays the gradient over a neutral
+// background, as the tint lies over the map.
 export interface LegendView {
   title: string;
   lowLabel: string;
   highLabel: string;
-  gradient: string;
+  gradient: string | null;
+  note: string | null;
 }
 
 interface LayerText {
@@ -128,23 +175,15 @@ export function layerName(layer: OverlayLayer): string {
 }
 
 export function legendView(answer: OverlayAnswer): LegendView {
-  const colour = LAYER_COLOURS[answer.layer];
-  // The stop of place t of a ramp in the colour, drawn from 0 to 1 at the fraction of the bar given
-  const stop = (rgb: Rgb, t: number, at: number) => `${css(rgb, opacity(t))} ${Math.round(at * 1000) / 10}%`;
-
-  // A diverging ramp fades out to zero in each of its colours, so neither colour's hue tints the other's side
-  const zero = isDiverging(answer) ? -answer.low / (answer.high - answer.low) : 0;
-  const stops = [
-    ...(zero > 0 ? [...LEGEND_PLACES].reverse().map((t) => stop(DECLINE, t, zero * (1 - t))) : []),
-    ...LEGEND_PLACES.map((t) => stop(colour, t, zero + (1 - zero) * t)),
-  ];
   const text = layerText[answer.layer];
+  const {gradient, ends, note} = ramp(answer);
 
   return {
     title: text.name,
-    lowLabel: text.low,
-    highLabel: text.high,
-    gradient: `linear-gradient(to right, ${stops.join(", ")})`,
+    lowLabel: ends === null ? text.low : Text.overlays.end(text.low, ends.low),
+    highLabel: ends === null ? text.high : Text.overlays.end(text.high, ends.high),
+    gradient,
+    note,
   };
 }
 
@@ -154,7 +193,8 @@ export class OverlayView {
   private readonly tints: (Tint | null)[];
 
   constructor(readonly answer: OverlayAnswer) {
-    this.tints = answer.values.map((value) => rampColour(answer, value));
+    const {tint} = ramp(answer);
+    this.tints = answer.values.map((value) => tint(value));
   }
 
   // The tint of the tile at (x, y) on the map, or null for none

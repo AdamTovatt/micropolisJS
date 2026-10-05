@@ -562,7 +562,7 @@ main {
   z-index: 10;
 }
 
-/* Its title, the picker and the button on a line, and the legend under the picker */
+/* Its title, the picker and the button on a line, and the legend across the panel under them */
 #overlayPanel {
   width: 260px;
   font-size: 14px;
@@ -574,7 +574,20 @@ main {
   width: auto;
 }
 
+/* Unfolded, its body's picker and legend are the panel's own grid items, so the legend has the panel's whole width on a
+   line of its own, room for each end's word with its value beside it */
+#overlayPanel:not(.folded) > .foldBody {
+  display: contents;
+}
+
+#overlayPanel #overlayPanelSelect {
+  grid-row: 1;
+  grid-column: 2;
+  place-self: center;
+}
+
 #overlayPanel .overlayLegend {
+  grid-column: 1 / -1;
   margin-top: 6px;
 }
 
@@ -592,6 +605,11 @@ main {
 #overlayPanel .overlayLegendEnds {
   display: flex;
   justify-content: space-between;
+}
+
+#overlayPanel .overlayLegendNote {
+  margin-top: 2px;
+  font-style: italic;
 }
 
 #playit {

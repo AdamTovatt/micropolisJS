@@ -98,6 +98,7 @@ export class OverlayPicker {
   private readonly legendBar: HTMLElement;
   private readonly legendLow: HTMLElement;
   private readonly legendHigh: HTMLElement;
+  private readonly legendNote: HTMLElement;
 
   constructor(container: HTMLElement, select: HTMLSelectElement, source: OverlaySource, canvas: OverlayCanvas) {
     select.appendChild(option("", Text.overlays.none));
@@ -111,6 +112,7 @@ export class OverlayPicker {
     const ends = appendElement(this.legend, "div", "overlayLegendEnds");
     this.legendLow = appendElement(ends, "span", "overlayLegendLow");
     this.legendHigh = appendElement(ends, "span", "overlayLegendHigh");
+    this.legendNote = appendElement(this.legend, "div", "overlayLegendNote");
     this.legend.hidden = true;
 
     this.selection = new OverlaySelection(source, (view) => canvas.setOverlay(view));
@@ -133,10 +135,12 @@ export class OverlayPicker {
 
     const legend = legendView(view.answer);
     this.legendTitle.textContent = legend.title;
-    // Over the bar's own neutral background, which the stylesheet sets
-    this.legendBar.style.backgroundImage = legend.gradient;
+    // Over the bar's own neutral background, which the stylesheet sets, and which shows alone while nothing is tinted
+    this.legendBar.style.backgroundImage = legend.gradient ?? "none";
     this.legendLow.textContent = legend.lowLabel;
     this.legendHigh.textContent = legend.highLabel;
+    this.legendNote.hidden = legend.note === null;
+    this.legendNote.textContent = legend.note;
   }
 }
 

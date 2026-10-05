@@ -108,9 +108,19 @@ interface LayerText {
   high: string;
 }
 
-// Map overlay strings: the picker, and each layer's text
-const overlays: {none: string, layers: Record<OverlayLayer, LayerText>} = {
+// Map overlay strings: the picker, the legend's end of a ramp, as its word with the value the ramp spans there, what it
+// says in place of the values while a layer has nothing to show, and each layer's text. An end's word names the end of
+// the layer's own range, as "None" does, though a heatmap's ramp spans the city's values: the value beside it says
+// where the ramp ends, and the word which way the layer runs.
+const overlays: {
+  none: string,
+  end: (word: string, value: number) => string,
+  nothingToShow: string,
+  layers: Record<OverlayLayer, LayerText>,
+} = {
   none: "None",
+  end: (word, value) => `${word} (${value})`,
+  nothingToShow: "Nothing to show yet",
   layers: {
     landValue: {name: "Land value", low: "Low", high: "High"},
     pollution: {name: "Pollution", low: "None", high: "Heavy"},
