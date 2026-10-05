@@ -128,7 +128,7 @@ export const SCENARIOS = {
             },
             "flush": sending("flush"),
             "budget forecast": async ({source}) => {
-                await answerTo(source, {type: "budgetForecast", road: 50});
+                await answerTo(source, {type: "budgetForecast", road: 50, tax: 9});
             },
 
             // The Save button's

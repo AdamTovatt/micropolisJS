@@ -189,7 +189,7 @@ fixtures never do: the hardest level, disasters on, auto-budget off and the game
 `query` and its `answer`, about the city of the `save` it names, with its funds replaced by `funds` where an answer has
 one, or asked before any city has started where `save` is null: in each save, a tile report at the city's centre and
 at the first tile of each category no save before it reported, and budget forecasts with no service, every service and
-one service named; the same forecasts on the first save whose year end has no cash for its services, with half of what
+one service named, at the lowest and the highest tax rate, and at a tax rate with a service named; the same forecasts on the first save whose year end has no cash for its services, with half of what
 they cost and exactly what they cost, so the funds pay some services and scale one back; each overlay layer from the
 first save where it holds a value other than 0; and queries the simulation rejects, on the first save and before any
 city has started. The tool fails unless the queries reach every reason the simulation rejects one for, every category

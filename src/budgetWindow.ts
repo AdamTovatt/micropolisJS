@@ -30,7 +30,7 @@ export interface BudgetChoice {
 
 // What the window shows for a forecast: the figures above the sliders, and each service's label
 export interface BudgetView {
-  taxesCollected: string;
+  taxes: string;
   funds: string;
   cashFlow: string;
   fundsAfterYear: string;
@@ -40,9 +40,9 @@ export interface BudgetView {
 // Every decision about what the window shows is made here and in BudgetForecasts, so it is tested under node. The
 // window only reads the sliders and writes the view into the DOM.
 
-// The forecast of the year end at the funding the player has moved the sliders to
-export function forecastQuery(funding: MovedFunding): Query {
-  return {type: "budgetForecast", ...funding};
+// The forecast of the year end at the funding the player has moved the sliders to, and the tax rate the tax slider is at
+export function forecastQuery(funding: MovedFunding, tax: number): Query {
+  return {type: "budgetForecast", ...funding, tax};
 }
 
 // The whole percent each slider is drawn at, as the original's budget window draws it (see wholePercent)
@@ -54,8 +54,8 @@ export function sliderPositions(record: BudgetRecord): ServiceAmounts {
 }
 
 // What the window shows for a forecast at the funding moved, every figure from the one answer: each service's cost at
-// its funding, and the cash flow and year-end balance the budget forecasts for that funding. A service whose slider
-// hasn't moved shows the funding it has, fraction included.
+// its funding, and the taxes, cash flow and year-end balance the budget forecasts for that funding and tax rate. A
+// service whose slider hasn't moved shows the funding it has, fraction included.
 export function budgetView(funding: MovedFunding, forecast: BudgetForecastAnswer): BudgetView {
   const budget = forecast.budget;
   const label = (service: keyof ServiceAmounts) => {
@@ -65,7 +65,7 @@ export function budgetView(funding: MovedFunding, forecast: BudgetForecastAnswer
   };
 
   return {
-    taxesCollected: formatMoney(budget.taxesCollected),
+    taxes: formatMoney(forecast.taxes),
     funds: formatMoney(budget.funds),
     cashFlow: formatMoney(forecast.fundsChange),
     fundsAfterYear: formatMoney(forecast.fundsAfterYear),
@@ -77,20 +77,20 @@ export function taxLabel(tax: number): string {
   return `Tax rate: ${tax}%`;
 }
 
-// Asks for the forecast at the funding the sliders are moved to, and shows the view of each answer still wanted: an
-// answer to a forecast asked before the last, or before the answers were dropped, arrives too late and is dropped.
-// The window only asks for funding the sliders can set, which the simulation forecasts, so any answer but a forecast
-// is a defect.
+// Asks for the forecast at the funding and tax rate the sliders are moved to, and shows the view of each answer still
+// wanted: an answer to a forecast asked before the last, or before the answers were dropped, arrives too late and is
+// dropped. The window only asks for funding and tax rates the sliders can set, which the simulation forecasts, so any
+// answer but a forecast is a defect.
 export class BudgetForecasts {
   private asked = 0;
 
   constructor(private readonly source: QuerySource, private readonly show: (view: BudgetView) => void) {}
 
-  forecast(funding: MovedFunding): void {
+  forecast(funding: MovedFunding, tax: number): void {
     const moved = {...funding};
     const asked = ++this.asked;
 
-    this.source.ask(forecastQuery(moved), (answer) => {
+    this.source.ask(forecastQuery(moved, tax), (answer) => {
       if (answer.type !== "budgetForecast") {
         throw new Error(`The budget forecast was answered with ${JSON.stringify(answer)}`);
       }
@@ -138,11 +138,14 @@ export class BudgetWindow extends ClosableWindow {
     for (const service of SERVICES) {
       requiredElement(`${service}Rate`).addEventListener("input", () => {
         this.funding[service] = sliderValue(`${service}Rate`);
-        this.forecasts.forecast(this.funding);
+        this.forecast();
       });
     }
 
-    requiredElement("taxRate").addEventListener("input", showTax);
+    requiredElement("taxRate").addEventListener("input", () => {
+      showTax();
+      this.forecast();
+    });
   }
 
   // The record places the sliders, and the forecasts give every figure the window shows
@@ -169,7 +172,12 @@ export class BudgetWindow extends ClosableWindow {
     requiredElement("taxRate", HTMLInputElement).value = `${record.taxRate}`;
 
     showTax();
-    this.forecasts.forecast(this.funding);
+    this.forecast();
+  }
+
+  // Asks for the forecast at the sliders' funding and tax rate
+  private forecast(): void {
+    this.forecasts.forecast(this.funding, sliderValue("taxRate"));
   }
 
   private shownRecord(): BudgetRecord {
@@ -182,7 +190,7 @@ export class BudgetWindow extends ClosableWindow {
 }
 
 function render(view: BudgetView): void {
-  setText("taxesCollected", view.taxesCollected);
+  setText("taxesCollected", view.taxes);
   setText("fundsNow", view.funds);
   setText("cashFlow", view.cashFlow);
   setText("fundsAfterYear", view.fundsAfterYear);

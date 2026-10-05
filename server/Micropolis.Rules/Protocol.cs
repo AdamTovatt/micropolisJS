@@ -328,6 +328,7 @@ namespace Micropolis.Rules
         [JsonStringEnumMemberName("failed")] Failed,
         [JsonStringEnumMemberName("noMoney")] NoMoney,
         [JsonStringEnumMemberName("needsBulldoze")] NeedsBulldoze,
+        [JsonStringEnumMemberName("onWater")] OnWater,
         [JsonStringEnumMemberName("rejected")] Rejected,
     }
 

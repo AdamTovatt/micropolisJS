@@ -27,28 +27,29 @@ const RECORD: BudgetRecord = {
     funding: {road: 1, fire: Math.fround(140 / 300), police: Math.fround(0.75)},
 };
 
+// At a tax rate of 9%, which would collect more than the last collection at 7% did
 const FORECAST: BudgetForecastAnswer = {
-    type: "budgetForecast", budget: RECORD, costs: {road: 54, fire: 140, police: 150}, fundsChange: -158,
-    fundsAfterYear: 4545,
+    type: "budgetForecast", budget: RECORD, costs: {road: 54, fire: 140, police: 150}, taxes: 239, fundsChange: -105,
+    fundsAfterYear: 4598,
 };
 
 describe("the budget window's forecast query", () => {
 
     afterEach(expectPlayedThrough);
 
-    it("names the services whose sliders moved, and only those", () => {
-        expect(forecastQuery({road: 50})).toEqual({type: "budgetForecast", road: 50});
+    it("names the services whose sliders moved, and only those, and the tax rate", () => {
+        expect(forecastQuery({road: 50}, 9)).toEqual({type: "budgetForecast", road: 50, tax: 9});
     });
 
     it("is one the city answers with a forecast", async () => {
         const source = playback("newCity", "budget forecast");
         await openNewCity(source);
 
-        await answerOfType(source, forecastQuery({road: 50}), "budgetForecast");
+        await answerOfType(source, forecastQuery({road: 50}, 9), "budgetForecast");
     });
 
-    it("names no service when no slider moved", () => {
-        expect(forecastQuery({})).toEqual({type: "budgetForecast"});
+    it("names no service when no slider moved, and still the tax rate", () => {
+        expect(forecastQuery({}, 7)).toEqual({type: "budgetForecast", tax: 7});
     });
 });
 
@@ -61,13 +62,13 @@ describe("the budget window's sliders", () => {
 
 describe("the budget window's view", () => {
 
-    it("shows the budget and the forecast, each service's funding and cost, and the fraction of a percent of one " +
-       "whose slider hasn't moved", () => {
+    it("shows the budget and the forecast, the taxes at the rate asked about, each service's funding and cost, and " +
+       "the fraction of a percent of one whose slider hasn't moved", () => {
         expect(budgetView({road: 50}, FORECAST)).toEqual({
-            taxesCollected: "$186",
+            taxes: "$239",
             funds: "$4,703",
-            cashFlow: "-$158",
-            fundsAfterYear: "$4,545",
+            cashFlow: "-$105",
+            fundsAfterYear: "$4,598",
             labels: {road: "50% of $108 = $54", fire: "46.7% of $300 = $140", police: "75% of $200 = $150"},
         });
     });
@@ -80,10 +81,10 @@ describe("the budget window's view", () => {
     it("shows every figure from the answer, not from the budget the window opened on", () => {
         const later = {...RECORD, taxesCollected: 220, funds: 3900, maintenance: {road: 120, fire: 300, police: 200},
                        funding: {...RECORD.funding, police: Math.fround(0.5)}};
-        const view = budgetView({}, {...FORECAST, budget: later});
+        const view = budgetView({}, {...FORECAST, budget: later, taxes: 283});
 
-        expect([view.taxesCollected, view.funds, view.labels.road, view.labels.police])
-            .toEqual(["$220", "$3,900", "100% of $120 = $54", "50% of $200 = $150"]);
+        expect([view.taxes, view.funds, view.labels.road, view.labels.police])
+            .toEqual(["$283", "$3,900", "100% of $120 = $54", "50% of $200 = $150"]);
     });
 
     it("shows the tax rate", () => {
@@ -108,19 +109,19 @@ describe("the budget window's forecasts", () => {
         return {asked, replies, shown, forecaster};
     }
 
-    it("ask for the forecast at the funding moved, and show its answer", () => {
+    it("ask for the forecast at the funding moved and the tax rate, and show its answer", () => {
         const {asked, replies, shown, forecaster} = forecasts();
-        forecaster.forecast({road: 50});
+        forecaster.forecast({road: 50}, 9);
         replies[0](FORECAST);
 
-        expect(asked).toEqual([{type: "budgetForecast", road: 50}]);
+        expect(asked).toEqual([{type: "budgetForecast", road: 50, tax: 9}]);
         expect(shown).toEqual([budgetView({road: 50}, FORECAST)]);
     });
 
     it("show the funding as it was asked about, though the sliders moved on before the answer", () => {
         const {replies, shown, forecaster} = forecasts();
         const funding: {road?: number} = {road: 50};
-        forecaster.forecast(funding);
+        forecaster.forecast(funding, 9);
         funding.road = 60;
         replies[0](FORECAST);
 
@@ -129,8 +130,8 @@ describe("the budget window's forecasts", () => {
 
     it("drop an answer to a forecast asked before the last", () => {
         const {replies, shown, forecaster} = forecasts();
-        forecaster.forecast({road: 50});
-        forecaster.forecast({road: 60});
+        forecaster.forecast({road: 50}, 9);
+        forecaster.forecast({road: 60}, 9);
         replies[1](FORECAST);
         replies[0](FORECAST);
 
@@ -139,9 +140,9 @@ describe("the budget window's forecasts", () => {
 
     it("drop an answer that arrives after they were dropped, and show those asked for since", () => {
         const {replies, shown, forecaster} = forecasts();
-        forecaster.forecast({road: 50});
+        forecaster.forecast({road: 50}, 9);
         forecaster.drop();
-        forecaster.forecast({});
+        forecaster.forecast({}, 9);
         replies[0](FORECAST);
         replies[1](FORECAST);
 
@@ -153,7 +154,7 @@ describe("the budget window's forecasts", () => {
         ["an overlay", {type: "overlay", layer: "crime", blockSize: 2, width: 1, height: 1, low: 0, high: 1, values: [0]}],
     ] as [string, QueryAnswer][])("are a defect when answered with %s", (_, answer) => {
         const {replies, shown, forecaster} = forecasts();
-        forecaster.forecast({});
+        forecaster.forecast({}, 9);
 
         expect(() => replies[0](answer)).toThrow("The budget forecast was answered with");
         expect(shown).toEqual([]);

@@ -49,7 +49,7 @@ namespace Micropolis.Rules
             {
                 ["overlay"] = Fields(required: ["layer"]),
                 ["tileReport"] = Fields(required: ["x", "y"]),
-                ["budgetForecast"] = Fields(optional: ["fire", "police", "road"]),
+                ["budgetForecast"] = Fields(optional: ["fire", "police", "road", "tax"]),
                 ["mapPreview"] = Fields(required: ["seed"]),
             };
 
@@ -105,7 +105,7 @@ namespace Micropolis.Rules
                 "tileReport" => TryGetWholeNumberIn(fields["x"], 0, width - 1, out _) && TryGetWholeNumberIn(fields["y"], 0, height - 1, out _)
                     ? null
                     : $"the tile is an x from 0 to {width - 1} and a y from 0 to {height - 1}, in whole numbers",
-                "budgetForecast" => CommandReader.FundingRejection(fields),
+                "budgetForecast" => CommandReader.FundingRejection(fields) ?? CommandReader.TaxRejection(fields),
                 "mapPreview" => TryGetSeed(fields["seed"], out _) ? null : "the seed is a uint32",
                 _ => throw new InvalidOperationException($"The {type} query has fields but no check."),
             };
@@ -175,7 +175,7 @@ namespace Micropolis.Rules
             {
                 "overlay" => Overlay((string)fields["layer"]!, city),
                 "tileReport" => TileReport(WholeNumber(fields["x"]), WholeNumber(fields["y"]), city),
-                "budgetForecast" => BudgetForecast(fields, city.Budget),
+                "budgetForecast" => BudgetForecast(fields, city),
                 "mapPreview" => MapPreview(SeedOf(fields)),
                 string type => throw new InvalidOperationException($"The {type} query has a check but no answer."),
             };
@@ -213,16 +213,12 @@ namespace Micropolis.Rules
                 maps.CityCentreDistScoreMap.WorldGet(x, y));
         }
 
-        private static BudgetForecastAnswer BudgetForecast(JsonObject fields, Budget budget)
+        private static BudgetForecastAnswer BudgetForecast(JsonObject fields, Simulation city)
         {
-            YearForecast forecast = budget.Forecast(Funding(fields, "road"), Funding(fields, "fire"), Funding(fields, "police"));
-            return new BudgetForecastAnswer(Records.Budget(budget), forecast.Wanted, forecast.FundsChange, forecast.FundsAfterYear);
-        }
-
-        // A service's funding, already checked, or null when the query leaves it out
-        private static int? Funding(JsonObject fields, string service)
-        {
-            return fields.ContainsKey(service) ? WholeNumber(fields[service]) : null;
+            Budget budget = city.Budget;
+            YearForecast forecast = budget.Forecast(CheckedWholeNumber(fields, "road"), CheckedWholeNumber(fields, "fire"),
+                CheckedWholeNumber(fields, "police"), CheckedWholeNumber(fields, "tax"), city.GameLevel, city.Census);
+            return new BudgetForecastAnswer(Records.Budget(budget), forecast.Wanted, forecast.Taxes, forecast.FundsChange, forecast.FundsAfterYear);
         }
 
         // A whole number already checked to be in range

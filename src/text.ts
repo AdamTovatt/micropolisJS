@@ -95,6 +95,7 @@ const months: readonly string[] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
 // has it.
 const toolFailures: Record<ToastedFailure, string> = {
   needsBulldoze: "Area must be bulldozed first",
+  onWater: "Can't build on water",
   noMoney: "Insufficient funds to build that",
   rejected: "That can't be done here",
 };

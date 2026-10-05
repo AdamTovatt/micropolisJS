@@ -171,11 +171,14 @@ each query as it receives it (`Queries` in `server/Micropolis.Rules`) and answer
   smooths the station map into the coverage and leaves its middle step of smoothing in the station map. The answer
   carries no display text: the client sorts the values into the bands it shows.
 - `budgetForecast` may name `road`, `fire` and `police`, each a whole percent from 0 to 100 of what that service
-  needs, as `setBudget` does, and is answered with `budget`, the budget now as a `budget` record (see Records), and
-  what the year end would do if it came now, from those funds and that tax collection, with each service named at
-  that funding and the others at the funding they have: `costs`, what each service would cost, as
-  `{"road", "fire", "police"}`; `fundsChange`, the taxes less what the services would be paid; and `fundsAfterYear`,
-  the funds it would leave. One answer holds everything a forecast is worked out from, taken at one moment.
+  needs, and `tax`, a whole percent from 0 to 20, as `setBudget` does, and is answered with `budget`, the budget now
+  as a `budget` record (see Records), and what the year end would do if it came now, from those funds and
+  maintenance costs, with each service named at that funding and the others at the funding they have: `costs`, what
+  each service would cost, as `{"road", "fire", "police"}`; `taxes`, what the year end would collect, which at a
+  `tax` named is what the year's collection would take at that rate from the census now, and without one is the last
+  collection's, the budget's `taxesCollected`; `fundsChange`, the taxes less what the services would be paid; and
+  `fundsAfterYear`, the funds it would leave. One answer holds everything a forecast is worked out from, taken at one
+  moment.
 - `mapPreview` names a game `seed`, a uint32, and is answered with the map a new city on that seed starts on: `seed`;
   `width` and `height`, in tiles; and `tiles`, each tile's raw value with its flags, row by row, top row first, as the
   `map` state message holds them (see State messages). It is
@@ -198,8 +201,9 @@ codes it uses.
   `scoreBreakdown`, the steps that moved the score last year, in order, each a `reason` and the `points` it moved the
   score by. The breakdown is empty until the city's next yearly score after a new city or an old save migrated from
   before the breakdown was kept; otherwise its points sum to `scoreDelta`.
-- `budget` is the budget, as the budget window shows it: `taxRate`, in percent; `taxesCollected`, what the last tax
-  collection brought in; `funds`, the funds now; and `maintenance` and `funding`, each `{"road", "fire", "police"}`:
+- `budget` is the budget, from which the budget window places its sliders and shows the funds and what each service
+  needs: `taxRate`, in percent; `taxesCollected`, what the last tax collection brought in, which a forecast without a
+  tax rate collects again (the window shows its forecast's taxes, at the rate on its slider); `funds`, the funds now; and `maintenance` and `funding`, each `{"road", "fire", "police"}`:
   what each service needs a year, and its funding, 0 to 1 of what it needs. The year end may scale a funding back to
   the cash there was, which leaves it a fraction of a percent; a player only sets whole percents. A funding is a
   single-precision float, as the original keeps it, written as the double it widens to.
@@ -242,8 +246,10 @@ order they came. A city that starts sends the whole map, the sprites, the date, 
   and `sprite`, the type of the sprite there for the TV to follow, a monster or a tornado, of which the map holds at
   most one each.
 - `commandResult` is what came of a command, any player's, in `result`: `player`, who sent it; `command`, as it
-  arrived; `outcome`, one of `ok`, `failed`, `noMoney`, `needsBulldoze` and `rejected`; and `reason`, why it was
-  rejected, or null.
+  arrived; `outcome`, one of `ok`, `failed`, `noMoney`, `needsBulldoze`, `onWater` and `rejected`; and `reason`, why
+  it was rejected, or null. A zone, building or park whose footprint holds water no bulldozing clears (river, its edge
+  or channel) is `onWater`, whatever else the footprint holds; shore can be bulldozed, so a footprint on it without
+  auto-bulldoze is `needsBulldoze`, as is one on anything else that isn't clear land.
 - `budgetReviewDue` says that the year end paid the budget with values the player should review: auto-budget is off,
   or couldn't cover the services. The city steps on: nothing waits for the review.
 - `overlayUpdated` names a `layer` the simulation has recomputed, which an overlay showing it asks for again.

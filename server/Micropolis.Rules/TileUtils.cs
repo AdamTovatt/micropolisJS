@@ -31,6 +31,15 @@ namespace Micropolis.Rules
             return CanBulldoze(tile.GetValue());
         }
 
+        /// <summary>
+        /// Whether the tile is water that no bulldozing can clear: river, its edge or channel, which
+        /// <see cref="CanBulldoze(int)"/> refuses. The shore tiles after them can be bulldozed.
+        /// </summary>
+        public static bool IsOpenWater(int tileValue)
+        {
+            return tileValue >= TileValues.RIVER && tileValue <= TileValues.CHANNEL;
+        }
+
         public static bool IsCommercial(int tileValue)
         {
             return tileValue >= TileValues.COMBASE && tileValue < TileValues.INDBASE;

@@ -84,12 +84,13 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// The budget now, and what the year end would do with the funding asked about: what each service would cost, the
-    /// change in funds, and the funds it would leave.
+    /// The budget now, and what the year end would do with the funding and tax rate asked about: what each service would
+    /// cost, the taxes it would take in, the change in funds, and the funds it would leave.
     /// </summary>
     public sealed record BudgetForecastAnswer(
         [property: JsonPropertyName("budget")] BudgetRecord Budget,
         [property: JsonPropertyName("costs")] ServiceAmounts<long> Costs,
+        [property: JsonPropertyName("taxes")] long Taxes,
         [property: JsonPropertyName("fundsChange")] long FundsChange,
         [property: JsonPropertyName("fundsAfterYear")] long FundsAfterYear) : QueryAnswer
     {
