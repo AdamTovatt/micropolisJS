@@ -374,6 +374,7 @@ def lanes(sides):
 WIRE_Z = {'NS': 0.55, 'EW': 0.51}
 ARM = 0.085      # a crossarm's half-length, the outer wires' distance from the middle
 WIRE_R = 0.005
+POLE_SHADOW_Z = 0.1   # the height of the stand-in that casts a pole's shadow
 
 
 def power_materials():
@@ -391,7 +392,9 @@ def power_line(sides, pole=True, base=0.0):
     # lift, where the next tile's copy takes over (tileart.spans_edge). The wires cast no shadow,
     # as a wire that thin barely does in daylight: the shear lifts an east-west wire up the screen
     # and the sun drops its shadow down it, so a horizontal line would draw as two, its wires and
-    # their shadow more than half a tile apart. The poles keep their shadows.
+    # their shadow more than half a tile apart. Nor does the pole cast its own, which at the wires'
+    # height runs long and bends where the crossarm's joins it: a short stand-in at its foot casts
+    # a short, straight one.
     m = power_materials()
 
     def wire(p, q):
@@ -421,13 +424,15 @@ def power_line(sides, pole=True, base=0.0):
                 wire(p, q)
         if pole:
             ax, ay = across[0] * (ARM + 0.015), across[1] * (ARM + 0.015)
-            t.strut((0.5 - ax, 0.5 - ay, z - 0.012), (0.5 + ax, 0.5 + ay, z - 0.012), 0.008, m['pole'], 6)
+            arm = t.strut((0.5 - ax, 0.5 - ay, z - 0.012), (0.5 + ax, 0.5 + ay, z - 0.012), 0.008, m['pole'], 6)
+            arm.visible_shadow = False
             for offset in (-ARM, 0.0, ARM):
                 cx, cy = 0.5 + across[0] * offset, 0.5 + across[1] * offset
-                t.cylinder(cx, cy, z - 0.006, z, 0.007, m['insulator'], 8)
+                t.cylinder(cx, cy, z - 0.006, z, 0.007, m['insulator'], 8).visible_shadow = False
     if pole:
         top = base + max(WIRE_Z[axis] for axis, ends in runs.items() if ends) + 0.03
-        t.cylinder(0.5, 0.5, base, top, 0.012, m['pole'], 10)
+        t.cylinder(0.5, 0.5, base, top, 0.012, m['pole'], 10).visible_shadow = False
+        t.shadow_only(t.cylinder(0.5, 0.5, base, base + POLE_SHADOW_Z, 0.012, m['pole'], 10))
 
 
 # A railway is one track: ballast under sleepers under two rails. It all lies low enough to be

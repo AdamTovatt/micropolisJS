@@ -24,7 +24,8 @@ import tilesets as ts  # noqa: E402
 
 PIECES = {210: 'EW', 211: 'NS', 212: 'NE', 213: 'ES', 214: 'SW', 215: 'NW',
           216: 'NEW', 217: 'NES', 218: 'ESW', 219: 'NSW', 220: 'NESW'}
-OVER_WATER = {208: 'EW', 209: 'NS'}
+# The original's names run against its lines: the rules lay 209, VPOWER, for an east-west line over water
+OVER_WATER = {208: 'NS', 209: 'EW'}
 
 # the lightning bolt, in a unit square, drawn clockwise from its top
 BOLT = [(0.62, 1.0), (0.3, 0.45), (0.5, 0.45), (0.36, 0.0), (0.72, 0.58), (0.52, 0.58), (0.7, 1.0)]

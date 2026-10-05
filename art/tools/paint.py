@@ -117,7 +117,8 @@ DONORS = ([(single_tile(t), axes, layers) for t, axes, layers in (
     (LHRAIL, 'x', ('ground', 'objects')), (LVRAIL, 'y', ('ground', 'objects')),
     (HRAIL, 'x', ('objects',)), (VRAIL, 'y', ('objects',)),
     (LHPOWER, 'x', ('objects',)), (LVPOWER, 'y', ('objects',)),
-    (HPOWER, 'x', ('objects',)), (VPOWER, 'y', ('objects',)))]
+    # the rules lay HPOWER for a north-south line over water and VPOWER for an east-west one
+    (HPOWER, 'y', ('objects',)), (VPOWER, 'x', ('objects',)))]
           + [(single_tile(t), '', ('ground',)) for t in SINGLE_TILES['roads']['pieces']])
 WRAP_BAND = 12                 # pixels from a donor's edge over which it fades into its half-shifted copy
 FLATTEN = 2                    # pixels: the blur that finds a surface donor's broad patches (flattened())

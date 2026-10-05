@@ -308,7 +308,7 @@ def _cutout_size(cutout, length):
     return image, length * w / max(w, h), length * h / max(w, h)
 
 
-def _shadow_only(ob):
+def shadow_only(ob):
     # the object casts shadows but the camera never sees it, nor its reflection
     ob.visible_camera = False
     ob.visible_glossy = False
@@ -388,7 +388,7 @@ def car(name, x, y, turn, base=0.0):
     _card(cutout, x, y, base + height, max(w, d), turn)
     body = prism(rotated_rect(x, y, w * 0.85, d * 0.92, turn), base, base + height - 0.002,
                  _shadow_material(), name='car_body')
-    _shadow_only(body)
+    shadow_only(body)
 
 
 def lorry(x, y, turn, cab, body=None, kind='box', load=None, length=0.54):
@@ -545,7 +545,7 @@ def shrub(name, x, y, size, height, turn=0):
     mound.scale = (w * 0.42, d * 0.42, height - 0.002)
     mound.rotation_euler = (0, 0, math.radians(turn))
     mound.data.materials.append(_shadow_material())
-    _shadow_only(mound)
+    shadow_only(mound)
 
 
 def _shadow_material():
