@@ -51,6 +51,8 @@ test("the playthrough", async ({page}) => {
   const report = new Report(join(e2eDirectory, "..", "e2e-report"), SEED);
   let golden: GoldenPlaythrough | null = null;
   let totalSteps = 0;
+  // The cars the stages' screenshots show in the map's view, all told
+  let carsShown = 0;
   const failures: string[] = [];
 
   // What a step came to: its value, unless it failed, and its error
@@ -62,11 +64,14 @@ test("the playthrough", async ({page}) => {
     }
   };
 
-  // An error, joined by what went wrong in the page since this was last asked
-  const withPageProblems = (error: string | undefined) => {
-    const all = [error, ...problems.splice(0)].filter(Boolean);
+  // The errors there are, a line each, or undefined for none
+  const joined = (errors: (string | undefined)[]) => {
+    const all = errors.filter(Boolean);
     return all.length > 0 ? all.join("\n") : undefined;
   };
+
+  // An error, joined by what went wrong in the page since this was last asked
+  const withPageProblems = (error: string | undefined) => joined([error, ...problems.splice(0)]);
 
   // The notification bar closes on wall time, so each screenshot dismisses it first. The disaster view closes on wall
   // time too, once the sprite it follows is gone, so a stage must not end while it counts down.
@@ -87,6 +92,13 @@ test("the playthrough", async ({page}) => {
 
     const stem = report.fileStem(index, result.stage);
     result.screenshot = await screenshot(stem);
+    // Cars move on the page's clock, which stands still here, so the screenshot shows each at the start of its route
+    const driven = await page.evaluate(() => window.micropolisTestHook!.carsDriven());
+    carsShown += await page.evaluate(() => window.micropolisTestHook!.carsInView());
+    if (driven.some((tiles) => tiles !== 0)) {
+      result.error = joined([result.error,
+                             `A car drove ${Math.max(...driven)} tiles while the page's clock stood still`]);
+    }
     const commands = await player.commandsApplied();
     result.commands = commands;
     const save = await player.save();
@@ -118,6 +130,10 @@ test("the playthrough", async ({page}) => {
         failures.push(`Stage ${index + 1}, "${stage.name}", failed: ${result.error}`);
         stageFailed = true;
       }
+    }
+
+    if (!stageFailed && carsShown === 0) {
+      failures.push("No stage's screenshot shows a car");
     }
 
     if (!stageFailed) {

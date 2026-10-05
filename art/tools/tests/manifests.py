@@ -24,11 +24,14 @@ def read(render):
 
 
 def rectangles(manifest):
-    # every rectangle the manifest names, with what it draws: 'tile <id> <layer>' or
-    # 'sprite <type> frame <frame>'
+    # every rectangle the manifest names, with what it draws: 'tile <id> <layer>',
+    # 'sprite <type> frame <frame>' or 'car <colour> <way>'
     for tile, layers in manifest['tiles'].items():
         for layer, rect in layers.items():
             yield f'tile {tile} {layer}', rect
     for sprite_type, frames in manifest['sprites'].items():
         for frame, rect in frames.items():
             yield f'sprite {sprite_type} frame {frame}', rect
+    for colour, ways in manifest['cars'].items():
+        for way, rect in ways.items():
+            yield f'car {colour} {way}', rect

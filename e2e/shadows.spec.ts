@@ -49,7 +49,7 @@ function manifest(): object {
   const tiles = everyTile({ground});
   tiles[0] = {ground, shadow: {atlas: "test", x: 16, y: 0, width: 16, height: 16,
                                reach: {left: 1, top: 1, right: 1, bottom: 1}}};
-  return {version: 1, atlases: {test: ATLAS_PATH}, tiles, sprites: {}};
+  return {version: 1, atlases: {test: ATLAS_PATH}, tiles, sprites: {}, cars: {}};
 }
 
 test("overlapping shadows show the darker value, not their sum", async ({page}) => {
@@ -104,7 +104,7 @@ function shadowsButDirt(): object {
   const tiles = everyTile({ground, shadow: {atlas: "test", x: 16, y: 0, width: 16, height: 16,
                                             reach: {left: 1, top: 1, right: 1, bottom: 1}}});
   tiles[0] = {ground};
-  return {version: 1, atlases: {test: ATLAS_PATH}, tiles, sprites: {}};
+  return {version: 1, atlases: {test: ATLAS_PATH}, tiles, sprites: {}, cars: {}};
 }
 
 const REDRAWN = "the map drawn again in part, around tiles that changed, shows what the map drawn whole does";

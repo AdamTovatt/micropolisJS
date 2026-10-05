@@ -42,16 +42,19 @@ export interface TileBounds {
   yBound: number;
 }
 
-// The tiles a sprite's square covers, in the view whose top-left tile is (originX, originY)
-export function spriteTiles(sprite: PaintableSprite, originX: number, originY: number): TileBounds {
-  const left = sprite.x - originX * SPRITE_PIXELS_PER_TILE;
-  const top = sprite.y - originY * SPRITE_PIXELS_PER_TILE;
+// The square a sprite or a car is drawn in, width map pixels a side from map pixel (x, y)
+export type PaintableSquare = Pick<PaintableSprite, "x" | "y" | "width">;
+
+// The tiles a sprite's or a car's square covers, in the view whose top-left tile is (originX, originY)
+export function squareTiles(square: PaintableSquare, originX: number, originY: number): TileBounds {
+  const left = square.x - originX * SPRITE_PIXELS_PER_TILE;
+  const top = square.y - originY * SPRITE_PIXELS_PER_TILE;
 
   return {
     x: Math.floor(left / SPRITE_PIXELS_PER_TILE),
-    xBound: Math.ceil((left + sprite.width) / SPRITE_PIXELS_PER_TILE),
+    xBound: Math.ceil((left + square.width) / SPRITE_PIXELS_PER_TILE),
     y: Math.floor(top / SPRITE_PIXELS_PER_TILE),
-    yBound: Math.ceil((top + sprite.width) / SPRITE_PIXELS_PER_TILE),
+    yBound: Math.ceil((top + square.width) / SPRITE_PIXELS_PER_TILE),
   };
 }
 
@@ -64,10 +67,10 @@ export function spriteTile(sprite: PaintableSprite): TilePoint {
           y: Math.floor((sprite.y + middle) / SPRITE_PIXELS_PER_TILE)};
 }
 
-// The sprites any part of whose square shows in the view whose top-left tile is (originX, originY), pixelWidth by
-// pixelHeight map pixels, as the original's sprite manager chose the sprites to draw
-export function spritesInView(sprites: readonly PaintableSprite[], originX: number, originY: number,
-                              pixelWidth: number, pixelHeight: number): PaintableSprite[] {
+// The sprites, or cars, any part of whose square shows in the view whose top-left tile is (originX, originY),
+// pixelWidth by pixelHeight map pixels, as the original's sprite manager chose the sprites to draw
+export function squaresInView<T extends PaintableSquare>(squares: readonly T[], originX: number, originY: number,
+                                                         pixelWidth: number, pixelHeight: number): T[] {
   const startX = originX * SPRITE_PIXELS_PER_TILE;
   const startY = originY * SPRITE_PIXELS_PER_TILE;
   const lastX = startX + pixelWidth;
@@ -75,6 +78,6 @@ export function spritesInView(sprites: readonly PaintableSprite[], originX: numb
   const inX = (x: number) => x >= startX && x < lastX;
   const inY = (y: number) => y >= startY && y < lastY;
 
-  return sprites.filter((sprite) => (inX(sprite.x) || inX(sprite.x + sprite.width)) &&
-                                    (inY(sprite.y) || inY(sprite.y + sprite.width)));
+  return squares.filter((square) => (inX(square.x) || inX(square.x + square.width)) &&
+                                    (inY(square.y) || inY(square.y + square.width)));
 }

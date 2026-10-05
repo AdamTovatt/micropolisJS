@@ -250,6 +250,18 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
+    /// The trips <see cref="Trips"/> offered since the last messages, each the route of a drive that arrived, in the
+    /// order they were offered: every tile the drive stood on, from the road it started on to the tile where it arrived.
+    /// </summary>
+    public sealed record TripsMessage(
+        [property: JsonPropertyName("routes")] IReadOnlyList<IReadOnlyList<TilePosition>> Routes) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "trips";
+    }
+
+    /// <summary>
     /// The simulation recomputed the layer, so an overlay showing it is out of date.
     /// </summary>
     public sealed record OverlayUpdatedMessage(

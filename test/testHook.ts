@@ -40,6 +40,8 @@ function gameOn(source: CitySource, state: CityState) {
         gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS, tileWidth: 32,
                      mapCurrent: false},
         monsterTV: {current: false},
+        cars: {driven: () => [0, 0.5]},
+        carsInView: 1,
         dismissals: 0,
         notificationBar: {dismiss: () => {
             game.dismissals++;
@@ -60,6 +62,8 @@ const IDLE_GAME = {
     onCommandResult: () => {},
     gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true},
     monsterTV: {current: true},
+    cars: {driven: () => []},
+    carsInView: 0,
     notificationBar: {dismiss: () => {}},
     toolToast: {dismiss: () => {}},
     hoverTile: null,
@@ -399,6 +403,12 @@ describe("the test hook", () => {
         game.hoverTile = null;
 
         expect([shown, hook.hoverTile()]).toEqual([{x: 7, y: 9}, null]);
+    });
+
+    it("tells how far each car driving has driven, and how many the map's view shows", async () => {
+        const {hook} = await holdingGame("nothing");
+
+        expect([hook.carsDriven(), hook.carsInView()]).toEqual([[0, 0.5], 1]);
     });
 
     it("tells whether the map and the monster TV are both current", async () => {

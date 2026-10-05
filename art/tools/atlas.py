@@ -22,7 +22,7 @@ sprites.png, and dirtbg.png into images/, or the directory --out names. The 16 p
 original ones in art/sheets/ with every tile id and sprite frame it has art for drawn into its
 cell, so the build reads nothing it wrote. Which design fills which tile ids is in designs.py: the
 single-tile sets by SINGLE_TILES, the zones by ZONES, their animations by FRAMES, the vehicles by
-SPRITES. Needs Pillow and NumPy.
+SPRITES, the cars by CAR. Needs Pillow and NumPy.
 """
 
 import argparse
@@ -33,9 +33,9 @@ import re
 import numpy as np
 from PIL import Image
 
-from designs import (DIRT, FRAMES, IMAGES, ORIGINAL_SPRITES, ORIGINAL_TILES, SHEET_COLUMNS, SHEET_PX,
-                     OVER_SHADOWS, SINGLE_TILES, SPRITE_CELL, SPRITES, TILE_PX, ZONES, load, single_tile,
-                     single_tile_ids, sprite_frame, tile_asset, zone_frame)
+from designs import (CAR, CAR_COLOURS, CAR_WAYS, DIRT, FRAMES, IMAGES, ORIGINAL_SPRITES, ORIGINAL_TILES,
+                     SHEET_COLUMNS, SHEET_PX, OVER_SHADOWS, SINGLE_TILES, SPRITE_CELL, SPRITES, TILE_PX, ZONES, load,
+                     single_tile, single_tile_ids, sprite_frame, tile_asset, zone_frame)
 
 GUTTER = 4                     # each rectangle's edge pixels repeated this far outward, from a multiple of 4,
                                # so the two mip levels down to 16 px a tile don't bleed (docs/render-assets.md)
@@ -44,6 +44,13 @@ ATLAS_SIDE = 4096              # the largest atlas the format allows
 
 def visible(image):
     return np.asarray(image.getchannel('A')).max() > 0
+
+
+def vehicle_image(frame):
+    # a vehicle's frame as the game draws it: its shadow, with its objects over it
+    image = frame.layers['shadow'].copy()
+    image.alpha_composite(frame.layers['objects'])
+    return image
 
 
 def assets(source):
@@ -160,13 +167,18 @@ def build(source, out=IMAGES):
     for vehicle, sprite in SPRITES.items():
         for k in range(sprite['frames']):
             frame = load(source, sprite_frame(vehicle, k))
-            image = frame.layers['shadow'].copy()
-            image.alpha_composite(frame.layers['objects'])
+            image = vehicle_image(frame)
             square = sprite['square']
             inset = (frame.tiles - square) * TILE_PX // 2
             image = image.crop((inset, inset, inset + square * TILE_PX, inset + square * TILE_PX))
             # the game counts a sprite's frames from 1, the renders from 0
             sprites[(sprite['type'], k + 1)] = image
+    # the cars, packed with the sprites, which the game draws in the same pass: each frame whole, its colour and way
+    # from its number
+    cars = {}
+    for k in range(CAR['frames']):
+        image = vehicle_image(load(source, sprite_frame('car', k)))
+        cars[(CAR_COLOURS[k // len(CAR_WAYS)], CAR_WAYS[k % len(CAR_WAYS)])] = image
 
     os.makedirs(render, exist_ok=True)
     for old in os.listdir(render):
@@ -175,7 +187,7 @@ def build(source, out=IMAGES):
     packed = {}
     atlases = {}
     for kind, mode, images in (('ground', 'RGB', ground), ('objects', 'RGBA', objects),
-                               ('shadow', 'RGBA', shadows), ('sprites', 'RGBA', sprites)):
+                               ('shadow', 'RGBA', shadows), ('sprites', 'RGBA', {**sprites, **cars})):
         pages = Atlases(kind, mode)
         packed[kind] = pages.pack(images)
         atlases.update(pages.save(render))
@@ -189,9 +201,10 @@ def build(source, out=IMAGES):
             entry['objects'] = packed['objects'][tile_id]
         tiles[str(tile_id)] = entry
     sprite_entries = {}
-    for (sprite_type, frame), rect in sorted(packed['sprites'].items()):
-        sprite_entries.setdefault(str(sprite_type), {})[str(frame)] = rect
-    manifest = {'version': 1, 'atlases': atlases, 'tiles': tiles, 'sprites': sprite_entries}
+    for (sprite_type, frame) in sorted(sprites):
+        sprite_entries.setdefault(str(sprite_type), {})[str(frame)] = packed['sprites'][(sprite_type, frame)]
+    car_entries = {colour: {way: packed['sprites'][(colour, way)] for way in CAR_WAYS} for colour in CAR_COLOURS}
+    manifest = {'version': 1, 'atlases': atlases, 'tiles': tiles, 'sprites': sprite_entries, 'cars': car_entries}
     with open(os.path.join(render, 'manifest.json'), 'w') as f:
         json.dump(manifest, f, indent=1)
         f.write('\n')
@@ -215,7 +228,8 @@ def build(source, out=IMAGES):
     # the page's background: bare land, which repeats without a seam as every land tile on the map does
     load(source, single_tile(DIRT)).layers['ground'].convert('RGB').save(os.path.join(out, 'dirtbg.png'), optimize=True)
 
-    print(f'{len(tiles)} tile ids, {len(shadows)} shadows and {len(sprites)} sprite frames from {source}, in '
+    print(f'{len(tiles)} tile ids, {len(shadows)} shadows, {len(sprites)} sprite frames and {len(cars)} cars from '
+          f'{source}, in '
           f'{len(atlases)} atlases: ' + ', '.join(f'{n} {Image.open(os.path.join(render, p)).size}'
                                                  for n, p in atlases.items()))
 

@@ -51,7 +51,7 @@ test("a sprite is drawn from its art, filling its square", async ({page}) => {
     }
   });
   await serveTestArt(page, {version: 1, atlases: {white: "white.png", red: "red.png"},
-                            tiles: everyTile({ground: {atlas: "white", ...square}}), sprites},
+                            tiles: everyTile({ground: {atlas: "white", ...square}}), sprites, cars: {}},
                      {"white.png": solidAtlas([255, 255, 255, 255]), "red.png": solidAtlas([255, 0, 0, 255])});
   const player = await startGame(server(), page, SEED, "Sprites");
 

@@ -744,9 +744,17 @@ export interface OverlayUpdatedMessage {
   layer: OverlayLayer;
 }
 
+// The trips the traffic rule completed that the city offered since its last batch, for the client to draw as cars, in
+// the order they were offered: each the route of a drive that arrived, every tile it stood on, from the road it
+// started on to the tile where it arrived, on road alone
+export interface TripsMessage {
+  type: "trips";
+  routes: TilePosition[][];
+}
+
 export type StateMessage = MapMessage | TilesMessage | SpritesMessage | DateMessage | PopulationMessage |
   EvaluationRecord | BudgetRecord | SettingsRecord | StatusRecord | DemandMessage | NewsMessage | CommandResultMessage |
-  BudgetReviewDueMessage | OverlayUpdatedMessage;
+  BudgetReviewDueMessage | OverlayUpdatedMessage | TripsMessage;
 
 export type StateMessageType = StateMessage["type"];
 
@@ -754,7 +762,7 @@ export type StateMessageType = StateMessage["type"];
 // to compile, and the tests fail on a type with no example.
 const STATE_MESSAGE_TYPES: Record<StateMessageType, true> = {
   map: true, tiles: true, sprites: true, date: true, population: true, evaluation: true, budget: true, settings: true,
-  status: true, demand: true, news: true, commandResult: true, budgetReviewDue: true, overlayUpdated: true,
+  status: true, demand: true, news: true, commandResult: true, budgetReviewDue: true, overlayUpdated: true, trips: true,
 };
 
 export function stateMessageTypes(): string[] {

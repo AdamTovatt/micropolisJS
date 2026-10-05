@@ -12,6 +12,7 @@
  *
  */
 
+import { CAR_PIXELS } from "../src/cars";
 import { FrameRecord, damagedPixels } from "../src/mapDamage";
 import type { FrameTiles } from "../src/mapFrame";
 
@@ -46,16 +47,16 @@ describe("the record of the frame drawn last", () => {
     // A record of a frame of the view, the dirt and the train
     function recorded(): FrameRecord {
         const record = new FrameRecord();
-        record.damage(view, area(), [train]);
+        record.damage(view, area(), [], [train]);
         return record;
     }
 
     it("draws all of a first frame", () => {
-        expect(new FrameRecord().damage(view, area(), [train])).toBe("all");
+        expect(new FrameRecord().damage(view, area(), [], [train])).toBe("all");
     });
 
     it("draws nothing of the same frame again, in a view of the same values", () => {
-        expect(recorded().damage({...view}, area(), [{...train}])).toBeNull();
+        expect(recorded().damage({...view}, area(), [], [{...train}])).toBeNull();
     });
 
     it.each([
@@ -65,70 +66,97 @@ describe("the record of the frame drawn last", () => {
         ["width", {width: 321}],
         ["height", {height: 257}],
     ])("draws all of the view when its %s changes", (_, change) => {
-        expect(recorded().damage({...view, ...change}, area(), [train])).toBe("all");
+        expect(recorded().damage({...view, ...change}, area(), [], [train])).toBe("all");
     });
 
     it("draws again the block of a tile whose value changed, as far as a shadow reaches from it", () => {
-        expect(recorded().damage(view, area({column: 10, row: 3, value: ZONE, frame: 0}), [train]))
+        expect(recorded().damage(view, area({column: 10, row: 3, value: ZONE, frame: 0}), [], [train]))
             .toEqual([{x: 8, y: 0, width: 8, height: 8}]);
     });
 
     it("draws again a block a changed tile's shadow may reach into, the row's blocks that touch as one", () => {
-        expect(recorded().damage(view, area({column: 8, row: 3, value: ZONE, frame: 0}), [train]))
+        expect(recorded().damage(view, area({column: 8, row: 3, value: ZONE, frame: 0}), [], [train]))
             .toEqual([{x: 0, y: 0, width: 16, height: 8}]);
     });
 
     it("draws again only the block of a tile whose frame alone changed, which changes no shadow", () => {
-        expect(recorded().damage(view, area({column: 8, row: 3, value: 0, frame: LAWN}), [train]))
+        expect(recorded().damage(view, area({column: 8, row: 3, value: 0, frame: LAWN}), [], [train]))
             .toEqual([{x: 8, y: 0, width: 8, height: 8}]);
     });
 
     it("draws again the blocks in view of a tile in the margin whose value changed", () => {
-        expect(recorded().damage(view, area({column: -1, row: 12, value: ZONE}), [train]))
+        expect(recorded().damage(view, area({column: -1, row: 12, value: ZONE}), [], [train]))
             .toEqual([{x: 0, y: 8, width: 8, height: 8}]);
     });
 
     it("draws again the last column of blocks only as wide as the view", () => {
-        expect(recorded().damage(view, area({column: 18, row: 12, value: 0, frame: LAWN}), [train]))
+        expect(recorded().damage(view, area({column: 18, row: 12, value: 0, frame: LAWN}), [], [train]))
             .toEqual([{x: 16, y: 8, width: 4, height: 8}]);
     });
 
     it("draws again where a sprite that changed was, and where it is", () => {
         const moved = {...train, x: ORIGIN.x + 17 * 16, y: ORIGIN.y + 12 * 16};
 
-        expect(recorded().damage(view, area(), [moved]))
+        expect(recorded().damage(view, area(), [], [moved]))
             .toEqual([{x: 0, y: 0, width: 8, height: 8}, {x: 16, y: 8, width: 4, height: 8}]);
+    });
+
+    describe("with a car", () => {
+        const car = {x: ORIGIN.x + 2 * 16, y: ORIGIN.y + 2 * 16, width: CAR_PIXELS, direction: "east", colour: 0} as const;
+
+        // A record of a frame of the view, the dirt, the car and the train
+        function recordedWithCar(): FrameRecord {
+            const record = new FrameRecord();
+            record.damage(view, area(), [car], [train]);
+            return record;
+        }
+
+        it("draws nothing again while the car stands", () => {
+            expect(recordedWithCar().damage(view, area(), [{...car}], [train])).toBeNull();
+        });
+
+        it("draws again where a car that moved was, and where it is", () => {
+            expect(recordedWithCar().damage(view, area(), [{...car, x: ORIGIN.x + 17 * 16, y: ORIGIN.y + 12 * 16}],
+                                            [train]))
+                .toEqual([{x: 0, y: 0, width: 8, height: 8}, {x: 16, y: 8, width: 4, height: 8}]);
+        });
+
+        // Its square is the same, but it is drawn long the other way
+        it("draws again where a car turned in its place", () => {
+            expect(recordedWithCar().damage(view, area(), [{...car, direction: "north"}], [train]))
+                .toEqual([{x: 0, y: 0, width: 8, height: 8}]);
+        });
     });
 
     it("draws all of the view when more than half its blocks changed", () => {
         const changed = [0, 8, 16, 0].map((column, i) => ({column, row: i < 3 ? 2 : 10, value: 0, frame: LAWN}));
 
-        expect(recorded().damage(view, area(...changed), [train])).toBe("all");
+        expect(recorded().damage(view, area(...changed), [], [train])).toBe("all");
     });
 
     it("draws all of the view after it is invalidated, then nothing again", () => {
         const record = recorded();
         record.invalidate();
 
-        expect([record.damage(view, area(), [train]), record.damage(view, area(), [train])]).toEqual(["all", null]);
+        expect([record.damage(view, area(), [], [train]), record.damage(view, area(), [], [train])]).toEqual(["all", null]);
     });
 
     it("keeps its own copy of the view", () => {
         const record = new FrameRecord();
         const shown = {...view};
-        record.damage(shown, area(), []);
+        record.damage(shown, area(), [], []);
         shown.originX = 12;
 
-        expect(record.damage(shown, area(), [])).toBe("all");
+        expect(record.damage(shown, area(), [], [])).toBe("all");
     });
 
     it("keeps its own copy of the tiles, which the canvas fills again on each paint", () => {
         const record = new FrameRecord();
         const shown = area();
-        record.damage(view, shown, []);
+        record.damage(view, shown, [], []);
         (shown.frames as number[])[(3 + 1) * (VIEW_WIDTH + 2) + 2 + 1] = LAWN;
 
-        expect(record.damage(view, shown, [])).toEqual([{x: 0, y: 0, width: 8, height: 8}]);
+        expect(record.damage(view, shown, [], [])).toEqual([{x: 0, y: 0, width: 8, height: 8}]);
     });
 });
 

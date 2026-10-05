@@ -12,19 +12,23 @@
  *
  */
 
-import { FrameTiles, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles } from "../src/mapFrame";
+import { CAR_COLOURS } from "../src/cars";
+import type { PaintableCar } from "../src/cars";
+import { CAR_BREADTH, CAR_LENGTH, FrameTiles, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles } from "../src/mapFrame";
 import type { Tint } from "../src/overlayRenderer";
 import type { SpriteView } from "../src/protocol";
 import type { Rect } from "../src/rect";
 import { FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, WHITE, parseRenderManifest } from "../src/renderManifest";
 import { tileImageOrigin } from "../src/tileSet";
-import { POWERBIT, ZONEBIT } from "../src/tileFlags";
-import { LIGHTNINGBOLT, TILE_INVALID } from "../src/tileValues";
+import { ANIMBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
+import { LIGHTNINGBOLT, LTRFBASE, ROADBASE, ROADS, TILE_INVALID } from "../src/tileValues";
 
 // Tile 5 is rendered: ground, objects, and a shadow reaching a tile left and a tile down. Tile 6 has rendered ground
-// only. Every other id falls back.
+// only. Light traffic on a plain road has the art of its own the painted traffic had, its cars' shadow among it, and the
+// plain road ground only. Every other id falls back.
 const ZONE = 5;
 const LAWN = 6;
+const TRAFFIC = LTRFBASE + (ROADS - ROADBASE);
 const art = new RenderArt(parseRenderManifest({
     version: 1,
     atlases: {ground: "ground.png", objects: "objects.png", shadows: "shadows.png"},
@@ -35,8 +39,15 @@ const art = new RenderArt(parseRenderManifest({
             shadow: {atlas: "shadows", x: 0, y: 0, width: 128, height: 128, reach: {left: 1, top: 0, right: 0, bottom: 1}},
         },
         [LAWN]: {ground: {atlas: "ground", x: 64, y: 0, width: 64, height: 64}},
+        [ROADS]: {ground: {atlas: "ground", x: 128, y: 0, width: 64, height: 64}},
+        [TRAFFIC]: {
+            ground: {atlas: "ground", x: 192, y: 0, width: 64, height: 64},
+            objects: {atlas: "objects", x: 192, y: 0, width: 64, height: 64},
+            shadow: {atlas: "shadows", x: 128, y: 0, width: 64, height: 64, reach: {left: 0, top: 0, right: 0, bottom: 0}},
+        },
     },
     sprites: {},
+    cars: {red: {north: {atlas: "objects", x: 256, y: 0, width: 64, height: 64}}},
 }));
 
 // A quad as its floats: where it lands, where it comes from, and its colour
@@ -59,6 +70,11 @@ function quads(list: QuadList): {atlas: string, quads: Quad[]}[] {
 
 const OPAQUE = [1, 1, 1, 1];
 
+// The colour a car of the colour given is drawn in, as the buffer holds it, in single floats
+function carFloats(colour: number): number[] {
+    return [...CAR_COLOURS[colour].flat.map(Math.fround), 1];
+}
+
 // The area of a 2 by 1 view with a margin of 1, from map tile (10, 20): 4 by 3 tiles, whose in-view tiles are the
 // middle row's two middle ones, the view starting at the first's top-left. The frames are the values, unless given.
 function tiles(values: number[], frames: number[] = values): FrameTiles {
@@ -77,9 +93,9 @@ function tilesWith(index: number, value: number, frame = value): FrameTiles {
 const noTint = () => null;
 
 function build(area: FrameTiles, tilePixels = 16, tint: (x: number, y: number) => Tint | null = noTint,
-               sprites: SpriteView[] = []): MapFrame {
+               sprites: SpriteView[] = [], cars: PaintableCar[] = []): MapFrame {
     const frame = new MapFrame();
-    buildMapFrame(frame, art, area, tilePixels, tint, sprites);
+    buildMapFrame(frame, art, area, tilePixels, tint, cars, sprites);
     return frame;
 }
 
@@ -148,6 +164,17 @@ describe("a frame of the map", () => {
         expect(quads(frame.objects)).toEqual([]);
     });
 
+    // In view at (0, 0), beside dirt: the traffic's own art would draw its cars' objects and their shadow
+    it("draws traffic as the plain road it runs on, every layer, its shadow among them", () => {
+        const frame = build(tilesWith(5, TRAFFIC | ANIMBIT, TRAFFIC));
+
+        expect(quads(frame.ground)).toEqual([
+            {atlas: "ground", quads: [{target: [0, 0, 16, 16], source: [128, 0, 64, 64], colour: OPAQUE}]},
+            {atlas: FALLBACK_TILES, quads: [{target: [16, 0, 16, 16], source: [0, 0, 16, 16], colour: OPAQUE}]},
+        ]);
+        expect([frame.objects.count, frame.shadows.count]).toEqual([0, 0]);
+    });
+
     it("draws the shadow of an anchor whose frame blinks to the lightning bolt, from its value", () => {
         const unpowered = ZONE | ZONEBIT;
         const frame = build(tilesWith(5, unpowered, LIGHTNINGBOLT));
@@ -184,6 +211,27 @@ describe("a frame of the map", () => {
         ]}]);
     });
 
+    // The art has the red car facing north, and no other
+    it("draws each car under the sprites, from its art filling its square, or else a flat rectangle long its way", () => {
+        // The view's origin is map tile (11, 21): map pixels (176, 336), at 64 device pixels a tile, so a car's square
+        // of a tile is 64 device pixels, and a car with no art 17 by 7 of them, in its middle
+        const north = {x: 180, y: 340, width: 16, direction: "north", colour: 0} as const;
+        const east = {x: 200, y: 340, width: 16, direction: "east", colour: 0} as const;
+        const southBlue = {x: 220, y: 340, width: 16, direction: "south", colour: 1} as const;
+        const train = {type: 1, frame: 2, x: 180, y: 340, width: 32};
+        const frame = build(tilesWith(0, 0), 64, noTint, [train], [north, east, southBlue]);
+
+        expect([CAR_LENGTH * 64, CAR_BREADTH * 64]).toEqual([17, 7]);
+        expect(quads(frame.sprites)).toEqual([
+            {atlas: "objects", quads: [{target: [16, 16, 64, 64], source: [256, 0, 64, 64], colour: OPAQUE}]},
+            {atlas: WHITE, quads: [
+                {target: [96 + (64 - 17) / 2, 16 + (64 - 7) / 2, 17, 7], source: [0, 0, 1, 1], colour: carFloats(0)},
+                {target: [176 + (64 - 7) / 2, 16 + (64 - 17) / 2, 7, 17], source: [0, 0, 1, 1], colour: carFloats(1)},
+            ]},
+            {atlas: FALLBACK_SPRITES, quads: [{target: [16, 16, 128, 128], source: [48, 0, 32, 32], colour: OPAQUE}]},
+        ]);
+    });
+
     it("draws tiles and sprites from a view that starts inside its first tile, by the offset into it", () => {
         // The view's top-left is 5 device pixels right of and 3 below map pixel (176, 336)'s, at 16 a tile
         const area = {...tilesWith(6, 0), offset: {x: 5, y: 3}};
@@ -206,9 +254,9 @@ describe("a frame of the map", () => {
 
     it("starts again from nothing on each frame, keeping its runs' buffers", () => {
         const frame = new MapFrame();
-        buildMapFrame(frame, art, tilesWith(6, ZONE), 16, noTint, []);
+        buildMapFrame(frame, art, tilesWith(6, ZONE), 16, noTint, [], []);
         const buffer = frame.ground.runs[0].data;
-        buildMapFrame(frame, art, tilesWith(6, 0), 16, noTint, []);
+        buildMapFrame(frame, art, tilesWith(6, 0), 16, noTint, [], []);
 
         expect(quads(frame.ground)).toEqual([{atlas: FALLBACK_TILES, quads: [dirt(0), dirt(16)]}]);
         expect(frame.shadows.count).toBe(0);
@@ -221,9 +269,10 @@ describe("a frame of the map", () => {
         const left = [{x: 0, y: 0, width: 16, height: 16}];
         const right = [{x: 16, y: 0, width: 16, height: 16}];
 
-        function buildIn(area: FrameTiles, areas: Rect[], sprites: SpriteView[] = [], tilePixels = 16): MapFrame {
+        function buildIn(area: FrameTiles, areas: Rect[], sprites: SpriteView[] = [], tilePixels = 16,
+                         cars: PaintableCar[] = []): MapFrame {
             const frame = new MapFrame();
-            buildMapFrame(frame, art, area, tilePixels, noTint, sprites, areas);
+            buildMapFrame(frame, art, area, tilePixels, noTint, cars, sprites, areas);
             return frame;
         }
 
@@ -256,6 +305,17 @@ describe("a frame of the map", () => {
 
             expect([buildIn(tilesWith(0, 0), right, [train]).sprites.count,
                     buildIn(tilesWith(0, 0), left, [train]).sprites.count]).toEqual([1, 0]);
+        });
+
+        it("draws a car whose square reaches into an area, and leaves out one that doesn't", () => {
+            // In the view's second tile, and in its first
+            const inRight = {x: 196, y: 340, width: 7, direction: "south", colour: 2} as const;
+            const inLeft = {x: 180, y: 340, width: 7, direction: "west", colour: 3} as const;
+
+            const drawn = quads(buildIn(tilesWith(0, 0), right, [], 16, [inRight, inLeft]).sprites);
+
+            expect(drawn.map(({atlas, quads: found}) => ({atlas, colours: found.map((quad) => quad.colour)})))
+                .toEqual([{atlas: WHITE, colours: [carFloats(2)]}]);
         });
     });
 
@@ -329,7 +389,7 @@ describe("a frame of the map", () => {
 
         it("draws the shadow of a tile at the map's edge, though it reaches past the edge, where nothing lies", () => {
             const frame = new MapFrame();
-            buildMapFrame(frame, art, wholeMapTiles(newMap().map), 3, noTint, []);
+            buildMapFrame(frame, art, wholeMapTiles(newMap().map), 3, noTint, [], []);
 
             // Both zone tiles are in the first column, and cast their shadow a tile left and down
             expect(frame.shadows.count).toBe(2);

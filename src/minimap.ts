@@ -17,6 +17,7 @@ import { requiredElement } from "./domElements";
 import type { Pixels } from "./renderAssets";
 import { TILE_SIZE, tileImageOrigin } from "./tileSet";
 import { TILE_COUNT } from "./tileValues";
+import { plainRoad } from "./trafficTiles";
 import type { TilePoint } from "./viewPosition";
 
 // The minimap: the whole map small, in the left column, with the view's rectangle over it. A click or a drag on it
@@ -28,12 +29,13 @@ import type { TilePoint } from "./viewPosition";
 // column, and further where the window is too short for it, without smoothing.
 export const MINIMAP_PIXELS_PER_TILE = 2;
 
-// Each tile id's colour, three bytes each, red, green and blue: the average of its tile's pixels in the tile set
+// Each tile id's colour, three bytes each, red, green and blue: the average of the pixels in the tile set of the tile
+// the map draws for it, a traffic tile's plain road
 export function tileColours(tileSet: Pick<Pixels, "data" | "width">): Uint8Array {
   const colours = new Uint8Array(TILE_COUNT * 3);
 
   for (let tile = 0; tile < TILE_COUNT; tile++) {
-    const origin = tileImageOrigin(tile);
+    const origin = tileImageOrigin(plainRoad(tile));
     const sums = [0, 0, 0];
 
     for (let row = 0; row < TILE_SIZE; row++) {

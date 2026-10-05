@@ -75,7 +75,7 @@ async function serveColouredArt(page: Page): Promise<void> {
     atlases[`${name}.png`] = solidAtlas(COLOURS[name]);
   }
   await serveTestArt(page, {version: 1, atlases: {white: "white.png", blue: "blue.png", green: "green.png",
-                                                  red: "red.png"}, tiles, sprites}, atlases);
+                                                  red: "red.png"}, tiles, sprites, cars: {}}, atlases);
 }
 
 // The size of the canvas's backing store

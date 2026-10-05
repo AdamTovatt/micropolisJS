@@ -20,7 +20,7 @@ import type { StateMessage } from "../src/protocol";
 import type { Pixels } from "../src/renderAssets";
 import { POWERBIT } from "../src/tileFlags";
 import { tileImageOrigin } from "../src/tileSet";
-import { DIRT, RIVER, TILE_COUNT } from "../src/tileValues";
+import { BRWV, DIRT, HTRFBASE, RIVER, ROADBASE, ROADS, TILE_COUNT } from "../src/tileValues";
 
 // A tile set of 32 by 32 tiles of 16 pixels, each tile's pixels filled by the function from its id and the pixel's
 // place in the tile
@@ -52,6 +52,14 @@ describe("the minimap", () => {
             // Tile 37's green averages 18.5, which rounds up
             expect(Array.from(colours.slice(37 * 3, 38 * 3))).toEqual([100, 19, 50]);
             expect(colours.length).toBe(TILE_COUNT * 3);
+        });
+
+        // Each tile its own shade, so a tile drawn in another's colour shows
+        it("is a traffic tile's plain road's, as the map draws it", () => {
+            const colours = tileColours(tileSet((tile) => [tile % 256, 0, 0]));
+
+            expect(colours[(HTRFBASE + (ROADS - ROADBASE)) * 3]).toBe(ROADS);
+            expect(colours[BRWV * 3]).toBe(BRWV);
         });
     });
 

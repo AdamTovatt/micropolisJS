@@ -71,7 +71,7 @@ test.describe("art that fails to load is reported, naming what failed, and the p
   test("a render manifest that is broken", async ({page}) => {
     await blockNetwork(page);
     const problems = collectPageProblems(page);
-    await serveArt(page, {version: 1, atlases: {}, tiles: {"7": {}}, sprites: {}});
+    await serveArt(page, {version: 1, atlases: {}, tiles: {"7": {}}, sprites: {}, cars: {}});
 
     await page.goto("/");
 
@@ -82,7 +82,7 @@ test.describe("art that fails to load is reported, naming what failed, and the p
   test("an atlas image that fails to load", async ({page}) => {
     await blockNetwork(page);
     const problems = collectPageProblems(page);
-    await serveArt(page, {version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {}}, true);
+    await serveArt(page, {version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {}, cars: {}}, true);
 
     await page.goto("/");
 
@@ -94,7 +94,8 @@ test.describe("art that fails to load is reported, naming what failed, and the p
     await blockNetwork(page);
     const problems = collectPageProblems(page);
     await serveArt(page, {version: 1, atlases: {zones: "zones.png"},
-                          tiles: {"7": {ground: {atlas: "zones", x: 0, y: 0, width: 4, height: 2}}}, sprites: {}});
+                          tiles: {"7": {ground: {atlas: "zones", x: 0, y: 0, width: 4, height: 2}}}, sprites: {},
+                          cars: {}});
 
     await page.goto("/");
 
@@ -114,7 +115,7 @@ test.describe("art that fails to load is reported, naming what failed, and the p
       };
     });
     await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: {
-      version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {},
+      version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {}, cars: {},
     }}));
     await page.route("**/images/render/zones.png", (route) => route.fulfill({
       body: png(1025, 1, new Array<number>(1025 * 4).fill(255)), contentType: "image/png",

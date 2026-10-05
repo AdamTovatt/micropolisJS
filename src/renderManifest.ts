@@ -12,6 +12,8 @@
  *
  */
 
+import { CAR_COLOURS, CAR_DIRECTIONS } from "./cars";
+import type { CarDirection } from "./cars";
 import type { Rect } from "./rect";
 import { tileImageOrigin } from "./tileSet";
 import { TILE_COUNT } from "./tileValues";
@@ -19,7 +21,7 @@ import { TILE_COUNT } from "./tileValues";
 // The art the map is drawn with: which rectangle of which atlas each tile id draws in each layer, and each sprite type
 // and frame. docs/render-assets.md specifies the manifest's file, which the rendered art comes in; a tile id or sprite
 // frame the rendered art leaves out is drawn from the fallback manifest, which this module generates from the 16 px
-// sheets the game has always drawn with.
+// sheets the game has always drawn with, and a car it leaves out in its flat colour.
 
 // A rectangle of an atlas, in the atlas's pixels
 export interface AtlasRect extends Rect {
@@ -47,12 +49,18 @@ export interface TileArt {
   objects: AtlasRect | null;
 }
 
-// A manifest: each atlas's image, by name, a path relative to the manifest's own, and the art of each tile id and of
-// each sprite, by type and frame, as spriteKey names it
+// A manifest: each atlas's image, by name, a path relative to the manifest's own, and the art of each tile id, of each
+// sprite, by type and frame, as spriteKey names it, and of each car, by colour and direction, as carKey names it
 export interface RenderManifest {
   atlases: ReadonlyMap<string, string>;
   tiles: ReadonlyMap<number, TileArt>;
   sprites: ReadonlyMap<string, AtlasRect>;
+  cars: ReadonlyMap<string, AtlasRect>;
+}
+
+// The key of a car's art in a manifest's cars, from its colour's name and the way it faces
+export function carKey(colour: string, direction: CarDirection): string {
+  return `${colour}/${direction}`;
 }
 
 // Atlas names starting with this are the client's own, and a manifest's atlases may not take one: the fallback sheets',
@@ -96,8 +104,8 @@ export function fallbackSpriteRect(type: number, frame: number): AtlasRect | nul
 
 // The art generated from the 16 px sheets: every tile id's ground from images/tiles.png, with no shadow and no
 // objects, and every sprite frame from images/sprites.png. Its atlases are the sheets the page has loaded, under
-// FALLBACK_TILES and FALLBACK_SPRITES.
-export function fallbackManifest(): Pick<RenderManifest, "tiles" | "sprites"> {
+// FALLBACK_TILES and FALLBACK_SPRITES. It has no car's art: a car with none is drawn in its flat colour.
+export function fallbackManifest(): Pick<RenderManifest, "tiles" | "sprites" | "cars"> {
   const tiles = new Map<number, TileArt>();
   for (let id = 0; id < TILE_COUNT; id++) {
     const origin = tileImageOrigin(id);
@@ -115,7 +123,7 @@ export function fallbackManifest(): Pick<RenderManifest, "tiles" | "sprites"> {
     }
   });
 
-  return {tiles, sprites};
+  return {tiles, sprites, cars: new Map()};
 }
 
 // Reading a manifest's JSON. Each check throws naming where in the file it failed, so a broken manifest from the
@@ -202,7 +210,7 @@ function plainRect(value: unknown, where: string, atlases: ReadonlyMap<string, s
 
 // The manifest a manifest file's JSON holds, or an error naming what is wrong with it
 export function parseRenderManifest(value: unknown): RenderManifest {
-  const json = object(value, "the manifest", ["version", "atlases", "tiles", "sprites"]);
+  const json = object(value, "the manifest", ["version", "atlases", "tiles", "sprites", "cars"]);
   if (json.version !== 1) {
     fail("version", "is not 1");
   }
@@ -244,11 +252,21 @@ export function parseRenderManifest(value: unknown): RenderManifest {
     }
   }
 
-  return {atlases, tiles, sprites};
+  // Each colour the client knows, and in it each way a car faces, any of them left out
+  const cars = new Map<string, AtlasRect>();
+  const colourJson = object(json.cars, "cars", [], CAR_COLOURS.map(({name}) => name));
+  for (const [colour, ways] of Object.entries(colourJson)) {
+    const wayJson = object(ways, `cars.${colour}`, [], CAR_DIRECTIONS);
+    for (const [way, entry] of Object.entries(wayJson)) {
+      cars.set(carKey(colour, way as CarDirection), plainRect(entry, `cars.${colour}.${way}`, atlases));
+    }
+  }
+
+  return {atlases, tiles, sprites, cars};
 }
 
 // Fails naming each rectangle that runs past its atlas, given each atlas's size in pixels
-export function checkRectsInAtlases(manifest: Pick<RenderManifest, "tiles" | "sprites">,
+export function checkRectsInAtlases(manifest: Pick<RenderManifest, "tiles" | "sprites" | "cars">,
                                     sizes: ReadonlyMap<string, {width: number, height: number}>): void {
   const outside: string[] = [];
   const check = (rect: AtlasRect, where: string) => {
@@ -268,6 +286,7 @@ export function checkRectsInAtlases(manifest: Pick<RenderManifest, "tiles" | "sp
     }
   });
   manifest.sprites.forEach((rect, key) => check(rect, `sprite ${key}`));
+  manifest.cars.forEach((rect, key) => check(rect, `car ${key}`));
 
   if (outside.length > 0) {
     throw new Error(`Render manifest: rectangles run past their atlas: ${outside.join(", ")}`);
@@ -317,5 +336,11 @@ export class RenderArt {
   sprite(type: number, frame: number): AtlasRect | null {
     const key = spriteKey(type, frame);
     return this.rendered.sprites.get(key) ?? this.fallback.sprites.get(key) ?? null;
+  }
+
+  // The art of a car of the colour, by its number in CAR_COLOURS, facing the way given, drawn into the car's square,
+  // or null for one the manifest has none for, which is drawn in its flat colour
+  car(colour: number, direction: CarDirection): AtlasRect | null {
+    return this.rendered.cars.get(carKey(CAR_COLOURS[colour].name, direction)) ?? null;
   }
 }

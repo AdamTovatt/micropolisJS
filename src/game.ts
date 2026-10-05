@@ -14,6 +14,7 @@
 
 import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetWindow } from "./budgetWindow";
+import { Cars } from "./cars";
 import type { Presence } from "./cityClient";
 import { linkToCity } from "./cityLink";
 import type { CitySource, StartedCity } from "./citySource";
@@ -35,7 +36,8 @@ import { LastEvent, NewsHold, routeMessage } from "./news";
 import { NotificationBar, placeNotificationBar } from "./notification";
 import { OtherPlayers } from "./otherPlayers";
 import { cityOverlaySource, OverlayPicker } from "./overlayPicker";
-import { PaintableSprite, spritesInView } from "./paintable";
+import { squaresInView } from "./paintable";
+import type { PaintableSquare } from "./paintable";
 import { placePanelFolding } from "./panelFolding";
 import { CommandResult, NewsMessage } from "./protocol";
 import { QueryWindow } from "./queryWindow";
@@ -96,6 +98,9 @@ export class Game {
 
   private readonly newsHold = new NewsHold();
   private readonly lastEvent = new LastEvent();
+  // The cars driving the trips the city sends, and how many the map's view was last painted with
+  readonly cars = new Cars();
+  private mapCars = 0;
 
   // Debug mode's frame counter
   private readonly fpsValue = requiredElement("fpsValue");
@@ -115,11 +120,15 @@ export class Game {
 
   private readonly commonAnimate = () => {
     const paused = this.speedControl.isPaused();
-    let sprites = this.calculateSpritesForPaint(this.gameCanvas);
-    this.gameCanvas.paint(this.controls.outlines(), sprites, paused);
+    // The client's clock, which tile animation reads too
+    this.cars.advance(Date.now(), paused);
+    const cars = this.cars.paintable();
 
-    sprites = this.calculateSpritesForPaint(this.monsterTV.canvas);
-    this.monsterTV.paint(sprites, paused);
+    const mapCars = this.inView(cars, this.gameCanvas);
+    this.mapCars = mapCars.length;
+    this.gameCanvas.paint(this.controls.outlines(), mapCars, this.inView(this.state.sprites, this.gameCanvas), paused);
+    this.monsterTV.paint(this.inView(cars, this.monsterTV.canvas), this.inView(this.state.sprites, this.monsterTV.canvas),
+                         paused);
 
     this.minimap.paint();
 
@@ -260,6 +269,11 @@ export class Game {
     this.controls.sendToolPaths();
   }
 
+  // How many cars the map's view was last painted with
+  get carsInView(): number {
+    return this.mapCars;
+  }
+
   // The map tile under the pointer that this player's hover box is drawn at, or null while none is
   get hoverTile(): TilePoint | null {
     return this.controls.hoverTile;
@@ -284,6 +298,7 @@ export class Game {
     state.on("budget", (budget) => this.infoBar.showBudget(budget));
     state.on("settings", (settings) => this.speedControl.showSpeed(settings.speed));
     state.on("sprites", ({sprites}) => this.monsterTV.spritesMoved(sprites));
+    state.on("trips", ({routes}) => this.cars.add(routes));
     state.on("news", (news) => this.showNews(news));
     state.on("commandResult", ({result}) => {
       this.handleCommandResult(result);
@@ -345,8 +360,9 @@ export class Game {
     }
   }
 
-  private calculateSpritesForPaint(canvas: SpriteViewport): PaintableSprite[] {
+  // The sprites, or cars, the canvas shows
+  private inView<T extends PaintableSquare>(squares: readonly T[], canvas: SpriteViewport): T[] {
     const origin = canvas.getTileOrigin();
-    return spritesInView(this.state.sprites, origin.x, origin.y, canvas.mapPixelWidth, canvas.mapPixelHeight);
+    return squaresInView(squares, origin.x, origin.y, canvas.mapPixelWidth, canvas.mapPixelHeight);
   }
 }

@@ -10,11 +10,11 @@ The map is drawn in this order:
 2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
 3. every tile's objects;
 4. the map overlay's tint;
-5. the sprites.
+5. the cars (`cars.ts`), then the sprites over them.
 
 The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as their shadows reach.
 
-A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. A shadow is drawn from the anchor's own tile id, so it doesn't blink. The bolt's entry has objects as well as ground, the whole tile, opaque, which no shadow darkens: the bolt replaces the centre tile of a zone or a service building, whose own shadow lies dense under the roof the bolt replaces.
+A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. Traffic is drawn as cars, so a traffic tile, light or heavy, and each frame of one, is drawn from the entry of the plain road tile of its shape (`trafficTiles.ts`), every layer of it: its shadow comes from the anchor's own value, and a traffic value's is the plain road's. The map, the monster TV and the preview alike look up a tile's art in one place, `buildMapFrame` in `mapFrame.ts`. A shadow is drawn from the anchor's own tile id, so it doesn't blink. The bolt's entry has objects as well as ground, the whole tile, opaque, which no shadow darkens: the bolt replaces the centre tile of a zone or a service building, whose own shadow lies dense under the roof the bolt replaces.
 
 The monster TV draws its view in the same passes, but for the overlay's tint. The splash screen's preview draws the whole map in the first three, with no overlay and no sprites, each tile's own id unanimated, and the shadows of none but the tiles on the map.
 
@@ -46,6 +46,11 @@ The monster TV draws its view in the same passes, but for the overlay's tint. Th
     "5": {
       "1": {"atlas": "objects-0", "x": 0, "y": 512, "width": 192, "height": 192}
     }
+  },
+  "cars": {
+    "red": {
+      "north": {"atlas": "objects-0", "x": 192, "y": 512, "width": 64, "height": 64}
+    }
   }
 }
 ```
@@ -57,6 +62,7 @@ The monster TV draws its view in the same passes, but for the overlay's tint. Th
   - `objects`, optional: everything standing, over transparency, drawn into the tile over the shadows. A tile the game draws in place of another asset's tile has the whole tile here, opaque, so no shadow darkens it.
   - `shadow`, optional, and only on an asset's anchor: black whose alpha is the shadow's darkness, drawn over the anchor and `reach` whole tiles past it on each side.
 - `sprites` maps a sprite type, from 1 to 7, and a frame, from 1 to that type's last, to its rectangle, drawn into the sprite's square. The types are, in order: train (5 frames, 32 px square), helicopter (8, 32 px), airplane (11, 48 px), ship (8, 48 px), monster (16, 48 px), tornado (3, 48 px) and explosion (6, 48 px), the square's side measured at 16 px a tile (`SPRITE_SHEET` in `renderManifest.ts`).
+- `cars` maps a car's colour, one of the client's (`CAR_COLOURS` in `cars.ts`: red, blue, yellow, white, green and orange), and a way it faces, `north`, `east`, `south` or `west`, to its rectangle, drawn into the car's square, a tile a side, centred on its place in its lane, the car and its shadow standing in the middle. A car the manifest leaves out is drawn as a rectangle in its colour's flat colour, long the way it faces, the size of the painted car (`CAR_LENGTH` and `CAR_BREADTH` in `mapFrame.ts`).
 
 A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atlas, at least 1 wide and high. It is scaled to fill where it is drawn, so an atlas may be rendered at any pixels a tile; the art is rendered at 64 px a tile (`TILE_PX` in `art/blender/tileart.py`), the closest zoom. A key the format doesn't name, a missing `ground`, a rectangle naming an atlas the manifest doesn't declare or running past its image, or a number out of its range fails the page's start with a message naming where.
 

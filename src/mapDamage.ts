@@ -12,9 +12,10 @@
  *
  */
 
+import type { PaintableCar } from "./cars";
 import type { FrameTiles } from "./mapFrame";
-import { spriteTiles } from "./paintable";
-import type { PaintableSprite } from "./paintable";
+import { squareTiles } from "./paintable";
+import type { PaintableSprite, PaintableSquare } from "./paintable";
 import type { Rect } from "./rect";
 import type { PixelPoint } from "./viewPosition";
 
@@ -127,16 +128,19 @@ export class FrameRecord {
   private view: FrameView | null = null;
   private values: number[] = [];
   private frames: number[] = [];
-  private sprites: PaintableSprite[] = [];
-  private spriteText = "";
+  // The squares of the cars and the sprites, and their text, to tell whether any moved or changed
+  private squares: PaintableSquare[] = [];
+  private squareText = "";
 
-  // The part of the view a frame of the view, the tiles and the sprites would draw differently from the last one
-  // recorded, or null for none; the frame is recorded as the last. A tile whose value changed may have changed its
-  // shadow, which reaches no farther than the tiles' margin; a sprite that changed is drawn again where it was and
-  // where it is.
-  damage(view: FrameView, tiles: FrameTiles, sprites: readonly PaintableSprite[]): Damage | null {
+  // The part of the view a frame of the view, the tiles, the cars and the sprites would draw differently from the last
+  // one recorded, or null for none; the frame is recorded as the last. A tile whose value changed may have changed its
+  // shadow, which reaches no farther than the tiles' margin; a car or a sprite that changed is drawn again where it was
+  // and where it is.
+  damage(view: FrameView, tiles: FrameTiles, cars: readonly PaintableCar[],
+         sprites: readonly PaintableSprite[]): Damage | null {
     const count = tiles.width * tiles.height;
-    const spriteText = JSON.stringify(sprites);
+    const squares: readonly PaintableSquare[] = [...cars, ...sprites];
+    const squareText = JSON.stringify(squares);
     const {margin} = tiles;
     let damage: Damage | null = "all";
 
@@ -153,9 +157,9 @@ export class FrameRecord {
         }
       }
 
-      if (spriteText !== this.spriteText) {
-        for (const sprite of this.sprites.concat(sprites)) {
-          const {x, xBound, y, yBound} = spriteTiles(sprite, tiles.x + margin, tiles.y + margin);
+      if (squareText !== this.squareText) {
+        for (const square of this.squares.concat(squares)) {
+          const {x, xBound, y, yBound} = squareTiles(square, tiles.x + margin, tiles.y + margin);
           blocks.mark(x, y, xBound - 1, yBound - 1);
         }
       }
@@ -168,8 +172,8 @@ export class FrameRecord {
     }
 
     this.view = {...view};
-    this.sprites = sprites.map((sprite) => ({...sprite}));
-    this.spriteText = spriteText;
+    this.squares = squares.map(({x, y, width}) => ({x, y, width}));
+    this.squareText = squareText;
     this.values = tiles.values.slice(0, count);
     this.frames = tiles.frames.slice(0, count);
     return damage;

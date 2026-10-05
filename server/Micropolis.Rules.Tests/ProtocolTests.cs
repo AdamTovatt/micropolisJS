@@ -312,6 +312,7 @@ namespace Micropolis.Rules.Tests
             ["commandResult"] = typeof(CommandResultMessage),
             ["budgetReviewDue"] = typeof(BudgetReviewDueMessage),
             ["overlayUpdated"] = typeof(OverlayUpdatedMessage),
+            ["trips"] = typeof(TripsMessage),
         };
 
         // The C# type the server writes each record and answer as, by its type field

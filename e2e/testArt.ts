@@ -30,7 +30,7 @@ export async function serveTestArt(page: Page, manifest: object, atlases: Record
 // Serves a render manifest of no entries, so every tile and sprite draws from the 16 px sheets, images/tiles.png and
 // images/sprites.png, whatever art the repository's images/render/ holds
 export async function serveNoArt(page: Page): Promise<void> {
-  await serveTestArt(page, {version: 1, atlases: {}, tiles: {}, sprites: {}}, {});
+  await serveTestArt(page, {version: 1, atlases: {}, tiles: {}, sprites: {}, cars: {}}, {});
 }
 
 // A 16 pixel square atlas of one colour, RGBA

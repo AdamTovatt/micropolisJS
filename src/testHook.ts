@@ -29,6 +29,8 @@ interface HookedGame {
   gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits, readonly tileWidth: number,
                readonly mapCurrent: boolean};
   monsterTV: {readonly current: boolean};
+  cars: {driven(): number[]};
+  readonly carsInView: number;
   notificationBar: {dismiss(): void};
   toolToast: {dismiss(): void};
   readonly hoverTile: {x: number, y: number} | null;
@@ -195,6 +197,16 @@ class TestHook {
   // none is drawn
   hoverTile(): {x: number, y: number} | null {
     return this.attachedGame().hoverTile;
+  }
+
+  // How far each car driving has driven, in tiles: none, while the page's clock stands still, as the runner fixes it
+  carsDriven(): number[] {
+    return this.attachedGame().cars.driven();
+  }
+
+  // How many cars the map's view was last painted with
+  carsInView(): number {
+    return this.attachedGame().carsInView;
   }
 
   // Whether the map, and the monster TV while it shows, show what they last painted from, drawn to the end. A paint

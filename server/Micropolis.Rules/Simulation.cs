@@ -114,7 +114,8 @@ namespace Micropolis.Rules
             DisasterManager = new DisasterManager(map, SpriteManager, Random);
             MapScanner = new MapScanner(map);
             RepairManager = new RepairManager(map);
-            TrafficManager = new Traffic(map, SpriteManager, Random);
+            Trips = new Trips(map);
+            TrafficManager = new Traffic(map, SpriteManager, Random, Trips);
             Init();
         }
 
@@ -205,6 +206,11 @@ namespace Micropolis.Rules
         public RepairManager RepairManager { get; }
 
         public Traffic TrafficManager { get; }
+
+        /// <summary>
+        /// The trips the traffic rule completes, offered for the client to draw as cars, which the rules never read.
+        /// </summary>
+        public Trips Trips { get; }
 
         /// <summary>
         /// The events the simulation sends, its components' included as it passes them on: front-end messages, the
@@ -345,7 +351,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// One loop of the simulation, as simLoop in the original: a phase of the city cycle when the game speed lets
         /// one through, then one move of every sprite. A paused simulation's step does nothing, as the original's
-        /// simFrame and moveObjects do nothing at speed 0.
+        /// simFrame and moveObjects do nothing at speed 0. A step that isn't paused may offer a trip (<see cref="Trips"/>).
         /// </summary>
         public void Step()
         {
@@ -357,6 +363,7 @@ namespace Micropolis.Rules
             SimFrame();
             SpriteManager.MoveObjects(ConstructSimData());
             UpdateTime();
+            Trips.Stepped();
         }
 
         private void SimFrame()

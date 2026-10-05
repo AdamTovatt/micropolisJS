@@ -12,6 +12,7 @@
  *
  */
 
+import type { PaintableCar } from "./cars";
 import { placeNewCanvas, requiredElement, screenPixelRatio, sizeCanvas } from "./domElements";
 import { MapPainter, paintedView } from "./mapPainter";
 import { drawBoxLabel, drawMouseBox } from "./mouseBox";
@@ -136,7 +137,7 @@ class GameCanvas {
     }, false);
 
     this.centreOn(Math.floor(map.width / 2), Math.floor(map.height / 2));
-    this.paint([], []);
+    this.paint([], [], []);
   }
 
   // The CSS pixels a tile is drawn, at the zoom the view is at
@@ -259,8 +260,9 @@ class GameCanvas {
     return picture.toDataURL();
   }
 
-  // Paints the map, then the outlines in order, each over the last, then the sprites
-  paint(outlines: readonly MouseOutline[], sprites: readonly PaintableSprite[], isPaused?: boolean): void {
+  // Paints the map, with the cars and then the sprites over it, then the outlines in order, each over the last
+  paint(outlines: readonly MouseOutline[], cars: readonly PaintableCar[], sprites: readonly PaintableSprite[],
+        isPaused?: boolean): void {
     // Recompute our dimensions if there has been a resize since last paint. The origin stays where it is, as far as the
     // new size's limits allow.
     if (this.pendingDimensionChange) {
@@ -275,8 +277,8 @@ class GameCanvas {
     const origin = this.position.origin;
     const overlay = this.overlay;
     const drew = this.painter.paint(paintedView(this.position, this.zoom * this.pixelRatio),
-                                    overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), sprites,
-                                    isPaused);
+                                    overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), cars,
+                                    sprites, isPaused);
 
     // Setting the overlay forgets the frame drawn, so the first frame drawn after it is drawn whole, with it. While the
     // WebGL context is lost the renderer draws nothing and this still reports the overlay, but the map is blank then,
