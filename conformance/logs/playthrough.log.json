@@ -27,17 +27,26 @@
     {"step":6912,"player":"player 1","command":{"type":"setAutoBudget","on":true}},
     {"step":8064,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":47,"y":31},{"x":48,"y":31},{"x":49,"y":31},{"x":50,"y":31},{"x":51,"y":31},{"x":52,"y":31},{"x":53,"y":31},{"x":54,"y":31},{"x":55,"y":31},{"x":56,"y":31},{"x":57,"y":31},{"x":58,"y":31},{"x":59,"y":31},{"x":60,"y":31},{"x":61,"y":31},{"x":62,"y":31},{"x":63,"y":31},{"x":64,"y":31},{"x":65,"y":31},{"x":66,"y":31},{"x":67,"y":31},{"x":68,"y":31},{"x":69,"y":31}],"autoBulldoze":true}},
     {"step":8064,"player":"player 1","command":{"type":"triggerDisaster","kind":"fire"}},
-    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":32,"y":37}],"autoBulldoze":true}},
-    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":31,"y":35}],"autoBulldoze":true}},
-    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":34,"y":36},{"x":35,"y":36},{"x":36,"y":36},{"x":37,"y":36},{"x":38,"y":36},{"x":39,"y":36},{"x":40,"y":36},{"x":41,"y":36},{"x":42,"y":36},{"x":43,"y":36},{"x":44,"y":36},{"x":45,"y":36}],"autoBulldoze":true}},
-    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":46,"y":36},{"x":46,"y":37}],"autoBulldoze":true}},
-    {"step":9792,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":81,"y":76}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":80,"y":74}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":79,"y":75},{"x":78,"y":75},{"x":77,"y":75}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":77,"y":74},{"x":77,"y":73},{"x":77,"y":72}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":76,"y":72},{"x":75,"y":72},{"x":74,"y":72},{"x":73,"y":72},{"x":72,"y":72},{"x":71,"y":72},{"x":70,"y":72},{"x":69,"y":72}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":69,"y":71},{"x":69,"y":70},{"x":69,"y":69},{"x":69,"y":68}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":68,"y":68},{"x":68,"y":67}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":67,"y":67},{"x":66,"y":67}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":66,"y":66},{"x":66,"y":65},{"x":66,"y":64},{"x":66,"y":63}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":65,"y":63},{"x":65,"y":62},{"x":65,"y":61},{"x":65,"y":60},{"x":65,"y":59}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":59},{"x":64,"y":58},{"x":64,"y":57},{"x":64,"y":56},{"x":64,"y":55},{"x":64,"y":54},{"x":64,"y":53},{"x":64,"y":52},{"x":64,"y":51},{"x":64,"y":50},{"x":64,"y":49},{"x":64,"y":48}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":47},{"x":64,"y":46},{"x":64,"y":45},{"x":64,"y":44},{"x":64,"y":43},{"x":64,"y":42},{"x":64,"y":41},{"x":64,"y":40}],"autoBulldoze":true}},
+    {"step":12528,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"12b5f5491e724a7115743594be3fda72bcfb8544cad879eaf29c99b3be302478"},
-    {"step":3600,"hash":"cd1d877858bcffa86c9d5250f2bc41911cd659041d9e36029d76fd4edddff3fc"},
-    {"step":7200,"hash":"ae4288e51dae876492f13acbb93761fb5c5c65d870e677b3b6e08d199b723103"},
-    {"step":8640,"hash":"615b2d91c863e37a3c13697787939a41cd19fee7250aff2a554708de1ded3df3"},
-    {"step":9792,"hash":"187296d8fbe2c9f525bcd20951457686c8ccb88737f18a16a164c42e54d08bf0"}
+    {"step":0,"hash":"c8d63c5e8fd94165461a609bbed78358750ec2f55d396dab521ab34b830d6614"},
+    {"step":3600,"hash":"852c3fa84e1c2d6a1dbfce7497080dae268b9b4b60aab481d66bd7d89f44e413"},
+    {"step":7200,"hash":"d26696fb70106224fd5639155899c92a560ef1f1dc7eaaa84582c592704c081a"},
+    {"step":10800,"hash":"5cd02df92391a5e838f92573d966352007a28331cf1abfec311c57cec476cb25"},
+    {"step":11376,"hash":"d5108b8bf12260454712aa0e41df88a09833eba757a8bc8d6cb23fc777da2a04"},
+    {"step":12528,"hash":"bf914f1fa944760cf276f88619aa167f70bbebccc41db3de596c4896e60b2475"}
   ]
 }

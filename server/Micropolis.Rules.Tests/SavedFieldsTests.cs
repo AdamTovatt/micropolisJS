@@ -131,6 +131,19 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual("", string.Join(", ", Members(typeof(ShipMission)).Where(member => !IsSaved(member, [new ShipMission().Save()]))));
         }
 
+        // A plane's and a helicopter's flights' fields are saved in the object of its entry's flight
+        [TestMethod]
+        public void Fields_PlaneFlight_AreSavedInItsObject()
+        {
+            Assert.AreEqual("", string.Join(", ", Members(typeof(PlaneFlight)).Where(member => !IsSaved(member, [PlaneFlight.Departing.Save()]))));
+        }
+
+        [TestMethod]
+        public void Fields_CopterFlight_AreSavedInItsObject()
+        {
+            Assert.AreEqual("", string.Join(", ", Members(typeof(CopterFlight)).Where(member => !IsSaved(member, [CopterFlight.Returning.Save()]))));
+        }
+
         // A member listed as saved apart is excused only because a case of its own checks its fields
         [TestMethod]
         public void Cases_MemberSavedApart_HasACaseOfItsOwn()

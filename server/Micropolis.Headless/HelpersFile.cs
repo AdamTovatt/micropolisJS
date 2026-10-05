@@ -65,6 +65,8 @@ namespace Micropolis.Headless
             ["count"] = 0, ["destX"] = 609, ["destY"] = 1295, ["dir"] = 0, ["flag"] = 0, ["frame"] = 3, ["newDir"] = 0,
             ["origX"] = 0, ["origY"] = 0, ["reachedLand"] = false, ["soundCount"] = 0, ["step"] = 0, ["type"] = (int)SpriteType.Ship, ["x"] = 600, ["y"] = 500,
             ["mission"] = new JsonObject { ["dockCount"] = 0, ["phase"] = (int)ShipPhase.SailingIn, ["port"] = null },
+            ["planeFlight"] = null,
+            ["copterFlight"] = null,
         };
 
         /// <summary>

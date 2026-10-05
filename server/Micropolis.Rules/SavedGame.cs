@@ -94,6 +94,23 @@ namespace Micropolis.Rules
                     sprite["mission"] = ship ? new JsonObject { ["phase"] = 0, ["port"] = null, ["dockCount"] = 0 } : null;
                 }
             },
+
+            // From version 12: a plane flies a plane's flight and a helicopter a helicopter's, which every other sprite
+            // holds as null; a plane in flight departs, holding its heading until it leaves the map, and a helicopter
+            // returns to its home, origX and origY, where it lands. The distance getDir last found goes, since no sprite
+            // reads it but one that has just measured it. An entry that is no sprite is left for the load to refuse.
+            savedGame =>
+            {
+                JsonObject sprites = Group(savedGame, "sprites");
+                sprites.Remove("absDist");
+
+                foreach (JsonObject sprite in List(sprites, "list").OfType<JsonObject>())
+                {
+                    bool whole = Validation.TryGetWholeNumber(sprite["type"], out double type);
+                    sprite["planeFlight"] = whole && type == (int)SpriteType.Airplane ? new JsonObject { ["phase"] = 0, ["airport"] = null } : null;
+                    sprite["copterFlight"] = whole && type == (int)SpriteType.Helicopter ? new JsonObject { ["phase"] = 1, ["block"] = null } : null;
+                }
+            },
         ];
 
         /// <summary>

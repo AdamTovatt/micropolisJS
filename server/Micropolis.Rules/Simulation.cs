@@ -115,7 +115,7 @@ namespace Micropolis.Rules
             MapScanner = new MapScanner(map);
             RepairManager = new RepairManager(map);
             Trips = new Trips(map);
-            TrafficManager = new Traffic(map, SpriteManager, Random, Trips);
+            TrafficManager = new Traffic(map, Random, Trips);
             Init();
         }
 

@@ -119,7 +119,7 @@ namespace Micropolis.Rules.Tests
                     map.SetTile(tile.X, tile.Y, TileValues.ROADS, TileFlags.NOFLAGS);
                 }
 
-                Position? found = new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(0), new Trips(map))
+                Position? found = new Traffic(map, RandomStream.FromSeed(0), new Trips(map))
                     .FindPerimeterRoad(InItsBlock.Station);
 
                 Assert.AreEqual(new Position(perimeter[i].X, perimeter[i].Y), found, $"with roads from the perimeter's tile {i}");

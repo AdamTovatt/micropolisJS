@@ -89,6 +89,30 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// A tile of the map, saved as an object of its <c>x</c> and <c>y</c> (<see cref="Position.Save"/>).
+        /// </summary>
+        public Position ReadTile(string key, GameMap map)
+        {
+            return ReadObject(key, tile => tile.AsTile(map));
+        }
+
+        /// <summary>
+        /// A tile of the map, or <see langword="null"/> for none.
+        /// </summary>
+        public Position? ReadNullableTile(string key, GameMap map)
+        {
+            return ReadNullableObject(key, tile => tile.AsTile(map));
+        }
+
+        /// <summary>
+        /// This object read as a tile of the map: its <c>x</c> and <c>y</c>, each within the map.
+        /// </summary>
+        public Position AsTile(GameMap map)
+        {
+            return new Position(ReadInt("x", 0, map.Width - 1), ReadInt("y", 0, map.Height - 1));
+        }
+
+        /// <summary>
         /// A key that has to hold <see langword="null"/>, failing with the problem given when it holds anything else.
         /// </summary>
         public void ReadNull(string key, string problem)

@@ -56,5 +56,34 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(Run(FixtureCities.City("harbourWithDisasters", "built"), Steps * 3),
                             Run(FixtureCities.City("harbourWithDisasters", "built"), Steps * 3));
         }
+
+        // The town saved with a plane arriving at its airport and a helicopter on its way to traffic carries on, flights
+        // and all, as the town never saved does
+        [TestMethod]
+        public void FromSave_AircraftInFlight_ReachesTheHashOfTheRunNeverSaved()
+        {
+            Simulation city = FixtureCities.City("town", "run");
+            Position airport = Enumerable.Range(0, city.Map.Width)
+                .SelectMany(x => Enumerable.Range(0, city.Map.Height).Select(y => new Position(x, y)))
+                .First(tile => city.Map.GetTileValue(tile) == TileValues.AIRPORT);
+            city.BlockMaps.TrafficDensityMap.WorldSet(100, 10, CopterSprite.HeavyTraffic + 30);
+            city.SpriteManager.GenerateCopter(airport.X, airport.Y, city.BlockMaps.TrafficDensityMap);
+            // The town's run ends with a plane in flight, which arrives instead
+            Sprite? plane = city.SpriteManager.GetSprite(SpriteType.Airplane);
+            Assert.IsNotNull(plane, "Setup: the town's run ends with no plane in flight.");
+            AirplaneSprite.Arrive(city.SpriteManager, plane, airport);
+            for (int i = 0; i < 20; i++)
+            {
+                city.Step();
+            }
+
+            Assert.AreEqual(PlanePhase.Arriving, city.SpriteManager.GetSprite(SpriteType.Airplane)?.PlaneFlight!.Phase,
+                            "Setup: the plane isn't arriving when the town is saved.");
+            Assert.AreEqual(CopterPhase.ToTraffic, city.SpriteManager.GetSprite(SpriteType.Helicopter)?.CopterFlight!.Phase,
+                            "Setup: the helicopter isn't flying to its traffic when the town is saved.");
+            Simulation loaded = Simulation.FromSave(CanonicalJson.Write(city.Save()));
+
+            Assert.AreEqual(Run(city, Steps), Run(loaded, Steps));
+        }
     }
 }

@@ -66,11 +66,7 @@ namespace Micropolis.Rules
         internal void SaveScan(JsonObject scanData)
         {
             scanData["powerGrid"] = PowerGridMap.Save();
-            scanData["powerStack"] = new JsonArray(PowerStack.Select(source => (JsonNode?)new JsonObject
-            {
-                ["x"] = source.X,
-                ["y"] = source.Y,
-            }).ToArray());
+            scanData["powerStack"] = new JsonArray(PowerStack.Select(source => (JsonNode?)source.Save()).ToArray());
             scanData["powerCapacity"] = PowerCapacity;
             scanData["powerLoad"] = PowerLoad;
         }
@@ -81,8 +77,7 @@ namespace Micropolis.Rules
         internal void LoadScan(SavedObject scanData)
         {
             PowerGridMap.Load(scanData, "powerGrid");
-            _powerStack = scanData.ReadObjectList("powerStack",
-                source => new Position(source.ReadInt("x", 0, _map.Width - 1), source.ReadInt("y", 0, _map.Height - 1)));
+            _powerStack = scanData.ReadObjectList("powerStack", source => source.AsTile(_map));
             PowerCapacity = scanData.ReadSafeInteger("powerCapacity");
             PowerLoad = scanData.ReadSafeInteger("powerLoad");
         }
