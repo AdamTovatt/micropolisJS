@@ -47,7 +47,7 @@ namespace Micropolis.Benchmarks.Tests
         }
 
         [TestMethod]
-        public void All_NewCities_FollowTheFixturesAtEachRunningSpeed()
+        public void All_NewCitiesAtEachRunningSpeedThenTheZonedMap_FollowTheFixtures()
         {
             IReadOnlyList<BenchmarkCase> cases = BenchmarkCases.All();
 
@@ -57,9 +57,50 @@ namespace Micropolis.Benchmarks.Tests
                     new NewCityCase(0, Level.Easy, Speed.Slow),
                     new NewCityCase(0, Level.Easy, Speed.Medium),
                     new NewCityCase(0, Level.Easy, Speed.Fast),
+                    new ZonedMapCase(Speed.Fast),
                 },
-                cases.TakeLast(3).ToList());
-            Assert.AreEqual(cases.Count - 3, cases.OfType<FixtureCase>().Count());
+                cases.TakeLast(4).ToList());
+            Assert.AreEqual(cases.Count - 4, cases.OfType<FixtureCase>().Count());
+        }
+
+        [TestMethod]
+        public void SettingsFor_ZonedMap_RunsNoMoreThanItsOwnStepsOrTheSettings()
+        {
+            ZonedMapCase zoned = new ZonedMapCase(Speed.Fast);
+
+            Assert.AreEqual(BenchmarkSettings.Default with { Warmup = ZonedMapCase.MostWarmup, Steps = ZonedMapCase.MostSteps },
+                            zoned.SettingsFor(BenchmarkSettings.Default));
+            Assert.AreEqual(new BenchmarkSettings(16, 32, 1), zoned.SettingsFor(new BenchmarkSettings(16, 32, 1)));
+        }
+
+        [TestMethod]
+        public void SettingsFor_OtherCases_AreTheSettings()
+        {
+            Assert.AreEqual(BenchmarkSettings.Default, new NewCityCase(0, Level.Easy, Speed.Fast).SettingsFor(BenchmarkSettings.Default));
+            Assert.AreEqual(BenchmarkSettings.Default, new FixtureCase("suburb", Speed.Medium, false).SettingsFor(BenchmarkSettings.Default));
+        }
+
+        // Every lot, the three tiles each way after a road, holds a zone or a plant, and once the first cycle's power scan
+        // has run, the plants power every zone
+        [TestMethod]
+        public void Start_ZonedMap_IsBuiltUpAndPoweredFromEdgeToEdge()
+        {
+            Simulation city = new ZonedMapCase(Speed.Fast).Start();
+            for (int step = 0; step < 16; step++)
+            {
+                city.Step();
+            }
+
+            int lotsAcross = city.Map.Width / 4;
+            int lotsDown = city.Map.Height / 4;
+            List<Tile> centres = Enumerable.Range(0, lotsDown)
+                .SelectMany(row => Enumerable.Range(0, lotsAcross).Select(column => city.Map.GetTile(4 * column + 2, 4 * row + 2)))
+                .ToList();
+
+            Assert.IsTrue(centres.All(centre => centre.IsZone()));
+            Assert.AreEqual(12, ZonedMapCase.PlantLots.Count);
+            Assert.AreEqual(ZonedMapCase.PlantLots.Count, centres.Count(centre => centre.GetValue() == TileValues.NUCLEAR));
+            Assert.AreEqual(0, centres.Count(centre => !centre.IsPowered()));
         }
 
         [TestMethod]

@@ -114,6 +114,20 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// The side of the largest zone, the airport's.
+        /// </summary>
+        public const int LargestZoneSize = 6;
+
+        /// <summary>
+        /// The side of the zone whose centre has this value: the airport's 6, which <see cref="CheckZoneSize"/> leaves
+        /// out, and every other zone's as it gives it.
+        /// </summary>
+        public static int SizeAtCentre(int centreValue)
+        {
+            return centreValue == TileValues.AIRPORT ? LargestZoneSize : CheckZoneSize(centreValue);
+        }
+
+        /// <summary>
         /// The size of the zone a tile with this value belongs to: 3, 4, or 0 for a tile of none.
         /// </summary>
         public static int CheckZoneSize(int tileValue)

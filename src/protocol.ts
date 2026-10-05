@@ -744,8 +744,9 @@ export interface OverlayUpdatedMessage {
   layer: OverlayLayer;
 }
 
-// A trip, the route of a drive that arrived, on road alone, from the road it started on to the tile where it arrived:
-// the tile it started on, then a letter for each step it took to the next tile it stood on, N (up the map), E, S or W
+// A trip, a run on road alone, of two tiles or more, of the route the traffic rule found for a zone from a tile of the
+// zone's perimeter to the tile beside its destination: the tile it starts on, then a letter for each step to the next
+// tile, N (up the map), E, S or W
 export type Trip = [x: number, y: number, steps: string];
 
 // The trips the traffic rule completed that the city offered since its last batch, for the client to draw as cars, in

@@ -62,15 +62,15 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Whether a car drives on the tile: road, a road bridge, or road crossing rail or a power line. A drive the
-        /// traffic rule makes may also run on rail alone (<see cref="IsDriveable(int)"/>), which no car does.
+        /// Whether a car drives on the tile: road, a road bridge, or road crossing rail or a power line. A trip the
+        /// traffic rule routes may also run on rail alone (<see cref="IsDriveable(int)"/>), which no car does.
         /// </summary>
         public static bool CarriesCars(int tileValue)
         {
             return IsRoadway(tileValue) || tileValue == TileValues.HRAILROAD || tileValue == TileValues.VRAILROAD;
         }
 
-        // Road, its bridges, its traffic and its crossings of power lines: the road tiles a drive runs on
+        // Road, its bridges, its traffic and its crossings of power lines: the road tiles a trip runs on
         private static bool IsRoadway(int tileValue)
         {
             return tileValue >= TileValues.ROADBASE && tileValue <= TileValues.LASTROAD;
@@ -79,6 +79,14 @@ namespace Micropolis.Rules
         public static bool IsDriveable(Tile tile)
         {
             return IsDriveable(tile.GetValue());
+        }
+
+        /// <summary>
+        /// Whether the tile is a house, one of those an empty residential zone grows round its centre.
+        /// </summary>
+        public static bool IsHouse(int tileValue)
+        {
+            return tileValue >= TileValues.LHTHR && tileValue <= TileValues.HHTHR;
         }
 
         public static bool IsFire(int tileValue)

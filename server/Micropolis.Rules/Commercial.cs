@@ -83,7 +83,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// The map scan's handler for a commercial zone's centre, as <c>commercialFound</c>: counts the zone and its
-        /// population, drives from it to industry now and then, and grows or declines it.
+        /// population, routes a trip from it to industry now and then, and grows or declines it.
         /// </summary>
         public static void CommercialFound(GameMap map, int x, int y, SimData simData)
         {
@@ -98,7 +98,7 @@ namespace Micropolis.Rules
             bool zonePower = map.GetTile(x, y).IsPowered();
 
             // Occasionally check to see if the zone is connected to the transport network (the chance of this happening
-            // increases as the population increases). An empty zone never drives.
+            // increases as the population increases). An empty zone never makes a trip.
             TrafficResult trafficOK = TrafficResult.RouteFound;
             if (population > simData.Random.GetRandom(5))
             {
@@ -120,7 +120,9 @@ namespace Micropolis.Rules
             {
                 int locationScore = trafficOK == TrafficResult.NoRoadFound ? -3000 :
                                     simData.BlockMaps.CityCentreDistScoreMap.WorldGet(x, y);
-                long zoneScore = simData.Valves.ComValve + locationScore;
+
+                // Less what a slow trip costs it, a change from the original, which had no slow trips
+                long zoneScore = simData.Valves.ComValve + locationScore - Traffic.GrowthPenalty(trafficOK);
 
                 // Unpowered zones should of course be penalized
                 if (!zonePower)
@@ -128,7 +130,7 @@ namespace Micropolis.Rules
                     zoneScore = -500;
                 }
 
-                // As doCommercial in the original, a zone whose drive found no route never grows, and draws nothing to
+                // As doCommercial in the original, a zone whose trip found no route never grows, and draws nothing to
                 // decide it
                 if (trafficOK != TrafficResult.NoRouteFound && zoneScore > -350 &&
                     (zoneScore - 26380) > simData.Random.GetRandom16Signed())

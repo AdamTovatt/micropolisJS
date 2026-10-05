@@ -30,10 +30,7 @@ namespace Micropolis.Benchmarks
             foreach (BenchmarkCase benchmarkCase in cases)
             {
                 progress.WriteLine($"Timing {benchmarkCase.Name} at {benchmarkCase.SpeedName}");
-                CaseMeasurement measurement = StepTimer.Measure(benchmarkCase, settings);
-                CaseBytes bytes = MessageBytes.Measure(benchmarkCase, settings);
-                CheckOneCity(benchmarkCase, measurement, bytes);
-                rows.Add(new BenchmarkRow(benchmarkCase, measurement.Timing, bytes.BytesPerStep));
+                rows.Add(Measure(benchmarkCase, settings));
             }
 
             RunEnvironment environment = RunEnvironment.Describe(commandLine.OutputPath, loadBefore, RunEnvironment.ReadLoadAverage());
@@ -47,6 +44,19 @@ namespace Micropolis.Benchmarks
             {
                 File.WriteAllText(commandLine.OutputPath, report);
             }
+        }
+
+        /// <summary>
+        /// A case's row: its timing and its message bytes, both over the steps the case runs under the settings, and of
+        /// one city.
+        /// </summary>
+        internal static BenchmarkRow Measure(BenchmarkCase benchmarkCase, BenchmarkSettings settings)
+        {
+            BenchmarkSettings caseSettings = benchmarkCase.SettingsFor(settings);
+            CaseMeasurement measurement = StepTimer.Measure(benchmarkCase, caseSettings);
+            CaseBytes bytes = MessageBytes.Measure(benchmarkCase, caseSettings);
+            CheckOneCity(benchmarkCase, measurement, bytes);
+            return new BenchmarkRow(benchmarkCase, measurement.Timing, bytes.BytesPerStep);
         }
 
         /// <summary>

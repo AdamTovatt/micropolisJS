@@ -268,12 +268,13 @@ sent no trips offered before.
   or couldn't cover the services. The city steps on: nothing waits for the review.
 - `overlayUpdated` names a `layer` the simulation has recomputed, which an overlay showing it asks for again.
 - `trips` lists, in `routes`, the trips the city offered since the batch before, in the order it offered them, for the
-  client to draw as cars. A trip is the route of a drive the traffic rule completed, from the road it started on to the
-  tile beside its destination, written `[x, y, "steps"]`: the tile it started on, then a letter for each step it took
-  to the next tile it stood on, `N` (up the map, to `y - 1`), `E` (`x + 1`), `S` (`y + 1`) or `W` (`x - 1`), such as
-  `[9, 8, "NNE"]` for (9, 8), (9, 7), (9, 6) and (10, 6). The city offers every trip on road alone (road, a road
-  bridge, or road crossing rail or a power line) as it completes. A batch with none offered carries no `trips`. Trips
-  are a picture of what the rules do: the rules never read them, and no save or log holds them.
+  client to draw as cars. The traffic rule finds a zone a route, from a tile of the zone's perimeter to the tile beside
+  its destination, which may run on rail. A trip is a run of it on road alone (road, a road bridge, or road crossing
+  rail or a power line), of two tiles or more and as long as the road goes, written `[x, y, "steps"]`: the tile it
+  starts on, then a letter for each step to the next tile of the run, `N` (up the map, to `y - 1`), `E` (`x + 1`), `S`
+  (`y + 1`) or `W` (`x - 1`), such as `[9, 8, "NNE"]` for (9, 8), (9, 7), (9, 6) and (10, 6). The city offers each run
+  of a route as a trip of its own, in the route's order, as it routes it. A batch with none offered carries no
+  `trips`. Trips are a picture of what the rules do: the rules never read them, and no save or log holds them.
 
 ## Examples
 

@@ -105,7 +105,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// The map scan's handler for an industrial zone's centre, as <c>industrialFound</c>: counts the zone and its
-        /// population, animates it by its power, drives from it to residential now and then, and grows or declines it.
+        /// population, animates it by its power, routes a trip from it to housing now and then, and grows or declines it.
         /// </summary>
         public static void IndustrialFound(GameMap map, int x, int y, SimData simData)
         {
@@ -122,7 +122,7 @@ namespace Micropolis.Rules
             SetAnimation(map, x, y, tileValue, zonePower);
 
             // Occasionally check to see if the zone is connected to the transport network (the chance of this happening
-            // increases as the population increases). An empty zone never drives.
+            // increases as the population increases). An empty zone never makes a trip.
             TrafficResult trafficOK = TrafficResult.RouteFound;
             if (population > simData.Random.GetRandom(5))
             {
@@ -141,7 +141,9 @@ namespace Micropolis.Rules
             // Occasionally assess and perhaps modify the tile
             if (simData.Random.GetChance(7))
             {
-                long zoneScore = simData.Valves.IndValve + (trafficOK == TrafficResult.NoRoadFound ? -1000 : 0);
+                // Less what a slow trip costs it, a change from the original, which had no slow trips
+                long zoneScore = simData.Valves.IndValve + (trafficOK == TrafficResult.NoRoadFound ? -1000 : 0) -
+                                 Traffic.GrowthPenalty(trafficOK);
 
                 // Unpowered zones should of course be penalized
                 if (!zonePower)

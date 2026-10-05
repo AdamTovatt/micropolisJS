@@ -15,37 +15,42 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// What a zone's drive came to, as the original's <c>makeTraffic</c> in traffic.cpp numbers it.
+    /// What a zone's trip came to, numbered as the original's <c>makeTraffic</c> numbers its three, with a slow route
+    /// after them.
     /// </summary>
     public enum TrafficResult
     {
         NoRoadFound = -1,
         NoRouteFound = 0,
         RouteFound = 1,
+
+        /// <summary>
+        /// A route found that costs more than <see cref="TripRouter.SlowCostPerTile"/> for each tile of the straight run
+        /// between its ends: found, but the zone's growth score loses <see cref="Traffic.SlowTripPenalty"/>.
+        /// </summary>
+        SlowRoute = 2,
     }
 
     /// <summary>
-    /// The tiles a drive ends beside, from the lowest tile value to the highest, as driveDone in the original has them:
-    /// not the kind of zone each is named for. No drive ends beside an empty residential zone, whose tiles lie below
-    /// <see cref="TileValues.LHTHR"/>.
+    /// The zones a trip goes to, by their centre's tile value from the lowest to the highest: the ranges driveDone in
+    /// the original ended a drive beside, not the kind of zone each is named for.
     /// </summary>
     public sealed record TrafficDestination(int Low, int High)
     {
         /// <summary>
         /// Commercial, industry, the seaport, the airport, the coal plant, the fire and police stations, the stadium,
-        /// and the nuclear plant up to its centre tile: a residential zone's drive.
+        /// and the nuclear plant: a residential zone's trip.
         /// </summary>
         public static readonly TrafficDestination Commercial = new TrafficDestination(TileValues.COMBASE, TileValues.NUCLEAR);
 
         /// <summary>
-        /// A house, a built residential zone, a hospital, a church, commercial, industry, and the seaport up to its
-        /// centre tile: a commercial zone's drive.
+        /// A residential zone with houses or built, a hospital, a church, commercial, industry, and the seaport: a
+        /// commercial zone's trip.
         /// </summary>
         public static readonly TrafficDestination Industrial = new TrafficDestination(TileValues.LHTHR, TileValues.PORT);
 
         /// <summary>
-        /// A house, a built residential zone, a hospital, a church, and commercial's first tile: an industrial zone's
-        /// drive.
+        /// A residential zone with houses or built, a hospital and a church: an industrial zone's trip.
         /// </summary>
         public static readonly TrafficDestination Residential = new TrafficDestination(TileValues.LHTHR, TileValues.COMBASE);
 
@@ -53,11 +58,28 @@ namespace Micropolis.Rules
         {
             return tileValue >= Low && tileValue <= High;
         }
+
+        /// <summary>
+        /// Whether the zone centred at (<paramref name="x"/>, <paramref name="y"/>) is a trip's destination: its centre
+        /// falls in the range, or, for a range that holds the houses, it is a residential zone with a house on it. Such
+        /// a zone keeps its centre at <see cref="TileValues.FREEZ"/>, below the houses, while its houses stand round it.
+        /// </summary>
+        public bool IsDestination(GameMap map, int x, int y)
+        {
+            int centreValue = map.GetTileValue(x, y);
+
+            if (Contains(centreValue))
+            {
+                return true;
+            }
+
+            return centreValue == TileValues.FREEZ && Contains(TileValues.LHTHR) && Rules.Residential.GetFreeZonePopulation(map, x, y) > 0;
+        }
     }
 
     /// <summary>
-    /// The traffic a zone generates, as the original's traffic.cpp drives it from the zone to a destination along the
-    /// roads.
+    /// The traffic a zone generates: a trip from the zone to a destination of the kind it needs, routed over road and
+    /// rail (<see cref="TripRouter"/>), in place of the original's random drive along the roads in traffic.cpp.
     /// </summary>
     public sealed class Traffic
     {
@@ -65,75 +87,71 @@ namespace Micropolis.Rules
         private static readonly int[] PerimX = [-1, 0, 1, 2, 2, 2, 1, 0, -1, -2, -2, -2];
         private static readonly int[] PerimY = [-2, -2, -2, -1, 0, 1, 2, 2, 2, 1, 0, -1];
 
-        private const int MaxTrafficDistance = 30;
-
-        // The heaviest traffic a block holds, and the traffic one arriving drive adds to each block it passes
+        // The heaviest traffic a block holds, and the traffic one trip adds to the block of each road tile it takes. A
+        // change from the original, whose drive added 50 to every other tile it took: a routed trip runs longer and
+        // takes the cheapest roads, so the original's figure on every road tile jams a town until it empties, and this
+        // keeps towns growing as they did.
         internal const int MaxTrafficDensity = 240;
-        internal const int TripTraffic = 50;
+        internal const int TripTraffic = 5;
+
+        /// <summary>
+        /// What a slow route takes from its zone's growth score, which the original, with no slow trips, never took.
+        /// </summary>
+        public const int SlowTripPenalty = 300;
 
         private readonly GameMap _map;
         private readonly SpriteManager _spriteManager;
         private readonly RandomStream _random;
         private readonly Trips _trips;
+        private readonly TripRouter _router;
 
-        // Every other position of the drive, which the traffic density map counts once the drive arrives
-        private readonly List<Position> _stack = new List<Position>();
-
-        // Every position of the drive, in order, from the road it started on: the trip it is, once it arrives
+        // Every tile of the trip's route, in order, from the perimeter tile it started on
         private readonly List<Position> _route = new List<Position>();
 
-        /// <param name="trips">Takes the route of each drive that arrives, which nothing in the rules reads.</param>
+        /// <param name="trips">Takes the route of each trip found, which nothing in the rules reads.</param>
         public Traffic(GameMap map, SpriteManager spriteManager, RandomStream random, Trips trips)
         {
             _map = map;
             _spriteManager = spriteManager;
             _random = random;
             _trips = trips;
+            _router = new TripRouter(map);
         }
 
         /// <summary>
-        /// Drives from the zone centred at (<paramref name="x"/>, <paramref name="y"/>) to the destination along the
-        /// roads, and counts the drive in the traffic density map if it arrives.
+        /// Routes a trip from the zone centred at (<paramref name="x"/>, <paramref name="y"/>) to a destination of the
+        /// kind given, and counts it in the traffic density map if it finds one.
         /// </summary>
         public TrafficResult MakeTraffic(int x, int y, BlockMaps blockMaps, TrafficDestination destination)
         {
-            _stack.Clear();
-            _route.Clear();
+            TrafficResult result = _router.Route(new Position(x, y), destination, blockMaps.TrafficDensityMap, _random, _route);
 
-            Position? roadPos = FindPerimeterRoad(new Position(x, y));
-
-            if (roadPos is Position start)
+            if (result is TrafficResult.RouteFound or TrafficResult.SlowRoute)
             {
-                if (TryDrive(start, destination))
-                {
-                    _trips.Arrived(_route);
-                    AddToTrafficDensityMap(blockMaps);
-                    return TrafficResult.RouteFound;
-                }
+                _trips.Routed(_route);
+                AddToTrafficDensityMap(blockMaps);
+            }
 
-                return TrafficResult.NoRouteFound;
-            }
-            else
-            {
-                return TrafficResult.NoRoadFound;
-            }
+            return result;
         }
 
+        /// <summary>
+        /// What the trip's result takes from its zone's growth score: <see cref="SlowTripPenalty"/> for a slow route, and
+        /// nothing otherwise.
+        /// </summary>
+        public static int GrowthPenalty(TrafficResult result)
+        {
+            return result == TrafficResult.SlowRoute ? SlowTripPenalty : 0;
+        }
+
+        // Adds the trip's traffic to the block of every road tile of its route, in order, and draws the traffic
+        // helicopter to a road whose block it takes to the heaviest traffic, now and then
         private void AddToTrafficDensityMap(BlockMaps blockMaps)
         {
             BlockMap trafficDensityMap = blockMaps.TrafficDensityMap;
 
-            while (_stack.Count > 0)
+            foreach (Position pos in _route)
             {
-                Position pos = _stack[^1];
-                _stack.RemoveAt(_stack.Count - 1);
-
-                // Could this happen?!?
-                if (!_map.TestBounds(pos.X, pos.Y))
-                {
-                    continue;
-                }
-
                 int tileValue = _map.GetTileValue(pos.X, pos.Y);
 
                 if (tileValue >= TileValues.ROADBASE && tileValue < TileValues.POWERBASE)
@@ -164,7 +182,7 @@ namespace Micropolis.Rules
         /// </summary>
         public Position? FindPerimeterRoad(Position position)
         {
-            for (int i = 0; i < 12; i++)
+            for (int i = 0; i < PerimX.Length; i++)
             {
                 int xx = position.X + PerimX[i];
                 int yy = position.Y + PerimY[i];
@@ -201,129 +219,6 @@ namespace Micropolis.Rules
             }
 
             return perimeter;
-        }
-
-        private bool TryDrive(Position startPos, TrafficDestination destination)
-        {
-            Direction? dirLast = null;
-            Position drivePos = startPos;
-            _route.Add(drivePos);
-
-            // Maximum distance to try
-            for (int dist = 0; dist < MaxTrafficDistance; dist++)
-            {
-                Direction? dir = TryGo(drivePos, dirLast);
-                if (dir is not null)
-                {
-                    drivePos = Position.Move(drivePos, dir);
-                    dirLast = dir.OppositeDirection();
-                    _route.Add(drivePos);
-
-                    if ((dist & 1) != 0)
-                    {
-                        _stack.Add(drivePos);
-                    }
-
-                    if (DriveDone(drivePos, destination))
-                    {
-                        return true;
-                    }
-                }
-                else
-                {
-                    // A dead end: back up, forgetting the last position saved, though the drive goes on from here.
-                    // It stands where it stood, so the route takes nothing, and with the same ways open it finds the
-                    // same dead end until it gives up: a drive that arrives never met one
-                    if (_stack.Count > 0)
-                    {
-                        _stack.RemoveAt(_stack.Count - 1);
-                        dist += 3;
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        // As tryGo in the original: the four directions clockwise from north, each null where there is no road or it is
-        // the way back. With more than one way open, a draw picks one of the four, and a closed one gives way to the
-        // next open one clockwise.
-        private Direction? TryGo(Position pos, Direction? dirLast)
-        {
-            IReadOnlyList<Direction> cardinals = Direction.CardinalDirections;
-            Direction?[] directions = new Direction?[cardinals.Count];
-
-            // Find connections from current position.
-            int count = 0;
-
-            for (int i = 0; i < cardinals.Count; i++)
-            {
-                Direction dir = cardinals[i];
-                if (dir != dirLast && TileUtils.IsDriveable(_map.GetTileFromMapOrDefault(pos, dir, TileValues.DIRT)))
-                {
-                    directions[i] = dir;
-                    count++;
-                }
-            }
-
-            if (count == 0)
-            {
-                return null;
-            }
-
-            if (count == 1)
-            {
-                return directions.First(dir => dir is not null);
-            }
-
-            int index = _random.GetRandom16() & 3;
-            while (directions[index] is null)
-            {
-                index = (index + 1) & 3;
-            }
-
-            return directions[index];
-        }
-
-        private bool DriveDone(Position pos, TrafficDestination destination)
-        {
-            if (pos.Y > 0)
-            {
-                if (destination.Contains(_map.GetTileValue(pos.X, pos.Y - 1)))
-                {
-                    return true;
-                }
-            }
-
-            if (pos.X < (_map.Width - 1))
-            {
-                if (destination.Contains(_map.GetTileValue(pos.X + 1, pos.Y)))
-                {
-                    return true;
-                }
-            }
-
-            if (pos.Y < (_map.Height - 1))
-            {
-                if (destination.Contains(_map.GetTileValue(pos.X, pos.Y + 1)))
-                {
-                    return true;
-                }
-            }
-
-            if (pos.X > 0)
-            {
-                if (destination.Contains(_map.GetTileValue(pos.X - 1, pos.Y)))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
     }
 }
