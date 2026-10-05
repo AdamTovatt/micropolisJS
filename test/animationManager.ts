@@ -15,8 +15,8 @@
 import { ANIMATION_PERIOD, AnimationManager, BLINK_PERIOD, isInSequence, nextAnimationFrame }
     from "../src/animationManager";
 import { ANIMBIT, BULLBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
-import { DIRT, FIRE, FOUNTAIN, FREEZ, LASTFIRE, LASTTINYEXP, LIGHTNINGBOLT, RADAR0, RADAR7, TILE_INVALID, TINYEXP }
-    from "../src/tileValues";
+import { DIRT, FIRE, FOUNTAIN, FREEZ, HTRFBASE, LASTFIRE, LASTTINYEXP, LIGHTNINGBOLT, RADAR0, RADAR7, ROADBASE, ROADS,
+         TILE_INVALID, TINYEXP } from "../src/tileValues";
 
 const MAP_WIDTH = 120;
 const MAP_HEIGHT = 100;
@@ -39,9 +39,6 @@ describe("the animation frames", () => {
     });
 
     it("leave a base tile that doesn't recur in its sequence", () => {
-        // Low traffic: the base tile 80 starts a sequence that cycles through 128, 112 and 96
-        expect(nextAnimationFrame(80)).toBe(128);
-        expect(nextAnimationFrame(96)).toBe(80);
         // A train-crossing tile's base, 621, enters a loop of 852 to 859 it never returns to
         expect(nextAnimationFrame(621)).toBe(852);
         expect(nextAnimationFrame(859)).toBe(852);
@@ -167,6 +164,22 @@ describe("the animation manager", () => {
             jest.advanceTimersByTime(ANIMATION_PERIOD + 1);
 
             expect(paintOne(animationManager, RADAR0 | ANIMBIT)).toBe(RADAR0 + 1);
+        });
+
+        // Heavy traffic on a plain horizontal road, which the rules animate: the cars are the traffic, and the map frame
+        // draws the tile as its plain road
+        it("holds traffic still on its own id, frame after frame, animated or not, paused or not", () => {
+            const heavy = HTRFBASE + (ROADS - ROADBASE);
+            const animationManager = newManager();
+            const painted = [paintOne(animationManager, heavy | ANIMBIT | BULLBIT)];
+
+            for (let period = 0; period < 4; period++) {
+                jest.advanceTimersByTime(ANIMATION_PERIOD + 1);
+                painted.push(paintOne(animationManager, heavy | ANIMBIT | BULLBIT, period % 2 === 1));
+            }
+            painted.push(paintOne(animationManager, heavy | BULLBIT));
+
+            expect(painted).toEqual([heavy, heavy, heavy, heavy, heavy, heavy]);
         });
 
         it("paints a fountain as one still frame", () => {

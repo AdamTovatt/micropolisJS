@@ -134,7 +134,7 @@ describe("the overlay's legend", () => {
     // The layer of each legend shown, null for none
     let legend: (OverlayLayer | null)[];
 
-    const paint = () => canvas.paint([], []);
+    const paint = () => canvas.paint([], [], []);
     const lastDraw = () => renderer.draws[renderer.draws.length - 1];
 
     // Chooses the layer, answers for it and paints

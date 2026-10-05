@@ -13,6 +13,7 @@
  */
 
 import { AnimationManager } from "./animationManager";
+import type { PaintableCar } from "./cars";
 import { FrameRecord, damagedPixels } from "./mapDamage";
 import { MapFrame, buildMapFrame, buildWholeMapFrame } from "./mapFrame";
 import type { FrameTiles } from "./mapFrame";
@@ -87,10 +88,10 @@ export class MapPainter {
     return !this.behind && !this.renderer.busy;
   }
 
-  // Draws the view, its tiles animated unless the city is paused, each tinted as tint gives it, and the sprites over
-  // them, as far as it differs from the frame drawn last. Returns whether it drew a frame.
-  paint(view: PaintedView, tint: (x: number, y: number) => Tint | null, sprites: readonly PaintableSprite[],
-        isPaused?: boolean): boolean {
+  // Draws the view, its tiles animated unless the city is paused, each tinted as tint gives it, and the cars and then
+  // the sprites over them, as far as it differs from the frame drawn last. Returns whether it drew a frame.
+  paint(view: PaintedView, tint: (x: number, y: number) => Tint | null, cars: readonly PaintableCar[],
+        sprites: readonly PaintableSprite[], isPaused?: boolean): boolean {
     this.behind = this.renderer.busy;
     if (this.behind) {
       return false;
@@ -101,13 +102,13 @@ export class MapPainter {
     const tiles = this.readTiles(view, origin, isPaused);
     const drawnView = {originX: origin.x, originY: origin.y, tilePixels, width: this.target.width,
                        height: this.target.height};
-    const damage = this.drawn.damage(drawnView, tiles, sprites);
+    const damage = this.drawn.damage(drawnView, tiles, cars, sprites);
     if (damage === null) {
       return false;
     }
 
     const areas = damage === "all" ? null : damagedPixels(damage, tilePixels, tiles.offset);
-    buildMapFrame(this.frame, this.art, tiles, tilePixels, tint, sprites, areas);
+    buildMapFrame(this.frame, this.art, tiles, tilePixels, tint, cars, sprites, areas);
     this.renderer.draw(this.frame, areas);
     return true;
   }

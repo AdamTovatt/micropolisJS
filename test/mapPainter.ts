@@ -108,7 +108,7 @@ describe("a painter of the map", () => {
         const {painter, reads, drawn} = newPainter();
         const margin = art.shadowReach;
 
-        expect(painter.paint(VIEW, noTint, [])).toBe(true);
+        expect(painter.paint(VIEW, noTint, [], [])).toBe(true);
 
         expect(margin).toBe(1);
         expect(reads.mock.calls.map((call) => call.slice(0, 4))).toEqual([[
@@ -125,7 +125,7 @@ describe("a painter of the map", () => {
         const margin = art.shadowReach;
 
         // Map pixel (168, 84) at 16 a tile: 8 pixels into tile 10 across and 4 into tile 5 down
-        painter.paint({...VIEW, origin: {x: 10.5, y: 5.25}}, noTint, []);
+        painter.paint({...VIEW, origin: {x: 10.5, y: 5.25}}, noTint, [], []);
 
         expect(reads.mock.calls.map((call) => call.slice(0, 4))).toEqual([[
             10 - margin, 5 - margin, VIEW.across + 1 + 2 * margin, VIEW.down + 1 + 2 * margin,
@@ -136,10 +136,10 @@ describe("a painter of the map", () => {
     it("draws the whole view again when its origin moves by a device pixel, and not when it moves by less", () => {
         const {painter, drawn} = newPainter();
 
-        painter.paint(VIEW, noTint, []);
+        painter.paint(VIEW, noTint, [], []);
         // A sixty-fourth of a tile is a quarter of a pixel at 16 a tile, which the map is drawn from as no move
-        expect(painter.paint({...VIEW, origin: {x: 10 + 1 / 64, y: 5}}, noTint, [])).toBe(false);
-        expect(painter.paint({...VIEW, origin: {x: 10 + 1 / 16, y: 5}}, noTint, [])).toBe(true);
+        expect(painter.paint({...VIEW, origin: {x: 10 + 1 / 64, y: 5}}, noTint, [], [])).toBe(false);
+        expect(painter.paint({...VIEW, origin: {x: 10 + 1 / 16, y: 5}}, noTint, [], [])).toBe(true);
 
         expect(drawn.map((frame) => frame.areas)).toEqual([null, null]);
     });
@@ -147,7 +147,7 @@ describe("a painter of the map", () => {
     it("draws the frame the animation manager picks: an unpowered zone's tile blinks to the lightning bolt", () => {
         const {painter, drawn} = newPainter({x: 10, y: 5, value: ZONE | ZONEBIT});
 
-        painter.paint(VIEW, noTint, []);
+        painter.paint(VIEW, noTint, [], []);
 
         const bolt = art.tile(LIGHTNINGBOLT).ground;
         expect(drawn[0].ground[0]).toEqual({atlas: bolt.atlas, x: bolt.x, y: bolt.y});
@@ -157,11 +157,11 @@ describe("a painter of the map", () => {
         const {painter, renderer, drawn} = newPainter();
         renderer.busy = true;
 
-        const whileBusy = painter.paint(VIEW, noTint, []);
+        const whileBusy = painter.paint(VIEW, noTint, [], []);
         const currentWhileBusy = painter.current;
         renderer.busy = false;
         const currentOnceDone = painter.current;
-        const once = painter.paint(VIEW, noTint, []);
+        const once = painter.paint(VIEW, noTint, [], []);
 
         expect([whileBusy, currentWhileBusy, currentOnceDone, once, painter.current])
             .toEqual([false, false, false, true, true]);
@@ -170,20 +170,20 @@ describe("a painter of the map", () => {
 
     it("draws nothing when nothing changed", () => {
         const {painter, drawn} = newPainter();
-        painter.paint(WIDE, noTint, []);
+        painter.paint(WIDE, noTint, [], []);
 
-        expect(painter.paint(WIDE, noTint, [])).toBe(false);
+        expect(painter.paint(WIDE, noTint, [], [])).toBe(false);
         expect(drawn).toHaveLength(1);
     });
 
     it("draws again only around a tile that changed", () => {
         const {painter, map, drawn} = newPainter();
-        painter.paint(WIDE, noTint, []);
+        painter.paint(WIDE, noTint, [], []);
 
         // A tile from the view's origin
         map.change([{x: WIDE.origin.x + 1, y: WIDE.origin.y + 1, value: ZONE}]);
 
-        expect(painter.paint(WIDE, noTint, [])).toBe(true);
+        expect(painter.paint(WIDE, noTint, [], [])).toBe(true);
         expect(drawn[1].areas).not.toBeNull();
         expect(covers(drawn[1].areas!, {x: 16, y: 16, width: 16, height: 16})).toBe(true);
         expect(covers(drawn[1].areas!, {x: 16 * 20, y: 16 * 12, width: 16, height: 16})).toBe(false);
@@ -192,9 +192,9 @@ describe("a painter of the map", () => {
     it("draws again around a sprite that moved, where it was and where it is, with the sprite", () => {
         const {painter, drawn} = newPainter();
         const sprite = {type: 1, frame: 1, x: (WIDE.origin.x + 1) * 16, y: (WIDE.origin.y + 1) * 16, width: 32};
-        painter.paint(WIDE, noTint, [sprite]);
+        painter.paint(WIDE, noTint, [], [sprite]);
 
-        expect(painter.paint(WIDE, noTint, [{...sprite, x: sprite.x + 16}])).toBe(true);
+        expect(painter.paint(WIDE, noTint, [], [{...sprite, x: sprite.x + 16}])).toBe(true);
 
         expect(drawn.map(({sprites}) => sprites)).toEqual([1, 1]);
         expect(drawn[1].areas).not.toBeNull();
@@ -205,11 +205,11 @@ describe("a painter of the map", () => {
 
     it("draws all of the view once it forgets the frame drawn last", () => {
         const {painter, drawn} = newPainter();
-        painter.paint(WIDE, noTint, []);
+        painter.paint(WIDE, noTint, [], []);
 
         painter.invalidate();
 
-        expect(painter.paint(WIDE, noTint, [])).toBe(true);
+        expect(painter.paint(WIDE, noTint, [], [])).toBe(true);
         expect(drawn[1].areas).toBeNull();
     });
 
@@ -225,12 +225,12 @@ describe("a painter of the map", () => {
 
         it("moves on to its next frame as time passes, and holds still while the city is paused", () => {
             const {painter} = newPainter({x: 11, y: 6, value: FIRE | ANIMBIT});
-            painter.paint(VIEW, noTint, [], true);
+            painter.paint(VIEW, noTint, [], [], true);
 
             jest.advanceTimersByTime(ANIMATION_PERIOD + 1);
-            const whilePaused = painter.paint(VIEW, noTint, [], true);
+            const whilePaused = painter.paint(VIEW, noTint, [], [], true);
             jest.advanceTimersByTime(ANIMATION_PERIOD + 1);
-            const running = painter.paint(VIEW, noTint, [], false);
+            const running = painter.paint(VIEW, noTint, [], [], false);
 
             expect([whilePaused, running]).toEqual([false, true]);
         });

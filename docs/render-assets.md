@@ -10,11 +10,11 @@ The map is drawn in this order:
 2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
 3. every tile's objects;
 4. the map overlay's tint;
-5. the sprites.
+5. the cars (`cars.ts`), each a flat-coloured rectangle in one of four colours, long the way it faces, then the sprites over them.
 
 The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as their shadows reach.
 
-A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. A shadow is drawn from the anchor's own tile id, so it doesn't blink. The bolt's entry has objects as well as ground, the whole tile, opaque, which no shadow darkens: the bolt replaces the centre tile of a zone or a service building, whose own shadow lies dense under the roof the bolt replaces.
+A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. Traffic is drawn as cars, so a traffic tile, light or heavy, and each frame of one, is drawn from the entry of the plain road tile of its shape (`trafficTiles.ts`), every layer of it: its shadow comes from the anchor's own value, and a traffic value's is the plain road's. The map, the monster TV and the preview alike look up a tile's art in one place, `buildMapFrame` in `mapFrame.ts`. A shadow is drawn from the anchor's own tile id, so it doesn't blink. The bolt's entry has objects as well as ground, the whole tile, opaque, which no shadow darkens: the bolt replaces the centre tile of a zone or a service building, whose own shadow lies dense under the roof the bolt replaces.
 
 The monster TV draws its view in the same passes, but for the overlay's tint. The splash screen's preview draws the whole map in the first three, with no overlay and no sprites, each tile's own id unanimated, and the shadows of none but the tiles on the map.
 
