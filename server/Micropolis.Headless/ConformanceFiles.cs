@@ -21,8 +21,7 @@ namespace Micropolis.Headless
     /// and the migrated saves: <c>commands.json</c> (<see cref="CommandCasesFile"/>), <c>queries.json</c>
     /// (<see cref="QueryCasesFile"/>), <c>speedGate.json</c> (<see cref="SpeedGateFile"/>), <c>maps.json</c>
     /// (<see cref="MapsFile"/>), <c>helpers.json</c> (<see cref="HelpersFile"/>), <c>runs.json</c>
-    /// (<see cref="RunsFile"/>), <c>ruleConstants.json</c> (<see cref="RuleConstantsFile"/>) and
-    /// <c>stationCover.json</c> (<see cref="StationCoverFile"/>).
+    /// (<see cref="RunsFile"/>) and <c>ruleConstants.json</c> (<see cref="RuleConstantsFile"/>).
     /// </summary>
     internal static class ConformanceFiles
     {
@@ -41,7 +40,6 @@ namespace Micropolis.Headless
                 (directories.File(HelpersFile.FileName), HelpersFile.Write(saves)),
                 (directories.File(RunsFile.FileName), RunsFile.Write(saves)),
                 (directories.File(RuleConstantsFile.FileName), RuleConstantsFile.Write()),
-                (directories.File(StationCoverFile.FileName), StationCoverFile.Write()),
             ];
         }
     }

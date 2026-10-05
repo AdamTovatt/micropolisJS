@@ -243,7 +243,7 @@ export const STAGES: Stage[] = [
       const fires = tilesWhere(lit, isFire);
       expect(fires, "the tiles on fire").toHaveLength(1);
       const fire = fires[0];
-      const plan = planStation(lit, fire);
+      const plan = await planStation(lit, fire, (station, target) => player.fireStationReach(station, target));
       await buildStation(player, plan);
 
       const built = await player.save();

@@ -42,6 +42,8 @@ namespace Micropolis.Rules
     [JsonDerivedType(typeof(AdvanceRequest), "advance")]
     [JsonDerivedType(typeof(CityTimeRequest), "cityTime")]
     [JsonDerivedType(typeof(SavedGameRequest), "savedGame")]
+    [JsonDerivedType(typeof(StateHashRequest), "stateHash")]
+    [JsonDerivedType(typeof(FireStationReachRequest), "fireStationReach")]
     [JsonDerivedType(typeof(TurnRequest), "turn")]
     public abstract record ClientMessage;
 
@@ -149,6 +151,21 @@ namespace Micropolis.Rules
     public sealed record SavedGameRequest(long Id) : ClientRequest(Id);
 
     /// <summary>
+    /// The debug channel: the city's state hash, as <see cref="StateHash"/> computes it. The answer is the hash.
+    /// </summary>
+    public sealed record StateHashRequest(long Id) : ClientRequest(Id);
+
+    /// <summary>
+    /// The debug channel: what a fire station centred at the station tile would give the target tile, without
+    /// changing the city. Its tiles are read for their kinds; whether they are on the city's map is the city's to say.
+    /// The answer is a <see cref="FireStationReach"/>.
+    /// </summary>
+    public sealed record FireStationReachRequest(
+        long Id,
+        [property: JsonPropertyName("station")] TilePosition Station,
+        [property: JsonPropertyName("target")] TilePosition Target) : ClientRequest(Id);
+
+    /// <summary>
     /// The debug channel of a server whose cities run on a clock the tests move: moves the clock on by the milliseconds
     /// given, then takes a turn of the city's loop if one is due. The answer is null.
     /// </summary>
@@ -187,6 +204,8 @@ namespace Micropolis.Rules
                 ["advance"] = Fields(required: ["id", "steps"]),
                 ["cityTime"] = Fields(required: ["id"]),
                 ["savedGame"] = Fields(required: ["id"]),
+                ["stateHash"] = Fields(required: ["id"]),
+                ["fireStationReach"] = Fields(required: ["id", "station", "target"]),
                 ["turn"] = Fields(required: ["id", "milliseconds"]),
             };
 
@@ -238,6 +257,8 @@ namespace Micropolis.Rules
                 "advance" => new AdvanceRequest(id, Number(message, "steps")),
                 "cityTime" => new CityTimeRequest(id),
                 "savedGame" => new SavedGameRequest(id),
+                "stateHash" => new StateHashRequest(id),
+                "fireStationReach" => new FireStationReachRequest(id, ReadTile(message["station"], "station"), ReadTile(message["target"], "target")),
                 "turn" => new TurnRequest(id, Number(message, "milliseconds")),
                 _ => throw new InvalidOperationException($"The {type} message has fields but no reading."),
             };
@@ -261,6 +282,15 @@ namespace Micropolis.Rules
                 CursorNumber(cursor, "x"),
                 CursorNumber(cursor, "y"),
                 CursorNumber(cursor, "size"));
+        }
+
+        private static TilePosition ReadTile(JsonNode? value, string field)
+        {
+            return value is JsonObject tile && HasFields(tile, TileFields, null) &&
+                   TryGetWholeNumberIn(tile["x"], int.MinValue, int.MaxValue, out long x) &&
+                   TryGetWholeNumberIn(tile["y"], int.MinValue, int.MaxValue, out long y)
+                ? new TilePosition((int)x, (int)y)
+                : throw new JsonException($"The {field} is a tile, with exactly the fields x and y, each a whole number.");
         }
 
         private static int CursorNumber(JsonObject cursor, string field)

@@ -60,8 +60,6 @@ namespace Micropolis.Rules
         // The services a setBudget command may fund, in the order the budget funds them
         private static readonly IReadOnlyList<string> Services = ["road", "fire", "police"];
 
-        private static readonly IReadOnlyDictionary<string, bool> TileFields = Fields(required: ["x", "y"]);
-
         /// <summary>
         /// The longest a command may be, as the JSON text <c>JSON.stringify</c> writes for it, in UTF-16 code units:
         /// room for a tool command whose path covers the whole map.

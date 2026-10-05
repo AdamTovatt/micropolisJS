@@ -24,7 +24,9 @@ namespace Micropolis.Headless
     /// (<see cref="CityTimeModel.StepsPerCityTime"/>), the units of city time in a year, what each tool costs, the
     /// advisor conditions in the order the status record lists them (<see cref="CityStatus.AdvisorConditionNames"/>),
     /// and each sprite type, numbered as the state messages number it, with its frames, counting from 1
-    /// (<see cref="SpriteTraits.LastFrame"/>), which the client's sprite sheet must hold.
+    /// (<see cref="SpriteTraits.LastFrame"/>), which the client's sprite sheet must hold, and the block size of the fire
+    /// department's cover map (<see cref="BlockMaps.StationMapBlockSize"/>), by which the end-to-end runner reads a
+    /// save's cover.
     /// </summary>
     internal static class RuleConstantsFile
     {
@@ -57,7 +59,8 @@ namespace Micropolis.Headless
                     ["type"] = (int)type,
                     ["name"] = JsonNamingPolicy.CamelCase.ConvertName(type.ToString()),
                     ["frames"] = Sprite.TraitsOf(type).LastFrame,
-                }).ToList(), true),
+                }).ToList(), false),
+                JsonLines.Member("fireCoverBlockSize", BlockMaps.StationMapBlockSize, true),
                 "}",
             ]);
         }

@@ -202,7 +202,7 @@ namespace Micropolis.Headless
         private static JsonNode? TypeOfLength(int length, string character)
         {
             int frame = Length(new JsonObject { ["type"] = "" });
-            int written = ConformanceText.Stringify(character).Length - 2;
+            int written = CanonicalJson.Stringify(character).Length - 2;
             int count = (length - frame) / written;
             return Exactly(length, new JsonObject { ["type"] = Repeat(character, count) + new string('x', length - frame - count * written) });
         }
@@ -211,7 +211,7 @@ namespace Micropolis.Headless
         private static JsonNode? KeyOfLength(int length, string character)
         {
             int frame = Length(new JsonObject { ["type"] = "x", [""] = 0 });
-            int written = ConformanceText.Stringify(character).Length - 2;
+            int written = CanonicalJson.Stringify(character).Length - 2;
             int count = (length - frame) / written;
             return Exactly(length, new JsonObject { ["type"] = "x", [Repeat(character, count) + new string('x', length - frame - count * written)] = 0 });
         }
@@ -225,7 +225,7 @@ namespace Micropolis.Headless
 
             JsonObject Padded(string s)
             {
-                return new JsonObject { ["type"] = "x", ["pad"] = J(ConformanceText.Stringify(pad)), ["s"] = s };
+                return new JsonObject { ["type"] = "x", ["pad"] = J(CanonicalJson.Stringify(pad)), ["s"] = s };
             }
 
             while (Length(Padded("")) + 30 < length)
@@ -238,7 +238,7 @@ namespace Micropolis.Headless
 
         private static int Length(JsonNode command)
         {
-            return ConformanceText.Stringify(command).Length;
+            return CanonicalJson.Stringify(command).Length;
         }
 
         private static string Repeat(string text, int count)
@@ -249,7 +249,7 @@ namespace Micropolis.Headless
         // The command read back from its text, as a player's arrives, once it is checked to be the length meant
         private static JsonNode? Exactly(int length, JsonNode command)
         {
-            string text = ConformanceText.Stringify(command);
+            string text = CanonicalJson.Stringify(command);
 
             if (text.Length != length)
             {

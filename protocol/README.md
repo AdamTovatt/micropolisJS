@@ -106,14 +106,21 @@ but `command` and `cursor`:
   aren't a whole number from 0, the driver isn't held, or the city isn't stepping), or why city time fell short of the
   steps taken, and is null otherwise: an advance that goes wrong is still answered, not failed;
   `cityTime` is answered with the city's time; `savedGame` is answered with the city's saved game's text, as the game
-  saves one, which reaches no store and counts toward no limit; and on a server whose cities run on a clock only the
-  debug channel moves, `turn`, with `milliseconds`, moves the city's clock on and has it take a turn of its loop if one
-  is due, and fails in a city on the server's clock. Each but `advance`, `cityTime` and `savedGame` is answered with
-  null.
+  saves one, which reaches no store and counts toward no limit; `stateHash` is answered with the city's state hash
+  (`docs/state-hash.md`), as the rules compute it; `fireStationReach`, with a `station` and a `target`, each a tile
+  `{"x", "y"}` on the city's map, is answered with `{"perimeter"}`, what a fire station centred at the station tile
+  would give, worked out by the rules without changing the city: `perimeter`, the tiles of the station's perimeter
+  on the map, in the order the scan searches them for the station's road, each `{"x", "y", "cover"}`, where `cover`
+  is the fire department's cover at the target of that station as the only one on the map, powered, at the city's
+  fire funding, with its road on that tile, where the station notes its effect, spread by the fire analysis; a tile
+  off the map fails the request, and the connection stays in its city; and on a server whose cities run on a clock
+  only the debug channel moves, `turn`, with `milliseconds`, moves the city's clock on and has it take a turn of its
+  loop if one is due, and fails in a city on the server's clock. Each but `advance`, `cityTime`, `savedGame`,
+  `stateHash` and `fireStationReach` is answered with null.
 
-`save`, `download`, `commandLog`, `flush`, `advance`, `cityTime`, `savedGame` and `turn` fail with "No city has
-started" before the connection is in a city; `hold` and `release` then answer null and apply to the city it starts or
-joins next.
+`save`, `download`, `commandLog`, `flush`, `advance`, `cityTime`, `savedGame`, `stateHash`, `fireStationReach` and
+`turn` fail with "No city has started" before the connection is in a city; `hold` and `release` then answer null and
+apply to the city it starts or joins next.
 
 A city's name is 1 to 15 characters, counted as a display name's are but not trimmed, and holds none of the
 characters a display name can't. A `start` whose name breaks the rule fails, and so does an `upload` of a save whose

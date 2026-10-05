@@ -18,7 +18,6 @@ import { CityState } from "../src/cityState";
 import { Command, CommandResult, StateMessage } from "../src/protocol";
 import { WebSocketCitySource } from "../src/webSocketCitySource";
 import { parseLog } from "./helpers/commandLog";
-import { gameSaveHash } from "./helpers/stateHash";
 import {
     memorySessionStore, NodeCityEnvironment, serverTestsEnabled, signedInClient, START_SERVER_TIMEOUT_MS, startTestServer,
     TestServer,
@@ -146,7 +145,7 @@ describeOnServer("a city two players share", () => {
             .toEqual(COMMANDS.map((command, i) => ({player: senders[i].source.player, command})));
         // From step 0, past the first interval, to the city now, whose state the last one hashes
         expect(log.checkpoints.map(({step}) => step)).toEqual([0, CHECKPOINT_INTERVAL, CHECKPOINT_INTERVAL + 400]);
-        expect(log.checkpoints[2].hash).toBe(gameSaveHash(JSON.parse(await grace.source.driver.savedGame())));
+        expect(log.checkpoints[2].hash).toBe(await grace.source.driver.stateHash());
     });
 
     it("gives a player who joins the whole city as it stands", async () => {

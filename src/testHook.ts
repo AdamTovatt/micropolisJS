@@ -13,6 +13,7 @@
  */
 
 import type { CityDriver } from "./citySource";
+import type { FireStationReach, TilePosition } from "./protocol";
 import type { OriginLimits } from "./viewPosition";
 
 // The end-to-end runner's hold on the game, installed on the window in debug mode. The runner holds the city source's
@@ -156,6 +157,19 @@ class TestHook {
   async save(): Promise<object> {
     this.requireGame();
     return JSON.parse(await this.attachedDriver().savedGame()) as object;
+  }
+
+  // The city's state hash, as the rules compute it
+  async stateHash(): Promise<string> {
+    this.requireGame();
+    return this.attachedDriver().stateHash();
+  }
+
+  // What a fire station centred at the station tile would give the target tile, as the rules work it out without
+  // changing the city
+  async fireStationReach(station: TilePosition, target: TilePosition): Promise<FireStationReach> {
+    this.requireGame();
+    return this.attachedDriver().fireStationReach(station, target);
   }
 
   // The commands the game has applied since it started, rejected ones included: one entry each in its command log

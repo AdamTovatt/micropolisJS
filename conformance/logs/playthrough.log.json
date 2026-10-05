@@ -27,22 +27,21 @@
     {"step":6912,"player":"player 1","command":{"type":"setAutoBudget","on":true}},
     {"step":8064,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":47,"y":31},{"x":48,"y":31},{"x":49,"y":31},{"x":50,"y":31},{"x":51,"y":31},{"x":52,"y":31},{"x":53,"y":31},{"x":54,"y":31},{"x":55,"y":31},{"x":56,"y":31},{"x":57,"y":31},{"x":58,"y":31},{"x":59,"y":31},{"x":60,"y":31},{"x":61,"y":31},{"x":62,"y":31},{"x":63,"y":31},{"x":64,"y":31},{"x":65,"y":31},{"x":66,"y":31},{"x":67,"y":31},{"x":68,"y":31},{"x":69,"y":31}],"autoBulldoze":true}},
     {"step":8064,"player":"player 1","command":{"type":"triggerDisaster","kind":"fire"}},
-    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":55,"y":71}],"autoBulldoze":true}},
-    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":57,"y":70}],"autoBulldoze":true}},
-    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":53,"y":70},{"x":52,"y":70},{"x":51,"y":70}],"autoBulldoze":true}},
-    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":51,"y":69},{"x":50,"y":69}],"autoBulldoze":true}},
-    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":50,"y":68},{"x":50,"y":67}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":53,"y":71}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":55,"y":70}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":51,"y":70},{"x":51,"y":69}],"autoBulldoze":true}},
+    {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":50,"y":69},{"x":50,"y":68},{"x":50,"y":67}],"autoBulldoze":true}},
     {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":49,"y":67},{"x":49,"y":66}],"autoBulldoze":true}},
     {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":48,"y":66},{"x":47,"y":66}],"autoBulldoze":true}},
     {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":47,"y":65},{"x":47,"y":64},{"x":47,"y":63},{"x":47,"y":62},{"x":47,"y":61},{"x":47,"y":60},{"x":47,"y":59},{"x":47,"y":58},{"x":47,"y":57},{"x":47,"y":56},{"x":47,"y":55},{"x":47,"y":54}],"autoBulldoze":true}},
     {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":47,"y":53},{"x":47,"y":52},{"x":47,"y":51},{"x":47,"y":50},{"x":47,"y":49},{"x":47,"y":48},{"x":47,"y":47},{"x":47,"y":46}],"autoBulldoze":true}},
-    {"step":9792,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
+    {"step":9744,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
   ],
   "checkpoints": [
     {"step":0,"hash":"12b5f5491e724a7115743594be3fda72bcfb8544cad879eaf29c99b3be302478"},
     {"step":3600,"hash":"ab81eda48ad0c942e2a31adcbab2d280f786203fc0170ce6a2cfe7d3f9499c44"},
     {"step":7200,"hash":"443bc511517190d665ac9ad380132a5b0b893c719aefb0508bb7bb71e8478154"},
-    {"step":8640,"hash":"918140e3e33b5df78ed703a36e2a686f8cc535f4a6758e2451fd501c9e33b51a"},
-    {"step":9792,"hash":"ed525c6a17f78f55027784d79d143e81be7a6ba5e6119d31ab97513c6542931b"}
+    {"step":8592,"hash":"f5cde317c09d6893597805a54940c0e364b162a360ac55ea73fbbd725ca1c327"},
+    {"step":9744,"hash":"0168b5670faeb63a3b44517df68afa8f6c8dbf02a3229f4f892441eb1d5766e0"}
   ]
 }

@@ -3,11 +3,11 @@
 The state hash identifies a city's complete simulation state. Two simulations whose hashes match evolve identically
 as long as they are given the same commands (`src/protocol.ts`), each of which carries whatever setting of its
 sender's it depends on. A command log's checkpoints are state hashes (`docs/command-log.md`), and the headless runner
-prints one. This document specifies it, so every implementation of it writes identical bytes: `CanonicalJson` and
-`StateHash` in `server/Micropolis.Rules`, which the game rules and the server hash with, and
-`test/helpers/stateHash.ts`, with which the end-to-end runner hashes the saves the game server sends.
-`conformance/canonicalJson.json` holds the canonical text of numbers, strings and documents, which the tests of both
-read, and which is edited by hand: a change to a rule below changes its cases in the same commit.
+prints one. This document specifies it: `CanonicalJson` and `StateHash` in `server/Micropolis.Rules` are its only
+implementation, which the game rules and the server hash with, and which the end-to-end runner and the client's tests
+ask the game server for, through the debug channel's `stateHash` (`protocol/README.md`).
+`conformance/canonicalJson.json` holds the canonical text of numbers, strings and documents, which the C# tests read,
+and which is edited by hand: a change to a rule below changes its cases in the same commit.
 
 ## The hash
 
@@ -159,12 +159,11 @@ twice, missing or unknown, or a value of the wrong type or outside the range giv
 
 Each fixture is a command log (`docs/command-log.md`) under `conformance/logs/` whose checkpoints are its golden
 hashes, the **built** hash at step 0 and the **run** hash after a fixed run, as `conformance/README.md` describes.
-`LogReplayTests` replays every log to every checkpoint, and the client's `test/canonicalJson.ts` hashes each fixture's
-saved state at the built and run checkpoints to the same hashes.
+`LogReplayTests` replays every log to every checkpoint, and `FixtureSavesTests` hashes each fixture's saved state at
+the built and run checkpoints to the same hashes.
 
-`e2e/goldenPlaythrough.json` pins the hash of the city at each stage of the end-to-end playthrough: the hash of the
-save the game server sends the page, without what the next section lists (`gameSaveHash` in
-`test/helpers/stateHash.ts`). It also holds the playthrough's command log, which `GoldenPlaythroughTests` in
+`e2e/goldenPlaythrough.json` pins the hash of the city at each stage of the end-to-end playthrough, as the game server
+answers it through the debug channel. It also holds the playthrough's command log, which `GoldenPlaythroughTests` in
 `server/Micropolis.Headless.Tests` replays to each of those hashes.
 
 ## What the hash leaves out

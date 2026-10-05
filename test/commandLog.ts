@@ -13,7 +13,6 @@
  */
 
 import { CommandLog, joinSessions, LOCAL_PLAYER, LOG_FORMAT_VERSION, parseLog } from "./helpers/commandLog";
-import { hashSavedState } from "./helpers/stateHash";
 
 const HASH = "0".repeat(64);
 const valid = {formatVersion: LOG_FORMAT_VERSION, seed: 8, level: 0, entries: [], checkpoints: []};
@@ -92,14 +91,14 @@ describe("joining sessions", () => {
     const command = (step: number) =>
         ({step, player: LOCAL_PLAYER, command: {type: "setAutoBudget", on: step % 2 === 0}});
 
-    // The saved states the sessions end on. Joining only hashes them, so they need not be a city's.
+    // The saved states the sessions end on. Joining never reads them, so they need not be a city's.
     const SAVES = {first: {city: "after 100 steps"}, second: {city: "after 150 steps"}};
 
-    // Three sessions, each after the first loading the city the one before it ended on: a session from seed 23 that
-    // ended at step 100, one that took 50 steps more, and one that took 20
+    // Three sessions, each after the first loading the city the one before it ended on, which its first checkpoint
+    // hashes: a session from seed 23 that ended at step 100, one that took 50 steps more, and one that took 20
     function sessions(): [CommandLog, CommandLog, CommandLog] {
-        const firstEnd = hashSavedState(SAVES.first);
-        const secondEnd = hashSavedState(SAVES.second);
+        const firstEnd = "c".repeat(64);
+        const secondEnd = "d".repeat(64);
 
         const first: CommandLog = {formatVersion: LOG_FORMAT_VERSION, seed: 23, level: 1,
                                    entries: [command(0), command(40)],
@@ -144,11 +143,21 @@ describe("joining sessions", () => {
 
     it("refuses a later session that loads another city than the one before it ended on", () => {
         const [first, second] = sessions();
-        const other = {city: "another"};
+        const other = "e".repeat(64);
 
-        expect(() => joinSessions([first, {...second, save: other}])).toThrow(
-            `Session 2 loads a city whose state hash is ${hashSavedState(other)}, but the session before it ended on ` +
-            first.checkpoints[1].hash);
+        expect(() => joinSessions([first, {...second, checkpoints: [{step: 0, hash: other}, second.checkpoints[1]]}]))
+            .toThrow(`Session 2 loads a city whose state hash is ${other}, but the session before it ended on ` +
+                     first.checkpoints[1].hash);
+    });
+
+    it.each([
+        ["no checkpoints", []],
+        ["no checkpoint at its first step", [{step: 50, hash: "d".repeat(64)}]],
+    ])("refuses a later session with %s", (_, checkpoints) => {
+        const [first, second] = sessions();
+
+        expect(() => joinSessions([first, {...second, checkpoints}])).toThrow(
+            "Session 2 has no checkpoint of the city it loaded, at its first step");
     });
 
     it("refuses a later session that starts from a seed", () => {

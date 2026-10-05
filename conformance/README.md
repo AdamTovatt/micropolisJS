@@ -57,8 +57,8 @@ messages that announce a new city class, smallest class first.
 
 ### canonicalJson.json
 
-Cases of the canonical text (`docs/state-hash.md`), which the C# `CanonicalJson` and the end-to-end runner's
-`test/helpers/stateHash.ts` must both write:
+Cases of the canonical text (`docs/state-hash.md`), which the C# `CanonicalJson` must write. Unlike the other
+definitions, only the C# tests read it: the client computes no hash, and asks the game server for a city's.
 
 - `numbers`: doubles, each given by its IEEE 754 bits, so negative zero and every digit are exact, with the text
   `Number::toString` gives. They cover each layout of `Number::toString`, the boundaries between them, every funding
@@ -94,8 +94,8 @@ is the output of the game that wrote it, byte for byte, so writing it again from
 ## Files the fixture tool writes
 
 The fixture tool, `server/Micropolis.Headless`, writes `logs/`, `saves/`, `events/`, `commands.json`,
-`queries.json`, `speedGate.json`, `runs.json`, `maps.json`, `helpers.json`, `ruleConstants.json`, `stationCover.json`
-and `migrated/` from the C# rules, on the fixtures `server/Micropolis.Conformance` lays out, which the rules' tests
+`queries.json`, `speedGate.json`, `runs.json`, `maps.json`, `helpers.json`, `ruleConstants.json` and `migrated/` from
+the C# rules, on the fixtures `server/Micropolis.Conformance` lays out, which the rules' tests
 share. Regenerate them in the commit that changes what they
 are computed from: a fixture's commands, saved state or a game rule (`CLAUDE.md`, Rules for simulation code):
 
@@ -151,8 +151,7 @@ server/Micropolis.Headless -- --log conformance/logs/<name>.log.json` replays on
 Each fixture's saved state (`docs/state-hash.md`), from its log's replay (`FixtureSaves`): `<fixture>.built.json` at
 its first checkpoint, as its log builds it, and `<fixture>.run.json` at its last, after its run. Each file is the
 canonical text alone, with no final newline, so its SHA-256 is the state hash, which `FixtureSavesTests` checks
-against the log's checkpoints, and the client's `test/canonicalJson.ts` hashes each, with its own canonical text, to
-the same checkpoints. The C# tests start cities from them, the fixtures `Fixtures.cs` lists
+against the log's checkpoints. The C# tests start cities from them, the fixtures `Fixtures.cs` lists
 (`ConformanceSaves`), and so does the benchmark (`server/Micropolis.Benchmarks`), from each `<fixture>.run.json`, the
 headless runner's `--fixture`, from the fixture's `<fixture>.built.json`, and the tool's `runs.json` and
 `speedGate.json`, from the built saves.
@@ -241,14 +240,8 @@ The rules' numbers the client draws by or its tests count with, which the client
 (`RuleConstantsFile`, read through `test/helpers/ruleConstants.ts`): `stepsPerCityTime` at each running speed,
 `cityTimesPerYear`, `toolCosts`, the `advisorConditions` in the order the status record lists them, and the
 `spriteTypes`, each numbered as the state messages number it, with its frames, which `test/vocabulary.ts` holds the
-client's sprite sheet to.
-
-### stationCover.json
-
-The fire cover a station alone on a 48×32 map gives each block, as the fire analysis spreads it, at the fire effect its
-funding gives it (`StationCoverFile`): each of `cases` has the station's `centre`, its `fireEffect` and the `cover`,
-row by row. The end-to-end runner works the cover out to choose where to build a fire station (`e2e/stationSite.ts`),
-and `test/stationSite.ts` holds it to these.
+client's sprite sheet to, and `fireCoverBlockSize`, the block size of the fire department's cover map, by which the
+end-to-end runner reads a save's cover.
 
 ### migrated/
 

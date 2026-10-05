@@ -186,6 +186,21 @@ namespace Micropolis.Server
             return _city.CityTime;
         }
 
+        public string StateHash()
+        {
+            return Rules.StateHash.HashSavedState(_city.Save());
+        }
+
+        /// <summary>
+        /// What a fire station centred at the station tile would give the target tile, both on the city's map, at the
+        /// city's fire funding, as the rules work it out without changing the city.
+        /// </summary>
+        public FireStationReach FireStationReach(TilePosition station, TilePosition target)
+        {
+            return EmergencyServices.FireStationReach(_city.Map, _city.Budget.FireEffect, new Position(station.X, station.Y),
+                                                      new Position(target.X, target.Y));
+        }
+
         // One turn of the host's loop, which runs for as long as the ticker calls back: the commands sent since the
         // last turn, then the steps due by now, then the state they changed. A held driver leaves the commands and the
         // steps to the debug channel. While the city is paused, the loop waits rather than turn for nothing: a

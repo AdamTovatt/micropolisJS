@@ -22,7 +22,7 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void HashSavedState_State_IsSha256OfCanonicalTextInLowercaseHex()
         {
-            // sha256 of the bytes {"a":"é","b":1}, computed with coreutils' sha256sum, as test/canonicalJson.ts checks
+            // sha256 of the bytes {"a":"é","b":1}, computed with coreutils' sha256sum
             JsonObject state = new JsonObject { ["b"] = 1, ["a"] = "é" };
 
             Assert.AreEqual("aa58fba8483623bed37c1b02edfccbdd9a53123837c20bfa4cb4049993a2872e", StateHash.HashSavedState(state));

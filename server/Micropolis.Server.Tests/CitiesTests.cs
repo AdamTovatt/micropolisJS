@@ -873,6 +873,8 @@ namespace Micropolis.Server.Tests
         [DataRow("cityTime", DisplayName = "cityTime")]
         [DataRow("turn", DisplayName = "turn")]
         [DataRow("savedGame", DisplayName = "savedGame")]
+        [DataRow("stateHash", DisplayName = "stateHash")]
+        [DataRow("fireStationReach", DisplayName = "fireStationReach")]
         public async Task Request_BeforeAnyCity_FailsSayingSo(string type)
         {
             ServerUnderTest.RequireDebugChannel();
@@ -888,6 +890,8 @@ namespace Micropolis.Server.Tests
                 "cityTime" => new CityTimeRequest(id),
                 "turn" => new TurnRequest(id, 1),
                 "savedGame" => new SavedGameRequest(id),
+                "stateHash" => new StateHashRequest(id),
+                "fireStationReach" => new FireStationReachRequest(id, new TilePosition(1, 1), new TilePosition(1, 1)),
                 _ => throw new ArgumentException(type),
             }));
 
@@ -895,8 +899,69 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        public async Task StateHash_CityThatHasPlayed_IsTheRulesHashOfItsSave()
+        {
+            ServerUnderTest.RequireDebugChannel();
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync();
+            await ada.SendAsync(Road(30, 30));
+            await PlaySecondAsync(ada);
+
+            string hash = await ada.StateHashAsync();
+
+            Assert.AreEqual(StateHash.HashSavedState(SavedGame.Load(await ada.SavedGameAsync(), out _).Save()), hash);
+        }
+
+        [TestMethod]
+        [DataRow(60, 50, 60, 50, DisplayName = "the station's own tile")]
+        [DataRow(0, 1, 9, 1, DisplayName = "a station in the corner, a block away")]
+        [DataRow(119, 99, 0, 0, DisplayName = "a station across the map")]
+        public async Task FireStationReach_InACity_IsTheRulesAnswerAndChangesNothing(int stationX, int stationY, int targetX, int targetY)
+        {
+            ServerUnderTest.RequireDebugChannel();
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync();
+            string before = await ada.SavedGameAsync();
+            Position station = new Position(stationX, stationY);
+            Position target = new Position(targetX, targetY);
+
+            JsonNode? answer = await ada.RequestAsync(id => new FireStationReachRequest(id, new TilePosition(stationX, stationY), new TilePosition(targetX, targetY)));
+
+            Simulation city = SavedGame.Load(before, out _);
+            FireStationReach expected = EmergencyServices.FireStationReach(city.Map, city.Budget.FireEffect, station, target);
+            Assert.AreEqual(ProtocolJson.ToNode(expected)!.ToJsonString(), answer!.ToJsonString());
+            Assert.AreEqual(before, await ada.SavedGameAsync());
+        }
+
+        [TestMethod]
+        [DataRow(120, 0, 0, 0, DisplayName = "a station past the east edge")]
+        [DataRow(0, -1, 0, 0, DisplayName = "a station past the north edge")]
+        [DataRow(0, 0, 0, 100, DisplayName = "a target past the south edge")]
+        public async Task FireStationReach_TileOffTheMap_FailsSayingSo(int stationX, int stationY, int targetX, int targetY)
+        {
+            ServerUnderTest.RequireDebugChannel();
+            await using ServerUnderTest server = await ServerUnderTest.StartAsync(manualClock: true);
+            await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync();
+
+            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.RequestAsync(
+                id => new FireStationReachRequest(id, new TilePosition(stationX, stationY), new TilePosition(targetX, targetY))));
+
+            Assert.AreEqual("The station and the target are tiles on the city's map", failed.Message);
+            // The city is still there to answer: a refusal fails the request, not the city
+            Assert.AreEqual(0, await ada.CityTimeAsync());
+        }
+
+        // In a city, where a Debug build answers each of them
+        [TestMethod]
         [TestCategory(ReleaseBuild.Category)]
-        public async Task Debug_ReleaseBuild_FailsSayingSo()
+        [DataRow("hold", DisplayName = "hold")]
+        [DataRow("savedGame", DisplayName = "savedGame")]
+        [DataRow("stateHash", DisplayName = "stateHash")]
+        [DataRow("fireStationReach", DisplayName = "fireStationReach")]
+        public async Task Debug_ReleaseBuild_FailsSayingSo(string type)
         {
             if (DebugChannel.IsBuiltIn)
             {
@@ -905,8 +970,16 @@ namespace Micropolis.Server.Tests
 
             await using ServerUnderTest server = await ServerUnderTest.StartAsync();
             await using TestPlayer ada = await TestPlayer.ConnectAsync(server, "Ada");
+            await ada.StartAsync();
 
-            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.RequestAsync(id => new HoldRequest(id)));
+            RequestFailedException failed = await Assert.ThrowsExactlyAsync<RequestFailedException>(() => ada.RequestAsync(id => type switch
+            {
+                "hold" => new HoldRequest(id),
+                "savedGame" => new SavedGameRequest(id),
+                "stateHash" => new StateHashRequest(id),
+                "fireStationReach" => new FireStationReachRequest(id, new TilePosition(1, 1), new TilePosition(1, 1)),
+                _ => throw new ArgumentException(type),
+            }));
 
             Assert.AreEqual("This server has no debug channel", failed.Message);
         }
