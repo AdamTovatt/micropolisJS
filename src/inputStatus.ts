@@ -397,8 +397,8 @@ export function buttonTool(data: {tool?: string, size?: string}): ChosenTool {
   return {name, width};
 }
 
-// Each tool's outline colour, whoever holds it: the background of its button, so the two always match. Every tool a
-// player may hold has a button, or the page is at fault.
+// Each tool's outline colour, whoever holds it: the accent along the top of its button, so the two always match. Every
+// tool a player may hold has a button, or the page is at fault.
 export function toolColours(buttons: readonly {tool: CursorTool, colour: string}[]): Record<CursorTool, string> {
   const colours: Partial<Record<CursorTool, string>> = {};
   for (const {tool, colour} of buttons) {
@@ -438,6 +438,7 @@ export class InputStatus extends Emitter<InputEvents> {
 
   private readonly canvas: HTMLElement;
   private readonly pauseButton: HTMLElement;
+  private readonly pauseLabel: HTMLElement;
 
   // Mouse drags: the map tile a drag last reported
   private dragging = false;
@@ -464,6 +465,11 @@ export class InputStatus extends Emitter<InputEvents> {
     super();
     this.canvas = requiredElement(GameCanvas.DEFAULT_ID);
     this.pauseButton = requiredElement("pauseRequest");
+    const pauseLabel = this.pauseButton.querySelector<HTMLElement>(".hudButtonLabel");
+    if (pauseLabel === null) {
+      throw new Error("The pause button has no label");
+    }
+    this.pauseLabel = pauseLabel;
 
     // Add the listeners
     document.addEventListener("keydown", (e) => this.onKeyDown(e));
@@ -493,7 +499,7 @@ export class InputStatus extends Emitter<InputEvents> {
     const buttons = Array.from(document.querySelectorAll<HTMLElement>(".toolButton"), (button) => {
       const tool = buttonTool(button.dataset);
       button.addEventListener("click", (e) => this.onToolButton(e, button, tool));
-      return {tool: tool.name, colour: getComputedStyle(button).backgroundColor};
+      return {tool: tool.name, colour: getComputedStyle(button).borderTopColor};
     });
 
     this.toolColours = toolColours(buttons);
@@ -524,9 +530,10 @@ export class InputStatus extends Emitter<InputEvents> {
     return this.pointerAt;
   }
 
-  // The pause button offers whatever the simulation isn't doing
+  // The pause button offers whatever the simulation isn't doing, in its label and its icon, which the stylesheet picks
   showPaused(paused: boolean): void {
-    this.pauseButton.textContent = paused ? "Play" : "Pause";
+    this.pauseLabel.textContent = paused ? "Play" : "Pause";
+    this.pauseButton.classList.toggle("paused", paused);
   }
 
   clearTool(): void {

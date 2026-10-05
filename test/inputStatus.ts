@@ -118,13 +118,13 @@ describe("a tool button", () => {
 
 describe("the tools' outline colours", () => {
 
-    const everyTool = CURSOR_TOOLS.map((tool) => ({tool, colour: `${tool} background`}));
+    const everyTool = CURSOR_TOOLS.map((tool) => ({tool, colour: `${tool} accent`}));
 
-    it("are each tool's button's background", () => {
+    it("are each tool's button's accent", () => {
         const colours = toolColours(everyTool);
 
-        expect(colours.road).toBe("road background");
-        expect(colours.query).toBe("query background");
+        expect(colours.road).toBe("road accent");
+        expect(colours.query).toBe("query accent");
     });
 
     it("fail on a page with no button for a tool a player may hold", () => {

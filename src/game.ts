@@ -84,7 +84,7 @@ export class Game {
   private readonly source: CitySource;
   private readonly state: CityState;
   private readonly rci: RCI;
-  private readonly statusPanel: StatusPanel;
+  readonly statusPanel: StatusPanel;
   private readonly infoBar: InfoBar;
   private readonly speedControl: SpeedControl;
   readonly monsterTV: MonsterTV;
@@ -342,10 +342,11 @@ export class Game {
     const route = routeMessage(message, this.newsHold, Date.now());
 
     if (route.tv !== null) {
+      const title = Text.tvTitles[message.subject] ?? Text.tvTitleUnknown;
       if ("trackable" in route.tv) {
-        this.monsterTV.track(route.tv.x, route.tv.y, route.tv.sprite);
+        this.monsterTV.track(route.tv.x, route.tv.y, route.tv.sprite, title);
       } else {
-        this.monsterTV.show(route.tv.x, route.tv.y);
+        this.monsterTV.show(route.tv.x, route.tv.y, title);
       }
     }
 

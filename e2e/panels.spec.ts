@@ -43,19 +43,31 @@ async function expectFolded(page: Page, name: string, folded: boolean, when: str
   await expect(button, `the ${name} panel's button ${when}`).toHaveAttribute("aria-expanded", String(!folded));
 }
 
-// Each panel's top on the page, by its name
-async function tops(page: Page): Promise<Record<string, number>> {
+// The panels at the foot of their columns, which keep their bottoms; every other keeps its top, or follows the panel
+// above it in its column
+const AT_FOOT = ["tools", "map"];
+// The panels under another in their column, each of which follows the panel above it up as that one folds
+const FOLLOWING = ["menu", "demand", "overlay", "status"];
+
+// Each panel's place on the page, by its name: its bottom for a panel at its column's foot, and its top for any other
+async function places(page: Page): Promise<Record<string, number>> {
   const found: Record<string, number> = {};
   for (const name of SHOWING) {
-    found[name] = (await panel(page, name).boundingBox())!.y;
+    const box = (await panel(page, name).boundingBox())!;
+    found[name] = AT_FOOT.includes(name) ? box.y + box.height : box.y;
   }
   return found;
+}
+
+// The places of the panels anchored in their regions, which folding moves none of
+function anchored(found: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(found).filter(([name]) => !FOLLOWING.includes(name)));
 }
 
 test("each panel folds to its strip and unfolds by its button, in its place, as a reload finds it", async ({page}) => {
   const problems = collectPageProblems(page);
   const player = await startGame(server(), page, SEED, "Folding");
-  const unfolded = await tops(page);
+  const unfolded = await places(page);
 
   for (const name of SHOWING) {
     await panel(page, name).locator(".foldButton").click();
@@ -63,10 +75,12 @@ test("each panel folds to its strip and unfolds by its button, in its place, as 
   for (const name of SHOWING) {
     await expectFolded(page, name, true, "folded");
   }
-  // A folded panel keeps its place, but folding the demand meter gives the minimap its room
-  const folded = await tops(page);
-  expect({...folded, map: unfolded.map}, "the panels' tops, folded").toEqual(unfolded);
-  expect(folded.map, "the minimap's top under the folded demand meter").toBeLessThan(unfolded.map);
+  // A folded panel keeps its anchor in its region, and one under another in its column goes up as that one folds
+  const folded = await places(page);
+  expect(anchored(folded), "the anchored panels' places, folded").toEqual(anchored(unfolded));
+  for (const name of FOLLOWING) {
+    expect(folded[name], `the ${name} panel's top, under a folded panel`).toBeLessThan(unfolded[name]);
+  }
 
   await player.reloadCity();
   for (const name of SHOWING) {
@@ -79,7 +93,7 @@ test("each panel folds to its strip and unfolds by its button, in its place, as 
   for (const name of SHOWING) {
     await expectFolded(page, name, false, "unfolded again");
   }
-  expect(await tops(page), "the panels' tops, unfolded again").toEqual(unfolded);
+  expect(await places(page), "the panels' places, unfolded again").toEqual(unfolded);
   expect(problems).toEqual([]);
 });
 

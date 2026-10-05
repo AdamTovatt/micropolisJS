@@ -62,6 +62,17 @@ export function sizeCanvas(canvas: HTMLCanvasElement, width: number, height: num
   canvas.style.height = `${height}px`;
 }
 
+// The value of a custom property the stylesheet sets on :root, such as a colour a canvas draws in. A property it sets
+// none of is an error.
+export function stylesheetProperty(name: string): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (value === "") {
+    throw new Error(`The stylesheet sets no ${name}`);
+  }
+
+  return value;
+}
+
 // The screen's device pixels for each CSS pixel, which a canvas's backing store matches
 export function screenPixelRatio(): number {
   return window.devicePixelRatio || 1;

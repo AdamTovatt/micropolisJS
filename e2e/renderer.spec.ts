@@ -151,10 +151,10 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
     expect(wrong.slice(0, 10), `${wrong.length} tiles wrong`).toEqual([]);
 
     // The query tool's outline, 3 CSS pixels wide around the tile under the pointer, on the building site, in its
-    // button's colour
+    // button's accent, the colour along its top
     const tile = {x: 58, y: 32};
     const buttonColour = await page.locator("#queryButton").evaluate((button) =>
-      (/^rgb\((\d+), (\d+), (\d+)\)$/.exec(getComputedStyle(button).backgroundColor) ?? []).slice(1).map(Number));
+      (/^rgb\((\d+), (\d+), (\d+)\)$/.exec(getComputedStyle(button).borderTopColor) ?? []).slice(1).map(Number));
     await player.selectTool("query");
     await player.showTiles([tile]);
     const {x: left, y: top} = await player.tileCorner(tile);

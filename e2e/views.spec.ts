@@ -193,7 +193,7 @@ for (const scale of [1, 2]) {
       await expect.poll(async () => await canvasPicture(page, TV_CANVAS) === before,
                         "the TV drawn again, as before its context was lost").toBe(true);
 
-      await page.locator("#monsterTVForm input[type=submit]").click();
+      await page.locator("#monsterTVForm button[type=submit]").click();
       await expect(page.locator("#monstertv.showing")).toHaveCount(0);
       expect(await isContextLost(page, TV_CANVAS), "the TV's context, once it closed").toBe(true);
       expect(problems).toEqual([]);

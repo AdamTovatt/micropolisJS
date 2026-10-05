@@ -14,7 +14,7 @@
 
 import type { CityDriver, CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
-import { AdvanceResult, Command, FireStationReach, SPEEDS, TilePosition } from "../src/protocol";
+import { AdvanceResult, Command, FireStationReach, SPEEDS, StatusRecord, TilePosition } from "../src/protocol";
 import { attachDriverToTestHook, installTestHook, TestHook } from "../src/testHook";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
 import { restoreGlobals, stubGlobal } from "./helpers/globals";
@@ -50,6 +50,10 @@ function gameOn(source: CitySource, state: CityState) {
         toolToast: {dismiss: () => {
             game.toastDismissals++;
         }},
+        statuses: [] as StatusRecord[],
+        statusPanel: {show: (status: StatusRecord) => {
+            game.statuses.push(status);
+        }},
         hoverTile: {x: 7, y: 9} as {x: number, y: number} | null,
     };
 
@@ -66,6 +70,7 @@ const IDLE_GAME = {
     carsInView: 0,
     notificationBar: {dismiss: () => {}},
     toolToast: {dismiss: () => {}},
+    statusPanel: {show: () => {}},
     hoverTile: null,
 };
 
@@ -221,10 +226,13 @@ describe("the test hook", () => {
             await expect(call()).rejects.toThrow("No game has started");
         });
 
-        it.each(["view", "commandsApplied", "dismissNotification", "viewsCurrent"])("can't %s", (method) => {
+        it.each(["view", "commandsApplied", "dismissNotification", "showStatus", "viewsCurrent"])("can't %s", (method) => {
             const hook = new TestHook();
             const call = {view: () => hook.view(), commandsApplied: () => hook.commandsApplied(),
                           dismissNotification: () => hook.dismissNotification(),
+                          showStatus: () => hook.showStatus({type: "status", powerCapacity: 0, powerLoad: 0,
+                                                             residentialCapped: false, commercialCapped: false,
+                                                             industrialCapped: false, conditions: []}),
                           viewsCurrent: () => hook.viewsCurrent()}[method]!;
 
             expect(call).toThrow("No game has started");
@@ -429,5 +437,15 @@ describe("the test hook", () => {
         hook.dismissNotification();
 
         expect([game.dismissals, game.toastDismissals]).toEqual([1, 1]);
+    });
+
+    it("shows a status record in the game's status panel", async () => {
+        const {hook, game} = await holdingGame("nothing");
+        const status: StatusRecord = {type: "status", powerCapacity: 700, powerLoad: 920, residentialCapped: true,
+                                      commercialCapped: false, industrialCapped: true, conditions: []};
+
+        hook.showStatus(status);
+
+        expect(game.statuses).toEqual([status]);
     });
 });

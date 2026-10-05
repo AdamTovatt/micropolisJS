@@ -12,30 +12,51 @@
  *
  */
 
-import { placeNewCanvas } from "./domElements";
+import { placeNewCanvas, screenPixelRatio, stylesheetProperty } from "./domElements";
 import type { DemandMessage } from "./protocol";
 
-// The residential, commercial and industrial demand meter: a bar for each, up for demand and down for none, over a
-// grey box carrying their initials.
+// The residential, commercial and industrial demand meter: a dark track for each, with a line across its middle, and a
+// bar in it that rises from the line for demand and hangs from it for none, over the zone's initial.
 
-// The meter is laid out in rects, and in units of padding of a few rects each. The grey box is 1 unit in from the left,
-// 7 units wide and 1 unit tall, with a full bar's height above it and another below. The bars are 1 unit wide and 1
-// unit apart, the first 2 units in, so the box reaches 1 unit past the bars on either side. A bar rises from the box's
-// top for demand and hangs from its bottom for none, at most BUCKETS rects either way.
-const PADDING = 3; // 3 rectangles in each bit of padding
+// Each track is TRACK_WIDTH wide, and the tracks' middles are COLUMN apart, the first COLUMN / 2 in. A bar fills its
+// track's width, and grows in steps of STEP pixels, at most BUCKETS steps either way of the line, which is 1 pixel tall.
 const BUCKETS = 10; // 0..2000 is scaled into 10 buckets
-const RECT_SIZE = 5; // Each rect is 5px
+const STEP = 4;
 const SCALE = Math.floor(2000 / BUCKETS);
+const TRACK_WIDTH = 18;
+const COLUMN = 44;
+const HALF = BUCKETS * STEP;
+const TRACK_HEIGHT = 2 * HALF + 1;
+// The initials, under the tracks with a gap above them, centred under each
+const LABEL_GAP = 4;
+const LABEL_HEIGHT = 12;
 
-const COLOURS = ["rgb(0,255,0)", "rgb(0, 0, 139)", "rgb(255, 255, 0)"];
 const LABELS = ["R", "C", "I"];
 
 const CANVAS_ID = "RCICanvas";
 
-// The meter's canvas, in pixels: as wide as the panel's column, and as tall as the box and a full bar either side of it.
-// The stylesheet's --meter-height is the height, which places the minimap under the meter.
-export const METER_WIDTH = 140;
-export const METER_HEIGHT = (2 * BUCKETS + PADDING) * RECT_SIZE;
+// How the meter looks, from the HUD's custom properties on the stylesheet's :root: each bar's colour, residential
+// first, the tracks', the line's across them, the initials', which are read on the panel's surface, and the HUD's font
+export interface MeterStyle {
+  bars: readonly [string, string, string];
+  track: string;
+  line: string;
+  label: string;
+  font: string;
+}
+
+// The custom properties each part of the meter's look is
+export const STYLE_PROPERTIES = {
+  bars: ["--hud-demand-residential-fill", "--hud-demand-commercial-fill", "--hud-demand-industrial-fill"],
+  track: "--hud-demand-track-fill",
+  line: "--hud-demand-line-fill",
+  label: "--hud-muted-text",
+  font: "--type-font",
+} as const;
+
+// The meter's size in CSS pixels: three columns across, and a track with the initials under it down
+export const METER_WIDTH = 3 * COLUMN;
+export const METER_HEIGHT = TRACK_HEIGHT + LABEL_GAP + LABEL_HEIGHT;
 
 export interface Rect {
   x: number;
@@ -44,7 +65,12 @@ export interface Rect {
   height: number;
 }
 
-// The bar for one kind of zone, by its place from residential, in pixels
+// The track for one kind of zone, by its place from residential, in CSS pixels
+export function trackRect(index: number): Rect {
+  return {x: COLUMN / 2 + index * COLUMN - TRACK_WIDTH / 2, y: 0, width: TRACK_WIDTH, height: TRACK_HEIGHT};
+}
+
+// The bar for one kind of zone, by its place from residential, in CSS pixels
 export function barRect(index: number, value: number): Rect {
   // Industrial demand is scaled up from its range of 1500 to residential's 2000. Commercial demand's range is 1500 too
   // (Valves in the C# rules), but its bar is not scaled. The original scales neither: drawValve (w_update.c in
@@ -53,31 +79,33 @@ export function barRect(index: number, value: number): Rect {
     value = Math.floor(2000 / 1500 * value);
   }
 
-  const barHeightRect = Math.floor(Math.abs(value) / SCALE);
-  const barStartY = (value >= 0) ? BUCKETS - barHeightRect : BUCKETS + PADDING;
-  const barStartX = 2 * PADDING + (index * 2 * PADDING);
+  const height = Math.floor(Math.abs(value) / SCALE) * STEP;
+  const track = trackRect(index);
 
-  return {x: barStartX * RECT_SIZE, y: barStartY * RECT_SIZE, width: PADDING * RECT_SIZE,
-          height: barHeightRect * RECT_SIZE};
+  return {x: track.x, y: value >= 0 ? HALF - height : HALF + 1, width: TRACK_WIDTH, height};
 }
 
 // What the meter draws with
-export type MeterContext =
-  Pick<CanvasRenderingContext2D, "clearRect" | "fillRect" | "fillText" | "fillStyle" | "font" | "textBaseline">;
+export type MeterContext = Pick<CanvasRenderingContext2D,
+  "clearRect" | "fillRect" | "fillText" | "fillStyle" | "font" | "textAlign" | "textBaseline" | "setTransform">;
 
 // The canvas the meter draws on
 export interface MeterCanvas {
   width: number;
   height: number;
-  readonly style: {margin: string, padding: string};
+  readonly style: {margin: string, padding: string, width: string, height: string};
   getContext(contextId: "2d"): MeterContext | null;
 }
 
-// The canvas is sized as it is made, not from its box on the page, which it has none of while its panel is folded
+// The canvas is sized as it is made, not from its box on the page, which it has none of while its panel is folded, with
+// a backing store of pixelRatio pixels for each CSS pixel, so it is sharp on a dense screen
 export class RCI {
-  constructor(private readonly canvas: MeterCanvas) {
-    canvas.width = METER_WIDTH;
-    canvas.height = METER_HEIGHT;
+  constructor(private readonly canvas: MeterCanvas, private readonly look: MeterStyle,
+              private readonly pixelRatio: number) {
+    canvas.width = Math.round(METER_WIDTH * pixelRatio);
+    canvas.height = Math.round(METER_HEIGHT * pixelRatio);
+    canvas.style.width = `${METER_WIDTH}px`;
+    canvas.style.height = `${METER_HEIGHT}px`;
     canvas.style.margin = "0";
     canvas.style.padding = "0";
   }
@@ -85,49 +113,43 @@ export class RCI {
   // Draws the demand, as each demand message gives it
   update(data: Omit<DemandMessage, "type">): void {
     const ctx = this.canvas.getContext("2d")!;
-    this.clear(ctx);
-    this.drawRect(ctx);
+    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, METER_WIDTH, METER_HEIGHT);
 
     const values = [data.residential, data.commercial, data.industrial];
     for (let i = 0; i < 3; i++) {
-      this.drawValue(ctx, i, values[i]);
+      this.drawTrack(ctx, i);
+      this.fill(ctx, barRect(i, values[i]), this.look.bars[i]);
       this.drawLabel(ctx, i);
     }
   }
 
-  private clear(ctx: MeterContext): void {
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  private drawTrack(ctx: MeterContext, index: number): void {
+    const track = trackRect(index);
+    this.fill(ctx, track, this.look.track);
+    this.fill(ctx, {...track, y: HALF, height: 1}, this.look.line);
   }
 
-  private drawRect(ctx: MeterContext): void {
-    // Laid out as the comment at the top of the module describes
-    const boxLeft = PADDING * RECT_SIZE;
-    const boxTop = BUCKETS * RECT_SIZE;
-    const boxWidth = 7 * PADDING * RECT_SIZE;
-    const boxHeight = PADDING * RECT_SIZE;
-
-    ctx.fillStyle = "rgb(192, 192, 192)";
-    ctx.fillRect(boxLeft, boxTop, boxWidth, boxHeight);
-  }
-
-  private drawValue(ctx: MeterContext, index: number, value: number): void {
-    const bar = barRect(index, value);
-
-    ctx.fillStyle = COLOURS[index];
-    ctx.fillRect(bar.x, bar.y, bar.width, bar.height);
+  private fill(ctx: MeterContext, rect: Rect, colour: string): void {
+    ctx.fillStyle = colour;
+    ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
   }
 
   private drawLabel(ctx: MeterContext, index: number): void {
-    const textLeft = 2 * PADDING + (index * 2 * PADDING) + Math.floor(PADDING / 2);
-
-    ctx.font = "normal xx-small sans-serif";
-    ctx.fillStyle = "rgb(0, 0, 0)";
+    ctx.font = `700 11px ${this.look.font}`;
+    ctx.fillStyle = this.look.label;
+    ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText(LABELS[index], textLeft * RECT_SIZE, (BUCKETS + PADDING) * RECT_SIZE);
+    ctx.fillText(LABELS[index], COLUMN / 2 + index * COLUMN, METER_HEIGHT);
   }
 }
 
-// The meter on a new canvas, in the element given
+// The meter on a new canvas, in the element given, in the look the stylesheet gives it
 export function placeRCI(parent: HTMLElement): RCI {
-  return new RCI(placeNewCanvas(parent, CANVAS_ID));
+  const [residential, commercial, industrial] = STYLE_PROPERTIES.bars.map(stylesheetProperty);
+  return new RCI(placeNewCanvas(parent, CANVAS_ID), {
+    bars: [residential, commercial, industrial], track: stylesheetProperty(STYLE_PROPERTIES.track),
+    line: stylesheetProperty(STYLE_PROPERTIES.line), label: stylesheetProperty(STYLE_PROPERTIES.label),
+    font: stylesheetProperty(STYLE_PROPERTIES.font),
+  }, screenPixelRatio());
 }

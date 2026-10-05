@@ -35,7 +35,8 @@ describe("the info bar", () => {
         return {bar, shown};
     }
 
-    it("shows the city's name, and the date, population, evaluation and funds it is given, each in its own element", () => {
+    it("shows the city's name, and the date, population, evaluation and funds it is given, each in its own element, " +
+       "the class in words and the figures grouped in thousands", () => {
         const {bar, shown} = infoBar();
 
         bar.showDate({month: 3, year: 1901});
@@ -43,7 +44,7 @@ describe("the info bar", () => {
         bar.showEvaluation({cityClass: "TOWN", score: 612});
         bar.showBudget({funds: 18750});
 
-        expect(shown()).toEqual({classification: "TOWN", population: "2400", score: "612", funds: "$18,750",
+        expect(shown()).toEqual({classification: "Town", population: "2,400", score: "612", funds: "$18,750",
                                  date: "Apr 1901", name: "Town"});
     });
 

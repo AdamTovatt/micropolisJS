@@ -19,29 +19,112 @@
   margin: 0;
 }
 
+/* The HUD's spacing, shapes and type. The panels sit --panel-edge in from the screen's edges and --panel-gap apart. */
 :root {
-  /* How far the top panels sit below the map's top edge, and the notification bar above its bottom edge */
-  --panel-margin: 40px;
-  /* The demand meter's top, which the minimap goes under */
-  --rci-top: 472px;
-  /* A panel's title strip (panelFolding.ts): its height, its button's, and the gap under it */
-  --fold-strip-height: 19px;
-  --fold-strip-gap: 4px;
-  /* The demand meter's canvas, METER_HEIGHT in rci.ts */
-  --meter-height: 115px;
-  /* The minimap's top: 20px under the demand panel, which is its strip and the meter, with 10px of padding each side.
-     The panel folding's section moves it up under a folded demand panel. */
-  --minimap-top: calc(var(--rci-top) + 2 * 10px + var(--fold-strip-height) + var(--fold-strip-gap) +
-                      var(--meter-height) + 20px);
+  --panel-edge: 12px;
+  --panel-gap: 10px;
+  --panel-radius: 10px;
+  --button-radius: 6px;
+  --panel-blur: blur(10px) saturate(1.15);
+  --type-font: Inter, system-ui, sans-serif;
+  --type-size: 13px;
+  --type-line-height: 1.35;
+  --type-title-size: 11px;
+  --type-figure-size: 14px;
+  /* The widths of the side columns, so the tool dock knows the room between them */
+  --left-column: 196px;
+  --right-column: 264px;
 }
 
 /* The colours of the HUD: everything in the page's main element, the panels over the map, their buttons, the
    notification bar and the splash screen among them. A text colour is --hud-<name>-text, and the background it is read
-   on is --hud-<name>-background, which the rule setting the text colour sets too. test/hudColours.ts holds each pair to
-   WCAG AA's 4.5:1 for normal text, and every text and background colour a HUD rule sets to one of these. A colour that
-   carries no text, such as a meter's, is a -fill, which no ratio holds, nor do borders and outlines. A tool button's
-   background is also its tool's outline on the map, which inputStatus.ts reads from the button. */
+   on is --hud-<name>-background. test/hudColours.ts holds each pair to WCAG AA's 4.5:1 for normal text, and every text
+   and background colour a HUD rule sets to one of these.
+
+   A background may be see-through, as #rrggbbaa. One that lies on another, such as a button's on its panel's, names it
+   as --hud-<name>-ground; one that names none lies on the map, which the ratio is held over at its darkest and its
+   lightest, pure black and pure white. A pair whose background is another pair's, written as that one, is text read on
+   a surface an enclosing element paints: the rule setting its text colour leaves the background to that element, since
+   a see-through background painted again would darken. Any other rule setting a text colour sets its background too.
+
+   A colour that carries no text, such as a meter's, a border's or a shadow's, is a -fill, which no ratio holds. A tool's
+   fill is its button's accent stripe and its outline on the map, which inputStatus.ts reads from the button. */
 :root {
+  /* The in-game HUD: see-through panels over the map, their text, buttons and fields */
+  --hud-surface-text: #f2f5f9;
+  --hud-surface-background: #0e121ad6;
+  --hud-muted-text: #b9c3d0;
+  --hud-muted-background: var(--hud-surface-background);
+  --hud-alert-text: #ff8a7a;
+  --hud-alert-background: var(--hud-surface-background);
+  --hud-button-text: #f2f5f9;
+  --hud-button-background: #ffffff17;
+  --hud-button-ground: var(--hud-surface-background);
+  --hud-button-hover-text: #ffffff;
+  --hud-button-hover-background: #ffffff2e;
+  --hud-button-hover-ground: var(--hud-surface-background);
+  --hud-cost-text: #d6dce4;
+  --hud-cost-background: var(--hud-button-background);
+  --hud-quiet-text: #f2f5f9;
+  --hud-quiet-background: #ffffff00;
+  --hud-quiet-ground: var(--hud-surface-background);
+  --hud-danger-text: #ff9b8f;
+  --hud-danger-background: var(--hud-quiet-background);
+  --hud-accent-text: #06131c;
+  --hud-accent-background: #5cc8ff;
+  --hud-selected-text: #f2f5f9;
+  --hud-selected-background: #5cc8ff29;
+  --hud-selected-ground: var(--hud-surface-background);
+  --hud-due-text: #ffe08a;
+  --hud-due-background: #ffc40029;
+  --hud-due-ground: var(--hud-surface-background);
+  --hud-field-text: #f2f5f9;
+  --hud-field-background: #1c2230;
+  --hud-cap-text: #1a1205;
+  --hud-cap-background: #f59e0b;
+  --hud-good-news-text: #f0fff4;
+  --hud-good-news-background: #106030eb;
+  --hud-bad-news-text: #fff4f4;
+  --hud-bad-news-background: #780c0ceb;
+  --hud-toast-text: #f2f5f9;
+  --hud-toast-background: #0a0d13eb;
+
+  --hud-edge-fill: #ffffff24;
+  --hud-shadow-fill: #00000059;
+  --hud-accent-fill: #5cc8ff;
+  --hud-due-fill: #ffc400b3;
+  --hud-meter-empty-fill: #ffffff1a;
+  --hud-meter-fill: #4ade80;
+  --hud-meter-over-fill: #ef4444;
+  --hud-legend-empty-fill: #ffffff1a;
+  /* The demand meter, which rci.ts draws: its tracks, the line across their middles and each zone's bar. Its initials
+     are --hud-muted-text, read on the panel's surface. */
+  --hud-demand-track-fill: #ffffff14;
+  --hud-demand-line-fill: #b9c3d0;
+  --hud-demand-residential-fill: #4ade80;
+  --hud-demand-commercial-fill: #60a5fa;
+  --hud-demand-industrial-fill: #facc15;
+  --hud-veil-fill: #808080;
+
+  /* Each tool's accent, which is also its outline on the map */
+  --hud-tool-residential-fill: #00ff00;
+  --hud-tool-commercial-fill: #0000ff;
+  --hud-tool-industrial-fill: #ffff00;
+  --hud-tool-road-fill: #000000;
+  --hud-tool-rail-fill: #a52a2a;
+  --hud-tool-wire-fill: #f0e68c;
+  --hud-tool-bulldozer-fill: #fa8072;
+  --hud-tool-query-fill: #00ffff;
+  --hud-tool-nuclear-fill: #ffe4e1;
+  --hud-tool-coal-fill: #808080;
+  --hud-tool-police-fill: #00008b;
+  --hud-tool-fire-fill: #ff0000;
+  --hud-tool-port-fill: #1e90ff;
+  --hud-tool-stadium-fill: #4b0082;
+  --hud-tool-airport-fill: #ee82ee;
+  --hud-tool-park-fill: #006400;
+
+  /* The splash screen, the start and sign-in forms and the windows' headers, in their light look */
   --hud-panel-text: #000000;
   --hud-panel-background: #f5fffa;
   --hud-control-text: #ffffff;
@@ -59,25 +142,8 @@
   --hud-settings-background: #663399;
   --hud-picture-text: #ffffff;
   --hud-picture-background: #c8402a;
-
-  --hud-good-news-text: #000000;
-  --hud-good-news-background: #90ee90;
-  --hud-bad-news-text: #ffff00;
-  --hud-bad-news-background: #b00000;
-
-  --hud-status-alert-text: #c00000;
-  --hud-status-alert-background: var(--hud-panel-background);
-  --hud-status-cap-text: #000000;
-  --hud-status-cap-background: #ffa500;
-  --hud-meter-empty-fill: #ffffff;
-  --hud-meter-fill: #008000;
-  --hud-meter-over-fill: #ff0000;
-  --hud-legend-empty-fill: #ffffff;
-  --hud-disaster-view-fill: #ff0000;
-
-  --hud-toast-text: #000000;
-  --hud-toast-background: #ffffe0;
-  --hud-veil-fill: #808080;
+  --hud-query-text: #000000;
+  --hud-query-background: #00ffff;
 
   --hud-go-text: #ffffff;
   --hud-go-background: #008000;
@@ -94,39 +160,6 @@
   --hud-city-list-background: #efefef;
   --hud-city-id-text: #5c5c5c;
   --hud-city-id-background: var(--hud-city-list-background);
-
-  --hud-tool-residential-text: #000000;
-  --hud-tool-residential-background: #00ff00;
-  --hud-tool-commercial-text: #ffffff;
-  --hud-tool-commercial-background: #0000ff;
-  --hud-tool-industrial-text: #000000;
-  --hud-tool-industrial-background: #ffff00;
-  --hud-tool-road-text: #ffffff;
-  --hud-tool-road-background: #000000;
-  --hud-tool-rail-text: #ffffff;
-  --hud-tool-rail-background: #a52a2a;
-  --hud-tool-wire-text: #000000;
-  --hud-tool-wire-background: #f0e68c;
-  --hud-tool-bulldozer-text: #000000;
-  --hud-tool-bulldozer-background: #fa8072;
-  --hud-tool-query-text: #000000;
-  --hud-tool-query-background: #00ffff;
-  --hud-tool-nuclear-text: #000000;
-  --hud-tool-nuclear-background: #ffe4e1;
-  --hud-tool-coal-text: #000000;
-  --hud-tool-coal-background: #808080;
-  --hud-tool-police-text: #ffffff;
-  --hud-tool-police-background: #00008b;
-  --hud-tool-fire-text: #000000;
-  --hud-tool-fire-background: #ff0000;
-  --hud-tool-port-text: #000000;
-  --hud-tool-port-background: #1e90ff;
-  --hud-tool-stadium-text: #ffffff;
-  --hud-tool-stadium-background: #4b0082;
-  --hud-tool-airport-text: #000000;
-  --hud-tool-airport-background: #ee82ee;
-  --hud-tool-park-text: #ffffff;
-  --hud-tool-park-background: #006400;
 }
 
 @font-face {
@@ -134,6 +167,20 @@
   font-style: normal;
   font-weight: 400;
   src: local('ChunkFive'), url(chunk.woff) format('woff');
+}
+
+/* Inter, the HUD's font, served with the page rather than fetched from elsewhere, under the SIL Open Font License
+   (INTER_FONT_LICENSE.txt), which reserves no font name, so the file keeps the name Inter. inter.woff2 is Inter 4.001
+   (git 66647c0b), the variable font's Latin subset exactly as Google Fonts serves it, unchanged: the file the stylesheet
+   at https://fonts.googleapis.com/css2?family=Inter:wght@400..700 names for its latin range, which was
+   https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2, sha256 3100e775e861...6c62. It
+   holds every weight; the page uses 400 to 700. A letter outside it, of another script, falls back to system-ui. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(inter.woff2) format('woff2');
 }
 
 body {
@@ -177,12 +224,6 @@ main {
   display: none;
 }
 
-/* The notification bar's tones, which notification.ts gives it */
-#notifications.bad {
-  background-color: var(--hud-bad-news-background);
-  color: var(--hud-bad-news-text);
-}
-
 .block {
   display: block;
 }
@@ -199,7 +240,7 @@ main {
    margin-left: 7px
 }
 
-.cancel, #debugRequest, #pauseRequest, .foldButton, #playBack, #inviteCopy {
+.cancel, #playBack {
   background-color: var(--hud-control-background);
   color: var(--hud-control-text);
 }
@@ -211,13 +252,6 @@ main {
   border: 1px solid black;
   width: 400px;
   transform: translate(-50%, -50%);
-}
-
-.centredAcross {
-  position: absolute;
-  left: 50%;
-  border: 1px solid black;
-  transform: translateX(-50%);
 }
 
 .chunk {
@@ -244,11 +278,6 @@ main {
   font-size: 36px;
 }
 
-#notifications.good {
-  background-color: var(--hud-good-news-background);
-  color: var(--hud-good-news-text);
-}
-
 .helpPointer {
   cursor: help;
 }
@@ -263,10 +292,6 @@ main {
 
 .left {
   float: left;
-}
-
-.leftedge {
-  left: 50px;
 }
 
 .loadSave, .saveHeader {
@@ -289,13 +314,9 @@ main {
   width: 500px;
 }
 
-.mintcream, .neutral {
+.mintcream {
   background-color: var(--hud-panel-background);
   color: var(--hud-panel-text);
-}
-
-.onlinePlayer {
-  font-weight: 600;
 }
 
 .open {
@@ -331,24 +352,11 @@ main {
   float: right;
 }
 
-.rightedge {
-  right: 50px;
-}
-
 .row button {
   display: inline-block;
 }
 
-.selected {
-  font-weight: bold;
-  border: 1px solid black;
-}
-
-.semibold {
-  font-weight: 600px;
-}
-
-.shadow, .controlShadow {
+.shadow {
   -ms-box-shadow: 10px 0px 35px 0px rgba(31,28,31, 0.8);
   -webkit-box-shadow: 10px 0px 35px 0px rgba(31,28,31, 0.8);
   -moz-box-shadow: 10px 0px 35px 0px rgba(31,28,31, 0.8);
@@ -365,28 +373,12 @@ main {
   width: 150px;
 }
 
-.toolButton {
-  width: 140px;
-  margin-left: 5px;
-  margin-right: 5px;
-  font-size: 12px;
-  display: inline-block;
-}
-
-.unselected {
-  font-weight: normal;
-}
-
 .white {
   color: white;
 }
 
 .width140 {
   width: 140px;
-}
-
-.z1 {
-  z-index: 1;
 }
 
 .nameLicense {
@@ -412,30 +404,6 @@ main {
 #budgetReset {
   color: white;
   background-color: dodgerblue;
-}
-
-#controls {
-  position: absolute;
-  top: var(--panel-margin);
-  width: 305px;
-}
-
-/* The tools' heading line is their strip, with the padding the panel has not, as the gap under it too */
-#controls > .foldStrip {
-  padding: var(--fold-strip-gap) 10px;
-  margin-bottom: 0;
-}
-
-/* The panel was 220px tall */
-#buttons {
-  height: calc(220px - var(--fold-strip-height) - 2 * var(--fold-strip-gap));
-}
-
-#debug {
-  position: absolute;
-  top: 580px;
-  width: 280px;
-  display: none;
 }
 
 #difficultyLabel {
@@ -469,85 +437,13 @@ main {
   padding: 0 5px;
 }
 
-#infobar {
-  position: absolute;
-  top: var(--panel-margin);
-}
-
-/* The panel's content was 150px tall */
-#infobarBody {
-  height: calc(150px - var(--fold-strip-height) - var(--fold-strip-gap));
-}
-
 #loadingBanner[data-hasscript=false] {
   display: none;
-}
-
-#miscButtons {
-  position: absolute;
-  top: 250px;
-}
-
-/* The panel's content was 162px tall */
-#miscButtonsBody {
-  height: calc(162px - var(--fold-strip-height) - var(--fold-strip-gap));
-}
-
-#monstertv {
-  position: absolute;
-  top: 364px;
-  width: 200px;
-  background-color: var(--hud-disaster-view-fill);
-}
-
-#monsterTVForm {
-  margin-top: 5px;
 }
 
 #nameForm {
   font-size: 18px;
   width: 150px;
-}
-
-#notifications {
-  bottom: var(--panel-margin);
-  width: 400px;
-  height: 19px;
-}
-
-#onlineList {
-  font-size: 14px;
-}
-
-#activityList {
-  padding: 4px 10px;
-  font-size: 13px;
-}
-
-/* The lines let the pointer's events through to the map, as the gaps between the top panels do, but the strip takes
-   them */
-#activityList > .foldStrip {
-  pointer-events: auto;
-}
-
-.activityLine {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  animation-name: activityFade;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
-}
-
-/* A line holds for most of its time, then fades out as its time runs out */
-@keyframes activityFade {
-  0%, 80% {
-    opacity: 1;
-  }
-
-  100% {
-    opacity: 0;
-  }
 }
 
 #opaque {
@@ -562,56 +458,6 @@ main {
   z-index: 10;
 }
 
-/* Its title, the picker and the button on a line, and the legend across the panel under them */
-#overlayPanel {
-  width: 260px;
-  font-size: 14px;
-  text-align: center;
-}
-
-/* Folded, it is as wide as its title and button */
-#overlayPanel.folded {
-  width: auto;
-}
-
-/* Unfolded, its body's picker and legend are the panel's own grid items, so the legend has the panel's whole width on a
-   line of its own, room for each end's word with its value beside it */
-#overlayPanel:not(.folded) > .foldBody {
-  display: contents;
-}
-
-#overlayPanel #overlayPanelSelect {
-  grid-row: 1;
-  grid-column: 2;
-  place-self: center;
-}
-
-#overlayPanel .overlayLegend {
-  grid-column: 1 / -1;
-  margin-top: 6px;
-}
-
-#overlayPanel .overlayLegendTitle {
-  font-weight: 600;
-}
-
-#overlayPanel .overlayLegendBar {
-  height: 12px;
-  margin: 4px 0;
-  border: 1px solid black;
-  background-color: var(--hud-legend-empty-fill);
-}
-
-#overlayPanel .overlayLegendEnds {
-  display: flex;
-  justify-content: space-between;
-}
-
-#overlayPanel .overlayLegendNote {
-  margin-top: 2px;
-  font-style: italic;
-}
-
 #playit {
   background-color: var(--hud-go-background);
   color: var(--hud-go-text);
@@ -621,18 +467,6 @@ main {
 #playBack, #playit {
   font-size: 18px;
   height: 24px;
-}
-
-#RCIContainer {
-  position: absolute;
-  top: var(--rci-top);
-  width: 140px;
-  margin: 0px;
-}
-
-/* The panel's body is as tall as the meter's canvas */
-#RCIMeter canvas {
-  display: block;
 }
 
 #screenshotLink, #screenshotLink:link, #screenshotLink:visited, #screenshotLink:hover {
@@ -757,71 +591,6 @@ main {
   padding: 0 110px;
 }
 
-#statusPanel {
-  position: absolute;
-  top: 330px;
-  width: 285px;
-  font-size: 12px;
-}
-
-/* The status scrolls under its strip. The panel's content was at most 180px tall. */
-#statusPanelBody {
-  max-height: calc(180px - var(--fold-strip-height) - var(--fold-strip-gap));
-  overflow-y: auto;
-}
-
-/* The disaster view opens over the status panel's slot, so the panel steps aside while it is open. */
-#monstertv.showing ~ #statusPanel {
-  display: none;
-}
-
-#statusPanel .statusRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 4px;
-}
-
-#statusPanel .statusLabel {
-  font-weight: bold;
-}
-
-#statusPanel .statusBad {
-  background-color: var(--hud-status-alert-background);
-  color: var(--hud-status-alert-text);
-  font-weight: bold;
-}
-
-#statusPanel .statusMeter {
-  height: 6px;
-  margin-bottom: 6px;
-  border: 1px solid gray;
-  background-color: var(--hud-meter-empty-fill);
-}
-
-#statusPanel .statusMeterFill {
-  height: 100%;
-  width: 0;
-  background-color: var(--hud-meter-fill);
-}
-
-#statusPanel .statusMeterFill.statusMeterOver {
-  background-color: var(--hud-meter-over-fill);
-}
-
-#statusPanel .statusCap {
-  margin-left: 4px;
-  padding: 0 4px;
-  background-color: var(--hud-status-cap-background);
-  color: var(--hud-status-cap-text);
-  cursor: help;
-}
-
-#statusPanel .statusConditions {
-  margin: 0;
-  padding-left: 16px;
-}
-
 #tooSmall {
   position: absolute;
   top: 0;
@@ -830,36 +599,6 @@ main {
   right: 0;
   display: none;
   z-index: 200;
-}
-
-/* The online list, the overlay picker and the activity list, one under the other across the top of the map. The
-   activity list comes last, so a line coming or going never moves the picker under the player's pointer. */
-#topPanels {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  /* The gaps between the panels are the map's */
-  pointer-events: none;
-}
-
-#topPanels > * {
-  max-width: 400px;
-  border: 1px solid black;
-}
-
-#onlineList, #overlayPanel {
-  pointer-events: auto;
-}
-
-#tvContainer {
-  width: 177px;
-  height: 128px;
-  margin: 0 auto;
 }
 
 #wrapper {
@@ -871,274 +610,41 @@ main {
 }
 
 
-/* Miscellaneous buttons */
-
-#budgetRequest, #budgetHeader {
+/* The windows' headers, in the colours the menu's buttons had */
+#budgetHeader {
   background-color: var(--hud-budget-background);
   color: var(--hud-budget-text);
 }
 
-/* A year-end budget review is due, until the player opens the budget */
-#budgetRequest.reviewDue {
-  font-weight: bold;
-  outline: 3px solid gold;
-}
-
-#disasterRequest, #disasterHeader {
+#disasterHeader {
   background-color: var(--hud-disasters-background);
   color: var(--hud-disasters-text);
 }
 
-#evalRequest, #evalHeader {
+#evalHeader {
   background-color: var(--hud-evaluation-background);
   color: var(--hud-evaluation-text);
 }
 
-.screenshotHeader, #screenshotRequest {
+.screenshotHeader {
   background-color: var(--hud-picture-background);
   color: var(--hud-picture-text);
 }
 
-#settingsHeader, #settingsRequest {
+#settingsHeader {
   background-color: var(--hud-settings-background);
   color: var(--hud-settings-text);
 }
 
-/* Tool buttons */
-#airportButton {
-  background-color: var(--hud-tool-airport-background);
-  color: var(--hud-tool-airport-text);
+#queryHeader {
+  background-color: var(--hud-query-background);
+  color: var(--hud-query-text);
 }
 
-#bulldozerButton {
-  background-color: var(--hud-tool-bulldozer-background);
-  color: var(--hud-tool-bulldozer-text);
-}
-
-#coalButton {
-  background-color: var(--hud-tool-coal-background);
-  color: var(--hud-tool-coal-text);
-}
-
-#commercialButton {
-  background-color: var(--hud-tool-commercial-background);
-  color: var(--hud-tool-commercial-text);
-}
-
-#fireButton {
-  background-color: var(--hud-tool-fire-background);
-  color: var(--hud-tool-fire-text);
-}
-
-#industrialButton {
-  background-color: var(--hud-tool-industrial-background);
-  color: var(--hud-tool-industrial-text);
-}
-
-#nuclearButton {
-  background-color: var(--hud-tool-nuclear-background);
-  color: var(--hud-tool-nuclear-text);
-}
-
-#parkButton {
-  background-color: var(--hud-tool-park-background);
-  color: var(--hud-tool-park-text);
-}
-
-#policeButton {
-  background-color: var(--hud-tool-police-background);
-  color: var(--hud-tool-police-text);
-}
-
-#portButton {
-  background-color: var(--hud-tool-port-background);
-  color: var(--hud-tool-port-text);
-}
-
-#queryButton, #queryHeader {
-  background-color: var(--hud-tool-query-background);
-  color: var(--hud-tool-query-text);
-}
-
-#railButton {
-  background-color: var(--hud-tool-rail-background);
-  color: var(--hud-tool-rail-text);
-}
-
-#residentialButton {
-  background-color: var(--hud-tool-residential-background);
-  color: var(--hud-tool-residential-text);
-}
-
-#roadButton {
-  background-color: var(--hud-tool-road-background);
-  color: var(--hud-tool-road-text);
-}
-
-#stadiumButton {
-  background-color: var(--hud-tool-stadium-background);
-  color: var(--hud-tool-stadium-text);
-}
-
-#wireButton {
-  background-color: var(--hud-tool-wire-background);
-  color: var(--hud-tool-wire-text);
-}
-
-/* The window heights at which the panels close up, down to the too-small overlay. They were set when header and footer
-   bars took 70px of a short window, and were kept when the bars went, so each one applies with about 70px to spare. */
-@media (max-height: 742px) {
-  #notifications {
-    border: none;
-  }
-}
-
-@media (max-height: 702px) {
-  :root {
-    --panel-margin: 30px;
-    --rci-top: 442px;
-  }
-
-  #debug {
-    top: 544px;
-  }
-
-  #monstertv {
-    top: 324px;
-  }
-
-  #miscButtons {
-    top: 230px;
-  }
-
-  #statusPanel {
-    top: 310px;
-  }
-}
-
-@media (max-height: 672px) {
-  :root {
-    --panel-margin: 20px;
-    --rci-top: 412px;
-  }
-
-  #debug {
-    top: 504px;
-  }
-
-  #monstertv {
-    top: 304px;
-  }
-
-  #miscButtons {
-    top: 210px;
-  }
-
-  #statusPanel {
-    top: 290px;
-  }
-}
-
-@media (max-height: 642px) {
-  .controlShadow {
-    -ms-box-shadow: unset;
-    -webkit-box-shadow: unset;
-    -moz-box-shadow: unset;
-    box-shadow: unset;
-  }
-
-  :root {
-    --panel-margin: 10px;
-    --rci-top: 382px;
-  }
-
-  #debug {
-    top: 460px;
-  }
-
-  #miscButtons {
-    top: 190px;
-  }
-
-  #monstertv {
-    top: 274px;
-  }
-
-  #statusPanel {
-    top: 270px;
-  }
-
-  #statusPanelBody {
-    max-height: calc(160px - var(--fold-strip-height) - var(--fold-strip-gap));
-  }
-}
-
-@media (max-height: 612px) {
-  :root {
-    --panel-margin: 0px;
-    --rci-top: 352px;
-  }
-
-  #debug {
-    top: 396px;
-  }
-
-  #miscButtons {
-    top: 170px;
-  }
-
-  #monstertv {
-    top: 220px;
-  }
-
-  #statusPanel {
-    top: 240px;
-  }
-
-  #statusPanelBody {
-    max-height: calc(130px - var(--fold-strip-height) - var(--fold-strip-gap));
-  }
-}
-
+/* The screen is too small below these sizes, where the too-small overlay covers the page */
 @media (max-height: 582px) {
   #tooSmall[data-hasscript=true] {
     display: block;
-  }
-}
-
-@media (max-width: 850px) {
-  .leftedge {
-    left: 20px;
-  }
-
-  .rightedge {
-    right: 20px;
-  }
-
-  #notifications {
-    left: unset;
-    right: 0;
-    transform: unset;
-  }
-}
-
-@media (max-width: 750px) {
-  .leftedge {
-    left: 10px;
-  }
-
-  .rightedge {
-    right: 10px;
-  }
-}
-
-@media (max-width: 650px) {
-  .leftedge {
-    left: 0px;
-  }
-
-  .rightedge {
-    right: 0px;
   }
 }
 
@@ -1288,14 +794,14 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   position: fixed;
   z-index: 15;
   max-width: 280px;
-  padding: 6px 10px;
-  border: 1px solid black;
+  padding: 7px 12px;
+  border: 1px solid var(--hud-due-fill);
+  border-radius: 8px;
   background-color: var(--hud-toast-background);
   color: var(--hud-toast-text);
-  font-family: 'Open Sans', sans-serif;
-  font-size: 13px;
+  font: 600 var(--type-size)/var(--type-line-height) var(--type-font);
   pointer-events: none;
-  box-shadow: 2px 2px 6px rgba(31, 28, 31, 0.5);
+  box-shadow: 0 6px 18px var(--hud-shadow-fill);
 }
 
 @keyframes toolToastFade {
@@ -1314,94 +820,6 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   vertical-align: top;
 }
 
-/* Getting around the map: the minimap under the demand meter, the "Go there" of news with a place, and the Last event
-   button beside the notification bar */
-
-#minimap {
-  position: absolute;
-  top: var(--minimap-top);
-  width: 140px;
-  padding: 6px 10px 10px;
-}
-
-/* Wrapped close round the canvas, so the view's rectangle is placed in fractions of the canvas, and clipped to it where
-   the view reaches past the map */
-#minimapFrame {
-  position: relative;
-  overflow: hidden;
-  width: fit-content;
-  margin: 2px auto 0;
-  line-height: 0;
-  cursor: crosshair;
-  touch-action: none;
-  user-select: none;
-}
-
-/* The canvas has two pixels a tile, scaled down to the column's width without smoothing, and further, keeping its
-   shape, where the window is too short for it */
-#minimapCanvas {
-  display: block;
-  width: auto;
-  height: auto;
-  max-width: 140px;
-  max-height: calc(100vh - var(--minimap-top) - 50px);
-  image-rendering: pixelated;
-}
-
-#minimapView {
-  position: absolute;
-  box-sizing: border-box;
-  border: 1px solid white;
-  outline: 1px solid black;
-  pointer-events: none;
-}
-
-/* Hidden until the game starts, which the id would otherwise outrank */
-#notifications:not(.initialHidden) {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-#notifications .notificationText {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-#notifications .notificationGoThere {
-  flex: none;
-  padding: 0 6px;
-  border: 1px solid currentColor;
-  border-radius: 3px;
-  font-family: sans-serif;
-  font-size: 12px;
-  line-height: 17px;
-}
-
-/* Shown once some news has had a place. The bar is 400px wide, with 10px of padding and a border each side. */
-#lastEvent {
-  display: none;
-  position: absolute;
-  bottom: var(--panel-margin);
-  left: calc(50% + 221px);
-  width: 100px;
-  height: 41px;
-  border: 1px solid black;
-  background-color: var(--hud-panel-background);
-  color: var(--hud-panel-text);
-}
-
-/* The bar keeps to the right of a narrow window, and the button sits over it */
-@media (max-width: 850px) {
-  #lastEvent {
-    left: unset;
-    right: 0;
-    bottom: calc(var(--panel-margin) + 51px);
-  }
-}
-
 /* Space held over the map shows the open hand, and a pan the closed one, over the tool's cursor */
 #MicropolisCanvas.grab {
   cursor: grab;
@@ -1411,99 +829,256 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   cursor: grabbing;
 }
 
-/* Panels that fold to a title strip (panelFolding.ts): the strip, the panel's title and the button that folds and
-   unfolds it, on a line over the panel's body, which a folded panel hides. A folded panel keeps its place, and is its
-   strip alone. A panel's body is as tall as the panel was before it had a strip, less the strip and the gap under it. */
-
-.foldStrip {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  height: var(--fold-strip-height);
-  margin-bottom: var(--fold-strip-gap);
-  font-size: 13px;
-  font-weight: 600;
-  text-align: left;
-}
-
-/* The invite button beside the online list is sized as the strip's button beside it is */
-.foldButton, #inviteCopy {
-  width: auto;
-  padding: 0 8px;
-  font-size: 12px;
-  font-weight: normal;
-}
-
-.folded > .foldStrip {
-  margin-bottom: 0;
-}
-
-.folded > .foldBody {
-  display: none;
-}
-
-/* The side panels' strips are slim when folded. A top panel keeps its padding, so the panels under it stay put. */
-#infobar.folded, #miscButtons.folded, #RCIContainer.folded, #minimap.folded, #statusPanel.folded {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-/* With the demand meter folded, the minimap goes up under its strip, with 4px of padding each side, and has the room
-   the meter had */
-:root:has(#RCIContainer.folded) {
-  --minimap-top: calc(var(--rci-top) + var(--fold-strip-height) + 2 * 4px + 20px);
-}
-
-/* Each top panel is a line, so its strip runs along it, its title first, then its body, then its button: folding one
-   takes nothing off the height its line has. Hidden until the game starts. */
-#topPanels > [data-panel]:not(.initialHidden) {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  column-gap: 8px;
-}
-
-#topPanels > [data-panel] > .foldStrip {
-  display: contents;
-}
-
-#topPanels .foldTitle {
-  line-height: var(--fold-strip-height);
-}
-
-#topPanels .foldBody {
-  grid-row: 1;
-  grid-column: 2;
-  line-height: var(--fold-strip-height);
-}
-
-#topPanels .foldButton {
-  grid-row: 1;
-  grid-column: 3;
-}
-
-/* Starting and sharing a city: the start form's Back button, beside Play!, and in the Online panel's body, beside the
-   list of who is online, the button that copies the city's invite link and the field that shows the link where the
-   clipboard is refused, on a line of its own under them. */
-
+/* The start form's Back button, beside Play! */
 #playBack {
   width: auto;
   margin-right: 10px;
   padding: 0 12px;
 }
 
-/* Unfolded only, so the folded panel's rule hides it */
+/* The HUD: the panels over the map, in regions round a clear middle. A grid holds three columns: the right one, the
+   whole height of the screen, who is online, the overlay, the status, the activity and the debug panel, with the
+   minimap at its foot; and beside it the city's figures along the top, over the left column, the menu and demand with
+   the disaster view at its foot, and the middle one, the news at its top and the tools at its foot. Each region lays its
+   panels out with flex, so a panel that grows pushes its neighbours, and a column's foot is its own, so nothing in it
+   can overlap. The gaps between the panels are the map's: the regions let the pointer's events through, and the panels
+   take them. */
+#hud {
+  position: absolute;
+  inset: var(--panel-edge);
+  z-index: 1;
+  display: grid;
+  grid-template-columns: var(--left-column) minmax(0, 1fr) var(--right-column);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--panel-gap);
+  font: var(--type-size)/var(--type-line-height) var(--type-font);
+  pointer-events: none;
+}
+
+#hudTop {
+  grid-column: 1 / 3;
+  grid-row: 1;
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.hudColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--panel-gap);
+  min-width: 0;
+  min-height: 0;
+}
+
+#hudLeft {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+#hudMiddle {
+  grid-column: 2;
+  grid-row: 2;
+  align-items: center;
+}
+
+#hudRight {
+  grid-column: 3;
+  grid-row: 1 / 3;
+}
+
+/* The disaster view, the tools and the minimap at their columns' feet */
+#monstertv, #controls, #minimap {
+  margin-top: auto;
+}
+
+/* The panel: a see-through surface with a title strip, the title and the button that folds and unfolds it
+   (panelFolding.ts), over the panel's body, which a folded panel hides. A folded panel keeps its place in its region,
+   and is its strip alone. */
+.hudPanel {
+  box-sizing: border-box;
+  padding: 6px 10px 10px;
+  border: 1px solid var(--hud-edge-fill);
+  border-radius: var(--panel-radius);
+  background-color: var(--hud-surface-background);
+  color: var(--hud-surface-text);
+  box-shadow: 0 6px 18px var(--hud-shadow-fill);
+  -webkit-backdrop-filter: var(--panel-blur);
+  backdrop-filter: var(--panel-blur);
+  pointer-events: auto;
+}
+
+.hudPanel.folded {
+  padding-bottom: 6px;
+}
+
+.hudPanel > .foldStrip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.hudPanel .foldTitle {
+  font-size: var(--type-title-size);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-muted-text);
+}
+
+.hudPanel:not(.folded) > .foldBody {
+  margin-top: 6px;
+}
+
+.folded > .foldBody {
+  display: none;
+}
+
+/* A bar is a panel on one line: its title, its body, then its button */
+.hudBar, .hudBar.folded {
+  padding: 8px 10px 8px 14px;
+}
+
+.hudBar:not(.initialHidden) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 14px;
+}
+
+.hudBar > .foldStrip {
+  display: contents;
+}
+
+.hudBar:not(.folded) > .foldBody {
+  grid-row: 1;
+  grid-column: 2;
+  margin-top: 0;
+}
+
+.hudBar .foldButton {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+/* The button, plain on its panel, or primary, danger, or a tool's, with its accent */
+.hudButton {
+  box-sizing: border-box;
+  width: auto;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--hud-edge-fill);
+  border-radius: var(--button-radius);
+  background-color: var(--hud-button-background);
+  color: var(--hud-button-text);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* So a hidden button stays hidden */
+.hudButton:not(.hidden) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.hudButton:hover {
+  background-color: var(--hud-button-hover-background);
+  color: var(--hud-button-hover-text);
+}
+
+.hudButton:focus-visible {
+  outline: 2px solid var(--hud-accent-fill);
+  outline-offset: 1px;
+}
+
+.hudButton.primary {
+  border-color: var(--hud-accent-fill);
+  background-color: var(--hud-accent-background);
+  color: var(--hud-accent-text);
+  font-weight: 600;
+}
+
+.hudButton.danger {
+  color: var(--hud-danger-text);
+}
+
+.hudPanel .foldButton, #monsterTVForm .hudButton {
+  height: 20px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+/* A line icon, in its text's colour */
+.hudIcon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The city's figures, along the top */
+#infobar:not(.folded) > #infobarBody {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+#infobar .cityName {
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cityFigures {
+  display: flex;
+  gap: 16px;
+}
+
+.cityFigure {
+  display: flex;
+  flex-direction: column;
+}
+
+.cityFigure dt {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-muted-text);
+}
+
+.cityFigure dd {
+  font-size: var(--type-figure-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Who is online, the button that copies the city's invite link under them, and the field that shows the link where
+   the clipboard is refused, on a line of its own under that */
 #onlineList:not(.folded) > #onlinePanelBody {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  column-gap: 8px;
+  gap: 6px 10px;
 }
 
 #onlineListBody {
-  flex: 1 1 0;
+  flex: 1 1 100%;
   min-width: 0;
+}
+
+.onlinePlayer {
+  font-weight: 600;
 }
 
 #inviteCopy {
@@ -1511,10 +1086,476 @@ footer a, footer a:link, footer a:visited, footer a:hover {
 }
 
 #inviteLink {
-  background-color: var(--hud-panel-background);
-  color: var(--hud-panel-text);
+  box-sizing: border-box;
   flex: 1 0 100%;
-  margin-top: 4px;
-  border: 1px solid;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--hud-edge-fill);
+  border-radius: var(--button-radius);
+  background-color: var(--hud-field-background);
+  color: var(--hud-field-text);
+  font: inherit;
   font-size: 12px;
+}
+
+/* The menu, a list with an icon for each item, and Pause apart under a rule. Pause's label and icon say what a click
+   does: pause, or play while the city is paused. */
+#miscButtons:not(.folded) > #miscButtonsBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.menuItem.hudButton {
+  justify-content: flex-start;
+  gap: 9px;
+  width: 100%;
+  height: 25px;
+  padding: 0 8px;
+  border-color: transparent;
+  background-color: var(--hud-quiet-background);
+  color: var(--hud-quiet-text);
+  font-size: var(--type-size);
+}
+
+.menuItem.hudButton:hover {
+  background-color: var(--hud-button-hover-background);
+  color: var(--hud-button-hover-text);
+}
+
+.menuItem.danger {
+  color: var(--hud-danger-text);
+}
+
+#pauseRequest {
+  position: relative;
+  margin-top: 7px;
+}
+
+#pauseRequest::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 4px;
+  right: 4px;
+  border-top: 1px solid var(--hud-edge-fill);
+}
+
+#pauseRequest .playIcon, #pauseRequest.paused .pauseIcon {
+  display: none;
+}
+
+#pauseRequest.paused .playIcon {
+  display: block;
+}
+
+/* A year-end budget review is due, until the player opens the budget */
+#budgetRequest.reviewDue {
+  box-shadow: inset 0 0 0 1px var(--hud-due-fill);
+  background-color: var(--hud-due-background);
+  color: var(--hud-due-text);
+  font-weight: 700;
+}
+
+/* The demand meter's canvas, which rci.ts draws in the HUD's colours, in the middle of its panel */
+#RCIContainer:not(.folded) > #RCIMeter {
+  display: flex;
+  justify-content: center;
+}
+
+/* The disaster view, at the foot of the left column while it shows, under a strip naming what it shows and its Close
+   button, closer to its edges than a panel's body, so the view fills the column */
+#monstertv {
+  padding: 6px 8px 8px;
+}
+
+#tvContainer {
+  width: 177px;
+  height: 128px;
+  margin: 0 auto;
+}
+
+/* As tall as its container, with no line under it */
+#tvContainer canvas {
+  display: block;
+}
+
+
+/* The news, with the last event beside it, at the top of the middle */
+#hudNews {
+  display: flex;
+  align-items: center;
+  gap: var(--panel-gap);
+  max-width: 100%;
+  min-width: 0;
+}
+
+#notifications {
+  width: 440px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 8px 0 14px;
+  border-radius: 19px;
+  font-weight: 600;
+}
+
+/* Hidden until the game starts, which the id would otherwise outrank */
+#notifications:not(.initialHidden) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The notification bar's tones, which notification.ts gives it; neutral news is on the panel's surface */
+#notifications.good {
+  background-color: var(--hud-good-news-background);
+  color: var(--hud-good-news-text);
+}
+
+#notifications.bad {
+  background-color: var(--hud-bad-news-background);
+  color: var(--hud-bad-news-text);
+}
+
+#notifications .notificationText {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The bar takes the click, so its "Go there" only looks like a button, in the bar's own colour */
+#notifications .notificationGoThere {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid currentColor;
+  border-radius: 13px;
+  font-size: 12px;
+}
+
+/* Shown once some news has had a place. A panel and a button at once, it takes the panel's surface back from the
+   button's colours, which .hudButton, coming later, would otherwise give it. */
+#lastEvent {
+  display: none;
+  flex: none;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 19px;
+  background-color: var(--hud-surface-background);
+  color: var(--hud-surface-text);
+  font-size: var(--type-size);
+  font-weight: 600;
+}
+
+#lastEvent:hover {
+  border-color: var(--hud-accent-fill);
+}
+
+/* The tools, a dock of two rows of eight at the foot of the middle. Each is a tile with its name, its cost, and its
+   accent along its top, which is also its outline on the map (inputStatus.ts reads it from the button). Narrower than
+   the dock needs, below the screen sizes the HUD is laid out for, it wraps to more rows. */
+#controls {
+  width: 100%;
+  max-width: 820px;
+}
+
+/* Folded, the dock is as wide as its strip */
+#controls.folded {
+  width: auto;
+}
+
+#controls:not(.folded) > #buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 6px;
+}
+
+.toolButton.hudButton {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0;
+  height: 46px;
+  padding: 0 7px 5px;
+  border-top: 5px solid;
+  border-radius: 7px;
+  text-align: left;
+}
+
+.toolName {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.toolCost {
+  color: var(--hud-cost-text);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.toolButton.selected {
+  border-color: var(--hud-accent-fill);
+  box-shadow: 0 0 0 1px var(--hud-accent-fill);
+  background-color: var(--hud-selected-background);
+  color: var(--hud-selected-text);
+}
+
+#residentialButton {
+  border-top-color: var(--hud-tool-residential-fill);
+}
+
+#commercialButton {
+  border-top-color: var(--hud-tool-commercial-fill);
+}
+
+#industrialButton {
+  border-top-color: var(--hud-tool-industrial-fill);
+}
+
+#roadButton {
+  border-top-color: var(--hud-tool-road-fill);
+}
+
+#railButton {
+  border-top-color: var(--hud-tool-rail-fill);
+}
+
+#wireButton {
+  border-top-color: var(--hud-tool-wire-fill);
+}
+
+#bulldozerButton {
+  border-top-color: var(--hud-tool-bulldozer-fill);
+}
+
+#queryButton {
+  border-top-color: var(--hud-tool-query-fill);
+}
+
+#parkButton {
+  border-top-color: var(--hud-tool-park-fill);
+}
+
+#policeButton {
+  border-top-color: var(--hud-tool-police-fill);
+}
+
+#fireButton {
+  border-top-color: var(--hud-tool-fire-fill);
+}
+
+#coalButton {
+  border-top-color: var(--hud-tool-coal-fill);
+}
+
+#nuclearButton {
+  border-top-color: var(--hud-tool-nuclear-fill);
+}
+
+#portButton {
+  border-top-color: var(--hud-tool-port-fill);
+}
+
+#stadiumButton {
+  border-top-color: var(--hud-tool-stadium-fill);
+}
+
+#airportButton {
+  border-top-color: var(--hud-tool-airport-fill);
+}
+
+/* The overlay picker, and the legend of the overlay drawn */
+#overlayPanelSelect {
+  width: 100%;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--hud-edge-fill);
+  border-radius: var(--button-radius);
+  background-color: var(--hud-field-background);
+  color: var(--hud-field-text);
+  font: inherit;
+}
+
+#overlayPanel .overlayLegend {
+  margin-top: 8px;
+}
+
+#overlayPanel .overlayLegendTitle {
+  font-size: var(--type-title-size);
+  color: var(--hud-muted-text);
+}
+
+#overlayPanel .overlayLegendBar {
+  height: 10px;
+  margin: 4px 0;
+  border-radius: 5px;
+  background-color: var(--hud-legend-empty-fill);
+}
+
+#overlayPanel .overlayLegendEnds {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+}
+
+#overlayPanel .overlayLegendNote {
+  margin-top: 2px;
+  font-style: italic;
+  color: var(--hud-muted-text);
+}
+
+/* The status, whose list scrolls under its strip once it reaches its cap, or sooner where the column is short, once
+   the minimap has given way */
+#statusPanel {
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+#statusPanel:not(.initialHidden) {
+  display: flex;
+  flex-direction: column;
+}
+
+#statusPanelBody {
+  min-height: 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+/* A row's figures, or its demand caps, go under its label where they don't fit beside it */
+#statusPanel .statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 4px;
+}
+
+#statusPanel .statusLabel {
+  font-weight: 600;
+}
+
+#statusPanel .statusBad {
+  color: var(--hud-alert-text);
+  font-weight: 700;
+}
+
+#statusPanel .statusMeter {
+  height: 6px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border-radius: 3px;
+  background-color: var(--hud-meter-empty-fill);
+}
+
+#statusPanel .statusMeterFill {
+  height: 100%;
+  width: 0;
+  background-color: var(--hud-meter-fill);
+}
+
+#statusPanel .statusMeterFill.statusMeterOver {
+  background-color: var(--hud-meter-over-fill);
+}
+
+#statusPanel .statusCap {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background-color: var(--hud-cap-background);
+  color: var(--hud-cap-text);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: help;
+}
+
+#statusPanel .statusConditions {
+  margin: 0;
+  padding-left: 16px;
+}
+
+/* What the other players did. Its lines let the pointer's events through to the map, but its strip takes them. */
+#activityListBody {
+  pointer-events: none;
+}
+
+.activityLine {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation-name: activityFade;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+/* A line holds for most of its time, then fades out as its time runs out */
+@keyframes activityFade {
+  0%, 80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The frame rate and the debug window's button, in debug mode only */
+#debug {
+  display: none;
+  text-align: center;
+}
+
+#debugRequest {
+  margin-top: 6px;
+}
+
+/* The minimap, at the foot of the right column: its canvas has two pixels a tile, drawn without smoothing, in a frame
+   wrapped close round it, so the view's rectangle is placed in fractions of the canvas, and clipped to it where the
+   view reaches past the map. Where the column is short it gives way well before the status does, down to half its
+   size, so the status keeps room for its demand caps and conditions. */
+#minimap {
+  flex: 0 10 auto;
+  min-height: 0;
+}
+
+#minimap:not(.initialHidden):not(.folded) {
+  display: flex;
+  flex-direction: column;
+}
+
+#minimapFrame {
+  flex: 0 1 auto;
+  min-height: 100px;
+  position: relative;
+  overflow: hidden;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 0;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+#minimapCanvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+}
+
+#minimapView {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid white;
+  outline: 1px solid black;
+  pointer-events: none;
 }

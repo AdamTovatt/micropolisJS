@@ -13,73 +13,98 @@
  */
 
 import { DemandMessage } from "../src/protocol";
-import { barRect, METER_HEIGHT, METER_WIDTH, MeterCanvas, MeterContext, RCI } from "../src/rci";
+import {
+  barRect, METER_HEIGHT, METER_WIDTH, MeterCanvas, MeterContext, MeterStyle, RCI, trackRect,
+} from "../src/rci";
 
-// The meter is drawn in 5px rects, in units of padding of 3 rects (15px). The grey box is 1 unit (15px) in, below a
-// full bar of 10 rects (50px down); it is 7 units (105px) wide and 1 unit tall.
-const BOX = {x: 15, y: 50, width: 105, height: 15};
-
-// A bar of demand rises from the box's top, at 50px, and a bar of none hangs from its bottom, at 65px. A bar is 15px
-// wide, and each 200 of demand is 5px tall.
+// The tracks are 18px wide, their middles 44px apart, the first 22px in, so they start at 13px, 57px and 101px. Each is
+// 81px tall, with the 1px line across it 40px down.
 describe("the demand meter's bars", () => {
 
-    it("rises from the box for demand, residential first", () => {
-        expect(barRect(0, 750)).toEqual({x: 30, y: 35, width: 15, height: 15});
+    it("rises from the line for demand, residential first, 4px for each 200 of demand", () => {
+        expect(barRect(0, 750)).toEqual({x: 13, y: 28, width: 18, height: 12});
     });
 
-    it("hangs below the box for falling demand", () => {
-        expect(barRect(1, -450)).toEqual({x: 60, y: 65, width: 15, height: 10});
+    it("hangs below the line for falling demand", () => {
+        expect(barRect(1, -450)).toEqual({x: 57, y: 41, width: 18, height: 8});
     });
 
     // Industrial demand is scaled up from its range of 1500 to residential's 2000; commercial demand is not
     it("scales industrial demand to residential's range", () => {
-        expect(barRect(2, 1500)).toEqual({x: 90, y: 0, width: 15, height: 50});
+        expect(barRect(2, 1500)).toEqual({x: 101, y: 0, width: 18, height: 40});
     });
 });
 
-type Drawn = {clear: true} | {x: number, y: number, width: number, height: number} | {label: string};
+type Drawn = {clear: true} | {transform: number[]} |
+    {x: number, y: number, width: number, height: number, colour: string} | {label: string, colour: string};
 
-// A meter on a canvas that records what is drawn on it. send gives it the demand, as each demand message does.
-function meter() {
+// The look the meter is given, as the stylesheet's custom properties give it
+const LOOK: MeterStyle = {bars: ["green", "blue", "yellow"], track: "dark", line: "grey", label: "white", font: "Inter"};
+
+// A meter on a canvas that records what is drawn on it, and in what colour, at the pixels for each CSS pixel given.
+// send gives it the demand, as each demand message does.
+function meter(pixelRatio = 1) {
     const drawn: Drawn[] = [];
     const context: MeterContext = {
+        setTransform: ((...transform: number[]) => {
+            drawn.push({transform});
+        }) as MeterContext["setTransform"],
         clearRect: () => {
             drawn.push({clear: true});
         },
         fillRect: (x, y, width, height) => {
-            drawn.push({x, y, width, height});
+            drawn.push({x, y, width, height, colour: context.fillStyle as string});
         },
         fillText: (label) => {
-            drawn.push({label});
+            drawn.push({label, colour: context.fillStyle as string});
         },
         fillStyle: "",
         font: "",
+        textAlign: "start",
         textBaseline: "alphabetic",
     };
-    const canvas: MeterCanvas = {width: 0, height: 0, style: {margin: "", padding: ""}, getContext: () => context};
-    const rci = new RCI(canvas);
+    const canvas: MeterCanvas = {
+        width: 0, height: 0, style: {margin: "", padding: "", width: "", height: ""}, getContext: () => context,
+    };
+    const rci = new RCI(canvas, LOOK, pixelRatio);
 
-    return {canvas, drawn, send: (demand: Omit<DemandMessage, "type">) => rci.update(demand)};
+    return {canvas, context, drawn, send: (demand: Omit<DemandMessage, "type">) => rci.update(demand)};
 }
 
 describe("the demand meter", () => {
 
-    it("clears the canvas, then draws the box, and each bar with its initial, from the valves it's sent", () => {
-        const {drawn, send} = meter();
+    it("clears the canvas, then draws each track with its line, its bar and its initial, from the valves it's sent, " +
+       "in the look it's given", () => {
+        const {context, drawn, send} = meter();
 
         send({residential: 750, commercial: -450, industrial: 1500});
 
-        expect(drawn).toEqual([{clear: true}, BOX, barRect(0, 750), {label: "R"}, barRect(1, -450), {label: "C"},
-                               barRect(2, 1500), {label: "I"}]);
+        const column = (index: number, value: number, label: string, colour: string) => [
+            {...trackRect(index), colour: "dark"}, {...trackRect(index), y: 40, height: 1, colour: "grey"},
+            {...barRect(index, value), colour}, {label, colour: "white"},
+        ];
+        expect(drawn).toEqual([{transform: [1, 0, 0, 1, 0, 0]}, {clear: true}, ...column(0, 750, "R", "green"),
+                               ...column(1, -450, "C", "blue"), ...column(2, 1500, "I", "yellow")]);
+        expect(context.font).toBe("700 11px Inter");
     });
 
     // The meter is made before its panel shows, and its panel may be folded, so it never takes its size from the page
-    it("sizes its canvas as it is made, to hold the box and the longest bars either way", () => {
+    it("sizes its canvas as it is made, to hold the tracks, the longest bars either way and the initials", () => {
         const {canvas} = meter();
-        const longest = [barRect(0, 2000), barRect(0, -2000), barRect(2, -1500), BOX];
+        const longest = [barRect(0, 2000), barRect(0, -2000), barRect(2, -1500), trackRect(2)];
 
         expect([canvas.width, canvas.height]).toEqual([METER_WIDTH, METER_HEIGHT]);
+        expect([canvas.style.width, canvas.style.height]).toEqual([`${METER_WIDTH}px`, `${METER_HEIGHT}px`]);
         expect(longest.filter((rect) => rect.x < 0 || rect.y < 0 || rect.x + rect.width > canvas.width ||
-                                        rect.y + rect.height > canvas.height)).toEqual([]);
+                                        rect.y + rect.height > trackRect(0).height)).toEqual([]);
+    });
+
+    it("draws at the screen's pixels for each CSS pixel", () => {
+        const {canvas, drawn, send} = meter(2);
+
+        send({residential: 0, commercial: 0, industrial: 0});
+
+        expect([canvas.width, canvas.height]).toEqual([2 * METER_WIDTH, 2 * METER_HEIGHT]);
+        expect(drawn[0]).toEqual({transform: [2, 0, 0, 2, 0, 0]});
     });
 });

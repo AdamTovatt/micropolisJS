@@ -44,7 +44,7 @@ describe("the evaluation window's view", () => {
             migration: "-140",
             assessedValue: "$13,775,000",
             level: "Medium",
-            cityClass: "TOWN",
+            cityClass: "Town",
             score: "504",
             scoreDelta: "-29",
             scoreBreakdown: [
@@ -75,7 +75,7 @@ describe("the evaluation window's view", () => {
     it("has text for every city class", () => {
         const classes = CITY_CLASSES.map((cityClass) => evaluationView({...RECORD, cityClass}).cityClass);
 
-        expect(classes).toEqual(["VILLAGE", "TOWN", "CITY", "CAPITAL", "METROPOLIS", "MEGALOPOLIS"]);
+        expect(classes).toEqual(["Village", "Town", "City", "Capital", "Metropolis", "Megalopolis"]);
     });
 
     it.each(Object.entries(Level))("has text for the %s level", (name, level) => {

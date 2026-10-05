@@ -12,9 +12,12 @@
  *
  */
 
+import { readdirSync } from "fs";
+
 import * as Messages from "../src/messages";
 import { Text } from "../src/text";
 import * as UiMessages from "../src/uiMessages";
+import { repositoryJson, repositoryPath } from "./helpers/repository";
 import { RULES } from "./helpers/ruleConstants";
 
 // The advisor conditions a status record lists, as the C# rules give them
@@ -54,5 +57,31 @@ describe("the messages' text", () => {
     // A disaster holds off neutral news for a while, which the game times only from bad news
     it.each([...Messages.DISASTER_MESSAGES, ...Messages.CRASHES])("is bad news for %s", (subject) => {
         expect(Text.messages[subject].tone).toBe("bad");
+    });
+});
+
+// The subjects of the news whose place the rules give the disaster view to show, in every event the fixture tool
+// recorded from them
+function subjectsShownOnTv(): string[] {
+    const events = readdirSync(repositoryPath("conformance/events")).flatMap((file) =>
+        repositoryJson<{events: {payload: unknown}[]}>(`conformance/events/${file}`).events);
+    const subjects = events.flatMap(({payload}) => {
+        const news = payload as {type?: string, subject?: string, data?: {showable?: boolean, trackable?: boolean}};
+        return news?.type === "news" && (news.data?.showable === true || news.data?.trackable === true) ?
+            [news.subject!] : [];
+    });
+    return Array.from(new Set(subjects));
+}
+
+describe("the disaster view's titles", () => {
+
+    // So the test below can't pass by finding no news shown on the view
+    it("are found for news the rules show on the view", () => {
+        expect(subjectsShownOnTv().length).toBeGreaterThan(1);
+    });
+
+    it.each([...Messages.DISASTER_MESSAGES, ...Messages.CRASHES, Messages.HEAVY_TRAFFIC, ...subjectsShownOnTv()])(
+        "name %s", (subject) => {
+        expect(Text.tvTitles[subject]?.trim()).toBeTruthy();
     });
 });
