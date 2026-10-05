@@ -52,7 +52,7 @@ async function holdToTheEdge(player: Player, key: string): Promise<void> {
   }
 }
 
-test("the view stops at the map's edges, with the map's last whole tiles in view", async ({page}) => {
+test("the view stops at the map's edges, with no void beyond them", async ({page}) => {
   const problems = collectPageProblems(page);
   const player = await startGame(server(), page, SEED, "Edges");
   const canvas = await player.canvasBox();
@@ -66,7 +66,7 @@ test("the view stops at the map's edges, with the map's last whole tiles in view
   await holdToTheEdge(player, "ArrowRight");
   await holdToTheEdge(player, "ArrowDown");
   expect(await origin(player), "the origin at the bottom-right edges")
-    .toEqual({x: map.width - Math.floor(canvas.width / tileWidth), y: map.height - Math.floor(canvas.height / tileWidth)});
+    .toEqual({x: map.width - canvas.width / tileWidth, y: map.height - canvas.height / tileWidth});
   expect(problems).toEqual([]);
 });
 

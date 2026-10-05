@@ -1234,3 +1234,12 @@ footer a, footer a:link, footer a:visited, footer a:hover {
     bottom: calc(var(--panel-margin) + 51px);
   }
 }
+
+/* Space held over the map shows the open hand, and a pan the closed one, over the tool's cursor */
+#MicropolisCanvas.grab {
+  cursor: grab;
+}
+
+#MicropolisCanvas.grabbing {
+  cursor: grabbing;
+}

@@ -129,13 +129,12 @@ export class OtherCursors {
   }
 }
 
-// The outlines the canvas draws for the others' boxes, each at its map tile in tile offsets from the view's origin,
-// in the colour of its tool, and named on a tag in its player's colour
-export function otherOutlines(views: readonly CursorView[], origin: TilePoint,
-                              toolColour: (tool: CursorTool) => string): MouseOutline[] {
+// The outlines the canvas draws for the others' boxes, each at its map tile, in the colour of its tool, and named on a
+// tag in its player's colour
+export function otherOutlines(views: readonly CursorView[], toolColour: (tool: CursorTool) => string): MouseOutline[] {
   return views.map(({name, colour, cursor}) => ({
-    x: cursor.x - origin.x,
-    y: cursor.y - origin.y,
+    x: cursor.x,
+    y: cursor.y,
     width: cursor.size,
     height: cursor.size,
     colour: toolColour(cursor.tool),

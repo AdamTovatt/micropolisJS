@@ -15,12 +15,14 @@ import type { FrameTiles } from "./mapFrame";
 import { spriteTiles } from "./paintable";
 import type { PaintableSprite } from "./paintable";
 import type { Rect } from "./rect";
+import type { PixelPoint } from "./viewPosition";
 
 // Which part of the map's view a frame draws again: what differs from the frame drawn last, in square blocks of tiles.
 // A frame drawn on software WebGL costs the GPU's threads time in proportion to the pixels it draws, and the page waits
 // for it before drawing another.
 
-// Where a frame is drawn: the view's origin, the device pixels a tile is drawn, and the target's size in device pixels
+// Where a frame is drawn: the view's origin as the map is drawn from it, in device pixels (drawnOrigin), the device
+// pixels a tile is drawn, and the target's size in device pixels
 export interface FrameView {
   originX: number;
   originY: number;
@@ -34,7 +36,8 @@ function sameView(a: FrameView, b: FrameView): boolean {
          a.height === b.height;
 }
 
-// The part of the view a frame draws: all of it, or the rectangles of tiles from the view's origin, which don't overlap
+// The part of the view a frame draws: all of it, or the rectangles of tiles from the first tile in view, which don't
+// overlap
 export type Damage = "all" | readonly Rect[];
 
 // The view is drawn again in square blocks of this many tiles a side, the blocks of a row that touch as one rectangle
@@ -42,19 +45,20 @@ export const DAMAGE_BLOCK = 8;
 // A frame that would draw more than this share of the view's blocks draws all of it
 const DAMAGE_ALL_SHARE = 0.5;
 
-// The device pixels the rectangles of tiles cover, tilePixels a tile, each rounded out to whole pixels. Where a tile's
-// edge falls inside a device pixel, at 1.1 device pixels to the CSS pixel say, the pixel is drawn again with the tile.
+// The device pixels of the view the rectangles of tiles cover, tilePixels a tile, with the view's top-left the offset,
+// in device pixels, into the first tile in view (FrameTiles), each rounded out to whole pixels. Where a tile's edge
+// falls inside a device pixel, at 1.1 device pixels to the CSS pixel say, the pixel is drawn again with the tile.
 // Rectangles that touch may then share a row or column of pixels.
-export function damagedPixels(damage: readonly Rect[], tilePixels: number): Rect[] {
+export function damagedPixels(damage: readonly Rect[], tilePixels: number, offset: PixelPoint): Rect[] {
   return damage.map(({x, y, width, height}) => {
-    const left = Math.floor(x * tilePixels);
-    const top = Math.floor(y * tilePixels);
-    return {x: left, y: top, width: Math.ceil((x + width) * tilePixels) - left,
-            height: Math.ceil((y + height) * tilePixels) - top};
+    const left = Math.floor(x * tilePixels - offset.x);
+    const top = Math.floor(y * tilePixels - offset.y);
+    return {x: left, y: top, width: Math.ceil((x + width) * tilePixels - offset.x) - left,
+            height: Math.ceil((y + height) * tilePixels - offset.y) - top};
   });
 }
 
-// The view's blocks a frame draws again, as tiles from the view's origin are marked
+// The view's blocks a frame draws again, as tiles from the first tile in view are marked
 class DamagedBlocks {
   private readonly across: number;
   private readonly down: number;
@@ -138,7 +142,7 @@ export class FrameRecord {
     if (this.view !== null && sameView(view, this.view) && this.values.length === count) {
       const blocks = new DamagedBlocks(tiles.width - 2 * margin, tiles.height - 2 * margin);
       for (let i = 0; i < count; i++) {
-        // From the view's origin
+        // From the first tile in view
         const column = i % tiles.width - margin;
         const row = Math.floor(i / tiles.width) - margin;
         if (tiles.values[i] !== this.values[i]) {

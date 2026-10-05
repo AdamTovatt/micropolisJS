@@ -18,13 +18,14 @@ import type { OverlayView } from "./overlayRenderer";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { PaintableMap, PaintableSprite } from "./paintable";
 import type { MapArt } from "./renderAssets";
-import { ViewPosition, ZOOM_STEPS, canvasPointToTile, steppedZoom, viewport } from "./viewPosition";
+import {
+  ViewPosition, ZOOM_STEPS, drawnOrigin, steppedZoom, tileOnCanvasUnderPoint, tileUnderPoint, viewport,
+} from "./viewPosition";
 import type { OriginLimits, PixelPoint, TilePoint, Viewport } from "./viewPosition";
 
-// A tool's outline. x and y are the tile under the mouse, in tile offsets from the view's origin: the top-left of a
-// tool up to 2x2, and one tile in from the top-left of a bigger one. width and height are tiles. label is the name of
-// the player whose outline it is, written beside it on a tag of the label's colour, a "#rrggbb", or null for this
-// player's own.
+// A tool's outline. x and y are the map tile under the mouse: the top-left of a tool up to 2x2, and one tile in from
+// the top-left of a bigger one. width and height are tiles. label is the name of the player whose outline it is,
+// written beside it on a tag of the label's colour, a "#rrggbb", or null for this player's own.
 interface MouseOutline {
   x: number;
   y: number;
@@ -41,10 +42,10 @@ interface MouseOutlineBox {
   height: number;
 }
 
-// Where the outline is drawn, at tileWidth CSS pixels a tile, or null for an outline of no tiles or off the map, which
-// draws nothing
-
-function mouseOutlineLayout(mouse: MouseOutline, originX: number, originY: number, mapWidth: number,
+// Where the outline is drawn on a view from the origin, at tileWidth CSS pixels a tile and pixelRatio device pixels to
+// the CSS pixel, over the tiles as the map draws them (drawnOrigin), or null for an outline of no tiles or off the map,
+// which draws nothing
+function mouseOutlineLayout(mouse: MouseOutline, origin: TilePoint, pixelRatio: number, mapWidth: number,
                             mapHeight: number, tileWidth: number): MouseOutlineBox | null {
   if (mouse.width === 0 || mouse.height === 0) {
     return null;
@@ -54,16 +55,15 @@ function mouseOutlineLayout(mouse: MouseOutline, originX: number, originY: numbe
   const mouseX = mouse.width > 2 ? mouse.x - 1 : mouse.x;
   const mouseY = mouse.height > 2 ? mouse.y - 1 : mouse.y;
 
-  const offMap = (originX + mouseX < 0 && originX + mouseX + mouse.width <= 0) ||
-                 (originY + mouseY < 0 && originY + mouseY + mouse.height <= 0) ||
-                 originX + mouseX >= mapWidth || originY + mouseY >= mapHeight;
-
+  const offMap = mouseX + mouse.width <= 0 || mouseY + mouse.height <= 0 || mouseX >= mapWidth || mouseY >= mapHeight;
   if (offMap) {
     return null;
   }
 
+  const tilePixels = tileWidth * pixelRatio;
+  const drawn = drawnOrigin(origin, tilePixels);
   return {
-    pos: {x: mouseX * tileWidth, y: mouseY * tileWidth},
+    pos: {x: (mouseX * tilePixels - drawn.x) / pixelRatio, y: (mouseY * tilePixels - drawn.y) / pixelRatio},
     width: mouse.width * tileWidth,
     height: mouse.height * tileWidth,
   };
@@ -149,7 +149,7 @@ class GameCanvas {
     return this.painter.current;
   }
 
-  // The tiles the view shows across and down, those at its far edges in part
+  // The tiles the view shows across and down, a fraction where a tile at either edge shows in part
   get tilesInView(): TilePoint {
     return {x: this.width / this.zoom, y: this.height / this.zoom};
   }
@@ -163,9 +163,24 @@ class GameCanvas {
     return this.height * SPRITE_PIXELS_PER_TILE / this.zoom;
   }
 
-  // Moves the view the whole tiles given across and down, as far as the map's edges
+  // Moves the view the whole tiles given across and down, as far as the map's edges, the first of them to the next
+  // whole tile from an origin between tiles
   scrollBy(tilesX: number, tilesY: number): void {
     this.position.scrollBy(tilesX, tilesY);
+  }
+
+  // Takes hold of the map at a point of the canvas, in CSS pixels, to pan it: until release, panTo keeps the point of
+  // the map under the pointer, as far as the map's edges allow
+  grab(point: PixelPoint): void {
+    this.position.grab(point, this.zoom);
+  }
+
+  panTo(point: PixelPoint): void {
+    this.position.pan(point);
+  }
+
+  release(): void {
+    this.position.release();
   }
 
   centreOn(x: number, y: number): void {
@@ -189,21 +204,19 @@ class GameCanvas {
     return this.position.origin;
   }
 
-  getMaxTile(): TilePoint {
-    return this.position.maxTile;
-  }
-
   getOriginLimits(): OriginLimits {
     const {minX, maxX, minY, maxY} = this.position.viewport;
     return {minX, maxX, minY, maxY};
   }
 
-  canvasCoordinateToTileOffset(x: number, y: number): TilePoint {
-    return {x: Math.floor(x / this.zoom), y: Math.floor(y / this.zoom)};
+  // The map tile drawn under a point of the canvas, in CSS pixels, which may lie off the map or past the canvas' edges
+  tileUnder(x: number, y: number): TilePoint {
+    return tileUnderPoint(x, y, this.position.origin, this.zoom, this.pixelRatio);
   }
 
-  canvasCoordinateToTileCoordinate(x: number, y: number): TilePoint | null {
-    return canvasPointToTile(x, y, this.position.origin, this.zoom, this.width, this.height);
+  // The map tile drawn under a point of the canvas, or null past the canvas' right or bottom edge
+  tileOnCanvasUnder(x: number, y: number): TilePoint | null {
+    return tileOnCanvasUnderPoint(x, y, this.position.origin, this.zoom, this.pixelRatio, this.width, this.height);
   }
 
   // Shows an overlay view, or none, from the next frame drawn
@@ -275,7 +288,8 @@ class GameCanvas {
     }
 
     const boxes = outlines.map((outline) => ({
-      outline, box: mouseOutlineLayout(outline, origin.x, origin.y, this.map.width, this.map.height, this.zoom),
+      outline,
+      box: mouseOutlineLayout(outline, origin, this.pixelRatio, this.map.width, this.map.height, this.zoom),
     }));
     const marks = JSON.stringify([this.marks.width, this.marks.height, boxes]);
     if (marks === this.marksDrawn) {

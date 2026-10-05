@@ -61,8 +61,8 @@ test("the overlay tints each tile by its value over the map, and goes again with
   const canvas = await player.canvasBox();
   const {tileWidth} = await player.view();
   const tiles = await player.wholeTilesInView();
-  const shown = await samplePixels(page, tinted, tiles.map(({column, row}) => ({
-    x: Math.floor(canvas.x + (column + 0.5) * tileWidth), y: Math.floor(canvas.y + (row + 0.5) * tileWidth),
+  const shown = await samplePixels(page, tinted, tiles.map(({x, y}) => ({
+    x: Math.floor(canvas.x + x + tileWidth / 2), y: Math.floor(canvas.y + y + tileWidth / 2),
   })));
 
   const wrong: string[] = [];

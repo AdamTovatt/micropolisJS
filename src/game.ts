@@ -186,7 +186,7 @@ export class Game {
 
     // Note: must init canvas before inputStatus
     this.gameCanvas = new GameCanvas("canvasContainer", state.map, mapArt);
-    this.inputStatus = new InputStatus(() => this.gameCanvas.tileWidth, () => this.windows.holdsInput());
+    this.inputStatus = new InputStatus(this.gameCanvas, () => this.windows.holdsInput());
 
     new OverlayPicker("overlayPanel", cityOverlaySource(source, state), this.gameCanvas);
 
@@ -453,7 +453,7 @@ export class Game {
   // The tiles the player's tool reaches gather into paths (see ToolPaths), sent each tick by sendToolPaths
   private handleTool(data: ToolClick): void {
     // Where was the tool clicked?
-    const tileCoords = this.gameCanvas.canvasCoordinateToTileCoordinate(data.x, data.y);
+    const tileCoords = this.gameCanvas.tileOnCanvasUnder(data.x, data.y);
 
     const toolName = this.inputStatus.toolName;
     if (tileCoords === null || toolName === null) {
@@ -531,13 +531,20 @@ export class Game {
     }
   }
 
+  // The map tile under the pointer that this player's hover box is drawn at, or null while none is
+  get hoverTile(): TilePoint | null {
+    return this.mouse === null ? null : {x: this.mouse.x, y: this.mouse.y};
+  }
+
   private calculateMouseForPaint(): MouseOutline | null {
-    // Determine whether we need to draw a tool outline in the canvas
-    if (this.inputStatus.mouseX === -1 || this.inputStatus.toolWidth <= 0) {
+    // Determine whether we need to draw a tool outline in the canvas: not while Space readies a pan or a pan holds the
+    // map, so the others don't see it either
+    if (this.inputStatus.mouseX === -1 || this.inputStatus.toolWidth <= 0 || this.inputStatus.pan !== "free") {
       return null;
     }
 
-    const tileCoords = this.gameCanvas.canvasCoordinateToTileOffset(this.inputStatus.mouseX, this.inputStatus.mouseY);
+    const tileCoords = this.gameCanvas.tileOnCanvasUnder(this.inputStatus.mouseX,
+                                                                        this.inputStatus.mouseY);
     if (tileCoords === null) {
       return null;
     }
@@ -551,7 +558,7 @@ export class Game {
   private reportCursor(): void {
     const shown = this.mouse !== null && this.viewerVisible;
     const tile = shown
-      ? this.gameCanvas.canvasCoordinateToTileCoordinate(this.inputStatus.mouseX, this.inputStatus.mouseY)
+      ? this.gameCanvas.tileOnCanvasUnder(this.inputStatus.mouseX, this.inputStatus.mouseY)
       : null;
 
     this.otherPlayers.reportCursor(this.inputStatus.toolName, this.inputStatus.toolWidth, tile,
@@ -560,7 +567,7 @@ export class Game {
 
   // The other players' hover boxes, named, under this player's own
   private outlinesForPaint(): MouseOutline[] {
-    const outlines = this.otherPlayers.outlines(this.gameCanvas.getTileOrigin(), (tool) => this.inputStatus.toolColourOf(tool));
+    const outlines = this.otherPlayers.outlines((tool) => this.inputStatus.toolColourOf(tool));
 
     if (this.mouse !== null) {
       outlines.push(this.mouse);

@@ -131,8 +131,9 @@ export interface TileRect {
   height: number;
 }
 
-// The part of the map a view shows, from its origin and the tiles it shows across and down, the part tiles at its far
-// edges in part, cut to the map: the void a view shows beyond the map is not marked
+// The part of the map a view shows, from its origin, which may lie between tiles, and the tiles it shows across and
+// down, a fraction where a tile at either edge shows in part, cut to the map: the void a view shows beyond the map is
+// not marked
 export function viewRect(origin: TilePoint, tilesInView: TilePoint, map: {width: number, height: number}): TileRect {
   const left = Math.max(0, origin.x);
   const top = Math.max(0, origin.y);

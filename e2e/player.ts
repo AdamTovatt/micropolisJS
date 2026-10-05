@@ -262,12 +262,22 @@ export class Player {
   }
 
   // Zooms with the mouse wheel over a tile, a notch a step: up to zoom in, down to zoom out. Fails unless the view
-  // comes to the zoom step the notches lead to with the tile still under the pointer, as far as the view's limits
-  // allow: at the map's edges the view stops, and the tile under the pointer moves.
+  // comes to the zoom step the notches lead to with the point of the map under the pointer still under it, as far as
+  // the view's limits allow: at the map's edges the view stops, and the point under the pointer moves.
+  //
+  // With a tool held, it fails too unless the game draws the hover box on the tile before the zoom, and after it on the
+  // tile this runner finds under the pointer: the view's origin may lie between tiles after a zoom, and the game must
+  // find the tile under the pointer as it draws the map.
   async zoomWithWheel(tile: Tile, steps: number): Promise<void> {
     const point = await this.tilePoint(tile);
-    const expected = steppedZoom((await this.view()).tileWidth, steps);
+    const before = await this.view();
+    const expected = steppedZoom(before.tileWidth, steps);
+    const toolHeld = await this.page.locator(".toolButton.selected").count() > 0;
     await this.page.mouse.move(point.x, point.y);
+    if (toolHeld) {
+      await this.expectHoverOn(tile, "the hover box over the tile the wheel zooms over");
+    }
+
     for (let notch = 0; notch < Math.abs(steps); notch++) {
       await this.page.mouse.wheel(0, steps > 0 ? -WHEEL_NOTCH : WHEEL_NOTCH);
     }
@@ -276,9 +286,31 @@ export class Player {
     const view = await this.view();
     const canvas = await this.canvasBox();
     const {minX, maxX, minY, maxY} = view.limits;
-    expect({x: view.originX, y: view.originY}, "the origin that keeps the tile under the pointer, within the limits")
-      .toEqual({x: heldWithin(tile.x - Math.floor((point.x - canvas.x) / view.tileWidth), minX, maxX),
-                y: heldWithin(tile.y - Math.floor((point.y - canvas.y) / view.tileWidth), minY, maxY)});
+    // The point of the map under the pointer, in tiles from the origin, before and after
+    const pointX = (point.x - canvas.x) / before.tileWidth - (point.x - canvas.x) / view.tileWidth;
+    const pointY = (point.y - canvas.y) / before.tileWidth - (point.y - canvas.y) / view.tileWidth;
+    const origin = "the origin that keeps the point under the pointer, within the limits";
+    expect(view.originX, origin).toBeCloseTo(heldWithin(before.originX + pointX, minX, maxX), 9);
+    expect(view.originY, origin).toBeCloseTo(heldWithin(before.originY + pointY, minY, maxY), 9);
+
+    if (toolHeld) {
+      await this.expectHoverOn(await this.tileUnder(point), "the hover box over the tile under the pointer, zoomed");
+    }
+  }
+
+  // Fails unless the game comes to draw this player's hover box at the map tile given, the tile under the pointer, or
+  // to draw none for null
+  async expectHoverOn(tile: Tile | null, description: string): Promise<void> {
+    await expect.poll(() => this.page.evaluate(() => window.micropolisTestHook!.hoverTile()), description)
+      .toEqual(tile);
+  }
+
+  // The map tile under a point of the page, in CSS pixels, worked out from the view as tileCorner works it out
+  async tileUnder(point: {x: number, y: number}): Promise<Tile> {
+    const drawn = await this.drawnView();
+    const canvas = await this.canvasBox();
+    return {x: Math.floor((drawn.originX + (point.x - canvas.x) * drawn.pixelRatio) / drawn.tilePixels),
+            y: Math.floor((drawn.originY + (point.y - canvas.y) * drawn.pixelRatio) / drawn.tilePixels)};
   }
 
   // Zooms with the + and - keys, a press a step. Fails unless the view comes to the zoom step the presses lead to.
@@ -384,7 +416,7 @@ export class Player {
 
   // Applies the commands the input sent at once, rather than on the game's next tick, so the city the runner reads next
   // has them. They apply at the same step either way.
-  private async applyInput(): Promise<void> {
+  async applyInput(): Promise<void> {
     await this.page.evaluate(() => window.micropolisTestHook!.applyInput());
   }
 
@@ -557,18 +589,38 @@ export class Player {
     return await this.page.evaluate(() => window.micropolisTestHook!.view());
   }
 
-  // Each tile whose whole square is on the canvas, by its column and row from the view's origin
-  async wholeTilesInView(): Promise<{tile: Tile, column: number, row: number}[]> {
-    const view = await this.view();
+  // Each tile whose whole square is on the canvas, with its top-left corner on the canvas, in CSS pixels from the
+  // canvas's
+  async wholeTilesInView(): Promise<{tile: Tile, x: number, y: number}[]> {
     const canvas = await this.canvasBox();
-    const tiles: {tile: Tile, column: number, row: number}[] = [];
-    for (let row = 0; row < Math.floor(canvas.height / view.tileWidth); row++) {
-      for (let column = 0; column < Math.floor(canvas.width / view.tileWidth); column++) {
-        tiles.push({tile: {x: view.originX + column, y: view.originY + row}, column, row});
+    const drawn = await this.drawnView();
+    // The tiles along an axis whose squares lie whole within the canvas's length, in CSS pixels, from the drawn origin
+    const along = (origin: number, length: number) => {
+      const first = Math.ceil(origin / drawn.tilePixels);
+      const last = Math.floor((origin + length * drawn.pixelRatio) / drawn.tilePixels) - 1;
+      return Array.from({length: Math.max(0, last - first + 1)}, (_, i) => first + i);
+    };
+
+    const tiles: {tile: Tile, x: number, y: number}[] = [];
+    for (const y of along(drawn.originY, canvas.height)) {
+      for (const x of along(drawn.originX, canvas.width)) {
+        tiles.push({tile: {x, y}, x: (x * drawn.tilePixels - drawn.originX) / drawn.pixelRatio,
+                    y: (y * drawn.tilePixels - drawn.originY) / drawn.pixelRatio});
       }
     }
 
     return tiles;
+  }
+
+  // The view as the map is drawn: the view's origin in device pixels of the map at the zoom, rounded to whole ones, as
+  // the game draws the map from it, the device pixels a tile is drawn and the device pixels to the CSS pixel. Worked
+  // out here from the origin, the tile width and the screen, not taken from the game's drawing, which is under test.
+  private async drawnView(): Promise<{originX: number, originY: number, tilePixels: number, pixelRatio: number}> {
+    const view = await this.view();
+    const pixelRatio = await this.page.evaluate(() => window.devicePixelRatio || 1);
+    const tilePixels = view.tileWidth * pixelRatio;
+    return {originX: Math.round(view.originX * tilePixels), originY: Math.round(view.originY * tilePixels), tilePixels,
+            pixelRatio};
   }
 
   private async origin(axis: Axis): Promise<number> {
@@ -589,11 +641,11 @@ export class Player {
   // The top-left corner of a tile on the page, in CSS pixels, worked out from the view's origin and tile width rather
   // than from the game's own mapping of pointer to tile, which is under test. The tile may be out of view.
   async tileCorner(tile: Tile): Promise<{x: number, y: number}> {
-    const view = await this.view();
+    const drawn = await this.drawnView();
     const canvas = await this.canvasBox();
 
-    return {x: canvas.x + (tile.x - view.originX) * view.tileWidth,
-            y: canvas.y + (tile.y - view.originY) * view.tileWidth};
+    return {x: canvas.x + (tile.x * drawn.tilePixels - drawn.originX) / drawn.pixelRatio,
+            y: canvas.y + (tile.y * drawn.tilePixels - drawn.originY) / drawn.pixelRatio};
   }
 
   // The centre of a tile on the screen, or null when the tile is out of view or under a panel

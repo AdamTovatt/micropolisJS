@@ -29,6 +29,7 @@ interface HookedGame {
   monsterTV: {readonly current: boolean};
   notificationBar: {dismiss(): void};
   toolToast: {dismiss(): void};
+  readonly hoverTile: {x: number, y: number} | null;
 }
 
 export interface Advanced {
@@ -38,7 +39,8 @@ export interface Advanced {
 }
 
 export interface View {
-  // The map tile drawn at the canvas's top-left corner
+  // The view's origin: the point of the map at the canvas's top-left corner, in tiles, which may lie between tiles. The
+  // map is drawn from it snapped to whole device pixels (drawnOrigin in viewPosition.ts).
   originX: number;
   originY: number;
   // How far the origin may move each way
@@ -172,6 +174,12 @@ class TestHook {
 
     return {originX: origin.x, originY: origin.y, limits: game.gameCanvas.getOriginLimits(),
             tileWidth: game.gameCanvas.tileWidth};
+  }
+
+  // The map tile under the pointer that this player's hover box is drawn at, as of the game's last tick, or null while
+  // none is drawn
+  hoverTile(): {x: number, y: number} | null {
+    return this.attachedGame().hoverTile;
   }
 
   // Whether the map, and the monster TV while it shows, show what they last painted from, drawn to the end. A paint

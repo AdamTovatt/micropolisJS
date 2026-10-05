@@ -19,6 +19,7 @@ import { WHITE } from "./renderManifest";
 import type { RenderArt } from "./renderManifest";
 import { BIT_MASK } from "./tileFlags";
 import { TILE_INVALID } from "./tileValues";
+import type { PixelPoint } from "./viewPosition";
 
 // What one frame of the map draws, as lists of quads the WebGL renderer draws pass by pass. Building them is pure, so
 // what lands where is tested under Node; the renderer only uploads the lists and draws them.
@@ -152,14 +153,17 @@ export class MapFrame {
 }
 
 // The tiles a frame reads: an area of the map margin tiles wider on every side than the view, from map tile (x, y),
-// width by height tiles, row by row. values are the tiles' raw values, TILE_INVALID off the map, and frames are the
-// tile ids to draw, as the animation manager chose them from the values.
+// width by height tiles, row by row. offset is how far, in device pixels, the view's top-left lies right of and below
+// the top-left of the first tile in view, margin tiles in from the area's: the view's origin may lie between tiles.
+// values are the tiles' raw values, TILE_INVALID off the map, and frames are the tile ids to draw, as the animation
+// manager chose them from the values.
 export interface FrameTiles {
   x: number;
   y: number;
   width: number;
   height: number;
   margin: number;
+  offset: PixelPoint;
   values: readonly number[];
   frames: readonly number[];
 }
@@ -169,7 +173,8 @@ export interface FrameTiles {
 export function wholeMapTiles(map: Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting">): FrameTiles {
   const {width, height} = map;
   const values = map.getTileValuesForPainting(0, 0, width, height, []);
-  return {x: 0, y: 0, width, height, margin: 0, values, frames: values.map((value) => value & BIT_MASK)};
+  return {x: 0, y: 0, width, height, margin: 0, offset: {x: 0, y: 0}, values,
+          frames: values.map((value) => value & BIT_MASK)};
 }
 
 // Fills the frame with the quads that draw the whole map, tilePixels device pixels a tile, each tile's own value
@@ -180,10 +185,10 @@ export function buildWholeMapFrame(frame: MapFrame, art: RenderArt,
   buildMapFrame(frame, art, wholeMapTiles(map), tilePixels, () => null, []);
 }
 
-// Fills the frame with the quads that draw the area's tiles, tilePixels device pixels a side, with the view's origin
-// margin tiles in from the area's top-left; then the tints of the tiles in view; then the sprites given. Given areas
-// of the view, in device pixels from its top-left, only the quads that reach into one are added: the renderer draws no
-// further than they reach. Without, every quad is.
+// Fills the frame with the quads that draw the area's tiles, tilePixels device pixels a side, with the view's top-left
+// the area's offset into its first tile in view; then the tints of the tiles in view; then the sprites given. Given
+// areas of the view, in device pixels from its top-left, only the quads that reach into one are added: the renderer
+// draws no further than they reach. Without, every quad is.
 //
 // A shadow comes from its anchor's raw value, not from the frame the animation manager chose: an unpowered zone's centre
 // blinks to the lightning bolt, and its shadow would blink with it.
@@ -191,7 +196,7 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
                               tint: (x: number, y: number) => Tint | null,
                               sprites: readonly PaintableSprite[], areas: readonly Rect[] | null = null): void {
   frame.clear();
-  const {margin, width, height} = tiles;
+  const {margin, width, height, offset} = tiles;
 
   // Whether a quad landing at (x, y), width by height device pixels, reaches into an area
   const reaches = (x: number, y: number, quadWidth: number, quadHeight: number) => areas === null ||
@@ -206,9 +211,9 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
         continue;
       }
 
-      // From the view's origin, in device pixels
-      const x = (column - margin) * tilePixels;
-      const y = (row - margin) * tilePixels;
+      // From the view's top-left, in device pixels
+      const x = (column - margin) * tilePixels - offset.x;
+      const y = (row - margin) * tilePixels - offset.y;
 
       const shadow = art.tile(value & BIT_MASK).shadow;
       if (shadow !== null) {
@@ -241,9 +246,9 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
     }
   }
 
-  // The view's origin, in map pixels
-  const originX = (tiles.x + margin) * SPRITE_PIXELS_PER_TILE;
-  const originY = (tiles.y + margin) * SPRITE_PIXELS_PER_TILE;
+  // The first tile in view's top-left, in map pixels
+  const firstX = (tiles.x + margin) * SPRITE_PIXELS_PER_TILE;
+  const firstY = (tiles.y + margin) * SPRITE_PIXELS_PER_TILE;
   const scale = tilePixels / SPRITE_PIXELS_PER_TILE;
 
   for (const sprite of sprites) {
@@ -252,8 +257,8 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
       throw new Error(`No art draws sprite ${sprite.type} frame ${sprite.frame}`);
     }
 
-    const x = (sprite.x - originX) * scale;
-    const y = (sprite.y - originY) * scale;
+    const x = (sprite.x - firstX) * scale - offset.x;
+    const y = (sprite.y - firstY) * scale - offset.y;
     const side = sprite.width * scale;
     if (reaches(x, y, side, side)) {
       frame.sprites.add(rect.atlas, x, y, side, side, rect);

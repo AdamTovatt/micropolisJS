@@ -12,8 +12,8 @@
  */
 
 import {
-    MAX_SCROLL_TIME, SCROLL_SPEED, ScrollKeys, WheelZoom, cursorClass, heldKey, isMinimapKey, isShortcut, isToolPress,
-    zoomKey,
+    MAX_SCROLL_TIME, SCROLL_SPEED, ScrollKeys, SpacePan, WheelZoom, cursorClass, heldKey, isMinimapKey, isShortcut,
+    isToolPress, spacePans, zoomKey,
 } from "../src/inputStatus";
 import { ZOOM_STEPS } from "../src/viewPosition";
 
@@ -82,12 +82,98 @@ describe("the canvas's cursor", () => {
 
     it.each([["query", "helpPointer"], ["road", "pointer"], ["residential", "pointer"]])(
         "is set by its class for the %s tool", (tool, cursor) => {
-        expect(cursorClass(tool)).toBe(cursor);
+        expect(cursorClass(tool, "free")).toBe(cursor);
     });
 
     // Clearing a tool, the query tool's included, gives the canvas back the cursor it had before any was chosen
     it("is the default while no tool is chosen", () => {
-        expect(cursorClass(null)).toBeNull();
+        expect(cursorClass(null, "free")).toBeNull();
+    });
+
+    it.each([["query"], ["road"], [null]])("is the open hand while a pan is ready, and the closed one while it holds " +
+                                           "the map, over the %s tool's", (tool) => {
+        expect([cursorClass(tool, "ready"), cursorClass(tool, "held")]).toEqual(["grab", "grabbing"]);
+    });
+});
+
+describe("Space", () => {
+
+    const space = {key: " ", altKey: false, ctrlKey: false, metaKey: false};
+
+    it("pans the map", () => {
+        expect(spacePans(space, false, false)).toBe(true);
+    });
+
+    it.each([["while a window holds the input", true, false, {}],
+             ["while the element with the focus takes typing", false, true, {}],
+             ["with control held", false, false, {ctrlKey: true}], ["with alt held", false, false, {altKey: true}],
+             ["with meta held", false, false, {metaKey: true}]])(
+        "is left to the page %s", (_, windowHoldsInput, focusTakesTyping, modifiers) => {
+        expect(spacePans({...space, ...modifiers}, windowHoldsInput, focusTakesTyping)).toBe(false);
+    });
+
+    it("is the only key that pans", () => {
+        expect(spacePans({...space, key: "a"}, false, false)).toBe(false);
+    });
+});
+
+describe("a pan", () => {
+
+    it("is ready while Space is down, holds the map from a press, and lets go as the button comes up", () => {
+        const pan = new SpacePan();
+        expect(pan.state).toBe("free");
+
+        pan.pressSpace();
+        expect(pan.state).toBe("ready");
+        expect(pan.pressButton()).toBe(true);
+        expect([pan.state, pan.pressPans]).toEqual(["held", true]);
+        expect(pan.releaseButton()).toBe(true);
+        expect([pan.state, pan.pressPans]).toEqual(["ready", true]);
+        expect(pan.releaseSpace()).toBe(false);
+        expect(pan.state).toBe("free");
+    });
+
+    it("lets go of the map as Space comes up mid-drag, and the press that began it still applies no tool", () => {
+        const pan = new SpacePan();
+        pan.pressSpace();
+        pan.pressButton();
+
+        expect(pan.releaseSpace()).toBe(true);
+        expect([pan.state, pan.pressPans]).toEqual(["free", true]);
+        expect(pan.releaseButton()).toBe(false);
+        expect(pan.pressPans).toBe(true);
+    });
+
+    it("waits for a press under way, a tool's drag or click, which applies its tool, until the button comes up", () => {
+        const pan = new SpacePan();
+        expect(pan.pressButton()).toBe(false);
+
+        pan.pressSpace();
+        expect([pan.state, pan.pressPans]).toEqual(["free", false]);
+        pan.releaseButton();
+        expect(pan.state).toBe("ready");
+    });
+
+    it("forgets that a press began a pan at the next press", () => {
+        const pan = new SpacePan();
+        pan.pressSpace();
+        pan.pressButton();
+        pan.releaseButton();
+        pan.releaseSpace();
+
+        expect(pan.pressButton()).toBe(false);
+        expect(pan.pressPans).toBe(false);
+    });
+
+    it("lets go of everything as the page loses the keyboard and mouse", () => {
+        const pan = new SpacePan();
+        pan.pressSpace();
+        pan.pressButton();
+
+        expect(pan.releaseAll()).toBe(true);
+        expect(pan.state).toBe("free");
+        expect(pan.spaceIsDown).toBe(false);
+        expect(pan.pressButton()).toBe(false);
     });
 });
 

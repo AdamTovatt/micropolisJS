@@ -45,10 +45,9 @@ const OFFSETS = [{x: 3, y: 1}, {x: 12, y: 14}];
 // corner is drawn in a picture of the canvas at scale picture pixels to the CSS pixel, from (left, top)
 async function stillTilesInView(player: Player, save: GameSave, scale: number, left = 0,
                                 top = 0): Promise<{tile: Tile, x: number, y: number}[]> {
-  const {tileWidth} = await player.view();
   return (await player.wholeTilesInView())
     .filter(({tile}) => (rawTileAt(save, tile) & ANIMBIT) === 0)
-    .map(({tile, column, row}) => ({tile, x: scale * (left + column * tileWidth), y: scale * (top + row * tileWidth)}));
+    .map(({tile, x, y}) => ({tile, x: scale * (left + x), y: scale * (top + y)}));
 }
 
 // Where each tile given draws in a picture, and the pixels of its art there: an OFFSETS pixel of the tile in

@@ -59,9 +59,9 @@ function quads(list: QuadList): {atlas: string, quads: Quad[]}[] {
 const OPAQUE = [1, 1, 1, 1];
 
 // The area of a 2 by 1 view with a margin of 1, from map tile (10, 20): 4 by 3 tiles, whose in-view tiles are the
-// middle row's two middle ones. The frames are the values, unless given.
+// middle row's two middle ones, the view starting at the first's top-left. The frames are the values, unless given.
 function tiles(values: number[], frames: number[] = values): FrameTiles {
-    return {x: 10, y: 20, width: 4, height: 3, margin: 1, values, frames};
+    return {x: 10, y: 20, width: 4, height: 3, margin: 1, offset: {x: 0, y: 0}, values, frames};
 }
 
 // The area with the tile given at one place and dirt, 0, everywhere else
@@ -180,6 +180,21 @@ describe("a frame of the map", () => {
         expect(quads(frame.sprites)).toEqual([{atlas: FALLBACK_SPRITES, quads: [
             {target: [8, 8, 64, 64], source: [48, 0, 32, 32], colour: OPAQUE},
             {target: [-32, 0, 96, 96], source: [15 * 48, 4 * 48, 48, 48], colour: OPAQUE},
+        ]}]);
+    });
+
+    it("draws tiles and sprites from a view that starts inside its first tile, by the offset into it", () => {
+        // The view's top-left is 5 device pixels right of and 3 below map pixel (176, 336)'s, at 16 a tile
+        const area = {...tilesWith(6, 0), offset: {x: 5, y: 3}};
+        const train = {type: 1, frame: 2, x: 180, y: 340, width: 32};
+        const frame = build(area, 16, noTint, [train]);
+
+        expect(quads(frame.ground)).toEqual([{atlas: FALLBACK_TILES, quads: [
+            {target: [-5, -3, 16, 16], source: [0, 0, 16, 16], colour: OPAQUE},
+            {target: [11, -3, 16, 16], source: [0, 0, 16, 16], colour: OPAQUE},
+        ]}]);
+        expect(quads(frame.sprites)).toEqual([{atlas: FALLBACK_SPRITES, quads: [
+            {target: [-1, 1, 32, 32], source: [48, 0, 32, 32], colour: OPAQUE},
         ]}]);
     });
 
@@ -306,8 +321,8 @@ describe("a frame of the map", () => {
         it("reads every tile with no margin, and draws each tile's own id, without its flags", () => {
             const {map, reads} = newMap();
 
-            expect(wholeMapTiles(map)).toEqual({x: 0, y: 0, width: 2, height: 2, margin: 0, values,
-                                                frames: [ZONE, LAWN, ZONE, 0]});
+            expect(wholeMapTiles(map)).toEqual({x: 0, y: 0, width: 2, height: 2, margin: 0, offset: {x: 0, y: 0},
+                                                values, frames: [ZONE, LAWN, ZONE, 0]});
             expect(reads).toEqual([[0, 0, 2, 2]]);
         });
 
