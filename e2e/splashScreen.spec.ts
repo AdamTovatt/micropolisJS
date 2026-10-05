@@ -210,6 +210,59 @@ test.describe("signed in to a game server", () => {
     expect(problems).toEqual([]);
   });
 
+  test("the start form's Back and Escape go back to the map chosen, having started nothing", async ({page}) => {
+    const forwarded = await server().forward(page, TESTER);
+    // The seed of each map preview the page asks for, in order: each splash screen shown asks for its map's
+    const previews: unknown[] = [];
+    forwarded.intercept = (message) => {
+      const query = message.query as {type?: string, seed?: unknown} | undefined;
+      if (message.type === "query" && query?.type === "mapPreview") {
+        previews.push(query.seed);
+      }
+      return false;
+    };
+    const problems = collectPageProblems(page);
+    await page.goto(`/?seed=${SEED}`);
+    await page.click("#splashGenerate");
+    const chosen = await page.locator("#splashSeed").textContent();
+    if (chosen === null || chosen === String(SEED)) {
+      throw new Error(`Generate another chose ${chosen}, not another map`);
+    }
+
+    await page.click("#splashPlay");
+    await expect(page.locator("#start")).toBeVisible();
+    await page.click("#playBack");
+    await expect(page.locator("#start")).toBeHidden();
+    await expect(page.locator("#splash")).toBeVisible();
+    await expect(page.locator("#splashSeed")).toHaveText(chosen);
+
+    await page.click("#splashPlay");
+    await expect(page.locator("#nameForm")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#start")).toBeHidden();
+    await expect(page.locator("#splash")).toBeVisible();
+    await expect(page.locator("#splashSeed")).toHaveText(chosen);
+    await expect(page).not.toHaveURL(CITY_LINK);
+
+    // Escape is the form's only while it shows: one that went back again would show another splash screen, which asks
+    // for its map before the map Generate then asks for, and whose own Generate asks again
+    await expect.poll(() => previews).toEqual([SEED, Number(chosen), Number(chosen), Number(chosen)]);
+    await page.keyboard.press("Escape");
+    await page.click("#splashGenerate");
+    const generated = Number(await page.locator("#splashSeed").textContent());
+    await expect.poll(() => previews[previews.length - 1]).toBe(generated);
+    expect(previews).toEqual([SEED, Number(chosen), Number(chosen), Number(chosen), generated]);
+
+    // The form shown again after going back starts the city
+    await page.click("#splashPlay");
+    await page.fill("#nameForm", "Returned");
+    await page.click("#playit");
+    await expect(page.locator("#name")).toHaveText("Returned");
+    await expect(page).toHaveURL(CITY_LINK);
+    await expect(page.locator("#splash")).toBeHidden();
+    expect(problems).toEqual([]);
+  });
+
   test("outside debug mode, the start form needs a name", async ({page}) => {
     await server().forward(page, TESTER);
 

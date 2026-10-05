@@ -122,6 +122,41 @@ test("Load refuses a file that reads as a save but won't start, and stays on the
   await expect(page.locator("#splash")).toBeVisible();
 });
 
+test("Load says why it can't read a file, and a file chosen after it starts", async ({page}) => {
+  const player = await Player.onServer(server(), page, TESTER);
+  const problems = collectPageProblems(page);
+
+  await player.startNewGame(SEED, "Saved", "Easy");
+  const saved = await player.save();
+  const file = test.info().outputPath("city.json");
+  writeFileSync(file, JSON.stringify(saved));
+
+  // A browser can't be made to fail a real file's read, so the first file's read fails here as one would
+  await page.addInitScript(() => {
+    const read = Blob.prototype.text;
+    let failed = false;
+    Blob.prototype.text = function() {
+      if (failed || !(this instanceof File)) {
+        return read.call(this);
+      }
+
+      failed = true;
+      return Promise.reject(new DOMException("The file could not be read.", "NotReadableError"));
+    };
+  });
+
+  await player.open();
+  await player.loadSaveFile(file);
+  await expect.poll(() => problems).toEqual(["Alert: Could not read city.json: The file could not be read."]);
+  await expect(page.locator("#splash")).toBeVisible();
+
+  await player.loadSaveFile(file);
+  await player.waitForGame();
+
+  expect(await player.save()).toEqual(saved);
+  expect(problems).toHaveLength(1);
+});
+
 test("Load ignores a save file that finishes reading after the player started a new city", async ({page}) => {
   const player = await Player.onServer(server(), page, TESTER);
   const problems = collectPageProblems(page);

@@ -73,6 +73,7 @@
             <input type="radio" class="difficulty" name="difficulty" id="difficultyMed" value="1"><label for="difficultyMed">Medium</label>
             <input type="radio" class="difficulty" name="difficulty" id="difficultyHard" value="2"><label for="difficultyHard">Hard</label>
             <div id="playSubmitDiv">
+              <button id="playBack" type="button">Back</button>
               <input id="playit" type="submit" value="Play!">
             </div>
           </form>
@@ -95,9 +96,13 @@
           <div id="onlineList" data-panel="online" class="open neutral padding10 controlShadow initialHidden">
             <div class="foldStrip">
               <span class="foldTitle">Online</span>
-              <button class="foldButton" aria-controls="onlineListBody" title="Hide or show who is online">Hide</button>
+              <button class="foldButton" aria-controls="onlinePanelBody" title="Hide or show who is online">Hide</button>
             </div>
-            <div id="onlineListBody" class="foldBody elided" aria-live="polite">Not connected</div>
+            <div id="onlinePanelBody" class="foldBody">
+              <div id="onlineListBody" class="elided" aria-live="polite">Not connected</div>
+              <button id="inviteCopy" class="hidden" type="button" title="Copy a link that brings another player into this city">Copy invite link</button>
+              <input id="inviteLink" class="hidden" type="text" readonly aria-label="Invite link to this city">
+            </div>
           </div>
           <div id="overlayPanel" data-panel="overlay" class="open mintcream padding10 controlShadow initialHidden">
             <div class="foldStrip">
