@@ -19,29 +19,39 @@ namespace Micropolis.Server
     /// <summary>
     /// One city on the server: the simulation, the queue every player's commands apply through, the city's command log,
     /// and the step driver that steps it in real time. It runs its own loop, and hands the state messages each turn
-    /// produced to publish, after the turn's steps. It is not thread-safe: everything it does is its city's work, which
-    /// runs one piece at a time.
+    /// produced to publish, after the turn's steps, as the rules' <see cref="CityStateMessages"/> builds them. It is not
+    /// thread-safe: everything it does is its city's work, which runs one piece at a time.
     /// </summary>
     internal sealed class CityHost
     {
         private readonly Action<IReadOnlyList<StateMessage>> _publish;
         private readonly ITicker _ticker;
         private readonly StepDriver _driver = new StepDriver();
-        private readonly HostedCity _city;
+        private readonly Simulation _city;
+        private readonly CommandRecorder _recorder;
+        private readonly CommandQueue _queue;
+        private readonly CityStateMessages _messages;
+        // The year-end budget reviews that have fallen due since the city was loaded
+        private int _budgetReviewsDue;
         // Whether a turn of the loop is due, rather than the loop waiting to be woken
         private bool _turnDue;
 
         /// <param name="publish">Takes each non-empty list of state messages, in the order the host produced them.</param>
         public CityHost(StartingCity start, ITicker ticker, Action<IReadOnlyList<StateMessage>> publish)
         {
-            _city = new HostedCity(start.Name, start.City, start.LogStart);
+            Name = start.Name;
+            _city = start.City;
+            _recorder = new CommandRecorder(_city, start.LogStart);
+            _queue = new CommandQueue(_city, _recorder);
+            _messages = new CityStateMessages(_city);
+            _city.Events.AddEventListener(RulesEvents.BudgetReviewDue, () => _budgetReviewsDue++);
             _ticker = ticker;
             _publish = publish;
         }
 
-        public string Name => _city.Name;
+        public string Name { get; }
 
-        public uint Seed => _city.Simulation.Seed;
+        public uint Seed => _city.Seed;
 
         /// <summary>
         /// How many steps the city has taken and commands it has applied, which only grows: a save taken at one count
@@ -65,7 +75,7 @@ namespace Micropolis.Server
         /// </summary>
         public IReadOnlyList<StateMessage> FullState()
         {
-            return _city.FullState();
+            return _messages.FullState();
         }
 
         /// <summary>
@@ -73,13 +83,13 @@ namespace Micropolis.Server
         /// </summary>
         public void Send(string player, JsonNode? command)
         {
-            _city.Queue.Send(new ReceivedCommand(player, command));
+            _queue.Send(new ReceivedCommand(player, command));
             Wake();
         }
 
         public QueryAnswer Ask(JsonNode? query)
         {
-            return _city.Simulation.AnswerQuery(query);
+            return _city.AnswerQuery(query);
         }
 
         /// <summary>
@@ -87,12 +97,12 @@ namespace Micropolis.Server
         /// </summary>
         public string Save()
         {
-            return SavedGame.Write(_city.Name, _city.Simulation);
+            return SavedGame.Write(Name, _city);
         }
 
         public SessionLog CommandLog()
         {
-            return new SessionLog(_city.Recorder.Log().ToJson(), _city.Queue.StepIndex);
+            return new SessionLog(_recorder.Log().ToJson(), _queue.StepIndex);
         }
 
         // The debug channel (CityDriver in src/citySource.ts)
@@ -138,16 +148,16 @@ namespace Micropolis.Server
                 // Before the check that the city steps: the commands may be the Pause button's
                 ApplyCommands();
 
-                if (NotSteppingReason() is string notStepping)
+                if (_city.IsPaused)
                 {
-                    throw new StepsFailedException($"The city is not stepping: {notStepping}");
+                    throw new StepsFailedException("The city is not stepping: it is paused");
                 }
 
-                int reviewsBefore = _city.BudgetReviewsDue;
+                int reviewsBefore = _budgetReviewsDue;
 
                 try
                 {
-                    CityTimeModel.TakeSteps(_city.Simulation, count, () =>
+                    CityTimeModel.TakeSteps(_city, count, () =>
                     {
                         Step();
                         taken++;
@@ -155,7 +165,7 @@ namespace Micropolis.Server
                 }
                 finally
                 {
-                    budgetReviewDue = _city.BudgetReviewsDue > reviewsBefore;
+                    budgetReviewDue = _budgetReviewsDue > reviewsBefore;
                 }
 
                 return new AdvanceResult(taken, budgetReviewDue, null);
@@ -172,19 +182,19 @@ namespace Micropolis.Server
 
         public long CityTime()
         {
-            return _city.Simulation.CityTime;
+            return _city.CityTime;
         }
 
         // One turn of the host's loop, which runs for as long as the ticker calls back: the commands sent since the
         // last turn, then the steps due by now, then the state they changed. A held driver leaves the commands and the
-        // steps to the debug channel. While the city isn't stepping, the loop waits rather than turn for nothing: a
+        // steps to the debug channel. While the city is paused, the loop waits rather than turn for nothing: a
         // command or a release wakes it.
         private void Loop()
         {
             _turnDue = false;
             Turn(_ticker.Now());
 
-            if (!_driver.IsHeld && NotSteppingReason() is null)
+            if (!_driver.IsHeld && !_city.IsPaused)
             {
                 Wake();
             }
@@ -209,7 +219,7 @@ namespace Micropolis.Server
                 changed = ApplyCommands() > 0;
             }
 
-            _driver.Run(now, () => NotSteppingReason() is null, () =>
+            _driver.Run(now, () => !_city.IsPaused, () =>
             {
                 Step();
                 changed = true;
@@ -224,22 +234,15 @@ namespace Micropolis.Server
         // The commands sent since they last applied, each counted among the city's changes
         private int ApplyCommands()
         {
-            int applied = _city.Queue.ApplyCommands();
+            int applied = _queue.ApplyCommands();
             ChangeCount += applied;
             return applied;
         }
 
         private void Step()
         {
-            _city.Queue.Step();
+            _queue.Step();
             ChangeCount++;
-        }
-
-        // Why the city isn't stepping, or null when it is. A shared city steps unless it is paused: no one player's view
-        // of it holds it.
-        private string? NotSteppingReason()
-        {
-            return _city.Simulation.IsPaused ? "it is paused" : null;
         }
 
         // The steps a request asks for, which arrive as any JSON number, as a count to take
@@ -255,7 +258,7 @@ namespace Micropolis.Server
 
         private void SendState()
         {
-            IReadOnlyList<StateMessage> messages = _city.NewMessages();
+            IReadOnlyList<StateMessage> messages = _messages.NewMessages();
 
             if (messages.Count > 0)
             {

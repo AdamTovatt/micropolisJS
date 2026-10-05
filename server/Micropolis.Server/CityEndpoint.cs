@@ -25,7 +25,8 @@ namespace Micropolis.Server
     {
         public const string Path = "/ws/city";
 
-        // How long a client has to answer the server's close frame before the connection is dropped
+        // How long a client has, once its connection starts to close, to read what is left and answer the close frame
+        // before the connection is dropped
         internal static readonly TimeSpan CloseHandshakeTimeout = TimeSpan.FromSeconds(5);
 
         // The longest a timer can wait; a token outliving it closes then, and the client reconnects with it
@@ -61,9 +62,6 @@ namespace Micropolis.Server
 
             using WebSocket socket = await context.WebSockets.AcceptWebSocketAsync();
             CityConnection connection = new CityConnection(player.Value);
-            // On the server's clock, as the token's expiry is
-            using CancellationTokenSource closeHandshake = new CancellationTokenSource(Timeout.InfiniteTimeSpan, time);
-            using CancellationTokenSource receiving = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, closeHandshake.Token);
 
             TimeSpan untilExpiry = expiresAt.Value - time.GetUtcNow();
             TimeSpan expiryDelay = untilExpiry < TimeSpan.Zero ? TimeSpan.Zero : untilExpiry > LongestTimerDelay ? LongestTimerDelay : untilExpiry;
@@ -75,37 +73,10 @@ namespace Micropolis.Server
             // The address as the server resolves it from any trusted proxy, as the sign-in rate limit takes it
             CitySession session = new CitySession(connection, registry, limits, context.Connection.RemoteIpAddress?.ToString() ?? "", time, logger);
             presence.Connect(connection);
-            Task sending = SendAsync();
-
-            // Once the close frame is out the client has a short while to answer it, and once sending has failed
-            // there is no connection left to read from
-            async Task SendAsync()
-            {
-                try
-                {
-                    await connection.SendAllAsync(socket, context.RequestAborted);
-                    closeHandshake.CancelAfter(CloseHandshakeTimeout);
-                }
-                catch
-                {
-                    receiving.Cancel();
-                    throw;
-                }
-            }
 
             try
             {
-                await ReceiveUntilClosedAsync(socket, connection, session, receiving.Token);
-                connection.Close(WebSocketCloseStatus.NormalClosure, null);
-                await sending;
-            }
-            catch (OperationCanceledException) when (receiving.IsCancellationRequested)
-            {
-                // The client went away, or never answered the close: there is no one left to tell
-            }
-            catch (WebSocketException)
-            {
-                // The connection broke
+                await ServeAsync(socket, connection, session.ReceiveAsync, time, context.RequestAborted);
             }
             finally
             {
@@ -118,22 +89,73 @@ namespace Micropolis.Server
                     // Only once the connection has left its city, which its city's last player leaving saves to the store
                     // and unloads: the end-to-end runner waits for a player to go offline before joining their city again
                     presence.Disconnect(connection);
-                    connection.Close(WebSocketCloseStatus.NormalClosure, null);
-
-                    if (socket.State != WebSocketState.Closed)
-                    {
-                        socket.Abort();
-                    }
-
-                    await IgnoreFailureAsync(sending);
                 }
             }
         }
 
-        // Each message, one text message of one or more frames, goes to the session in the order it came, until the
+        /// <summary>
+        /// Carries the connection on the socket until it ends: what the client sends goes to receive, in the order it
+        /// came, and what the connection has queued goes out, then its close. Once the connection starts to close, for
+        /// whatever reason, the client has <see cref="CloseHandshakeTimeout"/> on the server's clock to read what is
+        /// left and answer the close, after which a send in flight is cancelled and the socket dropped, so a client
+        /// that stops reading is closed all the same once its connection falls too far behind.
+        /// </summary>
+        internal static async Task ServeAsync(WebSocket socket, CityConnection connection, Func<string, Task> receive, TimeProvider time,
+            CancellationToken aborted)
+        {
+            // On the server's clock, as the token's expiry is
+            using CancellationTokenSource closeHandshake = new CancellationTokenSource(Timeout.InfiniteTimeSpan, time);
+            using CancellationTokenSource connected = CancellationTokenSource.CreateLinkedTokenSource(aborted, closeHandshake.Token);
+            // Disposed before the handshake's source, and waits for the callback if it is running
+            using CancellationTokenRegistration closing = connection.Closing.Register(() => closeHandshake.CancelAfter(CloseHandshakeTimeout));
+            Task sending = SendAsync();
+
+            // Once sending has failed there is no connection left to read from
+            async Task SendAsync()
+            {
+                try
+                {
+                    await connection.SendAllAsync(socket, connected.Token);
+                }
+                catch
+                {
+                    connected.Cancel();
+                    throw;
+                }
+            }
+
+            try
+            {
+                await ReceiveUntilClosedAsync(socket, connection, receive, connected.Token);
+                connection.Close(WebSocketCloseStatus.NormalClosure, null);
+                await sending;
+            }
+            catch (OperationCanceledException) when (connected.IsCancellationRequested)
+            {
+                // The client went away, or never answered the close, or stopped reading: there is no one left to tell
+            }
+            catch (WebSocketException)
+            {
+                // The connection broke
+            }
+            finally
+            {
+                connection.Close(WebSocketCloseStatus.NormalClosure, null);
+
+                if (socket.State != WebSocketState.Closed)
+                {
+                    socket.Abort();
+                }
+
+                await IgnoreFailureAsync(sending);
+            }
+        }
+
+        // Each message, one text message of one or more frames, goes to receive in the order it came, until the
         // connection closes for any reason: what the client sends after that, before it answers the close, is read and
         // dropped. A binary message, one longer than any the protocol has, or one that isn't UTF-8 closes the connection.
-        private static async Task ReceiveUntilClosedAsync(WebSocket socket, CityConnection connection, CitySession session, CancellationToken cancellationToken)
+        private static async Task ReceiveUntilClosedAsync(WebSocket socket, CityConnection connection, Func<string, Task> receive,
+            CancellationToken cancellationToken)
         {
             byte[] buffer = new byte[16 * 1024];
             using MemoryStream message = new MemoryStream();
@@ -181,7 +203,7 @@ namespace Micropolis.Server
                     }
 
                     message.SetLength(0);
-                    await session.ReceiveAsync(text);
+                    await receive(text);
                 }
             }
         }

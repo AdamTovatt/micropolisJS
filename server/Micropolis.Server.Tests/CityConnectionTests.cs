@@ -67,6 +67,32 @@ namespace Micropolis.Server.Tests
         }
 
         [TestMethod]
+        public void Closing_FirstClose_IsCancelled()
+        {
+            CityConnection connection = new CityConnection(new PlayerInfo("a", "Ada"));
+            Assert.IsFalse(connection.Closing.IsCancellationRequested);
+
+            connection.Close(WebSocketCloseStatus.NormalClosure, null);
+
+            Assert.IsTrue(connection.Closing.IsCancellationRequested);
+        }
+
+        [TestMethod]
+        public void Closing_SendOneMoreThanItHolds_IsCancelled()
+        {
+            CityConnection connection = new CityConnection(new PlayerInfo("a", "Ada"));
+
+            for (int i = 0; i < CityConnection.MaximumQueued; i++)
+            {
+                connection.Send($"message {i}");
+            }
+
+            Assert.IsFalse(connection.Closing.IsCancellationRequested);
+            connection.Send("one more than it holds");
+            Assert.IsTrue(connection.Closing.IsCancellationRequested);
+        }
+
+        [TestMethod]
         public void Send_OneMoreThanItHolds_IsClosingFromThen()
         {
             CityConnection connection = new CityConnection(new PlayerInfo("a", "Ada"));

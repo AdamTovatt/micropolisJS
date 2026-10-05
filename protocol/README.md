@@ -29,7 +29,8 @@ show, and the state messages the city sends the client; the server defines those
   faster than one client address may send them; with 1003 for a binary message, 1007 for text that isn't UTF-8 and 1009 for a
   message longer than 4 MiB; with 1011 when the city it is in fails; and with 1001 when the server stops. It pings
   every 15 seconds, which browsers answer on their own, and drops a connection that leaves a ping unanswered for 15
-  seconds.
+  seconds. Once a connection starts to close, the client has 5 seconds to read what the server still sends and answer
+  its close, after which the server drops the connection, so a client that stops reading is dropped without a close.
 
 A display name is 1 to 32 characters, counted as UTF-16 code units as JavaScript's `length` counts them, after
 surrounding whitespace is trimmed. It holds no control characters, no format characters (Unicode category Cf, such as

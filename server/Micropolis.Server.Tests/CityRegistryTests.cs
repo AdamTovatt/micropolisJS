@@ -602,7 +602,8 @@ namespace Micropolis.Server.Tests
             return kept;
         }
 
-        // Fails, saying why, when the work finishes within the time a store write takes to land
+        // Fails, saying why, when the work finishes within the time a store write takes to land. A save kept out of order
+        // lands out of order only once given the time to, which the test's last check of the store can't give it
         private static async Task AssertStillWaitingAsync(Task work, string message)
         {
             await Task.WhenAny(work, Task.Delay(LandingTime));
