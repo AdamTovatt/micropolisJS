@@ -13,6 +13,8 @@
  */
 
 import type { BudgetChoice } from "../src/budgetWindow";
+import { CAR_SHARE_STEPS } from "../src/carShare";
+import type { CarShareStep } from "../src/carShare";
 import type { MessageOf } from "../src/cityState";
 import type { DebugAction } from "../src/debugWindow";
 import { Emitter } from "../src/emitter";
@@ -33,6 +35,9 @@ import { FakeWindow } from "./helpers/fakeWindow";
 // The CSS pixels a tile is drawn on the fake view, which shows the map from its top-left, and the canvas's size
 const TILE = 16;
 const CANVAS_WIDTH = 640;
+// Two steps of the Cars slider
+const TENTH = CAR_SHARE_STEPS[1];
+const HALF = CAR_SHARE_STEPS[3];
 const CANVAS_HEIGHT = 480;
 
 // The map's size in tiles, which is smaller than the canvas, so the view shows a margin past it
@@ -223,14 +228,15 @@ function setUp() {
                   togglePause() { this.pauses++; },
                   toggleMinimap() { this.minimapToggles++; }};
     const autoBulldoze = {on: true, isOn() { return this.on; }, set(on: boolean) { this.on = on; }};
+    const carShare = {kept: HALF, step() { return this.kept; }, set(step: CarShareStep) { this.kept = step; }};
 
     const parts: ControlParts = {input, view, windows, gameWindows, reviewMarker, source, city, players, page,
-                                 autoBulldoze, seed: 1234, saveFileName: "Town.json"};
+                                 autoBulldoze, carShare, seed: 1234, saveFileName: "Town.json"};
     const controls = new GameControls(parts);
     controls.setViewerVisible(true);
 
     return {controls, input, view, windows, budget, gameWindows, reviewMarker, source, city, players, page,
-            autoBulldoze};
+            autoBulldoze, carShare};
 }
 
 // Lets the choices of the windows closed, and the source's promises settled, be acted on
@@ -589,7 +595,7 @@ describe("the game's controls", () => {
 
             input.announce(UiMessages.SETTINGS_WINDOW_REQUESTED);
 
-            expect(gameWindows.settings.opened).toEqual([[SETTINGS, {autoBulldoze: true, seed: 1234}]]);
+            expect(gameWindows.settings.opened).toEqual([[SETTINGS, {autoBulldoze: true, carShare: HALF, seed: 1234}]]);
         });
 
         it("send the settings changed from what the window showed, though the city changed behind it", async () => {
@@ -597,22 +603,35 @@ describe("the game's controls", () => {
             input.announce(UiMessages.SETTINGS_WINDOW_REQUESTED);
             city.records.settings = {...SETTINGS, autoBudget: false};
 
-            gameWindows.settings.choose({autoBudget: true, autoBulldoze: false, speed: SPEEDS.fast, disasters: true});
+            gameWindows.settings.choose({autoBudget: true, autoBulldoze: false, carShare: HALF, speed: SPEEDS.fast,
+                                         disasters: true});
             await settled();
 
             expect(source.sent).toEqual([{type: "setSpeed", speed: SPEEDS.fast}]);
             expect(autoBulldoze.on).toBe(false);
         });
 
+        // The share is the browser's alone: the other players' cars are their own
+        it("keep the share of the trips that become cars chosen, and send nothing of it", async () => {
+            const {input, gameWindows, source, carShare} = setUp();
+            input.announce(UiMessages.SETTINGS_WINDOW_REQUESTED);
+
+            gameWindows.settings.choose({autoBudget: true, autoBulldoze: true, carShare: TENTH, speed: SPEEDS.medium,
+                                         disasters: true});
+            await settled();
+
+            expect([carShare.kept, source.sent]).toEqual([TENTH, []]);
+        });
+
         it("change nothing when the settings window is cancelled", async () => {
-            const {input, gameWindows, source, autoBulldoze} = setUp();
+            const {input, gameWindows, source, autoBulldoze, carShare} = setUp();
             input.announce(UiMessages.SETTINGS_WINDOW_REQUESTED);
 
             gameWindows.settings.close();
             await settled();
 
             expect(source.sent).toEqual([]);
-            expect(autoBulldoze.on).toBe(true);
+            expect([autoBulldoze.on, carShare.kept]).toEqual([true, HALF]);
         });
 
         it.each<[ScreenshotArea, string]>([["visible", "data:visible"], ["all", "data:all"]])(

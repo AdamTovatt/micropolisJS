@@ -14,6 +14,7 @@
 
 import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetWindow } from "./budgetWindow";
+import { CarSharePreference } from "./carShare";
 import { Cars } from "./cars";
 import type { Presence } from "./cityClient";
 import { linkToCity } from "./cityLink";
@@ -101,7 +102,7 @@ export class Game {
   private readonly newsHold = new NewsHold();
   private readonly lastEvent = new LastEvent();
   // The cars driving the trips the city sends, and how many the map's view was last painted with
-  readonly cars = new Cars();
+  readonly cars: Cars;
   private mapCars = 0;
 
   // Debug mode's frame counter
@@ -156,6 +157,8 @@ export class Game {
     this.source = source;
     this.state = state;
     const autoBulldoze = new AutoBulldozePreference(pageStore());
+    const carShare = new CarSharePreference(pageStore());
+    this.cars = new Cars(() => carShare.step());
 
     // A city on the server goes in the page's address, so the address invites another player in, and a reload rejoins
     linkToCity(started, window);
@@ -233,6 +236,7 @@ export class Game {
         toggleMinimap: () => panels.toggle("map"),
       },
       autoBulldoze,
+      carShare,
       seed: started.seed,
       saveFileName: saveFileName(started.name),
     });
@@ -302,6 +306,8 @@ export class Game {
     state.on("budget", (budget) => this.infoBar.showBudget(budget));
     state.on("settings", (settings) => this.speedControl.showSpeed(settings.speed));
     state.on("sprites", ({sprites}) => this.monsterTV.spritesMoved(sprites));
+    // The whole map comes as the page joins the city, at its start or again after a reconnect
+    state.on("map", () => this.cars.joined());
     state.on("trips", ({routes}) => this.cars.add(routes));
     state.on("news", (news) => this.showNews(news));
     state.on("commandResult", ({result}) => {

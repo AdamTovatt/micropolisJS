@@ -1337,6 +1337,25 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   margin-right: 0;
 }
 
+/* A setting whose choices are a slider's steps, the name of the step it is at beside it */
+.hudSlider {
+  display: flex;
+  flex: 1 1 160px;
+  align-items: center;
+  gap: 10px;
+  max-width: 240px;
+}
+
+.hudSlider .hudRange {
+  margin: 0;
+}
+
+.hudSlider output {
+  min-width: 3em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* The form controls: a text field or a select, a slider, and a radio button or a check box */
 .hudField {
   box-sizing: border-box;
