@@ -1,4 +1,5 @@
-/* micropolisJS. Adapted by Graeme McCutcheon from Micropolis.
+/* micropolisJS, continued by Adam Tovatt from Graeme McCutcheon's micropolisJS.
+ * Copyright (C) 2026 Adam Tovatt
  *
  * This code is released under the GNU GPL v3, with some additional terms.
  * Please see the files LICENSE and COPYING for details. Alternatively,
