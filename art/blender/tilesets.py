@@ -20,7 +20,6 @@
 # neighbour (y - 1) is the one past the top edge here.
 
 import math
-import random
 
 import bmesh
 import bpy
@@ -176,7 +175,7 @@ ROAD = 0.2       # half the asphalt's width: two lanes, each wide enough for a c
 KERB = 0.018     # the kerbstones along the asphalt's edges
 WALK = 0.1       # the pavement beyond them; the verge beyond that is land
 FILLET = 0.15    # the radius of the asphalt's corner where two arms of a junction meet
-LANE = 0.1       # a lane's middle, from the road's
+LANE = 0.1       # a lane's middle, from the road's, where the game drives its cars (LANE_OFFSET in src/cars.ts)
 LINE = 0.016     # the width of a painted line
 PERIOD, DASH = 0.125, 0.07   # a centre line's dashes, eight to a tile, centred in each eighth
 DECK_Z = 0.016   # the top of a bridge's deck: just above the ground, so it shades the water
@@ -348,28 +347,6 @@ def _mid(s):
     return (0.5 + dx / 2, 0.5 + dy / 2)
 
 
-def lanes(sides):
-    # Each lane of a road piece that traffic moves along, as a line from the edge it enters by
-    # to the edge it leaves by, on the right of the road: both ways along a straight or round a
-    # bend, and along the through road of a T or, at a crossing, the east-west one.
-    if is_bend(sides):
-        pairs = [tuple(sides), tuple(reversed(sides))]
-    else:
-        through = [s for s in ('E', 'N') if s in sides and _opposite(s) in sides][0]
-        pairs = [(through, _opposite(through)), (_opposite(through), through)]
-    paths = []
-    for a, b in pairs:
-        tx, ty = -SIDES[a][0], -SIDES[a][1]
-        entry = (_mid(a)[0] + ty * LANE, _mid(a)[1] - tx * LANE)
-        if is_bend(sides):
-            (cx, cy), _, _ = _bend_angles(sides)
-            arc = bend_arc(sides, math.dist(entry, (cx, cy)))
-            paths.append(arc if a in 'NS' else list(reversed(arc)))
-        else:
-            paths.append([entry, (entry[0] + tx, entry[1] + ty)])
-    return paths
-
-
 # a power line's wires: three to a run, the north-south runs a little higher than the east-west
 # ones so that where they meet at a pole they pass rather than touch
 WIRE_Z = {'NS': 0.55, 'EW': 0.51}
@@ -503,49 +480,4 @@ def track(sides, base=0.0, past=None):
         if past:
             for p in parts:
                 t.spans_edge(p)
-
-
-CARS = [f'car-{i:02d}' for i in range(1, 22) if f'car-{i:02d}' not in t.VANS]
-TRAFFIC = {'light': (0.5, 1), 'heavy': (0.25, 2)}  # the cars' spacing along a lane, and the kinds of car in turn
-
-
-def _heading(direction):
-    return math.degrees(math.atan2(-direction[0], direction[1]))
-
-
-def _car_fits(name, point, direction, base):
-    h, w, d = t.car_size(name)
-    a = math.radians(_heading(direction))
-    lift = t.SHEAR * (base + h)
-    for u, v in [(-1, -1), (1, -1), (1, 1), (-1, 1)]:
-        x = point[0] + u * w / 2 * math.cos(a) - v * d / 2 * math.sin(a) + lift
-        y = point[1] + u * w / 2 * math.sin(a) + v * d / 2 * math.cos(a) + lift
-        if not (0.004 <= x <= 0.996 and 0.004 <= y <= 0.996):
-            return False
-    return True
-
-
-def traffic(paths, density, frame, seed, base=0.0):
-    # The cars of one of a road's four traffic frames, on ground at height base. Each lane is a
-    # stream of cars evenly spaced, the kinds of car taking turns, which moves on by a quarter of
-    # as many spacings as there are kinds each frame: after the fourth frame every car stands
-    # where one of its kind stood in the first, so the game's cycle of the frames runs on without
-    # a jump back. A car shows wherever it is wholly inside the tile, so cars come in at one end
-    # and leave at the other. The cars and the stream's phase come from seed alone, so all four
-    # frames show the same stream.
-    rng = random.Random(seed)
-    spacing, kinds = TRAFFIC[density]
-    step = spacing * kinds / 4
-    for path in paths:
-        names = rng.sample(CARS, kinds)
-        phase = rng.uniform(0, spacing * kinds)
-        total = length(path)
-        for i in range(-2 * kinds, int(total / spacing) + 2):
-            s = phase + i * spacing + frame * step
-            if not 0 <= s <= total:
-                continue
-            name = names[i % kinds]
-            point, direction = along(path, s)
-            if _car_fits(name, point, direction, base):
-                t.car(name, point[0], point[1], _heading(direction), base=base)
 

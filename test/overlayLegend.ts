@@ -146,7 +146,7 @@ describe("the overlay's legend", () => {
 
     beforeEach(() => {
         tileValue = DIRT;
-        const art = new RenderArt(parseRenderManifest({version: 1, atlases: {}, tiles: {}, sprites: {}}));
+        const art = new RenderArt(parseRenderManifest({version: 1, atlases: {}, tiles: {}, sprites: {}, cars: {}}));
         canvas = new GameCanvas(CONTAINER, map, {art, atlases: new Map()});
         renderer = mockRenderers[mockRenderers.length - 1];
         source = new FakeOverlaySource();

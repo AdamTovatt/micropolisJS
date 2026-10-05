@@ -14,7 +14,7 @@ The generated images come from Google's Gemini image model or from ChatGPT, and 
 - `blender/tilesets.py`: what the single-tile sets share: the land and water, and the shores, roads, rails and power lines that must meet where two tiles touch.
 - `blender/tiles/`: one script per set of single tiles, such as every road piece, rendering each tile id the set covers.
 - `blender/stadium.py`: the stands, pitch and game that the empty and the full stadium share.
-- `blender/vehicles/`: one script per vehicle sprite, rendering each of its frames.
+- `blender/vehicles/`: one script per vehicle, each sprite and the car, rendering each of its frames.
 - `blender/out/`: rendered zones and tiles, one directory of layers each. Ignored by git: a render is rebuilt from its script.
 - `painted/`: the renders repainted as oil paintings, in the same layers, described in `painted/README.md`.
 - `tools/`: generating an image from a prompt (`generate.py`, with Google's Gemini image model), cropping a reference zone (`reference.py`), comparing a rendered zone with it (`compare.py`), cutting sheets into cutouts (`cutout.py`), previewing rendered zones side by side (`preview.py`), repainting renders (`paint.py`, as the art-painting skill describes), and building the game's atlases from them (`atlas.py`). `designs.py` is what they share: which design fills which tile ids and sprite frames, and the one way to load an asset's layers. `tools/tests/` checks the atlas build's committed output and the painted single tiles against the layers the paint build's join works from (see Building the atlases).
@@ -58,25 +58,26 @@ blender --background --python art/blender/tiles/roads.py -- art/blender/out/road
 - `woods.py`: woods and their edges.
 - `parks.py`: what the park tool lays: the gardens and the fountain.
 - `rubble.py`: rubble, and the bulldozer's small explosion.
-- `roads.py`: road pieces, bridges, roads under power lines and the traffic on them, and the open drawbridges.
+- `roads.py`: road pieces, bridges, roads under power lines, and the open drawbridges. The rules' traffic tiles have no art: the game draws them as the plain road they run on, and its traffic as cars.
 - `power.py`: power lines, and the unpowered zone's warning.
 - `rail.py`: rail, its bridges and crossings.
 - `houses.py`: the single-tile houses a residential zone grows.
 
-Which tile ids each set renders, in named groups such as a road piece's traffic frames, is `SINGLE_TILES` in `tools/designs.py`.
+Which tile ids each set renders, in named groups such as an open drawbridge's frames, is `SINGLE_TILES` in `tools/designs.py`.
 
 A set of edge tiles, such as the shores or the road pieces, is one scene with a variant for each pattern of neighbours the game gives it, in which everything that reaches the tile's edge meets it at the same place, width and height, and every ground texture and stain repeats a whole number of times across the tile, so any two tiles side by side join without a seam. Animated tiles are one tile id per frame.
 
 ## Rendering a vehicle
 
-A script in `blender/vehicles/` renders a sprite's frames, numbered as the game numbers them (the `*Sprite.cs` files of `server/Micropolis.Rules`), each into `art/blender/out/<vehicle>/<frame>/`, two digits; frame numbers after the directory render only those. A frame is three tiles square, as the original's 48 px cell, with the vehicle standing on its middle, and renders as two layers: `objects.png`, the vehicle over transparency, and `shadow.png`, its shadow on flat ground in the same frame. A vehicle that flies is built above the middle by its height, so the shear draws it up and to the right of where it is and its shadow falls away from it, and it reads as flying. The game draws the train and the helicopter into a square of two tiles, as the original's 32 px sprites, so the atlas build crops their frames to the middle two tiles, and everything of theirs, shadow included, stays inside it.
+A script in `blender/vehicles/` renders a vehicle's frames, each into `art/blender/out/<vehicle>/<frame>/`, two digits; frame numbers after the directory render only those. A sprite's frames are numbered as the game numbers them (the `*Sprite.cs` files of `server/Micropolis.Rules`), and the car's, which is no sprite, colour × 4 + way. A sprite's frame is three tiles square, as the original's 48 px cell, with the vehicle standing on its middle, and renders as two layers: `objects.png`, the vehicle over transparency, and `shadow.png`, its shadow on flat ground in the same frame. A vehicle that flies is built above the middle by its height, so the shear draws it up and to the right of where it is and its shadow falls away from it, and it reads as flying. The game draws the train and the helicopter into a square of two tiles, as the original's 32 px sprites, so the atlas build crops their frames to the middle two tiles, and everything of theirs, shadow included, stays inside it.
 
 - `train.py`: the railcar.
 - `helicopter.py`: the traffic helicopter.
 - `airplane.py`: the airliner.
 - `ship.py`: the cargo ship.
+- `car.py`: the cars the game drives along the city's trips: a car of each colour of `CAR_COLOURS`, from the cutouts the zones park, facing north, east, south and west, standing in the middle of a frame of one tile, which the game draws whole, so its shadow stays inside it.
 
-Each vehicle's sprite type, the square the game draws it into and its number of frames are `SPRITES` in `tools/designs.py`.
+Each vehicle's sprite type, the square the game draws it into and its number of frames are `SPRITES` in `tools/designs.py`, and the car's colours and frames `CAR_COLOURS`, `CAR_WAYS` and `CAR` beside it, which the atlas build writes into the manifest's `cars` (`docs/render-assets.md`).
 
 ## Building the atlases
 
@@ -86,7 +87,7 @@ The game draws the map from the atlases and manifest in `images/render/`, in the
 python art/tools/atlas.py --source art/painted/out
 ```
 
-It cuts every asset's ground and objects into a rectangle per tile id and keeps its shadow whole on the zone's centre, gives each tile drawn over shadows its whole tile, opaque, as objects too, packs them with the gutters the format asks for, and writes the manifest. It also writes `images/tiles.png` and `images/sprites.png`, for what the game still draws from them, the splash screen's map and the monster TV: the original sheets in `sheets/`, with each tile id and sprite frame it has art for scaled down to 16 px into its cell, so a cell whose art is removed goes back to the original. Last it writes the page background, `images/dirtbg.png`, from the bare land tile. It reads nothing under `images/`, and `--out <directory>` writes all of it into that directory instead. So a change to the game's own 16 px art, such as one picked up from the upstream repository, goes into `sheets/tiles-original.png` or `sheets/sprites-original.png`, and then the build runs again: the next build writes over a change made in `images/`. Which design fills which tile ids, which frames each animated tile cycles through, and which tiles are drawn over shadows, is in `tools/designs.py`: `SINGLE_TILES`, `ZONES`, `FRAMES`, `SPRITES` and `OVER_SHADOWS`.
+It cuts every asset's ground and objects into a rectangle per tile id and keeps its shadow whole on the zone's centre, gives each tile drawn over shadows its whole tile, opaque, as objects too, packs them with the gutters the format asks for, and writes the manifest. It also writes `images/tiles.png` and `images/sprites.png`, for what the game still draws from them, the splash screen's map and the monster TV: the original sheets in `sheets/`, with each tile id and sprite frame it has art for scaled down to 16 px into its cell, so a cell whose art is removed goes back to the original. Last it writes the page background, `images/dirtbg.png`, from the bare land tile. It reads nothing under `images/`, and `--out <directory>` writes all of it into that directory instead. So a change to the game's own 16 px art, such as one picked up from the upstream repository, goes into `sheets/tiles-original.png` or `sheets/sprites-original.png`, and then the build runs again: the next build writes over a change made in `images/`. Which design fills which tile ids, which frames each animated tile cycles through, which frame is which car, and which tiles are drawn over shadows, is in `tools/designs.py`: `SINGLE_TILES`, `ZONES`, `FRAMES`, `SPRITES`, `CAR` and `OVER_SHADOWS`. The cars are packed into the sprites' atlases, each frame whole, and the manifest names them under `cars`, by colour and way.
 
 It runs by hand, and its output is committed: the renders it would need are not, and CI has no Blender. `pytest art/tools/tests` builds again from `painted/out` into a temporary directory and fails unless the committed manifest is the build's exactly and every committed image is the build's pixel for pixel, naming the tile ids or sprite frames of a sheet that differ. So a painted layer committed without the build it changes fails, as does an image edited by hand. The tests also check the tables in `designs.py` against `painted/out`, a design for every asset they name and every painted asset named, each with its three layers but a vehicle's frame, which has no ground, and no tile id twice; and the build's atlases against the format's size, gutters and shadow sizes.
 

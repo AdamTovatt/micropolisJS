@@ -31,7 +31,6 @@ import argparse
 import json
 import math
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -43,7 +42,7 @@ from scipy import ndimage
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from designs import (ART, BUILT, BUILT_LAYERS, DIRT, HBRIDGE, HPOWER, HRAIL, LHPOWER, LHRAIL,  # noqa: E402
-                     LVPOWER, LVRAIL, PAINTED, RENDERS, RIVER, ROADS, ROADS2, SINGLE_TILES, SPRITES, VBRIDGE,
+                     LVPOWER, LVRAIL, PAINTED, RENDERS, RIVER, ROADS, ROADS2, SINGLE_TILES, VBRIDGE, VEHICLES,
                      VPOWER, VRAIL, WOODS, built_layers, built_tiles, is_joined, load, single_tile,
                      single_tile_assets, single_tile_ids, sprite_frame, tile_asset, zone_frame, zone_frames)
 from generate import MODEL  # noqa: E402
@@ -57,6 +56,7 @@ BORDER = 0.5                   # tiles round every cell, so no footprint meets t
 GRASS = (86, 118, 52)          # the lawn outside an asset's footprint, as preview.py draws it
 SHADOW_FLOOR = 48              # a shadow alpha below this everywhere is the sky's faint shading, not worth painting
 WATER = (59, 112, 147)         # the open water a ship's frames are painted on, as water.py renders it
+ASPHALT = (86, 80, 74)         # the road a car's frames are painted on, as roads.py renders a plain road's lanes
 THIN = 2                       # pixels: a part of an object or shadow narrower than twice this, such as a wire,
                                # a pole or a crossing's gate, keeps the render's pixels (thick())
 
@@ -64,8 +64,7 @@ THIN = 2                       # pixels: a part of an object or shadow narrower 
 def _tile_sets():
     # The single tiles, four to a canvas, so each is painted at about the scale of a zone and the
     # members of a canvas come out alike. An animated tile's frames share a canvas, so they are
-    # one painting and don't flicker: a road piece's four frames of light traffic, then of heavy
-    # (art/blender/tiles/roads.py), the explosion's eight in two.
+    # one painting and don't flicker: the explosion's eight in two.
     def tiles(name, ids):
         return [tile_asset(name, t) for t in ids]
 
@@ -84,16 +83,12 @@ def _tile_sets():
     sets.update(fours('rubble', rubble['rubble']))
     sets.update(fours('rubble', rubble['explosion'], 'rubble-explosion'))
     sets.update(fours('roads', [*roads['pieces'], *roads['second_road_under_power']]))
-    # a piece's traffic frames: each frame's ids run in the order of the pieces
-    pieces = roads['pieces']
-    for k, piece in enumerate(pieces):
-        sets[f'roads-{piece}-light'] = tiles('roads', roads['light_traffic'][k::len(pieces)])
-        sets[f'roads-{piece}-heavy'] = tiles('roads', roads['heavy_traffic'][k::len(pieces)])
     sets['roads-drawbridge-1'] = tiles('roads', roads['drawbridge_h'])
     sets['roads-drawbridge-2'] = tiles('roads', roads['drawbridge_v'])
     sets['roads-open-water'] = tiles('roads', roads['open_water'])
-    # every frame of a vehicle on one canvas, so its turns and climbs are one painting of one vehicle
-    for vehicle, sprite in SPRITES.items():
+    # every frame of a vehicle on one canvas, so its turns and climbs are one painting of one vehicle,
+    # and the cars' colours one painting of one kind of car
+    for vehicle, sprite in VEHICLES.items():
         sets[vehicle] = [sprite_frame(vehicle, k) for k in range(sprite['frames'])]
     sets.update(fours('power', single_tile_ids('power')))
     sets.update(fours('rail', single_tile_ids('rail')))
@@ -104,16 +99,16 @@ SETS = _tile_sets()
 
 
 def ground_painted(job):
-    # a traffic frame's ground is wholly its road piece's, and an open drawbridge's middle is open
-    # water, which join() gives them, and a vehicle has no ground, so they are not painted
-    return not re.fullmatch(r'roads-(\d+-(light|heavy)|open-water)|train|helicopter|airplane|ship', job)
+    # an open drawbridge's middle is open water, which join() gives it, and a vehicle has no
+    # ground, so they are not painted
+    return job not in VEHICLES and job != 'roads-open-water'
 
 
 # Tiles whose painting of a layer every other tile takes wherever its render of that layer is the
 # same as theirs, in this order, so the surfaces the tiles share come from one painting and two
 # tiles side by side join as their renders do (join()). Each is wrapped first along the axes its
 # surface runs on, so it joins itself: land and water every way, a straight road, rail, wire or
-# bridge along its length. Then every road piece gives its traffic frames its ground.
+# bridge along its length. Then every road piece gives its ground wherever another tile's render of it is its own.
 DONORS = ([(single_tile(t), axes, layers) for t, axes, layers in (
     (DIRT, 'xy', ('ground',)), (RIVER, 'xy', ('ground',)), (WOODS, 'xy', ('ground',)),
     (ROADS, 'x', ('ground',)), (ROADS2, 'y', ('ground',)),
@@ -135,7 +130,7 @@ SUBJECTS = [
     ('woods', 'pieces of woodland and the grassy land at its edges'),
     ('parks', 'small square parks on mown lawns'),
     ('rubble', 'rubble where buildings were knocked down'),
-    ('roads', 'pieces of road, with their junctions, bridges and traffic, on grassy land'),
+    ('roads', 'pieces of road, with their junctions and bridges, on grassy land'),
     ('power', 'power lines on wooden poles over grassy land and water'),
     ('rail', 'pieces of railway track, with its junctions, bridges and crossings, on grassy land'),
     ('train', 'one light grey railcar with a pale grey roof, seen from directly above, in each of the directions '
@@ -146,6 +141,8 @@ SUBJECTS = [
                  'each of the directions it heads, with its shadow on the plain grass below'),
     ('ship', 'one cargo ship with a brown hull and blue containers, at sea, seen from directly above, in each of '
              'the directions it heads, on plain open water'),
+    ('car', 'small family cars in six colours, bright red, bright blue, yellow, white, dark green and orange, each '
+            'seen from directly above facing each of the four ways it drives, on plain grey asphalt'),
     ('residential', 'a residential city zone'),
     ('commercial', 'a commercial city zone'),
     ('industrial', 'an industrial city zone'),
@@ -214,12 +211,18 @@ def prompts(job, paving, style_from_full=False):
     return {'full': full, 'ground': ground, 'shadow': SHADOW}
 
 
+def ground_under(job):
+    # the plain ground a job's canvas lies on outside its footprints: the water a ship sails,
+    # the asphalt a car drives, and grass under every other vehicle and every tile
+    return {'ship': WATER, 'car': ASPHALT}.get(job, GRASS)
+
+
 def render(asset):
     # an asset as Blender rendered it. A vehicle's frame has no ground: it is given the plain
     # ground it travels over, which is painted round it but never written
     a = load(RENDERS, asset)
     if a.vehicle:
-        a.layers['ground'] = Image.new('RGBA', (a.size, a.size), (*(WATER if asset.startswith('ship') else GRASS), 255))
+        a.layers['ground'] = Image.new('RGBA', (a.size, a.size), (*ground_under(asset.split('/')[0]), 255))
     return a
 
 
@@ -251,8 +254,11 @@ def prep(job):
     cell = max(cell_tiles(r) for _, r in renders) * px + 2 * border
     cols = math.ceil(math.sqrt(len(renders)))
     side = cols * cell
-    full = Image.new('RGBA', (side, side), (*GRASS, 255))
-    ground = Image.new('RGBA', (side, side), (*GRASS, 255))
+    vehicle = all(r.vehicle for _, r in renders)
+    # outside every footprint, and in a cell no asset fills
+    outside = (*ground_under(job), 255)
+    full = Image.new('RGBA', (side, side), outside)
+    ground = Image.new('RGBA', (side, side), outside)
     shadow = Image.new('L', (side, side), 0)
     objects = Image.new('RGBA', (side, side), (0, 0, 0, 0))
     layout = []
@@ -274,7 +280,6 @@ def prep(job):
     full.alpha_composite(dark)
     full.alpha_composite(objects)
     pack = None
-    vehicle = all(r.vehicle for _, r in renders)
     if vehicle:
         # A vehicle stands in the middle of its frame, so its frames go to the model cut down to
         # the box that holds whatever is painted in any of them, and the model paints it larger:

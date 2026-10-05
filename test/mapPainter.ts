@@ -33,6 +33,7 @@ const art = new RenderArt(parseRenderManifest({
         },
     },
     sprites: {},
+    cars: {},
 }));
 
 const MAP_WIDTH = 40;

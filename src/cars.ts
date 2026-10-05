@@ -26,11 +26,12 @@ export const CAR_TILES_PER_SECOND = 4;
 // The most cars driving at once. A car that arrives while this many drive is dropped, so no car is cut short.
 export const MAX_CARS = 60;
 
-// How far right of the middle of the road a car drives, in tiles
-export const LANE_OFFSET = 0.2;
+// How far right of the middle of the road a car drives, in tiles: the middle of the road's right-hand lane, as the art
+// paints it (LANE in art/blender/tilesets.py)
+export const LANE_OFFSET = 0.1;
 
-// The side of the square a car is drawn in, in map pixels, at 16 a tile
-export const CAR_PIXELS = 7;
+// The side of the square a car is drawn in, in map pixels, at 16 a tile: a tile, as its art's frame is
+export const CAR_PIXELS = 16;
 
 // The way a car faces: the way it drives
 export type CarDirection = "north" | "east" | "south" | "west";
@@ -52,10 +53,26 @@ export interface PaintableCar {
   readonly colour: number;
 }
 
-// The colours cars come in, each red, green and blue from 0 to 1: a car's colour is its number in this list
-export const CAR_COLOURS: readonly (readonly [number, number, number])[] = [
-  [0.85, 0.2, 0.15], [0.15, 0.4, 0.85], [0.95, 0.85, 0.2], [0.95, 0.95, 0.95],
+// A colour cars come in: its name, by which the render manifest names its art (docs/render-assets.md), and the flat
+// colour, red, green and blue from 0 to 1, a car is drawn in where the manifest has no art for it
+export interface CarColour {
+  readonly name: string;
+  readonly flat: readonly [number, number, number];
+}
+
+// The colours cars come in, a car's colour its number in this list: the render manifest's art for a car is found by
+// its colour's name, which the art build writes (CAR_COLOURS in art/tools/designs.py)
+export const CAR_COLOURS: readonly CarColour[] = [
+  {name: "red", flat: [0.85, 0.2, 0.15]},
+  {name: "blue", flat: [0.15, 0.4, 0.85]},
+  {name: "yellow", flat: [0.95, 0.8, 0.2]},
+  {name: "white", flat: [0.95, 0.95, 0.95]},
+  {name: "green", flat: [0.15, 0.4, 0.25]},
+  {name: "orange", flat: [0.95, 0.5, 0.15]},
 ];
+
+// Every way a car faces
+export const CAR_DIRECTIONS: readonly CarDirection[] = ["north", "east", "south", "west"];
 
 // The way from one tile of a route to the next, which is beside it
 function directionOf(from: TilePosition, to: TilePosition): CarDirection {

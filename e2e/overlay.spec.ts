@@ -58,7 +58,8 @@ const server = serverForTests("manual");
 test("the overlay tints each tile by its value over the map, and goes again with the overlay", async ({page}) => {
   const problems = collectPageProblems(page);
   const ground = {atlas: "white", x: 0, y: 0, width: 16, height: 16};
-  await serveTestArt(page, {version: 1, atlases: {white: "white.png"}, tiles: everyTile({ground}), sprites: {}},
+  await serveTestArt(page, {version: 1, atlases: {white: "white.png"}, tiles: everyTile({ground}), sprites: {},
+                            cars: {}},
                      {"white.png": solidAtlas([255, 255, 255, 255])});
   const player = await startGame(server(), page, SEED, "Overlay");
 

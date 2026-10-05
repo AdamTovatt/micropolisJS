@@ -189,19 +189,27 @@ export function buildWholeMapFrame(frame: MapFrame, art: RenderArt,
   buildMapFrame(frame, art, wholeMapTiles(map), tilePixels, () => null, [], []);
 }
 
-// The share of a car's square its rectangle fills across the way it faces; along it, it fills the square
-export const CAR_BREADTH = 0.6;
+// The share of a car's square a car with no art fills along the way it faces, and across it, centred: the size of the
+// painted car in its frame
+export const CAR_LENGTH = 17 / 64;
+export const CAR_BREADTH = 7 / 64;
 
-// Adds the quad that draws a car whose square lands at (x, y), side device pixels a side: a rectangle in its flat
-// colour, long the way it faces
-function addCar(list: QuadList, car: PaintableCar, x: number, y: number, side: number): void {
+// Adds the quad that draws a car whose square lands at (x, y), side device pixels a side: its art, filling the square,
+// or where the art has none, a rectangle in its flat colour, long the way it faces
+function addCar(list: QuadList, art: RenderArt, car: PaintableCar, x: number, y: number, side: number): void {
+  const rect = art.car(car.colour, car.direction);
+  if (rect !== null) {
+    list.add(rect.atlas, x, y, side, side, rect);
+    return;
+  }
+
+  const along = side * CAR_LENGTH;
   const across = side * CAR_BREADTH;
-  const inset = (side - across) / 2;
-  const [r, g, b] = CAR_COLOURS[car.colour];
+  const [r, g, b] = CAR_COLOURS[car.colour].flat;
   if (car.direction === "east" || car.direction === "west") {
-    list.add(WHITE, x, y + inset, side, across, WHITE_PIXEL, r, g, b, 1);
+    list.add(WHITE, x + (side - along) / 2, y + (side - across) / 2, along, across, WHITE_PIXEL, r, g, b, 1);
   } else {
-    list.add(WHITE, x + inset, y, across, side, WHITE_PIXEL, r, g, b, 1);
+    list.add(WHITE, x + (side - across) / 2, y + (side - along) / 2, across, along, WHITE_PIXEL, r, g, b, 1);
   }
 }
 
@@ -278,7 +286,7 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
     const y = (car.y - firstY) * scale - offset.y;
     const side = car.width * scale;
     if (reaches(x, y, side, side)) {
-      addCar(frame.sprites, car, x, y, side);
+      addCar(frame.sprites, art, car, x, y, side);
     }
   }
 

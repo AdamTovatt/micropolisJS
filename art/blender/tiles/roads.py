@@ -13,12 +13,8 @@
 
 # Roads: every piece the road tool lays (66 to 76, by which neighbours are roads, RoadTable in
 # the C# rules' ConnectingTool), the bridges over water (64, 65), the roads under a power line (77, 78, 239),
-# the traffic on each of those but 239, and the drawbridges open for a ship.
-#
-# Traffic is four frames of each of those fifteen tiles, which the game cycles through
-# (src/animationManager.ts): light traffic at 80 to 94, then each frame 16 on, and heavy traffic
-# at 144 to 158 the same way. The game shows a tile's frames in the order +0, +48, +32, +16, so
-# that is the order the cars move in.
+# and the drawbridges open for a ship. The rules' traffic tiles have no art: the game draws them as the plain road they
+# run on, and its traffic as cars (src/trafficTiles.ts, art/blender/vehicles/car.py).
 #
 # A drawbridge opens round a ship in the channel (OpenBridge in the C# rules' Road): the two tiles each
 # side of the middle become water, and the tile beyond each end swings its span round, so that it
@@ -40,8 +36,6 @@ BRIDGES = {64: 'EW', 65: 'NS'}
 # line, which no tool lays (tileValues.ts calls it bogus); it is drawn as 78, so that a map that
 # holds one still shows a road there
 UNDER_POWER = {77: ('EW', 'NS'), 78: ('NS', 'EW'), 239: ('NS', 'EW')}
-LIGHT, HEAVY = 80 - 64, 144 - 64           # from a road tile to its first frame of traffic
-FRAMES = (0, 48, 32, 16)                   # each frame's tile, from the first, in the order shown
 OPEN_WATER = [79, 95, 111, 127, 143, 159, 175, 191, 207]  # an open drawbridge's middle, and its frames
 
 DECK_HALF = ts.ROAD + 0.06   # a bridge deck's half-width: the road and a narrow walkway each side
@@ -81,24 +75,20 @@ def crossing_extras():
             t.box(cx - 0.008, cy - 0.008, 0.125, cx + 0.008, cy + 0.008, 0.129, lamp, name='lamp')
 
 
-def piece(sides, density=None, frame=0, seed=0):
+def piece(sides):
     def build():
         ts.land()
         ts.road(sides)
         if len(sides) == 4:
             crossing_extras()
-        if density:
-            ts.traffic(ts.lanes(sides), density, frame, seed)
     return build
 
 
-def under_power(road_sides, line_sides, density=None, frame=0, seed=0):
+def under_power(road_sides, line_sides):
     def build():
         ts.land()
         ts.road(road_sides)
         ts.power_line(line_sides, pole=False)
-        if density:
-            ts.traffic(ts.lanes(road_sides), density, frame, seed)
     return build
 
 
@@ -136,7 +126,7 @@ def pier(x, y, m):
     t.cylinder(x, y, ts.WATER_Z - 0.05, ts.DECK_Z - 0.02, 0.035, m['pier'], 16)
 
 
-def bridge(sides, density=None, frame=0, seed=0):
+def bridge(sides):
     def build():
         m, r = materials(), ts.road_materials()
         ts.water()
@@ -150,8 +140,6 @@ def bridge(sides, density=None, frame=0, seed=0):
             for x in (0.5 - DECK_HALF + 0.05, 0.5 + DECK_HALF - 0.05):
                 pier(x, 0.5, m)
             ts.dashed([(0.5, 0), (0.5, 1)], r['paint'], ts.DECK_Z + 0.003)
-        if density:
-            ts.traffic(ts.lanes(sides), density, frame, seed, base=ts.DECK_Z + 0.002)
     return build
 
 
@@ -197,17 +185,6 @@ for tile, sides in BRIDGES.items():
     builders[tile] = bridge(sides)
 for tile, (road_sides, line_sides) in UNDER_POWER.items():
     builders[tile] = under_power(road_sides, line_sides)
-for base in range(64, 79):
-    for density, first in (('light', LIGHT), ('heavy', HEAVY)):
-        seed = base * 10 + (density == 'heavy')
-        for frame, offset in enumerate(FRAMES):
-            tile = base + first + offset
-            if base in PIECES:
-                builders[tile] = piece(PIECES[base], density, frame, seed)
-            elif base in BRIDGES:
-                builders[tile] = bridge(BRIDGES[base], density, frame, seed)
-            else:
-                builders[tile] = under_power(*UNDER_POWER[base], density, frame, seed)
 for tile in OPEN_WATER:
     builders[tile] = open_water
 # east-west bridges open north: the west pivot (828) and the tile north of it (829), the east

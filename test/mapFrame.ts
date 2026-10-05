@@ -14,7 +14,7 @@
 
 import { CAR_COLOURS } from "../src/cars";
 import type { PaintableCar } from "../src/cars";
-import { CAR_BREADTH, FrameTiles, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles } from "../src/mapFrame";
+import { CAR_BREADTH, CAR_LENGTH, FrameTiles, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles } from "../src/mapFrame";
 import type { Tint } from "../src/overlayRenderer";
 import type { SpriteView } from "../src/protocol";
 import type { Rect } from "../src/rect";
@@ -47,6 +47,7 @@ const art = new RenderArt(parseRenderManifest({
         },
     },
     sprites: {},
+    cars: {red: {north: {atlas: "objects", x: 256, y: 0, width: 64, height: 64}}},
 }));
 
 // A quad as its floats: where it lands, where it comes from, and its colour
@@ -71,7 +72,7 @@ const OPAQUE = [1, 1, 1, 1];
 
 // The colour a car of the colour given is drawn in, as the buffer holds it, in single floats
 function carFloats(colour: number): number[] {
-    return [...CAR_COLOURS[colour].map(Math.fround), 1];
+    return [...CAR_COLOURS[colour].flat.map(Math.fround), 1];
 }
 
 // The area of a 2 by 1 view with a margin of 1, from map tile (10, 20): 4 by 3 tiles, whose in-view tiles are the
@@ -210,22 +211,24 @@ describe("a frame of the map", () => {
         ]}]);
     });
 
-    // A car fills its square the way it faces and CAR_BREADTH of it across, in its colour
-    it("draws each car under the sprites, a flat-coloured rectangle long the way it faces", () => {
-        // The view's origin is map tile (11, 21): map pixels (176, 336), at 32 device pixels a tile, so a car's square
-        // of 10 map pixels is 20 device pixels, and its rectangle 12 across, 4 in from each side
-        const east = {x: 180, y: 340, width: 10, direction: "east", colour: 0} as const;
-        const north = {x: 200, y: 340, width: 10, direction: "north", colour: 1} as const;
+    // The art has the red car facing north, and no other
+    it("draws each car under the sprites, from its art filling its square, or else a flat rectangle long its way", () => {
+        // The view's origin is map tile (11, 21): map pixels (176, 336), at 64 device pixels a tile, so a car's square
+        // of a tile is 64 device pixels, and a car with no art 17 by 7 of them, in its middle
+        const north = {x: 180, y: 340, width: 16, direction: "north", colour: 0} as const;
+        const east = {x: 200, y: 340, width: 16, direction: "east", colour: 0} as const;
+        const southBlue = {x: 220, y: 340, width: 16, direction: "south", colour: 1} as const;
         const train = {type: 1, frame: 2, x: 180, y: 340, width: 32};
-        const frame = build(tilesWith(0, 0), 32, noTint, [train], [east, north]);
+        const frame = build(tilesWith(0, 0), 64, noTint, [train], [north, east, southBlue]);
 
-        expect(CAR_BREADTH * 20).toBe(12);
+        expect([CAR_LENGTH * 64, CAR_BREADTH * 64]).toEqual([17, 7]);
         expect(quads(frame.sprites)).toEqual([
+            {atlas: "objects", quads: [{target: [16, 16, 64, 64], source: [256, 0, 64, 64], colour: OPAQUE}]},
             {atlas: WHITE, quads: [
-                {target: [8, 8 + 4, 20, 12], source: [0, 0, 1, 1], colour: carFloats(0)},
-                {target: [48 + 4, 8, 12, 20], source: [0, 0, 1, 1], colour: carFloats(1)},
+                {target: [96 + (64 - 17) / 2, 16 + (64 - 7) / 2, 17, 7], source: [0, 0, 1, 1], colour: carFloats(0)},
+                {target: [176 + (64 - 7) / 2, 16 + (64 - 17) / 2, 7, 17], source: [0, 0, 1, 1], colour: carFloats(1)},
             ]},
-            {atlas: FALLBACK_SPRITES, quads: [{target: [8, 8, 64, 64], source: [48, 0, 32, 32], colour: OPAQUE}]},
+            {atlas: FALLBACK_SPRITES, quads: [{target: [16, 16, 128, 128], source: [48, 0, 32, 32], colour: OPAQUE}]},
         ]);
     });
 

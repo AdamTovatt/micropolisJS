@@ -14,8 +14,9 @@
 
 import { readFileSync } from "fs";
 
+import { CAR_COLOURS, CAR_DIRECTIONS } from "../src/cars";
 import {
-    FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, RenderManifest, SPRITE_SHEET, WHITE, checkAtlasSizes,
+    FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, RenderManifest, SPRITE_SHEET, WHITE, carKey, checkAtlasSizes,
     checkRectsInAtlases,
     fallbackManifest, fallbackSpriteRect, parseRenderManifest, spriteKey,
 } from "../src/renderManifest";
@@ -34,9 +35,9 @@ function pngSize(path: string): {width: number, height: number} {
 const SHEET_SIZES = new Map([[FALLBACK_TILES, pngSize("images/tiles.png")],
                              [FALLBACK_SPRITES, pngSize("images/sprites.png")]]);
 
-// A manifest file's JSON, with one atlas and the tiles and sprites given
+// A manifest file's JSON, with one atlas, the tiles and sprites given and no cars
 function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
-    return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites};
+    return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}};
 }
 
 const rect = (x: number, y: number, size = 64) => ({atlas: "zones", x, y, width: size, height: size});
@@ -105,14 +106,24 @@ describe("the render manifest", () => {
         });
 
         it("reads a manifest of no art", () => {
-            const manifest = parseRenderManifest({version: 1, atlases: {}, tiles: {}, sprites: {}});
+            const manifest = parseRenderManifest({version: 1, atlases: {}, tiles: {}, sprites: {}, cars: {}});
 
-            expect([manifest.atlases.size, manifest.tiles.size, manifest.sprites.size]).toEqual([0, 0, 0]);
+            expect([manifest.atlases.size, manifest.tiles.size, manifest.sprites.size, manifest.cars.size])
+                .toEqual([0, 0, 0, 0]);
+        });
+
+        it("reads a car of each colour and way it has, by colour and way", () => {
+            const manifest = parseRenderManifest({...manifestJson(), cars: {red: {north: rect(0, 0), west: rect(64, 0)},
+                                                                            orange: {south: rect(128, 0)}}});
+
+            expect([...manifest.cars]).toEqual([[carKey("red", "north"), rect(0, 0)], [carKey("red", "west"), rect(64, 0)],
+                                                [carKey("orange", "south"), rect(128, 0)]]);
         });
 
         it.each<[string, Record<string, unknown>, string]>([
             ["another version", {...manifestJson(), version: 2}, "version is not 1"],
             ["a key it doesn't know", {...manifestJson(), extra: true}, "the manifest has unknown keys: extra"],
+            ["no cars", {version: 1, atlases: {}, tiles: {}, sprites: {}}, "the manifest lacks cars"],
             ["a fallback sheet's name for an atlas", {...manifestJson(), atlases: {[FALLBACK_TILES]: "x.png"}},
              `atlases.${FALLBACK_TILES} takes a name starting fallback:, which the client keeps for its own`],
             ["the white pixel's name for an atlas", {...manifestJson(), atlases: {[WHITE]: "x.png"}},
@@ -140,6 +151,11 @@ describe("the render manifest", () => {
              "sprites.8 is not a whole number from 1 to 7"],
             ["a frame past a sprite's last", manifestJson({}, {"6": {"4": rect(0, 0)}}),
              "sprites.6.4 is not a whole number from 1 to 3"],
+            ["a car colour the client has none of", {...manifestJson(), cars: {purple: {north: rect(0, 0)}}},
+             "cars has unknown keys: purple"],
+            ["a way no car faces", {...manifestJson(), cars: {red: {up: rect(0, 0)}}}, "cars.red has unknown keys: up"],
+            ["a car's atlas it doesn't declare", {...manifestJson(), cars: {red: {north: {...rect(0, 0), atlas: "x"}}}},
+             "cars.red.north.atlas names no atlas"],
         ])("refuses %s, naming where", (_, json, message) => {
             expect(() => parseRenderManifest(json)).toThrow(`Render manifest: ${message}`);
         });
@@ -150,6 +166,23 @@ describe("the render manifest", () => {
             expect(() => checkRectsInAtlases(manifest, new Map([["zones", {width: 100, height: 64}]])))
                 .toThrow("rectangles run past their atlas: tile 3 objects (zones)");
             expect(() => checkRectsInAtlases(manifest, new Map([["zones", {width: 128, height: 64}]]))).not.toThrow();
+        });
+
+        // The art build names the colours as the client does (CAR_COLOURS in art/tools/designs.py)
+        it("has, as the art build writes it, a car of every colour facing every way", () => {
+            const manifest = parseRenderManifest(JSON.parse(readFileSync(repositoryPath("images/render/manifest.json"),
+                                                                         "utf8")));
+            const missing = CAR_COLOURS.flatMap(({name}) => CAR_DIRECTIONS.map((way) => carKey(name, way)))
+                .filter((key) => !manifest.cars.has(key));
+
+            expect([missing, manifest.cars.size]).toEqual([[], CAR_COLOURS.length * CAR_DIRECTIONS.length]);
+        });
+
+        it("refuses a car that runs past its atlas, naming it", () => {
+            const manifest = parseRenderManifest({...manifestJson(), cars: {blue: {east: rect(64, 0)}}});
+
+            expect(() => checkRectsInAtlases(manifest, new Map([["zones", {width: 100, height: 64}]])))
+                .toThrow("rectangles run past their atlas: car blue/east (zones)");
         });
 
         it("refuses each atlas wider or higher than the browser's largest texture, naming it", () => {
@@ -167,10 +200,10 @@ describe("the render manifest", () => {
         const shadow = (reach: number[]) => ({
             ...rect(0, 64, 64), reach: {left: reach[0], top: reach[1], right: reach[2], bottom: reach[3]},
         });
-        const rendered: RenderManifest = parseRenderManifest(manifestJson(
+        const rendered: RenderManifest = parseRenderManifest({...manifestJson(
             {"249": {ground: rect(0, 0), shadow: shadow([2, 1, 0, 3])}, "250": {ground: rect(64, 0)}},
             {"1": {"2": rect(0, 128, 32)}},
-        ));
+        ), cars: {blue: {east: rect(0, 192)}}});
         const art = new RenderArt(rendered);
 
         it("draws a tile id the rendered art has from it", () => {
@@ -185,6 +218,11 @@ describe("the render manifest", () => {
             expect(art.sprite(1, 2)).toEqual(rect(0, 128, 32));
             expect(art.sprite(1, 3)).toEqual(fallbackManifest().sprites.get(spriteKey(1, 3)));
             expect(art.sprite(1, 6)).toBeNull();
+        });
+
+        // Blue is the second colour
+        it("draws a car from the rendered art where it has one, and none where not", () => {
+            expect([art.car(1, "east"), art.car(1, "west"), art.car(0, "east")]).toEqual([rect(0, 192), null, null]);
         });
 
         it("knows the farthest any shadow reaches, on any side", () => {

@@ -52,11 +52,11 @@ HBRIDGE, VBRIDGE, ROADS, ROADS2 = 64, 65, 66, 67
 HPOWER, VPOWER, LHPOWER, LVPOWER = 208, 209, 210, 211
 HRAIL, VRAIL, LHRAIL, LVRAIL = 224, 225, 226, 227
 
-_ROAD_PIECES = range(HBRIDGE, 79)          # each road piece with traffic: the bridges, roads, junction and the
-                                           # roads under a power line (art/blender/tiles/roads.py)
+_ROAD_PIECES = range(HBRIDGE, 79)          # each road piece: the bridges, roads, junction and the roads under a
+                                           # power line (art/blender/tiles/roads.py)
 
-# Each single tile set and the tile ids it renders, in named groups, a tile in one group only. A
-# road piece's traffic is four frames, each frame's ids running in the order of the pieces
+# Each single tile set and the tile ids it renders, in named groups, a tile in one group only. The rules' traffic tiles
+# have none: the game draws them as the plain road they run on, and its traffic as cars (CAR)
 SINGLE_TILES = {
     'land': {'land': (DIRT,)},
     'water': {'water': range(RIVER, 21)},                  # open water and the river's shores
@@ -65,9 +65,7 @@ SINGLE_TILES = {
     'rubble': {'rubble': range(44, 48), 'explosion': range(860, 868)},   # the bulldozer's small explosion
     'roads': {
         'pieces': _ROAD_PIECES,
-        'second_road_under_power': (239,),                 # with no traffic
-        'light_traffic': tuple(piece + 16 * frame for frame in range(1, 5) for piece in _ROAD_PIECES),
-        'heavy_traffic': tuple(piece + 16 * frame for frame in range(5, 9) for piece in _ROAD_PIECES),
+        'second_road_under_power': (239,),
         'open_water': range(79, 208, 16),                  # an open drawbridge's middle, and its frames
         'drawbridge_h': range(828, 832),                   # open for a ship, east-west and north-south
         'drawbridge_v': range(948, 952),
@@ -207,6 +205,18 @@ SPRITES = {
 }
 
 
+# The cars the game drives along the city's trips (src/cars.ts), which are no sprite of the rules: each colour, facing
+# each way it drives, a frame each, frame colour * 4 + way, in the order CUTOUTS and TURNS in
+# art/blender/vehicles/car.py render them. The game finds a car's art by its colour's and its way's names, which the
+# client's CAR_COLOURS must hold. A car renders on a frame of one tile, which the game draws whole
+CAR_COLOURS = ('red', 'blue', 'yellow', 'white', 'green', 'orange')
+CAR_WAYS = ('north', 'east', 'south', 'west')
+CAR = {'square': 1, 'frames': len(CAR_COLOURS) * len(CAR_WAYS)}
+
+# Every vehicle the art renders and paints, a frame of each an asset: the sprites, and the car
+VEHICLES = {**SPRITES, 'car': CAR}
+
+
 def sprite_frame(vehicle, frame):
     # the asset of a vehicle's frame, counted from 0 as the renders count them: '<vehicle>/<frame>'
     return f'{vehicle}/{frame:02d}'
@@ -227,13 +237,13 @@ def asset_names():
     names = single_tile_assets()
     names += list(ZONES)
     names += [zone_frame(zone, k) for zone in FRAMES for k in range(zone_frames(zone))]
-    names += [sprite_frame(vehicle, k) for vehicle, sprite in SPRITES.items() for k in range(sprite['frames'])]
+    names += [sprite_frame(vehicle, k) for vehicle, sprite in VEHICLES.items() for k in range(sprite['frames'])]
     return names
 
 
 def is_vehicle(asset):
     # whether an asset is a vehicle's frame, which has no ground
-    return asset.split('/')[0] in SPRITES
+    return asset.split('/')[0] in VEHICLES
 
 
 LAYERS = ('ground', 'shadow', 'objects')
