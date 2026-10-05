@@ -12,13 +12,14 @@
  *
  */
 
+using System.Text.Json;
 using static Micropolis.Rules.TileValues;
 
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The trips offered for the client's cars: which routes are kept, when one is offered, and that a city's run offers
-    /// the same trips every time, only at steps whose index is a multiple of six, on road alone.
+    /// The trips offered for the client's cars: that every trip on road alone is offered as it arrives, in order, how a
+    /// trip is written, and that a city's run offers the same trips every time, on road alone.
     /// </summary>
     [TestClass]
     public sealed class TripsTests
@@ -33,90 +34,85 @@ namespace Micropolis.Rules.Tests
         private static readonly Lazy<TownRun> Town = new Lazy<TownRun>(RunTown);
 
         [TestMethod]
-        public void Stepped_TripKeptDuringStepZero_OffersItAsTheStepEnds()
+        public void Arrived_SeveralTripsOnRoad_OffersEachAsItArrivesInOrder()
         {
-            Watch watch = new Watch(RoadMap(Road));
+            Trips trips = new Trips(RoadMap([.. Road, .. OtherRoad]));
+            List<Trip> offered = new List<Trip>();
+            trips.Offered += offered.Add;
 
-            watch.Trips.Arrived(Road);
-            watch.Step();
+            trips.Arrived(Road);
+            Assert.HasCount(1, offered);
+            trips.Arrived(OtherRoad);
 
-            Assert.AreEqual(0, watch.Offered.Single().Step);
-            CollectionAssert.AreEqual(Road.Select(Tile).ToList(), watch.Offered.Single().Route.ToList());
+            CollectionAssert.AreEqual(new[] { new Trip(9, 8, "NN"), new Trip(30, 20, "E") }, offered);
         }
 
-        // A trip kept at step 1 waits for step 6, the next whose index is a multiple of six
-        [TestMethod]
-        public void Stepped_TripKeptBetweenMultiplesOfSix_OffersItAtTheNext()
-        {
-            Watch watch = new Watch(RoadMap(Road));
-            watch.Step();
-
-            watch.Trips.Arrived(Road);
-            watch.Steps(5);
-
-            Assert.IsEmpty(watch.Offered);
-            watch.Step();
-            Assert.AreEqual(6, watch.Offered.Single().Step);
-        }
-
-        [TestMethod]
-        public void Stepped_SeveralTripsSinceTheLastOffered_OffersOnlyTheLatestOnce()
-        {
-            Watch watch = new Watch(RoadMap([.. Road, .. OtherRoad]));
-
-            watch.Trips.Arrived(Road);
-            watch.Trips.Arrived(OtherRoad);
-            // Past the offers at steps 0, 6 and 12
-            watch.Steps(13);
-
-            CollectionAssert.AreEqual(OtherRoad.Select(Tile).ToList(), watch.Offered.Single().Route.ToList());
-        }
-
-        // A drive may run on rail, where no car drives, so a trip with a rail tile is dropped and the road trip before
-        // it stays the latest kept; a road crossing rail is road
+        // A drive may run on rail, where no car drives, so a trip with a rail tile is not offered; a road crossing rail
+        // is road
         [TestMethod]
         [DataRow(HRAIL, false)]
         [DataRow(RAILVPOWERH, false)]
         [DataRow(VRAILROAD, true)]
-        public void Arrived_RouteThroughTheTile_IsKeptOnlyIfACarDrivesOnIt(int tileValue, bool kept)
+        public void Arrived_RouteThroughTheTile_IsOfferedOnlyIfACarDrivesOnIt(int tileValue, bool offered)
         {
-            GameMap map = RoadMap([.. Road, .. OtherRoad]);
+            GameMap map = RoadMap(OtherRoad);
             map.SetTile(31, 20, tileValue, 0);
-            Watch watch = new Watch(map);
+            Trips trips = new Trips(map);
+            List<Trip> heard = new List<Trip>();
+            trips.Offered += heard.Add;
 
-            watch.Trips.Arrived(Road);
-            watch.Trips.Arrived(OtherRoad);
-            watch.Step();
+            trips.Arrived(OtherRoad);
 
-            CollectionAssert.AreEqual((kept ? OtherRoad : Road).Select(Tile).ToList(), watch.Offered.Single().Route.ToList());
-        }
-
-        // A trip kept at step 1 whose road a bulldozer takes up before step 6 is not offered there
-        [TestMethod]
-        public void Stepped_RoadTakenUpSinceTheTripArrived_OffersNothing()
-        {
-            GameMap map = RoadMap(Road);
-            Watch watch = new Watch(map);
-            watch.Step();
-
-            watch.Trips.Arrived(Road);
-            map.SetTile(9, 7, DIRT, 0);
-            watch.Steps(6);
-
-            Assert.IsEmpty(watch.Offered);
+            CollectionAssert.AreEqual(offered ? new[] { new Trip(30, 20, "E") } : [], heard);
         }
 
         [TestMethod]
-        public void Arrived_NothingListening_KeepsNothingForALaterListener()
+        public void Arrived_StepEachWay_WritesItsLetter()
         {
-            Trips trips = new Trips(RoadMap(Road));
-            trips.Arrived(Road);
-            List<IReadOnlyList<TilePosition>> offered = new List<IReadOnlyList<TilePosition>>();
-
+            IReadOnlyList<Position> loop = [new Position(5, 5), new Position(5, 4), new Position(6, 4), new Position(6, 5),
+                                            new Position(5, 5)];
+            Trips trips = new Trips(RoadMap(loop));
+            List<Trip> offered = new List<Trip>();
             trips.Offered += offered.Add;
-            trips.Stepped();
 
-            Assert.IsEmpty(offered);
+            trips.Arrived(loop);
+
+            Assert.AreEqual(new Trip(5, 5, "NESW"), offered.Single());
+            Assert.AreEqual("[5,5,\"NESW\"]", JsonSerializer.Serialize(offered.Single()));
+        }
+
+        // A route steps only to a tile beside the one before, so one that skips a tile or stands still is a defect
+        [TestMethod]
+        [DataRow(5, 3)]
+        [DataRow(5, 5)]
+        [DataRow(6, 4)]
+        public void Arrived_RouteNotSteppingToATileBeside_Throws(int x, int y)
+        {
+            IReadOnlyList<Position> route = [new Position(5, 5), new Position(x, y)];
+            Trips trips = new Trips(RoadMap(route));
+            trips.Offered += _ => { };
+
+            Assert.ThrowsExactly<InvalidOperationException>(() => trips.Arrived(route));
+        }
+
+        [TestMethod]
+        public void Read_Trip_IsTheTripWritten()
+        {
+            Assert.AreEqual(new Trip(40, 31, "EESW"), JsonSerializer.Deserialize<Trip>("[40,31,\"EESW\"]"));
+        }
+
+        [TestMethod]
+        [DataRow("{\"x\":1,\"y\":2,\"steps\":\"N\"}")]
+        [DataRow("[1,2]")]
+        [DataRow("[1,2,\"N\",3]")]
+        [DataRow("[1.5,2,\"N\"]")]
+        [DataRow("[1,\"2\",\"N\"]")]
+        [DataRow("[1,2,\"NX\"]")]
+        [DataRow("[1,2,\"n\"]")]
+        [DataRow("[1,2,null]")]
+        public void Read_NotATrip_Fails(string json)
+        {
+            Assert.ThrowsExactly<JsonException>(() => JsonSerializer.Deserialize<Trip>(json));
         }
 
         [TestMethod]
@@ -127,68 +123,40 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
-        public void Offered_TownRun_OnlyAtStepsWhoseIndexIsAMultipleOfSix()
-        {
-            Assert.IsGreaterThan(20, Town.Value.Offers.Count, "Too few trips offered to check.");
-            Assert.AreEqual("", string.Join(", ", Town.Value.Offers.Where(offer => offer.Step % Trips.StepsPerOffer != 0).Select(offer => offer.Step)),
-                            "Trips offered at steps whose index is not a multiple of six.");
-        }
-
-        [TestMethod]
-        public void Offered_TownRun_EachRouteIsContiguous()
-        {
-            Assert.IsGreaterThan(20, Town.Value.Offers.Count, "Too few trips offered to check.");
-            Assert.AreEqual("", string.Join(", ", Town.Value.Offers.Where(offer => !offer.Route.Zip(offer.Route.Skip(1)).All(pair => pair.First.IsNextTo(pair.Second)))
-                                                                    .Select(Text)),
-                            "Routes that skip a tile.");
-        }
-
-        [TestMethod]
         public void Offered_TownRunAgain_IsTheSame()
         {
-            CollectionAssert.AreEqual(Town.Value.Offers.Select(Text).ToList(), RunTown().Offers.Select(Text).ToList());
+            CollectionAssert.AreEqual(Town.Value.Offers, RunTown().Offers);
         }
 
-        // Steps taken while paused don't count: three steps, ten paused, then a run, offers only at multiples of six
-        // among the steps taken while not paused, where counting the paused ten would offer at 2 more than a multiple
+        // The same 600 steps offer trips while the city runs, so none offered while paused is the pause's doing
         [TestMethod]
-        public void Step_Paused_OffersNothingAndCountsNoStep()
+        public void Step_Paused_OffersNothingWhereRunningOffersTrips()
+        {
+            Assert.IsGreaterThan(5, TownTripsOver600Steps(paused: false), "Too few trips offered running to check against.");
+            Assert.AreEqual(0, TownTripsOver600Steps(paused: true));
+        }
+
+        private static int TownTripsOver600Steps(bool paused)
         {
             Simulation city = FixtureCities.City("town", "run");
-            Speed speed = city.Speed;
-            List<(long Step, bool Paused)> offers = new List<(long, bool)>();
-            long step = 0;
-            bool paused = false;
-            city.Trips.Offered += _ => offers.Add((step, paused));
+            int offered = 0;
+            city.Trips.Offered += _ => offered++;
+            if (paused)
+            {
+                city.SetSpeed(Speed.Paused);
+            }
 
-            for (; step < 3; step++)
+            for (int i = 0; i < 600; i++)
             {
                 city.Step();
             }
 
-            city.SetSpeed(Speed.Paused);
-            paused = true;
-            for (int i = 0; i < 10; i++)
-            {
-                city.Step();
-            }
-
-            city.SetSpeed(speed);
-            paused = false;
-            for (; step < 600; step++)
-            {
-                city.Step();
-            }
-
-            Assert.IsGreaterThan(5, offers.Count, "Too few trips offered to check.");
-            Assert.IsFalse(offers.Any(offer => offer.Paused), "A trip offered while paused.");
-            Assert.AreEqual("", string.Join(", ", offers.Where(offer => offer.Step % Trips.StepsPerOffer != 0).Select(offer => offer.Step)),
-                            "Trips offered at steps whose index, among those not paused, is not a multiple of six.");
+            return offered;
         }
 
         // The trips of the town with rail laid over every third tile of its east-west roads, so many of its drives run
-        // on rail, over 3,000 steps from its run save: each with the index of the step that offered it, and each tile of
-        // them that no car drives on, as the map had it then
+        // on rail, over 3,000 steps from its run save, and each tile of them that no car drives on, as the map had it
+        // then
         private static TownRun RunTown()
         {
             Simulation city = FixtureCities.City("town", "run");
@@ -203,15 +171,15 @@ namespace Micropolis.Rules.Tests
                 }
             }
 
-            List<(long, IReadOnlyList<TilePosition>)> offered = new List<(long, IReadOnlyList<TilePosition>)>();
+            List<Trip> offered = new List<Trip>();
             List<string> offRoad = new List<string>();
-            long step = 0;
+            int step = 0;
 
-            city.Trips.Offered += route =>
+            city.Trips.Offered += trip =>
             {
-                offered.Add((step, route));
-                offRoad.AddRange(route.Where(tile => !TileUtils.CarriesCars(city.Map.GetTileValue(tile.X, tile.Y)))
-                                      .Select(tile => $"({tile.X}, {tile.Y}) at step {step}"));
+                offered.Add(trip);
+                offRoad.AddRange(TripRoutes.Tiles(trip).Where(tile => !TileUtils.CarriesCars(city.Map.GetTileValue(tile.X, tile.Y)))
+                                            .Select(tile => $"({tile.X}, {tile.Y}) at step {step}"));
             };
 
             for (; step < 3000; step++)
@@ -233,47 +201,6 @@ namespace Micropolis.Rules.Tests
             return map;
         }
 
-        private static TilePosition Tile(Position position)
-        {
-            return new TilePosition(position.X, position.Y);
-        }
-
-        private static string Text((long Step, IReadOnlyList<TilePosition> Route) offer)
-        {
-            return $"{offer.Step}: {string.Join(" ", offer.Route)}";
-        }
-
-        private sealed record TownRun(List<(long Step, IReadOnlyList<TilePosition> Route)> Offers, List<string> OffRoad);
-
-        // Trips on the map with the steps counted beside them, and each trip offered with the index of the step that
-        // offered it
-        private sealed class Watch
-        {
-            private long _step;
-
-            public Watch(GameMap map)
-            {
-                Trips = new Trips(map);
-                Trips.Offered += route => Offered.Add((_step, route));
-            }
-
-            public Trips Trips { get; }
-
-            public List<(long Step, IReadOnlyList<TilePosition> Route)> Offered { get; } = new List<(long, IReadOnlyList<TilePosition>)>();
-
-            public void Step()
-            {
-                Trips.Stepped();
-                _step++;
-            }
-
-            public void Steps(int count)
-            {
-                for (int i = 0; i < count; i++)
-                {
-                    Step();
-                }
-            }
-        }
+        private sealed record TownRun(List<Trip> Offers, List<string> OffRoad);
     }
 }

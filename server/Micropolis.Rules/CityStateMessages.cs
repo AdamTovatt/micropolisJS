@@ -52,7 +52,7 @@ namespace Micropolis.Rules
         // The events since the last messages, in the order the simulation sent them: one overlay message per layer
         private List<StateMessage> _events = new List<StateMessage>();
         // The trips offered since the last messages, in the order they were offered
-        private List<IReadOnlyList<TilePosition>> _trips = new List<IReadOnlyList<TilePosition>>();
+        private List<Trip> _trips = new List<Trip>();
 
         /// <summary>
         /// Takes the city as it stands as sent, so the first new messages are what changes from here: a player who
@@ -78,7 +78,7 @@ namespace Micropolis.Rules
             events.AddEventListener(RulesEvents.CityStatusUpdated, status => _status = _lastStatus = status);
             events.AddEventListener(RulesEvents.ValvesUpdated, demand => _demand = _lastDemand = demand);
             // The trips the client draws as cars, which no player who joins is sent
-            city.Trips.Offered += route => _trips.Add(route);
+            city.Trips.Offered += trip => _trips.Add(trip);
         }
 
         [MemberNotNull(nameof(_tiles))]
@@ -157,7 +157,7 @@ namespace Micropolis.Rules
             if (_trips.Count > 0)
             {
                 messages.Add(new TripsMessage(_trips));
-                _trips = new List<IReadOnlyList<TilePosition>>();
+                _trips = new List<Trip>();
             }
 
             return messages;

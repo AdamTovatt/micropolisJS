@@ -12,8 +12,9 @@
  *
  */
 
+import type { CarShareStep } from "./carShare";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
-import type { TilePosition } from "./protocol";
+import type { TilePosition, Trip } from "./protocol";
 
 // The cars the client draws for the city's traffic: each trip a trips message brings (protocol/README.md) becomes a car
 // that drives its route once, on the right-hand side of the road, and is gone at its end. Cars are the client's alone:
@@ -23,8 +24,20 @@ import type { TilePosition } from "./protocol";
 // How fast a car drives, in tiles a second
 export const CAR_TILES_PER_SECOND = 4;
 
-// The most cars driving at once. A car that arrives while this many drive is dropped, so no car is cut short.
-export const MAX_CARS = 60;
+// The most cars driving at once when every trip becomes one, a share of it at a smaller share of the trips. A car that
+// arrives while that many drive is dropped, so no car is cut short.
+export const MAX_CARS = 2000;
+
+// The most cars driving at once at the step of the Cars slider given: MAX_CARS times its share, and none at Off
+export function carCap(step: CarShareStep): number {
+  return step.every === null ? 0 : MAX_CARS / step.every;
+}
+
+// Whether the trip that arrived index trips after the page joined becomes a car at the step of the Cars slider given:
+// every k-th from the first, k being the step's every, and none at Off
+export function takesTrip(index: number, step: CarShareStep): boolean {
+  return step.every !== null && index % step.every === 0;
+}
 
 // How far right of the middle of the road a car drives, in tiles: the middle of the road's right-hand lane, as the art
 // paints it (LANE in art/blender/tilesets.py)
@@ -95,6 +108,24 @@ function stepOf(direction: CarDirection): {x: number, y: number} {
   }
 }
 
+// The way each letter of a trip's steps takes it
+const STEP_LETTERS: Readonly<Record<string, CarDirection>> = {N: "north", E: "east", S: "south", W: "west"};
+
+// Every tile a trip stands on, in order: its start, then the tile each of its steps takes it to
+export function tripRoute([x, y, steps]: Trip): TilePosition[] {
+  const route = [{x, y}];
+  for (const letter of steps) {
+    const direction = STEP_LETTERS[letter];
+    if (direction === undefined) {
+      throw new Error(`A trip's step ${JSON.stringify(letter)} is none of ${Object.keys(STEP_LETTERS).join("")}`);
+    }
+    const step = stepOf(direction);
+    const last = route[route.length - 1];
+    route.push({x: last.x + step.x, y: last.y + step.y});
+  }
+  return route;
+}
+
 // The offset from the middle of the road to its right-hand lane, for a car driving the way given: a quarter turn
 // clockwise from the way it drives, LANE_OFFSET tiles long
 function laneOffset(direction: CarDirection): {x: number, y: number} {
@@ -149,20 +180,36 @@ interface Car {
 }
 
 // The cars driving: their own clock, which moves on with the client's while the city runs and stands while it's
-// paused, so each car stands still while the city is paused and picks up again when it runs
+// paused, so each car stands still while the city is paused and picks up again when it runs. Which trips become cars
+// is the step of the Cars slider the player chose (CarSharePreference), read as each trips message arrives, so a smaller
+// share starts fewer cars from then on and every car already driving finishes its route.
 export class Cars {
   private readonly driving: Car[] = [];
   // The drive clock, in milliseconds, and the client's clock as it was last read, or null before then
   private clock = 0;
   private lastNow: number | null = null;
+  // The trips that arrived since the page last joined the city, those that became cars or not alike
+  private arrived = 0;
 
-  // A car for each route, starting now at the route's start, in order, but a car that arrives while MAX_CARS drive,
-  // which is dropped. A route of one tile has nowhere to drive.
-  add(routes: readonly (readonly TilePosition[])[]): void {
-    for (const route of routes) {
-      if (this.driving.length >= MAX_CARS) {
-        return;
+  // share is the step of the Cars slider, as the player has it now
+  constructor(private readonly share: () => CarShareStep) {}
+
+  // The page joined the city, at its start or again after a reconnect: the trips are counted from here
+  joined(): void {
+    this.arrived = 0;
+  }
+
+  // A car for each trip a trips message brings that the step takes (takesTrip), starting now at the trip's start, in
+  // order, but a car that arrives while the step's cap drive (carCap), which is dropped. A trip of no steps has nowhere
+  // to drive.
+  add(trips: readonly Trip[]): void {
+    const step = this.share();
+    for (const trip of trips) {
+      const index = this.arrived++;
+      if (!takesTrip(index, step) || this.driving.length >= carCap(step)) {
+        continue;
       }
+      const route = tripRoute(trip);
       if (route.length > 1) {
         this.driving.push({route, start: this.clock, colour: carColour(route)});
       }
@@ -177,12 +224,14 @@ export class Cars {
     }
     this.lastNow = now;
 
-    for (let i = this.driving.length - 1; i >= 0; i--) {
-      const car = this.driving[i];
-      if (this.distance(car) >= car.route.length - 1) {
-        this.driving.splice(i, 1);
+    // In one pass, keeping the cars still driving in the order they started
+    let kept = 0;
+    for (const car of this.driving) {
+      if (this.distance(car) < car.route.length - 1) {
+        this.driving[kept++] = car;
       }
     }
+    this.driving.length = kept;
   }
 
   // How far each car driving has driven, in tiles, as the drive clock last moved it

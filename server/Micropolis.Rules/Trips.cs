@@ -17,11 +17,8 @@ namespace Micropolis.Rules
     /// <summary>
     /// The trips the traffic rule completes, offered for the client to draw as cars: a picture of what the rules do,
     /// which the rules never read, never save and draw nothing from the stream for. A trip is the route of a drive that
-    /// arrived, every tile it stood on in order, and only a trip a car drives on all of is kept
-    /// (<see cref="TileUtils.CarriesCars(int)"/>), since a drive may run on rail. At most one trip is offered every
-    /// <see cref="StepsPerOffer"/> steps: at the end of each step whose index is a multiple of it, the latest trip kept
-    /// since the last one offered, if a car still drives on all of it, and the others are dropped. A step's index is
-    /// counted from 0 since the city was started or loaded, among the steps it took while not paused.
+    /// arrived, every tile it stood on in order, and every trip a car drives on all of is offered as it arrives
+    /// (<see cref="TileUtils.CarriesCars(int)"/>), since a drive may run on rail.
     /// </summary>
     /// <remarks>
     /// <see cref="Offered"/> is a plain C# event, not one of <see cref="RulesEvents"/>: what the simulation's emitters
@@ -29,18 +26,7 @@ namespace Micropolis.Rules
     /// </remarks>
     public sealed class Trips
     {
-        /// <summary>
-        /// The steps between one trip offered and the next at the soonest: about ten trips a second at 60 steps a
-        /// second.
-        /// </summary>
-        public const int StepsPerOffer = 6;
-
         private readonly GameMap _map;
-        // The index of the step under way
-        private long _stepIndex;
-        // The latest trip kept since the last one offered, one list for every trip, and whether it holds one
-        private readonly List<Position> _latest = new List<Position>();
-        private bool _kept;
 
         public Trips(GameMap map)
         {
@@ -48,43 +34,44 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Hears each trip offered, as the step that offers it ends. With nothing listening, no trip is kept.
+        /// Hears each trip offered, as it arrives.
         /// </summary>
-        public event Action<IReadOnlyList<TilePosition>>? Offered;
+        public event Action<Trip>? Offered;
 
         /// <summary>
-        /// Keeps the route of a drive that arrived if a car drives on every tile of it, as the map has it now.
+        /// Offers the route of a drive that arrived if a car drives on every tile of it.
         /// </summary>
         internal void Arrived(IReadOnlyList<Position> route)
         {
-            if (Offered is null || !CarriesCars(route))
+            if (Offered is not null && CarriesCars(route))
             {
-                return;
+                Offered(TripOf(route));
             }
-
-            _latest.Clear();
-            _latest.AddRange(route);
-            _kept = true;
         }
 
-        /// <summary>
-        /// Ends the step under way, offering the latest trip kept if its index is a multiple of
-        /// <see cref="StepsPerOffer"/>. A command may have changed the map since the trip arrived, such as a bulldozer
-        /// taking up its road, so the trip is offered only if a car still drives on all of it.
-        /// </summary>
-        internal void Stepped()
+        // The trip that stands on each tile of the route in turn, every tile of it beside the one before
+        private static Trip TripOf(IReadOnlyList<Position> route)
         {
-            if (_stepIndex % StepsPerOffer == 0 && _kept)
+            char[] steps = new char[route.Count - 1];
+            for (int i = 1; i < route.Count; i++)
             {
-                _kept = false;
+                steps[i - 1] = StepLetter(route[i - 1], route[i]);
+            }
 
-                if (CarriesCars(_latest))
+            return new Trip(route[0].X, route[0].Y, new string(steps));
+        }
+
+        private static char StepLetter(Position from, Position to)
+        {
+            for (int i = 0; i < Direction.CardinalDirections.Count; i++)
+            {
+                if (Position.Move(from, Direction.CardinalDirections[i]) == to)
                 {
-                    Offered?.Invoke(_latest.Select(position => new TilePosition(position.X, position.Y)).ToList());
+                    return Trip.StepLetters[i];
                 }
             }
 
-            _stepIndex++;
+            throw new InvalidOperationException($"A route steps from {from} to {to}, which is not beside it.");
         }
 
         private bool CarriesCars(IReadOnlyList<Position> route)

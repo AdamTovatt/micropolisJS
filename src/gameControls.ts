@@ -13,6 +13,7 @@
  */
 
 import type { BudgetChoice } from "./budgetWindow";
+import type { CarShareStep } from "./carShare";
 import type { CitySource } from "./citySource";
 import type { CityState } from "./cityState";
 import type { DebugAction } from "./debugWindow";
@@ -94,6 +95,12 @@ export interface ControlPreference {
   set(on: boolean): void;
 }
 
+// The browser's share of the trips that become cars, a step of the Cars slider (CarSharePreference)
+export interface ControlShare {
+  step(): CarShareStep;
+  set(step: CarShareStep): void;
+}
+
 // The mark on the Budget button that a year-end budget review is due
 export interface ReviewMarker {
   setLit(lit: boolean): void;
@@ -122,6 +129,7 @@ export interface ControlParts {
   players: ControlPlayers;
   page: ControlPage;
   autoBulldoze: ControlPreference;
+  carShare: ControlShare;
   // The city's seed, which the settings window shows, and its name, which its downloaded save file is named after
   seed: number;
   saveFileName: string;
@@ -140,6 +148,7 @@ export class GameControls {
   private readonly players: ControlPlayers;
   private readonly page: ControlPage;
   private readonly autoBulldoze: ControlPreference;
+  private readonly carShare: ControlShare;
   private readonly seed: number;
   private readonly saveFileName: string;
   private readonly queryTool: QueryTool;
@@ -165,6 +174,7 @@ export class GameControls {
     this.players = parts.players;
     this.page = parts.page;
     this.autoBulldoze = parts.autoBulldoze;
+    this.carShare = parts.carShare;
     this.seed = parts.seed;
     this.saveFileName = parts.saveFileName;
 
@@ -363,7 +373,7 @@ export class GameControls {
   // running behind the window (settingsCommands)
   private openSettings(): void {
     const shown = this.city.current("settings");
-    const client = {autoBulldoze: this.autoBulldoze.isOn(), seed: this.seed};
+    const client = {autoBulldoze: this.autoBulldoze.isOn(), carShare: this.carShare.step(), seed: this.seed};
 
     this.whenChosen(this.windows.open(this.gameWindows.settings, shown, client), (choice) => {
       if (choice === null) {
@@ -371,6 +381,7 @@ export class GameControls {
       }
 
       this.autoBulldoze.set(choice.autoBulldoze);
+      this.carShare.set(choice.carShare);
       settingsCommands(shown, choice).forEach((command) => {
         this.source.send(command);
       });

@@ -115,7 +115,7 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void NewMessages_TripsOffered_SendsThemOnceLastInTheOrderOffered()
         {
-            List<IReadOnlyList<TilePosition>> offered = new List<IReadOnlyList<TilePosition>>();
+            List<Trip> offered = new List<Trip>();
             CityStateMessages messages = AfterSomeCycles(city => city.Trips.Offered += offered.Add);
 
             IReadOnlyList<StateMessage> sent = messages.NewMessages();

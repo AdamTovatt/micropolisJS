@@ -351,7 +351,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// One loop of the simulation, as simLoop in the original: a phase of the city cycle when the game speed lets
         /// one through, then one move of every sprite. A paused simulation's step does nothing, as the original's
-        /// simFrame and moveObjects do nothing at speed 0. A step that isn't paused may offer a trip (<see cref="Trips"/>).
+        /// simFrame and moveObjects do nothing at speed 0.
         /// </summary>
         public void Step()
         {
@@ -363,7 +363,6 @@ namespace Micropolis.Rules
             SimFrame();
             SpriteManager.MoveObjects(ConstructSimData());
             UpdateTime();
-            Trips.Stepped();
         }
 
         private void SimFrame()
