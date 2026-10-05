@@ -24,7 +24,20 @@ namespace Micropolis.Rules
 
     public sealed record SeedStart(uint Seed, Level Level) : LogStart;
 
-    public sealed record SaveStart(JsonObject Save) : LogStart;
+    /// <summary>
+    /// A saved state, as <see cref="Simulation.Save"/> writes one, in the save format version it was written in, which
+    /// a replay brings up to date before it loads it (<see cref="SavedGame.UpgradeState"/>).
+    /// </summary>
+    public sealed record SaveStart(JsonObject Save, int SaveVersion) : LogStart
+    {
+        /// <summary>
+        /// The start of a log from a city as it is now, saved in the current save format version.
+        /// </summary>
+        public static SaveStart Of(Simulation city)
+        {
+            return new SaveStart(city.Save(), SavedGame.CurrentVersion);
+        }
+    }
 
     /// <summary>
     /// A logged command: the step it preceded, the player who sent it, and the command as it arrived, any JSON.
@@ -44,7 +57,15 @@ namespace Micropolis.Rules
     public sealed record CommandLog(string? Description, LogStart Start, IReadOnlyList<LoggedCommand> Entries,
                                      IReadOnlyList<Checkpoint> Checkpoints)
     {
-        public const int FormatVersion = 1;
+        public const int FormatVersion = 2;
+
+        /// <summary>
+        /// The save format version of the save a version 1 log starts from, which a version 1 log doesn't say: the
+        /// version current when logs began to say it. It is history, and never moves with
+        /// <see cref="SavedGame.CurrentVersion"/>. A version 1 log written while an older version was current holds
+        /// a save of that version, which this misreads, so its replay differs or fails to load.
+        /// </summary>
+        public const int VersionOneSaveVersion = 10;
 
         /// <summary>
         /// A recorder's checkpoint every this many steps, a minute of play, as <c>docs/command-log.md</c> specifies.
@@ -98,10 +119,10 @@ namespace Micropolis.Rules
                 throw new InvalidDataException("A command log is a JSON object");
             }
 
-            if (!Validation.TryGetWholeNumber(log["formatVersion"], out double version) || version != FormatVersion)
+            if (!Validation.TryGetWholeNumberIn(log["formatVersion"], 1, FormatVersion, out long version))
             {
                 string written = log["formatVersion"] is JsonNode node ? CanonicalJson.Stringify(node) : "undefined";
-                throw new InvalidDataException($"This is a version {written} command log: only version {FormatVersion} can be replayed");
+                throw new InvalidDataException($"This is a version {written} command log: only versions 1 to {FormatVersion} can be replayed");
             }
 
             if (log.ContainsKey("seed") == log.ContainsKey("save"))
@@ -123,7 +144,8 @@ namespace Micropolis.Rules
             }
             else
             {
-                start = new SaveStart(log["save"] as JsonObject ?? throw new InvalidDataException("A command log's save is an object"));
+                JsonObject save = log["save"] as JsonObject ?? throw new InvalidDataException("A command log's save is an object");
+                start = new SaveStart(save, version == 1 ? VersionOneSaveVersion : SaveVersion(log["saveVersion"]));
             }
 
             string? description = null;
@@ -158,6 +180,7 @@ namespace Micropolis.Rules
                     log["level"] = (int)seed.Level;
                     break;
                 case SaveStart save:
+                    log["saveVersion"] = save.SaveVersion;
                     log["save"] = save.Save.DeepClone();
                     break;
                 default:
@@ -262,6 +285,18 @@ namespace Micropolis.Rules
             }
 
             return checkpoints;
+        }
+
+        // The save format version a version 2 log names for its save: one SavedGame upgrades from
+        private static int SaveVersion(JsonNode? node)
+        {
+            if (!Validation.TryGetWholeNumberIn(node, SavedGame.OldestVersion, SavedGame.CurrentVersion, out long saveVersion))
+            {
+                throw new InvalidDataException(
+                    $"A command log's save has a saveVersion, a save format version from {SavedGame.OldestVersion} to {SavedGame.CurrentVersion}");
+            }
+
+            return (int)saveVersion;
         }
 
         // A step: a whole number from 0 to MaxStep

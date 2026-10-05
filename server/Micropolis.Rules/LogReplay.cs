@@ -111,14 +111,15 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The city a log starts from: a new city from a seed starts at medium speed, as a city a player starts on the server does.
+        /// The city a log starts from: a new city from a seed starts at medium speed, as a city a player starts on the
+        /// server does, and a save is brought up to the current save format version, then loaded.
         /// </summary>
         public static Simulation StartCity(LogStart start)
         {
             return start switch
             {
                 SeedStart seed => Simulation.NewCity(seed.Seed, seed.Level, Speed.Medium),
-                SaveStart save => Simulation.FromSave(CanonicalJson.Write(save.Save)),
+                SaveStart save => Simulation.FromSave(CanonicalJson.Write(SavedGame.UpgradeState(save.Save, save.SaveVersion))),
                 _ => throw new InvalidOperationException($"No log start {start.GetType().Name}."),
             };
         }

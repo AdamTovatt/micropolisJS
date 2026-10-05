@@ -25,7 +25,7 @@ const STAGES = ["Roads", "Zones", "Fire"];
 const HASH = {a: "a".repeat(64), b: "b".repeat(64), c: "c".repeat(64), x: "e".repeat(64), y: "f".repeat(64)};
 
 const LOG: CommandLog = {
-    formatVersion: 1, seed: 23, level: 1,
+    formatVersion: 2, seed: 23, level: 1,
     entries: [
         {step: 0, player: "local", command: {type: "tool", tool: "road", path: [{x: 1, y: 2}], autoBulldoze: true}},
         {step: 48, player: "local", command: {type: "setSpeed", speed: 0}},
@@ -231,9 +231,9 @@ describe("the golden playthrough", () => {
 
         it("refuses a golden file whose log isn't one", () => {
             writeFileSync(join(directory, "goldenPlaythrough.json"),
-                          JSON.stringify({checkpoints: [], log: {...LOG, formatVersion: 2}}));
+                          JSON.stringify({checkpoints: [], log: {...LOG, formatVersion: 1}}));
 
-            expect(() => goldenPlaythroughFor(directory, STAGES)).toThrow("This is a version 2 command log");
+            expect(() => goldenPlaythroughFor(directory, STAGES)).toThrow("This is a version 1 command log");
         });
 
         it("fails when there is no golden file", () => {

@@ -20,8 +20,9 @@ namespace Micropolis.Rules.Tests
     /// <summary>
     /// The command logs under <c>conformance/logs/</c> (<c>docs/command-log.md</c>), read by <see cref="CommandLog"/>,
     /// as the C# headless runner reads one. On top of it the reader is stricter, as the readers of the other
-    /// conformance files are: it refuses a key the format doesn't define, a level beside a save, which
-    /// <see cref="CommandLog"/> ignores, and a log with no checkpoint.
+    /// conformance files are: it refuses a key the format doesn't define, a level beside a save and a saveVersion
+    /// beside a seed, which <see cref="CommandLog"/> ignores, a save without its saveVersion, and a log with no
+    /// checkpoint.
     /// </summary>
     public static class ConformanceLogs
     {
@@ -58,13 +59,19 @@ namespace Micropolis.Rules.Tests
         {
             JsonNode? node = JsonText.Parse(json);
 
-            // What the shared reader leaves alone: a key the format doesn't define, and a level beside a save
+            // What the shared reader leaves alone: a key the format doesn't define, a level beside a save and a
+            // saveVersion beside a seed
             JsonObject log = Members(node, $"The log {name}", ["formatVersion", "entries", "checkpoints"],
-                                     ["description", "seed", "level", "save"]);
+                                     ["description", "seed", "level", "save", "saveVersion"]);
 
             if (log.ContainsKey("level") != log.ContainsKey("seed"))
             {
                 throw Broken($"The log {name} has a level with a seed, and only then.");
+            }
+
+            if (log.ContainsKey("saveVersion") != log.ContainsKey("save"))
+            {
+                throw Broken($"The log {name} has a saveVersion with a save, and only then.");
             }
 
             foreach (JsonNode? entry in log["entries"] as JsonArray ?? [])

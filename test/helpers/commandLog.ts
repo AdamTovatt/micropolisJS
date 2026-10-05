@@ -19,7 +19,7 @@ import { hashSavedState } from "./stateHash";
 // docs/command-log.md specifies the format, which the game server writes a session's log in and CommandLog in the C#
 // rules reads. The runner reads the log of each of its sessions from the debug window and joins them into the run's.
 
-export const LOG_FORMAT_VERSION = 1;
+export const LOG_FORMAT_VERSION = 2;
 
 // The one player a single-player command log names, such as a fixture's, as PlayerIds.Local in the C# protocol does
 export const LOCAL_PLAYER: PlayerId = "local";
@@ -39,8 +39,8 @@ export interface StampedCommand {
 }
 
 // Where a log's city starts: a new city on the map a game seed generates, at the given level and at medium speed, as
-// a new game starts; or a saved state, as the simulation saves it
-export type LogStart = {seed: number, level: number} | {save: object};
+// a new game starts; or a saved state, as the simulation saves it, and the save format version it was saved in
+export type LogStart = {seed: number, level: number} | {saveVersion: number, save: object};
 
 export type CommandLog = LogStart & {
   formatVersion: number;
@@ -84,6 +84,11 @@ export function parseLog(value: unknown): CommandLog {
 
   if ("save" in value && !isRecord(value.save)) {
     throw new Error("A command log's save is an object");
+  }
+
+  // The C# rules' reader also refuses a version they don't migrate, which only they know
+  if ("save" in value && !(typeof value.saveVersion === "number" && Number.isSafeInteger(value.saveVersion))) {
+    throw new Error("A command log's save has a saveVersion, a save format version");
   }
 
   if ("description" in value && typeof value.description !== "string") {
@@ -171,6 +176,8 @@ export function joinSessions(sessions: CommandLog[]): CommandLog {
   }
 
   const {formatVersion} = first;
-  const start = "seed" in first ? {seed: first.seed, level: first.level} : {save: first.save};
+  const start = "seed" in first
+    ? {seed: first.seed, level: first.level}
+    : {saveVersion: first.saveVersion, save: first.save};
   return {formatVersion, ...start, entries, checkpoints};
 }

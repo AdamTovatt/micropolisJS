@@ -36,7 +36,7 @@ namespace Micropolis.Server
         public static StartingCity FromSave(string savedGame)
         {
             Simulation city = SavedGame.Load(savedGame, out string name);
-            return new StartingCity(name, city, new SaveStart(city.Save()));
+            return new StartingCity(name, city, SaveStart.Of(city));
         }
     }
 }

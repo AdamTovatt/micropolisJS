@@ -14,21 +14,29 @@ A log is a JSON object:
 
 | Key | Value |
 |-----|-------|
-| `formatVersion` | `1` |
+| `formatVersion` | `2` |
 | `seed` and `level` | The city starts as a new game: the map the game seed generates, the seed's simulation stream, the level (0 easy, 1 medium, 2 hard) and medium speed |
-| `save` | Or: the city starts from this saved state, as `Simulation.Save` writes it (`docs/state-hash.md`) |
+| `save` | Or: the city starts from this saved state, as `Simulation.Save` writes it (`docs/state-hash.md`), without the name and version a saved game holds beside it |
+| `saveVersion` | With a `save`, and only then: the save format version the save was written in (`SavedGame` in `server/Micropolis.Rules`) |
 | `description` | Optional: what the log is for, in words. Replay ignores it |
 | `entries` | The commands, in the order they were applied |
 | `checkpoints` | The state hashes to check, in order of step |
 
-A log has exactly one of `seed` and `save`, and a `level` only with a `seed`. It holds no other key: `CommandLog` and
-the end-to-end runner's `parseLog` ignore one, and a `level` beside a `save`, while the C# tests' reader of the
-conformance logs refuses both. A log that builds on a fixture, such as a mid-run log, starts where the fixture's
-starts and holds the fixture's commands before its own.
+A log has exactly one of `seed` and `save`, a `level` only with a `seed`, and a `saveVersion` only with a `save`. It
+holds no other key: `CommandLog` and the end-to-end runner's `parseLog` ignore one, a `level` beside a `save` and a
+`saveVersion` beside a `seed`, while the C# tests' reader of the conformance logs refuses them all. A log that builds
+on a fixture, such as a mid-run log, starts where the fixture's starts and holds the fixture's commands before its own.
 
 The format version covers the file and the commands it holds: a change to the file's keys, or to the commands, their
 fields or what they accept, is a new version, since a replayer of the old one would read the log differently. A
-change to a game rule is not: the commands mean the same, and the checkpoints the rule moves say so.
+change to a game rule is not: the commands mean the same, and the checkpoints the rule moves say so. Nor is a change
+to saved state: a log keeps its save in the version it was written in, which its `saveVersion` names.
+
+`CommandLog` reads versions 1 and 2, and every writer writes 2. Version 1 is version 2 without `saveVersion`: its
+save is read as save format version 10 (`CommandLog.VersionOneSaveVersion`), the version current when logs began to
+name it. A version 1 log written while an older save version was current holds a save of that version, which this
+misreads, so its replay differs or its save fails to load. The end-to-end runner's `parseLog` reads version 2 alone,
+since it reads only logs the server and the runner write.
 
 ### Entries
 
@@ -69,7 +77,9 @@ exactly (`CommandLog.MaxStep`).
 
 ## Replay
 
-Start the city as the log says. Then, for each step index from 0: apply the entries stamped with it, in order; check
+Start the city as the log says: a save is first brought up from its `saveVersion` to the current save format version,
+by the steps that upgrade a saved game (`SavedGame.UpgradeState`), so a log written before a change to saved state
+replays after it. Then, for each step index from 0: apply the entries stamped with it, in order; check
 the checkpoints at it; and take one step, unless the index is the log's last, the greater of its last entry's step
 and its last checkpoint's. A log that has a paused city take a step was not written by the game, and its replay
 fails.
@@ -79,7 +89,8 @@ fails.
 - **The server.** A city on the server keeps one log of every player's commands, each entry with the id of the
   player who sent it, in the order the server received them, and the C# rules work out its checkpoints' hashes. A
   new city's log starts from its seed and level; an uploaded city's, and a city's each time the server loads it
-  again, from its saved state. The server takes a checkpoint every 3,600 steps, a minute of play, from step 0, and
+  again, from its saved state as loaded, migrated to the current save format version whatever version it was saved
+  in, which its `saveVersion` names. The server takes a checkpoint every 3,600 steps, a minute of play, from step 0, and
   one more of the city as the log is handed over. With `?debug=1`, the debug window downloads it.
 - **Fixtures.** Each fixture is a log whose checkpoints are its golden hashes, which the fixture tool works out and
   writes to `conformance/logs/`, as `conformance/README.md` describes.

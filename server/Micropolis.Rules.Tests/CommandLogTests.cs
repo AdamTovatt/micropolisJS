@@ -21,7 +21,7 @@ namespace Micropolis.Rules.Tests
         private const string Hash = "511c4154dd1a7184ac5f0ef97f91cf3b3886e9df0c03d1156372c701d43a8420";
 
         private const string ValidLog =
-            "{\"formatVersion\":1,\"description\":\"d\",\"seed\":8,\"level\":2," +
+            "{\"formatVersion\":2,\"description\":\"d\",\"seed\":8,\"level\":2," +
             "\"entries\":[{\"step\":0,\"player\":\"local\",\"command\":{\"type\":\"addFunds\"}}]," +
             "\"checkpoints\":[{\"step\":3,\"hash\":\"" + Hash + "\"}]}";
 
@@ -52,11 +52,54 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
-        public void Parse_LogFromASave_ReadsTheSave()
+        public void Parse_LogFromASave_ReadsTheSaveAndItsVersion()
         {
-            CommandLog log = CommandLog.Parse(ValidLog.Replace("\"seed\":8,\"level\":2,", "\"save\":{\"simulation\":{}},"));
+            CommandLog log = CommandLog.Parse(ValidLog.Replace("\"seed\":8,\"level\":2,", "\"saveVersion\":7,\"save\":{\"simulation\":{}},"));
 
-            Assert.AreEqual("{\"simulation\":{}}", ((SaveStart)log.Start).Save.ToJsonString());
+            SaveStart start = (SaveStart)log.Start;
+            Assert.AreEqual("{\"simulation\":{}}", start.Save.ToJsonString());
+            Assert.AreEqual(7, start.SaveVersion);
+        }
+
+        // A version 1 log says no save format version, so any it gives is ignored
+        [TestMethod]
+        [DataRow("{\"simulation\":{}}", DisplayName = "no save version")]
+        [DataRow("{\"simulation\":{}},\"saveVersion\":7", DisplayName = "a save version")]
+        public void Parse_Version1LogFromASave_ReadsTheSaveAsTheVersionOneSaveVersion(string save)
+        {
+            string text = ValidLog.Replace("\"formatVersion\":2,", "\"formatVersion\":1,").Replace("\"seed\":8,\"level\":2,", $"\"save\":{save},");
+
+            CommandLog log = CommandLog.Parse(text);
+
+            Assert.AreEqual(CommandLog.VersionOneSaveVersion, ((SaveStart)log.Start).SaveVersion);
+        }
+
+        [TestMethod]
+        public void Write_LogFromASave_WritesItsVersionBesideIt()
+        {
+            CommandLog log = new CommandLog(null, new SaveStart(new JsonObject { ["simulation"] = new JsonObject() }, 7), [], [new Checkpoint(0, Hash)]);
+
+            Assert.AreEqual(
+                "{\n  \"formatVersion\": 2,\n  \"saveVersion\": 7,\n  \"save\": {\"simulation\":{}},\n  \"entries\": [],\n  \"checkpoints\": [\n" +
+                $"    {{\"step\":0,\"hash\":\"{Hash}\"}}\n  ]\n}}\n",
+                log.Write());
+        }
+
+        [TestMethod]
+        public void Parse_WrittenLogFromASave_WritesItBack()
+        {
+            string text = new CommandLog(null, new SaveStart(new JsonObject { ["simulation"] = new JsonObject() }, 7), [], [new Checkpoint(0, Hash)]).Write();
+
+            Assert.AreEqual(text, CommandLog.Parse(text).Write());
+        }
+
+        // A log holds no other key, and a saveVersion beside a seed is one
+        [TestMethod]
+        public void Parse_LogFromASeedWithASaveVersion_IgnoresIt()
+        {
+            CommandLog log = CommandLog.Parse(ValidLog.Replace("\"seed\":8,", "\"seed\":8,\"saveVersion\":3,"));
+
+            Assert.AreEqual(new SeedStart(8, Level.Hard), log.Start);
         }
 
         // The server counts steps as a long, which a log holds up to the largest safe integer, CommandLog.MaxStep
@@ -89,14 +132,19 @@ namespace Micropolis.Rules.Tests
             CommandLog log = new CommandLog(null, new SeedStart(1, Level.Easy), [], [new Checkpoint(0, Hash)]);
 
             Assert.AreEqual(
-                "{\n  \"formatVersion\": 1,\n  \"seed\": 1,\n  \"level\": 0,\n  \"entries\": [],\n  \"checkpoints\": [\n" +
+                "{\n  \"formatVersion\": 2,\n  \"seed\": 1,\n  \"level\": 0,\n  \"entries\": [],\n  \"checkpoints\": [\n" +
                 $"    {{\"step\":0,\"hash\":\"{Hash}\"}}\n  ]\n}}\n",
                 log.Write());
         }
 
         [TestMethod]
-        [DataRow("another version", "\"formatVersion\":1,", "\"formatVersion\":2,", "This is a version 2 command log")]
-        [DataRow("no version", "\"formatVersion\":1,", "", "This is a version undefined command log")]
+        [DataRow("a later version", "\"formatVersion\":2,", "\"formatVersion\":3,", "This is a version 3 command log: only versions 1 to 2")]
+        [DataRow("version 0", "\"formatVersion\":2,", "\"formatVersion\":0,", "This is a version 0 command log")]
+        [DataRow("no version", "\"formatVersion\":2,", "", "This is a version undefined command log")]
+        [DataRow("a save without its version", "\"seed\":8,\"level\":2,", "\"save\":{},", "A command log's save has a saveVersion")]
+        [DataRow("a save version before the oldest", "\"seed\":8,\"level\":2,", "\"saveVersion\":4,\"save\":{},", "A command log's save has a saveVersion")]
+        [DataRow("a save version past the current", "\"seed\":8,\"level\":2,", "\"saveVersion\":1000,\"save\":{},", "A command log's save has a saveVersion")]
+        [DataRow("a save version between versions", "\"seed\":8,\"level\":2,", "\"saveVersion\":7.5,\"save\":{},", "A command log's save has a saveVersion")]
         [DataRow("a seed and a save", "\"seed\":8,", "\"seed\":8,\"save\":{},", "exactly one of seed or save")]
         [DataRow("neither a seed nor a save", "\"seed\":8,\"level\":2,", "", "exactly one of seed or save")]
         [DataRow("a save that is no object", "\"seed\":8,\"level\":2,", "\"save\":[],", "A command log's save is an object")]

@@ -73,6 +73,8 @@ Sample saves, each the whole text of a game's save, its name and version include
 version from 5 on: the oldest `SavedGame` migrates, the first that holds the complete simulation state. Each was
 written by the game of its version, and they are never regenerated, since a version's format never changes:
 `version7AwaitingBudget.json` was saved while a year end waited for the player, which the step from version 7 pays.
+`SavedGameTests` also upgrades each as the bare state a command log holds, and `LogReplayTests` replays the sample of
+the version before the current one from inside a log, as a log written before the last upgrade step was added.
 The fixture tool fails unless every version from 5 to the current one has a sample, so a new version adds one, written
 by the game of the commit that adds it: a Debug build of that commit's server answers a city's save text to the
 debug channel's `savedGame` request (`CityDriver.savedGame` in `src/citySource.ts`), as its store keeps it. A sample
@@ -116,7 +118,9 @@ Command logs (`docs/command-log.md`), which the C# replays to every checkpoint:
 - `<fixture>.log.json`: each fixture's log, which `Fixtures.cs` lays out, with its golden hashes as its checkpoints:
   one at step 0, of the city as its commands build it, and one after its run. Its commands are a player's, on seed
   8's map, and all precede its first step. A fixture that needs what no command places starts from a save instead,
-  which its log keeps as committed data: no code builds it, and the tool writes it back as it reads it.
+  which its log keeps as committed data: no code builds it, and the tool writes it back as it reads it, its
+  `saveVersion` included, so a change to saved state leaves it in the version it was written in, which the replay
+  upgrades.
 - The mid-run logs, `Fixtures.MidRun`: a fixture's log with commands sent partway through its run, which no
   fixture's log has. `suburbMidRun.log.json` sends tool commands, and has
   a step that pauses the city, takes a command and resumes it. `suburbBrokeDisasters.log.json` triggers every disaster
@@ -131,9 +135,10 @@ Command logs (`docs/command-log.md`), which the C# replays to every checkpoint:
   `GoldenPlaythroughTests` in `server/Micropolis.Headless.Tests` checks those.
 
 `ConformanceLogs` reads the logs with `CommandLog`, more strictly than a replayer: it refuses a key the format doesn't
-define, a `level` beside a `save`, and a log with no checkpoint. `LogReplayTests` replays every log in the directory
+define, a `level` beside a `save`, a `saveVersion` beside a `seed`, a `save` without its `saveVersion`, and a log with
+no checkpoint. `LogReplayTests` replays every log in the directory
 through `LogReplay`, as the headless runner replays one: from a new city on the seed's map, at the log's level and
-medium speed, or from its save, it applies each step's commands through `Simulation.ApplyCommands`, checks the step's
+medium speed, or from its save, upgraded from its `saveVersion`, it applies each step's commands through `Simulation.ApplyCommands`, checks the step's
 checkpoints, then takes the step. A difference names the first checkpoint whose state hash differs, the step at which
 the log has a paused city step, or city time that fell behind the steps. A command's result is held by
 `commands.json`, since a checkpoint can't tell one rejection from another. `dotnet run --project

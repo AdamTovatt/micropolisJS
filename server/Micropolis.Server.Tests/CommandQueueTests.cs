@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using Micropolis.Rules;
 
 namespace Micropolis.Server.Tests
@@ -116,6 +117,21 @@ namespace Micropolis.Server.Tests
 
             Assert.AreEqual(CanonicalJson.Write(start.City.Save()), CanonicalJson.Write(((SaveStart)log.Start).Save));
             Assert.AreEqual(StateHash.HashSavedState(start.City.Save()), log.Checkpoints.Single().Hash);
+        }
+
+        // A city uploaded in an older save format is loaded migrated, and its log starts from it as loaded, in the
+        // current version, which its replay loads unchanged
+        [TestMethod]
+        public void Log_CityFromAnOlderSave_StartsFromItAsLoadedInTheCurrentVersion()
+        {
+            string sample = File.ReadAllText(Path.Combine(ConformanceDirectories.Committed.SaveVersions, $"version{SavedGame.CurrentVersion - 1}.json"));
+            StartingCity start = StartingCity.FromSave(sample);
+            CommandRecorder recorder = new CommandRecorder(start.City, start.LogStart);
+
+            CommandLog log = ReadBack(recorder);
+
+            Assert.AreEqual(SavedGame.CurrentVersion, ((SaveStart)log.Start).SaveVersion);
+            LogReplay.Verify(log);
         }
 
         [TestMethod]
