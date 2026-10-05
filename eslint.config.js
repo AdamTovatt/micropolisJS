@@ -46,7 +46,7 @@ export default defineConfig(
   {
     // A promise nobody awaits fails silently, so each is awaited, handled, or marked void with the reason nothing
     // waits on it. These rules read types, through the project service from tsconfig.json.
-    files: ["src/**/*.ts", "test/**/*.ts", "e2e/**/*.ts"],
+    files: ["src/**/*.ts", "test/**/*.ts", "e2e/**/*.ts", "cli/**/*.ts"],
     languageOptions: {
       parserOptions: {
         projectService: true,

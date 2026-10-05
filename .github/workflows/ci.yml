@@ -45,9 +45,10 @@ jobs:
           cat "$RUNNER_TEMP/benchmarks.md"
           grep -q '^| Fixture | Speed | Steps/s | ms/step | Bytes/step |$' "$RUNNER_TEMP/benchmarks.md"
       - run: npm ci
-      # The client's tests that start the server just built: the city source's contract and the city two players share
+      # The client's tests that start the server just built: the city source's contract, the city two players share,
+      # and the command line's connection
       - name: Run the client's tests against the real server
-        run: npx jest test/citySource.ts test/sharedCity.ts
+        run: npx jest test/citySource.ts test/sharedCity.ts test/cliServer.ts
         env:
           MICROPOLIS_SERVER_TESTS: "1"
       # What the client's other tests play back through the fake city source, recorded again from the server just built

@@ -14,9 +14,8 @@
 
 import { WebSocketCitySource } from "../../src/webSocketCitySource";
 import { Entry } from "../helpers/recordings";
-import {
-    memorySessionStore, NodeCityEnvironment, signedInClient, startTestServer, TestServer,
-} from "../helpers/testServer";
+import type { NodeCityEnvironment } from "../../cli/nodeCityEnvironment";
+import { memorySessionStore, signedInClient, startTestServer, TestServer } from "../helpers/testServer";
 import { RecordingBuilder, withNames, writeRecording } from "./recordingFile";
 import { RecordingSource } from "./recordingSource";
 import { RecordingSession, Scenario, SCENARIOS } from "./scenarios";

@@ -19,9 +19,9 @@ import { join } from "path";
 import { SESSION_STORAGE_KEY } from "../src/browserCityEnvironment";
 import { CityClient, SESSION_PATH, StoredSession } from "../src/cityClient";
 import { parseSessionResponse, signInRequest } from "../src/protocol";
+import type { NodeCityEnvironment } from "../cli/nodeCityEnvironment";
 import {
-  memorySessionStore, NodeCityEnvironment, signedInClient, START_SERVER_TIMEOUT_MS, startTestServer, TestServer,
-  TestServerClock,
+  memorySessionStore, signedInClient, START_SERVER_TIMEOUT_MS, startTestServer, TestServer, TestServerClock,
 } from "../test/helpers/testServer";
 
 // The game server a spec plays the page against: the server's Debug build, which test/helpers/testServer.ts starts with

@@ -17,7 +17,8 @@ import { existsSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 import { CityClient } from "../../src/cityClient";
-import type { CityClientEnvironment, SessionStore, SocketLike, StoredSession } from "../../src/cityClient";
+import type { SessionStore, StoredSession } from "../../src/cityClient";
+import { NodeCityEnvironment, nodeCityEnvironment } from "../../cli/nodeCityEnvironment";
 import { repositoryPath } from "./repository";
 
 // The real C# server, as the client's tests run against it: the Debug build, which answers the debug channel, with its
@@ -146,44 +147,6 @@ export function startTestServer(clock: TestServerClock, repositoryRoot = reposit
 export function memorySessionStore(): SessionStore {
     let stored: StoredSession | null = null;
     return {load: () => stored, save: (session) => { stored = session; }};
-}
-
-// A city client's environment in Node, against the server at the origin. drop loses its connection as a network
-// going would, after which the client reconnects; close ends its sockets and timers for good.
-export interface NodeCityEnvironment extends CityClientEnvironment {
-    drop(): void;
-    close(): void;
-}
-
-export function nodeCityEnvironment(origin: string, store: SessionStore): NodeCityEnvironment {
-    const sockets: WebSocket[] = [];
-    const timers: NodeJS.Timeout[] = [];
-    let closed = false;
-
-    return {
-        request: (path, init) => fetch(origin + path, init),
-        openSocket: (pathAndQuery) => {
-            const socket = new WebSocket(origin.replace(/^http/, "ws") + pathAndQuery);
-            sockets.push(socket);
-            const city: SocketLike = {onmessage: null, onclose: null, send: (data) => socket.send(data)};
-            socket.onmessage = (event) => city.onmessage?.({data: event.data});
-            socket.onclose = ({code}) => city.onclose?.({code});
-            return city;
-        },
-        store,
-        exclusively: (task) => task(),
-        schedule: (callback, delayMs) => {
-            if (!closed) {
-                timers.push(setTimeout(callback, delayMs));
-            }
-        },
-        drop: () => sockets.forEach((socket) => socket.close()),
-        close: () => {
-            closed = true;
-            timers.forEach((timer) => clearTimeout(timer));
-            sockets.forEach((socket) => socket.close());
-        },
-    };
 }
 
 // A city client signed in to the server under the name, unless the store already holds a session, once the server has

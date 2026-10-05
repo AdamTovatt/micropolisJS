@@ -18,9 +18,9 @@ import { CityState } from "../src/cityState";
 import { Command, CommandResult, StateMessage } from "../src/protocol";
 import { WebSocketCitySource } from "../src/webSocketCitySource";
 import { parseLog } from "./helpers/commandLog";
+import type { NodeCityEnvironment } from "../cli/nodeCityEnvironment";
 import {
-    memorySessionStore, NodeCityEnvironment, serverTestsEnabled, signedInClient, START_SERVER_TIMEOUT_MS, startTestServer,
-    TestServer,
+    memorySessionStore, serverTestsEnabled, signedInClient, START_SERVER_TIMEOUT_MS, startTestServer, TestServer,
 } from "./helpers/testServer";
 
 // One city on the server, run by two players, as CLAUDE.md's Decided multiplayer shape has it: both players' commands go
