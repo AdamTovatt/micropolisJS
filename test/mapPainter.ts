@@ -13,8 +13,10 @@
  */
 
 import { ANIMATION_PERIOD } from "../src/animationManager";
+import type { PaintableCar } from "../src/cars";
 import { ClientMap } from "../src/cityState";
 import { MapFrame, QUAD_FLOATS } from "../src/mapFrame";
+import type { QuadList } from "../src/mapFrame";
 import { MapPainter } from "../src/mapPainter";
 import type { Rect } from "../src/rect";
 import { RenderArt, parseRenderManifest } from "../src/renderManifest";
@@ -45,12 +47,13 @@ const VIEW = {origin: {x: 10, y: 5}, across: 4, down: 3, tilePixels: 16};
 // A view of 24 by 16 tiles from the same tile, six blocks of tiles, so a change in one of them draws part of the view
 const WIDE = {...VIEW, across: 24, down: 16};
 
-// What the renderer was asked to draw: each frame's ground quads, by atlas and where they come from, its sprites, and
-// the areas
+// What the renderer was asked to draw: each frame's ground quads, by atlas and where they come from, where each of its
+// cars and sprites lands, in order, the areas of the layer drawn again, and the areas the layer is copied over
 interface Drawn {
     ground: {atlas: string, x: number, y: number}[];
-    sprites: number;
+    sprites: Rect[];
     areas: readonly Rect[] | null;
+    composite: readonly Rect[] | null;
 }
 
 // Whether the areas cover every pixel of the rectangle
@@ -77,6 +80,19 @@ function groundOf(frame: MapFrame): Drawn["ground"] {
     });
 }
 
+// Where each quad of the list lands, in device pixels from the target's top-left, in order
+function landingOf(list: QuadList): Rect[] {
+    return list.runs.flatMap((run) => Array.from({length: run.count}, (_, i) => {
+        const [x, y, width, height] = run.floats.slice(i * QUAD_FLOATS, i * QUAD_FLOATS + 4);
+        return {x, y, width, height};
+    }));
+}
+
+// The tile of the view, at 16 device pixels a tile, that the middle of where a quad lands is on
+function tileOf({x, y, width, height}: Rect): {column: number, row: number} {
+    return {column: Math.floor((x + width / 2) / 16), row: Math.floor((y + height / 2) / 16)};
+}
+
 // A painter of a map of dirt, with the tiles given placed on it, drawing on a stand-in for the WebGL renderer
 function newPainter(...placed: {x: number, y: number, value: number}[]) {
     const tiles = new Array<number>(MAP_WIDTH * MAP_HEIGHT).fill(0);
@@ -90,18 +106,25 @@ function newPainter(...placed: {x: number, y: number, value: number}[]) {
     const picture = new Uint8ClampedArray(4);
     const renderer = {
         busy: false,
-        draw: (frame: MapFrame, areas: readonly Rect[] | null) => {
-            drawn.push({ground: groundOf(frame), sprites: frame.sprites.count, areas});
+        needsWholeLayer: false,
+        draw: (frame: MapFrame, areas: readonly Rect[] | null, composite: readonly Rect[] | null) => {
+            drawn.push({ground: groundOf(frame), sprites: landingOf(frame.sprites), areas, composite});
         },
         drawOffscreen: jest.fn<Uint8ClampedArray, [MapFrame, number, number]>(() => picture),
         release: jest.fn(),
     };
 
-    const painter = new MapPainter({width: 64, height: 48}, map, art, renderer);
+    // The wide view's size, in device pixels
+    const painter = new MapPainter({width: WIDE.across * 16, height: WIDE.down * 16}, map, art, renderer);
     return {painter, map, reads, drawn, renderer, picture};
 }
 
 const noTint = () => null;
+
+// A car facing east on the tile column across and row down from the wide view's origin
+function carAt(column: number, row: number): PaintableCar {
+    return {x: (WIDE.origin.x + column) * 16, y: (WIDE.origin.y + row) * 16, width: 16, direction: "east", colour: 0};
+}
 
 describe("a painter of the map", () => {
 
@@ -190,18 +213,110 @@ describe("a painter of the map", () => {
         expect(covers(drawn[1].areas!, {x: 16 * 20, y: 16 * 12, width: 16, height: 16})).toBe(false);
     });
 
-    it("draws again around a sprite that moved, where it was and where it is, with the sprite", () => {
+    it("draws a sprite that moved over the map's layer copied where it was and is, drawing none of the layer", () => {
         const {painter, drawn} = newPainter();
         const sprite = {type: 1, frame: 1, x: (WIDE.origin.x + 1) * 16, y: (WIDE.origin.y + 1) * 16, width: 32};
         painter.paint(WIDE, noTint, [], [sprite]);
 
         expect(painter.paint(WIDE, noTint, [], [{...sprite, x: sprite.x + 16}])).toBe(true);
 
-        expect(drawn.map(({sprites}) => sprites)).toEqual([1, 1]);
-        expect(drawn[1].areas).not.toBeNull();
+        expect(drawn.map(({sprites, ground, areas}) => [sprites.length, ground.length, areas]))
+            .toEqual([[1, WIDE.across * WIDE.down, null], [1, 0, []]]);
+        expect(drawn[0].composite).toBeNull();
         // Where it was, and where it is, in device pixels from the view's origin
-        expect(covers(drawn[1].areas!, {x: 16, y: 16, width: 32, height: 32})).toBe(true);
-        expect(covers(drawn[1].areas!, {x: 32, y: 16, width: 32, height: 32})).toBe(true);
+        expect(covers(drawn[1].composite!, {x: 16, y: 16, width: 48, height: 32})).toBe(true);
+        expect(covers(drawn[1].composite!, {x: 16 * 20, y: 16 * 12, width: 16, height: 16})).toBe(false);
+    });
+
+    it("draws a car that moved over the layer copied where it was and is, and none of the cars and sprites far off", () => {
+        const {painter, drawn} = newPainter();
+        const sprite = {type: 1, frame: 1, x: (WIDE.origin.x + 1) * 16, y: (WIDE.origin.y + 1) * 16, width: 32};
+        const car = carAt(20, 12);
+        const parked = carAt(10, 12);
+        painter.paint(WIDE, noTint, [car, parked], [sprite]);
+
+        expect(painter.paint(WIDE, noTint, [{...car, x: car.x + 1}, parked], [sprite])).toBe(true);
+
+        expect(drawn[0].sprites).toHaveLength(3);
+        expect(drawn[1].sprites.map(tileOf)).toEqual([{column: 20, row: 12}]);
+        expect(covers(drawn[1].composite!, {x: 16 * 20, y: 16 * 12, width: 17, height: 16})).toBe(true);
+        expect(covers(drawn[1].composite!, {x: 16 * 10, y: 16 * 12, width: 16, height: 16})).toBe(false);
+    });
+
+    it("draws a car that stands where the layer is copied over, and copies it over the whole of the car", () => {
+        const {painter, drawn} = newPainter();
+        // A car standing across the edge of the cells the moving car's square is in
+        const car = carAt(4, 4);
+        const parked = {...car, x: car.x + 24};
+        painter.paint(WIDE, noTint, [car, parked], []);
+
+        painter.paint(WIDE, noTint, [{...car, y: car.y + 1}, parked], []);
+
+        expect(drawn[1].sprites.map(tileOf)).toEqual([{column: 4, row: 4}, {column: 6, row: 4}]);
+        expect(covers(drawn[1].composite!, {x: 16 * 4 + 24, y: 16 * 4, width: 16, height: 16})).toBe(true);
+    });
+
+    it("draws a car standing on a tile that changed, over the layer drawn again there", () => {
+        const {painter, map, drawn} = newPainter();
+        const car = carAt(1, 1);
+        painter.paint(WIDE, noTint, [car], []);
+
+        map.change([{x: WIDE.origin.x + 1, y: WIDE.origin.y + 1, value: ZONE}]);
+        painter.paint(WIDE, noTint, [car], []);
+
+        expect(drawn[1].sprites.map(tileOf)).toEqual([{column: 1, row: 1}]);
+        expect(covers(drawn[1].composite!, drawn[1].areas![0])).toBe(true);
+    });
+
+    // Its square is the same, but it is drawn long the other way
+    it("draws a car that turned in its place", () => {
+        const {painter, drawn} = newPainter();
+        const car = carAt(2, 2);
+        painter.paint(WIDE, noTint, [car], []);
+
+        const turned = painter.paint(WIDE, noTint, [{...car, direction: "north"}], []);
+        const standing = painter.paint(WIDE, noTint, [{...car, direction: "north"}], []);
+
+        expect([turned, standing]).toEqual([true, false]);
+        expect(drawn.map(({areas, sprites}) => [areas, sprites.length])).toEqual([[null, 1], [[], 1]]);
+    });
+
+    it("draws a sprite that moved among standing cars, and of them only the car its cells reach", () => {
+        const {painter, drawn} = newPainter();
+        const sprite = {type: 1, frame: 1, x: (WIDE.origin.x + 8) * 16, y: (WIDE.origin.y + 8) * 16, width: 16};
+        // One car in the cell the sprite moves within, and one far off, given before it as the painter is given cars
+        const near = carAt(9, 8);
+        const far = carAt(20, 2);
+        painter.paint(WIDE, noTint, [far, near], [sprite]);
+
+        painter.paint(WIDE, noTint, [far, near], [{...sprite, x: sprite.x + 4}]);
+
+        // The near car, then the sprite over it
+        expect(drawn[1].sprites.map(tileOf)).toEqual([{column: 9, row: 8}, {column: 8, row: 8}]);
+    });
+
+    it("copies the layer over every device pixel a car's square touches, at a tile size between whole pixels", () => {
+        const {painter, drawn} = newPainter();
+        // At 17.6 device pixels a tile, a car 1.8 tiles across and down from the origin covers pixels 31.68 to 49.28
+        // each way: from the last pixel of the first cell into the second
+        const view = {...WIDE, tilePixels: 17.6};
+        const car = {...carAt(0, 0), x: (WIDE.origin.x + 1.8) * 16, y: (WIDE.origin.y + 1.8) * 16};
+        painter.paint(view, noTint, [car], []);
+
+        painter.paint(view, noTint, [], []);
+
+        expect(covers(drawn[1].composite!, {x: 31, y: 31, width: 19, height: 19})).toBe(true);
+    });
+
+    it("draws the map's layer whole when the renderer has made it again, as a canvas sized again makes it", () => {
+        const {painter, map, renderer, drawn} = newPainter();
+        painter.paint(WIDE, noTint, [], []);
+        map.change([{x: WIDE.origin.x + 1, y: WIDE.origin.y + 1, value: ZONE}]);
+
+        renderer.needsWholeLayer = true;
+
+        expect(painter.paint(WIDE, noTint, [], [])).toBe(true);
+        expect(drawn[1].areas).toBeNull();
     });
 
     it("draws all of the view once it forgets the frame drawn last", () => {

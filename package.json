@@ -25,6 +25,7 @@
     "typecheck": "tsc --noEmit",
     "record": "tsx test/recordings/record.ts",
     "benchmark": "dotnet run --project server/Micropolis.Benchmarks -c Release -- --output docs/benchmarks.md",
+    "benchmark:render": "playwright test --config e2e/benchmark.config.ts",
     "dev": "webpack serve --mode development"
   },
   "devDependencies": {

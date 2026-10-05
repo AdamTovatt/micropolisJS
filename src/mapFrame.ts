@@ -16,7 +16,7 @@ import { CAR_COLOURS } from "./cars";
 import type { PaintableCar } from "./cars";
 import type { Tint } from "./overlayRenderer";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
-import type { PaintableMap, PaintableSprite } from "./paintable";
+import type { PaintableMap, PaintableSprite, PaintableSquare } from "./paintable";
 import type { Rect } from "./rect";
 import { WHITE } from "./renderManifest";
 import type { RenderArt } from "./renderManifest";
@@ -215,8 +215,9 @@ function addCar(list: QuadList, art: RenderArt, car: PaintableCar, x: number, y:
 
 // Fills the frame with the quads that draw the area's tiles, tilePixels device pixels a side, with the view's top-left
 // the area's offset into its first tile in view; then the tints of the tiles in view; then the cars given, then the
-// sprites, over them. Given areas of the view, in device pixels from its top-left, only the quads that reach into one
-// are added: the renderer draws no further than they reach. Without, every quad is.
+// sprites, over them. Given areas of the view, in device pixels from its top-left, only the tiles' and the tints'
+// quads that reach into one are added, none for no areas: the renderer draws the map no further than they reach.
+// Without, every quad is. The cars and the sprites are added whole either way: they are drawn over the whole map.
 //
 // A shadow comes from its anchor's raw value, not from the frame the animation manager chose: an unpowered zone's centre
 // blinks to the lightning bolt, and its shadow would blink with it. Every layer of a traffic tile, its shadow included,
@@ -233,7 +234,9 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
     areas.some((area) => x < area.x + area.width && x + quadWidth > area.x && y < area.y + area.height &&
                          y + quadHeight > area.y);
 
-  for (let row = 0; row < height; row++) {
+  // No areas draw none of the map
+  const drawsMap = areas === null || areas.length > 0;
+  for (let row = 0; drawsMap && row < height; row++) {
     for (let column = 0; column < width; column++) {
       const index = row * width + column;
       const value = tiles.values[index];
@@ -276,18 +279,9 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
     }
   }
 
-  // The first tile in view's top-left, in map pixels
-  const firstX = (tiles.x + margin) * SPRITE_PIXELS_PER_TILE;
-  const firstY = (tiles.y + margin) * SPRITE_PIXELS_PER_TILE;
-  const scale = tilePixels / SPRITE_PIXELS_PER_TILE;
-
   for (const car of cars) {
-    const x = (car.x - firstX) * scale - offset.x;
-    const y = (car.y - firstY) * scale - offset.y;
-    const side = car.width * scale;
-    if (reaches(x, y, side, side)) {
-      addCar(frame.sprites, art, car, x, y, side);
-    }
+    const {x, y, side} = squareOnView(car, tiles, tilePixels);
+    addCar(frame.sprites, art, car, x, y, side);
   }
 
   for (const sprite of sprites) {
@@ -296,11 +290,19 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
       throw new Error(`No art draws sprite ${sprite.type} frame ${sprite.frame}`);
     }
 
-    const x = (sprite.x - firstX) * scale - offset.x;
-    const y = (sprite.y - firstY) * scale - offset.y;
-    const side = sprite.width * scale;
-    if (reaches(x, y, side, side)) {
-      frame.sprites.add(rect.atlas, x, y, side, side, rect);
-    }
+    const {x, y, side} = squareOnView(sprite, tiles, tilePixels);
+    frame.sprites.add(rect.atlas, x, y, side, side, rect);
   }
+}
+
+// Where the square of a car or a sprite lands on the view the tiles are read for, tilePixels device pixels a tile: its
+// top-left, from the view's top-left, and its side, in device pixels, which may fall between pixels
+export function squareOnView(square: PaintableSquare, tiles: Pick<FrameTiles, "x" | "y" | "margin" | "offset">,
+                             tilePixels: number): {x: number, y: number, side: number} {
+  // The first tile in view's top-left, in map pixels
+  const firstX = (tiles.x + tiles.margin) * SPRITE_PIXELS_PER_TILE;
+  const firstY = (tiles.y + tiles.margin) * SPRITE_PIXELS_PER_TILE;
+  const scale = tilePixels / SPRITE_PIXELS_PER_TILE;
+  return {x: (square.x - firstX) * scale - tiles.offset.x, y: (square.y - firstY) * scale - tiles.offset.y,
+          side: square.width * scale};
 }

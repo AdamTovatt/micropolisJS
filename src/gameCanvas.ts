@@ -106,6 +106,8 @@ class GameCanvas {
   private readonly overlayDrawnListeners: ((view: OverlayView | null) => void)[] = [];
   // What the marks were last drawn from, so a paint that would draw the same again doesn't
   private marksDrawn = "";
+  // The frames the painter has drawn
+  private painted = 0;
 
   // The CSS pixels a tile is drawn
   private zoom = ZOOM_STEPS[0];
@@ -149,6 +151,11 @@ class GameCanvas {
   // already, and the GPU has finished drawing it
   get mapCurrent(): boolean {
     return this.painter.current;
+  }
+
+  // The frames the map's painter has drawn since the canvas was made
+  get framesPainted(): number {
+    return this.painted;
   }
 
   // The tiles the view shows across and down, a fraction where a tile at either edge shows in part
@@ -279,6 +286,9 @@ class GameCanvas {
     const drew = this.painter.paint(paintedView(this.position, this.zoom * this.pixelRatio),
                                     overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), cars,
                                     sprites, isPaused);
+    if (drew) {
+      this.painted++;
+    }
 
     // Setting the overlay forgets the frame drawn, so the first frame drawn after it is drawn whole, with it. While the
     // WebGL context is lost the renderer draws nothing and this still reports the overlay, but the map is blank then,

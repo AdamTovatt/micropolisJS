@@ -109,7 +109,7 @@ function stepOf(direction: CarDirection): {x: number, y: number} {
 }
 
 // The way each letter of a trip's steps takes it
-const STEP_LETTERS: Readonly<Record<string, CarDirection>> = {N: "north", E: "east", S: "south", W: "west"};
+export const STEP_LETTERS: Readonly<Record<string, CarDirection>> = {N: "north", E: "east", S: "south", W: "west"};
 
 // Every tile a trip stands on, in order: its start, then the tile each of its steps takes it to
 export function tripRoute([x, y, steps]: Trip): TilePosition[] {

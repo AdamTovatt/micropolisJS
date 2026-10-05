@@ -258,7 +258,7 @@ export class Player {
 
   // The build the page was served from, as the Settings window shows it
   async buildId(): Promise<string> {
-    return ((await this.page.locator("#buildDisplay").textContent()) ?? "").replace(/^\s*Build:\s*/, "").trim();
+    return ((await this.page.locator("#buildDisplay span:not(.hudRowName)").textContent()) ?? "").trim();
   }
 
   async selectTool(tool: Tool): Promise<void> {
