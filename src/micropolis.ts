@@ -20,11 +20,12 @@ import { ClientConfig } from "./clientConfig";
 import { requiredElement, setShown } from "./domElements";
 import { errorMessage } from "./errorMessage";
 import { Game } from "./game";
+import { OLD_SAVE_KEY } from "./oldSaveOffer";
 import { showOnlineList } from "./onlineList";
 import { loadMapArt, MapArt } from "./renderAssets";
 import { signInIfServerAnswers } from "./signInForm";
 import { showSplashScreen } from "./splashScreen";
-import { CityList, pageStore } from "./storage";
+import { CityList, pageStore, StoredText } from "./storage";
 import { attachDriverToTestHook, installTestHook } from "./testHook";
 import { isAcceptableTileImage } from "./tileSet";
 import { debugOption, seedOption } from "./urlOptions";
@@ -123,8 +124,9 @@ async function start(seed: number | null, city: string | null): Promise<void> {
   }
 
   // A city played goes on the list of cities this browser started or joined, which the splash screen offers to join
-  // again
-  const cities = new CityList(pageStore());
+  // again, beside a game the browser kept before cities were kept on the server
+  const store = pageStore();
+  const cities = new CityList(store);
   const parts = {source, state, presence: cityClient, mapArt};
   const play = (started: StartedCity) => {
     cities.remember({city: started.city, name: started.name});
@@ -135,7 +137,7 @@ async function start(seed: number | null, city: string | null): Promise<void> {
     return;
   }
 
-  showSplashScreen(parts, seed, {cities, play});
+  showSplashScreen(parts, seed, {cities, oldSave: new StoredText(store, OLD_SAVE_KEY), play});
 }
 
 // Says the server isn't answering, in place of the game, and loads the page again when the player tries again. The

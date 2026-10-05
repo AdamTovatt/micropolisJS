@@ -11,18 +11,44 @@
  *
  */
 
-import { expect, test } from "@playwright/test";
-import { writeFileSync } from "fs";
+import { expect, Page, test } from "@playwright/test";
+import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
 
 import { CITY_LINK, serverForTests } from "./gameServer";
 import { collectPageProblems, isContextLost } from "./page";
 import { Player, TESTER } from "./player";
 import { SEED, SITE } from "./stages";
 
-// Load on the splash screen starts a save file on the game server as a new city, so a checkpoint's save, or any city
-// saved as a file, can be played again
+// Save keeps the city in the game server's store, Download gives the player its save as a file, and Load on the splash
+// screen starts a save file on the game server as a new city, so a checkpoint's save, or any city saved as a file, can
+// be played again. A game the browser kept in its localStorage before cities were kept on the server is offered until
+// the player starts it, downloads it or discards it.
 
 const server = serverForTests("manual");
+
+// The key the browser kept its saved game under, and the oldest sample save the game loads, as such a game may be
+const OLD_SAVE_KEY = "micropolisJSGame";
+const OLD_SAVE_NAME = "Sample";
+
+function oldSaveText(): string {
+  return readFileSync(join(test.info().config.rootDir, "..", "conformance", "saveVersions", "version5.json"), "utf8");
+}
+
+// Has the browser keep the text as its old saved game when the page first opens, as a browser that played before cities
+// were kept on the server does: once only, so the page that takes it out finds it gone when it opens again
+async function keepOldSave(page: Page, text: string): Promise<void> {
+  await page.addInitScript(({key, text}) => {
+    if (sessionStorage.getItem("oldSaveKept") === null) {
+      sessionStorage.setItem("oldSaveKept", "yes");
+      localStorage.setItem(key, text);
+    }
+  }, {key: OLD_SAVE_KEY, text});
+}
+
+function storedOldSave(page: Page): Promise<string | null> {
+  return page.evaluate((key) => localStorage.getItem(key), OLD_SAVE_KEY);
+}
 
 // The id in the city's link in the page's address
 function linkedCity(url: string): string {
@@ -137,6 +163,161 @@ test("Load ignores a save file that finishes reading after the player started a 
   expect(problems).toEqual([]);
 });
 
+// The page joins a city by its link without the splash screen, and Save and Download work there as in a city it
+// started: the city a session joins by its link is the one a player shares or comes back to
+test("Save and Download work in a city joined by its link, and the download loads as the city it saved",
+     async ({page}) => {
+  const player = await Player.onServer(server(), page, TESTER);
+  const problems = collectPageProblems(page);
+  await player.startNewGame(SEED, "Kept/Town", "Easy");
+  const site = SITE[0];
+  await player.selectTool("road");
+  await player.dragTiles({x: site.left, y: site.top}, {x: site.right, y: site.top});
+  await player.advance(500);
+
+  await player.reloadCity();
+  await expect(page.locator("#splash")).toBeHidden();
+  await player.advance(100);
+  const saved = await player.save();
+  const file = await player.downloadGame();
+  await player.saveGame();
+
+  expect(file.name).toBe("Kept_Town.json");
+  expect(JSON.parse(file.text)).toEqual(saved);
+  expect(player.storedSave()).toEqual(saved);
+
+  const path = test.info().outputPath(file.name);
+  writeFileSync(path, file.text);
+  await player.open();
+  await player.loadSaveFile(path);
+  await player.waitForGame();
+  expect(await player.save()).toEqual(saved);
+  expect(problems).toEqual([]);
+});
+
+test("Download clicked again while its file is on its way gives one file", async ({page}) => {
+  const player = await Player.onServer(server(), page, TESTER);
+  const problems = collectPageProblems(page);
+  await player.startNewGame(SEED, "Twice", "Easy");
+  const files: string[] = [];
+  page.on("download", (download) => files.push(download.suggestedFilename()));
+
+  await page.dblclick("#downloadRequest");
+  await expect.poll(() => files.length).toBe(1);
+  // The server answers a connection's requests in order, so a second download the page asked for would come first
+  await player.save();
+
+  expect(files).toEqual(["Twice.json"]);
+  expect(problems).toEqual([]);
+});
+
+test.describe("a game the browser kept before cities were kept on the server", () => {
+
+  test("is offered, starts as a new city, and is kept no more", async ({page}) => {
+    const player = await Player.onServer(server(), page, TESTER);
+    const problems = collectPageProblems(page);
+    await keepOldSave(page, oldSaveText());
+
+    await player.open(`seed=${SEED}`);
+    await expect(page.locator("#splashOldSave")).toBeVisible();
+    await page.click("#splashOldSaveStart");
+    await player.waitForGame();
+
+    await expect(page.locator("#name")).toHaveText(OLD_SAVE_NAME);
+    expect(await storedOldSave(page)).toBeNull();
+    await player.open(`seed=${SEED}`);
+    await expect(page.locator("#splash")).toBeVisible();
+    await expect(page.locator("#splashOldSave")).toBeHidden();
+    expect(problems).toEqual([]);
+  });
+
+  test("is given as a file, and kept no more", async ({page}) => {
+    const player = await Player.onServer(server(), page, TESTER);
+    const problems = collectPageProblems(page);
+    const text = oldSaveText();
+    await keepOldSave(page, text);
+
+    await player.open(`seed=${SEED}`);
+    const file = await player.downloadFrom("#splashOldSaveDownload");
+
+    expect(file).toEqual({name: "micropolis-saved-city.json", text});
+    await expect(page.locator("#splashOldSave")).toBeHidden();
+    await expect(page.locator("#splash")).toBeVisible();
+    expect(await storedOldSave(page)).toBeNull();
+    expect(problems).toEqual([]);
+  });
+
+  test("is discarded, and kept no more", async ({page}) => {
+    const player = await Player.onServer(server(), page, TESTER);
+    const problems = collectPageProblems(page);
+    await keepOldSave(page, oldSaveText());
+
+    await player.open(`seed=${SEED}`);
+    await page.click("#splashOldSaveDiscard");
+
+    await expect(page.locator("#splashOldSave")).toBeHidden();
+    expect(await storedOldSave(page)).toBeNull();
+    expect(problems).toEqual([]);
+  });
+
+  test("that won't start is said out loud, and still offered", async ({page}) => {
+    const player = await Player.onServer(server(), page, TESTER);
+    const problems = collectPageProblems(page);
+    await keepOldSave(page, "not a save");
+
+    await player.open(`seed=${SEED}`);
+    await page.click("#splashOldSaveStart");
+    await expect.poll(() => problems.length).toBe(1);
+
+    expect(problems[0]).toMatch(/^Alert: The city saved in this browser could not start:/);
+    await expect(page.locator("#splashOldSave")).toBeVisible();
+    expect(await storedOldSave(page)).toBe("not a save");
+  });
+
+  test("refused while another city starts is still kept", async ({page}) => {
+    const forwarded = await server().forward(page, TESTER);
+    const problems = collectPageProblems(page);
+    await keepOldSave(page, oldSaveText());
+    await page.goto(`/?seed=${SEED}`);
+    // An upload the server never answers, so the old save is still starting when the player starts it again
+    forwarded.intercept = (message) => message.type === "upload";
+
+    await page.click("#splashOldSaveStart");
+    await page.click("#splashOldSaveStart");
+
+    await expect.poll(() => problems).toEqual(["Alert: Another city is starting: wait for it, then choose again."]);
+    expect(await storedOldSave(page)).not.toBeNull();
+  });
+
+  test("dealt with in another tab is said out loud there, and offered there no more", async ({page, context}) => {
+    await server().forward(page, TESTER);
+    await keepOldSave(page, oldSaveText());
+    await page.goto(`/?seed=${SEED}`);
+    const other = await context.newPage();
+    await server().forward(other, TESTER);
+    const problems = collectPageProblems(other);
+    await other.goto(`/?seed=${SEED}`);
+    await expect(other.locator("#splashOldSave")).toBeVisible();
+
+    await page.click("#splashOldSaveDiscard");
+    await other.click("#splashOldSaveStart");
+
+    await expect.poll(() => problems)
+      .toEqual(["Alert: The city saved in this browser was already started, downloaded or discarded in another tab."]);
+    await expect(other.locator("#splashOldSave")).toBeHidden();
+    await expect(other.locator("#splash")).toBeVisible();
+  });
+
+  test("isn't offered by a browser that kept none", async ({page}) => {
+    const player = await Player.onServer(server(), page, TESTER);
+
+    await player.open(`seed=${SEED}`);
+
+    await expect(page.locator("#splash")).toBeVisible();
+    await expect(page.locator("#splashOldSave")).toBeHidden();
+  });
+});
+
 test("Load is offered outside debug mode", async ({page}) => {
   await server().forward(page, TESTER);
 
@@ -144,4 +325,23 @@ test("Load is offered outside debug mode", async ({page}) => {
 
   await expect(page.locator("#splashLoad")).toBeVisible();
   await expect(page.locator("#splashLoad")).toBeEnabled();
+});
+
+// Last, since it uses up the saves and downloads the server allows from here, and the tests share an address
+test("Download past the saves and downloads allowed from here is said out loud", async ({page}) => {
+  const player = await Player.onServer(server(), page, TESTER);
+  const problems = collectPageProblems(page);
+  await player.startNewGame(SEED, "Often", "Easy");
+  let files = 0;
+  page.on("download", () => files++);
+
+  // More than the server allows at once, each click waiting for its file or its failure
+  for (let clicks = 1; clicks <= 20 && problems.length === 0; clicks++) {
+    await page.click("#downloadRequest");
+    await expect.poll(() => files + problems.length).toBe(clicks);
+  }
+
+  expect(problems)
+    .toEqual(["Alert: The city couldn't be downloaded: Too many saves and downloads were made from here. Try again in a few seconds."]);
+  expect(files).toBeGreaterThan(0);
 });

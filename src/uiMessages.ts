@@ -22,6 +22,7 @@ export const DEBUG_WINDOW_REQUESTED = "Debug Window Requested";
 export const DEBUG_WINDOW_CLOSED = "Debug Window Closed";
 export const DISASTER_REQUESTED = "Disaster Requested";
 export const DISASTER_WINDOW_CLOSED = "Disaster window closed";
+export const DOWNLOAD_REQUESTED = "Download requested";
 export const EVAL_REQUESTED = "Evaluation Requested";
 export const EVAL_WINDOW_CLOSED = "Eval window closed";
 export const MINIMAP_TOGGLE_REQUESTED = "Minimap toggle requested";

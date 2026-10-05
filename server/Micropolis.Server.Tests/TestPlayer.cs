@@ -161,6 +161,14 @@ namespace Micropolis.Server.Tests
         }
 
         /// <summary>
+        /// The city's saved game's text, as a player downloads it, which every build answers.
+        /// </summary>
+        public async Task<string> DownloadAsync()
+        {
+            return (string)(await RequestAsync(id => new DownloadRequest(id)))!;
+        }
+
+        /// <summary>
         /// The city's saved game's text, through the debug channel, which reaches no store.
         /// </summary>
         public async Task<string> SavedGameAsync()

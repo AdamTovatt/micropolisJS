@@ -122,6 +122,7 @@ describe("the WebSocket source", () => {
         source.send(field("command", "command"));
         source.ask(field("query", "query"), () => {});
         source.save().catch(() => {});
+        source.download().catch(() => {});
         source.commandLog().catch(() => {});
         source.turn(field("turn", "milliseconds")).catch(() => {});
 

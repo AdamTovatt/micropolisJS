@@ -18,19 +18,21 @@ import { ClientMap } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { isChecked, isShown, requiredElement, setShown } from "./domElements";
 import { errorMessage } from "./errorMessage";
+import { OldSaveOffer } from "./oldSaveOffer";
 import { GAME_LEVELS, GameLevel } from "./protocol";
 import type { QuerySource } from "./querySource";
 import type { MapArt } from "./renderAssets";
 import { SplashCanvas } from "./splashCanvas";
-import type { CityList } from "./storage";
+import type { CityList, StoredText } from "./storage";
 import { UiRandom } from "./uiRandom";
 
 // The splash screen is the first screen the player sees, once the tiles and sprites have loaded and the server has
 // welcomed the player. It shows maps for the player to choose from, for a new city on the server; the cities this
-// browser started or joined, to join again (cityListView.ts); and Load, which starts a saved game's file on the server
-// as a new city. For a new city it then asks for the city's name and level. Generating a map belongs to the
-// simulation, so each map comes from the city source, as the answer to a map preview query, which it answers before
-// any city has started.
+// browser started or joined, to join again (cityListView.ts); Load, which starts a saved game's file on the server
+// as a new city; and, while the browser still keeps a game it saved before cities were kept on the server, the offer
+// to start it there, download it or discard it (oldSaveOffer.ts). For a new city it then asks for the city's name and
+// level. Generating a map belongs to the simulation, so each map comes from the city source, as the answer to a map
+// preview query, which it answers before any city has started.
 
 // The radio button of each level a new city can start at
 const LEVEL_RADIOS: {level: GameLevel, id: string}[] = [
@@ -63,6 +65,8 @@ export interface SplashParts {
 export interface Lobby {
   // The cities this browser started or joined
   cities: CityList;
+  // The game the browser kept before cities were kept on the server, which it may still keep
+  oldSave: StoredText;
   // Plays the city that started or was joined
   play(started: StartedCity): void;
 }
@@ -98,6 +102,7 @@ class SplashScreen {
   private seed: number;
   private readonly splashCanvas: SplashCanvas;
   private readonly cityList: CityListView;
+  private readonly oldSave: OldSaveOffer;
   // Whether the player has moved on, to a new city or another
   private departed = false;
   // Whether a city is starting or being joined, which the player waits for
@@ -189,6 +194,9 @@ class SplashScreen {
     this.cityList = new CityListView(lobby.cities, (known) => void this.launch(() => parts.source.join(known.city),
       (reason) => alert(`${known.name} can't be joined: ${reason}`)));
 
+    this.oldSave = new OldSaveOffer(lobby.oldSave, (text) => this.launch(() => parts.source.start({save: text}),
+      (reason) => alert(`The city saved in this browser could not start: ${reason}`)));
+
     setShown(this.splash, true);
     this.playButton.focus();
   }
@@ -217,22 +225,23 @@ class SplashScreen {
     this.generateButton.removeEventListener("click", this.onGenerate);
     this.playButton.removeEventListener("click", this.onPlay);
     this.cityList.withdraw();
+    this.oldSave.withdraw();
 
     setShown(this.splash, false);
     this.splashCanvas.release();
     this.departed = true;
   }
 
-  // Starts or joins a city, and plays it. Every city the player chooses starts here. The splash screen goes only once
-  // the city has started or been joined, so one loaded or joined from it that won't start or can't be joined leaves it
-  // showing, and the player can choose again; a new city has left it for the start form already, so its failure brings it back. Only one city
-  // starts or is joined at a time, and no new one starts while it does, which the player is told. Only the start is
-  // caught here: a game that fails to build is a defect, which goes unhandled rather than being taken for a city that
-  // couldn't start.
-  private async launch(starting: () => Promise<StartedCity>, failed: (reason: string) => void): Promise<void> {
+  // Starts or joins a city, and plays it, answering whether it did. Every city the player chooses starts here. The
+  // splash screen goes only once the city has started or been joined, so one loaded or joined from it that won't start
+  // or can't be joined leaves it showing, and the player can choose again; a new city has left it for the start form
+  // already, so its failure brings it back. Only one city starts or is joined at a time, and no new one starts while it
+  // does, which the player is told. Only the start is caught here: a game that fails to build is a defect, which goes
+  // unhandled rather than being taken for a city that couldn't start.
+  private async launch(starting: () => Promise<StartedCity>, failed: (reason: string) => void): Promise<boolean> {
     if (this.loading) {
       alert(STILL_STARTING);
-      return;
+      return false;
     }
 
     this.loading = true;
@@ -241,7 +250,7 @@ class SplashScreen {
       started = await starting();
     } catch (err) {
       failed(errorMessage(err));
-      return;
+      return false;
     } finally {
       this.loading = false;
     }
@@ -249,5 +258,6 @@ class SplashScreen {
     // The preview's context goes before the map's is made
     this.leave();
     this.lobby.play(started);
+    return true;
   }
 }

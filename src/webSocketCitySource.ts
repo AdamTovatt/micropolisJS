@@ -104,6 +104,10 @@ export class WebSocketCitySource implements CitySource {
     return this.done((id) => ({type: "save", id}));
   }
 
+  download(): Promise<string> {
+    return this.request((id) => ({type: "download", id}));
+  }
+
   commandLog(): Promise<SessionLog> {
     return this.request((id) => ({type: "commandLog", id}));
   }

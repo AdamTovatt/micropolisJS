@@ -122,6 +122,7 @@ const millisecondsFor = (steps: number) => steps * 1000 / 60;
 
         it("refuses to save, give its save or give its log", async () => {
             await expect(tested.source.save()).rejects.toThrow("No city has started");
+            await expect(tested.source.download()).rejects.toThrow("No city has started");
             await expect(tested.source.driver.savedGame()).rejects.toThrow("No city has started");
             await expect(tested.source.commandLog()).rejects.toThrow("No city has started");
         });
@@ -382,5 +383,14 @@ const millisecondsFor = (steps: number) => steps * 1000 / 60;
         await tested.run(millisecondsFor(100));
 
         await expect(tested.source.save()).resolves.toBeUndefined();
+    });
+
+    // A file the player keeps, which Load starts again as a new city
+    it("gives the city's save to download, as the runner reads it", async () => {
+        await startNewCity();
+        tested.source.send({type: "tool", tool: "road", path: [{x: 30, y: 30}], autoBulldoze: true});
+        await tested.run(millisecondsFor(100));
+
+        expect(await tested.source.download()).toBe(await tested.source.driver.savedGame());
     });
 });

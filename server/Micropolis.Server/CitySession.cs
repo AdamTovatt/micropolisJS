@@ -22,14 +22,14 @@ namespace Micropolis.Server
     /// What one connection does in the cities, as protocol/README.md describes it: the city it is in, at most one, and
     /// its messages, handled in the order they came, each done before the next is read. So what follows a request that
     /// starts or joins a city reaches that city, and a connection has at most one piece of a city's work waiting.
-    /// <see cref="CityLimits"/> bounds the cities, commands and saves of the client address it comes from.
+    /// <see cref="CityLimits"/> bounds the cities, commands, saves and downloads of the client address it comes from.
     /// </summary>
     internal sealed class CitySession
     {
         private const string StoreFailed = "The server couldn't reach the store it keeps its cities in";
 
-        // A save is allowed again within seconds, at CityLimits.SaveInterval
-        private const string TooManySaves = "Too many saves were made from here. Try again in a few seconds.";
+        // A save or a download is allowed again within seconds, at CityLimits.CopyInterval
+        private const string TooManyCopies ="Too many saves and downloads were made from here. Try again in a few seconds.";
 
         private readonly CityConnection _connection;
         private readonly CityRegistry _registry;
@@ -109,6 +109,10 @@ namespace Micropolis.Server
 
                 case SaveRequest save:
                     await SaveAsync(save.Id);
+                    break;
+
+                case DownloadRequest download:
+                    await DownloadAsync(download.Id);
                     break;
 
                 case CommandLogRequest commandLog:
@@ -263,19 +267,12 @@ namespace Micropolis.Server
             await WaitForCityAsync(_city.RunAsync(host => host.Send(player, command)));
         }
 
-        // Keeps the city in the store, answering once it is kept. A save past the client address's limit fails and the
-        // connection stays: unlike a command, a save comes from a player pressing a button. A save the store can't keep
-        // fails too, and the city stays loaded, so a later save keeps it.
+        // Keeps the city in the store, answering once it is kept. A save the store can't keep fails, and the city stays
+        // loaded, so a later save keeps it.
         private Task SaveAsync(long requestId)
         {
-            return WithCityAsync(requestId, async city =>
+            return CopyCityAsync(requestId, async city =>
             {
-                if (!_limits.TrySave(_address))
-                {
-                    _connection.Fail(requestId, TooManySaves);
-                    return;
-                }
-
                 try
                 {
                     await _registry.SaveAsync(city);
@@ -289,6 +286,13 @@ namespace Micropolis.Server
 
                 _connection.Answer(requestId, null);
             });
+        }
+
+        // Answers the city's saved game's text, for the player to keep as a file, and keeps it nowhere
+        private Task DownloadAsync(long requestId)
+        {
+            return CopyCityAsync(requestId,
+                                 city => city.AnswerAsync(_connection, requestId, host => JsonValue.Create(host.Save())));
         }
 
         // A hover box goes to the city's other players. One from a connection in no city, one no tool makes on the city's
@@ -321,6 +325,22 @@ namespace Micropolis.Server
             }
 
             await WaitForCityAsync(request(_city));
+        }
+
+        // Copies the whole city out, as a save or a download does, within the client address's limit on copies. One past
+        // it fails and the connection stays: unlike a command, a copy comes from a player pressing a button.
+        private Task CopyCityAsync(long requestId, Func<LoadedCity, Task> copy)
+        {
+            return WithCityAsync(requestId, city =>
+            {
+                if (!_limits.TryCopyCity(_address))
+                {
+                    _connection.Fail(requestId, TooManyCopies);
+                    return Task.CompletedTask;
+                }
+
+                return copy(city);
+            });
         }
 
         // The debug channel, which only a build with it answers. A hold or release before any city has started applies

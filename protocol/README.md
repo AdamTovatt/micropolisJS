@@ -88,8 +88,12 @@ but `command` and `cursor`:
   answered with null once the store has kept it. One city's saves are kept in the order the city took them, whichever
   players asked, and the save the server takes as the city's last player leaves is kept after them all. A save the
   store can't keep fails, saying the server couldn't reach its store, and the city stays loaded, so a later save keeps
-  it. One client address may save 10 times at once, and once every 6 seconds after that; a save past that fails,
-  saying so, and the connection stays open.
+  it. One client address may save or download 10 times at once, and once every 6 seconds after that, saves and
+  downloads counted together; a save past that fails, saying so, and the connection stays open.
+- `download`: the answer is the city's saved game's text, as the game saves one, for the player to keep as a file,
+  which `upload` starts again as a new city. It reaches no store. Every build answers it, and since it takes the whole
+  city as a save does, it counts toward the limit `save` describes: one past it fails, saying so, and the connection
+  stays open.
 - `commandLog`: the answer is the city's session log, `{"log", "step"}`: the log (`docs/command-log.md`) since the
   server last started or loaded the city, and the steps the city has taken since.
 - The debug channel, which only a Debug build of the server answers (`dotnet build` or `dotnet run`; `dotnet publish`
@@ -106,8 +110,9 @@ but `command` and `cursor`:
   is due, and fails in a city on the server's clock. Each but `advance`, `cityTime` and `savedGame` is answered with
   null.
 
-`save`, `commandLog`, `flush`, `advance`, `cityTime`, `savedGame` and `turn` fail with "No city has started" before the
-connection is in a city; `hold` and `release` then answer null and apply to the city it starts or joins next.
+`save`, `download`, `commandLog`, `flush`, `advance`, `cityTime`, `savedGame` and `turn` fail with "No city has
+started" before the connection is in a city; `hold` and `release` then answer null and apply to the city it starts or
+joins next.
 
 A city's name is 1 to 15 characters, counted as a display name's are but not trimmed, and holds none of the
 characters a display name can't. A `start` whose name breaks the rule fails, and so does an `upload` of a save whose

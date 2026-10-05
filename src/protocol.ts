@@ -770,6 +770,7 @@ export type ClientMessage =
   | {type: "command", command: Command}
   | {type: "query", id: number, query: Query}
   | {type: "save", id: number}
+  | {type: "download", id: number}
   | {type: "commandLog", id: number}
   // The debug channel, which only a Debug build of the server answers
   | {type: "hold", id: number}
@@ -793,6 +794,8 @@ export interface RequestAnswers {
   query: QueryAnswer;
   // Once the server's store has kept the city
   save: null;
+  // The saved game's text, as the game saves one, for the player to keep as a file
+  download: string;
   commandLog: SessionLog;
   hold: null;
   release: null;
@@ -811,8 +814,8 @@ export type RequestAnswer<Request extends ClientRequest> = RequestAnswers[Reques
 // Every message type a player sends, as the compiler checks against the union: a type added to ClientMessage and not
 // here fails to compile, and the tests fail on a type with no example.
 const CLIENT_MESSAGE_TYPES: Record<ClientMessageType, true> = {
-  cursor: true, start: true, upload: true, join: true, command: true, query: true, save: true, commandLog: true,
-  hold: true, release: true, flush: true, advance: true, cityTime: true, savedGame: true, turn: true,
+  cursor: true, start: true, upload: true, join: true, command: true, query: true, save: true, download: true,
+  commandLog: true, hold: true, release: true, flush: true, advance: true, cityTime: true, savedGame: true, turn: true,
 };
 
 export function clientMessageTypes(): string[] {

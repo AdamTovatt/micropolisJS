@@ -36,7 +36,13 @@ export interface GameSave {
   [key: string]: unknown;
 }
 
-export type Tool = "residential" | "commercial" | "industrial" | "coal" | "nuclear" | "police" | "fire" | "road" |
+// A file the page gave the player, by the name it suggested
+export interface DownloadedFile {
+  name: string;
+  text: string;
+}
+
+export type Tool ="residential" | "commercial" | "industrial" | "coal" | "nuclear" | "police" | "fire" | "road" |
   "rail" | "wire" | "port" | "stadium" | "airport" | "park" | "bulldozer" | "query";
 
 export type Difficulty = "Easy" | "Med" | "Hard";
@@ -387,6 +393,17 @@ export class Player {
     await this.page.click("#saveOK");
   }
 
+  // The city's save as the Download button gives it
+  downloadGame(): Promise<DownloadedFile> {
+    return this.downloadFrom("#downloadRequest");
+  }
+
+  // The file a click on the element gives the player
+  async downloadFrom(selector: string): Promise<DownloadedFile> {
+    const [download] = await Promise.all([this.page.waitForEvent("download"), this.page.click(selector)]);
+    return {name: download.suggestedFilename(), text: readFileSync(await download.path(), "utf8")};
+  }
+
   // Waits for the canvas to be painted as the city now stands: a paint after now, then the map drawn to the end, which
   // a paint leaves for a later one while the GPU is still drawing the frame before
   async settle(): Promise<void> {
@@ -426,8 +443,7 @@ export class Player {
     await this.page.click("#debugRequest");
     await this.page.check("#fundsNo");
     await this.page.check("#logYes");
-    const [download] = await Promise.all([this.page.waitForEvent("download"), this.page.click("#debugOK")]);
-    const log = parseLog(JSON.parse(readFileSync(await download.path(), "utf8")));
+    const log = parseLog(JSON.parse((await this.downloadFrom("#debugOK")).text));
 
     const applied = await this.page.evaluate(() => window.micropolisTestHook!.commandsApplied());
     if (log.entries.length !== applied) {
