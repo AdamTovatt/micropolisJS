@@ -29,10 +29,11 @@ namespace Micropolis.Rules
         public override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
         {
             int value = random.GetRandom(4);
+            Tile tile = WorldEffects.GetTile(x, y);
 
-            if (WorldEffects.GetTile(x, y).GetRawValue() != TileValues.DIRT)
+            if (tile.GetRawValue() != TileValues.DIRT)
             {
-                Result = Outcome.NeedsBulldoze;
+                Result = TileUtils.IsOpenWater(tile.GetValue()) ? Outcome.OnWater : Outcome.NeedsBulldoze;
                 return;
             }
 

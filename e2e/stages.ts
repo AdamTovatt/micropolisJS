@@ -199,7 +199,12 @@ export const STAGES: Stage[] = [
       await player.setAutoBudget(false);
       await player.advanceUntilBudgetReview(YEAR, CITY_TIME);
 
+      // The window forecasts the year at the rate on the tax slider, so moving it moves the taxes it shows
+      const taxes = player.page.locator("#taxesCollected");
+      await expect(taxes, "the taxes the budget window opens on").toHaveText(/\$/);
+      const taxesAtOpening = (await taxes.textContent())!;
       await player.setSlider("#taxRate", 9);
+      await expect(taxes, "the taxes at the tax rate the slider moved to").not.toHaveText(taxesAtOpening);
       await player.setSlider("#policeRate", 90);
       await player.confirmBudget();
 

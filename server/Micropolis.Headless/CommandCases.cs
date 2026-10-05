@@ -112,7 +112,7 @@ namespace Micropolis.Headless
                 new ReceivedCommand(OtherPlayer, J("""{"autoBulldoze":false,"path":[{"x":62,"y":31}],"tool":"park","type":"tool"}""")),
             ]),
 
-            new CommandCase("Tool commands with each outcome: ok, failed, needing the bulldozer, and with no money", "suburbBroke", null, Local(
+            new CommandCase("Tool commands with each outcome: ok, failed, needing the bulldozer, on water, and with no money", "suburbBroke", null, Local(
                 // A road across open ground
                 Tool("\"road\"", Path(Tile(52, 31), Tile(53, 31), Tile(54, 31)), "false"),
                 // Across open ground into trees, which it can't clear without auto-bulldoze: the outcome is the tile
@@ -120,6 +120,8 @@ namespace Micropolis.Headless
                 Tool("\"road\"", Path(Tile(61, 32), Tile(61, 31), Tile(61, 30)), "false"),
                 // A zone where trees stand
                 Tool("\"residential\"", Path(Tile(54, 24)), "false"),
+                // A zone on trees, shore and river, with auto-bulldoze: the trees come first, but the river decides
+                Tool("\"residential\"", Path(Tile(102, 10)), "true"),
                 // A zone off the map's edge
                 Tool("\"industrial\"", Path(Tile(0, 50)), "true"),
                 // More than the city has: refused for want of money, after the road it could pay for

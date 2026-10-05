@@ -151,6 +151,17 @@ namespace Micropolis.Rules
             return null;
         }
 
+        /// <summary>
+        /// Why the tax rate a setBudget command or a budgetForecast query names is out of range, or null when it names
+        /// none or a whole percent the budget window offers. A setBudget command's fields always name one.
+        /// </summary>
+        public static string? TaxRejection(JsonObject message)
+        {
+            return message.ContainsKey("tax") && !TryGetWholeNumberIn(message["tax"], 0, MaxTaxPercent, out _)
+                ? $"the tax rate is a whole percent from 0 to {MaxTaxPercent}"
+                : null;
+        }
+
         private static CommandReading ReadTool(JsonObject fields, int width, int height)
         {
             if (!TryGetName(fields["tool"], out ToolName tool))
@@ -211,25 +222,15 @@ namespace Micropolis.Rules
 
         private static CommandReading ReadSetBudget(JsonObject fields)
         {
-            string? fundingReason = FundingRejection(fields);
+            string? reason = FundingRejection(fields) ?? TaxRejection(fields);
 
-            if (fundingReason is not null)
+            if (reason is not null)
             {
-                return new RejectedCommand(fundingReason);
+                return new RejectedCommand(reason);
             }
 
-            if (!TryGetWholeNumberIn(fields["tax"], 0, MaxTaxPercent, out long tax))
-            {
-                return new RejectedCommand($"the tax rate is a whole percent from 0 to {MaxTaxPercent}");
-            }
-
-            return new AcceptedCommand(new SetBudgetCommand(Funding(fields, "road"), Funding(fields, "fire"), Funding(fields, "police"), (int)tax));
-        }
-
-        // A service's funding, already checked, or null when the command leaves it out
-        private static int? Funding(JsonObject fields, string service)
-        {
-            return fields.ContainsKey(service) && TryGetWholeNumber(fields[service], out double percent) ? (int)percent : null;
+            return new AcceptedCommand(new SetBudgetCommand(CheckedWholeNumber(fields, "road"), CheckedWholeNumber(fields, "fire"),
+                CheckedWholeNumber(fields, "police"), CheckedWholeNumber(fields, "tax")!.Value));
         }
 
     }

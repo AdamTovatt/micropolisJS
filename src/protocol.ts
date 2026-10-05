@@ -362,8 +362,9 @@ export function commandTypes(): string[] {
 export type PlayerId = string;
 
 // What came of a command. A tool command is ok when the tool succeeded at every tile of its path, and otherwise takes
-// the outcome of the first tile where it didn't, which its player is told of.
-export const OUTCOMES = ["ok", "failed", "noMoney", "needsBulldoze", "rejected"] as const;
+// the outcome of the first tile where it didn't, which its player is told of. A zone, building or park on water no
+// bulldozing clears is onWater, whatever else its footprint holds.
+export const OUTCOMES = ["ok", "failed", "noMoney", "needsBulldoze", "onWater", "rejected"] as const;
 
 export type Outcome = typeof OUTCOMES[number];
 
@@ -397,8 +398,10 @@ export type Query =
   // What the query tool reports about the tile at (x, y)
   | {type: "tileReport", x: number, y: number}
   // What the year end would leave if it came now, with each service named, road, fire or police, funded at the whole
-  // percent of what it needs given, as a setBudget command would fund it, and the others at the funding they have
-  | {type: "budgetForecast", road?: number, fire?: number, police?: number}
+  // percent of what it needs given, as a setBudget command would fund it, and the others at the funding they have;
+  // and with tax, a whole percent, collecting what that rate would take from the city now, and without it what the
+  // last collection took
+  | {type: "budgetForecast", road?: number, fire?: number, police?: number, tax?: number}
   // The map a game seed generates, a uint32, which a new city on that seed starts on. It is answered before any city
   // has started, so the splash screen can show the maps a player chooses from.
   | {type: "mapPreview", seed: number};
@@ -488,13 +491,15 @@ export interface ServiceAmounts {
 export const SERVICES: readonly (keyof ServiceAmounts)[] = ["road", "fire", "police"];
 
 // The answer to a budget forecast query: the budget now, which the forecast is worked out from, and what the year end
-// would do with the funding asked about: what each service would cost, the change in funds, the taxes less what the
-// services would be paid, and the funds the year end would leave. Everything a budget window shows is in one answer,
-// taken at one moment, though the city keeps running and other players may change the budget.
+// would do with the funding and tax rate asked about: what each service would cost, the taxes it would collect, the
+// change in funds, the taxes less what the services would be paid, and the funds the year end would leave. Everything
+// a budget window shows is in one answer, taken at one moment, though the city keeps running and other players may
+// change the budget.
 export interface BudgetForecastAnswer {
   type: "budgetForecast";
   budget: BudgetRecord;
   costs: ServiceAmounts;
+  taxes: number;
   fundsChange: number;
   fundsAfterYear: number;
 }

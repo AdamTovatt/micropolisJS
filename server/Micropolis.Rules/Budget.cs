@@ -116,10 +116,7 @@ namespace Micropolis.Rules
             long railCost = census.RailTotal * RailMaintenanceCost;
             RoadMaintenanceBudget = (long)Math.Floor(Fround(Fround(roadCost + railCost) * RLevels[(int)gameLevel]));
 
-            // The tax base is a whole number, which the original converts to a float to multiply by the level's
-            // multiplier
-            long taxBase = FloorDiv(census.TotalPop * census.LandValueAverage, 120) * CityTax;
-            TaxFund = (long)Math.Floor(Fround(Fround(taxBase) * FLevels[(int)gameLevel]));
+            TaxFund = TaxAt(gameLevel, census, CityTax);
 
             if (census.TotalPop > 0)
             {
@@ -134,6 +131,18 @@ namespace Micropolis.Rules
                 PoliceEffect = MaxPoliceStationEffect;
                 FireEffect = MaxFireStationEffect;
             }
+        }
+
+        /// <summary>
+        /// The tax the year's collection takes from the census at a tax rate in whole percent, as <c>collectTax</c>
+        /// works it out.
+        /// </summary>
+        public static long TaxAt(Level gameLevel, Census census, long taxRate)
+        {
+            // The tax base is a whole number, which the original converts to a float to multiply by the level's
+            // multiplier
+            long taxBase = FloorDiv(census.TotalPop * census.LandValueAverage, 120) * taxRate;
+            return (long)Math.Floor(Fround(Fround(taxBase) * FLevels[(int)gameLevel]));
         }
 
         /// <summary>
@@ -244,18 +253,21 @@ namespace Micropolis.Rules
         public ServiceAmounts<double> Percents => new ServiceAmounts<double>(RoadPercent, FirePercent, PolicePercent);
 
         /// <summary>
-        /// What the year-end budget would leave if it ran now: from the current funds and the most recent tax
-        /// collection and maintenance costs, with each service given funded at its whole percent, as
-        /// <see cref="SetFunding"/> would set it, and the others at the percentages they have.
+        /// What the year-end budget would leave if it ran now: from the current funds and the most recent maintenance
+        /// costs, with each service given funded at its whole percent, as <see cref="SetFunding"/> would set it, and
+        /// the others at the percentages they have. Given a tax rate, the taxes are what the collection would take at
+        /// that rate from the census now, as <see cref="TaxAt"/> works them out; without one, they are the most recent
+        /// collection's.
         /// </summary>
-        public YearForecast Forecast(int? road, int? fire, int? police)
+        public YearForecast Forecast(int? road, int? fire, int? police, int? taxRate, Level gameLevel, Census census)
         {
             ServiceAmounts<double> percents = new ServiceAmounts<double>(
                 road is int roadPercent ? ServiceFunding.FundingPercent(roadPercent) : RoadPercent,
                 fire is int firePercent ? ServiceFunding.FundingPercent(firePercent) : FirePercent,
                 police is int policePercent ? ServiceFunding.FundingPercent(policePercent) : PolicePercent);
+            long taxes = taxRate is int rate ? TaxAt(gameLevel, census, rate) : TaxFund;
 
-            return ServiceFunding.ForecastYear(TotalFunds, TaxFund, Maintenance, percents);
+            return ServiceFunding.ForecastYear(TotalFunds, taxes, Maintenance, percents);
         }
 
         private void SetPercents(ServiceAmounts<double> percents)

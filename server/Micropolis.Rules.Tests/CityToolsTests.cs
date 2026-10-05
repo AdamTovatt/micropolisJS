@@ -93,6 +93,74 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(TileValues.DIRT | TileFlags.BULLBIT, map.GetTile(10, 10).GetRawValue());
         }
 
+        // The residential zone on (51, 49) to (53, 51), with rubble on its first tile scanned and water on its last: the
+        // water decides, with auto-bulldoze or without. A tool that fails drops what it staged, so the map and funds
+        // are left as they were whatever the outcome.
+        [TestMethod]
+        [DataRow(TileValues.RIVER, false)]
+        [DataRow(TileValues.REDGE, false)]
+        [DataRow(TileValues.CHANNEL, false)]
+        [DataRow(TileValues.RIVER, true)]
+        [DataRow(TileValues.CHANNEL, true)]
+        public void BuildingTool_OpenWaterOnTheSite_IsOnWater(int water, bool autoBulldoze)
+        {
+            GameMap map = new GameMap(120, 100);
+            map.SetTile(51, 49, TileValues.RUBBLE, TileFlags.BULLBIT);
+            map.SetTile(53, 51, water, TileFlags.NOFLAGS);
+            Budget budget = new Budget { TotalFunds = 20000 };
+
+            Assert.AreEqual(Outcome.OnWater, Apply(CityTools.Create(map)[ToolName.Residential], 52, 50, autoBulldoze, budget));
+            Assert.AreEqual(TileValues.RUBBLE | TileFlags.BULLBIT, map.GetTile(51, 49).GetRawValue());
+            Assert.AreEqual(water, map.GetTile(53, 51).GetRawValue());
+            Assert.AreEqual(20000, budget.TotalFunds);
+        }
+
+        // Shore can be bulldozed, as rubble can: without auto-bulldoze each still needs it, on the site's first tile
+        // scanned as on its last
+        [TestMethod]
+        [DataRow(TileValues.FIRSTRIVEDGE, 51, 49)]
+        [DataRow(TileValues.LASTRIVEDGE, 53, 51)]
+        [DataRow(TileValues.RUBBLE, 51, 49)]
+        [DataRow(TileValues.RUBBLE, 53, 51)]
+        public void BuildingTool_ShoreOrRubbleAlone_NeedsTheBulldozer(int tile, int x, int y)
+        {
+            GameMap map = new GameMap(120, 100);
+            map.SetTile(x, y, tile, TileFlags.BULLBIT);
+
+            Assert.AreEqual(Outcome.NeedsBulldoze, Apply(CityTools.Create(map)[ToolName.Residential], 52, 50, false));
+        }
+
+        // With auto-bulldoze the shore is cleared for the bulldozer's $1, and the zone's $100 is charged on top
+        [TestMethod]
+        [DataRow(TileValues.FIRSTRIVEDGE)]
+        [DataRow(TileValues.LASTRIVEDGE)]
+        public void BuildingTool_ShoreWithAutoBulldoze_ClearsItAndBuilds(int shore)
+        {
+            GameMap map = new GameMap(120, 100);
+            map.SetTile(53, 51, shore, TileFlags.BULLBIT);
+            Budget budget = new Budget { TotalFunds = 20000 };
+
+            Assert.AreEqual(Outcome.Ok, Apply(CityTools.Create(map)[ToolName.Residential], 52, 50, true, budget));
+            Assert.AreEqual(20000 - 100 - 1, budget.TotalFunds);
+            Assert.AreEqual(TileValues.FREEZ, map.GetTileValue(52, 50));
+        }
+
+        // A park never bulldozes, so the setting makes no difference to what it says
+        [TestMethod]
+        [DataRow(TileValues.RIVER, true, Outcome.OnWater)]
+        [DataRow(TileValues.CHANNEL, true, Outcome.OnWater)]
+        [DataRow(TileValues.RIVER, false, Outcome.OnWater)]
+        [DataRow(TileValues.FIRSTRIVEDGE, true, Outcome.NeedsBulldoze)]
+        [DataRow(TileValues.FIRSTRIVEDGE, false, Outcome.NeedsBulldoze)]
+        public void ParkTool_OnWaterOrShore_SaysWhichItIs(int tile, bool autoBulldoze, Outcome outcome)
+        {
+            GameMap map = new GameMap(120, 100);
+            map.SetTile(10, 10, tile, TileFlags.NOFLAGS);
+
+            Assert.AreEqual(outcome, Apply(CityTools.Create(map)[ToolName.Park], 10, 10, autoBulldoze));
+            Assert.AreEqual(tile, map.GetTile(10, 10).GetRawValue());
+        }
+
         [TestMethod]
         [DataRow(1, 1)]
         [DataRow(118, 1)]

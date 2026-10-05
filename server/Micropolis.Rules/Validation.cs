@@ -138,6 +138,20 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// A field already checked to be a whole number in range, such as a percent, or null when the message leaves it
+        /// out.
+        /// </summary>
+        public static int? CheckedWholeNumber(JsonObject message, string name)
+        {
+            if (!message.ContainsKey(name))
+            {
+                return null;
+            }
+
+            return TryGetWholeNumber(message[name], out double number) ? (int)number : throw new InvalidOperationException($"The checked {name} is whole.");
+        }
+
+        /// <summary>
         /// A game seed: a whole number from 0 to <see cref="ProtocolLimits.MaxSeed"/>.
         /// </summary>
         public static bool TryGetSeed(JsonNode? value, out uint seed)

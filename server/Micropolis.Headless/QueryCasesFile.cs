@@ -38,12 +38,16 @@ namespace Micropolis.Headless
             (7, Level.Hard, ["""{"type":"setDisasters","on":true}""", """{"type":"setAutoBudget","on":false}""", """{"type":"setSpeed","speed":0}"""]),
         ];
 
-        // The fundings a forecast is asked about in each save: none named, every service named, and one
+        // The fundings and tax rates a forecast is asked about in each save: none named, every service named, one, the
+        // lowest and highest tax rates, and a tax rate with a service
         private static readonly IReadOnlyList<string> Forecasts =
         [
             """{"type":"budgetForecast"}""",
             """{"type":"budgetForecast","road":0,"fire":50,"police":100}""",
             """{"type":"budgetForecast","fire":33}""",
+            """{"type":"budgetForecast","tax":0}""",
+            """{"type":"budgetForecast","tax":20}""",
+            """{"type":"budgetForecast","road":50,"tax":9}""",
         ];
 
         // Queries the simulation rejects on the game's map, one or more for each reason it gives
@@ -51,13 +55,15 @@ namespace Micropolis.Headless
         [
             "null", "[]", "\"overlay\"", "{}", """{"type":"weather"}""", """{"type":7}""",
             """{"type":"overlay"}""", """{"type":"overlay","layer":"crime","extra":1}""",
-            """{"type":"tileReport","x":1}""", """{"type":"budgetForecast","tax":7}""", """{"type":"mapPreview"}""",
+            """{"type":"tileReport","x":1}""", """{"type":"budgetForecast","taxes":7}""", """{"type":"mapPreview"}""",
             """{"type":"overlay","layer":"weather"}""", """{"type":"overlay","layer":3}""",
             """{"type":"tileReport","x":-1,"y":0}""", """{"type":"tileReport","x":120,"y":0}""", """{"type":"tileReport","x":0,"y":100}""",
             """{"type":"tileReport","x":1.5,"y":0}""",
             """{"type":"tileReport","x":"1","y":0}""",
             """{"type":"budgetForecast","road":101}""", """{"type":"budgetForecast","fire":-1}""", """{"type":"budgetForecast","police":50.5}""",
             """{"type":"budgetForecast","road":"50"}""",
+            """{"type":"budgetForecast","tax":21}""", """{"type":"budgetForecast","tax":-1}""", """{"type":"budgetForecast","tax":7.5}""",
+            """{"type":"budgetForecast","tax":"7"}""", """{"type":"budgetForecast","tax":null}""",
             """{"type":"mapPreview","seed":-1}""", """{"type":"mapPreview","seed":0.5}""", """{"type":"mapPreview","seed":4294967296}""",
             """{"type":"mapPreview","seed":"1"}""",
         ];
@@ -78,13 +84,14 @@ namespace Micropolis.Headless
             "no city has started",
             "the overlay query has exactly the fields type, layer",
             "the tileReport query has exactly the fields type, x, y",
-            "the budgetForecast query has exactly the fields type, and may have fire, police, road",
+            "the budgetForecast query has exactly the fields type, and may have fire, police, road, tax",
             "the mapPreview query has exactly the fields type, seed",
             $"the layer is one of {string.Join(", ", Queries.Layers.Select(layer => layer.Name))}",
             "the tile is an x from # to # and a y from # to #, in whole numbers",
             "road funding is a whole percent from # to #",
             "fire funding is a whole percent from # to #",
             "police funding is a whole percent from # to #",
+            "the tax rate is a whole percent from # to #",
             "the seed is a uint#",
         ];
 
@@ -217,9 +224,8 @@ namespace Micropolis.Headless
         // What the cash the year end would have is short of: nothing, as in a broke city, or every service's cost
         private static Shortfall ShortfallOf(JsonNode answer)
         {
-            JsonNode budget = answer["budget"]!;
             JsonNode costs = answer["costs"]!;
-            double cash = (double)budget["funds"]! + (double)budget["taxesCollected"]!;
+            double cash = (double)answer["budget"]!["funds"]! + (double)answer["taxes"]!;
             double cost = (double)costs["road"]! + (double)costs["fire"]! + (double)costs["police"]!;
 
             return cash > cost || cost == 0 ? Shortfall.None : cash > 0 ? Shortfall.Partly : Shortfall.Wholly;

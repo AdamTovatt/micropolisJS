@@ -55,7 +55,7 @@ describe("the activity list's naming", () => {
         expect(activityEntry(result(ANA, command), rosterOnline())?.text).toBe(text);
     });
 
-    it.each<Outcome>(["failed", "noMoney", "needsBulldoze", "rejected"])(
+    it.each<Outcome>(["failed", "noMoney", "needsBulldoze", "onWater", "rejected"])(
         "tells nothing of a command whose outcome is %s, which only its sender learns of", (outcome) => {
             const road = {type: "tool", tool: "road", path: AT, autoBulldoze: true};
             expect(activityEntry(result(ANA, road, outcome), rosterOnline())).toBeNull();

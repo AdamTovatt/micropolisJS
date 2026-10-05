@@ -32,10 +32,10 @@ namespace Micropolis.Rules
     public readonly record struct Funding(ServiceAmounts<long> Wanted, ServiceAmounts<long> Paid, ServiceAmounts<double> Percents);
 
     /// <summary>
-    /// What the year-end budget would do: what each service would cost, the change in funds, and the funds it would
-    /// leave.
+    /// What the year-end budget would do: what each service would cost, the taxes it would take in, the change in funds,
+    /// and the funds it would leave.
     /// </summary>
-    public readonly record struct YearForecast(ServiceAmounts<long> Wanted, long FundsChange, long FundsAfterYear);
+    public readonly record struct YearForecast(ServiceAmounts<long> Wanted, long Taxes, long FundsChange, long FundsAfterYear);
 
     /// <summary>
     /// How the budget funds road, fire and police services at year end, as doBudgetNow in the original's budget.cpp
@@ -144,7 +144,7 @@ namespace Micropolis.Rules
             Funding funding = FundServices(funds + taxes, maintenance, percents);
             long fundsChange = taxes - (funding.Paid.Road + funding.Paid.Fire + funding.Paid.Police);
 
-            return new YearForecast(funding.Wanted, fundsChange, funds + fundsChange);
+            return new YearForecast(funding.Wanted, taxes, fundsChange, funds + fundsChange);
         }
     }
 }

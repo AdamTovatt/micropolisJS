@@ -61,7 +61,8 @@ namespace Micropolis.Rules
             return Outcome.Ok;
         }
 
-        // Checks the whole site is on the map and clear, clearing for a cost what auto-bulldoze can
+        // Checks the whole site is on the map and clear, clearing for a cost what auto-bulldoze can. Open water anywhere
+        // on the site is reported as such whatever the scan would reach first, since no bulldozing clears it.
         private Outcome PrepareBuildingSite(int left, int top, bool autoBulldoze)
         {
             if (left < 0 || left + _size > Map.Width)
@@ -72,6 +73,11 @@ namespace Micropolis.Rules
             if (top < 0 || top + _size > Map.Height)
             {
                 return Outcome.Failed;
+            }
+
+            if (HasOpenWater(left, top))
+            {
+                return Outcome.OnWater;
             }
 
             for (int dy = 0; dy < _size; dy++)
@@ -99,6 +105,22 @@ namespace Micropolis.Rules
             }
 
             return Outcome.Ok;
+        }
+
+        private bool HasOpenWater(int left, int top)
+        {
+            for (int dy = 0; dy < _size; dy++)
+            {
+                for (int dx = 0; dx < _size; dx++)
+                {
+                    if (TileUtils.IsOpenWater(WorldEffects.GetTileValue(left + dx, top + dy)))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         // Lays the building's tiles row by row, counting up from its top left tile, each burnable and conductive: the

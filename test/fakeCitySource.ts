@@ -27,7 +27,7 @@ const FORECAST: QueryAnswer = {
     type: "budgetForecast",
     budget: {type: "budget", taxRate: 7, taxesCollected: 0, funds: 20000, maintenance: {road: 0, fire: 0, police: 0},
              funding: {road: 1, fire: 1, police: 1}},
-    costs: {road: 0, fire: 0, police: 0}, fundsChange: 0, fundsAfterYear: 20000,
+    costs: {road: 0, fire: 0, police: 0}, taxes: 0, fundsChange: 0, fundsAfterYear: 20000,
 };
 
 const START: CityStart = {name: "Town", seed: 1, level: 0};

@@ -23,6 +23,7 @@ describe("the failure the tool toast tells of", () => {
         ["ok", null],
         ["failed", null],
         ["needsBulldoze", "needsBulldoze"],
+        ["onWater", "onWater"],
         ["noMoney", "noMoney"],
         ["rejected", "rejected"],
     ] as const)("for an outcome of %s is %p", (outcome: Outcome, failure) => {
@@ -38,12 +39,12 @@ describe("the tool toast's text", () => {
 
     it.each([
         ["needsBulldoze", "Area must be bulldozed first"],
+        ["onWater", "Can't build on water"],
         ["noMoney", "Insufficient funds to build that"],
         ["rejected", "That can't be done here"],
     ] as const)("for an outcome of %s is %p", (failure, text) => {
         expect(Text.toolFailures[failure]).toBe(text);
-    });
-});
+    });});
 
 describe("where the tool toast shows", () => {
 
