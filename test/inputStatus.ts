@@ -13,9 +13,10 @@
  */
 
 import {
-    MAX_SCROLL_TIME, SCROLL_SPEED, ScrollKeys, SpacePan, WheelZoom, cursorClass, heldKey, isMinimapKey, isShortcut,
-    isToolPress, spacePans, zoomKey,
+    MAX_SCROLL_TIME, SCROLL_SPEED, ScrollKeys, SpacePan, WheelZoom, buttonTool, cursorClass, heldKey, isMinimapKey,
+    isShortcut, isToolPress, spacePans, toolColours, zoomKey,
 } from "../src/inputStatus";
+import { CURSOR_TOOLS, type CursorTool } from "../src/protocol";
 import { ZOOM_STEPS } from "../src/viewPosition";
 
 describe("the keys the game follows", () => {
@@ -81,7 +82,7 @@ describe("a press the tool takes", () => {
 
 describe("the canvas's cursor", () => {
 
-    it.each([["query", "helpPointer"], ["road", "pointer"], ["residential", "pointer"]])(
+    it.each<[CursorTool, string]>([["query", "helpPointer"], ["road", "pointer"], ["residential", "pointer"]])(
         "is set by its class for the %s tool", (tool, cursor) => {
         expect(cursorClass(tool, "free")).toBe(cursor);
     });
@@ -91,9 +92,45 @@ describe("the canvas's cursor", () => {
         expect(cursorClass(null, "free")).toBeNull();
     });
 
-    it.each([["query"], ["road"], [null]])("is the open hand while a pan is ready, and the closed one while it holds " +
-                                           "the map, over the %s tool's", (tool) => {
+    it.each<[CursorTool | null]>([["query"], ["road"], [null]])(
+        "is the open hand while a pan is ready, and the closed one while it holds the map, over the %s tool's", (tool) => {
         expect([cursorClass(tool, "ready"), cursorClass(tool, "held")]).toEqual(["grab", "grabbing"]);
+    });
+});
+
+describe("a tool button", () => {
+
+    it("offers the tool its data-tool names, with the tiles across its outline its data-size gives", () => {
+        expect(buttonTool({tool: "airport", size: "6"})).toEqual({name: "airport", width: 6});
+        expect(buttonTool({tool: "query", size: "1"})).toEqual({name: "query", width: 1});
+    });
+
+    it.each([["no tool", undefined], ["an unknown tool", "lighthouse"], ["a tool's name in capitals", "Road"]])(
+        "that names %s fails", (_, tool) => {
+        expect(() => buttonTool({tool, size: "1"})).toThrow("A tool button names no tool");
+    });
+
+    it.each([["no size", undefined], ["no tiles", "0"], ["part of a tile", "1.5"], ["a word", "big"]])(
+        "that gives %s fails", (_, size) => {
+        expect(() => buttonTool({tool: "road", size})).toThrow("The road tool's button gives its size as");
+    });
+});
+
+describe("the tools' outline colours", () => {
+
+    const everyTool = CURSOR_TOOLS.map((tool) => ({tool, colour: `${tool} background`}));
+
+    it("are each tool's button's background", () => {
+        const colours = toolColours(everyTool);
+
+        expect(colours.road).toBe("road background");
+        expect(colours.query).toBe("query background");
+    });
+
+    it("fail on a page with no button for a tool a player may hold", () => {
+        const buttons = everyTool.filter(({tool}) => tool !== "stadium" && tool !== "query");
+
+        expect(() => toolColours(buttons)).toThrow("No tool button offers these tools: stadium, query");
     });
 });
 

@@ -14,7 +14,6 @@
 
 import { requiredElement } from "./domElements";
 import { percentLabel, wholePercent } from "./fundingDisplay";
-import { BUDGET_WINDOW_CLOSED } from "./uiMessages";
 import { formatMoney } from "./money";
 import { type BudgetForecastAnswer, type BudgetRecord, type Query, SERVICES, type ServiceAmounts } from "./protocol";
 import type { QuerySource } from "./querySource";
@@ -108,20 +107,20 @@ export class BudgetForecasts {
   }
 }
 
-// The budget: the funding of each service and the tax rate, with the year end they forecast. Closing emits the player's
-// choice, or null when cancelled.
+// The budget: the funding of each service and the tax rate, with the year end they forecast. It closes with the
+// player's choice, or null when cancelled.
 //
 // It draws each slider at the whole percent of the funding the budget has, and starts the window's funding with no
 // changes. The funding holds the whole percent of each slider the player moves, and OK sends only those, which the
 // budget funds as the original's slider handlers do. A service whose slider hasn't moved keeps its funding, with the
 // fraction of a percent the original's window loses on drawing it (see Budget.doBudgetNow).
-export class BudgetWindow extends ClosableWindow {
+export class BudgetWindow extends ClosableWindow<[BudgetRecord], BudgetChoice | null> {
   private record: BudgetRecord | null = null;
   private funding: MovedFunding = {};
   private readonly forecasts: BudgetForecasts;
 
   constructor(opacityLayerID: string, windowID: string, source: QuerySource) {
-    super(opacityLayerID, windowID, BUDGET_WINDOW_CLOSED);
+    super(opacityLayerID, windowID, null);
     this.forecasts = new BudgetForecasts(source, render);
 
     this.closeOnClick("budgetCancel");
@@ -133,7 +132,7 @@ export class BudgetWindow extends ClosableWindow {
 
     requiredElement("budgetForm", HTMLFormElement).addEventListener("submit", (event) => {
       event.preventDefault();
-      this.close({funding: this.funding, tax: sliderValue("taxRate")});
+      this.closeWith({funding: this.funding, tax: sliderValue("taxRate")});
     });
 
     for (const service of SERVICES) {
@@ -150,15 +149,14 @@ export class BudgetWindow extends ClosableWindow {
   }
 
   // The record places the sliders, and the forecasts give every figure the window shows
-  open(record: BudgetRecord): void {
+  protected fill(record: BudgetRecord): void {
     this.record = record;
     this.reset();
-    this._toggleDisplay();
   }
 
-  close(choice: BudgetChoice | null = null): void {
+  protected closeWith(choice: BudgetChoice | null): void {
     this.forecasts.drop();
-    super.close(choice);
+    super.closeWith(choice);
   }
 
   // Draws the sliders at the record's funding and tax rate, with no changes

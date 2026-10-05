@@ -12,17 +12,14 @@
  *
  */
 
-import { SAVE_WINDOW_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // Tells the player the game was saved
-export class SaveWindow extends ClosableWindow {
+export class SaveWindow extends ClosableWindow<[], void> {
   constructor(opacityLayerID: string, windowID: string) {
-    super(opacityLayerID, windowID, SAVE_WINDOW_CLOSED);
+    super(opacityLayerID, windowID, undefined);
     this.closeOnSubmit("saveForm");
   }
 
-  open(): void {
-    this._toggleDisplay();
-  }
+  protected fill(): void {}
 }

@@ -13,31 +13,24 @@
  */
 
 import { isChecked, requiredElement } from "./domElements";
-import { SCREENSHOT_WINDOW_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // What the picture shows: the part of the map in view, or all of it
 export type ScreenshotArea = "visible" | "all";
 
-// Asks what to take a picture of. Closing emits the area chosen, which the game takes a picture of in the client, or
+// Asks what to take a picture of. It closes with the area chosen, which the game takes a picture of in the client, or
 // null when cancelled.
-export class ScreenshotWindow extends ClosableWindow {
+export class ScreenshotWindow extends ClosableWindow<[], ScreenshotArea | null> {
   constructor(opacityLayerID: string, windowID: string) {
-    super(opacityLayerID, windowID, SCREENSHOT_WINDOW_CLOSED);
+    super(opacityLayerID, windowID, null);
 
     this.closeOnClick("screenshotCancel");
 
     requiredElement("screenshotForm", HTMLFormElement).addEventListener("submit", (event) => {
       event.preventDefault();
-      this.close(isChecked("screenshotVisible") ? "visible" : "all");
+      this.closeWith(isChecked("screenshotVisible") ? "visible" : "all");
     });
   }
 
-  open(): void {
-    this._toggleDisplay();
-  }
-
-  close(area: ScreenshotArea | null = null): void {
-    super.close(area);
-  }
+  protected fill(): void {}
 }

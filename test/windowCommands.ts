@@ -13,7 +13,7 @@
  */
 
 import { CommandResult, SPEEDS } from "../src/protocol";
-import { budgetCommand, settingsCommands, toolOutcome } from "../src/windowCommands";
+import { addFundsCommand, budgetCommand, disasterCommand, settingsCommands, toolOutcome } from "../src/windowCommands";
 import { LOCAL_PLAYER } from "./helpers/commandLog";
 import { repositoryJson } from "./helpers/repository";
 
@@ -57,6 +57,20 @@ describe("the budget window's command", () => {
         ["sets the tax alone when no slider moved", {}, 9, "set-budget-tax-only"],
     ])("%s, as the server reads the command", (_, funding, tax, example) => {
         expect(budgetCommand(funding, tax)).toEqual(commandExample(example));
+    });
+});
+
+describe("the disaster window's command", () => {
+
+    it("triggers the disaster chosen, as the server reads the command", () => {
+        expect(disasterCommand("tornado")).toEqual(commandExample("trigger-disaster"));
+    });
+});
+
+describe("the debug window's command", () => {
+
+    it("adds funds, as the server reads the command", () => {
+        expect(addFundsCommand()).toEqual(commandExample("add-funds"));
     });
 });
 

@@ -12,59 +12,39 @@
  *
  */
 
+import type { GameWindow } from "./windowBase";
+
 // The game's windows, shown one at a time. A window showing holds the keyboard and the mouse: the arrow keys don't
 // scroll the map, there is no hover box, and no other window opens. No window holds the city, which keeps stepping
 // behind every one of them.
+export class WindowManager {
+  private shown: GameWindow<never, unknown> | null = null;
 
-// A window as the game drives it. Closing one emits its closed event, whose handler calls closed() before acting on
-// the player's choice, so that the handler may open another window in its place.
-interface GameWindow {
-  open(...args: unknown[]): void;
-  close(): void;
-}
-
-// The mark on the Budget button that a year-end budget review is due
-interface ReviewMarker {
-  setLit(lit: boolean): void;
-}
-
-class WindowManager {
-  private shown: GameWindow | null = null;
-
-  // budgetValues gives the arguments the budget window opens with
-  constructor(private readonly budgetWindow: GameWindow, private readonly budgetValues: () => unknown[],
-              private readonly reviewMarker: ReviewMarker) {}
-
-  // Opens a window unless one is already showing, and says whether it did. A window that opens unasked, such as the
-  // touch warning, is not shown at all when another is showing.
-  open(window: GameWindow, ...args: unknown[]): boolean {
+  // Opens a window unless one is already showing, and returns the player's choice to come, or null when it didn't
+  // open. A window that opens unasked, such as the touch warning, is not shown at all when another is showing. The
+  // manager lets go of the input as the window closes, before the choice arrives, so a choice may open another window.
+  // A window that fails to open holds nothing, and its failure is thrown to whoever opened it.
+  open<Args extends unknown[], Choice>(window: GameWindow<Args, Choice>, ...args: Args): Promise<Choice> | null {
     if (this.shown !== null)
-      return false;
+      return null;
+
+    let chosen: (choice: Choice) => void = () => {};
+    const choice = new Promise<Choice>((resolve) => {
+      chosen = resolve;
+    });
 
     this.shown = window;
-    window.open(...args);
-    return true;
-  }
+    try {
+      window.open((closedWith) => {
+        this.shown = null;
+        chosen(closedWith);
+      }, ...args);
+    } catch (error) {
+      this.shown = null;
+      throw error;
+    }
 
-  // Opens the budget window unless another is showing, and says whether it did. Opening it, however the player asked,
-  // is the review of any that fell due.
-  openBudget(): boolean {
-    if (!this.open(this.budgetWindow, ...this.budgetValues()))
-      return false;
-
-    this.reviewMarker.setLit(false);
-    return true;
-  }
-
-  // The year end paid for the services with the player's values, which the player is offered to review. The budget
-  // window never opens unasked, since in a shared city it would open for every player at once: the marker shows until
-  // this player opens it.
-  budgetReviewDue(): void {
-    this.reviewMarker.setLit(true);
-  }
-
-  closed(): void {
-    this.shown = null;
+    return choice;
   }
 
   // Closes the window showing, as Escape does
@@ -77,7 +57,3 @@ class WindowManager {
     return this.shown !== null;
   }
 }
-
-
-export type { GameWindow, ReviewMarker };
-export { WindowManager };

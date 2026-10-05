@@ -15,14 +15,15 @@
 import { requiredElement, takesTyping } from "./domElements";
 import { Emitter } from "./emitter";
 import { GameCanvas } from "./gameCanvas";
+import { CURSOR_TOOLS, type CursorTool, isCursorTool } from "./protocol";
 import * as UiMessages from "./uiMessages";
 import type { PixelPoint, TilePoint } from "./viewPosition";
 
-// The player's input as the game reads it each tick: the keys held, where the mouse is over the canvas and the tool
+// The player's input as the game reads it each tick: the keys held, where the pointer is over the canvas and the tool
 // chosen. A click or a drag with the tool, and a press of a control button, are events.
 
 // The tools that lay a line as the mouse drags; every other tool acts on a click
-const DRAGGABLE_TOOLS = ["rail", "road", "wire"];
+const DRAGGABLE_TOOLS: readonly CursorTool[] = ["rail", "road", "wire"];
 
 // The keys the game follows: the arrow keys and WASD scroll the map, and Escape closes a window or clears the tool
 export type HeldKey = "up" | "down" | "left" | "right" | "escape";
@@ -257,7 +258,7 @@ export type PanState = "free" | "ready" | "held";
 // The class that gives the canvas the cursor: the closed hand while a pan holds the map, the open hand while Space is
 // ready to; otherwise the cursor for the tool chosen, the question mark for the query tool and the pointing hand for
 // the others, and none, the default cursor, while no tool is chosen
-export function cursorClass(toolName: string | null, pan: PanState): string | null {
+export function cursorClass(toolName: CursorTool | null, pan: PanState): string | null {
   if (pan !== "free") {
     return pan === "held" ? "grabbing" : "grab";
   }
@@ -367,6 +368,65 @@ export interface ToolClick {
   start: boolean;
 }
 
+// The events the input announces, by name, with the value each carries: a press of a control button carries none
+export interface InputEvents {
+  [UiMessages.BUDGET_REQUESTED]: undefined;
+  [UiMessages.DEBUG_WINDOW_REQUESTED]: undefined;
+  [UiMessages.DISASTER_REQUESTED]: undefined;
+  [UiMessages.DOWNLOAD_REQUESTED]: undefined;
+  [UiMessages.EVAL_REQUESTED]: undefined;
+  [UiMessages.MINIMAP_TOGGLE_REQUESTED]: undefined;
+  [UiMessages.PAUSE_REQUESTED]: undefined;
+  [UiMessages.SAVE_REQUESTED]: undefined;
+  [UiMessages.SCREENSHOT_WINDOW_REQUESTED]: undefined;
+  [UiMessages.SETTINGS_WINDOW_REQUESTED]: undefined;
+  [UiMessages.TOOL_CLICKED]: ToolClick;
+  [UiMessages.ZOOM_REQUESTED]: ZoomRequest;
+}
+
+// The events a press of a control button announces: those that carry nothing
+type ButtonRequest = {
+  [Event in keyof InputEvents]: InputEvents[Event] extends undefined ? Event : never
+}[keyof InputEvents];
+
+// A tool the player can choose: its name, and the tiles across and down its outline
+export interface ChosenTool {
+  name: CursorTool;
+  width: number;
+}
+
+// The tool a tool button offers: the tool its data-tool names, and the tiles across its outline its data-size gives.
+// A button that names no tool, or gives no whole number of tiles, is a defect in the page.
+export function buttonTool(data: {tool?: string, size?: string}): ChosenTool {
+  const name = data.tool;
+  if (!isCursorTool(name)) {
+    throw new Error(`A tool button names no tool: ${name}`);
+  }
+
+  const width = Number(data.size);
+  if (!Number.isInteger(width) || width <= 0) {
+    throw new Error(`The ${name} tool's button gives its size as ${data.size}`);
+  }
+
+  return {name, width};
+}
+
+// Each tool's outline colour, whoever holds it: the background of its button, so the two always match. Every tool a
+// player may hold has a button, or the page is at fault.
+export function toolColours(buttons: readonly {tool: CursorTool, colour: string}[]): Record<CursorTool, string> {
+  const colours: Partial<Record<CursorTool, string>> = {};
+  for (const {tool, colour} of buttons) {
+    colours[tool] = colour;
+  }
+
+  const missing = CURSOR_TOOLS.filter((tool) => colours[tool] === undefined);
+  if (missing.length > 0) {
+    throw new Error(`No tool button offers these tools: ${missing.join(", ")}`);
+  }
+
+  return colours as Record<CursorTool, string>;
+}
+
 // The map's view as the input reads and moves it: the CSS pixels a tile is drawn, at the zoom it is at; the map tile
 // drawn under a point of the canvas; and a pan, which takes hold of the map at a point of the canvas, keeps that point
 // of the map under the pointer as it moves, and lets go
@@ -378,22 +438,17 @@ export interface InputView {
   release(): void;
 }
 
-export class InputStatus extends Emitter {
+export class InputStatus extends Emitter<InputEvents> {
   // Keyboard Movement
   private readonly scrollKeys = new ScrollKeys();
   // Whether Escape was pressed since the game last took it
   private escapePressed = false;
 
-  // Mouse movement: -1 while the mouse is off the canvas
-  mouseX = -1;
-  mouseY = -1;
+  // The tool chosen, or null for none
+  private chosen: ChosenTool | null = null;
 
-  // Tool buttons
-  toolName: string | null = null;
-  toolWidth = 0;
-
-  // Each tool's outline colour, by the tool's name: its button's background, so the two always match
-  private readonly toolColours = new Map<string, string>();
+  // Each tool's outline colour (toolColours)
+  private readonly toolColours: Record<CursorTool, string>;
 
   private readonly canvas: HTMLElement;
   private readonly pauseButton: HTMLElement;
@@ -414,8 +469,8 @@ export class InputStatus extends Emitter {
   private readonly panMoveHandler = (e: MouseEvent) => this.view.panTo(this.relativeCoordinates(e));
 
   private readonly wheelZoom = new WheelZoom();
-  // Where the pointer is over the canvas, tool or no tool, which the zoom keys zoom around, or null while it is off it
-  private pointer: PixelPoint | null = null;
+  // Where the pointer is over the canvas, tool or no tool, or null while it is off it
+  private pointerAt: PixelPoint | null = null;
 
   // view is the map's view, which the input reads the zoom and the tiles from and pans, and windowHoldsInput whether a
   // window holds the keyboard and mouse, which leaves the keys to it but Escape
@@ -443,18 +498,21 @@ export class InputStatus extends Emitter {
     this.canvas.addEventListener("mouseleave", () => this.onMouseLeave());
     // Not passive, so the wheel zooms the map rather than scrolling the page
     this.canvas.addEventListener("wheel", (e) => this.onWheel(e), {passive: false});
-    this.canvas.addEventListener("mousemove", (e) => {
-      this.pointer = this.relativeCoordinates(e);
-    });
     // Before the tool's own listeners, which are added later, as the pointer enters the canvas with a tool chosen
+    this.canvas.addEventListener("mousemove", (e) => {
+      this.pointerAt = this.relativeCoordinates(e);
+    });
     this.canvas.addEventListener("mousedown", (e) => this.onCanvasPress(e));
 
-    document.querySelectorAll<HTMLElement>(".toolButton").forEach((button) => {
-      button.addEventListener("click", (e) => this.onToolButton(e, button));
-      this.toolColours.set(button.dataset.tool ?? "", getComputedStyle(button).backgroundColor);
+    const buttons = Array.from(document.querySelectorAll<HTMLElement>(".toolButton"), (button) => {
+      const tool = buttonTool(button.dataset);
+      button.addEventListener("click", (e) => this.onToolButton(e, button, tool));
+      return {tool: tool.name, colour: getComputedStyle(button).backgroundColor};
     });
 
-    const requests: [HTMLElement, string][] = [
+    this.toolColours = toolColours(buttons);
+
+    const requests: [HTMLElement, ButtonRequest][] = [
       [requiredElement("budgetRequest"), UiMessages.BUDGET_REQUESTED],
       [requiredElement("evalRequest"), UiMessages.EVAL_REQUESTED],
       [requiredElement("disasterRequest"), UiMessages.DISASTER_REQUESTED],
@@ -470,14 +528,23 @@ export class InputStatus extends Emitter {
     }
   }
 
+  // The tool chosen, or null for none
+  get tool(): ChosenTool | null {
+    return this.chosen;
+  }
+
+  // Where the pointer is over the canvas, in CSS pixels, or null while it is off it
+  get pointer(): PixelPoint | null {
+    return this.pointerAt;
+  }
+
   // The pause button offers whatever the simulation isn't doing
   showPaused(paused: boolean): void {
     this.pauseButton.textContent = paused ? "Play" : "Pause";
   }
 
   clearTool(): void {
-    this.toolName = null;
-    this.toolWidth = 0;
+    this.chosen = null;
     deselectToolButtons();
     this.showCursor();
   }
@@ -488,7 +555,7 @@ export class InputStatus extends Emitter {
   }
 
   private showCursor(): void {
-    const cursor = cursorClass(this.toolName, this.pan);
+    const cursor = cursorClass(this.chosen?.name ?? null, this.pan);
 
     this.canvas.classList.remove(...CURSOR_CLASSES);
     if (cursor !== null) {
@@ -550,7 +617,7 @@ export class InputStatus extends Emitter {
     if (steps !== null) {
       e.preventDefault();
       if (!this.dragging && this.pan !== "held") {
-        this.emit(UiMessages.ZOOM_REQUESTED, {steps, point: this.pointer} satisfies ZoomRequest);
+        this.emit(UiMessages.ZOOM_REQUESTED, {steps, point: this.pointerAt});
       }
     }
 
@@ -567,7 +634,7 @@ export class InputStatus extends Emitter {
     const steps = this.wheelZoom.steps(e.deltaY, e.deltaMode);
     // Not mid-drag, as for the zoom keys
     if (steps !== 0 && !this.dragging && this.pan !== "held") {
-      this.emit(UiMessages.ZOOM_REQUESTED, {steps, point: this.relativeCoordinates(e)} satisfies ZoomRequest);
+      this.emit(UiMessages.ZOOM_REQUESTED, {steps, point: this.relativeCoordinates(e)});
     }
   }
 
@@ -616,19 +683,19 @@ export class InputStatus extends Emitter {
     this.showCursor();
   }
 
-  private relativeCoordinates(e: MouseEvent): {x: number, y: number} {
+  private relativeCoordinates(e: MouseEvent): PixelPoint {
     const cRect = this.canvas.getBoundingClientRect();
     return {x: e.clientX - cRect.left, y: e.clientY - cRect.top};
   }
 
   private onMouseEnter(): void {
-    if (this.toolName === null) {
+    if (this.chosen === null) {
       return;
     }
 
     this.canvas.addEventListener("mousemove", this.mouseMoveHandler);
 
-    if (DRAGGABLE_TOOLS.indexOf(this.toolName) !== -1) {
+    if (DRAGGABLE_TOOLS.includes(this.chosen.name)) {
       this.canvas.addEventListener("mousedown", this.mouseDownHandler);
     } else {
       this.canvas.addEventListener("click", this.canvasClickHandler);
@@ -640,14 +707,13 @@ export class InputStatus extends Emitter {
       return;
     }
 
-    const coords = this.relativeCoordinates(e);
-    this.mouseX = coords.x;
-    this.mouseY = coords.y;
+    const at = this.relativeCoordinates(e);
+    this.pointerAt = at;
 
     this.dragging = true;
-    this.emit(UiMessages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
+    this.emit(UiMessages.TOOL_CLICKED, {x: at.x, y: at.y, start: true});
 
-    const tile = this.view.tileUnder(this.mouseX, this.mouseY);
+    const tile = this.view.tileUnder(at.x, at.y);
     this.lastDragX = tile.x;
     this.lastDragY = tile.y;
 
@@ -679,53 +745,48 @@ export class InputStatus extends Emitter {
 
     this.canvas.removeEventListener("click", this.canvasClickHandler);
 
-    this.mouseX = -1;
-    this.mouseY = -1;
-    this.pointer = null;
+    this.pointerAt = null;
   }
 
+  // A drag continues from the map tile last reported: the game fills in the tiles a fast move skips
   private onMouseMove(e: MouseEvent): void {
-    const coords = this.relativeCoordinates(e);
-    this.mouseX = coords.x;
-    this.mouseY = coords.y;
+    if (!this.dragging) {
+      return;
+    }
 
-    // A drag continues from the map tile last reported: the game fills in the tiles a fast move skips
-    if (this.dragging) {
-      const {x, y} = this.view.tileUnder(this.mouseX, this.mouseY);
-
-      if (x !== this.lastDragX || y !== this.lastDragY) {
-        this.emit(UiMessages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: false} satisfies ToolClick);
-        this.lastDragX = x;
-        this.lastDragY = y;
-      }
+    const at = this.relativeCoordinates(e);
+    const {x, y} = this.view.tileUnder(at.x, at.y);
+    if (x !== this.lastDragX || y !== this.lastDragY) {
+      this.emit(UiMessages.TOOL_CLICKED, {x: at.x, y: at.y, start: false});
+      this.lastDragX = x;
+      this.lastDragY = y;
     }
   }
 
   // The click that ends a press which began a pan applies no tool
   private onCanvasClick(e: MouseEvent): void {
-    if (!isToolPress(e) || this.mouseX === -1 || this.mouseY === -1 || this.dragging ||
-        this.spacePan.pressPans) {
+    const at = this.pointerAt;
+    if (!isToolPress(e) || at === null || this.dragging || this.spacePan.pressPans) {
       return;
     }
 
-    this.emit(UiMessages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
+    this.emit(UiMessages.TOOL_CLICKED, {x: at.x, y: at.y, start: true});
     e.preventDefault();
   }
 
   // The colour the tool's outline is drawn in, whoever holds it
-  toolColourOf(tool: string): string {
-    return this.toolColours.get(tool) || "yellow";
+  toolColourOf(tool: CursorTool): string {
+    return this.toolColours[tool];
   }
 
-  private onToolButton(e: MouseEvent, button: HTMLElement): void {
+  private onToolButton(e: MouseEvent, button: HTMLElement, tool: ChosenTool): void {
     deselectToolButtons();
 
     // Add highlight
     button.classList.remove("unselected");
     button.classList.add("selected");
 
-    this.toolName = button.dataset.tool ?? null;
-    this.toolWidth = Number(button.dataset.size);
+    this.chosen = tool;
 
     this.showCursor();
 

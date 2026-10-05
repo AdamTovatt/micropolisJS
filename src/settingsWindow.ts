@@ -13,7 +13,6 @@
  */
 
 import { isChecked, requiredElement } from "./domElements";
-import { SETTINGS_WINDOW_CLOSED } from "./uiMessages";
 import { type SettingsRecord, SPEEDS } from "./protocol";
 import { ClosableWindow } from "./windowBase";
 
@@ -50,16 +49,16 @@ export function speedRadioID(speed: number): string {
   return radio.id;
 }
 
-// The city's settings and the client's. Closing emits the player's choice, or null when cancelled.
-export class SettingsWindow extends ClosableWindow {
+// The city's settings and the client's. It closes with the player's choice, or null when cancelled.
+export class SettingsWindow extends ClosableWindow<[SettingsRecord, ClientSettings], SettingsChoice | null> {
   constructor(opacityLayerID: string, windowID: string) {
-    super(opacityLayerID, windowID, SETTINGS_WINDOW_CLOSED);
+    super(opacityLayerID, windowID, null);
 
     this.closeOnClick("settingsCancel");
 
     requiredElement("settingsForm", HTMLFormElement).addEventListener("submit", (event) => {
       event.preventDefault();
-      this.close({
+      this.closeWith({
         autoBudget: isChecked("autoBudgetYes"),
         autoBulldoze: isChecked("autoBulldozeYes"),
         speed: checkedSpeed(),
@@ -68,18 +67,12 @@ export class SettingsWindow extends ClosableWindow {
     });
   }
 
-  open(city: SettingsRecord, client: ClientSettings): void {
+  protected fill(city: SettingsRecord, client: ClientSettings): void {
     checkYesOrNo("autoBudget", city.autoBudget);
     checkYesOrNo("autoBulldoze", client.autoBulldoze);
     check(speedRadioID(city.speed));
     checkYesOrNo("disasters", city.disasters);
     requiredElement("settingsSeed").textContent = `${client.seed}`;
-
-    this._toggleDisplay();
-  }
-
-  close(choice: SettingsChoice | null = null): void {
-    super.close(choice);
   }
 }
 

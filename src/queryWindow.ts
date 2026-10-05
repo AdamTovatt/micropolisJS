@@ -14,7 +14,6 @@
 
 import { ClientConfig } from "./clientConfig";
 import { requiredElement } from "./domElements";
-import { QUERY_WINDOW_CLOSED } from "./uiMessages";
 import { type TileReportAnswer } from "./protocol";
 import { Text } from "./text";
 import { ClosableWindow } from "./windowBase";
@@ -185,15 +184,14 @@ export function queryView(report: TileReportAnswer): QueryView {
 }
 
 // The query tool's report on a tile
-export class QueryWindow extends ClosableWindow {
+export class QueryWindow extends ClosableWindow<[TileReportAnswer], void> {
   constructor(opacityLayerID: string, windowID: string) {
-    super(opacityLayerID, windowID, QUERY_WINDOW_CLOSED);
+    super(opacityLayerID, windowID, undefined);
     this.closeOnSubmit("queryForm");
   }
 
-  open(report: TileReportAnswer): void {
+  protected fill(report: TileReportAnswer): void {
     render(queryView(report), ClientConfig.debug);
-    this._toggleDisplay();
   }
 }
 

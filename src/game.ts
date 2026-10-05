@@ -13,22 +13,21 @@
  */
 
 import { AutoBulldozePreference } from "./autoBulldozePreference";
-import { BudgetChoice, BudgetWindow } from "./budgetWindow";
+import { BudgetWindow } from "./budgetWindow";
 import type { Presence } from "./cityClient";
 import { linkToCity } from "./cityLink";
 import type { CitySource, StartedCity } from "./citySource";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
-import { DebugAction, DebugWindow } from "./debugWindow";
+import { DebugWindow } from "./debugWindow";
 import { DisasterWindow } from "./disasterWindow";
 import { downloadJson, saveFileName } from "./download";
 import { isShown, requiredElement, setShown, toggleShown } from "./domElements";
-import { ToolPaths } from "./dragPath";
-import { errorMessage } from "./errorMessage";
 import { EvaluationWindow } from "./evaluationWindow";
-import { GameCanvas, MouseOutline } from "./gameCanvas";
+import { GameCanvas } from "./gameCanvas";
+import { GameControls } from "./gameControls";
 import { InfoBar, placeInfoBar } from "./infoBar";
-import { InputStatus, ToolClick, ZoomRequest } from "./inputStatus";
+import { InputStatus } from "./inputStatus";
 import * as Messages from "./messages";
 import { Minimap } from "./minimap";
 import { MonsterTV } from "./monsterTV";
@@ -38,15 +37,14 @@ import { OtherPlayers } from "./otherPlayers";
 import { cityOverlaySource, OverlayPicker } from "./overlayPicker";
 import { PaintableSprite, spritesInView } from "./paintable";
 import { placePanelFolding } from "./panelFolding";
-import { CommandResult, DisasterKind, NewsMessage, SettingsRecord, ToolName } from "./protocol";
-import { QueryTool } from "./queryTool";
+import { CommandResult, NewsMessage } from "./protocol";
 import { QueryWindow } from "./queryWindow";
 import { placeRCI, RCI } from "./rci";
 import { MapArt, tileSetPixels } from "./renderAssets";
 import { SaveWindow } from "./saveWindow";
 import { ScreenshotLinkWindow } from "./screenshotLinkWindow";
-import { ScreenshotArea, ScreenshotWindow } from "./screenshotWindow";
-import { SettingsChoice, SettingsWindow } from "./settingsWindow";
+import { ScreenshotWindow } from "./screenshotWindow";
+import { SettingsWindow } from "./settingsWindow";
 import { SpeedControl } from "./speedControl";
 import { StatusPanel } from "./statusPanel";
 import { pageStore } from "./storage";
@@ -56,7 +54,7 @@ import { placeToolToast, PlacedToast, toastedFailure } from "./toolToast";
 import { TouchWarnWindow } from "./touchWarnWindow";
 import * as UiMessages from "./uiMessages";
 import type { TilePoint } from "./viewPosition";
-import { budgetCommand, disasterCommand, settingsCommands, toolOutcome } from "./windowCommands";
+import { toolOutcome } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
 // What a game is made from: the city source and the client's copy of its city, the server's word of the other players,
@@ -76,34 +74,19 @@ interface SpriteViewport {
 }
 
 // A game of the city a source has started. The game reaches the city only through the source: it sends commands and
-// queries, and shows the city from the client's copy of it, which the source's state messages build.
+// queries, and shows the city from the client's copy of it, which the source's state messages build. What the player's
+// mouse, keyboard and windows do is the controls' (GameControls).
 export class Game {
   readonly gameCanvas: GameCanvas;
 
   private readonly source: CitySource;
   private readonly state: CityState;
-  private readonly seed: number;
-  // The city's name, which its downloaded save file is named after
-  private readonly cityName: string;
-  private readonly autoBulldoze: AutoBulldozePreference;
   private readonly rci: RCI;
   private readonly statusPanel: StatusPanel;
   private readonly infoBar: InfoBar;
-  private readonly inputStatus: InputStatus;
-  private readonly toolPaths = new ToolPaths();
   private readonly speedControl: SpeedControl;
   readonly monsterTV: MonsterTV;
-  private readonly windows: WindowManager;
-  private readonly evalWindow: EvaluationWindow;
-  private readonly disasterWindow: DisasterWindow;
-  private readonly debugWindow: DebugWindow;
-  private readonly settingsWindow: SettingsWindow;
-  private readonly screenshotWindow: ScreenshotWindow;
-  private readonly screenshotLinkWindow: ScreenshotLinkWindow;
-  private readonly saveWindow: SaveWindow;
-  private readonly touchWindow: TouchWarnWindow;
-  private readonly queryWindow: QueryWindow;
-  private readonly queryTool: QueryTool;
+  private readonly controls: GameControls;
   private readonly otherPlayers: OtherPlayers;
   readonly notificationBar: NotificationBar<HTMLElement>;
   readonly toolToast: PlacedToast;
@@ -111,17 +94,8 @@ export class Game {
   private readonly tooSmall = requiredElement("tooSmall");
   private readonly lastEventButton = requiredElement("lastEvent");
 
-  private mouse: MouseOutline | null = null;
   private readonly newsHold = new NewsHold();
   private readonly lastEvent = new LastEvent();
-  // The city settings as the settings window showed them, which its choices are compared with when it closes
-  private settingsShown: SettingsRecord | null = null;
-  // Whether the player can see the city, which decides whether the other players see this player's hover box
-  private viewerVisible = false;
-  // Whether a save or a download is waiting on the server, which a click on the same button again doesn't repeat: each
-  // counts toward the limit on them the server keeps
-  private saving = false;
-  private downloading = false;
 
   // Debug mode's frame counter
   private readonly fpsValue = requiredElement("fpsValue");
@@ -129,33 +103,20 @@ export class Game {
   private animStart = 0;
   private lastElapsed = -1;
 
-  private readonly handleWindowClosure: () => void;
   private readonly touchListener = () => {
     window.removeEventListener("touchstart", this.touchListener, false);
-    this.windows.open(this.touchWindow);
+    this.controls.warnOfTouch();
   };
 
   private readonly tick = () => {
-    this.handleInput();
-
-    // The tiles clicked or dragged over since the last tick go as tool commands, one per path. The source applies the
-    // commands it is sent whether or not the city is stepping: you can build when paused. While the end-to-end runner
-    // holds the source's driver, it sends them itself, so that how a drag splits into commands never depends on when
-    // ticks ran.
-    if (!this.source.driver.isHeld()) {
-      this.sendToolPaths();
-    }
-
-    this.mouse = this.windows.holdsInput() ? null : this.calculateMouseForPaint();
-    this.reportCursor();
-
+    this.controls.tick(performance.now());
     window.setTimeout(this.tick, 0);
   };
 
   private readonly commonAnimate = () => {
     const paused = this.speedControl.isPaused();
     let sprites = this.calculateSpritesForPaint(this.gameCanvas);
-    this.gameCanvas.paint(this.outlinesForPaint(), sprites, paused);
+    this.gameCanvas.paint(this.controls.outlines(), sprites, paused);
 
     sprites = this.calculateSpritesForPaint(this.monsterTV.canvas);
     this.monsterTV.paint(sprites, paused);
@@ -183,9 +144,7 @@ export class Game {
   constructor({source, state, presence, mapArt}: GameParts, started: StartedCity) {
     this.source = source;
     this.state = state;
-    this.seed = started.seed;
-    this.cityName = started.name;
-    this.autoBulldoze = new AutoBulldozePreference(pageStore());
+    const autoBulldoze = new AutoBulldozePreference(pageStore());
 
     // A city on the server goes in the page's address, so the address invites another player in, and a reload rejoins
     linkToCity(started, window);
@@ -195,7 +154,8 @@ export class Game {
 
     // Note: must init canvas before inputStatus
     this.gameCanvas = new GameCanvas("canvasContainer", state.map, mapArt);
-    this.inputStatus = new InputStatus(this.gameCanvas, () => this.windows.holdsInput());
+    const windows = new WindowManager();
+    const inputStatus = new InputStatus(this.gameCanvas, () => windows.holdsInput());
 
     new OverlayPicker(requiredElement("overlayPanelBody"), requiredElement("overlayPanelSelect", HTMLSelectElement),
                       cityOverlaySource(source, state), this.gameCanvas);
@@ -204,7 +164,6 @@ export class Game {
     const panels = placePanelFolding(pageStore());
 
     this.minimap = new Minimap(state, tileSetPixels(mapArt), this.gameCanvas);
-    this.inputStatus.addEventListener(UiMessages.MINIMAP_TOGGLE_REQUESTED, () => panels.toggle("map"));
 
     // The Last event button centres the view on the last news with a place, which brings the player back to it after
     // the bar has moved on
@@ -217,79 +176,9 @@ export class Game {
 
     this.speedControl = new SpeedControl(state.current("settings").speed, (speed) => {
       this.source.send({type: "setSpeed", speed});
-    }, (paused) => this.inputStatus.showPaused(paused));
+    }, (paused) => inputStatus.showPaused(paused));
 
     this.monsterTV = new MonsterTV(state.map, mapArt);
-
-    const opacityLayerID = "opaque";
-
-    const budgetWindow = new BudgetWindow(opacityLayerID, "budget", source);
-    const budgetButton = requiredElement("budgetRequest");
-    this.windows = new WindowManager(budgetWindow, () => this.budgetWindowValues(),
-                                     {setLit: (lit) => budgetButton.classList.toggle("reviewDue", lit)});
-
-    this.handleWindowClosure = () => this.windows.closed();
-
-    this.evalWindow = new EvaluationWindow(opacityLayerID, "evalWindow");
-    this.evalWindow.addEventListener(UiMessages.EVAL_WINDOW_CLOSED, this.handleWindowClosure);
-    this.inputStatus.addEventListener(UiMessages.EVAL_REQUESTED,
-                                      () => this.windows.open(this.evalWindow, state.current("evaluation")));
-
-    budgetWindow.addEventListener(UiMessages.BUDGET_WINDOW_CLOSED,
-                                  (choice: BudgetChoice | null) => this.handleBudgetWindowClosure(choice));
-    this.inputStatus.addEventListener(UiMessages.BUDGET_REQUESTED, () => this.windows.openBudget());
-
-    this.disasterWindow = new DisasterWindow(opacityLayerID, "disasterWindow");
-    this.disasterWindow.addEventListener(UiMessages.DISASTER_WINDOW_CLOSED,
-                                         (kind: DisasterKind | null) => this.handleDisasterWindowClosure(kind));
-    this.inputStatus.addEventListener(UiMessages.DISASTER_REQUESTED, () => this.windows.open(this.disasterWindow));
-
-    this.debugWindow = new DebugWindow(opacityLayerID, "debugWindow");
-    this.debugWindow.addEventListener(UiMessages.DEBUG_WINDOW_CLOSED,
-                                      (actions: DebugAction[]) => this.handleDebugWindowClosure(actions));
-    this.inputStatus.addEventListener(UiMessages.DEBUG_WINDOW_REQUESTED, () => this.windows.open(this.debugWindow));
-
-    this.settingsWindow = new SettingsWindow(opacityLayerID, "settingsWindow");
-    this.settingsWindow.addEventListener(UiMessages.SETTINGS_WINDOW_CLOSED,
-                                         (choice: SettingsChoice | null) => this.handleSettingsWindowClosure(choice));
-    this.inputStatus.addEventListener(UiMessages.SETTINGS_WINDOW_REQUESTED, () => this.handleSettingsRequest());
-
-    this.screenshotWindow = new ScreenshotWindow(opacityLayerID, "screenshotWindow");
-    this.screenshotWindow.addEventListener(UiMessages.SCREENSHOT_WINDOW_CLOSED,
-                                           (area: ScreenshotArea | null) => this.handleScreenshotWindowClosure(area));
-    this.inputStatus.addEventListener(UiMessages.SCREENSHOT_WINDOW_REQUESTED,
-                                      () => this.windows.open(this.screenshotWindow));
-
-    this.screenshotLinkWindow = new ScreenshotLinkWindow(opacityLayerID, "screenshotLinkWindow");
-    this.screenshotLinkWindow.addEventListener(UiMessages.SCREENSHOT_LINK_CLOSED, this.handleWindowClosure);
-
-    this.saveWindow = new SaveWindow(opacityLayerID, "saveWindow");
-    this.saveWindow.addEventListener(UiMessages.SAVE_WINDOW_CLOSED, this.handleWindowClosure);
-
-    this.touchWindow = new TouchWarnWindow(opacityLayerID, "touchWarnWindow");
-    this.touchWindow.addEventListener(UiMessages.TOUCH_WINDOW_CLOSED, this.handleWindowClosure);
-
-    // The query window shows the report the query tool asks the simulation for
-    this.queryWindow = new QueryWindow(opacityLayerID, "queryWindow");
-    this.queryWindow.addEventListener(UiMessages.QUERY_WINDOW_CLOSED, this.handleWindowClosure);
-    this.queryTool = new QueryTool(source, (report) => this.windows.open(this.queryWindow, report));
-
-    // Listen for clicks on the save and download buttons
-    this.inputStatus.addEventListener(UiMessages.SAVE_REQUESTED, () => this.handleSave());
-    this.inputStatus.addEventListener(UiMessages.DOWNLOAD_REQUESTED, () => this.handleDownload());
-
-    // Listen for tool clicks
-    this.inputStatus.addEventListener(UiMessages.TOOL_CLICKED, (data: ToolClick) => this.handleTool(data));
-
-    // And pauses
-    this.inputStatus.addEventListener(UiMessages.PAUSE_REQUESTED, () => this.speedControl.togglePause());
-
-    // And zooms, which a window holding the keyboard and mouse holds back, as it holds back scrolling
-    this.inputStatus.addEventListener(UiMessages.ZOOM_REQUESTED, ({steps, point}: ZoomRequest) => {
-      if (!this.windows.holdsInput()) {
-        this.gameCanvas.zoomBy(steps, point);
-      }
-    });
 
     this.infoBar = placeInfoBar(started.name);
     this.infoBar.showDate(state.current("date"));
@@ -301,6 +190,39 @@ export class Game {
     this.toolToast = placeToolToast();
 
     this.otherPlayers = new OtherPlayers(presence, requiredElement("activityList"), requiredElement("activityListBody"));
+
+    const opacityLayerID = "opaque";
+    const budgetButton = requiredElement("budgetRequest");
+    this.controls = new GameControls({
+      input: inputStatus,
+      view: this.gameCanvas,
+      windows,
+      gameWindows: {
+        budget: new BudgetWindow(opacityLayerID, "budget", source),
+        evaluation: new EvaluationWindow(opacityLayerID, "evalWindow"),
+        disaster: new DisasterWindow(opacityLayerID, "disasterWindow"),
+        debug: new DebugWindow(opacityLayerID, "debugWindow"),
+        settings: new SettingsWindow(opacityLayerID, "settingsWindow"),
+        screenshot: new ScreenshotWindow(opacityLayerID, "screenshotWindow"),
+        screenshotLink: new ScreenshotLinkWindow(opacityLayerID, "screenshotLinkWindow"),
+        save: new SaveWindow(opacityLayerID, "saveWindow"),
+        touchWarning: new TouchWarnWindow(opacityLayerID, "touchWarnWindow"),
+        query: new QueryWindow(opacityLayerID, "queryWindow"),
+      },
+      reviewMarker: {setLit: (lit) => budgetButton.classList.toggle("reviewDue", lit)},
+      source,
+      city: state,
+      players: this.otherPlayers,
+      page: {
+        alert: (message) => window.alert(message),
+        saveFile: downloadJson,
+        togglePause: () => this.speedControl.togglePause(),
+        toggleMinimap: () => panels.toggle("map"),
+      },
+      autoBulldoze,
+      seed: started.seed,
+      saveFileName: saveFileName(started.name),
+    });
 
     this.revealControls();
 
@@ -335,10 +257,12 @@ export class Game {
 
   // Sends each path gathered since the last tick as one tool command: a click, or a drag's latest tiles
   sendToolPaths(): void {
-    this.toolPaths.take().forEach((toolPath) => {
-      this.source.send({type: "tool", tool: toolPath.tool, path: toolPath.path,
-                        autoBulldoze: this.autoBulldoze.isOn()});
-    });
+    this.controls.sendToolPaths();
+  }
+
+  // The map tile under the pointer that this player's hover box is drawn at, or null while none is
+  get hoverTile(): TilePoint | null {
+    return this.controls.hoverTile;
   }
 
   private followCity(): void {
@@ -368,121 +292,21 @@ export class Game {
     // The Budget button marks the review due until the player opens the budget, and the notification bar offers it, if
     // no news shows: the year end's own news, such as the city going broke, comes before the review
     state.on("budgetReviewDue", () => {
-      this.windows.budgetReviewDue();
-      this.notificationBar.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => this.windows.openBudget());
+      this.controls.budgetReviewDue();
+      this.notificationBar.offer({subject: Messages.BUDGET_REVIEW_DUE}, () => this.controls.openBudget());
     });
   }
 
   // Notes whether the player can see the city: not while the screen is too small to play, which only a resize
   // changes, or while the tab is hidden. The city on the server steps on either way, as its other players see it.
   private readonly updateViewerVisible = (): void => {
-    this.viewerVisible = !isShown(this.tooSmall) && !document.hidden;
+    this.controls.setViewerVisible(!isShown(this.tooSmall) && !document.hidden);
   };
 
   private revealControls(): void {
     document.querySelectorAll(".initialHidden").forEach((element) => element.classList.remove("initialHidden"));
 
     this.notificationBar.show({subject: UiMessages.WELCOME});
-  }
-
-  private handleDisasterWindowClosure(kind: DisasterKind | null): void {
-    this.windows.closed();
-
-    if (kind !== null) {
-      this.source.send(disasterCommand(kind));
-    }
-  }
-
-  private handleSettingsWindowClosure(choice: SettingsChoice | null): void {
-    this.windows.closed();
-
-    if (choice === null) {
-      return;
-    }
-
-    this.autoBulldoze.set(choice.autoBulldoze);
-    settingsCommands(this.settingsShown!, choice).forEach((command) => {
-      this.source.send(command);
-    });
-  }
-
-  private handleDebugWindowClosure(actions: DebugAction[]): void {
-    this.windows.closed();
-
-    actions.forEach((action) => {
-      if (action === "addFunds") {
-        this.source.send({type: "addFunds"});
-      } else if (action === "downloadLog") {
-        this.downloadLog();
-      } else {
-        console.warn("Unexpected action", action);
-      }
-    });
-  }
-
-  // Saves the session's command log as a file, for the headless runner to replay:
-  // `dotnet run --project server/Micropolis.Headless -- --log <file>`. A log the source can't give is said out loud, as
-  // a save is.
-  private downloadLog(): void {
-    this.source.commandLog().then((recorded) => {
-      downloadJson(`micropolis-log-${recorded.step}.json`, JSON.stringify(recorded.log));
-    }, (error: unknown) => window.alert(`The command log couldn't be downloaded: ${errorMessage(error)}`));
-  }
-
-  private handleScreenshotWindowClosure(area: ScreenshotArea | null): void {
-    this.windows.closed();
-
-    if (area === null) {
-      return;
-    }
-
-    const dataURI = area === "visible" ? this.gameCanvas.screenshotVisible() : this.gameCanvas.screenshotMap();
-    this.windows.open(this.screenshotLinkWindow, dataURI);
-  }
-
-  private handleBudgetWindowClosure(choice: BudgetChoice | null): void {
-    this.windows.closed();
-
-    if (choice !== null) {
-      this.source.send(budgetCommand(choice.funding, choice.tax));
-    }
-  }
-
-  // The arguments the budget window opens with: the budget record
-  private budgetWindowValues(): unknown[] {
-    return [this.state.current("budget")];
-  }
-
-  private handleSettingsRequest(): void {
-    // The city settings as the window shows them, which its choices are compared with when it closes
-    const shown = this.state.current("settings");
-    const client = {autoBulldoze: this.autoBulldoze.isOn(), seed: this.seed};
-
-    if (this.windows.open(this.settingsWindow, shown, client)) {
-      this.settingsShown = shown;
-    }
-  }
-
-  // The tiles the player's tool reaches gather into paths (see ToolPaths), sent each tick by sendToolPaths
-  private handleTool(data: ToolClick): void {
-    // Where was the tool clicked?
-    const tileCoords = this.gameCanvas.tileOnCanvasUnder(data.x, data.y);
-
-    const toolName = this.inputStatus.toolName;
-    if (tileCoords === null || toolName === null) {
-      this.toolPaths.lost();
-      return;
-    }
-
-    // The view may show a margin around the map, where there is no tile to report on
-    if (toolName === "query") {
-      if (this.state.map.testBounds(tileCoords.x, tileCoords.y)) {
-        this.queryTool.query(tileCoords.x, tileCoords.y);
-      }
-      return;
-    }
-
-    this.toolPaths.reached(toolName as ToolName, {x: tileCoords.x, y: tileCoords.y}, data.start);
   }
 
   // A toast at the pointer says why the player's own tool command built nothing
@@ -497,53 +321,6 @@ export class Game {
     }
 
     this.toolToast.show(Text.toolFailures[failure]);
-  }
-
-  // The server keeps the city in its store, and the window opens once it has. A save the server refuses, or one on a
-  // server the connection to is down, is said out loud.
-  private handleSave(): void {
-    if (this.saving) {
-      return;
-    }
-
-    this.saving = true;
-    this.source.save().then(() => {
-      this.windows.open(this.saveWindow);
-    }, (error: unknown) => window.alert(`The city couldn't be saved: ${errorMessage(error)}`))
-      .finally(() => {
-        this.saving = false;
-      });
-  }
-
-  // Gives the player the city's save as a file named after the city, which Load on the splash screen starts again as
-  // a new city. A download the server refuses, or one on a server the connection to is down, is said out loud.
-  private handleDownload(): void {
-    if (this.downloading) {
-      return;
-    }
-
-    this.downloading = true;
-    this.source.download().then((text) => {
-      downloadJson(saveFileName(this.cityName), text);
-    }, (error: unknown) => window.alert(`The city couldn't be downloaded: ${errorMessage(error)}`))
-      .finally(() => {
-        this.downloading = false;
-      });
-  }
-
-  private handleInput(): void {
-    // Keyboard movement
-    const scroll = this.inputStatus.takeScroll(performance.now());
-    this.gameCanvas.scrollBy(scroll.x, scroll.y);
-
-    // Escape closes the window showing, or else clears the tool
-    if (this.inputStatus.takeEscape()) {
-      if (this.windows.holdsInput()) {
-        this.windows.closeShown();
-      } else {
-        this.inputStatus.clearTool();
-      }
-    }
   }
 
   private showNews(message: NewsMessage): void {
@@ -566,51 +343,6 @@ export class Game {
       this.lastEvent.heard(message);
       setShown(this.lastEventButton, this.lastEvent.known);
     }
-  }
-
-  // The map tile under the pointer that this player's hover box is drawn at, or null while none is
-  get hoverTile(): TilePoint | null {
-    return this.mouse === null ? null : {x: this.mouse.x, y: this.mouse.y};
-  }
-
-  private calculateMouseForPaint(): MouseOutline | null {
-    // Determine whether we need to draw a tool outline in the canvas: not while Space readies a pan or a pan holds the
-    // map, so the others don't see it either
-    if (this.inputStatus.mouseX === -1 || this.inputStatus.toolWidth <= 0 || this.inputStatus.pan !== "free") {
-      return null;
-    }
-
-    const tileCoords = this.gameCanvas.tileOnCanvasUnder(this.inputStatus.mouseX,
-                                                                        this.inputStatus.mouseY);
-    if (tileCoords === null) {
-      return null;
-    }
-
-    return {x: tileCoords.x, y: tileCoords.y, width: this.inputStatus.toolWidth, height: this.inputStatus.toolWidth,
-            colour: this.inputStatus.toolColourOf(this.inputStatus.toolName ?? ""), label: null};
-  }
-
-  // Tells the others where this player's hover box is: nowhere while it isn't drawn, a window holding the mouse, or
-  // while the player can't see the city, such as in a hidden tab, where the pointer may never leave the canvas
-  private reportCursor(): void {
-    const shown = this.mouse !== null && this.viewerVisible;
-    const tile = shown
-      ? this.gameCanvas.tileOnCanvasUnder(this.inputStatus.mouseX, this.inputStatus.mouseY)
-      : null;
-
-    this.otherPlayers.reportCursor(this.inputStatus.toolName, this.inputStatus.toolWidth, tile,
-                                   (x, y) => this.state.map.testBounds(x, y));
-  }
-
-  // The other players' hover boxes, named, under this player's own
-  private outlinesForPaint(): MouseOutline[] {
-    const outlines = this.otherPlayers.outlines((tool) => this.inputStatus.toolColourOf(tool));
-
-    if (this.mouse !== null) {
-      outlines.push(this.mouse);
-    }
-
-    return outlines;
   }
 
   private calculateSpritesForPaint(canvas: SpriteViewport): PaintableSprite[] {

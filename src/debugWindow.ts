@@ -13,7 +13,6 @@
  */
 
 import { isChecked, requiredElement } from "./domElements";
-import { DEBUG_WINDOW_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // What the player chose in the window
@@ -41,26 +40,21 @@ export function debugActions(choices: DebugChoices): DebugAction[] {
   return actions;
 }
 
-// The debug actions, in debug mode. Closing emits the actions chosen, none when cancelled.
-export class DebugWindow extends ClosableWindow {
+// The debug actions, in debug mode. It closes with the actions chosen, none when cancelled.
+export class DebugWindow extends ClosableWindow<[], DebugAction[]> {
   constructor(opacityLayerID: string, windowID: string) {
-    super(opacityLayerID, windowID, DEBUG_WINDOW_CLOSED);
+    super(opacityLayerID, windowID, []);
 
     this.closeOnClick("debugCancel");
 
     requiredElement("debugForm", HTMLFormElement).addEventListener("submit", (event) => {
       event.preventDefault();
-      this.close(debugActions({addFunds: isChecked("fundsYes"), downloadLog: isChecked("logYes")}));
+      this.closeWith(debugActions({addFunds: isChecked("fundsYes"), downloadLog: isChecked("logYes")}));
     });
   }
 
   // The log downloads only when asked for each time, never because it was the last time
-  open(): void {
+  protected fill(): void {
     requiredElement("logNo", HTMLInputElement).checked = true;
-    this._toggleDisplay();
-  }
-
-  close(actions: DebugAction[] = []): void {
-    super.close(actions);
   }
 }
