@@ -53,8 +53,8 @@ namespace Micropolis.Rules.Tests
         {
             Simulation city = City("suburb", "built", save => save["simulation"]!["speedCycle"] = 0);
             city.SetSpeed(Speed.Medium);
-            List<string> events = new List<string>();
-            city.Events.AddEventListener(Messages.DATE_UPDATED, payload => events.Add(CanonicalJson.Write(payload)));
+            List<DateMessage> events = new List<DateMessage>();
+            city.Events.AddEventListener(RulesEvents.DateUpdated, events.Add);
 
             // At medium speed the 3rd step runs a phase
             city.Step();
@@ -63,7 +63,7 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(2, city.SpeedCycle);
             Assert.AreEqual(2, city.SpriteManager.SpriteCycle);
             Assert.AreEqual(0, city.PhaseCycle);
-            CollectionAssert.AreEqual(new[] { "{\"month\":0,\"year\":1900}" }, events);
+            CollectionAssert.AreEqual(new[] { new DateMessage(0, 1900) }, events);
         }
 
         // The year one million: the city goes back to 1900, in the same month
@@ -76,14 +76,14 @@ namespace Micropolis.Rules.Tests
                 save["simulation"]!["cityTime"] = (1000000 - 1900) * 48L + 4;
             });
             city.SetSpeed(Speed.Medium);
-            List<string> events = new List<string>();
-            city.Events.AddEventListener(Messages.DATE_UPDATED, payload => events.Add(CanonicalJson.Write(payload)));
+            List<DateMessage> events = new List<DateMessage>();
+            city.Events.AddEventListener(RulesEvents.DateUpdated, events.Add);
 
             // A step that runs no phase, so the city time is the date's alone
             city.Step();
 
             Assert.AreEqual(4, city.CityTime);
-            CollectionAssert.AreEqual(new[] { "{\"month\":1,\"year\":1900}" }, events);
+            CollectionAssert.AreEqual(new[] { new DateMessage(1, 1900) }, events);
         }
 
         // A step that runs no phase moves the sprites, on every step whatever the speed
@@ -138,14 +138,14 @@ namespace Micropolis.Rules.Tests
         {
             Simulation city = City("suburb", "built");
             city.SetSpeed(Speed.Medium);
-            List<string?> speeds = new List<string?>();
-            city.Events.AddEventListener(Messages.SPEED_CHANGED, payload => speeds.Add(payload?.ToJsonString()));
+            List<int> speeds = new List<int>();
+            city.Events.AddEventListener(RulesEvents.SpeedChanged, speeds.Add);
 
             city.SetSpeed(Speed.Medium);
             city.SetSpeed(Speed.Fast);
             city.SetSpeed(Speed.Fast);
 
-            CollectionAssert.AreEqual(new[] { ((int)Speed.Fast).ToString() }, speeds);
+            CollectionAssert.AreEqual(new[] { (int)Speed.Fast }, speeds);
         }
     }
 }

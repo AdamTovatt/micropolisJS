@@ -11,12 +11,10 @@
  *
  */
 
-using System.Text.Json.Nodes;
-
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Where a piece of news happened, in map tiles, as the payload of the event that reports it carries it:
+    /// The places the monster TV shows, as the payload of the event that reports a piece of news carries them:
     /// <c>ShowablePlace</c> and <c>TrackablePlace</c> in <c>src/protocol.ts</c>.
     /// </summary>
     internal static class NewsPlaces
@@ -24,17 +22,17 @@ namespace Micropolis.Rules
         /// <summary>
         /// A place the monster TV shows.
         /// </summary>
-        public static JsonObject Showable(long x, long y)
+        public static NewsPlace Showable(long x, long y)
         {
-            return new JsonObject { ["showable"] = true, ["x"] = x, ["y"] = y };
+            return new NewsPlace(x, y, Showable: true);
         }
 
         /// <summary>
         /// A place the monster TV shows, following the sprite of the type there as it moves.
         /// </summary>
-        public static JsonObject Trackable(long x, long y, SpriteType sprite)
+        public static NewsPlace Trackable(long x, long y, SpriteType sprite)
         {
-            return new JsonObject { ["trackable"] = true, ["x"] = x, ["y"] = y, ["sprite"] = (int)sprite };
+            return new NewsPlace(x, y, Trackable: true, Sprite: (int)sprite);
         }
     }
 }

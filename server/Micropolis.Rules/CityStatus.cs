@@ -11,7 +11,6 @@
  *
  */
 
-using System.Text.Json.Nodes;
 using static Micropolis.Rules.JsMath;
 
 namespace Micropolis.Rules
@@ -74,22 +73,17 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// The city status record: the power figures of the last power scan, the demand caps, and every advisor
-        /// condition that holds, as the payload of <see cref="Messages.CITY_STATUS_UPDATED"/>.
+        /// condition that holds, as the payload of <see cref="RulesEvents.CityStatusUpdated"/>.
         /// </summary>
-        public static JsonObject Build(Census census, Budget budget, PowerManager power, Valves valves)
+        public static StatusRecord Build(Census census, Budget budget, PowerManager power, Valves valves)
         {
-            return new JsonObject
-            {
-                ["commercialCapped"] = valves.ComCap,
-                ["conditions"] = new JsonArray(AdvisorConditions
-                    .Where(entry => entry.Holds(census, budget, power))
-                    .Select(entry => (JsonNode?)entry.Condition)
-                    .ToArray()),
-                ["industrialCapped"] = valves.IndCap,
-                ["powerCapacity"] = power.PowerCapacity,
-                ["powerLoad"] = power.PowerLoad,
-                ["residentialCapped"] = valves.ResCap,
-            };
+            return new StatusRecord(
+                power.PowerCapacity,
+                power.PowerLoad,
+                valves.ResCap,
+                valves.ComCap,
+                valves.IndCap,
+                AdvisorConditions.Where(entry => entry.Holds(census, budget, power)).Select(entry => entry.Condition).ToList());
         }
 
         private static long TotalZonePop(Census census)

@@ -77,8 +77,8 @@ namespace Micropolis.Rules
         public long TaxFund { get; internal set; }
 
         /// <summary>
-        /// Raises <see cref="Messages.FUNDS_CHANGED"/>, <see cref="Messages.BUDGET_REVIEW_DUE"/> and
-        /// <see cref="Messages.NO_MONEY"/>.
+        /// Raises <see cref="RulesEvents.FundsChanged"/>, <see cref="RulesEvents.BudgetReviewDue"/> and
+        /// <see cref="RulesEvents.NoMoney"/>.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -178,10 +178,10 @@ namespace Micropolis.Rules
             if (AutoBudget)
             {
                 AutoBudget = false;
-                Events.Emit(Messages.NO_MONEY);
+                Events.Emit(RulesEvents.NoMoney);
             }
 
-            Events.Emit(Messages.BUDGET_REVIEW_DUE);
+            Events.Emit(RulesEvents.BudgetReviewDue);
         }
 
         /// <summary>
@@ -220,11 +220,11 @@ namespace Micropolis.Rules
             }
 
             TotalFunds = Math.Max(0, amount);
-            Events.Emit(Messages.FUNDS_CHANGED, TotalFunds);
+            Events.Emit(RulesEvents.FundsChanged, TotalFunds);
 
             if (TotalFunds == 0)
             {
-                Events.Emit(Messages.NO_MONEY);
+                Events.Emit(RulesEvents.NoMoney);
             }
         }
 

@@ -36,5 +36,18 @@ namespace Micropolis.Rules.Tests
 
             Assert.AreEqual((resValve, comValve, indValve), (valves.ResValve, valves.ComValve, valves.IndValve));
         }
+
+        // The demand sent is the valves' as they end, the cap applied
+        [TestMethod]
+        public void SetValves_CappedDemand_SendsTheDemandItSet()
+        {
+            Valves valves = new Valves { ResValve = 1000, ComValve = 1000, IndValve = 1000, ResCap = true };
+            List<DemandMessage> sent = new List<DemandMessage>();
+            valves.Events.AddEventListener(RulesEvents.ValvesUpdated, sent.Add);
+
+            valves.SetValves(Level.Easy, new Census(), new Budget { CityTax = 0 });
+
+            CollectionAssert.AreEqual(new[] { new DemandMessage(0, 600, 1500) }, sent);
+        }
     }
 }

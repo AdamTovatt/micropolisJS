@@ -66,7 +66,7 @@ namespace Micropolis.Rules.Tests
         {
             Simulation city = Simulation.FromSave(commandCase.ReadStartText());
             List<JsonNode?> emitted = new List<JsonNode?>();
-            city.Events.AddEventListener(Messages.COMMAND_RESULT, payload => emitted.Add(payload?.DeepClone()));
+            city.Events.AddEventListener(RulesEvents.CommandResult, result => emitted.Add(ProtocolJson.ToNode(result)));
 
             IReadOnlyList<CommandResult> results = city.ApplyCommands(commandCase.Results
                 .Select(result => new ReceivedCommand((string)result["player"]!, result["command"]?.DeepClone()))

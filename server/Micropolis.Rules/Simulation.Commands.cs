@@ -30,31 +30,7 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("player")] string Player,
         [property: JsonPropertyName("command")] JsonNode? Command,
         [property: JsonPropertyName("outcome")] Outcome Outcome,
-        [property: JsonPropertyName("reason")] string? Reason)
-    {
-        /// <summary>
-        /// The result as <see cref="Messages.COMMAND_RESULT"/> carries it, and the wire too, with its own copy of the
-        /// command.
-        /// </summary>
-        public JsonObject ToPayload()
-        {
-            return ProtocolJson.ToNode(this)!.AsObject();
-        }
-
-        /// <summary>
-        /// The result a <see cref="ToPayload"/> payload carries. The command is copied as the node it is, not read
-        /// through the serializer, which would replace a lone surrogate a player sent.
-        /// </summary>
-        public static CommandResult FromPayload(JsonNode payload)
-        {
-            JsonObject result = payload.AsObject();
-            Outcome outcome = ProtocolJson.TryParseName((string)result["outcome"]!, out Outcome named)
-                ? named
-                : throw new InvalidOperationException($"A command result's outcome is one of the protocol's, not {result["outcome"]}.");
-
-            return new CommandResult((string)result["player"]!, result["command"]?.DeepClone(), outcome, (string?)result["reason"]);
-        }
-    }
+        [property: JsonPropertyName("reason")] string? Reason);
 
     public sealed partial class Simulation
     {
@@ -69,7 +45,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// Applies the commands received since the last call, in the order they arrived. They apply between steps,
         /// separately from them, so a paused city takes them too. Each is validated first, and a rejected one changes
-        /// nothing. Each command's result is emitted as <see cref="Messages.COMMAND_RESULT"/>, and returned in the same
+        /// nothing. Each command's result is emitted as <see cref="RulesEvents.CommandResult"/>, and returned in the same
         /// order. The simulation never branches on the player.
         /// </summary>
         public IReadOnlyList<CommandResult> ApplyCommands(IReadOnlyList<ReceivedCommand> received)
@@ -85,7 +61,7 @@ namespace Micropolis.Rules
                     _ => throw new InvalidOperationException("A command is read as accepted or rejected."),
                 };
 
-                Events.Emit(Messages.COMMAND_RESULT, result.ToPayload());
+                Events.Emit(RulesEvents.CommandResult, result);
                 results.Add(result);
             }
 

@@ -48,7 +48,7 @@ namespace Micropolis.Rules
         public bool DisastersEnabled { get; internal set; }
 
         /// <summary>
-        /// Raises the <see cref="Messages.DISASTER_MESSAGES"/>.
+        /// Raises the fire, the earthquake, the flood and the meltdown of <see cref="RulesEvents.Disasters"/>.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -120,7 +120,7 @@ namespace Micropolis.Rules
                 if (tileValue > TileValues.LHTHR && tileValue < TileValues.LASTZONE)
                 {
                     _map.SetTo(x, y, TileUtils.RandomFire(_random));
-                    Events.Emit(Messages.FIRE_REPORTED, NewsPlaces.Showable(x, y));
+                    Events.Emit(RulesEvents.FireReported, NewsPlaces.Showable(x, y));
                 }
             }
         }
@@ -143,7 +143,7 @@ namespace Micropolis.Rules
                     if (tileValue > TileValues.TREEBASE && tileValue < TileValues.LASTZONE)
                     {
                         _map.SetTo(x, y, TileUtils.RandomFire(_random));
-                        Events.Emit(Messages.FIRE_REPORTED, new JsonObject { ["x"] = x, ["y"] = y });
+                        Events.Emit(RulesEvents.FireReported, new NewsPlace(x, y));
                         return;
                     }
                 }
@@ -193,7 +193,7 @@ namespace Micropolis.Rules
         {
             int strength = _random.GetRandom(700) + 300;
 
-            Events.Emit(Messages.EARTHQUAKE, NewsPlaces.Showable(_map.CityCentreX, _map.CityCentreY));
+            Events.Emit(RulesEvents.Earthquake, NewsPlaces.Showable(_map.CityCentreX, _map.CityCentreY));
 
             for (int i = 0; i < strength; i++)
             {
@@ -238,7 +238,7 @@ namespace Micropolis.Rules
                         {
                             _map.SetTile(xx, yy, TileValues.FLOOD, TileFlags.NOFLAGS);
                             FloodCount = 30;
-                            Events.Emit(Messages.FLOODING_REPORTED, NewsPlaces.Showable(xx, yy));
+                            Events.Emit(RulesEvents.FloodingReported, NewsPlaces.Showable(xx, yy));
                             return;
                         }
                     }
@@ -342,7 +342,7 @@ namespace Micropolis.Rules
                 }
             }
 
-            Events.Emit(Messages.NUCLEAR_MELTDOWN, NewsPlaces.Showable(x, y));
+            Events.Emit(RulesEvents.NuclearMeltdown, NewsPlaces.Showable(x, y));
         }
 
         internal void Save(JsonObject saveData)

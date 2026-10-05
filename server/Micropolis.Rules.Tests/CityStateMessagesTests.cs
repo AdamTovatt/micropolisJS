@@ -59,9 +59,9 @@ namespace Micropolis.Rules.Tests
             Simulation city = City("suburb", "run");
             CityStateMessages messages = new CityStateMessages(city);
 
-            city.Events.Emit(Messages.OVERLAY_UPDATED, new JsonObject { ["layer"] = "crime" });
-            city.Events.Emit(Messages.OVERLAY_UPDATED, new JsonObject { ["layer"] = "pollution" });
-            city.Events.Emit(Messages.OVERLAY_UPDATED, new JsonObject { ["layer"] = "crime" });
+            city.Events.Emit(RulesEvents.OverlayUpdated, new OverlayUpdatedMessage("crime"));
+            city.Events.Emit(RulesEvents.OverlayUpdated, new OverlayUpdatedMessage("pollution"));
+            city.Events.Emit(RulesEvents.OverlayUpdated, new OverlayUpdatedMessage("crime"));
 
             CollectionAssert.AreEqual(
                 new[] { """{"type":"overlayUpdated","layer":"crime"}""", """{"type":"overlayUpdated","layer":"pollution"}""" },
@@ -86,9 +86,9 @@ namespace Micropolis.Rules.Tests
             Simulation city = City("suburb", "run");
             CityStateMessages messages = new CityStateMessages(city);
 
-            city.Events.Emit(Messages.FRONT_END_MESSAGE, new JsonObject { ["subject"] = Messages.NO_MONEY });
+            city.Events.Emit(RulesEvents.FrontEndMessage, new NewsMessage(Messages.NO_MONEY));
             SetSpeed(city, Speed.Fast);
-            city.Events.Emit(Messages.BUDGET_REVIEW_DUE);
+            city.Events.Emit(RulesEvents.BudgetReviewDue);
             city.Map.SetTileValue(3, 4, TileValues.RUBBLE);
 
             List<string> sent = Wire(messages.NewMessages());

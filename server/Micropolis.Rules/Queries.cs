@@ -240,7 +240,7 @@ namespace Micropolis.Rules
     /// <summary>
     /// A layer an overlay shows: its name; the block map it reads, which is null for the power grid; the ends of its
     /// range, the range its block map keeps its values to; and the phase whose scan recomputes it, after which the
-    /// simulation emits <see cref="Messages.OVERLAY_UPDATED"/> for it.
+    /// simulation emits <see cref="RulesEvents.OverlayUpdated"/> for it.
     /// </summary>
     public sealed record OverlayLayer(string Name, Func<BlockMaps, BlockMap>? Map, int Low, int High, int Phase);
 }

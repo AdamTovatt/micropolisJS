@@ -47,7 +47,7 @@ namespace Micropolis.Rules
 
             if (onEvent is not null)
             {
-                city.Events.Observer = (name, payload) => onEvent(step, name, payload);
+                city.Events.Observer = (name, payload) => onEvent(step, name, payload is null ? null : ProtocolJson.ToNode(payload));
             }
 
             void CheckpointAt(long at)

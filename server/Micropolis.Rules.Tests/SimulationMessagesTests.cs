@@ -11,7 +11,6 @@
  *
  */
 
-using System.Text.Json.Nodes;
 using static Micropolis.Rules.Tests.FixtureCities;
 
 namespace Micropolis.Rules.Tests
@@ -36,9 +35,9 @@ namespace Micropolis.Rules.Tests
             });
             List<string> events = Record(city);
 
-            city.PowerManager.Events.Emit(Messages.NOT_ENOUGH_POWER);
+            city.PowerManager.Events.Emit(RulesEvents.NotEnoughPower);
 
-            string[] expected = sent ? [$"{Messages.FRONT_END_MESSAGE} {{\"subject\":\"{Messages.NOT_ENOUGH_POWER}\"}}"] : [];
+            string[] expected = sent ? [$"{Messages.FRONT_END_MESSAGE} {{\"subject\":\"{Messages.NOT_ENOUGH_POWER}\",\"type\":\"news\"}}"] : [];
             CollectionAssert.AreEqual(expected, events);
             Assert.AreEqual(sent ? cityTime : 100, city.LastPowerMessage);
         }
@@ -61,52 +60,45 @@ namespace Micropolis.Rules.Tests
             Simulation city = City("suburb", "built");
             List<string> events = Record(city);
 
-            city.Budget.Events.Emit(Messages.NO_MONEY);
+            city.Budget.Events.Emit(RulesEvents.NoMoney);
 
-            CollectionAssert.AreEqual(new[] { $"{Messages.FRONT_END_MESSAGE} {{\"subject\":\"{Messages.NO_MONEY}\"}}" }, events);
-        }
-
-        // A payload another object holds, which the message holds too: a JSON node has one parent, so the message's is a
-        // copy
-        [TestMethod]
-        public void WrapMessage_DisasterWithAPayloadHeldElsewhere_SendsItAsTheData()
-        {
-            Simulation city = City("suburb", "built");
-            List<string> events = Record(city);
-            string disaster = Messages.DISASTER_MESSAGES[0];
-            JsonObject holder = new JsonObject { ["payload"] = new JsonObject { ["x"] = 3, ["y"] = 4 } };
-
-            city.DisasterManager.Events.Emit(disaster, holder["payload"]);
-
-            CollectionAssert.AreEqual(new[] { $"{Messages.FRONT_END_MESSAGE} {{\"data\":{{\"x\":3,\"y\":4}},\"subject\":\"{disaster}\"}}" }, events);
+            CollectionAssert.AreEqual(new[] { $"{Messages.FRONT_END_MESSAGE} {{\"subject\":\"{Messages.NO_MONEY}\",\"type\":\"news\"}}" }, events);
         }
 
         [TestMethod]
-        public void ReflectEvent_FundsChanged_PassesTheEventOnAsItIs()
+        public void WrapMessage_DisasterWithAPlace_SendsItAsTheData()
+        {
+            Simulation city = City("suburb", "built");
+            List<string> events = Record(city);
+            EventName<NewsPlace> disaster = RulesEvents.Disasters[0];
+
+            city.DisasterManager.Events.Emit(disaster, new NewsPlace(3, 4));
+
+            CollectionAssert.AreEqual(
+                new[] { $"{Messages.FRONT_END_MESSAGE} {{\"data\":{{\"x\":3,\"y\":4}},\"subject\":\"{disaster.Name}\",\"type\":\"news\"}}" }, events);
+        }
+
+        [TestMethod]
+        public void Init_FundsChanged_PassesTheEventOnAsItIs()
         {
             Simulation city = City("suburb", "built");
             List<string> events = Record(city);
 
-            city.Budget.Events.Emit(Messages.FUNDS_CHANGED, 1234);
+            city.Budget.Events.Emit(RulesEvents.FundsChanged, 1234L);
 
             CollectionAssert.AreEqual(new[] { $"{Messages.FUNDS_CHANGED} 1234" }, events);
         }
 
         [TestMethod]
-        public void OnValveChange_ValvesUpdated_SendsTheValves()
+        public void Init_ValvesUpdated_PassesTheDemandOn()
         {
-            Simulation city = City("suburb", "built", save =>
-            {
-                save["valves"]!["resValve"] = 100;
-                save["valves"]!["comValve"] = -50;
-                save["valves"]!["indValve"] = 25;
-            });
+            Simulation city = City("suburb", "built");
             List<string> events = Record(city);
 
-            city.Valves.Events.Emit(Messages.VALVES_UPDATED);
+            city.Valves.Events.Emit(RulesEvents.ValvesUpdated, new DemandMessage(100, -50, 25));
 
             CollectionAssert.AreEqual(
-                new[] { $"{Messages.VALVES_UPDATED} {{\"commercial\":-50,\"industrial\":25,\"residential\":100}}" }, events);
+                new[] { $"{Messages.VALVES_UPDATED} {{\"commercial\":-50,\"industrial\":25,\"residential\":100,\"type\":\"demand\"}}" }, events);
         }
 
         // The layers each phase recomputes
@@ -125,7 +117,7 @@ namespace Micropolis.Rules.Tests
 
             city.OverlaysUpdated();
 
-            CollectionAssert.AreEqual(layers.Select(layer => $"{Messages.OVERLAY_UPDATED} {{\"layer\":\"{layer}\"}}").ToList(), events);
+            CollectionAssert.AreEqual(layers.Select(layer => $"{Messages.OVERLAY_UPDATED} {{\"layer\":\"{layer}\",\"type\":\"overlayUpdated\"}}").ToList(), events);
         }
 
         // Two calm cities, the first with every advisor condition holding that can hold beside the others, the second with
@@ -196,7 +188,7 @@ namespace Micropolis.Rules.Tests
             city.SendMessages();
 
             CollectionAssert.AreEqual(
-                new[] { $"{Messages.FRONT_END_MESSAGE} {{\"data\":{{\"x\":17,\"y\":42}},\"subject\":\"{Messages.HIGH_POLLUTION}\"}}" },
+                new[] { $"{Messages.FRONT_END_MESSAGE} {{\"data\":{{\"x\":17,\"y\":42}},\"subject\":\"{Messages.HIGH_POLLUTION}\",\"type\":\"news\"}}" },
                 events);
         }
 
@@ -220,7 +212,7 @@ namespace Micropolis.Rules.Tests
 
             city.SendMessages();
 
-            string[] announcement = announced ? [$"{Messages.FRONT_END_MESSAGE} {{\"subject\":\"{Messages.REACHED_TOWN}\"}}"] : [];
+            string[] announcement = announced ? [$"{Messages.FRONT_END_MESSAGE} {{\"subject\":\"{Messages.REACHED_TOWN}\",\"type\":\"news\"}}"] : [];
             CollectionAssert.AreEqual(new[] { $"{Messages.POPULATION_UPDATED} 3200" }.Concat(announcement).ToList(), events);
             Assert.AreEqual(Messages.REACHED_TOWN, city.MessageLast);
         }
@@ -285,21 +277,16 @@ namespace Micropolis.Rules.Tests
         private static List<string> Subjects(Simulation city)
         {
             List<string> subjects = new List<string>();
-            city.Events.Observer = (name, payload) =>
-            {
-                if (name == Messages.FRONT_END_MESSAGE)
-                {
-                    subjects.Add((string)payload!["subject"]!);
-                }
-            };
+            city.Events.AddEventListener(RulesEvents.FrontEndMessage, news => subjects.Add(news.Subject));
             return subjects;
         }
 
-        // Each event the simulation sends, as its name and its payload's canonical text
+        // Each event the simulation sends, as its name and its payload's canonical text, written as the protocol writes it
         private static List<string> Record(Simulation city)
         {
             List<string> events = new List<string>();
-            city.Events.Observer = (name, payload) => events.Add(payload is null ? name : $"{name} {CanonicalJson.Write(payload)}");
+            city.Events.Observer = (name, payload) =>
+                events.Add(payload is null ? name : $"{name} {CanonicalJson.Write(ProtocolJson.ToNode(payload))}");
             return events;
         }
     }
