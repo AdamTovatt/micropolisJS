@@ -71,8 +71,8 @@ async function originWithMiddleOn(player: Player, tile: {x: number, y: number}):
 }
 
 // How many near-white pixels show along the top edge of a rectangle of the page, where it lies within the screen. The
-// minimap's view rectangle has a white border, and above the minimap lie its panel, in mintcream, (245, 255, 250), whose
-// red is 5 under the cut-off of 250, and the map's void, black: a change to the panel's colour may need a new cut-off.
+// minimap's view rectangle has a white border, and above the minimap lie its panel, dark and see-through, and the map
+// beside the panel: a lighter panel may need a new cut-off.
 async function whiteAlongTopEdge(page: Page, rect: {x: number, y: number, width: number}): Promise<number> {
   const points: {x: number, y: number}[] = [];
   const right = Math.min(rect.x + rect.width, page.viewportSize()!.width);

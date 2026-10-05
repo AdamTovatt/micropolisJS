@@ -13,7 +13,7 @@
  */
 
 import { requiredElement } from "./domElements";
-import { formatMoney } from "./money";
+import { formatCount, formatMoney } from "./money";
 import type { BudgetRecord, DateMessage, EvaluationRecord, PopulationMessage } from "./protocol";
 import { Text } from "./text";
 
@@ -53,12 +53,12 @@ export class InfoBar {
 
   // The population comes a month at a time, from the population message: the evaluation's is a year old
   showEvaluation(evaluation: Pick<EvaluationRecord, "cityClass" | "score">): void {
-    this.elements.classification.textContent = evaluation.cityClass;
-    this.elements.score.textContent = String(evaluation.score);
+    this.elements.classification.textContent = Text.cityClass[evaluation.cityClass];
+    this.elements.score.textContent = formatCount(evaluation.score);
   }
 
   showPopulation({population}: Pick<PopulationMessage, "population">): void {
-    this.elements.population.textContent = String(population);
+    this.elements.population.textContent = formatCount(population);
   }
 
   showBudget(budget: Pick<BudgetRecord, "funds">): void {

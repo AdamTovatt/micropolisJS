@@ -20,13 +20,13 @@ import { TILE_COUNT } from "./tileValues";
 import { plainRoad } from "./trafficTiles";
 import type { TilePoint } from "./viewPosition";
 
-// The minimap: the whole map small, in the left column, with the view's rectangle over it. A click or a drag on it
+// The minimap: the whole map small, at the foot of the right column, with the view's rectangle over it. A click or a drag on it
 // centres the view there. Each tile is drawn in one colour, the average of its 16 px tile in the tile set, from the
 // client's copy of the map, so it needs no texture, and a tile that changes redraws only its own pixels. Its panel
 // folds as the others do (panelFolding.ts), with the button on its strip or the M key.
 
 // The pixels of the minimap's canvas a tile is drawn, across and down. The stylesheet scales the canvas down to fit the
-// column, and further where the window is too short for it, without smoothing.
+// column, without smoothing.
 export const MINIMAP_PIXELS_PER_TILE = 2;
 
 // Each tile id's colour, three bytes each, red, green and blue: the average of the pixels in the tile set of the tile

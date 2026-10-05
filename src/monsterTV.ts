@@ -27,10 +27,11 @@ const TIMEOUT_SECS = 10;
 
 const MONSTER_TV_ID = "monstertv";
 const FORM_ID = "monsterTVForm";
+const TITLE_ID = "monsterTVTitle";
 const CONTAINER_ID = "tvContainer";
 const CANVAS_ID = "tvCanvas";
 
-// Marks the view as open, so the stylesheet can clear its slot: the status panel shares it.
+// Marks the view as open, which the stylesheet and the tests read
 const SHOWING_CLASS = "showing";
 
 // What rendering the view writes to its element
@@ -209,11 +210,13 @@ class TVCanvas {
 class MonsterTV {
   readonly canvas: TVCanvas;
   private readonly element: HTMLElement;
+  private readonly title: HTMLElement;
   private readonly follower: SpriteFollower;
   private readonly state: ViewState;
 
   constructor(map: PaintableMap, mapArt: MapArt) {
     this.element = requiredElement(MONSTER_TV_ID);
+    this.title = requiredElement(TITLE_ID);
 
     // The view is shown for a moment, so the canvas can measure its container
     setVisible(this.element, true);
@@ -244,10 +247,10 @@ class MonsterTV {
     this.canvas.paint(cars, sprites, isPaused);
   }
 
-  // Shows the sprite of the type, at map tile (x, y), and follows it until it is gone
-  track(x: number, y: number, spriteType: number): void {
+  // Shows the sprite of the type, at map tile (x, y), under the title, and follows it until it is gone
+  track(x: number, y: number, spriteType: number, title: string): void {
     this.follower.follow(spriteType);
-    this.show(x, y);
+    this.show(x, y, title);
   }
 
   // The sprites as each sprites message places them
@@ -255,8 +258,9 @@ class MonsterTV {
     this.follower.update(sprites);
   }
 
-  // Shows map tile (x, y)
-  show(x: number, y: number): void {
+  // Shows map tile (x, y), under the title
+  show(x: number, y: number, title: string): void {
+    this.title.textContent = title;
     this.canvas.centreOn(x, y);
     this.state.show();
   }

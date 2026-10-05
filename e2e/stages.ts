@@ -141,7 +141,9 @@ export const STAGES: Stage[] = [
 
       await player.advance(2 * YEAR);
 
-      expect(Number(await player.page.locator("#population").textContent()), "population").toBeGreaterThan(0);
+      // Written grouped in thousands
+      const population = (await player.page.locator("#population").textContent())!.replace(/,/g, "");
+      expect(Number(population), "population").toBeGreaterThan(0);
     },
   },
   {
@@ -149,6 +151,10 @@ export const STAGES: Stage[] = [
     async play(player) {
       await player.pressPause();
       await expect(player.advance(1), "a paused city takes no steps").rejects.toThrow("it is paused");
+      // The button offers to play, by its label and its icon
+      await expect(player.page.locator("#pauseRequest .hudButtonLabel"), "the paused city's button").toHaveText("Play");
+      await expect(player.page.locator("#pauseRequest .playIcon"), "the paused city's button's icon").toBeVisible();
+      await expect(player.page.locator("#pauseRequest .pauseIcon")).toBeHidden();
 
       await player.selectTool("police");
       await player.clickTile({x: 60, y: 38});
@@ -160,6 +166,9 @@ export const STAGES: Stage[] = [
                                  [{x: 63, y: 38}, FREEZ]], "the buildings' centres, built while paused");
 
       await player.pressPause();
+      await expect(player.page.locator("#pauseRequest .hudButtonLabel"), "the playing city's button").toHaveText("Pause");
+      await expect(player.page.locator("#pauseRequest .pauseIcon"), "the playing city's button's icon").toBeVisible();
+      await expect(player.page.locator("#pauseRequest .playIcon")).toBeHidden();
       await player.advance(YEAR / 2);
     },
   },

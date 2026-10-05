@@ -93,159 +93,148 @@
           <p>Every city runs on the game's server, which isn't answering, so there is no game to play just now.</p>
           <button id="noServerRetry">Try again</button>
         </div>
-        <div id="topPanels" class="z1">
-          <div id="onlineList" data-panel="online" class="open neutral padding10 controlShadow initialHidden">
-            <div class="foldStrip">
-              <span class="foldTitle">Online</span>
-              <button class="foldButton" aria-controls="onlinePanelBody" title="Hide or show who is online">Hide</button>
-            </div>
-            <div id="onlinePanelBody" class="foldBody">
-              <div id="onlineListBody" class="elided" aria-live="polite">Not connected</div>
-              <button id="inviteCopy" class="hidden" type="button" title="Copy a link that brings another player into this city">Copy invite link</button>
-              <input id="inviteLink" class="hidden" type="text" readonly aria-label="Invite link to this city">
-            </div>
-          </div>
-          <div id="overlayPanel" data-panel="overlay" class="open mintcream padding10 controlShadow initialHidden">
-            <div class="foldStrip">
-              <label class="foldTitle" for="overlayPanelSelect">Overlay</label>
-              <button class="foldButton" aria-controls="overlayPanelBody" title="Hide or show the map overlay">Hide</button>
-            </div>
-            <div id="overlayPanelBody" class="foldBody"><select id="overlayPanelSelect"></select></div>
-          </div>
-          <div id="activityList" data-panel="activity" class="open neutral controlShadow initialHidden">
-            <div class="foldStrip">
-              <span class="foldTitle">Activity</span>
-              <button class="foldButton" aria-controls="activityListBody" title="Hide or show what the other players did">Hide</button>
-            </div>
-            <div id="activityListBody" class="foldBody" aria-live="polite"></div>
-          </div>
-        </div>
-        <div id="infobar" data-panel="city" class="alignCenter leftedge open width140 padding10 controlShadow mintcream z1 initialHidden">
-          <div class="foldStrip">
-            <span class="foldTitle">City</span>
-            <button class="foldButton" aria-controls="infobarBody" title="Hide or show the city's figures">Hide</button>
-          </div>
-          <div id="infobarBody" class="foldBody">
-            <div class="semibold chunk">
-              <span id="name">Your Name Here</span>
-            </div>
-            <div>
-              <span id="date">Jan 1900</span>
-            </div>
-            <div class="elided">
-              Funds <span id="funds">$20,000</span>
-            </div>
-            <div class="elided">
-              Score: <span id="score">0</span>
-            </div>
-            <div>
-              <span id="cclass">VILLAGE</span>
-            </div>
-            <div class="elided">
-              Population:<br /> <span id="population">0</span>
+        <!-- The HUD: its panels in regions round a clear middle, each region laid out by flex or grid so a panel that
+             grows pushes its neighbours (css/style.css). The top left holds the city's figures; the left column under
+             it the menu and demand, with the disaster view at its foot; the middle the news at its top and the tools at
+             its foot; the right column, from the top, who is online, the overlay, the status and the activity, with the
+             minimap at its foot. Every panel is a hudPanel, a title strip over a body, and every button a hudButton. -->
+        <div id="hud">
+          <div id="hudTop" class="hudRegion">
+            <div id="infobar" data-panel="city" class="hudPanel hudBar initialHidden">
+              <div class="foldStrip">
+                <span class="foldTitle">City</span>
+                <button class="foldButton hudButton" aria-controls="infobarBody" title="Hide or show the city's figures">Hide</button>
+              </div>
+              <div id="infobarBody" class="foldBody">
+                <span id="name" class="cityName">Your Name Here</span>
+                <dl class="cityFigures">
+                  <div class="cityFigure"><dt>Date</dt><dd id="date">Jan 1900</dd></div>
+                  <div class="cityFigure"><dt>Funds</dt><dd id="funds">$20,000</dd></div>
+                  <div class="cityFigure"><dt>Population</dt><dd id="population">0</dd></div>
+                  <div class="cityFigure"><dt>Score</dt><dd id="score">0</dd></div>
+                  <div class="cityFigure"><dt>Class</dt><dd id="cclass">VILLAGE</dd></div>
+                </dl>
+              </div>
             </div>
           </div>
-        </div>
-        <div id="miscButtons" data-panel="menu" class="alignCenter leftedge open controlShadow width140 padding10 mintcream z1 initialHidden">
-          <div class="foldStrip">
-            <span class="foldTitle">Menu</span>
-            <button class="foldButton" aria-controls="miscButtonsBody" title="Hide or show the menu">Hide</button>
-          </div>
-          <div id="miscButtonsBody" class="foldBody">
-            <div>
-              <button id="budgetRequest" class="miscButton">Budget</button>
+          <div id="hudLeft" class="hudRegion hudColumn">
+            <div id="miscButtons" data-panel="menu" class="hudPanel initialHidden">
+              <div class="foldStrip">
+                <span class="foldTitle">Menu</span>
+                <button class="foldButton hudButton" aria-controls="miscButtonsBody" title="Hide or show the menu">Hide</button>
+              </div>
+              <div id="miscButtonsBody" class="foldBody">
+                <button id="budgetRequest" class="hudButton menuItem"><svg class="hudIcon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M10 5.6H7.2a1.3 1.3 0 0 0 0 2.6h1.6a1.3 1.3 0 0 1 0 2.6H6M8 4v1.6M8 10.8v1.6"/></svg><span class="hudButtonLabel">Budget</span></button>
+                <button id="evalRequest" class="hudButton menuItem"><svg class="hudIcon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5h11M4.5 11V7.5M8 11V4M11.5 11V6"/></svg><span class="hudButtonLabel">Evaluation</span></button>
+                <button id="disasterRequest" class="hudButton menuItem danger"><svg class="hudIcon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8c.6 2.4 3.9 3.8 3.9 7.4A3.9 3.9 0 0 1 8 13.4a3.9 3.9 0 0 1-3.9-4.2c0-1.6 1-2.6 1.6-3.3.2 1.3.9 2 1.6 2.2C7 6 7 3.8 8 1.8z"/></svg><span class="hudButtonLabel">Disasters</span></button>
+                <button id="saveRequest" class="hudButton menuItem"><svg class="hudIcon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2.5h8l2 2v9H3z"/><path d="M5.5 2.5v3.2h4.5V2.5M5.5 13.5V9.5h5v4"/></svg><span class="hudButtonLabel">Save</span></button>
+                <button id="downloadRequest" class="hudButton menuItem"><svg class="hudIcon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.8 7.5 8 10.7l3.2-3.2M3 13.5h10"/></svg><span class="hudButtonLabel">Download</span></button>
+                <button id="settingsRequest" class="hudButton menuItem"><svg class="hudIcon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6 5 5M11 11l1.4 1.4M3.6 12.4 5 11M11 5l1.4-1.4"/></svg><span class="hudButtonLabel">Settings</span></button>
+                <button id="screenshotRequest" class="hudButton menuItem"><svg class="hudIcon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5h2.6l1.2-1.8h4.4L11.4 5H14v8H2z"/><circle cx="8" cy="8.8" r="2.4"/></svg><span class="hudButtonLabel">Take Picture</span></button>
+                <!-- Pause apart from the rest. Its label and icon say what a click does: pause, or play while paused. -->
+                <button id="pauseRequest" class="hudButton menuItem"><svg class="hudIcon pauseIcon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.8 3.5v9M10.2 3.5v9"/></svg><svg class="hudIcon playIcon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2v9.6L12.6 8z"/></svg><span class="hudButtonLabel">Pause</span></button>
+              </div>
             </div>
-            <div>
-              <button id="evalRequest" class="miscButton">Evaluation</button>
+            <div id="RCIContainer" data-panel="demand" class="hudPanel initialHidden">
+              <div class="foldStrip">
+                <span class="foldTitle">Demand</span>
+                <button class="foldButton hudButton" aria-controls="RCIMeter" title="Hide or show the demand meter">Hide</button>
+              </div>
+              <div id="RCIMeter" class="foldBody"></div>
             </div>
-            <div>
-              <button id="disasterRequest" class="miscButton">Disasters</button>
-            </div>
-            <div>
-              <button id="saveRequest" class="miscButton loadSave">Save</button>
-            </div>
-            <div>
-              <button id="downloadRequest" class="miscButton loadSave">Download</button>
-            </div>
-            <div>
-              <button id="settingsRequest" class="miscButton">Settings</button>
-            </div>
-            <div>
-              <button id="screenshotRequest" class="miscButton">Take Picture</button>
-            </div>
-            <div>
-              <button id="pauseRequest" class="miscButton">Pause</button>
+            <div id="monstertv" class="hudPanel hidden">
+              <form id="monsterTVForm" class="foldStrip">
+                <span id="monsterTVTitle" class="foldTitle"></span>
+                <button type="submit" class="hudButton">Close</button>
+              </form>
+              <div id="monsterTVContainer" class="foldBody">
+                <div id="tvContainer">
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        <div id="RCIContainer" data-panel="demand" class="controlShadow leftedge width140 padding10 mintcream z1 open initialHidden">
-          <div class="foldStrip">
-            <span class="foldTitle">Demand</span>
-            <button class="foldButton" aria-controls="RCIMeter" title="Hide or show the demand meter">Hide</button>
-          </div>
-          <div id="RCIMeter" class="foldBody"></div>
-        </div>
-        <div id="minimap" data-panel="map" class="controlShadow leftedge mintcream z1 open initialHidden">
-          <div class="foldStrip">
-            <span class="foldTitle">Map</span>
-            <button class="foldButton" title="Hide or show the map (M)" aria-controls="minimapFrame">Hide</button>
-          </div>
-          <div id="minimapFrame" class="foldBody" title="Click or drag to move the view">
-            <canvas id="minimapCanvas"></canvas>
-            <div id="minimapView"></div>
-          </div>
-        </div>
-        <div id="controls" data-panel="tools" class="controlShadow mintcream z1 initialHidden rightedge open">
-          <div class="foldStrip">
-            <span id="toolInfo" class="foldTitle">Tools</span>
-            <button class="foldButton" aria-controls="buttons" title="Hide or show the tools">Hide</button>
-          </div>
-          <div id="buttons" class="foldBody">
-            <button id="residentialButton" data-size="3" data-tool="residential" class="toolButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block.">Residential $100</button>
-            <button id="nuclearButton" data-size="4" data-tool="nuclear" class="toolButton unselected">Nuclear $5000</button>
-            <button id="commercialButton" data-size="3" data-tool="commercial" class="toolButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block.">Commercial $100</button>
-            <button id="coalButton" data-size="4" data-tool="coal" class="toolButton unselected">Coal $3000</button>
-            <button id="industrialButton" data-size="3" data-tool="industrial" class="toolButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block.">Industrial $100</button>
-            <button id="policeButton" data-size="3" data-tool="police" class="toolButton unselected">Police $500</button>
-            <button id="roadButton" data-size="1" data-tool="road" class="toolButton unselected">Road $10</button>
-            <button id="fireButton" data-size="3" data-tool="fire" class="toolButton unselected">Fire $500</button>
-            <button id="railButton" data-size="1" data-tool="rail" class="toolButton unselected">Rail $20</button>
-            <button id="portButton" data-size="4" data-tool="port" class="toolButton unselected">Port $3000</button>
-            <button id="wireButton" data-size="1" data-tool="wire" class="toolButton unselected" title="Carries power from a power plant to zones. It can cross a straight road or rail at a right angle. Roads and rails carry no power.">Wire $5</button>
-            <button id="stadiumButton" data-size="4" data-tool="stadium" class="toolButton unselected">Stadium $5000</button>
-            <button id="bulldozerButton" data-size="1" data-tool="bulldozer" class="toolButton unselected" title="Clears a tile. Aim at the middle of a building to demolish the whole building.">Bulldozer $1</button>
-            <button id="airportButton" data-size="6" data-tool="airport" class="toolButton unselected">Airport $10000</button>
-            <button id="queryButton" data-size="1" data-tool="query" class="toolButton unselected">Query</button>
-            <button id="parkButton" data-size="1" data-tool="park" class="toolButton unselected">Park $10</button>
-          </div>
-        </div>
-        <div id="monstertv" class="alignCenter z1 hidden rightedge padding10 controlShadow open">
-          <div id="monsterTVContainer">
-            <div id="tvContainer">
+          <div id="hudMiddle" class="hudRegion hudColumn">
+            <div id="hudNews">
+              <div id="notifications" class="hudPanel initialHidden"></div>
+              <button id="lastEvent" class="hudPanel hudButton" title="Centre the view on the last news that happened somewhere">Last event</button>
             </div>
-            <form id="monsterTVForm">
-              <input type="submit" value="Close" class="width140 cancel">
-            </form>
+            <div id="controls" data-panel="tools" class="hudPanel initialHidden">
+              <div class="foldStrip">
+                <span id="toolInfo" class="foldTitle">Tools</span>
+                <button class="foldButton hudButton" aria-controls="buttons" title="Hide or show the tools">Hide</button>
+              </div>
+              <div id="buttons" class="foldBody">
+                <button id="residentialButton" data-size="3" data-tool="residential" class="toolButton hudButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block."><span class="toolName">Residential</span><span class="toolCost">$100</span></button>
+                <button id="commercialButton" data-size="3" data-tool="commercial" class="toolButton hudButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block."><span class="toolName">Commercial</span><span class="toolCost">$100</span></button>
+                <button id="industrialButton" data-size="3" data-tool="industrial" class="toolButton hudButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block."><span class="toolName">Industrial</span><span class="toolCost">$100</span></button>
+                <button id="roadButton" data-size="1" data-tool="road" class="toolButton hudButton unselected"><span class="toolName">Road</span><span class="toolCost">$10</span></button>
+                <button id="railButton" data-size="1" data-tool="rail" class="toolButton hudButton unselected"><span class="toolName">Rail</span><span class="toolCost">$20</span></button>
+                <button id="wireButton" data-size="1" data-tool="wire" class="toolButton hudButton unselected" title="Carries power from a power plant to zones. It can cross a straight road or rail at a right angle. Roads and rails carry no power."><span class="toolName">Wire</span><span class="toolCost">$5</span></button>
+                <button id="bulldozerButton" data-size="1" data-tool="bulldozer" class="toolButton hudButton unselected" title="Clears a tile. Aim at the middle of a building to demolish the whole building."><span class="toolName">Bulldozer</span><span class="toolCost">$1</span></button>
+                <button id="queryButton" data-size="1" data-tool="query" class="toolButton hudButton unselected"><span class="toolName">Query</span><span class="toolCost">Free</span></button>
+                <button id="parkButton" data-size="1" data-tool="park" class="toolButton hudButton unselected"><span class="toolName">Park</span><span class="toolCost">$10</span></button>
+                <button id="policeButton" data-size="3" data-tool="police" class="toolButton hudButton unselected"><span class="toolName">Police</span><span class="toolCost">$500</span></button>
+                <button id="fireButton" data-size="3" data-tool="fire" class="toolButton hudButton unselected"><span class="toolName">Fire</span><span class="toolCost">$500</span></button>
+                <button id="coalButton" data-size="4" data-tool="coal" class="toolButton hudButton unselected"><span class="toolName">Coal</span><span class="toolCost">$3,000</span></button>
+                <button id="nuclearButton" data-size="4" data-tool="nuclear" class="toolButton hudButton unselected"><span class="toolName">Nuclear</span><span class="toolCost">$5,000</span></button>
+                <button id="portButton" data-size="4" data-tool="port" class="toolButton hudButton unselected"><span class="toolName">Port</span><span class="toolCost">$3,000</span></button>
+                <button id="stadiumButton" data-size="4" data-tool="stadium" class="toolButton hudButton unselected"><span class="toolName">Stadium</span><span class="toolCost">$5,000</span></button>
+                <button id="airportButton" data-size="6" data-tool="airport" class="toolButton hudButton unselected"><span class="toolName">Airport</span><span class="toolCost">$10,000</span></button>
+              </div>
+            </div>
           </div>
-        </div>
-        <div id="statusPanel" data-panel="status" class="controlShadow mintcream z1 initialHidden rightedge open padding10">
-          <div class="foldStrip">
-            <span class="foldTitle">Status</span>
-            <button class="foldButton" aria-controls="statusPanelBody" title="Hide or show the city's status">Hide</button>
-          </div>
-          <div id="statusPanelBody" class="foldBody"></div>
-        </div>
-        <div id="debug" class="alignCenter z1 rightedge padding10 mintcream controlShadow open">
-          <div id="fps">
-            <span id="fpsValue">0</span> FPS
-          </div>
-          <div>
-            <button id="debugRequest">Debug</button>
+          <div id="hudRight" class="hudRegion hudColumn">
+            <div id="onlineList" data-panel="online" class="hudPanel initialHidden">
+              <div class="foldStrip">
+                <span class="foldTitle">Online</span>
+                <button class="foldButton hudButton" aria-controls="onlinePanelBody" title="Hide or show who is online">Hide</button>
+              </div>
+              <div id="onlinePanelBody" class="foldBody">
+                <div id="onlineListBody" aria-live="polite">Not connected</div>
+                <button id="inviteCopy" class="hudButton primary hidden" type="button" title="Copy a link that brings another player into this city">Copy invite link</button>
+                <input id="inviteLink" class="hidden" type="text" readonly aria-label="Invite link to this city">
+              </div>
+            </div>
+            <div id="overlayPanel" data-panel="overlay" class="hudPanel initialHidden">
+              <div class="foldStrip">
+                <label class="foldTitle" for="overlayPanelSelect">Overlay</label>
+                <button class="foldButton hudButton" aria-controls="overlayPanelBody" title="Hide or show the map overlay">Hide</button>
+              </div>
+              <div id="overlayPanelBody" class="foldBody"><select id="overlayPanelSelect"></select></div>
+            </div>
+            <div id="statusPanel" data-panel="status" class="hudPanel initialHidden">
+              <div class="foldStrip">
+                <span class="foldTitle">Status</span>
+                <button class="foldButton hudButton" aria-controls="statusPanelBody" title="Hide or show the city's status">Hide</button>
+              </div>
+              <div id="statusPanelBody" class="foldBody"></div>
+            </div>
+            <div id="activityList" data-panel="activity" class="hudPanel initialHidden">
+              <div class="foldStrip">
+                <span class="foldTitle">Activity</span>
+                <button class="foldButton hudButton" aria-controls="activityListBody" title="Hide or show what the other players did">Hide</button>
+              </div>
+              <div id="activityListBody" class="foldBody" aria-live="polite"></div>
+            </div>
+            <div id="debug" class="hudPanel">
+              <div id="fps">
+                <span id="fpsValue">0</span> FPS
+              </div>
+              <button id="debugRequest" class="hudButton">Debug</button>
+            </div>
+            <div id="minimap" data-panel="map" class="hudPanel initialHidden">
+              <div class="foldStrip">
+                <span class="foldTitle">Map</span>
+                <button class="foldButton hudButton" title="Hide or show the map (M)" aria-controls="minimapFrame">Hide</button>
+              </div>
+              <div id="minimapFrame" class="foldBody" title="Click or drag to move the view">
+                <canvas id="minimapCanvas"></canvas>
+                <div id="minimapView"></div>
+              </div>
+            </div>
           </div>
         </div>
         <div id="toolToast" class="initialHidden" role="status" aria-live="polite"></div>
-        <div id="notifications" class="initialHidden centredAcross neutral z1 alignCenter elided padding10 controlShadow"></div>
-        <button id="lastEvent" class="z1 open controlShadow" title="Centre the view on the last news that happened somewhere">Last event</button>
         <div id="tooSmall" data-hasscript="false" class="mintcream open"><div id="tooSmallInner" class="alignCenter padding10"><h2 class="chunk">Uh-oh!</h2><p>This screen is too small&mdash;I won't be able to fit in all the controls, buttons and gizmos! Sorry!</p></div></div>
         <noscript>
           <div id="noscript" class="open mintcream centred padding10">

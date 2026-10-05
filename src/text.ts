@@ -44,12 +44,12 @@ const zoneCategories: Record<ZoneCategory, string> = {
 const gameLevel: Record<GameLevel, string> = {EASY: "Easy", MED: "Medium", HARD: "Hard"};
 
 const cityClass: Record<CityClass, string> = {
-  VILLAGE: "VILLAGE",
-  TOWN: "TOWN",
-  CITY: "CITY",
-  CAPITAL: "CAPITAL",
-  METROPOLIS: "METROPOLIS",
-  MEGALOPOLIS: "MEGALOPOLIS",
+  VILLAGE: "Village",
+  TOWN: "Town",
+  CITY: "City",
+  CAPITAL: "Capital",
+  METROPOLIS: "Metropolis",
+  MEGALOPOLIS: "Megalopolis",
 };
 
 const problems: Record<typeof CITY_PROBLEMS[number], string> = {
@@ -192,6 +192,23 @@ const messages: {[subject: string]: MessageText} = {
   [Messages.REACHED_TOWN]: {text: "Now a town! Population has reached 2,000", tone: "good"},
 };
 
+// The title of the disaster view, by the subject of the news whose place it shows, and for news it has none for
+const tvTitles: {[subject: string]: string} = {
+  [Messages.EARTHQUAKE]: "Earthquake",
+  [Messages.EXPLOSION_REPORTED]: "Explosion",
+  [Messages.FIRE_REPORTED]: "Fire",
+  [Messages.FLOODING_REPORTED]: "Flood",
+  [Messages.MONSTER_SIGHTED]: "Monster",
+  [Messages.NUCLEAR_MELTDOWN]: "Meltdown",
+  [Messages.TORNADO_SIGHTED]: "Tornado",
+  [Messages.HELICOPTER_CRASHED]: "Helicopter crash",
+  [Messages.PLANE_CRASHED]: "Plane crash",
+  [Messages.SHIP_CRASHED]: "Shipwreck",
+  [Messages.TRAIN_CRASHED]: "Train crash",
+  [Messages.HEAVY_TRAFFIC]: "Heavy traffic",
+};
+const tvTitleUnknown = "News";
+
 // Status panel strings
 const statusPanel = {
   capsLabel: "Demand capped",
@@ -248,5 +265,7 @@ export const Text = {
   scoreBreakdown,
   statusPanel,
   toolFailures,
+  tvTitles,
+  tvTitleUnknown,
   zoneCategories,
 };

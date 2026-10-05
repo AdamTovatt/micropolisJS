@@ -13,7 +13,7 @@
  */
 
 import type { CityDriver } from "./citySource";
-import type { FireStationReach, TilePosition } from "./protocol";
+import type { FireStationReach, StatusRecord, TilePosition } from "./protocol";
 import type { OriginLimits } from "./viewPosition";
 
 // The end-to-end runner's hold on the game, installed on the window in debug mode. The runner holds the city source's
@@ -33,6 +33,7 @@ interface HookedGame {
   readonly carsInView: number;
   notificationBar: {dismiss(): void};
   toolToast: {dismiss(): void};
+  statusPanel: {show(status: StatusRecord): void};
   readonly hoverTile: {x: number, y: number} | null;
 }
 
@@ -147,6 +148,12 @@ class TestHook {
     const game = this.attachedGame();
     game.notificationBar.dismiss();
     game.toolToast.dismiss();
+  }
+
+  // Shows a status record in the status panel as the city's own would show, for a layout check at a status a city
+  // reaches only after long play. It changes no city state, and the city's next status record shows over it.
+  showStatus(status: StatusRecord): void {
+    this.attachedGame().statusPanel.show(status);
   }
 
   // Every step advance has taken, including those of an advance that then failed
