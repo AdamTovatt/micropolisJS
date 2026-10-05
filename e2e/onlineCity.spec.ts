@@ -90,6 +90,21 @@ test.describe("a city on the server", () => {
     expect(problems).toEqual([]);
   });
 
+  // The game's parts are hidden until it starts, which a layout a rule with an id gives one could undo
+  test("shows none of the game's parts on the splash screen", async ({page}) => {
+    const problems = collectPageProblems(page);
+    await server().forward(page, "Ada");
+    await page.goto(`/?seed=${SEED}`);
+    await expect(page.locator("#splash")).toBeVisible();
+
+    const parts = await page.locator(".initialHidden").all();
+    expect(parts.length, "the game's parts").toBeGreaterThan(0);
+    for (const part of parts) {
+      await expect(part, `#${await part.getAttribute("id")} on the splash screen`).toBeHidden();
+    }
+    expect(problems).toEqual([]);
+  });
+
   test("says why it can't join a city the server doesn't have, and takes the link out of the address", async ({page}) => {
     const problems = collectPageProblems(page);
     await server().forward(page, "Ada");

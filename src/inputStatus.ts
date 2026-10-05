@@ -391,7 +391,7 @@ export class InputStatus extends Emitter {
   toolName: string | null = null;
   toolWidth = 0;
 
-  // Each tool's outline colour, by the tool's name, as its button gives it
+  // Each tool's outline colour, by the tool's name: its button's background, so the two always match
   private readonly toolColours = new Map<string, string>();
 
   private readonly canvas: HTMLElement;
@@ -450,7 +450,7 @@ export class InputStatus extends Emitter {
 
     document.querySelectorAll<HTMLElement>(".toolButton").forEach((button) => {
       button.addEventListener("click", (e) => this.onToolButton(e, button));
-      this.toolColours.set(button.dataset.tool ?? "", button.dataset.colour ?? "");
+      this.toolColours.set(button.dataset.tool ?? "", getComputedStyle(button).backgroundColor);
     });
 
     const requests: [HTMLElement, string][] = [

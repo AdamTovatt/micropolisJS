@@ -99,7 +99,7 @@ async function start(seed: number | null, city: string | null): Promise<void> {
 
   // Every city runs on the server, so the player signs in first. With no server answering, there is no game to play.
   const cityClient = new CityClient(browserCityEnvironment());
-  showOnlineList(requiredElement("onlineList"), cityClient);
+  showOnlineList(requiredElement("onlineListBody"), cityClient);
   try {
     await signInIfServerAnswers(cityClient);
   } catch (error) {

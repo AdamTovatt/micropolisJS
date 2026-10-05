@@ -11,7 +11,7 @@
  *
  */
 
-import { appendElement, requiredElement } from "./domElements";
+import { appendElement } from "./domElements";
 import type { StatusRecord } from "./protocol";
 import { Text } from "./text";
 
@@ -66,9 +66,8 @@ export class StatusPanel {
   private readonly capsList: HTMLElement;
   private readonly conditionsList: HTMLElement;
 
-  constructor(elementId: string) {
-    const container = requiredElement(elementId);
-
+  // The panel's rows go in the container
+  constructor(container: HTMLElement) {
     const powerRow = appendElement(container, "div", "statusRow");
     appendElement(powerRow, "span", "statusLabel").textContent = Text.statusPanel.powerLabel;
     this.powerText = appendElement(powerRow, "span");

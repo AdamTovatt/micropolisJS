@@ -149,8 +149,11 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
     const wrong = await wrongTiles(page, await player.mapScreenshot(), save, tiles, 2);
     expect(wrong.slice(0, 10), `${wrong.length} tiles wrong`).toEqual([]);
 
-    // The query tool's cyan outline, 3 CSS pixels wide around the tile under the pointer, on the building site
+    // The query tool's outline, 3 CSS pixels wide around the tile under the pointer, on the building site, in its
+    // button's colour
     const tile = {x: 58, y: 32};
+    const buttonColour = await page.locator("#queryButton").evaluate((button) =>
+      (/^rgb\((\d+), (\d+), (\d+)\)$/.exec(getComputedStyle(button).backgroundColor) ?? []).slice(1).map(Number));
     await player.selectTool("query");
     await player.showTiles([tile]);
     const {x: left, y: top} = await player.tileCorner(tile);
@@ -162,8 +165,9 @@ test.describe("on a screen of two device pixels to the CSS pixel", () => {
       {x: 2 * left + 8, y: 2 * (top + 8)},
     ]);
     const [leftLine, rightLine, inside] = outline.pixels.map((pixel) => pixel.slice(0, 3));
-    expect([leftLine, rightLine], "the outline's left and right lines").toEqual([[0, 255, 255], [0, 255, 255]]);
-    expect(inside, "the tile inside the outline").not.toEqual([0, 255, 255]);
+    expect(buttonColour, "the query button's colour").toHaveLength(3);
+    expect([leftLine, rightLine], "the outline's left and right lines").toEqual([buttonColour, buttonColour]);
+    expect(inside, "the tile inside the outline").not.toEqual(buttonColour);
     expect(problems).toEqual([]);
   });
 

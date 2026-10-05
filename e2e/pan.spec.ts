@@ -31,10 +31,6 @@ async function cursor(page: Page): Promise<string> {
   return page.locator("#MicropolisCanvas").evaluate((canvas) => getComputedStyle(canvas).cursor);
 }
 
-async function focusedId(page: Page): Promise<string> {
-  return page.evaluate(() => document.activeElement?.id ?? "");
-}
-
 // The point of the map under a point of the page, in tiles, from the view the hook reports
 async function mapPointUnder(player: Player, point: {x: number, y: number}): Promise<{x: number, y: number}> {
   const view = await player.view();
@@ -107,11 +103,11 @@ test("Space and a drag pan the map under the pointer, between tiles, with the ha
 test("Space after a click on a panel's button pans, and presses the button no more", async ({page}) => {
   const problems = collectPageProblems(page);
   const player = await startGame(server(), page, SEED, "Button");
-  await page.click("#minimapToggle");
+  const toggle = page.locator("[data-panel=\"map\"] .foldButton");
+  await toggle.click();
   await expect(page.locator("#minimapFrame"), "the minimap after its button's click").toBeHidden();
-  expect(await focusedId(page), "the element with the focus").toBe("minimapToggle");
-  await page.evaluate(() => {
-    const button = document.getElementById("minimapToggle")!;
+  await expect(toggle, "the minimap's button, with the focus").toBeFocused();
+  await toggle.evaluate((button) => {
     button.dataset.clicks = "0";
     button.addEventListener("click", () => {
       button.dataset.clicks = String(Number(button.dataset.clicks) + 1);
@@ -131,7 +127,7 @@ test("Space after a click on a panel's button pans, and presses the button no mo
 
   expect(await player.view(), "the view after the pan").toEqual({...before, originX: before.originX - 3,
                                                                   originY: before.originY - 2});
-  await expect(page.locator("#minimapToggle"), "the clicks on the button after Space")
+  await expect(toggle, "the clicks on the button after Space")
     .toHaveAttribute("data-clicks", "0");
   await expect(page.locator("#minimapFrame"), "the minimap after Space").toBeHidden();
   expect(problems).toEqual([]);

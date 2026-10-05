@@ -11,16 +11,16 @@
  *
  */
 
-import { placeNewCanvas, requiredElement } from "./domElements";
+import { placeNewCanvas } from "./domElements";
 import type { DemandMessage } from "./protocol";
 
 // The residential, commercial and industrial demand meter: a bar for each, up for demand and down for none, over a
 // grey box carrying their initials.
 
 // The meter is laid out in rects, and in units of padding of a few rects each. The grey box is 1 unit in from the left,
-// 7 units wide and 1 unit tall, with a full bar's height and 1 unit above it. The bars are 1 unit wide and 1 unit
-// apart, the first 2 units in, so the box reaches 1 unit past the bars on either side. A bar rises from the box's top
-// for demand and hangs from its bottom for none, at most BUCKETS rects either way.
+// 7 units wide and 1 unit tall, with a full bar's height above it and another below. The bars are 1 unit wide and 1
+// unit apart, the first 2 units in, so the box reaches 1 unit past the bars on either side. A bar rises from the box's
+// top for demand and hangs from its bottom for none, at most BUCKETS rects either way.
 const PADDING = 3; // 3 rectangles in each bit of padding
 const BUCKETS = 10; // 0..2000 is scaled into 10 buckets
 const RECT_SIZE = 5; // Each rect is 5px
@@ -30,6 +30,11 @@ const COLOURS = ["rgb(0,255,0)", "rgb(0, 0, 139)", "rgb(255, 255, 0)"];
 const LABELS = ["R", "C", "I"];
 
 const CANVAS_ID = "RCICanvas";
+
+// The meter's canvas, in pixels: as wide as the panel's column, and as tall as the box and a full bar either side of it.
+// The stylesheet's --meter-height is the height, which places the minimap under the meter.
+export const METER_WIDTH = 140;
+export const METER_HEIGHT = (2 * BUCKETS + PADDING) * RECT_SIZE;
 
 export interface Rect {
   x: number;
@@ -48,7 +53,7 @@ export function barRect(index: number, value: number): Rect {
   }
 
   const barHeightRect = Math.floor(Math.abs(value) / SCALE);
-  const barStartY = (value >= 0) ? BUCKETS + PADDING - barHeightRect : BUCKETS + 2 * PADDING;
+  const barStartY = (value >= 0) ? BUCKETS - barHeightRect : BUCKETS + PADDING;
   const barStartX = 2 * PADDING + (index * 2 * PADDING);
 
   return {x: barStartX * RECT_SIZE, y: barStartY * RECT_SIZE, width: PADDING * RECT_SIZE,
@@ -67,29 +72,17 @@ export interface MeterCanvas {
   getContext(contextId: "2d"): MeterContext | null;
 }
 
-// The element the meter's canvas fills
-export interface MeterContainer {
-  getBoundingClientRect(): {width: number, height: number};
-}
-
+// The canvas is sized as it is made, not from its box on the page, which it has none of while its panel is folded
 export class RCI {
-  // We might be created before our container has appeared on screen, so the canvas takes its size at the first update
-  private sized = false;
-
-  constructor(private readonly container: MeterContainer, private readonly canvas: MeterCanvas) {}
+  constructor(private readonly canvas: MeterCanvas) {
+    canvas.width = METER_WIDTH;
+    canvas.height = METER_HEIGHT;
+    canvas.style.margin = "0";
+    canvas.style.padding = "0";
+  }
 
   // Draws the demand, as each demand message gives it
   update(data: Omit<DemandMessage, "type">): void {
-    if (!this.sized) {
-      // The canvas is assumed to fill its container on-screen
-      const rect = this.container.getBoundingClientRect();
-      this.canvas.width = rect.width;
-      this.canvas.height = rect.height;
-      this.canvas.style.margin = "0";
-      this.canvas.style.padding = "0";
-      this.sized = true;
-    }
-
     const ctx = this.canvas.getContext("2d")!;
     this.clear(ctx);
     this.drawRect(ctx);
@@ -108,7 +101,7 @@ export class RCI {
   private drawRect(ctx: MeterContext): void {
     // Laid out as the comment at the top of the module describes
     const boxLeft = PADDING * RECT_SIZE;
-    const boxTop = (BUCKETS + PADDING) * RECT_SIZE;
+    const boxTop = BUCKETS * RECT_SIZE;
     const boxWidth = 7 * PADDING * RECT_SIZE;
     const boxHeight = PADDING * RECT_SIZE;
 
@@ -129,12 +122,11 @@ export class RCI {
     ctx.font = "normal xx-small sans-serif";
     ctx.fillStyle = "rgb(0, 0, 0)";
     ctx.textBaseline = "bottom";
-    ctx.fillText(LABELS[index], textLeft * RECT_SIZE, (BUCKETS + 2 * PADDING) * RECT_SIZE);
+    ctx.fillText(LABELS[index], textLeft * RECT_SIZE, (BUCKETS + PADDING) * RECT_SIZE);
   }
 }
 
-// The meter on a new canvas, in the element with the parent's id
-export function placeRCI(parentId: string): RCI {
-  const container = requiredElement(parentId);
-  return new RCI(container, placeNewCanvas(container, CANVAS_ID));
+// The meter on a new canvas, in the element given
+export function placeRCI(parent: HTMLElement): RCI {
+  return new RCI(placeNewCanvas(parent, CANVAS_ID));
 }
