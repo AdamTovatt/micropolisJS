@@ -120,8 +120,8 @@ describe("the HUD's colours", () => {
         const found = STYLESHEET.filter(isHudRule).map((rule) => rule.selector);
 
         expect(found).toEqual(expect.arrayContaining([
-            ".cancel, #debugRequest, #pauseRequest, .foldButton", "#notifications.bad", "#statusPanel .statusCap",
-            "#splashCityList .splashCityId", "#portButton", ".mintcream, .neutral",
+            ".cancel, #debugRequest, #pauseRequest, .foldButton, #playBack, #inviteCopy", "#notifications.bad",
+            "#statusPanel .statusCap", "#splashCityList .splashCityId", "#portButton", ".mintcream, .neutral",
         ]));
     });
 

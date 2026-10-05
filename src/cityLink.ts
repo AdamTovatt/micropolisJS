@@ -16,9 +16,10 @@ import { errorMessage } from "./errorMessage";
 import { cityOption, withCityOption, withoutCityOption } from "./urlOptions";
 
 // A city on the server in the page's address (?city=<id>): a city started on the server puts its id there, so the
-// address invites another player in and a reload rejoins; the page opened with one joins that city; and a city the page
-// loses on the server takes the player back to choose another. A link the page can't follow is said out loud and taken
-// out of the address, so the player chooses a city, and a reload doesn't try the link again.
+// address invites another player in and a reload rejoins; the Online panel copies the city's invite link, which carries
+// the city's id and nothing else; the page opened with one joins that city; and a city the page loses on the server
+// takes the player back to choose another. A link the page can't follow is said out loud and taken out of the address,
+// so the player chooses a city, and a reload doesn't try the link again.
 
 // What the page needs of the browser, so a test can stand in for it
 export interface PageWindow {
@@ -62,6 +63,13 @@ export async function joinLinkedCity(city: string, joiner: Pick<ServerCities, "j
 // Puts a city on the server in the page's address, in place of the page's own entry in its history
 export function linkToCity(started: StartedCity, page: PageWindow): void {
   page.history.replaceState(page.history.state, "", withCityOption(page.location.href, started.city));
+}
+
+// The link that invites another player into the city: the page's origin and path with the city's id as its ?city, and
+// none of the page's other options, so a player in debug mode or on a ?seed never passes those on
+export function inviteLink(pageHref: string, city: string): string {
+  const page = new URL(pageHref);
+  return withCityOption(`${page.origin}${page.pathname}`, city);
 }
 
 // Says why the page is no longer in its city on the server, and goes to the page without it, where the player chooses

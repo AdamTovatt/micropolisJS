@@ -20,6 +20,7 @@ import { ClientConfig } from "./clientConfig";
 import { requiredElement, setShown } from "./domElements";
 import { errorMessage } from "./errorMessage";
 import { Game } from "./game";
+import { InviteButton } from "./inviteButton";
 import { OLD_SAVE_KEY } from "./oldSaveOffer";
 import { showOnlineList } from "./onlineList";
 import { loadMapArt, MapArt } from "./renderAssets";
@@ -101,6 +102,7 @@ async function start(seed: number | null, city: string | null): Promise<void> {
   // Every city runs on the server, so the player signs in first. With no server answering, there is no game to play.
   const cityClient = new CityClient(browserCityEnvironment());
   showOnlineList(requiredElement("onlineListBody"), cityClient);
+  const invite = new InviteButton();
   try {
     await signInIfServerAnswers(cityClient);
   } catch (error) {
@@ -124,12 +126,14 @@ async function start(seed: number | null, city: string | null): Promise<void> {
   }
 
   // A city played goes on the list of cities this browser started or joined, which the splash screen offers to join
-  // again, beside a game the browser kept before cities were kept on the server
+  // again, beside a game the browser kept before cities were kept on the server, and the Online panel offers its invite
+  // link
   const store = pageStore();
   const cities = new CityList(store);
   const parts = {source, state, presence: cityClient, mapArt};
   const play = (started: StartedCity) => {
     cities.remember({city: started.city, name: started.name});
+    invite.offer(started.city);
     new Game(parts, started);
   };
 

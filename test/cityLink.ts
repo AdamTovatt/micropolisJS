@@ -11,7 +11,7 @@
  *
  */
 
-import { joinLinkedCity, leaveLostCity, linkedCity, linkToCity, PageWindow } from "../src/cityLink";
+import { inviteLink, joinLinkedCity, leaveLostCity, linkedCity, linkToCity, PageWindow } from "../src/cityLink";
 import type { StartedCity } from "../src/citySource";
 
 const CITY = "0123456789abcdef0123456789abcdef";
@@ -106,5 +106,17 @@ describe("a city's link", () => {
         expect(page.alerts).toEqual(["This city is no longer open here: The city failed on the server. Its link joins it " +
                                      "again."]);
         expect(page.assigned).toEqual(["http://localhost:44903/?debug=1"]);
+    });
+});
+
+describe("a city's invite link", () => {
+
+    it("is the page's origin and path with the city's id, and none of the page's other options", () => {
+        expect(inviteLink(`https://example.org/play/index.html?debug=1&seed=7&city=${CITY}#map`, CITY))
+            .toBe(`https://example.org/play/index.html?city=${CITY}`);
+    });
+
+    it("is the page's own origin, port included", () => {
+        expect(inviteLink("http://localhost:44903/", CITY)).toBe(`http://localhost:44903/?city=${CITY}`);
     });
 });
