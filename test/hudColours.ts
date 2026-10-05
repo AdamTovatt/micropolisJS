@@ -23,7 +23,7 @@ import { StyleRule, styleRules } from "./helpers/stylesheet";
 // before a city opens all take theirs from: every text colour, --hud-<name>-text, meets WCAG AA's 4.5:1
 // for normal text against its background, --hud-<name>-background. A see-through background is laid over its ground,
 // --hud-<name>-ground, where it names one, and over the map where it doesn't, which the ratio must hold over at its
-// darkest and its lightest, pure black and pure white, without counting on the blur behind the panels. Every text and
+// darkest and its lightest, pure black and pure white, as the map shows through unchanged. Every text and
 // background colour a rule of theirs sets is one of them, so no rule sets one the ratio was never checked for, and a rule
 // setting a text colour sets its background too, unless that background is another pair's, which an enclosing element
 // paints. Borders, outlines and shadows carry no text, and are left out. What the browser paints in each state, a
@@ -50,8 +50,8 @@ const WRAPPER_NAMES = new Set([
         .filter((name) => name !== "").map((name) => `.${name}`),
 ]);
 
-// The custom properties :root sets outside any query, by name
-const ROOT_PROPERTIES = new Map(STYLESHEET.filter((rule) => rule.selector === ":root" && !rule.media)
+// The custom properties :root sets outside any at-rule, by name
+const ROOT_PROPERTIES = new Map(STYLESHEET.filter((rule) => rule.selector === ":root" && rule.atRules.length === 0)
     .flatMap((rule) => rule.declarations).filter(([name]) => name.startsWith("--")));
 
 // The HUD's colours among them
@@ -266,18 +266,18 @@ describe("the HUD's colour checks", () => {
     it("pass a text colour set with its own background, or alone where an enclosing element paints its background", () => {
         expect(ruleProblems([
             {selector: "#paired", declarations: [["color", "var(--hud-base-text)"],
-                                                 ["background-color", "var(--hud-base-background)"]], media: false},
-            {selector: "#painted", declarations: [["color", "var(--hud-on-glass-text)"]], media: false},
+                                                 ["background-color", "var(--hud-base-background)"]], atRules: []},
+            {selector: "#painted", declarations: [["color", "var(--hud-on-glass-text)"]], atRules: []},
         ], PLANTED)).toEqual([]);
     });
 
     it("report a text colour alone whose background no enclosing element paints, one on another's background, and " +
        "a colour that isn't one of the HUD's", () => {
         expect(ruleProblems([
-            {selector: "#alone", declarations: [["color", "var(--hud-glass-text)"]], media: false},
+            {selector: "#alone", declarations: [["color", "var(--hud-glass-text)"]], atRules: []},
             {selector: "#crossed", declarations: [["color", "var(--hud-base-text)"],
-                                                  ["background-color", "var(--hud-glass-background)"]], media: false},
-            {selector: "#loose", declarations: [["background-color", "#123456"]], media: false},
+                                                  ["background-color", "var(--hud-glass-background)"]], atRules: []},
+            {selector: "#loose", declarations: [["background-color", "#123456"]], atRules: []},
         ], PLANTED)).toEqual([
             "#alone sets var(--hud-glass-text) on no background",
             "#crossed sets var(--hud-base-text) on var(--hud-glass-background)",
