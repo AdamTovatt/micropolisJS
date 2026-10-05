@@ -14,7 +14,7 @@
 
 import { CityState } from "../src/cityState";
 import {
-    MINIMAP_PIXELS_PER_TILE, MinimapImage, drawTile, minimapTile, tileColours, viewRect,
+    MINIMAP_PIXELS_PER_TILE, MinimapImage, drawTile, minimapTile, tileColours, viewMarkPlacement,
 } from "../src/minimap";
 import type { StateMessage } from "../src/protocol";
 import type { Pixels } from "../src/renderAssets";
@@ -151,12 +151,13 @@ describe("the minimap", () => {
         const map = {width: 120, height: 100};
 
         it("marks the tiles the view shows, a part tile in part", () => {
-            expect(viewRect({x: 10, y: 20}, {x: 90.5, y: 56.25}, map))
-                .toEqual({left: 10, top: 20, width: 90.5, height: 56.25});
+            expect(viewMarkPlacement({x: 12, y: 20}, {x: 90, y: 56.25}, map))
+                .toEqual({left: "10%", top: "20%", width: "75%", height: "56.25%"});
         });
 
-        it("marks no void the view shows beyond the map", () => {
-            expect(viewRect({x: -2, y: 90}, {x: 125, y: 56}, map)).toEqual({left: 0, top: 90, width: 120, height: 10});
+        it("marks the whole view, reaching past the map's edges where the view does", () => {
+            expect(viewMarkPlacement({x: -30, y: 75}, {x: 90, y: 50}, map))
+                .toEqual({left: "-25%", top: "75%", width: "75%", height: "50%"});
         });
     });
 

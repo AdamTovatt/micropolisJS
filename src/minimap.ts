@@ -121,24 +121,24 @@ export class MinimapImage {
   }
 }
 
-// A rectangle of the map, in tiles
-export interface TileRect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
+// Where the view's rectangle goes on the minimap, as CSS percentages of the minimap's size
+export interface ViewMarkPlacement {
+  left: string;
+  top: string;
+  width: string;
+  height: string;
 }
 
-// The part of the map a view shows, from its origin, which may lie between tiles, and the tiles it shows across and
-// down, a fraction where a tile at either edge shows in part, cut to the map: the void a view shows beyond the map is
-// not marked
-export function viewRect(origin: TilePoint, tilesInView: TilePoint, map: {width: number, height: number}): TileRect {
-  const left = Math.max(0, origin.x);
-  const top = Math.max(0, origin.y);
-  const right = Math.min(map.width, origin.x + tilesInView.x);
-  const bottom = Math.min(map.height, origin.y + tilesInView.y);
-
-  return {left, top, width: Math.max(0, right - left), height: Math.max(0, bottom - top)};
+// The view's rectangle, from its origin, which may lie between tiles, and the tiles it shows across and down, a
+// fraction where a tile at either edge shows in part: the whole view, the void it shows beyond the map included, so the
+// rectangle reaches past the minimap's edges where the view does, and the minimap's frame clips it. A view longer than
+// the map along an axis, as a screen wider than 1920 CSS pixels is at 16 a tile on a map 120 tiles across, has its
+// rectangle's edges along that axis clipped away, and past both no rectangle shows: the whole map is on the screen then, which the minimap needn't mark.
+export function viewMarkPlacement(origin: TilePoint, tilesInView: TilePoint,
+                                  map: {width: number, height: number}): ViewMarkPlacement {
+  const percent = (tiles: number, of: number) => `${tiles / of * 100}%`;
+  return {left: percent(origin.x, map.width), top: percent(origin.y, map.height),
+          width: percent(tilesInView.x, map.width), height: percent(tilesInView.y, map.height)};
 }
 
 // The map tile under a point of the minimap, in CSS pixels from its top-left corner, when it shows width by height
@@ -194,16 +194,11 @@ export class Minimap {
       this.canvas.getContext("2d")!.putImageData(new ImageData(pixels.data, pixels.width, pixels.height), 0, 0);
     }
 
-    const map = this.city.map;
-    const rect = viewRect(this.view.getTileOrigin(), this.view.tilesInView, map);
-    const percent = (tiles: number, of: number) => `${tiles / of * 100}%`;
-    const marked = [percent(rect.left, map.width), percent(rect.top, map.height),
-                    percent(rect.width, map.width), percent(rect.height, map.height)];
-    const key = marked.join(" ");
+    const mark = viewMarkPlacement(this.view.getTileOrigin(), this.view.tilesInView, this.city.map);
+    const key = Object.values(mark).join(" ");
     if (key !== this.marked) {
       this.marked = key;
-      [this.viewMark.style.left, this.viewMark.style.top, this.viewMark.style.width, this.viewMark.style.height] =
-        marked;
+      Object.assign(this.viewMark.style, mark);
     }
   }
 

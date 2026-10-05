@@ -43,15 +43,26 @@ describe("the view", () => {
                                         wholeTilesInViewY: 56});
         });
 
-        it("stops the view at the map's edges, with no void beyond them", () => {
-            expect(MAIN).toMatchObject({minX: 0, maxX: MAP_WIDTH - 80, minY: 0, maxY: MAP_HEIGHT - 56.25});
+        it("stops the view where the middle of an edge tile is at the middle of the view", () => {
+            // Half a tile less half of 80 tiles and of 56 and a quarter, from either end of the map
+            expect(MAIN).toMatchObject({minX: -39.5, maxX: MAP_WIDTH - 40.5, minY: -27.625, maxY: MAP_HEIGHT - 28.625});
         });
 
-        it("lets the origin stop between tiles where the view's far edge meets the map's", () => {
+        it("lets the origin stop between tiles when the view shows part of a tile", () => {
             // monsterTV's canvas: 177 by 128 pixels, 11 and a sixteenth tiles across
             const tv = viewport(177, 128, TILE_WIDTH, MAP_WIDTH, MAP_HEIGHT);
 
-            expect(tv).toMatchObject({minX: 0, maxX: MAP_WIDTH - 11.0625, minY: 0, maxY: MAP_HEIGHT - 8});
+            expect(tv).toMatchObject({minX: -5.03125, maxX: MAP_WIDTH - 6.03125, minY: -3.5, maxY: MAP_HEIGHT - 4.5});
+        });
+
+        // Beyond the two views above, whose limits are pinned in numbers: one longer than the map, and one its size
+        it.each([[2000, 1700], [MAP_WIDTH * TILE_WIDTH, MAP_HEIGHT * TILE_WIDTH]])(
+            "puts the middle of each corner tile at the middle of a %i by %i view at its limits", (width, height) => {
+            const view = viewport(width, height, TILE_WIDTH, MAP_WIDTH, MAP_HEIGHT);
+            const middle = (x: number, y: number) => ({x: x + view.tilesInViewX / 2, y: y + view.tilesInViewY / 2});
+
+            expect([middle(view.minX, view.minY), middle(view.maxX, view.maxY)])
+                .toEqual([{x: 0.5, y: 0.5}, {x: MAP_WIDTH - 0.5, y: MAP_HEIGHT - 0.5}]);
         });
 
         it("centres the view on a tile, from a whole tile", () => {
@@ -63,30 +74,28 @@ describe("the view", () => {
             expect(centredOrigin(60.9, 50.2, MAIN)).toEqual({x: 20, y: 22});
         });
 
+        it("centres the view on a tile near the map's edges as it does on one in the middle", () => {
+            // 1 - ceil(80 / 2), 2 - ceil(56 / 2); 118 - 40, 98 - 28
+            expect(centredOrigin(1, 2, MAIN)).toEqual({x: -39, y: -26});
+            expect(centredOrigin(118, 98, MAIN)).toEqual({x: 78, y: 70});
+        });
+
         it("holds the origin within its limits", () => {
             expect(centredOrigin(-100, -100, MAIN)).toEqual({x: MAIN.minX, y: MAIN.minY});
             expect(centredOrigin(500, 500, MAIN)).toEqual({x: MAIN.maxX, y: MAIN.maxY});
+            // 0 - 40 and 0 - 28 are past the limits, which put the corner tile's middle at the view's
+            expect(centredOrigin(0, 0, MAIN)).toEqual({x: -39.5, y: -27.625});
         });
 
-        it("centres the map exactly on an axis the view is longer than the map on, leaving the origin no room", () => {
-            // 125 tiles across and 106 and a quarter down: 5 tiles of void across, split, and 6 and a quarter down
+        it("holds a map shorter than the view to the same rule, which leaves the origin room to move", () => {
+            // 125 tiles across and 106 and a quarter down
             const huge = viewport(2000, 1700, TILE_WIDTH, MAP_WIDTH, MAP_HEIGHT);
 
-            expect(huge).toMatchObject({minX: -2.5, maxX: -2.5, minY: -3.125, maxY: -3.125});
-            expect(centredOrigin(0, 0, huge)).toEqual({x: -2.5, y: -3.125});
-            expect(centredOrigin(119, 99, huge)).toEqual({x: -2.5, y: -3.125});
-        });
-
-        it("centres along one axis and scrolls along the other", () => {
-            const wide = viewport(2000, 900, TILE_WIDTH, MAP_WIDTH, MAP_HEIGHT);
-
-            expect(wide).toMatchObject({minX: -2.5, maxX: -2.5, minY: 0, maxY: MAP_HEIGHT - 56.25});
-        });
-
-        it("lets a view exactly the map's size show it all from its corner", () => {
-            const exact = viewport(MAP_WIDTH * TILE_WIDTH, MAP_HEIGHT * TILE_WIDTH, TILE_WIDTH, MAP_WIDTH, MAP_HEIGHT);
-
-            expect(exact).toMatchObject({minX: 0, maxX: 0, minY: 0, maxY: 0});
+            expect(huge).toMatchObject({minX: -62, maxX: MAP_WIDTH - 63, minY: -52.625, maxY: MAP_HEIGHT - 53.625});
+            // 0 - ceil(125 / 2) and 0 - ceil(106 / 2) are past the limits
+            expect(centredOrigin(0, 0, huge)).toEqual({x: -62, y: -52.625});
+            // 119 - ceil(125 / 2), 99 - ceil(106 / 2)
+            expect(centredOrigin(119, 99, huge)).toEqual({x: 56, y: 46});
         });
     });
 
@@ -131,12 +140,12 @@ describe("the view", () => {
             position.scrollBy(1, 1);
             expect(position.origin).toEqual({x: MAIN.maxX, y: MAIN.maxY});
 
-            // A scroll past one limit still moves along the other axis; back from 43.75 is 43
+            // A scroll past one limit still moves along the other axis; back from 79.5 is 79, and from 71.375 is 71
             position.scrollBy(-3, -1);
-            expect(position.origin).toEqual({x: MAIN.maxX - 3, y: 43});
+            expect(position.origin).toEqual({x: 77, y: 71});
 
             position.scrollBy(0, 1);
-            expect(position.origin).toEqual({x: MAIN.maxX - 3, y: 43.75});
+            expect(position.origin).toEqual({x: 77, y: 71.375});
         });
 
         it("knows the last tile in view, partly in view included", () => {
@@ -161,10 +170,10 @@ describe("the view", () => {
             const position = new ViewPosition(MAIN);
             position.centreOn(500, 500);
 
-            // 100 tiles across and 75 down at 1600 by 1200 pixels
+            // 100 tiles across and 75 down at 1600 by 1200 pixels, the last tile's middle at the middle of the view
             position.viewport = viewport(1600, 1200, TILE_WIDTH, MAP_WIDTH, MAP_HEIGHT);
 
-            expect(position.origin).toEqual({x: MAP_WIDTH - 100, y: MAP_HEIGHT - 75});
+            expect(position.origin).toEqual({x: MAP_WIDTH - 0.5 - 50, y: MAP_HEIGHT - 0.5 - 37.5});
         });
     });
 
@@ -214,19 +223,19 @@ describe("the view", () => {
             expect(position.origin).toEqual({x: 20.5, y: 21.75});
         });
 
-        it("stops at the map's edges, and picks up again as the pointer comes back", () => {
-            const position = positionAt(0.5, 43);
+        it("stops at the view's limits, and picks up again as the pointer comes back", () => {
+            const position = positionAt(-39, 70);
             position.grab({x: 640, y: 450}, TILE_WIDTH);
 
-            // Past the left and bottom edges by 3.25 tiles and 2 and a half
+            // Past the left and bottom limits, -39.5 and 71.375, by 3.25 tiles and 1.125
             position.pan({x: 700, y: 410});
-            expect(position.origin).toEqual({x: 0, y: MAIN.maxY});
+            expect(position.origin).toEqual({x: MAIN.minX, y: MAIN.maxY});
 
             // Back to where the pointer grabbed the map, and a quarter tile on
             position.pan({x: 640, y: 450});
-            expect(position.origin).toEqual({x: 0.5, y: 43});
+            expect(position.origin).toEqual({x: -39, y: 70});
             position.pan({x: 636, y: 454});
-            expect(position.origin).toEqual({x: 0.75, y: 42.75});
+            expect(position.origin).toEqual({x: -38.75, y: 69.75});
         });
 
         it("moves nothing once it lets go of the map", () => {
@@ -329,9 +338,13 @@ describe("the view", () => {
         });
 
         it("holds the origin within the new viewport's limits", () => {
-            // Zoomed out from the map's top-left corner, the tile under the pointer would need an origin past the limits
+            // From within the limits at 64 pixels a tile, about (-9.5, -6.53), zoomed out over the view's bottom-right
+            // corner, keeping the tile under the pointer would need an origin of about (-69, -48), past the limits
+            const before = viewport(1280, 900, 64, MAP_WIDTH, MAP_HEIGHT);
+            const start = {x: -9, y: -6};
+            expect(start.x >= before.minX && start.y >= before.minY).toBe(true);
             const out = viewport(1280, 900, 16, MAP_WIDTH, MAP_HEIGHT);
-            const zoomed = zoomedOrigin({x: -10, y: -7}, {x: 1279, y: 899}, 64, 16, out);
+            const zoomed = zoomedOrigin(start, {x: 1279, y: 899}, 64, 16, out);
 
             expect(zoomed).toEqual({x: out.minX, y: out.minY});
         });

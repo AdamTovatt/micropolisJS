@@ -283,7 +283,7 @@ export class Player {
 
   // Zooms with the mouse wheel over a tile, a notch a step: up to zoom in, down to zoom out. Fails unless the view
   // comes to the zoom step the notches lead to with the point of the map under the pointer still under it, as far as
-  // the view's limits allow: at the map's edges the view stops, and the point under the pointer moves.
+  // the view's limits allow: at a limit the view stops, and the point under the pointer moves.
   //
   // With a tool held, it fails too unless the game draws the hover box on the tile before the zoom, and after it on the
   // tile this runner finds under the pointer: the view's origin may lie between tiles after a zoom, and the game must

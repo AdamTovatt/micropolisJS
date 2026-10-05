@@ -13,13 +13,15 @@
  */
 
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { serverForTests } from "./gameServer";
 import { collectPageProblems } from "./page";
 import { Player, heldWithin, startGame } from "./player";
+import { samplePixels } from "./png";
 import { SEED } from "./stages";
 
-// Getting around the map: the view stopping at the map's edges, the minimap, Escape, and following news to its place
+// Getting around the map: the view stopping at its limits, the minimap, Escape, and following news to its place
 
 const server = serverForTests("manual");
 
@@ -36,7 +38,7 @@ async function mapSize(player: Player): Promise<{width: number, height: number}>
 }
 
 // Holds the key until the view's origin stays where it is for a quarter of a second, about 9 tiles at the scroll speed
-async function holdToTheEdge(player: Player, key: string): Promise<void> {
+async function holdToTheLimit(player: Player, key: string): Promise<void> {
   const page = player.page;
   await page.keyboard.down(key);
   try {
@@ -53,21 +55,50 @@ async function holdToTheEdge(player: Player, key: string): Promise<void> {
   }
 }
 
-test("the view stops at the map's edges, with no void beyond them", async ({page}) => {
+// The origin that puts the middle of the map tile given exactly at the middle of the canvas, as the view's limits put
+// an edge tile's, not by whole tiles as centring on a tile does
+async function originWithMiddleOn(player: Player, tile: {x: number, y: number}): Promise<{x: number, y: number}> {
+  const canvas = await player.canvasBox();
+  const {tileWidth} = await player.view();
+  return {x: tile.x + 0.5 - canvas.width / tileWidth / 2, y: tile.y + 0.5 - canvas.height / tileWidth / 2};
+}
+
+// How many near-white pixels show along the top edge of a rectangle of the page, where it lies within the screen. The
+// minimap's view rectangle has a white border, and above the minimap lie its panel, in mintcream, (245, 255, 250), whose
+// red is 5 under the cut-off of 250, and the map's void, black: a change to the panel's colour may need a new cut-off.
+async function whiteAlongTopEdge(page: Page, rect: {x: number, y: number, width: number}): Promise<number> {
+  const points: {x: number, y: number}[] = [];
+  const right = Math.min(rect.x + rect.width, page.viewportSize()!.width);
+  for (let x = Math.max(0, Math.ceil(rect.x)); x < right; x++) {
+    // The border's row, and one either side of it, where the rectangle lies between pixels
+    for (let y = Math.floor(rect.y) - 1; y <= Math.floor(rect.y) + 2; y++) {
+      points.push({x, y});
+    }
+  }
+
+  const shown = await samplePixels(page, await page.screenshot(), points);
+  return shown.pixels.filter((pixel) => pixel.slice(0, 3).every((channel) => channel >= 250)).length;
+}
+
+test("the view stops with the middle of a corner tile at the middle of the screen", async ({page}) => {
   const problems = collectPageProblems(page);
   const player = await startGame(server(), page, SEED, "Edges");
   const canvas = await player.canvasBox();
   const map = await mapSize(player);
-  const {tileWidth} = await player.view();
+  const middle = {x: canvas.x + canvas.width / 2, y: canvas.y + canvas.height / 2};
 
-  await holdToTheEdge(player, "ArrowLeft");
-  await holdToTheEdge(player, "ArrowUp");
-  expect(await origin(player), "the origin at the top-left edges").toEqual({x: 0, y: 0});
+  await holdToTheLimit(player, "ArrowLeft");
+  await holdToTheLimit(player, "ArrowUp");
+  expect(await origin(player), "the origin at the top-left limits")
+    .toEqual(await originWithMiddleOn(player, {x: 0, y: 0}));
+  expect(await player.tileUnder(middle), "the tile at the middle of the screen").toEqual({x: 0, y: 0});
 
-  await holdToTheEdge(player, "ArrowRight");
-  await holdToTheEdge(player, "ArrowDown");
-  expect(await origin(player), "the origin at the bottom-right edges")
-    .toEqual({x: map.width - canvas.width / tileWidth, y: map.height - canvas.height / tileWidth});
+  await holdToTheLimit(player, "ArrowRight");
+  await holdToTheLimit(player, "ArrowDown");
+  const corner = {x: map.width - 1, y: map.height - 1};
+  expect(await origin(player), "the origin at the bottom-right limits")
+    .toEqual(await originWithMiddleOn(player, corner));
+  expect(await player.tileUnder(middle), "the tile at the middle of the screen").toEqual(corner);
   expect(problems).toEqual([]);
 });
 
@@ -82,8 +113,9 @@ test("the minimap moves the view where it is clicked and dragged, and M hides it
   const canvas = await player.canvasBox();
   const across = Math.floor(canvas.width / view.tileWidth);
   const down = Math.floor(canvas.height / view.tileWidth);
-  // The origin that puts the tile in the middle of the view, held within the limits
-  const centredOn = (x: number, y: number) => ({x: heldWithin(x - Math.ceil(across / 2), minX, maxX),
+  // The origin that puts the tile in the middle of the view by whole tiles, as the minimap centres it, held within the
+  // limits
+  const centredByWholeTiles = (x: number, y: number) => ({x: heldWithin(x - Math.ceil(across / 2), minX, maxX),
                                                 y: heldWithin(y - Math.ceil(down / 2), minY, maxY)});
 
   // A tile's middle on the minimap
@@ -91,20 +123,28 @@ test("the minimap moves the view where it is clicked and dragged, and M hides it
                                                y: box.y + (y + 0.5) * box.height / map.height});
   const target = onMinimap(70, 60);
   await page.mouse.click(target.x, target.y);
-  expect(await origin(player), "the origin after a click on the minimap at (70, 60)").toEqual(centredOn(70, 60));
+  expect(await origin(player), "the origin after a click on the minimap at (70, 60)").toEqual(centredByWholeTiles(70, 60));
 
-  // A drag carries the view along, past the minimap's corner to the map's
+  // A drag carries the view along, past the minimap's corner to the map's, whose middle comes to the screen's
   await page.mouse.move(target.x, target.y);
   await page.mouse.down();
   await page.mouse.move(box.x - 30, box.y - 30, {steps: 8});
   await page.mouse.up();
-  expect(await origin(player), "the origin after a drag past the minimap's top-left corner").toEqual({x: 0, y: 0});
+  expect(await origin(player), "the origin after a drag past the minimap's top-left corner")
+    .toEqual(await originWithMiddleOn(player, {x: 0, y: 0}));
 
-  // The view's rectangle marks the view
+  // The view's rectangle marks the whole view, its middle on the corner tile's, reaching past the minimap's corner
   const mark = (await page.locator("#minimapView").boundingBox())!;
-  expect(Math.round(mark.x), "the rectangle's left").toBe(Math.round(box.x));
+  const tileOnMinimap = box.width / map.width;
+  expect(mark.x + mark.width / 2, "the rectangle's middle across").toBeCloseTo(box.x + tileOnMinimap / 2, 1);
+  expect(mark.y + mark.height / 2, "the rectangle's middle down").toBeCloseTo(box.y + tileOnMinimap / 2, 1);
   expect(Math.round(mark.width), "the rectangle's width")
     .toBe(Math.round(canvas.width / view.tileWidth / map.width * box.width));
+
+  // The minimap's frame clips the rectangle: none of its top edge, wholly above the minimap, shows
+  expect(mark.y, "the rectangle's top, above the minimap's").toBeLessThan(box.y - 5);
+  expect(await whiteAlongTopEdge(page, mark), "white pixels along the rectangle's top edge, above the minimap")
+    .toBe(0);
 
   await page.keyboard.press("m");
   await expect(page.locator("#minimapFrame")).toBeHidden();
