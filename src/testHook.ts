@@ -13,7 +13,7 @@
  */
 
 import type { CityDriver } from "./citySource";
-import type { FireStationReach, StatusRecord, TilePosition } from "./protocol";
+import type { BudgetForecastAnswer, EvaluationRecord, FireStationReach, StatusRecord, TilePosition } from "./protocol";
 import type { OriginLimits } from "./viewPosition";
 
 // The end-to-end runner's hold on the game, installed on the window in debug mode. The runner holds the city source's
@@ -34,6 +34,8 @@ interface HookedGame {
   notificationBar: {dismiss(): void};
   toolToast: {dismiss(): void};
   statusPanel: {show(status: StatusRecord): void};
+  budgetWindow: {write(forecast: BudgetForecastAnswer): void};
+  evaluationWindow: {write(record: EvaluationRecord): void};
   readonly hoverTile: {x: number, y: number} | null;
 }
 
@@ -154,6 +156,20 @@ class TestHook {
   // reaches only after long play. It changes no city state, and the city's next status record shows over it.
   showStatus(status: StatusRecord): void {
     this.attachedGame().statusPanel.show(status);
+  }
+
+  // Writes an evaluation record into the evaluation window as the city's own would show, for a layout check at an
+  // evaluation a city reaches only after long play. It changes no city state, and the window shows the city's own the
+  // next time it opens.
+  showEvaluation(record: EvaluationRecord): void {
+    this.attachedGame().evaluationWindow.write(record);
+  }
+
+  // Writes a forecast's figures into the budget window as the answer to its own would show, for a layout check at
+  // figures a city reaches only after long play. It changes no city state, and the window's next forecast shows over
+  // it.
+  showBudgetForecast(forecast: BudgetForecastAnswer): void {
+    this.attachedGame().budgetWindow.write(forecast);
   }
 
   // Every step advance has taken, including those of an advance that then failed

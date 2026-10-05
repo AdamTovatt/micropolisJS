@@ -19,11 +19,12 @@ import { AA_NORMAL_TEXT, contrastRatio, laidOver } from "./helpers/contrast";
 import { repositoryPath } from "./helpers/repository";
 import { StyleRule, styleRules } from "./helpers/stylesheet";
 
-// The HUD's colours, as the stylesheet's :root gives them: every text colour, --hud-<name>-text, meets WCAG AA's 4.5:1
+// The page's colours, the --hud- properties the stylesheet's :root gives, which the HUD, the windows and the screens
+// before a city opens all take theirs from: every text colour, --hud-<name>-text, meets WCAG AA's 4.5:1
 // for normal text against its background, --hud-<name>-background. A see-through background is laid over its ground,
 // --hud-<name>-ground, where it names one, and over the map where it doesn't, which the ratio must hold over at its
 // darkest and its lightest, pure black and pure white, without counting on the blur behind the panels. Every text and
-// background colour a HUD rule sets is one of them, so no rule sets one the ratio was never checked for, and a rule
+// background colour a rule of theirs sets is one of them, so no rule sets one the ratio was never checked for, and a rule
 // setting a text colour sets its background too, unless that background is another pair's, which an enclosing element
 // paints. Borders, outlines and shadows carry no text, and are left out. What the browser paints in each state, a
 // button's under the pointer among them, the end-to-end layout check measures (e2e/layoutCheck.ts).
@@ -37,14 +38,15 @@ const COLOUR_PROPERTIES = ["color", "background-color", "background"];
 const STYLESHEET = styleRules(readFileSync(repositoryPath("css/style.css"), "utf8"));
 const INDEX = readFileSync(repositoryPath("index.html"), "utf8");
 
-// The HUD is everything in the page's main element, outside the windows
-const MAIN = /<main[\s\S]*<\/main>/.exec(INDEX)![0];
+// Everything the page shows in its wrapper: the HUD's panels over the map, the windows and the screens before a city
+// opens
+const WRAPPER = /<div id="wrapper">[\s\S]*<\/body>/.exec(INDEX)![0];
 
-// What the HUD's markup names: each element's id, as #id, and each class it has, as .class. A class the client's code
-// gives a HUD element is styled under the id of the element it is in.
-const HUD_NAMES = new Set([
-    ...Array.from(MAIN.matchAll(/\sid="([\w-]+)"/g), (match) => `#${match[1]}`),
-    ...Array.from(MAIN.matchAll(/\sclass="([^"]*)"/g), (match) => match[1].split(/\s+/)).flat()
+// What the wrapper's markup names: each element's id, as #id, and each class it has, as .class. A class the client's
+// code gives an element there is styled under the id of the element it is in.
+const WRAPPER_NAMES = new Set([
+    ...Array.from(WRAPPER.matchAll(/\sid="([\w-]+)"/g), (match) => `#${match[1]}`),
+    ...Array.from(WRAPPER.matchAll(/\sclass="([^"]*)"/g), (match) => match[1].split(/\s+/)).flat()
         .filter((name) => name !== "").map((name) => `.${name}`),
 ]);
 
@@ -123,9 +125,9 @@ function escaped(name: string): string {
     return name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Whether the rule's selector names any part of the HUD
-function isHudRule(rule: StyleRule): boolean {
-    return Array.from(HUD_NAMES).some((name) => new RegExp(`${escaped(name)}(?![\\w-])`).test(rule.selector));
+// Whether the rule's selector names any part of the wrapper
+function isWrapperRule(rule: StyleRule): boolean {
+    return Array.from(WRAPPER_NAMES).some((name) => new RegExp(`${escaped(name)}(?![\\w-])`).test(rule.selector));
 }
 
 // The pair a declaration's value names, for the end given, -text or -background, or undefined for none
@@ -193,18 +195,19 @@ describe("the HUD's colours", () => {
     });
 
     // So the checks below can't pass by finding nothing to check
-    it("are found in the HUD's rules, as the markup names its parts", () => {
-        const found = STYLESHEET.filter(isHudRule).map((rule) => rule.selector);
+    it("are found in the rules for the page's wrapper, as the markup names its parts", () => {
+        const found = STYLESHEET.filter(isWrapperRule).map((rule) => rule.selector);
 
         expect(found).toEqual(expect.arrayContaining([
-            ".cancel, #playBack", "#notifications.bad", "#statusPanel .statusCap", "#splashCityList .splashCityId",
-            "#portButton", ".mintcream", ".hudPanel", ".hudButton", ".hudPanel .foldTitle",
+            "#notifications.bad", "#statusPanel .statusCap", "#splashCityList .splashCityId", "#portButton", ".hudPanel",
+            ".hudButton", ".hudPanel .foldTitle", ".hudWindow, .hudScreen", ".hudWindowTitle", ".hudField",
+            "#flagsTable th", "#signInError",
         ]));
     });
 
-    it("are the only text and background colours the HUD's rules set, a text colour with its background unless an " +
+    it("are the only text and background colours those rules set, a text colour with its background unless an " +
        "enclosing element paints it", () => {
-        expect(ruleProblems(STYLESHEET.filter(isHudRule), HUD_COLOURS)).toEqual([]);
+        expect(ruleProblems(STYLESHEET.filter(isWrapperRule), HUD_COLOURS)).toEqual([]);
     });
 
     it("give each tool button its own accent along its top, which is its outline on the map", () => {

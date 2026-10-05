@@ -20,7 +20,7 @@ import { MOST_LINES } from "../src/playerActivity";
 import type { StatusRecord } from "../src/protocol";
 import { Text } from "../src/text";
 import { Forwarded, serverForTests, signIn } from "./gameServer";
-import { checkLayout } from "./layoutCheck";
+import { checkLayout, HUD_PANELS, LAYOUT_SIZES } from "./layoutCheck";
 import { collectPageProblems } from "./page";
 import { startGame, Tile } from "./player";
 import { CITY_TIMES_PER_YEAR, STEPS_PER_CITY_TIME } from "./ruleNumbers";
@@ -36,8 +36,6 @@ import { SEED, SITE, STAGES } from "./stages";
 // than its list shows at once.
 
 const server = serverForTests("manual");
-
-const SIZES = [{width: 1280, height: 720}, {width: 1440, height: 900}, {width: 1920, height: 1080}];
 
 // The parts of the HUD that show at its fullest, open and folded alike, by id
 const SHOWN = ["infobar", "onlineList", "miscButtons", "RCIContainer", "monstertv", "notifications", "lastEvent",
@@ -124,7 +122,7 @@ async function hoveredProblems(page: Page): Promise<string[]> {
   const problems: string[] = [];
   for (const selector of HOVERED) {
     await page.hover(selector, {timeout: 5000});
-    problems.push(...(await checkLayout(page)).problems.map((problem) => `${problem}, hovering ${selector}`));
+    problems.push(...(await checkLayout(page, HUD_PANELS)).problems.map((problem) => `${problem}, hovering ${selector}`));
   }
   return problems;
 }
@@ -170,7 +168,7 @@ test("every panel of the HUD fits the screen and its box at its fullest, open, h
   await expect(page.locator("#onlineListBody"), "the three players online").toContainText(/Grace.*Hedy|Hedy.*Grace/);
 
   try {
-    for (const [round, size] of SIZES.entries()) {
+    for (const [round, size] of LAYOUT_SIZES.entries()) {
       await page.setViewportSize(size);
 
       const [grace, hedy] = tiles(site.top, round, 2);
@@ -203,13 +201,13 @@ test("every panel of the HUD fits the screen and its box at its fullest, open, h
       await expect(page.locator("#inviteLink")).toBeVisible();
 
       const name = `${size.width}x${size.height}`;
-      const open = await checkLayout(page);
+      const open = await checkLayout(page, HUD_PANELS);
       await page.screenshot({path: testInfo.outputPath(`hud-${name}.png`)});
       expect.soft(open.problems, `the HUD at ${name}`).toEqual([]);
       expect.soft(open.panels, `the panels showing at ${name}`).toEqual(expect.arrayContaining([...SHOWN, "toolToast"]));
 
       await setFolded(page, true);
-      const folded = await checkLayout(page);
+      const folded = await checkLayout(page, HUD_PANELS);
       await page.screenshot({path: testInfo.outputPath(`hud-${name}-folded.png`)});
       expect.soft(folded.problems, `the HUD folded at ${name}`).toEqual([]);
       expect.soft(folded.panels, `the panels showing folded at ${name}`).toEqual(expect.arrayContaining(SHOWN));
@@ -232,7 +230,7 @@ test("the layout check reports each fault planted: an overlap, an element outsid
   const player = await startGame(server(), page, SEED, "Faults");
   await withoutDebugPanel(page);
   await player.dismissNotification();
-  expect((await checkLayout(page)).problems, "the HUD before any fault is planted").toEqual([]);
+  expect((await checkLayout(page, HUD_PANELS)).problems, "the HUD before any fault is planted").toEqual([]);
 
   const faults: Fault[] = [
     {rule: "#statusPanel { margin-top: -60px; }", reported: /^#overlayPanel and #statusPanel overlap$/},
@@ -247,7 +245,7 @@ test("the layout check reports each fault planted: an overlap, an element outsid
   ];
   for (const fault of faults) {
     const style = await page.addStyleTag({content: fault.rule});
-    const found = (await checkLayout(page)).problems;
+    const found = (await checkLayout(page, HUD_PANELS)).problems;
     expect.soft(found.some((problem) => fault.reported.test(problem)), `${fault.rule} reported, in ${found.join("; ")}`)
       .toBe(true);
     await style.evaluate((element) => element.parentNode!.removeChild(element));

@@ -12,11 +12,12 @@
  *
  */
 
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 import { AA_NORMAL_TEXT, contrastRatio, cssColour, laidOver } from "../test/helpers/contrast";
 
-// The HUD's layout check: the page measures each panel showing and every element in it as the browser lays them out,
+// The layout check, of the HUD's panels over the map, a window or a screen before a city opens: the page measures each
+// panel of the kind showing and every element in it as the browser lays them out,
 // and the check finds, from what it measured, an element outside its panel, one whose content overflows its box or
 // whose text is cut off, a panel outside the screen, two panels overlapping, a text under WCAG AA's 4.5:1 against what
 // it is drawn on over the darkest and the lightest map, and a text in any font but Inter.
@@ -57,9 +58,9 @@ interface Measured {
   panels: MeasuredPanel[];
 }
 
-// What the browser lays out: every panel showing, and every element showing in each. Runs in the page, so it is
-// self-contained.
-function measure(): Measured {
+// What the browser lays out: every panel the selector picks that shows, and every element showing in each. Runs in the
+// page, so it is self-contained.
+function measure(selector: string): Measured {
   const shows = (element: Element) => {
     const style = getComputedStyle(element);
     const box = element.getBoundingClientRect();
@@ -77,7 +78,7 @@ function measure(): Measured {
   });
   const scrolls = (element: Element) => ["auto", "scroll"].includes(getComputedStyle(element).overflowY);
 
-  const panels = Array.from(document.querySelectorAll(".hudPanel, #toolToast")).filter(shows);
+  const panels = Array.from(document.querySelectorAll(selector)).filter(shows);
   return {
     screen: {width: innerWidth, height: innerHeight},
     panels: panels.map((panel) => ({
@@ -86,17 +87,26 @@ function measure(): Measured {
       box: boxOf(panel),
       elements: [panel, ...Array.from(panel.querySelectorAll("*"))].filter(shows).map((element) => {
         const style = getComputedStyle(element);
-        // Its own text, a closed select's chosen option or a field's value
+        // Its own text, a closed select's chosen option, or a field's value or a button's, but not a slider, a radio
+        // button or a check box, which have none
         const own = Array.from(element.childNodes).some((node) => node.nodeType === Node.TEXT_NODE &&
                                                                    (node.textContent ?? "").trim() !== "") ||
-          element instanceof HTMLSelectElement || element instanceof HTMLInputElement;
+          element instanceof HTMLSelectElement ||
+          (element instanceof HTMLInputElement && !["range", "radio", "checkbox"].includes(element.type));
 
-        // Where it shows, clipped by what clips it within its panel. Text clipped is text cut off, but for text a list
-        // that scrolls by design has scrolled out of sight.
+        // Where it shows, clipped by what clips it within its panel, and by the panel where the panel scrolls, as a
+        // window does where the screen is too short for it. Text clipped is text cut off, but for text a list that
+        // scrolls by design has scrolled out of sight.
         const whole = boxOf(element);
         let shown = whole;
         let unscrolled = whole;
-        for (let parent = element.parentElement; parent !== null && parent !== panel; parent = parent.parentElement) {
+        for (let parent = element.parentElement; parent !== null; parent = parent.parentElement) {
+          if (parent === panel) {
+            if (scrolls(panel)) {
+              shown = clip(shown, boxOf(panel));
+            }
+            break;
+          }
           if (getComputedStyle(parent).overflow !== "visible") {
             shown = clip(shown, boxOf(parent));
             if (!scrolls(parent)) {
@@ -107,12 +117,14 @@ function measure(): Measured {
 
         // Its content within its box, but for a list that scrolls by design, a field, whose value scrolls within it,
         // and what an element without text of its own clips by design, such as the minimap's view rectangle in its
-        // frame
+        // frame. A panel that scrolls does so only where the screen is shorter than any the HUD is laid out for, so
+        // at those sizes its scrolling is a part of it out of sight.
         const clips = (overflow: string) => ["hidden", "clip"].includes(overflow) && !own;
         const overflows = element instanceof HTMLElement && !(element instanceof HTMLInputElement) &&
           style.display !== "inline" &&
           ((!clips(style.overflowX) && element.scrollWidth > element.clientWidth + 1) ||
-           (!clips(style.overflowY) && !scrolls(element) && element.scrollHeight > element.clientHeight + 1));
+           (!clips(style.overflowY) && (element === panel || !scrolls(element)) &&
+            element.scrollHeight > element.clientHeight + 1));
 
         const chain: Element[] = [];
         for (let e: Element | null = element; e !== null && e !== document.body; e = e.parentElement) {
@@ -136,7 +148,7 @@ function measure(): Measured {
 // The darkest and the lightest the map can be under a see-through panel
 const MAP_EXTREMES = ["#000000", "#ffffff"];
 
-// The HUD's font, which every text of it is drawn in
+// The page's font, which every text of the HUD, the windows and the screens is drawn in
 const HUD_FONT = /^["']?Inter["']?(,|$)/;
 
 function inside(inner: Box, outer: Box): boolean {
@@ -200,8 +212,31 @@ function problemsIn({screen, panels}: Measured): string[] {
   return problems;
 }
 
-// What the layout check finds on the page: each problem, and the ids of the panels showing
-export async function checkLayout(page: Page): Promise<{problems: string[], panels: string[]}> {
-  const measured = await page.evaluate(measure);
+// The screen sizes the HUD, the windows and the screens are laid out for
+export const LAYOUT_SIZES = [{width: 1280, height: 720}, {width: 1440, height: 900}, {width: 1920, height: 1080}];
+
+// The HUD's panels over the map, the disaster view, the tool toast and the notification bar among them
+export const HUD_PANELS = "#hud .hudPanel, #toolToast";
+// A window showing, which the veil sets apart from the HUD under it
+export const WINDOWS = ".hudWindow";
+// A screen before a city opens
+export const SCREENS = ".hudScreen";
+
+// What the layout check finds among the panels the selector picks: each problem, and the ids of the panels showing
+export async function checkLayout(page: Page, selector: string): Promise<{problems: string[], panels: string[]}> {
+  const measured = await page.evaluate(measure, selector);
   return {problems: problemsIn(measured), panels: measured.panels.map((panel) => panel.id)};
+}
+
+// What the layout check finds at each of the sizes, among the panels the selector picks, the one with the id alone
+// showing, each problem naming the size
+export async function problemsAtEachSize(page: Page, selector: string, id: string): Promise<string[]> {
+  const problems: string[] = [];
+  for (const size of LAYOUT_SIZES) {
+    await page.setViewportSize(size);
+    const found = await checkLayout(page, selector);
+    expect(found.panels, `#${id} showing at ${size.width}x${size.height}`).toEqual([id]);
+    problems.push(...found.problems.map((problem) => `${problem} at ${size.width}x${size.height}`));
+  }
+  return problems;
 }

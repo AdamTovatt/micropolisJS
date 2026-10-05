@@ -42,7 +42,7 @@ export class CityListView {
       const item = appendElement(this.list, "li");
 
       // A save loaded as a new city keeps its name, so the start of the id tells two of one name apart
-      const rejoin = appendElement(item, "button", "splashRejoin");
+      const rejoin = appendElement(item, "button", "splashRejoin hudButton");
       rejoin.textContent = known.name;
       appendElement(rejoin, "span", "splashCityId").textContent = known.city.slice(0, 6);
       rejoin.title = `Join ${known.name} again (${known.city})`;
@@ -51,7 +51,7 @@ export class CityListView {
         this.rejoin(known);
       });
 
-      const forget = appendElement(item, "button", "splashForget");
+      const forget = appendElement(item, "button", "splashForget hudButton");
       forget.textContent = "Forget";
       forget.title = `Take ${known.name} off this list. The city stays on the server, and its link still joins it.`;
       forget.addEventListener("click", (e) => {

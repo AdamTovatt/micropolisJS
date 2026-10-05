@@ -14,7 +14,8 @@
 
 import type { CityDriver, CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
-import { AdvanceResult, Command, FireStationReach, SPEEDS, StatusRecord, TilePosition } from "../src/protocol";
+import { AdvanceResult, BudgetForecastAnswer, Command, EvaluationRecord, FireStationReach, SPEEDS, StatusRecord,
+         TilePosition } from "../src/protocol";
 import { attachDriverToTestHook, installTestHook, TestHook } from "../src/testHook";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
 import { restoreGlobals, stubGlobal } from "./helpers/globals";
@@ -28,6 +29,18 @@ import { BranchName, NEW_CITY, openTown, ROAD, UNKNOWN_COMMAND } from "./recordi
 // for the game to send them, as the game's do until its next tick.
 // How far the fake games' views may move
 const LIMITS = {minX: -40, maxX: 79, minY: -30, maxY: 69};
+
+const EVALUATION: EvaluationRecord = {
+    type: "evaluation", approval: 40, problems: [0, 4], population: 2400, migration: 120, assessedValue: 90000,
+    cityClass: "VILLAGE", level: 0, score: 480, scoreDelta: -20, scoreBreakdown: [{reason: "TAXES", points: -20}],
+};
+
+const FORECAST: BudgetForecastAnswer = {
+    type: "budgetForecast",
+    budget: {type: "budget", taxRate: 7, taxesCollected: 900, funds: 5000, maintenance: {road: 300, fire: 100, police: 100},
+             funding: {road: 1, fire: 1, police: 1}},
+    costs: {road: 300, fire: 100, police: 100}, taxes: 900, fundsChange: 400, fundsAfterYear: 5400,
+};
 
 function gameOn(source: CitySource, state: CityState) {
     const game = {
@@ -54,6 +67,14 @@ function gameOn(source: CitySource, state: CityState) {
         statusPanel: {show: (status: StatusRecord) => {
             game.statuses.push(status);
         }},
+        forecasts: [] as BudgetForecastAnswer[],
+        budgetWindow: {write: (forecast: BudgetForecastAnswer) => {
+            game.forecasts.push(forecast);
+        }},
+        evaluations: [] as EvaluationRecord[],
+        evaluationWindow: {write: (record: EvaluationRecord) => {
+            game.evaluations.push(record);
+        }},
         hoverTile: {x: 7, y: 9} as {x: number, y: number} | null,
     };
 
@@ -71,6 +92,8 @@ const IDLE_GAME = {
     notificationBar: {dismiss: () => {}},
     toolToast: {dismiss: () => {}},
     statusPanel: {show: () => {}},
+    budgetWindow: {write: () => {}},
+    evaluationWindow: {write: () => {}},
     hoverTile: null,
 };
 
@@ -226,13 +249,16 @@ describe("the test hook", () => {
             await expect(call()).rejects.toThrow("No game has started");
         });
 
-        it.each(["view", "commandsApplied", "dismissNotification", "showStatus", "viewsCurrent"])("can't %s", (method) => {
+        it.each(["view", "commandsApplied", "dismissNotification", "showStatus", "showEvaluation", "showBudgetForecast",
+                 "viewsCurrent"])("can't %s", (method) => {
             const hook = new TestHook();
             const call = {view: () => hook.view(), commandsApplied: () => hook.commandsApplied(),
                           dismissNotification: () => hook.dismissNotification(),
                           showStatus: () => hook.showStatus({type: "status", powerCapacity: 0, powerLoad: 0,
                                                              residentialCapped: false, commercialCapped: false,
                                                              industrialCapped: false, conditions: []}),
+                          showEvaluation: () => hook.showEvaluation(EVALUATION),
+                          showBudgetForecast: () => hook.showBudgetForecast(FORECAST),
                           viewsCurrent: () => hook.viewsCurrent()}[method]!;
 
             expect(call).toThrow("No game has started");
@@ -447,5 +473,21 @@ describe("the test hook", () => {
         hook.showStatus(status);
 
         expect(game.statuses).toEqual([status]);
+    });
+
+    it("writes an evaluation record into the game's evaluation window", async () => {
+        const {hook, game} = await holdingGame("nothing");
+
+        hook.showEvaluation(EVALUATION);
+
+        expect(game.evaluations).toEqual([EVALUATION]);
+    });
+
+    it("writes a forecast into the game's budget window", async () => {
+        const {hook, game} = await holdingGame("nothing");
+
+        hook.showBudgetForecast(FORECAST);
+
+        expect(game.forecasts).toEqual([FORECAST]);
     });
 });
