@@ -17,7 +17,7 @@ import {
     isShortcut, isToolPress, spacePans, toolColours, zoomKey,
 } from "../src/inputStatus";
 import { CURSOR_TOOLS, type CursorTool } from "../src/protocol";
-import { ZOOM_STEPS } from "../src/viewPosition";
+import { ViewPosition, ZOOM_STEPS, viewport } from "../src/viewPosition";
 
 describe("the keys the game follows", () => {
 
@@ -264,15 +264,46 @@ describe("zooming with the mouse wheel", () => {
 
 describe("scrolling with the keyboard", () => {
 
-    // The milliseconds a held key takes to scroll a tile at the zoom given
-    const tileTime = (tileWidth: number) => tileWidth / SCROLL_SPEED * 1000;
+    // A key held scrolls 0.6 CSS pixels a millisecond, so the times here are multiples of 5 milliseconds, a whole
+    // number of pixels, and the tiles exact
 
-    it("scrolls a tile at once for a press, and on at the scroll speed while the key is held", () => {
+    it("scrolls nothing at once for a press, and on at the scroll speed while the key is held", () => {
         const keys = new ScrollKeys();
         keys.press("right", false, 1000);
 
-        expect(keys.take(1000, 16)).toEqual({x: 1, y: 0});
-        expect(keys.take(1000 + tileTime(16) * 3, 16)).toEqual({x: 3, y: 0});
+        expect(keys.take(1000, 16)).toEqual({x: 0, y: 0});
+        // 60 pixels, 3 and three quarter tiles
+        expect(keys.take(1100, 16)).toEqual({x: 3.75, y: 0});
+    });
+
+    // Drives the view as well as the keys, which the view's tests and the controls' each cover half of: the one test of
+    // a held key moving the origin as the game moves it, from between tiles to the limit
+    it("moves the view's origin by the time held times the speed from between tiles, and stops exactly at the limit",
+       () => {
+        // 80 tiles across a map of 120, whose limit is 79.5; centred on row 50 with 56 whole tiles down, 50 - 28 = 22
+        const view = viewport(1280, 900, 16, 120, 100);
+        const position = new ViewPosition(view);
+        position.centreOn(60, 50);
+        position.scrollBy(0.25, 0);
+        expect(position.origin).toEqual({x: 20.25, y: 22});
+
+        const keys = new ScrollKeys();
+        keys.press("right", false, 0);
+        // A take every 15 milliseconds, as the game's ticks take it: 9 pixels, 0.5625 of a tile, each
+        let now = 0;
+        for (; now < 300; now += 15) {
+            const scroll = keys.take(now, 16);
+            position.scrollBy(scroll.x, scroll.y);
+        }
+        // 285 milliseconds are 171 pixels, 10.6875 tiles, on from 20.25: between tiles, where whole-tile steps would
+        // come to 31
+        expect(position.origin.x).toBe(30.9375);
+
+        for (; now < 10_000; now += 15) {
+            const scroll = keys.take(now, 16);
+            position.scrollBy(scroll.x, scroll.y);
+        }
+        expect(position.origin).toEqual({x: view.maxX, y: 22});
     });
 
     it.each(ZOOM_STEPS)("scrolls the same screen distance in the same time at %i pixels a tile", (tileWidth) => {
@@ -294,15 +325,26 @@ describe("scrolling with the keyboard", () => {
         keys.press("right", false, 0);
         keys.take(0, 16);
 
-        expect(keys.take(5000, 16).x * 16).toBe(Math.floor(SCROLL_SPEED * MAX_SCROLL_TIME / 1000 / 16) * 16);
+        expect(keys.take(5000, 16).x * 16).toBe(SCROLL_SPEED * MAX_SCROLL_TIME / 1000);
     });
 
-    it("holds a key whose repeated keydown comes before any press, without a tile at once", () => {
+    it("scrolls a second's worth for a key event that ends a stall, and the time since for the take after it", () => {
+        const keys = new ScrollKeys();
+        keys.press("right", false, 0);
+        keys.take(0, 16);
+        // The first event after the stall counts a second's worth right, 600 pixels, and the take the 10 milliseconds
+        // since, left, 6: 594 pixels
+        keys.press("left", false, 5000);
+
+        expect(keys.take(5010, 16)).toEqual({x: 37.125, y: 0});
+    });
+
+    it("holds a key whose repeated keydown comes before any press", () => {
         // As a key pressed while a window held the keyboard repeats once the window has closed
         const keys = new ScrollKeys();
         keys.press("right", true, 0);
 
-        expect([keys.take(0, 16), keys.take(tileTime(16) * 2, 16)]).toEqual([{x: 0, y: 0}, {x: 2, y: 0}]);
+        expect([keys.take(0, 16), keys.take(100, 16)]).toEqual([{x: 0, y: 0}, {x: 3.75, y: 0}]);
     });
 
     it("scrolls by time, not by how often the game takes it", () => {
@@ -316,35 +358,37 @@ describe("scrolling with the keyboard", () => {
             tiles += often.take(now, 16).x;
         }
 
-        expect(tiles).toBe(rare.take(500, 16).x);
-        expect(tiles).toBe(-(1 + Math.floor(SCROLL_SPEED / 2 / 16)));
+        // 300 pixels, eighteen and three quarter tiles
+        expect(rare.take(500, 16).x).toBe(-18.75);
+        expect(tiles).toBeCloseTo(-18.75, 9);
     });
 
-    it("carries a part tile over to the next take, keeping the origin on whole tiles", () => {
+    it("never rounds to whole tiles, carrying nothing from one take to the next", () => {
         const keys = new ScrollKeys();
         keys.press("up", false, 0);
         keys.take(0, 64);
 
-        const halfTile = tileTime(64) / 2;
-        expect([keys.take(halfTile, 64), keys.take(2 * halfTile, 64)]).toEqual([{x: 0, y: 0}, {x: 0, y: -1}]);
+        // 30 pixels each, under half a tile at 64 pixels a tile
+        expect([keys.take(50, 64), keys.take(100, 64)]).toEqual([{x: 0, y: -0.46875}, {x: 0, y: -0.46875}]);
     });
 
-    it("scrolls a tile for a press let go before any take, and no further", () => {
+    it("scrolls a key let go before any take for the time it was held, and no further", () => {
         const keys = new ScrollKeys();
         keys.press("up", false, 0);
-        keys.release("up", 2);
+        keys.release("up", 100);
 
-        expect([keys.take(100, 16), keys.take(200, 16)]).toEqual([{x: 0, y: -1}, {x: 0, y: 0}]);
+        expect([keys.take(200, 16), keys.take(300, 16)]).toEqual([{x: 0, y: -3.75}, {x: 0, y: 0}]);
     });
 
     it("scrolls no further for a key's repeated keydown", () => {
         const keys = new ScrollKeys();
         keys.press("up", false, 0);
-        const first = keys.take(0, 16);
+        keys.take(0, 16);
         keys.press("up", true, 10);
-        keys.release("up", 11);
+        keys.release("up", 20);
 
-        expect([first, keys.take(12, 16)]).toEqual([{x: 0, y: -1}, {x: 0, y: 0}]);
+        // The 20 milliseconds held, 12 pixels
+        expect([keys.take(30, 16), keys.take(40, 16)]).toEqual([{x: 0, y: -0.75}, {x: 0, y: 0}]);
     });
 
     it("scrolls along both axes at once", () => {
@@ -352,7 +396,7 @@ describe("scrolling with the keyboard", () => {
         keys.press("left", false, 0);
         keys.press("down", false, 0);
 
-        expect(keys.take(tileTime(16) * 2, 16)).toEqual({x: -3, y: 3});
+        expect(keys.take(100, 16)).toEqual({x: -3.75, y: 3.75});
     });
 
     it("scrolls the way of the key last pressed of two held along an axis, and on the other's once it is let go", () => {
@@ -361,19 +405,31 @@ describe("scrolling with the keyboard", () => {
         keys.take(0, 16);
         keys.press("right", false, 0);
 
-        expect(keys.take(tileTime(16) * 2, 16)).toEqual({x: 3, y: 0});
+        expect(keys.take(100, 16)).toEqual({x: 3.75, y: 0});
 
-        keys.release("right", tileTime(16) * 2);
-        expect(keys.take(tileTime(16) * 4, 16)).toEqual({x: -2, y: 0});
+        keys.release("right", 100);
+        expect(keys.take(150, 16)).toEqual({x: -1.875, y: 0});
     });
 
-    it("stops every key the page loses the keyboard with", () => {
+    it("scrolls each way for the time it was held between two takes", () => {
+        const keys = new ScrollKeys();
+        keys.press("left", false, 0);
+        keys.take(0, 16);
+        // Left for 50 milliseconds, then right for 100
+        keys.press("right", false, 50);
+
+        // 60 pixels right less 30 left, 1 and seven eighths tiles
+        expect(keys.take(150, 16)).toEqual({x: 1.875, y: 0});
+    });
+
+    it("stops every key the page loses the keyboard with, once it has scrolled for the time they were held", () => {
         const keys = new ScrollKeys();
         keys.press("left", false, 0);
         keys.press("up", false, 0);
         keys.take(0, 16);
-        keys.releaseAll(1);
+        keys.releaseAll(5);
 
-        expect(keys.take(1000, 16)).toEqual({x: 0, y: 0});
+        // 3 pixels each way
+        expect([keys.take(1000, 16), keys.take(2000, 16)]).toEqual([{x: -0.1875, y: -0.1875}, {x: 0, y: 0}]);
     });
 });

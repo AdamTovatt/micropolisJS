@@ -12,11 +12,11 @@
  *
  */
 
-import { expect, Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import { serverForTests } from "./gameServer";
 import { collectPageProblems } from "./page";
-import { Player, startGame } from "./player";
+import { Player, mapCursor as cursor, startGame } from "./player";
 import { tileAt, tilesIn } from "./savedMap";
 import { SEED } from "./stages";
 
@@ -27,10 +27,6 @@ const server = serverForTests("manual");
 
 // The site the specs pan over, clear land on the seed's map near the middle
 const ROW = {left: 50, top: 30, right: 54, bottom: 30};
-
-async function cursor(page: Page): Promise<string> {
-  return page.locator("#MicropolisCanvas").evaluate((canvas) => getComputedStyle(canvas).cursor);
-}
 
 // The point of the map under a point of the page, in tiles, from the view the hook reports
 async function mapPointUnder(player: Player, point: {x: number, y: number}): Promise<{x: number, y: number}> {
@@ -82,8 +78,11 @@ test("Space and a drag pan the map under the pointer, between tiles, with the ha
   expect(await player.tileUnder(to), "the tile under the pointer").toEqual({x: ROW.left, y: ROW.top});
 
   // While the map is held, the wheel doesn't zoom and the arrow keys don't scroll
+  // The key held a tenth of a second, which would glide the view a few tiles: a tap would move it a fiftieth of one
   await page.mouse.wheel(0, -300);
-  await page.keyboard.press("ArrowRight");
+  await page.keyboard.down("ArrowRight");
+  await page.waitForTimeout(100);
+  await page.keyboard.up("ArrowRight");
   await player.settle();
   expect(await player.view(), "the view after the wheel and an arrow key, the map held").toEqual(panned);
 

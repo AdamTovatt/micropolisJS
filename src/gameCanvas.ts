@@ -164,8 +164,7 @@ class GameCanvas {
     return this.height * SPRITE_PIXELS_PER_TILE / this.zoom;
   }
 
-  // Moves the view the whole tiles given across and down, as far as its limits, the first of them to the next
-  // whole tile from an origin between tiles
+  // Moves the view the tiles given across and down, a fraction of a tile included, as far as its limits
   scrollBy(tilesX: number, tilesY: number): void {
     this.position.scrollBy(tilesX, tilesY);
   }

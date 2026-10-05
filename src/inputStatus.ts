@@ -60,8 +60,9 @@ export type ScrollKey = Exclude<HeldKey, "escape">;
 // How fast a scroll key held moves the view, in CSS pixels a second, at every zoom
 export const SCROLL_SPEED = 600;
 
-// The most time held one take scrolls for, in milliseconds: after a stall of the page, such as a slow frame or a tab in
-// the background, the view moves on at most a second's worth, as the step driver catches up at most a second's steps
+// The most time held one count scrolls for, in milliseconds, a count being a take or a key's press or release: after a
+// stall of the page, such as a slow frame or a tab in the background, the first count moves the view on at most a
+// second's worth, as the step driver catches up at most a second's steps, and each after it only the time since
 export const MAX_SCROLL_TIME = 1000;
 
 type Axis = "x" | "y";
@@ -75,75 +76,60 @@ const SCROLL_WAYS: Record<ScrollKey, {axis: Axis, way: Way}> = {
   down: {axis: "y", way: 1},
 };
 
-// The scrolling along one axis. The key last pressed of those held sets the way. The time it is held builds up into
-// pixels at SCROLL_SPEED, and the pixels into whole tiles, which the view steps its origin by, from one between tiles
-// to the next whole tile first; what is left over carries to the next take. A press moves the view a tile at once, even
-// one that comes and goes between two takes.
+// The scrolling along one axis. The key last pressed of those held sets the way, and the view moves that way at
+// SCROLL_SPEED for exactly as long as it is held, in CSS pixels, never rounded to whole tiles: a press moves it nothing
+// at once, and a key let go or turned between two takes moves it for the time it was held that way.
 class AxisScroll {
   // The ways of the keys held, the last pressed last
   private held: Way[] = [];
-  // The way of a press since the last take, or 0 for none
-  private pressed: Way | 0 = 0;
-  // The pixels scrolled toward the next whole tile, and the time, in milliseconds, they were counted to
+  // The CSS pixels the keys held moved the view since the last take, negative for back, and the time, in milliseconds,
+  // they were counted to
   private pixels = 0;
   private since = 0;
 
   // A key's keydown at the time given. A key held repeats its keydown, which is no new press. The repeat of a key not
-  // held, as one pressed while a window held the keyboard and still down once it closed, holds it without the press's
-  // tile at once.
+  // held, as one pressed while a window held the keyboard and still down once it closed, holds it.
   press(way: Way, repeat: boolean, now: number): void {
     if (repeat && this.held.includes(way)) {
       return;
     }
 
-    const before = this.way();
+    this.count(now);
     this.held = [...this.held.filter((held) => held !== way), way];
-    if (!repeat) {
-      this.pressed = way;
-    }
-    this.restartIfTurned(before, now);
   }
 
   release(way: Way, now: number): void {
-    const before = this.way();
+    this.count(now);
     this.held = this.held.filter((held) => held !== way);
-    this.restartIfTurned(before, now);
   }
 
-  // The whole tiles to move the origin along the axis at the time given, negative for back
+  // The tiles to move the origin along the axis at the time given, negative for back, a fraction of a tile included
   take(now: number, tileWidth: number): number {
-    const way = this.way();
-    let tiles = this.pressed;
-    this.pressed = 0;
-
-    if (way !== 0) {
-      this.pixels += SCROLL_SPEED * Math.min(now - this.since, MAX_SCROLL_TIME) / 1000;
-      this.since = now;
-      const whole = Math.floor(this.pixels / tileWidth);
-      this.pixels -= whole * tileWidth;
-      tiles += way * whole;
-    }
-
+    this.count(now);
+    const tiles = this.pixels / tileWidth;
+    this.pixels = 0;
     return tiles;
+  }
+
+  // Counts the pixels the way held moves the view up to the time given, at most MAX_SCROLL_TIME's worth since the last
+  // count
+  private count(now: number): void {
+    const way = this.way();
+    if (way !== 0) {
+      this.pixels += way * SCROLL_SPEED * Math.min(now - this.since, MAX_SCROLL_TIME) / 1000;
+    }
+    this.since = now;
   }
 
   // The way the keys held scroll, or 0 for none held
   private way(): Way | 0 {
     return this.held.length === 0 ? 0 : this.held[this.held.length - 1];
   }
-
-  // The time held counts from now in a way the keys held have just turned to
-  private restartIfTurned(before: Way | 0, now: number): void {
-    if (this.way() !== before) {
-      this.pixels = 0;
-      this.since = now;
-    }
-  }
 }
 
-// The scroll keys held and pressed, which the game takes on each of its ticks as the whole tiles to move the view
-// across and down: a key held moves it at SCROLL_SPEED whatever the zoom, however often the game ticks, and a press
-// moves it a tile at once. Each axis scrolls apart, so keys of both scroll the view on a slant.
+// The scroll keys held, which the game takes on each of its ticks as the tiles to move the view across and down, a
+// fraction of a tile included: a key held moves it at SCROLL_SPEED whatever the zoom, however often the game ticks.
+// Each axis scrolls apart, so keys of both scroll the view on a slant.
 export class ScrollKeys {
   private readonly axes: Record<Axis, AxisScroll> = {x: new AxisScroll(), y: new AxisScroll()};
 
@@ -165,7 +151,7 @@ export class ScrollKeys {
     }
   }
 
-  // The whole tiles to move the view across and down at the time given, when a tile is tileWidth CSS pixels
+  // The tiles to move the view across and down at the time given, when a tile is tileWidth CSS pixels
   take(now: number, tileWidth: number): TilePoint {
     return {x: this.axes.x.take(now, tileWidth), y: this.axes.y.take(now, tileWidth)};
   }
@@ -563,7 +549,7 @@ export class InputStatus extends Emitter<InputEvents> {
     }
   }
 
-  // The whole tiles to scroll the view across and down at the time given, since the last take. A window holding the
+  // The tiles to scroll the view across and down at the time given, since the last take. A window holding the
   // keyboard holds the view still, and so does a pan holding the map, which keeps the point of the map it grabbed under
   // the pointer: the scroll owed for a key held then is dropped.
   takeScroll(now: number): TilePoint {

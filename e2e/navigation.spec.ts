@@ -25,6 +25,13 @@ import { SEED } from "./stages";
 
 const server = serverForTests("manual");
 
+declare global {
+  interface Window {
+    // The origins across the glide test samples, while it samples them
+    glideSamples?: number[];
+  }
+}
+
 // The view's origin, by the hook
 async function origin(player: Player): Promise<{x: number, y: number}> {
   const view = await player.view();
@@ -99,6 +106,45 @@ test("the view stops with the middle of a corner tile at the middle of the scree
   expect(await origin(player), "the origin at the bottom-right limits")
     .toEqual(await originWithMiddleOn(player, corner));
   expect(await player.tileUnder(middle), "the tile at the middle of the screen").toEqual(corner);
+  expect(problems).toEqual([]);
+});
+
+test("a scroll key held glides the view between tiles, never stepping by whole tiles", async ({page}) => {
+  const problems = collectPageProblems(page);
+  const player = await startGame(server(), page, SEED, "Glide");
+  const start = await origin(player);
+  expect(Number.isInteger(start.x), "the origin the game opens on, on a whole tile").toBe(true);
+
+  // The origin across at each frame the page draws while the key is held, and once it is up
+  await page.evaluate(() => {
+    const sampled: number[] = [];
+    window.glideSamples = sampled;
+    const sample = () => {
+      if (window.glideSamples === sampled) {
+        sampled.push(window.micropolisTestHook!.view().originX);
+        requestAnimationFrame(sample);
+      }
+    };
+    requestAnimationFrame(sample);
+  });
+  await page.keyboard.down("ArrowRight");
+  await expect.poll(async () => (await origin(player)).x, "the origin as the key is held")
+    .toBeGreaterThan(start.x + 3);
+  await page.keyboard.up("ArrowRight");
+  await player.settle();
+  const samples = await page.evaluate(() => {
+    const sampled = window.glideSamples!;
+    window.glideSamples = undefined;
+    return [...sampled, window.micropolisTestHook!.view().originX];
+  });
+
+  // Each distinct origin the view came to after it began moving: by whole tiles every one would be a whole tile, and
+  // by the time held almost none is, as a frame or the time the key came up lands on one seldom
+  const moved = [...new Set(samples.filter((x) => x !== start.x))];
+  const between = moved.filter((x) => !Number.isInteger(x));
+  expect(moved.length, "the origins the view came to").toBeGreaterThan(3);
+  expect(between.length, `the origins between tiles of ${JSON.stringify(moved)}`)
+    .toBeGreaterThan(moved.length / 2);
   expect(problems).toEqual([]);
 });
 

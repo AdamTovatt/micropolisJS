@@ -34,7 +34,7 @@ import { CITY_NAME, letTheDriverRun, PLAYER_NAME, SEED, STAGES } from "./stages"
 // server's clock, so that once the runner lets go of the city after the stages, the server steps it in real time.
 
 // The page's date, fixed: the tiles the client animates, and the unpowered zones' blink, take their frame from it. With
-// the view scrolled to the same place on every run (Player.showTiles), and whatever on screen closes on wall time left
+// the view panned to the same place on every run (Player.showTiles), and whatever on screen closes on wall time left
 // to close before each screenshot, a stage's screenshot shows the same frame on every run, and two runs' screenshots
 // can be compared pixel for pixel. The screenshot after the server's own driver ran is left out of such a comparison:
 // how far the city got depends on wall time.

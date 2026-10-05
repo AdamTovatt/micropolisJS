@@ -18,6 +18,7 @@ import { readFileSync } from "fs";
 import type { FireStationReach } from "../src/protocol";
 import type { Advanced, View } from "../src/testHook";
 import { steppedZoom } from "../src/viewPosition";
+import type { TilePoint } from "../src/viewPosition";
 import { CommandLog, joinSessions, parseLog } from "../test/helpers/commandLog";
 import { CITY_LINK, GameServer } from "./gameServer";
 
@@ -52,21 +53,20 @@ export type Difficulty = "Easy" | "Med" | "Hard";
 const CANVAS_ID = "MicropolisCanvas";
 const CANVAS = `#${CANVAS_ID}`;
 
-type Axis = "x" | "y";
+// The most drags panTo makes, though the farthest pan across the map at the closest zoom takes fewer
+const MAX_PAN_DRAGS = 40;
 
-// The keys that move the view's origin down and up along each axis
-const SCROLL_KEYS: Record<Axis, {down: string, up: string}> = {
-  x: {down: "ArrowLeft", up: "ArrowRight"},
-  y: {down: "ArrowUp", up: "ArrowDown"},
-};
+declare global {
+  interface Window {
+    // Where the pointer last moved on the page, in CSS pixels, which the runner puts back after a pan
+    runnerPointer?: {x: number, y: number};
+  }
+}
 
-// The farthest from its stop scrollTo taps a key rather than holding one
-const NEAR_ENOUGH_TO_TAP = 3;
-// The most presses scrollTo makes along one axis, though the farthest scroll across the map holds a key fewer times
-// than the map is wide
-const MAX_SCROLL_PRESSES = 500;
-// The longest a held key may leave the view where it was
-const HOLD_STALL_MS = 1000;
+// The cursor over the map, as the player sees it
+export async function mapCursor(page: Page): Promise<string> {
+  return page.locator(CANVAS).evaluate((canvas) => getComputedStyle(canvas).cursor);
+}
 
 // An origin along an axis held within the view's limits there, as the view holds it
 export function heldWithin(origin: number, min: number, max: number): number {
@@ -89,6 +89,8 @@ export class Player {
   private commandsBefore = 0;
   // Whether each page opened holds its driver as it starts
   private holdingAtStart = false;
+  // Whether each page opened keeps where the pointer last moved
+  private trackingPointer = false;
 
   private constructor(readonly page: Page, private readonly server: GameServer, private readonly name: string) {}
 
@@ -103,6 +105,7 @@ export class Player {
   // it never steps unasked
   async open(query = ""): Promise<void> {
     await this.holdEachPageAtStart();
+    await this.trackThePointerOnEachPage();
     await this.page.goto(`/?debug=1${query === "" ? "" : `&${query}`}`);
     await this.holdOnceHooked();
   }
@@ -484,6 +487,18 @@ export class Player {
     }
   }
 
+  // Has every page opened from now on keep where the pointer last moved, which panTo puts it back to
+  private async trackThePointerOnEachPage(): Promise<void> {
+    if (!this.trackingPointer) {
+      await this.page.addInitScript(() => {
+        window.addEventListener("mousemove", (e) => {
+          window.runnerPointer = {x: e.clientX, y: e.clientY};
+        }, {capture: true});
+      });
+      this.trackingPointer = true;
+    }
+  }
+
   // The hook's advance, counting the steps it took even when it fails
   private async hookAdvance(steps: number): Promise<Advanced> {
     const outcome = await this.page.evaluate(async (n) => {
@@ -505,21 +520,18 @@ export class Player {
     return outcome.advanced;
   }
 
-  // Scrolls the map with the arrow keys, as a player does, until every tile given is in view and clear of the panels:
-  // first across, then down, to the origin that puts the tiles' middle at the canvas's, held within the view's limits.
+  // Pans the map with Space and the mouse, as a player does, until every tile given is in view and clear of the panels:
+  // to the origin that puts the tiles' middle at the canvas's, on whole tiles, held within the view's limits.
   async showTiles(tiles: Tile[]): Promise<void> {
     const middle = (along: (tile: Tile) => number) =>
       (Math.min(...tiles.map(along)) + Math.max(...tiles.map(along))) / 2;
     const view = await this.view();
     const canvas = await this.canvasBox();
     const {minX, maxX, minY, maxY} = view.limits;
-    const stops: Record<Axis, number> = {
+    await this.panTo({
       x: heldWithin(Math.floor(middle((tile) => tile.x) - canvas.width / view.tileWidth / 2), minX, maxX),
       y: heldWithin(Math.floor(middle((tile) => tile.y) - canvas.height / view.tileWidth / 2), minY, maxY),
-    };
-
-    await this.scrollTo("x", stops.x);
-    await this.scrollTo("y", stops.y);
+    });
 
     const hidden = [];
     for (const tile of tiles) {
@@ -529,89 +541,88 @@ export class Player {
     }
 
     if (hidden.length > 0) {
-      throw new Error(`Scrolling leaves ${hidden.map((tile) => `(${tile.x}, ${tile.y})`).join(", ")} out of view`);
+      throw new Error(`Panning leaves ${hidden.map((tile) => `(${tile.x}, ${tile.y})`).join(", ")} out of view`);
     }
   }
 
-  // Scrolls the view along the axis until its origin is the stop given, which is within the view's limits. The view
-  // moves a tile at once for a press, and on with the time while a key is down, and how long a key stays down depends
-  // on timing, so the view is brought to the stop, never moved a number of tiles: it comes to rest
-  // there on every run, and the screenshot that follows shows the same frame. While the view is far from the stop and
-  // has not yet passed it, a key is held until the view moves. Otherwise a key is let go as soon as it is pressed, and
-  // the view waited for to move, a tile and seldom more, so a hold that carried the view past the stop is undone a tile
-  // at a time.
-  private async scrollTo(axis: Axis, stop: number): Promise<void> {
-    const start = await this.origin(axis);
+  // Pans the view with Space and the mouse until its origin is the one given, which is within the view's limits, and
+  // fails unless it comes there exactly. A pan keeps the point of the map the pointer grabbed under it, so a drag of
+  // the pointer by the distance in CSS pixels from the origin to the one given brings the view there on every run,
+  // whatever the timing, unlike a scroll key, which moves the view for as long as it is down. A drag longer than half
+  // the canvas goes as several. Once the view is there the pointer goes back where it was, so the hover box shows on
+  // the tile under it, as it would had the map moved under a pointer standing still.
+  //
+  // The browser moves the pointer by whole CSS pixels, so the origin must lie a whole number of them from the one
+  // given, unless that one is a limit: a drag rounded up past a limit leaves the view stopped on it.
+  private async panTo(stop: TilePoint): Promise<void> {
+    const pointer = await this.page.evaluate(() => window.runnerPointer ?? null);
+    const canvas = await this.canvasBox();
+    const longestDrag = {x: Math.floor(canvas.width / 2), y: Math.floor(canvas.height / 2)};
+    const start = await this.view();
+    const {minX, maxX, minY, maxY} = start.limits;
+    const atLimit = {x: stop.x === minX || stop.x === maxX, y: stop.y === minY || stop.y === maxY};
+    for (const axis of ["x", "y"] as const) {
+      const pixels = ((axis === "x" ? start.originX : start.originY) - stop[axis]) * start.tileWidth;
+      if (!atLimit[axis] && !Number.isInteger(pixels)) {
+        throw new Error(`The view's origin is ${pixels} CSS pixels along ${axis} from ${stop[axis]}, which a pan by ` +
+                        "the whole pixels the browser moves the pointer by can't reach");
+      }
+    }
 
-    for (let presses = 0; ; presses++) {
-      const origin = await this.origin(axis);
-      if (origin === stop) {
-        return;
+    // The pointer moves against the origin: dragging the map left moves the view right
+    const dragAlong = (pixels: number, longest: number) =>
+      Math.sign(pixels) * Math.min(Math.ceil(Math.abs(pixels)), longest);
+    for (let drags = 0; ; drags++) {
+      const {originX, originY, tileWidth} = await this.view();
+      const remaining = {x: (originX - stop.x) * tileWidth, y: (originY - stop.y) * tileWidth};
+      if (remaining.x === 0 && remaining.y === 0) {
+        break;
       }
 
-      if (presses === MAX_SCROLL_PRESSES) {
-        throw new Error(`Scrolling along ${axis} never came to rest at ${stop}: after ${presses} presses it is at ` +
-                        `${origin}`);
+      if (drags === MAX_PAN_DRAGS) {
+        throw new Error(`Panning never brought the view's origin to (${stop.x}, ${stop.y}): after ${drags} drags it ` +
+                        `is at (${originX}, ${originY})`);
       }
 
-      const key = origin > stop ? SCROLL_KEYS[axis].down : SCROLL_KEYS[axis].up;
-      const passed = Math.sign(stop - origin) !== Math.sign(stop - start);
-      if (!passed && Math.abs(stop - origin) > NEAR_ENOUGH_TO_TAP) {
-        await this.holdUntilTheViewMoves(key, axis, origin);
-      } else {
-        await this.tapUntilTheViewMoves(key, axis, origin);
-      }
+      await this.dragTheMap({x: dragAlong(remaining.x, longestDrag.x), y: dragAlong(remaining.y, longestDrag.y)});
+    }
+
+    if (pointer !== null) {
+      await this.page.mouse.move(pointer.x, pointer.y);
+      expect(await this.page.evaluate(() => window.runnerPointer), "the pointer, back where it was before the pan")
+        .toEqual(pointer);
     }
   }
 
-  // Holds the key until the page sees the view's origin on the axis move from the one given, then lets it go. The page
-  // looks on a timer of its own, beside the game's ticks, and the key comes up only once its answer has reached the
-  // runner and the runner's key-up has reached the page, so on a loaded machine the view may move several tiles more.
-  // Fails when the view doesn't move at all, as when a window holds the keyboard: the stop is within the view's limits.
-  private async holdUntilTheViewMoves(key: string, axis: Axis, origin: number): Promise<void> {
-    await this.page.keyboard.down(key);
+  // Holds Space and drags the map by the CSS pixels given, from a point of the canvas no panel covers to another. The
+  // search runs in the page, so it finds the canvas on top at a point as onCanvas does, by elementFromPoint.
+  private async dragTheMap(drag: {x: number, y: number}): Promise<void> {
+    const canvas = await this.canvasBox();
+    const from = await this.page.evaluate(({box, by, step, id}) => {
+      for (let y = box.y + step; y < box.y + box.height; y += step) {
+        for (let x = box.x + step; x < box.x + box.width; x += step) {
+          if (document.elementFromPoint(x, y)?.id === id && document.elementFromPoint(x + by.x, y + by.y)?.id === id) {
+            return {x, y};
+          }
+        }
+      }
+
+      return null;
+    }, {box: canvas, by: drag, step: 20, id: CANVAS_ID});
+    if (from === null) {
+      throw new Error(`No point of the canvas to drag the map by (${drag.x}, ${drag.y}) from`);
+    }
+
+    await this.page.mouse.move(from.x, from.y);
+    await this.page.keyboard.down("Space");
     try {
-      if (!await this.viewMovesFrom(axis, origin)) {
-        throw new Error(`Holding ${key} left the view's origin at ${origin} along ${axis} for ${HOLD_STALL_MS} ms`);
-      }
+      await expect.poll(() => mapCursor(this.page), "the hand over the map while Space is held").toBe("grab");
+      await this.page.mouse.down();
+      await this.page.mouse.move(from.x + drag.x, from.y + drag.y, {steps: 4});
+      await this.page.mouse.up();
     } finally {
-      await this.page.keyboard.up(key);
+      await this.page.keyboard.up("Space");
     }
-  }
-
-  // Presses the key and lets it go, then waits until the page sees the view's origin on the axis move from the one
-  // given. The game moves the view for a press on its next tick, which may come after the key is up: the origin read
-  // before then would be the one the press is about to move, and a press made on it would move the view a tile too far.
-  private async tapUntilTheViewMoves(key: string, axis: Axis, origin: number): Promise<void> {
-    await this.page.keyboard.press(key);
-    if (!await this.viewMovesFrom(axis, origin)) {
-      throw new Error(`Pressing ${key} left the view's origin at ${origin} along ${axis} for ${HOLD_STALL_MS} ms`);
-    }
-  }
-
-  // Whether the page sees the view's origin on the axis move from the one given within HOLD_STALL_MS
-  private async viewMovesFrom(axis: Axis, origin: number): Promise<boolean> {
-    return this.page.evaluate(({along, from, stallMs}) => new Promise<boolean>((resolve) => {
-      let stalled = false;
-      const giveUp = window.setTimeout(() => {
-        stalled = true;
-        resolve(false);
-      }, stallMs);
-      const look = () => {
-        if (stalled) {
-          return;
-        }
-
-        const view = window.micropolisTestHook!.view();
-        if ((along === "x" ? view.originX : view.originY) !== from) {
-          window.clearTimeout(giveUp);
-          resolve(true);
-        } else {
-          window.setTimeout(look, 0);
-        }
-      };
-      look();
-    }), {along: axis, from: origin, stallMs: HOLD_STALL_MS});
   }
 
   // The view's origin and tile width, in CSS pixels, as the hook reports them
@@ -651,11 +662,6 @@ export class Player {
     const tilePixels = view.tileWidth * pixelRatio;
     return {originX: Math.round(view.originX * tilePixels), originY: Math.round(view.originY * tilePixels), tilePixels,
             pixelRatio};
-  }
-
-  private async origin(axis: Axis): Promise<number> {
-    const view = await this.view();
-    return axis === "x" ? view.originX : view.originY;
   }
 
   // The map's canvas on the page, in CSS pixels

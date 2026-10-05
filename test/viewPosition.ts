@@ -13,7 +13,7 @@
  */
 
 import {
-    ViewPosition, ZOOM_STEPS, centredOrigin, drawnOrigin, scrolledAxis, steppedZoom, tileOnCanvasUnderPoint,
+    ViewPosition, ZOOM_STEPS, centredOrigin, drawnOrigin, steppedZoom, tileOnCanvasUnderPoint,
     tileUnderPoint, viewport, zoomedOrigin,
 } from "../src/viewPosition";
 
@@ -108,28 +108,17 @@ describe("the view", () => {
             expect(position.origin).toEqual({x: 20, y: 22});
         });
 
-        it("scrolls by whole tiles across and down", () => {
-            const position = new ViewPosition(MAIN);
-            position.centreOn(60, 50);
-
-            position.scrollBy(2, -1);
-            expect(position.origin).toEqual({x: 22, y: 21});
-
-            position.scrollBy(-1, 1);
-            expect(position.origin).toEqual({x: 21, y: 22});
-        });
-
-        it("scrolls an origin between tiles to the next whole tile its way first", () => {
-            expect([scrolledAxis(3.4, 1), scrolledAxis(3.4, -1), scrolledAxis(3.4, 2), scrolledAxis(3.4, -2)])
-                .toEqual([4, 3, 5, 2]);
-            expect([scrolledAxis(3, 1), scrolledAxis(3, -1), scrolledAxis(3.4, 0)]).toEqual([4, 2, 3.4]);
-
+        it("scrolls by the tiles given across and down, a fraction of a tile included, with no rounding", () => {
             const position = positionAt(20.25, 22.5);
-            position.scrollBy(1, -1);
-            expect(position.origin).toEqual({x: 21, y: 22});
+
+            position.scrollBy(1.375, -0.0625);
+            expect(position.origin).toEqual({x: 21.625, y: 22.4375});
+
+            position.scrollBy(-2, 0.5);
+            expect(position.origin).toEqual({x: 19.625, y: 22.9375});
         });
 
-        it("doesn't scroll past the viewport's limits, and lands its last step on a limit between tiles", () => {
+        it("doesn't scroll past the viewport's limits, and stops exactly on them", () => {
             const position = new ViewPosition(MAIN);
 
             position.centreOn(-100, -100);
@@ -140,12 +129,12 @@ describe("the view", () => {
             position.scrollBy(1, 1);
             expect(position.origin).toEqual({x: MAIN.maxX, y: MAIN.maxY});
 
-            // A scroll past one limit still moves along the other axis; back from 79.5 is 79, and from 71.375 is 71
-            position.scrollBy(-3, -1);
-            expect(position.origin).toEqual({x: 77, y: 71});
+            // A scroll past one limit still moves along the other axis: 79.5 back 3 and 71.375 back 1.25
+            position.scrollBy(-3, -1.25);
+            expect(position.origin).toEqual({x: 76.5, y: 70.125});
 
-            position.scrollBy(0, 1);
-            expect(position.origin).toEqual({x: 77, y: 71.375});
+            position.scrollBy(0, 2);
+            expect(position.origin).toEqual({x: 76.5, y: 71.375});
         });
 
         it("knows the last tile in view, partly in view included", () => {

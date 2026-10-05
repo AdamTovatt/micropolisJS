@@ -75,16 +75,6 @@ function centredOrigin(x: number, y: number, view: Viewport): TilePoint {
                     Math.floor(y) - Math.ceil(view.wholeTilesInViewY / 2), view);
 }
 
-// The origin along an axis after a scroll of the whole tiles given, negative for back: the first tile of the scroll
-// takes an origin between tiles to the next whole tile its way, so from 3.4 a tile forward is 4 and a tile back is 3
-function scrolledAxis(origin: number, tiles: number): number {
-  if (tiles === 0) {
-    return origin;
-  }
-
-  return tiles > 0 ? Math.floor(origin) + tiles : Math.ceil(origin) + tiles;
-}
-
 // The zoom steps, in CSS pixels a tile is drawn on the canvas, from the farthest out. The view opens at the first.
 const ZOOM_STEPS: readonly number[] = [16, 32, 64];
 
@@ -174,10 +164,9 @@ class ViewPosition {
     this.moveTo(this.origin);
   }
 
-  // Moves the origin the whole tiles given across and down, the first of them to the next whole tile, as
-  // scrolledAxis moves it, held within the limits
+  // Moves the origin the tiles given across and down, a fraction of a tile included, held within the limits
   scrollBy(tilesX: number, tilesY: number): void {
-    this.moveTo({x: scrolledAxis(this.originX, tilesX), y: scrolledAxis(this.originY, tilesY)});
+    this.moveTo({x: this.originX + tilesX, y: this.originY + tilesY});
   }
 
   centreOn(x: number, y: number): void {
@@ -219,7 +208,7 @@ class ViewPosition {
 }
 
 export {
-  ViewPosition, ZOOM_STEPS, centredOrigin, drawnOrigin, pannedOrigin, scrolledAxis, steppedZoom, tileOnCanvasUnderPoint,
-  tileUnderPoint, viewport, zoomedOrigin,
+  ViewPosition, ZOOM_STEPS, centredOrigin, drawnOrigin, pannedOrigin, steppedZoom, tileOnCanvasUnderPoint, tileUnderPoint,
+  viewport, zoomedOrigin,
 };
 export type { OriginLimits, PixelPoint, TilePoint, Viewport };
