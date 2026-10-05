@@ -26,8 +26,10 @@ export class ActivityList {
   private elements = new Map<string, {at: number, element: HTMLElement}>();
   private expiry: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private readonly container: HTMLElement, private readonly roster: PlayerRoster) {
-    setShown(container, false);
+  // The panel shows while it has lines, which go in the element given for them
+  constructor(private readonly panel: HTMLElement, private readonly lineList: HTMLElement,
+              private readonly roster: PlayerRoster) {
+    setShown(panel, false);
   }
 
   add(result: CommandResult): void {
@@ -62,8 +64,8 @@ export class ActivityList {
     });
 
     this.elements = shown;
-    this.container.replaceChildren(...Array.from(shown.values(), ({element}) => element));
-    setShown(this.container, lines.length > 0);
+    this.lineList.replaceChildren(...Array.from(shown.values(), ({element}) => element));
+    setShown(this.panel, lines.length > 0);
 
     if (this.expiry !== null) {
       clearTimeout(this.expiry);

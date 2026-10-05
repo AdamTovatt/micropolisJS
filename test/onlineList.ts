@@ -16,8 +16,9 @@ import { onlineListView } from "../src/onlineList";
 
 describe("the online list", () => {
 
-    it("says offline when not connected", () => {
-        expect(onlineListView({online: false})).toEqual({label: "Offline", title: "Not connected to a server", players: []});
+    it("says so when not connected", () => {
+        expect(onlineListView({online: false}))
+            .toEqual({notConnected: "Not connected", title: "Not connected to a server", players: []});
     });
 
     it("lists everyone online in the order they came online, marking this player", () => {
@@ -27,6 +28,6 @@ describe("the online list", () => {
             players: [{id: "id-1", name: "Grace"}, {id: "id-2", name: "Ada"}, {id: "id-3", name: "Ada"}],
         });
 
-        expect(view).toEqual({label: "Online: ", title: "", players: ["Grace", "Ada (you)", "Ada"]});
+        expect(view).toEqual({notConnected: "", title: "", players: ["Grace", "Ada (you)", "Ada"]});
     });
 });

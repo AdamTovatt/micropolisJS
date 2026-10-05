@@ -18,11 +18,114 @@
   margin: 0;
 }
 
-/* How far the top panels sit below the map's top edge, and the notification bar above its bottom edge */
 :root {
+  /* How far the top panels sit below the map's top edge, and the notification bar above its bottom edge */
   --panel-margin: 40px;
   /* The demand meter's top, which the minimap goes under */
   --rci-top: 472px;
+  /* A panel's title strip (panelFolding.ts): its height, its button's, and the gap under it */
+  --fold-strip-height: 19px;
+  --fold-strip-gap: 4px;
+  /* The demand meter's canvas, METER_HEIGHT in rci.ts */
+  --meter-height: 115px;
+  /* The minimap's top: 20px under the demand panel, which is its strip and the meter, with 10px of padding each side.
+     The panel folding's section moves it up under a folded demand panel. */
+  --minimap-top: calc(var(--rci-top) + 2 * 10px + var(--fold-strip-height) + var(--fold-strip-gap) +
+                      var(--meter-height) + 20px);
+}
+
+/* The colours of the HUD: everything in the page's main element, the panels over the map, their buttons, the
+   notification bar and the splash screen among them. A text colour is --hud-<name>-text, and the background it is read
+   on is --hud-<name>-background, which the rule setting the text colour sets too. test/hudColours.ts holds each pair to
+   WCAG AA's 4.5:1 for normal text, and every text and background colour a HUD rule sets to one of these. A colour that
+   carries no text, such as a meter's, is a -fill, which no ratio holds, nor do borders and outlines. A tool button's
+   background is also its tool's outline on the map, which inputStatus.ts reads from the button. */
+:root {
+  --hud-panel-text: #000000;
+  --hud-panel-background: #f5fffa;
+  --hud-control-text: #ffffff;
+  --hud-control-background: #2f4f4f;
+
+  --hud-budget-text: #ffffff;
+  --hud-budget-background: #1565c0;
+  --hud-evaluation-text: #ffffff;
+  --hud-evaluation-background: #1e7b1e;
+  --hud-disasters-text: #ffff00;
+  --hud-disasters-background: #b00000;
+  --hud-save-text: #ffffff;
+  --hud-save-background: #3a7a7c;
+  --hud-settings-text: #ffffff;
+  --hud-settings-background: #663399;
+  --hud-picture-text: #ffffff;
+  --hud-picture-background: #c8402a;
+
+  --hud-good-news-text: #000000;
+  --hud-good-news-background: #90ee90;
+  --hud-bad-news-text: #ffff00;
+  --hud-bad-news-background: #b00000;
+
+  --hud-status-alert-text: #c00000;
+  --hud-status-alert-background: var(--hud-panel-background);
+  --hud-status-cap-text: #000000;
+  --hud-status-cap-background: #ffa500;
+  --hud-meter-empty-fill: #ffffff;
+  --hud-meter-fill: #008000;
+  --hud-meter-over-fill: #ff0000;
+  --hud-legend-empty-fill: #ffffff;
+  --hud-disaster-view-fill: #ff0000;
+
+  --hud-toast-text: #000000;
+  --hud-toast-background: #ffffe0;
+  --hud-veil-fill: #808080;
+
+  --hud-go-text: #ffffff;
+  --hud-go-background: #008000;
+  --hud-error-text: #8b0000;
+  --hud-error-background: var(--hud-panel-background);
+
+  --hud-play-text: #000000;
+  --hud-play-background: #90ee90;
+  --hud-generate-text: #ffffff;
+  --hud-generate-background: #1565c0;
+  --hud-link-text: #1565c0;
+  --hud-link-background: var(--hud-panel-background);
+  --hud-city-list-text: #000000;
+  --hud-city-list-background: #efefef;
+  --hud-city-id-text: #5c5c5c;
+  --hud-city-id-background: var(--hud-city-list-background);
+
+  --hud-tool-residential-text: #000000;
+  --hud-tool-residential-background: #00ff00;
+  --hud-tool-commercial-text: #ffffff;
+  --hud-tool-commercial-background: #0000ff;
+  --hud-tool-industrial-text: #000000;
+  --hud-tool-industrial-background: #ffff00;
+  --hud-tool-road-text: #ffffff;
+  --hud-tool-road-background: #000000;
+  --hud-tool-rail-text: #ffffff;
+  --hud-tool-rail-background: #a52a2a;
+  --hud-tool-wire-text: #000000;
+  --hud-tool-wire-background: #f0e68c;
+  --hud-tool-bulldozer-text: #000000;
+  --hud-tool-bulldozer-background: #fa8072;
+  --hud-tool-query-text: #000000;
+  --hud-tool-query-background: #00ffff;
+  --hud-tool-nuclear-text: #000000;
+  --hud-tool-nuclear-background: #ffe4e1;
+  --hud-tool-coal-text: #000000;
+  --hud-tool-coal-background: #808080;
+  --hud-tool-police-text: #ffffff;
+  --hud-tool-police-background: #00008b;
+  --hud-tool-fire-text: #000000;
+  --hud-tool-fire-background: #ff0000;
+  --hud-tool-port-text: #000000;
+  --hud-tool-port-background: #1e90ff;
+  --hud-tool-stadium-text: #ffffff;
+  --hud-tool-stadium-background: #4b0082;
+  --hud-tool-airport-text: #000000;
+  --hud-tool-airport-background: #ee82ee;
+  --hud-tool-park-text: #ffffff;
+  --hud-tool-park-background: #006400;
 }
 
 @font-face {
@@ -73,9 +176,10 @@ main {
   display: none;
 }
 
-.bad {
-  background-color: red;
-  color: yellow;
+/* The notification bar's tones, which notification.ts gives it */
+#notifications.bad {
+  background-color: var(--hud-bad-news-background);
+  color: var(--hud-bad-news-text);
 }
 
 .block {
@@ -94,9 +198,9 @@ main {
    margin-left: 7px
 }
 
-.cancel, #debugRequest, #pauseRequest {
-  background-color: darkslategray;
-  color: white;
+.cancel, #debugRequest, #pauseRequest, .foldButton {
+  background-color: var(--hud-control-background);
+  color: var(--hud-control-text);
 }
 
 .centred, #tooSmallInner {
@@ -139,9 +243,9 @@ main {
   font-size: 36px;
 }
 
-.good {
-  background-color: LightGreen;
-  color: black;
+#notifications.good {
+  background-color: var(--hud-good-news-background);
+  color: var(--hud-good-news-text);
 }
 
 .helpPointer {
@@ -165,8 +269,8 @@ main {
 }
 
 .loadSave, .saveHeader {
-  background-color: cadetblue;
-  color: white;
+  background-color: var(--hud-save-background);
+  color: var(--hud-save-text);
 }
 
 .margin10 {
@@ -185,11 +289,8 @@ main {
 }
 
 .mintcream, .neutral {
-  background-color: mintcream;
-}
-
-.neutral {
-  color: black;
+  background-color: var(--hud-panel-background);
+  color: var(--hud-panel-text);
 }
 
 .onlinePlayer {
@@ -267,8 +368,6 @@ main {
   width: 140px;
   margin-left: 5px;
   margin-right: 5px;
-  color: black;
-  background-color: white;
   font-size: 12px;
   display: inline-block;
 }
@@ -318,7 +417,17 @@ main {
   position: absolute;
   top: var(--panel-margin);
   width: 305px;
-  height: 220px;
+}
+
+/* The tools' heading line is their strip, with the padding the panel has not, as the gap under it too */
+#controls > .foldStrip {
+  padding: var(--fold-strip-gap) 10px;
+  margin-bottom: 0;
+}
+
+/* The panel was 220px tall */
+#buttons {
+  height: calc(220px - var(--fold-strip-height) - 2 * var(--fold-strip-gap));
 }
 
 #debug {
@@ -362,7 +471,11 @@ main {
 #infobar {
   position: absolute;
   top: var(--panel-margin);
-  height: 150px;
+}
+
+/* The panel's content was 150px tall */
+#infobarBody {
+  height: calc(150px - var(--fold-strip-height) - var(--fold-strip-gap));
 }
 
 #loadingBanner[data-hasscript=false] {
@@ -372,14 +485,18 @@ main {
 #miscButtons {
   position: absolute;
   top: 250px;
-  height: 162px;
+}
+
+/* The panel's content was 162px tall */
+#miscButtonsBody {
+  height: calc(162px - var(--fold-strip-height) - var(--fold-strip-gap));
 }
 
 #monstertv {
   position: absolute;
   top: 364px;
   width: 200px;
-  background-color: red;
+  background-color: var(--hud-disaster-view-fill);
 }
 
 #monsterTVForm {
@@ -404,6 +521,12 @@ main {
 #activityList {
   padding: 4px 10px;
   font-size: 13px;
+}
+
+/* The lines let the pointer's events through to the map, as the gaps between the top panels do, but the strip takes
+   them */
+#activityList > .foldStrip {
+  pointer-events: auto;
 }
 
 .activityLine {
@@ -434,18 +557,20 @@ main {
   right: 0;
   opacity: .70;
   filter: Alpha(Opacity=70);
-  background-color: gray;
+  background-color: var(--hud-veil-fill);
   z-index: 10;
 }
 
+/* Its title, the picker and the button on a line, and the legend under the picker */
 #overlayPanel {
-  width: 220px;
+  width: 260px;
   font-size: 14px;
   text-align: center;
 }
 
-#overlayPanel .overlayLabel {
-  margin-right: 6px;
+/* Folded, it is as wide as its title and button */
+#overlayPanel.folded {
+  width: auto;
 }
 
 #overlayPanel .overlayLegend {
@@ -460,7 +585,7 @@ main {
   height: 12px;
   margin: 4px 0;
   border: 1px solid black;
-  background-color: white;
+  background-color: var(--hud-legend-empty-fill);
 }
 
 #overlayPanel .overlayLegendEnds {
@@ -469,8 +594,8 @@ main {
 }
 
 #playit {
-  background-color: green;
-  color: white;
+  background-color: var(--hud-go-background);
+  color: var(--hud-go-text);
   font-size: 18px;
   height: 24px;
 }
@@ -479,8 +604,12 @@ main {
   position: absolute;
   top: var(--rci-top);
   width: 140px;
-  height: 140px;
   margin: 0px;
+}
+
+/* The panel's body is as tall as the meter's canvas */
+#RCIMeter canvas {
+  display: block;
 }
 
 #screenshotLink, #screenshotLink:link, #screenshotLink:visited, #screenshotLink:hover {
@@ -503,7 +632,8 @@ main {
 
 #signInError {
   min-height: 1.2em;
-  color: darkred;
+  background-color: var(--hud-error-background);
+  color: var(--hud-error-text);
   font-size: 14px;
 }
 
@@ -513,8 +643,8 @@ main {
 }
 
 #signInSubmit {
-  background-color: green;
-  color: white;
+  background-color: var(--hud-go-background);
+  color: var(--hud-go-text);
   font-size: 18px;
 }
 
@@ -548,6 +678,11 @@ main {
   margin: 4px 0;
 }
 
+#splashCityList button {
+  background-color: var(--hud-city-list-background);
+  color: var(--hud-city-list-text);
+}
+
 .splashRejoin {
   flex: 1;
   text-align: left;
@@ -555,9 +690,10 @@ main {
   text-overflow: ellipsis;
 }
 
-.splashCityId {
+#splashCityList .splashCityId {
   margin-left: 10px;
-  color: gray;
+  background-color: var(--hud-city-id-background);
+  color: var(--hud-city-id-text);
   font-family: monospace;
 }
 
@@ -571,8 +707,8 @@ main {
 }
 
 #splashGenerate {
-  background-color: dodgerBlue;
-  color: white
+  background-color: var(--hud-generate-background);
+  color: var(--hud-generate-text);
 }
 
 #splashMapRow {
@@ -582,7 +718,8 @@ main {
 }
 
 #splashPlay {
-  background-color: lightgreen;
+  background-color: var(--hud-play-background);
+  color: var(--hud-play-text);
 }
 
 #start {
@@ -601,9 +738,13 @@ main {
   position: absolute;
   top: 330px;
   width: 285px;
-  max-height: 180px;
-  overflow-y: auto;
   font-size: 12px;
+}
+
+/* The status scrolls under its strip. The panel's content was at most 180px tall. */
+#statusPanelBody {
+  max-height: calc(180px - var(--fold-strip-height) - var(--fold-strip-gap));
+  overflow-y: auto;
 }
 
 /* The disaster view opens over the status panel's slot, so the panel steps aside while it is open. */
@@ -623,7 +764,8 @@ main {
 }
 
 #statusPanel .statusBad {
-  color: red;
+  background-color: var(--hud-status-alert-background);
+  color: var(--hud-status-alert-text);
   font-weight: bold;
 }
 
@@ -631,23 +773,24 @@ main {
   height: 6px;
   margin-bottom: 6px;
   border: 1px solid gray;
-  background-color: white;
+  background-color: var(--hud-meter-empty-fill);
 }
 
 #statusPanel .statusMeterFill {
   height: 100%;
   width: 0;
-  background-color: green;
+  background-color: var(--hud-meter-fill);
 }
 
 #statusPanel .statusMeterFill.statusMeterOver {
-  background-color: red;
+  background-color: var(--hud-meter-over-fill);
 }
 
 #statusPanel .statusCap {
   margin-left: 4px;
   padding: 0 4px;
-  background-color: orange;
+  background-color: var(--hud-status-cap-background);
+  color: var(--hud-status-cap-text);
   cursor: help;
 }
 
@@ -708,8 +851,8 @@ main {
 /* Miscellaneous buttons */
 
 #budgetRequest, #budgetHeader {
-  background-color: dodgerblue;
-  color: white;
+  background-color: var(--hud-budget-background);
+  color: var(--hud-budget-text);
 }
 
 /* A year-end budget review is due, until the player opens the budget */
@@ -719,95 +862,104 @@ main {
 }
 
 #disasterRequest, #disasterHeader {
-  background-color: red;
-  color: yellow;
+  background-color: var(--hud-disasters-background);
+  color: var(--hud-disasters-text);
 }
 
 #evalRequest, #evalHeader {
-  background-color: forestgreen;
-  color: white;
+  background-color: var(--hud-evaluation-background);
+  color: var(--hud-evaluation-text);
 }
 
 .screenshotHeader, #screenshotRequest {
-  background-color: tomato;
-  color: white;
+  background-color: var(--hud-picture-background);
+  color: var(--hud-picture-text);
 }
 
 #settingsHeader, #settingsRequest {
-  background-color: #663399;
-  color: white;
+  background-color: var(--hud-settings-background);
+  color: var(--hud-settings-text);
 }
 
 /* Tool buttons */
 #airportButton {
-  background-color: violet;
+  background-color: var(--hud-tool-airport-background);
+  color: var(--hud-tool-airport-text);
 }
 
 #bulldozerButton {
-  background-color: salmon;
+  background-color: var(--hud-tool-bulldozer-background);
+  color: var(--hud-tool-bulldozer-text);
 }
 
 #coalButton {
-  background-color: gray;
+  background-color: var(--hud-tool-coal-background);
+  color: var(--hud-tool-coal-text);
 }
 
 #commercialButton {
-  background-color: blue;
-  color: white;
+  background-color: var(--hud-tool-commercial-background);
+  color: var(--hud-tool-commercial-text);
 }
 
 #fireButton {
-  background-color: red;
+  background-color: var(--hud-tool-fire-background);
+  color: var(--hud-tool-fire-text);
 }
 
 #industrialButton {
-  background-color: yellow;
+  background-color: var(--hud-tool-industrial-background);
+  color: var(--hud-tool-industrial-text);
 }
 
 #nuclearButton {
-  background-color: mistyrose;
+  background-color: var(--hud-tool-nuclear-background);
+  color: var(--hud-tool-nuclear-text);
 }
 
 #parkButton {
-  background-color: darkgreen;
-  color: white;
+  background-color: var(--hud-tool-park-background);
+  color: var(--hud-tool-park-text);
 }
 
 #policeButton {
-  background-color: darkblue;
-  color: white;
+  background-color: var(--hud-tool-police-background);
+  color: var(--hud-tool-police-text);
 }
 
 #portButton {
- background-color: dodgerblue;
- color: white;
+  background-color: var(--hud-tool-port-background);
+  color: var(--hud-tool-port-text);
 }
 
 #queryButton, #queryHeader {
-  background-color: cyan;
+  background-color: var(--hud-tool-query-background);
+  color: var(--hud-tool-query-text);
 }
 
 #railButton {
-  background-color: brown;
-  color: white;
+  background-color: var(--hud-tool-rail-background);
+  color: var(--hud-tool-rail-text);
 }
 
 #residentialButton {
-  background-color: lime;
+  background-color: var(--hud-tool-residential-background);
+  color: var(--hud-tool-residential-text);
 }
 
 #roadButton {
-  background-color: black;
-  color: white;
+  background-color: var(--hud-tool-road-background);
+  color: var(--hud-tool-road-text);
 }
 
 #stadiumButton {
-  background-color: indigo;
-  color: white;
+  background-color: var(--hud-tool-stadium-background);
+  color: var(--hud-tool-stadium-text);
 }
 
 #wireButton {
-  background-color: khaki;
+  background-color: var(--hud-tool-wire-background);
+  color: var(--hud-tool-wire-text);
 }
 
 /* The window heights at which the panels close up, down to the too-small overlay. They were set when header and footer
@@ -891,7 +1043,10 @@ main {
 
   #statusPanel {
     top: 270px;
-    max-height: 160px;
+  }
+
+  #statusPanelBody {
+    max-height: calc(160px - var(--fold-strip-height) - var(--fold-strip-gap));
   }
 }
 
@@ -915,7 +1070,10 @@ main {
 
   #statusPanel {
     top: 240px;
-    max-height: 130px;
+  }
+
+  #statusPanelBody {
+    max-height: calc(130px - var(--fold-strip-height) - var(--fold-strip-gap));
   }
 }
 
@@ -1066,10 +1224,15 @@ footer a, footer a:link, footer a:visited, footer a:hover {
 }
 
 #aboutMain a, #aboutMain a:link, #aboutMain a:visited, #aboutMain a:hover,
-#licenseMain a, #licenseMain a:link, #licenseMain a:visited, #licenseMain a:hover,
-#splashCredits a, #splashCredits a:link, #splashCredits a:visited, #splashCredits a:hover {
+#licenseMain a, #licenseMain a:link, #licenseMain a:visited, #licenseMain a:hover {
   text-decoration: none;
   color: dodgerblue;
+}
+
+#splashCredits a, #splashCredits a:link, #splashCredits a:visited, #splashCredits a:hover {
+  text-decoration: none;
+  background-color: var(--hud-link-background);
+  color: var(--hud-link-text);
 }
 
 #licenseContainer ol {
@@ -1104,8 +1267,8 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   max-width: 280px;
   padding: 6px 10px;
   border: 1px solid black;
-  background-color: lightyellow;
-  color: black;
+  background-color: var(--hud-toast-background);
+  color: var(--hud-toast-text);
   font-family: 'Open Sans', sans-serif;
   font-size: 13px;
   pointer-events: none;
@@ -1131,12 +1294,6 @@ footer a, footer a:link, footer a:visited, footer a:hover {
 /* Getting around the map: the minimap under the demand meter, the "Go there" of news with a place, and the Last event
    button beside the notification bar */
 
-:root {
-  /* The minimap's top: 20px under the demand meter, which is 140px tall with 10px of padding each side and moves up
-     as the window gets shorter */
-  --minimap-top: calc(var(--rci-top) + 180px);
-}
-
 #minimap {
   position: absolute;
   top: var(--minimap-top);
@@ -1144,27 +1301,11 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   padding: 6px 10px 10px;
 }
 
-#minimapHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-#minimapToggle {
-  width: auto;
-  padding: 0 8px;
-  background-color: darkslategray;
-  color: white;
-  font-size: 12px;
-}
-
 /* Wrapped close round the canvas, so the view's rectangle is placed in fractions of the canvas */
 #minimapFrame {
   position: relative;
   width: fit-content;
-  margin: 6px auto 0;
+  margin: 2px auto 0;
   line-height: 0;
   cursor: crosshair;
   touch-action: none;
@@ -1190,7 +1331,8 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   pointer-events: none;
 }
 
-#notifications {
+/* Hidden until the game starts, which the id would otherwise outrank */
+#notifications:not(.initialHidden) {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1222,8 +1364,8 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   width: 100px;
   height: 41px;
   border: 1px solid black;
-  background-color: mintcream;
-  color: black;
+  background-color: var(--hud-panel-background);
+  color: var(--hud-panel-text);
 }
 
 /* The bar keeps to the right of a narrow window, and the button sits over it */
@@ -1242,4 +1384,75 @@ footer a, footer a:link, footer a:visited, footer a:hover {
 
 #MicropolisCanvas.grabbing {
   cursor: grabbing;
+}
+
+/* Panels that fold to a title strip (panelFolding.ts): the strip, the panel's title and the button that folds and
+   unfolds it, on a line over the panel's body, which a folded panel hides. A folded panel keeps its place, and is its
+   strip alone. A panel's body is as tall as the panel was before it had a strip, less the strip and the gap under it. */
+
+.foldStrip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  height: var(--fold-strip-height);
+  margin-bottom: var(--fold-strip-gap);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.foldButton {
+  width: auto;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.folded > .foldStrip {
+  margin-bottom: 0;
+}
+
+.folded > .foldBody {
+  display: none;
+}
+
+/* The side panels' strips are slim when folded. A top panel keeps its padding, so the panels under it stay put. */
+#infobar.folded, #miscButtons.folded, #RCIContainer.folded, #minimap.folded, #statusPanel.folded {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/* With the demand meter folded, the minimap goes up under its strip, with 4px of padding each side, and has the room
+   the meter had */
+:root:has(#RCIContainer.folded) {
+  --minimap-top: calc(var(--rci-top) + var(--fold-strip-height) + 2 * 4px + 20px);
+}
+
+/* Each top panel is a line, so its strip runs along it, its title first, then its body, then its button: folding one
+   takes nothing off the height its line has. Hidden until the game starts. */
+#topPanels > [data-panel]:not(.initialHidden) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 8px;
+}
+
+#topPanels > [data-panel] > .foldStrip {
+  display: contents;
+}
+
+#topPanels .foldTitle {
+  line-height: var(--fold-strip-height);
+}
+
+#topPanels .foldBody {
+  grid-row: 1;
+  grid-column: 2;
+  line-height: var(--fold-strip-height);
+}
+
+#topPanels .foldButton {
+  grid-row: 1;
+  grid-column: 3;
 }

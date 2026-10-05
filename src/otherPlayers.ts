@@ -28,8 +28,9 @@ export class OtherPlayers {
   private readonly cursors = new OtherCursors(this.roster);
   private readonly reporter: CursorReporter;
 
-  constructor(presence: Presence, activityList: HTMLElement) {
-    this.activityList = new ActivityList(activityList, this.roster);
+  // The activity list is the panel, which shows while it has lines, and the element of its lines
+  constructor(presence: Presence, activityPanel: HTMLElement, activityLines: HTMLElement) {
+    this.activityList = new ActivityList(activityPanel, activityLines, this.roster);
     this.reporter = new CursorReporter((cursor) => presence.reportCursor(cursor));
     presence.onStatus((status) => this.roster.update(status));
     presence.onCursor((message) => this.cursors.receive(message, Date.now()));

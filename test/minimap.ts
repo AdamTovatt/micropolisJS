@@ -13,14 +13,13 @@
 
 import { CityState } from "../src/cityState";
 import {
-    MINIMAP_PIXELS_PER_TILE, MINIMAP_SHOWN_KEY, MinimapImage, MinimapShown, drawTile, minimapTile, tileColours, viewRect,
+    MINIMAP_PIXELS_PER_TILE, MinimapImage, drawTile, minimapTile, tileColours, viewRect,
 } from "../src/minimap";
 import type { StateMessage } from "../src/protocol";
 import type { Pixels } from "../src/renderAssets";
 import { POWERBIT } from "../src/tileFlags";
 import { tileImageOrigin } from "../src/tileSet";
 import { DIRT, RIVER, TILE_COUNT } from "../src/tileValues";
-import { FakeStore } from "./helpers/fakeStore";
 
 // A tile set of 32 by 32 tiles of 16 pixels, each tile's pixels filled by the function from its id and the pixel's
 // place in the tile
@@ -173,27 +172,6 @@ describe("the minimap", () => {
         it("is the nearest tile on the map for a point a drag carries past the minimap's edges", () => {
             expect(minimapTile({x: -20, y: 500}, 140, 140 * 100 / 120, map)).toEqual({x: 0, y: 99});
             expect(minimapTile({x: 140, y: -1}, 140, 140 * 100 / 120, map)).toEqual({x: 119, y: 0});
-        });
-    });
-
-    describe("whether it shows", () => {
-
-        it("shows until the player hides it, and remembers the choice in the store", () => {
-            const store = new FakeStore();
-            const shown = new MinimapShown(store);
-            expect(shown.shown).toBe(true);
-
-            shown.shown = false;
-
-            expect(new MinimapShown(store).shown).toBe(false);
-            expect(store.getItem(MINIMAP_SHOWN_KEY)).toBe("false");
-        });
-
-        it("holds the choice for the page where there is no store", () => {
-            const shown = new MinimapShown(null);
-            shown.shown = false;
-
-            expect(shown.shown).toBe(false);
         });
     });
 });

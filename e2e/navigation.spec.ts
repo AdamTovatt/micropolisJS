@@ -110,7 +110,7 @@ test("the minimap moves the view where it is clicked and dragged, and M hides it
   await player.reloadCity();
   await expect(page.locator("#minimapFrame"), "the minimap after a reload").toBeHidden();
 
-  await page.click("#minimapToggle");
+  await page.click("[data-panel=\"map\"] .foldButton");
   await expect(page.locator("#minimapFrame")).toBeVisible();
   expect(problems).toEqual([]);
 });

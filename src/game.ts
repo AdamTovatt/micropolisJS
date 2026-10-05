@@ -36,6 +36,7 @@ import { NotificationBar, placeNotificationBar } from "./notification";
 import { OtherPlayers } from "./otherPlayers";
 import { cityOverlaySource, OverlayPicker } from "./overlayPicker";
 import { PaintableSprite, spritesInView } from "./paintable";
+import { placePanelFolding } from "./panelFolding";
 import { CommandResult, DisasterKind, NewsMessage, SettingsRecord, ToolName } from "./protocol";
 import { QueryTool } from "./queryTool";
 import { QueryWindow } from "./queryWindow";
@@ -181,17 +182,21 @@ export class Game {
     // A city on the server goes in the page's address, so the address invites another player in, and a reload rejoins
     linkToCity(started, window);
 
-    this.rci = placeRCI("RCIContainer");
-    this.statusPanel = new StatusPanel("statusPanel");
+    this.rci = placeRCI(requiredElement("RCIMeter"));
+    this.statusPanel = new StatusPanel(requiredElement("statusPanelBody"));
 
     // Note: must init canvas before inputStatus
     this.gameCanvas = new GameCanvas("canvasContainer", state.map, mapArt);
     this.inputStatus = new InputStatus(this.gameCanvas, () => this.windows.holdsInput());
 
-    new OverlayPicker("overlayPanel", cityOverlaySource(source, state), this.gameCanvas);
+    new OverlayPicker(requiredElement("overlayPanelBody"), requiredElement("overlayPanelSelect", HTMLSelectElement),
+                      cityOverlaySource(source, state), this.gameCanvas);
 
-    this.minimap = new Minimap(state, tileSetPixels(mapArt), this.gameCanvas, pageStore());
-    this.inputStatus.addEventListener(UiMessages.MINIMAP_TOGGLE_REQUESTED, () => this.minimap.toggle());
+    // The panels over the map fold to their title strips, as the browser last had them
+    const panels = placePanelFolding(pageStore());
+
+    this.minimap = new Minimap(state, tileSetPixels(mapArt), this.gameCanvas);
+    this.inputStatus.addEventListener(UiMessages.MINIMAP_TOGGLE_REQUESTED, () => panels.toggle("map"));
 
     // The Last event button centres the view on the last news with a place, which brings the player back to it after
     // the bar has moved on
@@ -286,9 +291,8 @@ export class Game {
     this.notificationBar = placeNotificationBar(this.gameCanvas);
     this.toolToast = placeToolToast();
 
-    this.otherPlayers = new OtherPlayers(presence, requiredElement("activityList"));
+    this.otherPlayers = new OtherPlayers(presence, requiredElement("activityList"), requiredElement("activityListBody"));
 
-    // Unhide controls, before the demand meter first draws: it sizes its canvas to its container on screen
     this.revealControls();
 
     // Follow the city as the source's state messages change it

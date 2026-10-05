@@ -13,11 +13,12 @@
 
 import { CityClient, CityStatus } from "./cityClient";
 
-// The small list of who is online, over the top of the map: "Offline" when no server answers or the connection
+// The small list of who is online, over the top of the map: "Not connected" when no server answers or the connection
 // is down, otherwise every player online, the player at this screen marked as "you".
 
+// What the list shows after the title on its panel's strip, Online: the players, or else why there are none
 export interface OnlineListView {
-  label: string;
+  notConnected: string;
   title: string;
   // Each player's name as shown, in the order they came online
   players: string[];
@@ -26,18 +27,18 @@ export interface OnlineListView {
 // Every decision about what the list shows is made here, so it is tested under node
 export function onlineListView(status: CityStatus): OnlineListView {
   if (!status.online) {
-    return {label: "Offline", title: "Not connected to a server", players: []};
+    return {notConnected: "Not connected", title: "Not connected to a server", players: []};
   }
 
   return {
-    label: "Online: ",
+    notConnected: "",
     title: "",
     players: status.players.map((player) => player.id === status.you ? `${player.name} (you)` : player.name),
   };
 }
 
 function render(container: HTMLElement, view: OnlineListView): void {
-  container.textContent = view.label;
+  container.textContent = view.notConnected;
   container.title = view.title;
 
   view.players.forEach((text, i) => {

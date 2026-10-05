@@ -88,7 +88,8 @@ export class OverlaySelection {
   }
 }
 
-// The picker the player chooses a layer with, and the legend of the layer showing, in the container
+// The picker the player chooses a layer with, a select the page gives it, which it fills, and the legend of the layer
+// showing, in the container after the select
 export class OverlayPicker {
   private readonly selection: OverlaySelection;
   private readonly legend: HTMLElement;
@@ -97,22 +98,11 @@ export class OverlayPicker {
   private readonly legendLow: HTMLElement;
   private readonly legendHigh: HTMLElement;
 
-  constructor(elementId: string, source: OverlaySource, canvas: OverlayCanvas) {
-    const container = document.getElementById(elementId);
-    if (container === null) {
-      throw new Error(`Node ${elementId} not found`);
-    }
-
-    const label = appendElement(container, "label", "overlayLabel");
-    label.textContent = Text.overlays.label;
-    const select = document.createElement("select");
-    select.id = `${elementId}Select`;
-    label.htmlFor = select.id;
+  constructor(container: HTMLElement, select: HTMLSelectElement, source: OverlaySource, canvas: OverlayCanvas) {
     select.appendChild(option("", Text.overlays.none));
     for (const layer of OVERLAY_LAYERS) {
       select.appendChild(option(layer, layerName(layer)));
     }
-    container.appendChild(select);
 
     this.legend = appendElement(container, "div", "overlayLegend");
     this.legendTitle = appendElement(this.legend, "div", "overlayLegendTitle");

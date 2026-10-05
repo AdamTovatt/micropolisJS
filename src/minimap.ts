@@ -12,19 +12,16 @@
  */
 
 import type { CityState } from "./cityState";
-import { requiredElement, setShown } from "./domElements";
+import { requiredElement } from "./domElements";
 import type { Pixels } from "./renderAssets";
-import { PageStore, StoredText } from "./storage";
 import { TILE_SIZE, tileImageOrigin } from "./tileSet";
 import { TILE_COUNT } from "./tileValues";
 import type { TilePoint } from "./viewPosition";
 
 // The minimap: the whole map small, in the left column, with the view's rectangle over it. A click or a drag on it
 // centres the view there. Each tile is drawn in one colour, the average of its 16 px tile in the tile set, from the
-// client's copy of the map, so it needs no texture, and a tile that changes redraws only its own pixels. The player
-// hides or shows it with the button on it or the M key, which the page remembers.
-
-export const MINIMAP_SHOWN_KEY = "micropolisJSMinimapShown";
+// client's copy of the map, so it needs no texture, and a tile that changes redraws only its own pixels. Its panel
+// folds as the others do (panelFolding.ts), with the button on its strip or the M key.
 
 // The pixels of the minimap's canvas a tile is drawn, across and down. The stylesheet scales the canvas down to fit the
 // column, and further where the window is too short for it, without smoothing.
@@ -153,24 +150,6 @@ export function minimapTile(point: TilePoint, width: number, height: number,
   return {x: along(point.x, width, map.width), y: along(point.y, height, map.height)};
 }
 
-// Whether the minimap shows, which the player sets and the page remembers: it shows until the player hides it. A store
-// that can't be read or written leaves the choice held for this page only (StoredText).
-export class MinimapShown {
-  private readonly text: StoredText;
-
-  constructor(store: PageStore | null) {
-    this.text = new StoredText(store, MINIMAP_SHOWN_KEY);
-  }
-
-  get shown(): boolean {
-    return this.text.read() !== "false";
-  }
-
-  set shown(shown: boolean) {
-    this.text.write(String(shown));
-  }
-}
-
 // The view the minimap marks and moves: where it is, how much of the map it shows, and centring it on a tile
 export interface MinimapView {
   getTileOrigin(): TilePoint;
@@ -181,39 +160,26 @@ export interface MinimapView {
 const FRAME_ID = "minimapFrame";
 const CANVAS_ID = "minimapCanvas";
 const VIEW_ID = "minimapView";
-const TOGGLE_ID = "minimapToggle";
 
 // The minimap in the page's panel
 export class Minimap {
   private readonly frame: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly viewMark: HTMLElement;
-  private readonly toggleButton: HTMLElement;
   private readonly image: MinimapImage;
-  private readonly shownChoice: MinimapShown;
 
   // The view's rectangle as last marked, so a paint that would mark the same again doesn't
   private marked = "";
 
   // The minimap of the city's map, in the colours of the tile set's pixels, marking and moving the view
   constructor(private readonly city: Pick<CityState, "map" | "on">, tileSet: Pixels,
-              private readonly view: MinimapView, store: PageStore | null) {
+              private readonly view: MinimapView) {
     this.frame = requiredElement(FRAME_ID);
     this.canvas = requiredElement(CANVAS_ID, HTMLCanvasElement);
     this.viewMark = requiredElement(VIEW_ID);
-    this.toggleButton = requiredElement(TOGGLE_ID);
-    this.shownChoice = new MinimapShown(store);
     this.image = new MinimapImage(city, tileColours(tileSet));
 
-    this.toggleButton.addEventListener("click", () => this.toggle());
     this.listenForPointer();
-    this.showChoice();
-  }
-
-  // Hides a minimap showing, or shows a hidden one, and remembers which
-  toggle(): void {
-    this.shownChoice.shown = !this.shownChoice.shown;
-    this.showChoice();
   }
 
   // Puts the whole image on the canvas if any tile changed since the last paint, and marks where the view is now
@@ -238,13 +204,6 @@ export class Minimap {
       [this.viewMark.style.left, this.viewMark.style.top, this.viewMark.style.width, this.viewMark.style.height] =
         marked;
     }
-  }
-
-  private showChoice(): void {
-    const shown = this.shownChoice.shown;
-    setShown(this.frame, shown);
-    this.toggleButton.textContent = shown ? "Hide" : "Show";
-    this.toggleButton.setAttribute("aria-expanded", String(shown));
   }
 
   // A press on the minimap centres the view on the tile under it, and a drag keeps it centred on the tile under the

@@ -107,8 +107,7 @@ interface LayerText {
 }
 
 // Map overlay strings: the picker, and each layer's text
-const overlays: {label: string, none: string, layers: Record<OverlayLayer, LayerText>} = {
-  label: "Map overlay",
+const overlays: {none: string, layers: Record<OverlayLayer, LayerText>} = {
   none: "None",
   layers: {
     landValue: {name: "Land value", low: "Low", high: "High"},
