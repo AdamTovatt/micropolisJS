@@ -14,6 +14,8 @@
 
 using System.Diagnostics;
 using System.Numerics;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 
@@ -23,7 +25,8 @@ namespace Micropolis.Rules.Tests
     /// The rules for simulation code, held over the compiled Micropolis.Rules: no clock, no randomness but
     /// <see cref="RandomStream"/>, nothing read from the machine, and no <c>Math</c> function whose result can differ
     /// between runtimes. The check reads the assembly's metadata, which lists every type and member of another assembly
-    /// the code refers to, so a reference is found however the source spells it.
+    /// the code refers to, so a reference is found however the source spells it. The trip router, whose routes must be
+    /// the same on every runtime, holds no floating point at all, which its instructions show.
     /// </summary>
     [TestClass]
     public sealed class PortableRulesTests
@@ -113,6 +116,159 @@ namespace Micropolis.Rules.Tests
             Assert.IsTrue(missed.Length == 0, $"Not found: {missed}");
             Assert.DoesNotContain("System.Math.Floor", forbidden);
             Assert.DoesNotContain("System.Environment.get_CurrentManagedThreadId", forbidden);
+        }
+
+        [TestMethod]
+        public void Instructions_TripRouter_HoldNoFloatingPoint()
+        {
+            Assert.AreEqual("", string.Join(", ", FloatingPoint(typeof(TripRouter))));
+        }
+
+        // Floating point in a field, a local, a method's parameter and return, a call to a method that takes or returns
+        // it, and the instructions that load and convert to it, in this assembly, is found
+        [TestMethod]
+        public void Instructions_CodeWithFloatingPoint_AreFound()
+        {
+            List<string> found = FloatingPoint(typeof(FloatingPointCode)).ToList();
+
+            CollectionAssert.IsSubsetOf(
+                new[]
+                {
+                    "Scale: Single", "Halve: conv.r8", "Halve: ldc.r8", "Fraction: returns Double", "Fraction: a parameter Double",
+                    "Truncated: calls Fraction",
+                },
+                found, string.Join(", ", found));
+        }
+
+        // The floating point a type and the types nested in it hold: each field, local, parameter and return of a
+        // floating-point type, each call to a method with one, and each instruction that loads a floating-point constant
+        // or converts to floating point
+        private static IEnumerable<string> FloatingPoint(Type type)
+        {
+            const BindingFlags declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance |
+                                          BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+            foreach (FieldInfo field in type.GetFields(declared).Where(field => IsFloatingPoint(field.FieldType)))
+            {
+                yield return $"{field.Name}: {field.FieldType.Name}";
+            }
+
+            foreach (MethodBase method in type.GetMethods(declared).Concat<MethodBase>(type.GetConstructors(declared)))
+            {
+                if (method is MethodInfo { ReturnType: Type returned } && IsFloatingPoint(returned))
+                {
+                    yield return $"{method.Name}: returns {returned.Name}";
+                }
+
+                foreach (ParameterInfo parameter in method.GetParameters().Where(parameter => IsFloatingPoint(parameter.ParameterType)))
+                {
+                    yield return $"{method.Name}: a parameter {parameter.ParameterType.Name}";
+                }
+
+                MethodBody? body = method.GetMethodBody();
+
+                if (body is null)
+                {
+                    continue;
+                }
+
+                foreach (LocalVariableInfo local in body.LocalVariables.Where(local => IsFloatingPoint(local.LocalType)))
+                {
+                    yield return $"{method.Name}: a local {local.LocalType.Name}";
+                }
+
+                byte[] instructions = body.GetILAsByteArray()!;
+
+                for (int at = 0; at < instructions.Length;)
+                {
+                    OpCode instruction = OpCodesByValue[instructions[at] == 0xfe ? (short)(0xfe00 | instructions[at + 1]) : instructions[at]];
+                    at += instruction.Size;
+
+                    if (FloatingPointInstructions.Contains(instruction))
+                    {
+                        yield return $"{method.Name}: {instruction.Name}";
+                    }
+
+                    if (instruction.OperandType == OperandType.InlineMethod &&
+                        method.Module.ResolveMethod(BitConverter.ToInt32(instructions, at), GenericArguments(method.DeclaringType), GenericArguments(method)) is MethodBase called &&
+                        ((called is MethodInfo calledMethod && IsFloatingPoint(calledMethod.ReturnType)) ||
+                         called.GetParameters().Any(parameter => IsFloatingPoint(parameter.ParameterType))))
+                    {
+                        yield return $"{method.Name}: calls {called.Name}";
+                    }
+
+                    at += OperandSize(instruction.OperandType, instructions, at);
+                }
+            }
+
+            foreach (Type nested in type.GetNestedTypes(declared))
+            {
+                foreach (string found in FloatingPoint(nested))
+                {
+                    yield return found;
+                }
+            }
+        }
+
+        private static readonly Dictionary<short, OpCode> OpCodesByValue = typeof(OpCodes)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Select(field => (OpCode)field.GetValue(null)!)
+            .ToDictionary(instruction => instruction.Value);
+
+        private static readonly HashSet<OpCode> FloatingPointInstructions =
+            [OpCodes.Ldc_R4, OpCodes.Ldc_R8, OpCodes.Conv_R4, OpCodes.Conv_R8, OpCodes.Conv_R_Un, OpCodes.Ckfinite];
+
+        // The type arguments a method's tokens are resolved in, none where it is not generic
+        private static Type[]? GenericArguments(MemberInfo? member)
+        {
+            return member switch
+            {
+                Type { IsGenericType: true } type => type.GetGenericArguments(),
+                MethodInfo { IsGenericMethod: true } method => method.GetGenericArguments(),
+                _ => null,
+            };
+        }
+
+        private static bool IsFloatingPoint(Type type)
+        {
+            return type == typeof(float) || type == typeof(double) || type == typeof(Half) || type == typeof(decimal);
+        }
+
+        // The bytes of an instruction's operand, which follows it
+        private static int OperandSize(OperandType operand, byte[] instructions, int at)
+        {
+            return operand switch
+            {
+                OperandType.InlineNone => 0,
+                OperandType.ShortInlineBrTarget or OperandType.ShortInlineI or OperandType.ShortInlineVar => 1,
+                OperandType.InlineVar => 2,
+                OperandType.InlineI8 or OperandType.InlineR => 8,
+                OperandType.InlineSwitch => 4 + 4 * BitConverter.ToInt32(instructions, at),
+                _ => 4,
+            };
+        }
+
+        // Never called: the floating point the negative control finds
+        private static class FloatingPointCode
+        {
+            internal static float Scale = 1.5f;
+
+            internal static int Halve(int value)
+            {
+                double half = value / 2.0;
+                return (int)(half * Scale);
+            }
+
+            internal static double Fraction(double value)
+            {
+                return value - Math.Floor(value);
+            }
+
+            // A call whose floating point is gone by the next instruction, cast straight to a whole number
+            internal static int Truncated(int value)
+            {
+                return (int)Fraction(value);
+            }
         }
 
         private static bool IsForbidden(string reference)

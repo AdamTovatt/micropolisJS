@@ -46,7 +46,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// The houses in the 8 tiles around an empty residential zone's centre.
         /// </summary>
-        private static int GetFreeZonePopulation(GameMap map, int x, int y)
+        internal static int GetFreeZonePopulation(GameMap map, int x, int y)
         {
             int count = 0;
             for (int xx = x - 1; xx <= x + 1; xx++)
@@ -58,8 +58,7 @@ namespace Micropolis.Rules
                         continue;
                     }
 
-                    int tileValue = map.GetTileValue(xx, yy);
-                    if (tileValue >= TileValues.LHTHR && tileValue <= TileValues.HHTHR)
+                    if (TileUtils.IsHouse(map.GetTileValue(xx, yy)))
                     {
                         count += 1;
                     }
@@ -242,8 +241,7 @@ namespace Micropolis.Rules
             {
                 for (int yy = y - 1; yy <= y + 1; yy++, i++)
                 {
-                    int currentValue = map.GetTileValue(xx, yy);
-                    if (currentValue >= TileValues.LHTHR && currentValue <= TileValues.HHTHR)
+                    if (TileUtils.IsHouse(map.GetTileValue(xx, yy)))
                     {
                         // We've found a house. Replace it with the normal free zone tile
                         map.SetTile(xx, yy, FreeZone[i] + TileValues.RESBASE, TileFlags.BLBNCNBIT);
@@ -278,7 +276,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// The map scan's handler for a residential zone's centre, as <c>residentialFound</c>: counts the zone and its
-        /// population, drives from it to commercial now and then, and grows or declines it.
+        /// population, routes a trip from it to commerce now and then, and grows or declines it.
         /// </summary>
         public static void ResidentialFound(GameMap map, int x, int y, SimData simData)
         {
@@ -295,7 +293,7 @@ namespace Micropolis.Rules
             TrafficResult trafficOK = TrafficResult.RouteFound;
 
             // Occasionally check to see if the zone is connected to the road network. The chance of this happening
-            // increases as the zone's population increases. An empty zone never drives, as 0 is never above a draw.
+            // increases as the zone's population increases. An empty zone never makes a trip, as 0 is never above a draw.
             if (population > simData.Random.GetRandom(35))
             {
                 // Is there a route from this zone to a commercial zone?
@@ -317,9 +315,9 @@ namespace Micropolis.Rules
             if (tileValue == TileValues.FREEZ || simData.Random.GetChance(7))
             {
                 // First, score the individual zone, in the range -3000 to 3000, then take into account global demand
-                // for housing
+                // for housing, less what a slow trip costs it, a change from the original, which had no slow trips
                 int locationScore = EvalResidential(simData.BlockMaps, x, y, trafficOK);
-                long zoneScore = simData.Valves.ResValve + locationScore;
+                long zoneScore = simData.Valves.ResValve + locationScore - Traffic.GrowthPenalty(trafficOK);
 
                 // Naturally unpowered zones should be penalized
                 if (!zonePower)

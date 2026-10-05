@@ -231,7 +231,7 @@ What the helpers the tile handlers share answer, which a state hash shows only w
 (`HelpersFile`): `valuePredicates` and `zonePredicates`, each predicate of `TileUtils` that reads a tile value, or a
 zone's centre given the zone flag, as a character per value, `1` where it holds; `checkZoneSize` and `checkBigZone`,
 each value's answer from `ZoneUtils`; `zones`, each zone centre of the fixtures' saves, with the population its own
-kind of zone counts, the road on its perimeter a drive starts from, and its land value less its pollution as a
+kind of zone counts, the first road or rail on its perimeter clockwise, and its land value less its pollution as a
 category; and `boatDistances`, a ship's distance from tiles near and far.
 
 ### ruleConstants.json

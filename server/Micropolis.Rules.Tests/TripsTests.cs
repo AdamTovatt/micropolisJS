@@ -18,7 +18,7 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The trips offered for the client's cars: that every trip on road alone is offered as it arrives, in order, how a
+    /// The trips offered for the client's cars: that every trip on road alone is offered as it is routed, in order, how a
     /// trip is written, and that a city's run offers the same trips every time, on road alone.
     /// </summary>
     [TestClass]
@@ -34,26 +34,26 @@ namespace Micropolis.Rules.Tests
         private static readonly Lazy<TownRun> Town = new Lazy<TownRun>(RunTown);
 
         [TestMethod]
-        public void Arrived_SeveralTripsOnRoad_OffersEachAsItArrivesInOrder()
+        public void Routed_SeveralTripsOnRoad_OffersEachAsItIsRoutedInOrder()
         {
             Trips trips = new Trips(RoadMap([.. Road, .. OtherRoad]));
             List<Trip> offered = new List<Trip>();
             trips.Offered += offered.Add;
 
-            trips.Arrived(Road);
+            trips.Routed(Road);
             Assert.HasCount(1, offered);
-            trips.Arrived(OtherRoad);
+            trips.Routed(OtherRoad);
 
             CollectionAssert.AreEqual(new[] { new Trip(9, 8, "NN"), new Trip(30, 20, "E") }, offered);
         }
 
-        // A drive may run on rail, where no car drives, so a trip with a rail tile is not offered; a road crossing rail
+        // A route may run on rail, where no car drives, so a trip with a rail tile is not offered; a road crossing rail
         // is road
         [TestMethod]
         [DataRow(HRAIL, false)]
         [DataRow(RAILVPOWERH, false)]
         [DataRow(VRAILROAD, true)]
-        public void Arrived_RouteThroughTheTile_IsOfferedOnlyIfACarDrivesOnIt(int tileValue, bool offered)
+        public void Routed_RouteThroughTheTile_IsOfferedOnlyIfACarDrivesOnIt(int tileValue, bool offered)
         {
             GameMap map = RoadMap(OtherRoad);
             map.SetTile(31, 20, tileValue, 0);
@@ -61,13 +61,13 @@ namespace Micropolis.Rules.Tests
             List<Trip> heard = new List<Trip>();
             trips.Offered += heard.Add;
 
-            trips.Arrived(OtherRoad);
+            trips.Routed(OtherRoad);
 
             CollectionAssert.AreEqual(offered ? new[] { new Trip(30, 20, "E") } : [], heard);
         }
 
         [TestMethod]
-        public void Arrived_StepEachWay_WritesItsLetter()
+        public void Routed_StepEachWay_WritesItsLetter()
         {
             IReadOnlyList<Position> loop = [new Position(5, 5), new Position(5, 4), new Position(6, 4), new Position(6, 5),
                                             new Position(5, 5)];
@@ -75,7 +75,7 @@ namespace Micropolis.Rules.Tests
             List<Trip> offered = new List<Trip>();
             trips.Offered += offered.Add;
 
-            trips.Arrived(loop);
+            trips.Routed(loop);
 
             Assert.AreEqual(new Trip(5, 5, "NESW"), offered.Single());
             Assert.AreEqual("[5,5,\"NESW\"]", JsonSerializer.Serialize(offered.Single()));
@@ -86,13 +86,13 @@ namespace Micropolis.Rules.Tests
         [DataRow(5, 3)]
         [DataRow(5, 5)]
         [DataRow(6, 4)]
-        public void Arrived_RouteNotSteppingToATileBeside_Throws(int x, int y)
+        public void Routed_RouteNotSteppingToATileBeside_Throws(int x, int y)
         {
             IReadOnlyList<Position> route = [new Position(5, 5), new Position(x, y)];
             Trips trips = new Trips(RoadMap(route));
             trips.Offered += _ => { };
 
-            Assert.ThrowsExactly<InvalidOperationException>(() => trips.Arrived(route));
+            Assert.ThrowsExactly<InvalidOperationException>(() => trips.Routed(route));
         }
 
         [TestMethod]
@@ -154,7 +154,7 @@ namespace Micropolis.Rules.Tests
             return offered;
         }
 
-        // The trips of the town with rail laid over every third tile of its east-west roads, so many of its drives run
+        // The trips of the town with rail laid over every third tile of its east-west roads, so many of its trips run
         // on rail, over 3,000 steps from its run save, and each tile of them that no car drives on, as the map had it
         // then
         private static TownRun RunTown()

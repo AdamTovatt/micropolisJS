@@ -17,100 +17,112 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// What of the traffic the fixtures' cities need not reach: the helicopter, where a drive that takes a block to its
-    /// heaviest traffic and then draws 0 from five points the helicopter at the block; the farthest a drive goes; and
-    /// the tiles at and just past each end of a destination's range.
+    /// What a zone's trip does with the route the router finds, which the fixtures' cities need not reach: the traffic
+    /// it adds, the helicopter it draws, when it is slow, the trip it offers for a car, and the tiles at and just past
+    /// each end of a destination's range. The trip starts from a zone centred at (10, 10), whose perimeter's first tile,
+    /// one west and two north of its centre, is the foot of a road running north.
     /// </summary>
     [TestClass]
     public sealed class TrafficTests
     {
-        // The zone the drive starts from. The first tile of its perimeter, one west and two north of its centre, is the
-        // foot of a road running north for three tiles, the last beside a commercial tile: a drive with no junction,
-        // which draws nothing on the way, and arrives on its second move, counting the tile it arrives on.
         private const int ZoneX = 10;
         private const int ZoneY = 10;
         private const int RoadX = ZoneX - 1;
-        private const int ArrivalY = ZoneY - 4;
+        private const int StartY = ZoneY - 2;
 
-        // Traffic one drive takes past the heaviest a block holds
-        private const int HeavyTraffic = Traffic.MaxTrafficDensity - Traffic.TripTraffic + 10;
+        // The traffic that makes a step onto a road cost exactly SlowFactor clear road tiles
+        private const int LimitTraffic = (TripRouter.SlowFactor - 1) * TripRouter.RoadCost * TripRouter.DensityPerCost;
 
         [TestMethod]
-        public void MakeTraffic_TrafficCappedAndADrawOfZero_PointsTheHelicopterAtTheBlock()
+        public void MakeTraffic_TrafficCappedAndADrawOfZero_PointsTheHelicopterAtTheRoad()
         {
-            (Sprite helicopter, _) = Drive(SeedWhoseFirstDraw(draw => draw == 0));
+            (Sprite helicopter, _) = HeavyTrip(SeedWhoseHelicopterDraw(draw => draw == 0));
 
-            Assert.AreEqual(((long)RoadX << 4, (long)ArrivalY << 4), (helicopter.DestX, helicopter.DestY));
+            Assert.AreEqual(((long)RoadX << 4, (long)(StartY - 1) << 4), (helicopter.DestX, helicopter.DestY));
         }
 
         [TestMethod]
         public void MakeTraffic_TrafficCappedAndADrawOfMoreThanZero_LeavesTheHelicopterAlone()
         {
-            (Sprite helicopter, (long, long) destination) = Drive(SeedWhoseFirstDraw(draw => draw != 0));
+            (Sprite helicopter, (long, long) destination) = HeavyTrip(SeedWhoseHelicopterDraw(draw => draw != 0));
 
             Assert.AreEqual(destination, (helicopter.DestX, helicopter.DestY));
         }
 
-        // A drive goes thirty moves at most: along a straight road, which draws nothing, it arrives at a destination
-        // beside its thirtieth move's tile, and never at one beside its thirty-first
+        // Four tiles north from the perimeter, road, road, rail and road, to beside a destination: the trip's traffic
+        // reaches the block of every road tile, and none for the rail. (9, 8) is alone in its block, (9, 7) shares one
+        // with the rail at (9, 6), and (9, 5) is alone in its block too.
         [TestMethod]
-        [DataRow(30, TrafficResult.RouteFound)]
-        [DataRow(31, TrafficResult.NoRouteFound)]
-        public void MakeTraffic_DestinationBesideTheMoveGiven_ArrivesWithinThirtyMovesOnly(int moves, TrafficResult expected)
+        public void MakeTraffic_RouteFound_AddsTheTripsTrafficForEachRoadTile()
         {
-            const int zoneY = 50;
             GameMap map = new GameMap(120, 100);
-            // From the zone's first perimeter tile north, a tile for each move, then the destination
-            for (int i = 0; i <= moves; i++)
-            {
-                map.SetTile(RoadX, zoneY - 2 - i, ROADS, 0);
-            }
-            map.SetTile(RoadX, zoneY - 3 - moves, COMBASE, 0);
+            map.SetTile(RoadX, StartY, ROADS, 0);
+            map.SetTile(RoadX, StartY - 1, ROADS, 0);
+            map.SetTile(RoadX, StartY - 2, HRAIL, 0);
+            map.SetTile(RoadX, StartY - 3, ROADS, 0);
+            map.PutZone(RoadX, StartY - 5, COMCLR, 3);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
 
-            TrafficResult result = new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(0), new Trips(map))
-                .MakeTraffic(ZoneX, zoneY, new BlockMaps(map.Width, map.Height), TrafficDestination.Commercial);
+            Assert.AreEqual(TrafficResult.RouteFound, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
 
-            Assert.AreEqual(expected, result);
+            CollectionAssert.AreEqual(new[] { Traffic.TripTraffic, Traffic.TripTraffic, Traffic.TripTraffic },
+                                      new[] { StartY, StartY - 1, StartY - 3 }.Select(y => blockMaps.TrafficDensityMap.WorldGet(RoadX, y)).ToArray());
         }
 
-        // From the zone's first perimeter tile a road runs north to a commercial tile, with a branch east at its middle to
-        // another, so a draw picks the way at the junction: whichever it takes, the route is every tile the drive stood
-        // on, from the road it started on, one tile to the next, to the tile beside the commercial one where it arrived
+        // A route of two road tiles, whose straight run is one tile: it is slow once it costs more than SlowFactor clear
+        // road tiles, which the traffic on its second tile's block decides
         [TestMethod]
-        public void MakeTraffic_RouteFound_RecordsEveryTileFromTheStartRoadToWhereItArrived()
+        [DataRow(0, TrafficResult.RouteFound)]
+        [DataRow(LimitTraffic, TrafficResult.RouteFound)]
+        [DataRow(LimitTraffic + TripRouter.DensityPerCost, TrafficResult.SlowRoute)]
+        public void MakeTraffic_RouteCostingAroundTheSlowLimit_IsSlowOnlyPastIt(int traffic, TrafficResult expected)
+        {
+            GameMap map = TwoTileRoadToCommerce();
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            blockMaps.TrafficDensityMap.WorldSet(RoadX, StartY - 1, traffic);
+
+            Assert.AreEqual(expected, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
+        }
+
+        // The trip is the route, offered as it is found: every tile from the perimeter to beside the destination
+        [TestMethod]
+        public void MakeTraffic_RouteFound_OffersTheRouteAsATrip()
+        {
+            GameMap map = TwoTileRoadToCommerce();
+            Trips trips = new Trips(map);
+            List<Trip> offered = new List<Trip>();
+            trips.Offered += offered.Add;
+
+            new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(0), trips)
+                .MakeTraffic(ZoneX, ZoneY, new BlockMaps(map.Width, map.Height), TrafficDestination.Commercial);
+
+            CollectionAssert.AreEqual(new[] { new TilePosition(RoadX, StartY), new TilePosition(RoadX, StartY - 1) },
+                                      TripRoutes.Tiles(offered.Single()));
+        }
+
+        // With no road or rail on its perimeter a zone has no road; with one that reaches no destination, no route
+        [TestMethod]
+        [DataRow(false, TrafficResult.NoRoadFound)]
+        [DataRow(true, TrafficResult.NoRouteFound)]
+        public void MakeTraffic_NoDestinationReached_SaysWhetherThereWasARoad(bool road, TrafficResult expected)
         {
             GameMap map = new GameMap(120, 100);
-            Position start = new Position(RoadX, ZoneY - 2);
-            Position[] north = [start, new Position(RoadX, ZoneY - 3), new Position(RoadX, ZoneY - 4), new Position(RoadX, ZoneY - 5), new Position(RoadX, ZoneY - 6)];
-            Position[] east = [new Position(RoadX + 1, ZoneY - 4), new Position(RoadX + 2, ZoneY - 4), new Position(RoadX + 3, ZoneY - 4)];
-            foreach (Position road in north.Concat(east))
+            if (road)
             {
-                map.SetTile(road.X, road.Y, ROADS, 0);
-            }
-            map.SetTile(RoadX, ZoneY - 7, COMBASE, 0);
-            map.SetTile(RoadX + 3, ZoneY - 5, COMBASE, 0);
-
-            List<TilePosition> northRoute = north.Select(Tile).ToList();
-            List<TilePosition> eastRoute = north[..3].Concat(east).Select(Tile).ToList();
-            HashSet<string> taken = new HashSet<string>();
-
-            for (uint seed = 1; seed <= 16; seed++)
-            {
-                // The trip is the route, offered as it arrives
-                Trips trips = new Trips(map);
-                List<Trip> offered = new List<Trip>();
-                trips.Offered += offered.Add;
-
-                Assert.AreEqual(TrafficResult.RouteFound,
-                                new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(seed), trips)
-                                    .MakeTraffic(ZoneX, ZoneY, new BlockMaps(map.Width, map.Height), TrafficDestination.Commercial));
-
-                List<TilePosition> route = TripRoutes.Tiles(offered.Single());
-                CollectionAssert.AreEqual(route[^1] == northRoute[^1] ? northRoute : eastRoute, route);
-                taken.Add(route[^1] == northRoute[^1] ? "north" : "east");
+                map.SetTile(RoadX, StartY, ROADS, 0);
             }
 
-            CollectionAssert.AreEquivalent(new[] { "north", "east" }, taken.ToList(), "The draws never took one of the ways.");
+            Assert.AreEqual(expected, MakeTraffic(map, new BlockMaps(map.Width, map.Height), RandomStream.FromSeed(0)));
+        }
+
+        [TestMethod]
+        [DataRow(TrafficResult.NoRoadFound, 0)]
+        [DataRow(TrafficResult.NoRouteFound, 0)]
+        [DataRow(TrafficResult.RouteFound, 0)]
+        [DataRow(TrafficResult.SlowRoute, Traffic.SlowTripPenalty)]
+        public void GrowthPenalty_EachResult_IsThePenaltyOnlyForASlowRoute(TrafficResult result, int penalty)
+        {
+            Assert.AreEqual(penalty, Traffic.GrowthPenalty(result));
         }
 
         [TestMethod]
@@ -138,46 +150,53 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(inside, range.Contains(tileValue));
         }
 
-        // The helicopter after the drive, from a city whose stream is seeded with the seed, and its destination before it
-        private static (Sprite Helicopter, (long, long) Destination) Drive(uint seed)
+        // A road of two tiles north from the perimeter, its second beside a commercial zone and alone in its block
+        private static GameMap TwoTileRoadToCommerce()
         {
             GameMap map = new GameMap(120, 100);
-            map.SetTile(RoadX, ZoneY - 2, ROADS, 0);
-            map.SetTile(RoadX, ZoneY - 3, ROADS, 0);
-            map.SetTile(RoadX, ArrivalY, ROADS, 0);
-            map.SetTile(RoadX, ArrivalY - 1, COMBASE, 0);
+            map.SetTile(RoadX, StartY, ROADS, 0);
+            map.SetTile(RoadX, StartY - 1, ROADS, 0);
+            map.PutZone(RoadX, StartY - 3, COMCLR, 3);
+            return map;
+        }
 
-            // A live helicopter, made from a stream of the sprite manager's own, so the drive's stream is the seed's alone
+        private static TrafficResult MakeTraffic(GameMap map, BlockMaps blockMaps, RandomStream random)
+        {
+            return new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), random, new Trips(map))
+                .MakeTraffic(ZoneX, ZoneY, blockMaps, TrafficDestination.Commercial);
+        }
+
+        // The helicopter after a trip whose second tile's block it takes to the heaviest traffic, from a city whose
+        // stream is seeded with the seed, and its destination before it
+        private static (Sprite Helicopter, (long, long) Destination) HeavyTrip(uint seed)
+        {
+            GameMap map = TwoTileRoadToCommerce();
+
+            // A live helicopter, made from a stream of the sprite manager's own, so the trip's stream is the seed's alone
             SpriteManager spriteManager = new SpriteManager(map, RandomStream.FromSeed(0));
             spriteManager.GenerateCopter(0, 0);
             Sprite helicopter = spriteManager.GetSprite(SpriteType.Helicopter)!;
             (long, long) destination = (helicopter.DestX, helicopter.DestY);
             BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
-            blockMaps.TrafficDensityMap.WorldSet(RoadX, ArrivalY, HeavyTraffic);
+            blockMaps.TrafficDensityMap.WorldSet(RoadX, StartY - 1, Traffic.MaxTrafficDensity - Traffic.TripTraffic);
 
-            TrafficResult result = new Traffic(map, spriteManager, RandomStream.FromSeed(seed), new Trips(map))
-                .MakeTraffic(ZoneX, ZoneY, blockMaps, TrafficDestination.Industrial);
+            new Traffic(map, spriteManager, RandomStream.FromSeed(seed), new Trips(map))
+                .MakeTraffic(ZoneX, ZoneY, blockMaps, TrafficDestination.Commercial);
 
-            Assert.AreEqual(TrafficResult.RouteFound, result);
-            Assert.AreEqual(Traffic.MaxTrafficDensity, blockMaps.TrafficDensityMap.WorldGet(RoadX, ArrivalY));
+            Assert.AreEqual(Traffic.MaxTrafficDensity, blockMaps.TrafficDensityMap.WorldGet(RoadX, StartY - 1));
             return (helicopter, destination);
         }
 
-        private static TilePosition Tile(Position position)
+        // The first seed whose stream, after the router's pick of the one destination, whose route is two tiles, draws
+        // from five a value that passes the test
+        private static uint SeedWhoseHelicopterDraw(Func<int, bool> test)
         {
-            return new TilePosition(position.X, position.Y);
-        }
+            GameMap map = TwoTileRoadToCommerce();
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
 
-        // The first seed whose stream's first draw from five passes the test
-        private static uint SeedWhoseFirstDraw(Func<int, bool> test)
-        {
-            uint seed = 1;
-            while (!test(RandomStream.FromSeed(seed).GetRandom(5)))
-            {
-                seed++;
-            }
-
-            return seed;
+            return Seeds.First(RandomStream.FromSeed, random =>
+                Seeds.Trip(map, blockMaps, ZoneX, ZoneY, TrafficDestination.Commercial, random) != TrafficResult.NoRouteFound &&
+                test(random.GetRandom(5)));
         }
     }
 }

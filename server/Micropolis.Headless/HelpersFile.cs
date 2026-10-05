@@ -24,8 +24,8 @@ namespace Micropolis.Headless
     /// where a fixture happens to reach them. Every tile value's answer from each predicate of <see cref="TileUtils"/>
     /// that reads a value, and each that reads a zone's centre, given the zone flag, as a character per value, 1
     /// where it holds; every value's <see cref="ZoneUtils.CheckZoneSize"/> and <see cref="ZoneUtils.CheckBigZone"/>;
-    /// each zone centre of the fixtures' saves, with the population its own kind of zone counts, the road on its
-    /// perimeter a drive starts from (<see cref="Traffic.FindPerimeterRoad"/>) and its land value less its pollution as
+    /// each zone centre of the fixtures' saves, with the population its own kind of zone counts, the first road or rail on
+    /// its perimeter clockwise (<see cref="Traffic.FindPerimeterRoad"/>) and its land value less its pollution as
     /// a category (<see cref="ZoneUtils.GetLandPollutionValue"/>); and a ship's distance from tiles near and far
     /// (<see cref="SpriteManager.GetBoatDistance"/>).
     /// </summary>

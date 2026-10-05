@@ -15,10 +15,10 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The trips the traffic rule completes, offered for the client to draw as cars: a picture of what the rules do,
-    /// which the rules never read, never save and draw nothing from the stream for. A trip is the route of a drive that
-    /// arrived, every tile it stood on in order, and every trip a car drives on all of is offered as it arrives
-    /// (<see cref="TileUtils.CarriesCars(int)"/>), since a drive may run on rail.
+    /// The trips the traffic rule routes, offered for the client to draw as cars: a picture of what the rules do,
+    /// which the rules never read, never save and draw nothing from the stream for. A trip is the route the router
+    /// found, every tile of it in order from the perimeter tile it starts on, and every trip a car drives on all of is
+    /// offered as it is routed (<see cref="TileUtils.CarriesCars(int)"/>), since a route may run on rail.
     /// </summary>
     /// <remarks>
     /// <see cref="Offered"/> is a plain C# event, not one of <see cref="RulesEvents"/>: what the simulation's emitters
@@ -34,14 +34,14 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Hears each trip offered, as it arrives.
+        /// Hears each trip offered, as it is routed.
         /// </summary>
         public event Action<Trip>? Offered;
 
         /// <summary>
-        /// Offers the route of a drive that arrived if a car drives on every tile of it.
+        /// Offers the route of a trip routed if a car drives on every tile of it.
         /// </summary>
-        internal void Arrived(IReadOnlyList<Position> route)
+        internal void Routed(IReadOnlyList<Position> route)
         {
             if (Offered is not null && CarriesCars(route))
             {

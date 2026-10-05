@@ -526,7 +526,8 @@ namespace Micropolis.Rules.Tests
             StringAssert.Contains(exception.Message, path);
         }
 
-        // The run save with the value at a path replaced by the given JSON
+        // The run save with the value at a path replaced by the given JSON. A sprite given a type takes the first frame,
+        // which every type has, so it loads whatever frame the run left it on.
         private static JsonNode SetAt(string path, string json)
         {
             JsonNode save = JsonNode.Parse(RunText)!;
@@ -542,6 +543,11 @@ namespace Micropolis.Rules.Tests
             {
                 (JsonObject parent, string key) = Locate(save, path);
                 parent[key] = value;
+
+                if (path.StartsWith("sprites.list[", StringComparison.Ordinal) && key == "type")
+                {
+                    parent["frame"] = 1;
+                }
             }
 
             return save;
