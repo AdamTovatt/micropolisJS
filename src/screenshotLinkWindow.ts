@@ -13,18 +13,16 @@
  */
 
 import { requiredElement } from "./domElements";
-import { SCREENSHOT_LINK_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // Shows the link to a picture of the map the player took
-export class ScreenshotLinkWindow extends ClosableWindow {
+export class ScreenshotLinkWindow extends ClosableWindow<[string], void> {
   constructor(opacityLayerID: string, windowID: string) {
-    super(opacityLayerID, windowID, SCREENSHOT_LINK_CLOSED);
+    super(opacityLayerID, windowID, undefined);
     this.closeOnSubmit("screenshotLinkForm");
   }
 
-  open(screenshotLink: string): void {
+  protected fill(screenshotLink: string): void {
     requiredElement("screenshotLink", HTMLAnchorElement).href = screenshotLink;
-    this._toggleDisplay();
   }
 }

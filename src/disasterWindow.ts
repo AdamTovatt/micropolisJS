@@ -13,7 +13,6 @@
  */
 
 import { requiredElement } from "./domElements";
-import { DISASTER_WINDOW_CLOSED } from "./uiMessages";
 import { DISASTER_KINDS, type DisasterKind } from "./protocol";
 import { ClosableWindow } from "./windowBase";
 
@@ -40,11 +39,11 @@ export function chosenDisaster(value: string): DisasterKind | null {
   return kind;
 }
 
-// The disasters the player may trigger. Closing emits the disaster chosen, which the game sends as a triggerDisaster
+// The disasters the player may trigger. It closes with the disaster chosen, which the game sends as a triggerDisaster
 // command, or null for none or when cancelled.
-export class DisasterWindow extends ClosableWindow {
+export class DisasterWindow extends ClosableWindow<[], DisasterKind | null> {
   constructor(opacityLayerID: string, windowID: string) {
-    super(opacityLayerID, windowID, DISASTER_WINDOW_CLOSED, "disasterSelect");
+    super(opacityLayerID, windowID, null, "disasterSelect");
 
     requiredElement("disasterNone", HTMLOptionElement).value = NONE;
     for (const kind of DISASTER_KINDS) {
@@ -55,15 +54,9 @@ export class DisasterWindow extends ClosableWindow {
 
     requiredElement("disasterForm", HTMLFormElement).addEventListener("submit", (event) => {
       event.preventDefault();
-      this.close(chosenDisaster(requiredElement("disasterSelect", HTMLSelectElement).value));
+      this.closeWith(chosenDisaster(requiredElement("disasterSelect", HTMLSelectElement).value));
     });
   }
 
-  open(): void {
-    this._toggleDisplay();
-  }
-
-  close(disaster: DisasterKind | null = null): void {
-    super.close(disaster);
-  }
+  protected fill(): void {}
 }

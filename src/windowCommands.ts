@@ -55,6 +55,11 @@ export function disasterCommand(kind: DisasterKind): Command {
   return {type: "triggerDisaster", kind};
 }
 
+// What the debug window's add-funds action sends
+export function addFundsCommand(): Command {
+  return {type: "addFunds"};
+}
+
 // The outcome of the player's own tool command a result tells of, and null for any other result. A result's command
 // is whatever arrived, so it is checked before it is read.
 export function toolOutcome(result: CommandResult, player: PlayerId): Outcome | null {

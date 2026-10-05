@@ -12,17 +12,14 @@
  *
  */
 
-import { TOUCH_WINDOW_CLOSED } from "./uiMessages";
 import { ClosableWindow } from "./windowBase";
 
 // Warns a player on a touch device that the game is made for a mouse
-export class TouchWarnWindow extends ClosableWindow {
+export class TouchWarnWindow extends ClosableWindow<[], void> {
   constructor(opacityLayerID: string, windowID: string) {
-    super(opacityLayerID, windowID, TOUCH_WINDOW_CLOSED);
+    super(opacityLayerID, windowID, undefined);
     this.closeOnSubmit("touchForm");
   }
 
-  open(): void {
-    this._toggleDisplay();
-  }
+  protected fill(): void {}
 }

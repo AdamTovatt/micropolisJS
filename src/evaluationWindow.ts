@@ -14,7 +14,6 @@
 
 import { requiredElement } from "./domElements";
 import { formatCount, formatMoney } from "./money";
-import { EVAL_WINDOW_CLOSED } from "./uiMessages";
 import { CITY_PROBLEMS, type EvaluationRecord, GAME_LEVELS, MAX_RANKED_PROBLEMS } from "./protocol";
 import { scoreBreakdownRows, signedPoints, type ScoreRow } from "./scoreBreakdownView";
 import { Text } from "./text";
@@ -54,15 +53,14 @@ export function evaluationView(record: EvaluationRecord): EvaluationView {
 }
 
 // The city's evaluation: public opinion, the statistics, and why the score changed
-export class EvaluationWindow extends ClosableWindow {
+export class EvaluationWindow extends ClosableWindow<[EvaluationRecord], void> {
   constructor(opacityLayerID: string, windowID: string) {
-    super(opacityLayerID, windowID, EVAL_WINDOW_CLOSED);
+    super(opacityLayerID, windowID, undefined);
     this.closeOnSubmit("evalButtons");
   }
 
-  open(record: EvaluationRecord): void {
+  protected fill(record: EvaluationRecord): void {
     render(evaluationView(record));
-    this._toggleDisplay();
   }
 }
 

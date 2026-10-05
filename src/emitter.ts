@@ -12,14 +12,15 @@
  *
  */
 
-// The base of a client object that announces what the player does, such as a window closing or a button clicked, to
-// the listeners added for each event, by its name from uiMessages.ts. The simulation's events are its own
-// (EventEmitter in the C# rules), and reach the client only as state messages.
-export class Emitter {
-  private readonly listeners = new Map<string, ((value: never) => void)[]>();
+// The base of a client object that announces what the player does, such as a button clicked or a tool used, to the
+// listeners added for each event, by its name from uiMessages.ts. Events maps each event's name to the type of the
+// value it carries, undefined for none, so a listener receives that type and an emit can only send it. The simulation's
+// events are its own (EventEmitter in the C# rules), and reach the client only as state messages.
+export class Emitter<Events extends object> {
+  private readonly listeners = new Map<keyof Events, ((value: never) => void)[]>();
 
   // Calls the listener with each value the event carries from now on; a listener added twice is called once
-  addEventListener(event: string, listener: (value: never) => void): void {
+  addEventListener<Event extends keyof Events>(event: Event, listener: (value: Events[Event]) => void): void {
     const listeners = this.listeners.get(event) ?? [];
     if (!listeners.includes(listener)) {
       listeners.push(listener);
@@ -28,7 +29,10 @@ export class Emitter {
     this.listeners.set(event, listeners);
   }
 
-  protected emit(event: string, value?: unknown): void {
-    (this.listeners.get(event) ?? []).forEach((listener) => (listener as (value: unknown) => void)(value));
+  // An event that carries undefined is emitted without a value
+  protected emit<Event extends keyof Events>(event: Event,
+                                             ...value: undefined extends Events[Event] ? [] : [Events[Event]]): void {
+    const listeners = (this.listeners.get(event) ?? []) as ((value: Events[Event] | undefined) => void)[];
+    listeners.forEach((listener) => listener(value[0]));
   }
 }
