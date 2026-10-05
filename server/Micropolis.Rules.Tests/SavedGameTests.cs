@@ -72,9 +72,9 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         [DataRow("an older version", "4", "The save's version is 4, older than version 5")]
         [DataRow("the first version", "1", "The save's version is 1, older than version 5")]
-        [DataRow("a newer version", "13", "The save's version is 13, newer than version 12")]
+        [DataRow("a newer version", "14", "The save's version is 14, newer than version 13")]
         [DataRow("a negative version", "-3", "The save's version is -3, older than version 5")]
-        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 12")]
+        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 13")]
         [DataRow("a version that is not whole", "5.5", "The save's version must be a whole number, not 5.5")]
         [DataRow("a version that is text", "\"5\"", "The save's version must be a whole number, not a string.")]
         [DataRow("a version that is a list", "[5]", "The save's version must be a whole number, not a list.")]
@@ -233,6 +233,67 @@ namespace Micropolis.Rules.Tests
             Assert.IsTrue(ship.Frame == 0 || ShipSprite.IsOnTile(ship), $"The ship is at ({ship.X}, {ship.Y}).");
         }
 
+        // A plane from before aircraft flew on purpose departs and a helicopter returns; no other sprite has a flight
+        [TestMethod]
+        public void Load_AircraftFromBeforeFlights_DepartOrReturn()
+        {
+            Simulation city = SavedGame.Load(Version12WithAHelicopter(), out _);
+
+            CollectionAssert.AreEqual(
+                new (SpriteType, PlanePhase?, Position?, CopterPhase?, Position?)[]
+                {
+                    (SpriteType.Airplane, PlanePhase.Departing, null, null, null), (SpriteType.Ship, null, null, null, null),
+                    (SpriteType.Helicopter, null, null, CopterPhase.Returning, null),
+                },
+                city.SpriteManager.SpriteList.Select(sprite => (sprite.Type, sprite.PlaneFlight?.Phase, sprite.PlaneFlight?.Airport,
+                                                                sprite.CopterFlight?.Phase, sprite.CopterFlight?.Block)).ToList());
+        }
+
+        // The upgraded plane holds the heading it wandered on until it leaves the map, and the upgraded helicopter flies
+        // back to its saved home and lands there
+        [TestMethod]
+        public void Move_AircraftFromBeforeFlights_LeaveOrLandHome()
+        {
+            Simulation city = SavedGame.Load(Version12WithAHelicopter(), out _);
+            Sprite plane = city.SpriteManager.GetSprite(SpriteType.Airplane)!;
+            Sprite copter = city.SpriteManager.GetSprite(SpriteType.Helicopter)!;
+            long heading = plane.Frame;
+            HashSet<long> planeFrames = [];
+
+            for (int step = 0; step < 1000 && (plane.Frame != 0 || copter.Frame != 0); step++)
+            {
+                city.SpriteManager.MoveObjects(city.ConstructSimData());
+                planeFrames.Add(plane.Frame);
+            }
+
+            CollectionAssert.AreEquivalent(new[] { heading, 0L }, planeFrames.ToArray());
+            Assert.AreEqual((0L, 0L), (plane.Frame, copter.Frame));
+            Assert.IsLessThan(30, Math.Abs(copter.X - 300) + Math.Abs(copter.Y - 900));
+        }
+
+        // The step from version 12 drops the distance getDir last found, which no sprite reads before measuring it
+        [TestMethod]
+        public void Load_Version12_DropsTheSharedDistance()
+        {
+            Simulation city = SavedGame.Load(ConformanceFile.Read("saveVersions/version12.json"), out _);
+
+            Assert.IsFalse(city.Save()["sprites"]!.AsObject().ContainsKey("absDist"));
+        }
+
+        // The step from version 12 leaves an entry that is no sprite, or a sprite whose type is no whole number, for the
+        // load to refuse, naming it
+        [TestMethod]
+        [DataRow("7", "sprites.list[0]")]
+        [DataRow("{\"type\":\"plane\"}", "sprites.list[0].type")]
+        public void Load_Version12SpriteListHoldingNoSprite_IsRefusedNamingIt(string entry, string path)
+        {
+            string text = Edited("version12.json", savedGame => savedGame["sprites"]!["list"]![0] = JsonNode.Parse(entry));
+
+            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _));
+
+            Assert.AreEqual(path, exception.Path, exception.Message);
+        }
+
         // The step from version 10 leaves an entry that is no sprite for the load to refuse, naming it
         [TestMethod]
         public void Load_Version10SpriteListHoldingANumber_IsRefusedNamingTheEntry()
@@ -285,6 +346,23 @@ namespace Micropolis.Rules.Tests
         }
 
         // A sample's text with the saved game edited as parsed, so the edit doesn't depend on how the sample is laid out
+        // The version 12 sample, which holds a plane in flight and a ship, with a helicopter added far from the plane,
+        // whose home is (300, 900)
+        private static string Version12WithAHelicopter()
+        {
+            return Edited("version12.json", savedGame =>
+            {
+                JsonArray list = savedGame["sprites"]!["list"]!.AsArray();
+                JsonObject copter = list[0]!.DeepClone().AsObject();
+                copter["type"] = (int)SpriteType.Helicopter;
+                copter["x"] = 1500;
+                copter["y"] = 1300;
+                copter["origX"] = 300;
+                copter["origY"] = 900;
+                list.Add(copter);
+            });
+        }
+
         private static string Edited(string sample, Action<JsonObject> edit)
         {
             JsonObject savedGame = JsonText.Parse(ConformanceFile.Read($"saveVersions/{sample}"))!.AsObject();

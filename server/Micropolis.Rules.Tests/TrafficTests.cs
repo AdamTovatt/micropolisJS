@@ -33,20 +33,30 @@ namespace Micropolis.Rules.Tests
         // The traffic that makes a step onto a road cost exactly SlowCostPerTile
         private const int LimitTraffic = (TripRouter.SlowCostPerTile - TripRouter.RoadCost) * TripRouter.DensityPerCost;
 
+        // A trip that takes its second tile's block to the heaviest traffic draws no more from the stream than its route
+        // does: the original drew there to point the traffic helicopter at the road, where the helicopter chooses its
+        // traffic as it takes off
         [TestMethod]
-        public void MakeTraffic_TrafficCappedAndADrawOfZero_PointsTheHelicopterAtTheRoad()
+        public void MakeTraffic_TrafficCapped_DrawsNoMoreThanTheRoute()
         {
-            (Sprite helicopter, _) = HeavyTrip(SeedWhoseHelicopterDraw(draw => draw == 0));
+            GameMap map = TwoTileRoadToCommerce();
+            BlockMaps blockMaps = OneTripFromTheCap(map);
+            RandomStream random = RandomStream.FromSeed(1);
+            RandomStream routeOnly = RandomStream.FromSeed(1);
 
-            Assert.AreEqual(((long)RoadX << 4, (long)(StartY - 1) << 4), (helicopter.DestX, helicopter.DestY));
-        }
+            Assert.AreNotEqual(TrafficResult.NoRouteFound, MakeTraffic(map, blockMaps, random));
+            Seeds.Trip(map, OneTripFromTheCap(map), ZoneX, ZoneY, TrafficDestination.Commercial, routeOnly);
 
-        [TestMethod]
-        public void MakeTraffic_TrafficCappedAndADrawOfMoreThanZero_LeavesTheHelicopterAlone()
-        {
-            (Sprite helicopter, (long, long) destination) = HeavyTrip(SeedWhoseHelicopterDraw(draw => draw != 0));
+            Assert.AreEqual(Traffic.MaxTrafficDensity, blockMaps.TrafficDensityMap.WorldGet(RoadX, StartY - 1));
+            CollectionAssert.AreEqual(routeOnly.GetState(), random.GetState());
 
-            Assert.AreEqual(destination, (helicopter.DestX, helicopter.DestY));
+            // Block maps whose second road tile's block is one trip short of the heaviest traffic
+            static BlockMaps OneTripFromTheCap(GameMap map)
+            {
+                BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+                blockMaps.TrafficDensityMap.WorldSet(RoadX, StartY - 1, Traffic.MaxTrafficDensity - Traffic.TripTraffic);
+                return blockMaps;
+            }
         }
 
         // Four tiles north from the perimeter, road, road, rail and road, to beside a destination: the trip's traffic
@@ -94,7 +104,7 @@ namespace Micropolis.Rules.Tests
             List<Trip> offered = new List<Trip>();
             trips.Offered += offered.Add;
 
-            new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(0), trips)
+            new Traffic(map, RandomStream.FromSeed(0), trips)
                 .MakeTraffic(ZoneX, ZoneY, new BlockMaps(map.Width, map.Height), TrafficDestination.Commercial);
 
             CollectionAssert.AreEqual(new[] { new TilePosition(RoadX, StartY), new TilePosition(RoadX, StartY - 1) },
@@ -163,41 +173,8 @@ namespace Micropolis.Rules.Tests
 
         private static TrafficResult MakeTraffic(GameMap map, BlockMaps blockMaps, RandomStream random)
         {
-            return new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), random, new Trips(map))
+            return new Traffic(map, random, new Trips(map))
                 .MakeTraffic(ZoneX, ZoneY, blockMaps, TrafficDestination.Commercial);
-        }
-
-        // The helicopter after a trip whose second tile's block it takes to the heaviest traffic, from a city whose
-        // stream is seeded with the seed, and its destination before it
-        private static (Sprite Helicopter, (long, long) Destination) HeavyTrip(uint seed)
-        {
-            GameMap map = TwoTileRoadToCommerce();
-
-            // A live helicopter, made from a stream of the sprite manager's own, so the trip's stream is the seed's alone
-            SpriteManager spriteManager = new SpriteManager(map, RandomStream.FromSeed(0));
-            spriteManager.GenerateCopter(0, 0);
-            Sprite helicopter = spriteManager.GetSprite(SpriteType.Helicopter)!;
-            (long, long) destination = (helicopter.DestX, helicopter.DestY);
-            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
-            blockMaps.TrafficDensityMap.WorldSet(RoadX, StartY - 1, Traffic.MaxTrafficDensity - Traffic.TripTraffic);
-
-            new Traffic(map, spriteManager, RandomStream.FromSeed(seed), new Trips(map))
-                .MakeTraffic(ZoneX, ZoneY, blockMaps, TrafficDestination.Commercial);
-
-            Assert.AreEqual(Traffic.MaxTrafficDensity, blockMaps.TrafficDensityMap.WorldGet(RoadX, StartY - 1));
-            return (helicopter, destination);
-        }
-
-        // The first seed whose stream, after the router's pick of the one destination, whose route is two tiles, draws
-        // from five a value that passes the test
-        private static uint SeedWhoseHelicopterDraw(Func<int, bool> test)
-        {
-            GameMap map = TwoTileRoadToCommerce();
-            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
-
-            return Seeds.First(RandomStream.FromSeed, random =>
-                Seeds.Trip(map, blockMaps, ZoneX, ZoneY, TrafficDestination.Commercial, random) != TrafficResult.NoRouteFound &&
-                test(random.GetRandom(5)));
         }
     }
 }

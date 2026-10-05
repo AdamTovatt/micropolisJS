@@ -80,9 +80,7 @@ namespace Micropolis.Rules
 
                 frame += sprite.Step != 0 ? 1 : -1;
 
-                manager.GetDir(sprite.X, sprite.Y, sprite.DestX, sprite.DestY);
-
-                if (manager.AbsDist < 60)
+                if (SpriteManager.Distance(sprite.X, sprite.Y, sprite.DestX, sprite.DestY) < 60)
                 {
                     if (sprite.Flag == 0)
                     {
@@ -98,7 +96,7 @@ namespace Micropolis.Rules
                 }
 
                 // Perhaps switch to a cardinal direction
-                long dir = (manager.GetDir(sprite.X, sprite.Y, sprite.DestX, sprite.DestY) - 1) / 2;
+                long dir = (SpriteManager.GetDir(sprite.X, sprite.Y, sprite.DestX, sprite.DestY) - 1) / 2;
 
                 if (dir != currentDir && random.GetRandom(10) == 0)
                 {

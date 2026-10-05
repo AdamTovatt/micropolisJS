@@ -100,7 +100,6 @@ namespace Micropolis.Rules
         public const int SlowTripPenalty = 300;
 
         private readonly GameMap _map;
-        private readonly SpriteManager _spriteManager;
         private readonly RandomStream _random;
         private readonly Trips _trips;
         private readonly TripRouter _router;
@@ -109,10 +108,9 @@ namespace Micropolis.Rules
         private readonly List<Position> _route = new List<Position>();
 
         /// <param name="trips">Takes the route of each trip found, which nothing in the rules reads.</param>
-        public Traffic(GameMap map, SpriteManager spriteManager, RandomStream random, Trips trips)
+        public Traffic(GameMap map, RandomStream random, Trips trips)
         {
             _map = map;
-            _spriteManager = spriteManager;
             _random = random;
             _trips = trips;
             _router = new TripRouter(map);
@@ -144,8 +142,9 @@ namespace Micropolis.Rules
             return result == TrafficResult.SlowRoute ? SlowTripPenalty : 0;
         }
 
-        // Adds the trip's traffic to the block of every road tile of its route, in order, and draws the traffic
-        // helicopter to a road whose block it takes to the heaviest traffic, now and then
+        // Adds the trip's traffic to the block of every road tile of its route, in order. The original also pointed the
+        // traffic helicopter at a road whose block it took to the heaviest traffic, now and then; the helicopter chooses
+        // its traffic as it takes off (CopterSprite).
         private void AddToTrafficDensityMap(BlockMaps blockMaps)
         {
             BlockMap trafficDensityMap = blockMaps.TrafficDensityMap;
@@ -161,17 +160,6 @@ namespace Micropolis.Rules
                     traffic += TripTraffic;
                     traffic = Math.Min(traffic, MaxTrafficDensity);
                     trafficDensityMap.WorldSet(pos.X, pos.Y, traffic);
-
-                    // Attract traffic copter to the traffic
-                    if (traffic >= MaxTrafficDensity && _random.GetRandom(5) == 0)
-                    {
-                        Sprite? sprite = _spriteManager.GetSprite(SpriteType.Helicopter);
-                        if (sprite is not null)
-                        {
-                            sprite.DestX = SpriteUtils.WorldToPix(pos.X);
-                            sprite.DestY = SpriteUtils.WorldToPix(pos.Y);
-                        }
-                    }
                 }
             }
         }

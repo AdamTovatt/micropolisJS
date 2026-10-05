@@ -50,7 +50,7 @@ namespace Micropolis.Rules
             return new JsonObject
             {
                 ["phase"] = (int)Phase,
-                ["port"] = Port is Position port ? new JsonObject { ["x"] = port.X, ["y"] = port.Y } : null,
+                ["port"] = Port?.Save(),
                 ["dockCount"] = DockCount,
             };
         }
@@ -61,7 +61,7 @@ namespace Micropolis.Rules
             return new ShipMission
             {
                 Phase = data.ReadEnum<ShipPhase>("phase"),
-                Port = data.ReadNullableObject("port", port => new Position(port.ReadInt("x", 0, map.Width - 1), port.ReadInt("y", 0, map.Height - 1))),
+                Port = data.ReadNullableTile("port", map),
                 DockCount = data.ReadInt("dockCount", 0, (int)ShipSprite.DockSteps),
             };
         }

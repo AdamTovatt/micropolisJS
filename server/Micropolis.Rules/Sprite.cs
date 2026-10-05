@@ -95,6 +95,16 @@ namespace Micropolis.Rules
         /// </summary>
         public ShipMission? Mission { get; internal set; }
 
+        /// <summary>
+        /// A plane's flight, and <see langword="null"/> for every other type.
+        /// </summary>
+        public PlaneFlight? PlaneFlight { get; internal set; }
+
+        /// <summary>
+        /// A helicopter's flight, and <see langword="null"/> for every other type.
+        /// </summary>
+        public CopterFlight? CopterFlight { get; internal set; }
+
         public SpriteTraits Traits => TraitsOf(Type);
 
         /// <summary>
@@ -142,12 +152,14 @@ namespace Micropolis.Rules
                 ["flag"] = Flag,
                 ["reachedLand"] = ReachedLand,
                 ["mission"] = Mission?.Save(),
+                ["planeFlight"] = PlaneFlight?.Save(),
+                ["copterFlight"] = CopterFlight?.Save(),
             };
         }
 
         // The frame, 0 for a sprite that died, and a train's direction index the tables its moves read, so a value
         // outside them is refused here rather than failing the step that moves the sprite. Only a monster reaches land,
-        // and only a ship has a mission, whose port is a tile of the map.
+        // only a ship has a mission, whose port is a tile of the map, and only a plane or a helicopter its flight.
         internal static Sprite Load(SavedObject data, GameMap map)
         {
             SpriteType type = data.ReadEnum<SpriteType>("type");
@@ -169,6 +181,8 @@ namespace Micropolis.Rules
                 Flag = data.ReadSafeInteger("flag"),
                 ReachedLand = data.ReadBool("reachedLand", type == SpriteType.Monster ? [false, true] : [false]),
                 Mission = ReadMission(data, type, map),
+                PlaneFlight = ReadPlaneFlight(data, type, map),
+                CopterFlight = ReadCopterFlight(data, type, map),
             };
         }
 
@@ -180,6 +194,28 @@ namespace Micropolis.Rules
             }
 
             data.ReadNull("mission", "must be null for every type but a ship");
+            return null;
+        }
+
+        private static PlaneFlight? ReadPlaneFlight(SavedObject data, SpriteType type, GameMap map)
+        {
+            if (type == SpriteType.Airplane)
+            {
+                return data.ReadObject("planeFlight", saved => PlaneFlight.Load(saved, map));
+            }
+
+            data.ReadNull("planeFlight", "must be null for every type but a plane");
+            return null;
+        }
+
+        private static CopterFlight? ReadCopterFlight(SavedObject data, SpriteType type, GameMap map)
+        {
+            if (type == SpriteType.Helicopter)
+            {
+                return data.ReadObject("copterFlight", saved => CopterFlight.Load(saved, map));
+            }
+
+            data.ReadNull("copterFlight", "must be null for every type but a helicopter");
             return null;
         }
     }

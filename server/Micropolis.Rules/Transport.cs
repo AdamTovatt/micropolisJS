@@ -89,13 +89,14 @@ namespace Micropolis.Rules
 
             if (simData.Random.GetRandom(5) == 0)
             {
-                simData.SpriteManager.GeneratePlane(x, y);
+                simData.SpriteManager.GenerateFlight(x, y);
                 return;
             }
 
-            if (simData.Random.GetRandom(12) == 0)
+            // One chance in 64, where the original's helicopter took one in 13 whatever the traffic
+            if (simData.Random.GetChance(63))
             {
-                simData.SpriteManager.GenerateCopter(x, y);
+                simData.SpriteManager.GenerateCopter(x, y, simData.BlockMaps.TrafficDensityMap);
             }
         }
 

@@ -12,6 +12,8 @@
  *
  */
 
+using System.Text.Json.Nodes;
+
 namespace Micropolis.Rules
 {
     /// <summary>
@@ -22,6 +24,14 @@ namespace Micropolis.Rules
         public static Position Move(Position position, Direction direction)
         {
             return new Position(position.X + direction.XDelta, position.Y + direction.YDelta);
+        }
+
+        /// <summary>
+        /// The position as a save holds a tile: an object of its <c>x</c> and <c>y</c>.
+        /// </summary>
+        internal JsonObject Save()
+        {
+            return new JsonObject { ["x"] = X, ["y"] = Y };
         }
 
         public override string ToString()

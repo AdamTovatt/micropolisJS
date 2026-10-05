@@ -73,11 +73,9 @@ namespace Micropolis.Rules.Tests
             ("evaluation.problemVotes[0].index", "-1", "0", "6", "7"),
             ("evaluation.problemVotes[0].voteCount", "-1", "0", "100", "101"),
             ("sprites.list[0].type", "0", "1", "7", "8"),
-            // The run save's sprites are a helicopter, a train and an airplane, in that order
-            ("sprites.list[0].frame", "-1", "0", "8", "9"),
-            ("sprites.list[1].frame", "-1", "0", "5", "6"),
-            ("sprites.list[1].dir", "-1", "0", "4", "5"),
-            ("sprites.list[2].frame", "-1", "0", "11", "12"),
+            // The run save's one sprite is a train; FromSave_SpriteOfEachType_ReadsFramesUpToItsLast covers the other types
+            ("sprites.list[0].frame", "-1", "0", "5", "6"),
+            ("sprites.list[0].dir", "-1", "0", "4", "5"),
             ("scannedState.blockMaps.cityCentreDistScoreMap[0]", "-65", "-64", "64", "65"),
             ("scannedState.blockMaps.crimeRateMap[0]", "-1", "0", "250", "251"),
             ("scannedState.blockMaps.fireStationMap[0]", "-1", "0", "16000", "16001"),
@@ -181,9 +179,8 @@ namespace Micropolis.Rules.Tests
                 ["census.moneyHist120[0]"] = ("211", city => city.Census.MoneyHist120[0]),
                 ["census.pollutionHist120[0]"] = ("212", city => city.Census.PollutionHist120[0]),
                 ["sprites.spriteCycle"] = ("99", city => city.SpriteManager.SpriteCycle),
-                ["sprites.absDist"] = ("98", city => city.SpriteManager.AbsDist),
-                ["sprites.list[0].type"] = ("3", city => (int)city.SpriteManager.SpriteList[0].Type),
-                ["sprites.list[0].frame"] = ("7",city => city.SpriteManager.SpriteList[0].Frame),
+                ["sprites.list[0].type"] = ("7", city => (int)city.SpriteManager.SpriteList[0].Type),
+                ["sprites.list[0].frame"] = ("5", city => city.SpriteManager.SpriteList[0].Frame),
                 ["sprites.list[0].x"] = ("302", city => city.SpriteManager.SpriteList[0].X),
                 ["sprites.list[0].y"] = ("303", city => city.SpriteManager.SpriteList[0].Y),
                 ["sprites.list[0].origX"] = ("304", city => city.SpriteManager.SpriteList[0].OrigX),
@@ -192,14 +189,18 @@ namespace Micropolis.Rules.Tests
                 ["sprites.list[0].destY"] = ("307", city => city.SpriteManager.SpriteList[0].DestY),
                 ["sprites.list[0].count"] = ("308", city => city.SpriteManager.SpriteList[0].Count),
                 ["sprites.list[0].soundCount"] = ("309", city => city.SpriteManager.SpriteList[0].SoundCount),
-                ["sprites.list[0].dir"] = ("310", city => city.SpriteManager.SpriteList[0].Dir),
+                ["sprites.list[0].dir"] = ("4", city => city.SpriteManager.SpriteList[0].Dir),
                 ["sprites.list[0].newDir"] = ("311", city => city.SpriteManager.SpriteList[0].NewDir),
                 ["sprites.list[0].step"] = ("312", city => city.SpriteManager.SpriteList[0].Step),
                 ["sprites.list[0].flag"] = ("313", city => city.SpriteManager.SpriteList[0].Flag),
-                // A helicopter, which only false suits
+                // A train, which only false suits
                 ["sprites.list[0].reachedLand"] = (null, city => city.SpriteManager.SpriteList[0].ReachedLand),
-                // A helicopter, which only null suits
+                // A train, which only null suits
                 ["sprites.list[0].mission"] = (null, city => city.SpriteManager.SpriteList[0].Mission?.Save()),
+                // A train, which only null suits
+                ["sprites.list[0].planeFlight"] = (null, city => city.SpriteManager.SpriteList[0].PlaneFlight?.Save()),
+                // A train, which only null suits
+                ["sprites.list[0].copterFlight"] = (null, city => city.SpriteManager.SpriteList[0].CopterFlight?.Save()),
                 ["disasters.floodCount"] = ("7", city => city.DisasterManager.FloodCount),
                 ["disasters.disastersEnabled"] = ("true", city => city.DisasterManager.DisastersEnabled),
                 ["scannedState.blockMaps.cityCentreDistScoreMap[0]"] = ("51", city => city.BlockMaps.CityCentreDistScoreMap.Get(0, 0)),
@@ -261,9 +262,14 @@ namespace Micropolis.Rules.Tests
 
             Assert.AreNotEqual(value, CanonicalJson.Write(NodeAt(Run, path)), "The value is the one the save holds.");
 
-            foreach (string sibling in Fields.Keys.Where(other => other != path && other[..other.LastIndexOf('.')] == parent))
+            // A key only null suits, such as a train's mission and its flights, can't be given a value of its own, so they
+            // share null; FromSave_MissionThatDoesNotSuitItsSprite_IsRefusedNamingIt and its flights' twin read each
+            if (expected != "null")
             {
-                Assert.AreNotEqual(expected, CanonicalJson.Write(NodeAt(Run, sibling)), $"{sibling} holds the value too.");
+                foreach (string sibling in Fields.Keys.Where(other => other != path && other[..other.LastIndexOf('.')] == parent))
+                {
+                    Assert.AreNotEqual(expected, CanonicalJson.Write(NodeAt(Run, sibling)), $"{sibling} holds the value too.");
+                }
             }
 
             JsonNode save = value == null ? Run.DeepClone() : SetAt(path, value);
@@ -285,8 +291,8 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEquivalent(values, Fields.Keys.ToList());
         }
 
-        // The saves hold trains, planes and helicopters but no monster, the only sprite with a key of its own: the
-        // monster tests below make one
+        // The saves hold trains, planes and a ship but no monster, the only sprite with a key of its own: the monster tests
+        // below make one
         [TestMethod]
         public void FromSave_ConformanceSaves_CoverWhatTheLoaderReads()
         {
@@ -508,6 +514,93 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(message, Assert.Throws<SaveFormatException>(() => Simulation.FromSave(save.ToJsonString())).Message);
         }
 
+        // A sprite's frame is read from 0 to its type's last, and refused past it
+        [TestMethod]
+        [DataRow(SpriteType.Train, 5)]
+        [DataRow(SpriteType.Helicopter, 8)]
+        [DataRow(SpriteType.Airplane, 11)]
+        [DataRow(SpriteType.Ship, 8)]
+        [DataRow(SpriteType.Monster, 16)]
+        [DataRow(SpriteType.Tornado, 3)]
+        [DataRow(SpriteType.Explosion, 6)]
+        public void FromSave_SpriteOfEachType_ReadsFramesUpToItsLast(SpriteType type, int last)
+        {
+            JsonNode save = SetAt("sprites.list[0].type", ((int)type).ToString());
+            JsonObject sprite = ObjectAt(save, "sprites.list[0]");
+
+            sprite["frame"] = last;
+            Assert.AreEqual(last, Simulation.FromSave(save.ToJsonString()).SpriteManager.SpriteList[0].Frame);
+
+            sprite["frame"] = last + 1;
+            AssertRejected(save, "sprites.list[0].frame");
+        }
+
+        // A plane's flight loads into its properties: its phase, and the airport an arriving plane lands at
+        [TestMethod]
+        [DataRow("{\"phase\":0,\"airport\":null}", PlanePhase.Departing, null, null)]
+        [DataRow("{\"phase\":1,\"airport\":{\"x\":119,\"y\":99}}", PlanePhase.Arriving, 119, 99)]
+        public void FromSave_PlaneFlight_LoadsIntoItsProperties(string flight, PlanePhase phase, int? airportX, int? airportY)
+        {
+            JsonNode save = SetAt("sprites.list[0].type", ((int)SpriteType.Airplane).ToString());
+            ObjectAt(save, "sprites.list[0]")["planeFlight"] = JsonNode.Parse(flight);
+
+            PlaneFlight loaded = Simulation.FromSave(save.ToJsonString()).SpriteManager.SpriteList[0].PlaneFlight!;
+
+            Position? airport = airportX is int x && airportY is int y ? new Position(x, y) : null;
+            Assert.AreEqual((phase, airport), (loaded.Phase, loaded.Airport));
+        }
+
+        // A helicopter's flight loads into its properties: its phase, and the block of traffic it flies to
+        [TestMethod]
+        [DataRow("{\"phase\":0,\"block\":{\"x\":0,\"y\":0}}", CopterPhase.ToTraffic, 0, 0)]
+        [DataRow("{\"phase\":1,\"block\":null}", CopterPhase.Returning, null, null)]
+        public void FromSave_CopterFlight_LoadsIntoItsProperties(string flight, CopterPhase phase, int? blockX, int? blockY)
+        {
+            JsonNode save = SetAt("sprites.list[0].type", ((int)SpriteType.Helicopter).ToString());
+            ObjectAt(save, "sprites.list[0]")["copterFlight"] = JsonNode.Parse(flight);
+
+            CopterFlight loaded = Simulation.FromSave(save.ToJsonString()).SpriteManager.SpriteList[0].CopterFlight!;
+
+            Position? block = blockX is int x && blockY is int y ? new Position(x, y) : null;
+            Assert.AreEqual((phase, block), (loaded.Phase, loaded.Block));
+        }
+
+        // Only a plane has a plane's flight and only a helicopter a helicopter's, which each has to have, with a phase of
+        // its own, a place on the map in the phase that heads for one and none in the other, and no key but its own. A
+        // flight of null stands for none: a missing one is refused as missing.
+        [TestMethod]
+        [DataRow(SpriteType.Airplane, "planeFlight", "{\"phase\":2,\"airport\":null}", "The save's sprites.list[0].planeFlight.phase must be one of 0, 1, got 2.")]
+        [DataRow(SpriteType.Airplane, "planeFlight", "{\"airport\":null}", "The save's sprites.list[0].planeFlight.phase is missing.")]
+        [DataRow(SpriteType.Airplane, "planeFlight", "{\"phase\":0,\"airport\":{\"x\":1,\"y\":1}}", "The save's sprites.list[0].planeFlight.airport must be null for a departing plane.")]
+        [DataRow(SpriteType.Airplane, "planeFlight", "{\"phase\":1,\"airport\":null}", "The save's sprites.list[0].planeFlight.airport must be an object.")]
+        [DataRow(SpriteType.Airplane, "planeFlight", "{\"phase\":1,\"airport\":{\"x\":1}}", "The save's sprites.list[0].planeFlight.airport.y is missing.")]
+        [DataRow(SpriteType.Airplane, "planeFlight", "{\"phase\":1,\"airport\":{\"x\":1,\"y\":1,\"z\":1}}", "The save's sprites.list[0].planeFlight.airport.z is not a key the save may hold.")]
+        [DataRow(SpriteType.Airplane, "planeFlight", "{\"phase\":0,\"airport\":null,\"block\":null}", "The save's sprites.list[0].planeFlight.block is not a key the save may hold.")]
+        [DataRow(SpriteType.Airplane, "planeFlight", "null", "The save's sprites.list[0].planeFlight must be an object.")]
+        [DataRow(SpriteType.Airplane, "planeFlight", null, "The save's sprites.list[0].planeFlight is missing.")]
+        [DataRow(SpriteType.Helicopter, "planeFlight", "{\"phase\":0,\"airport\":null}", "The save's sprites.list[0].planeFlight must be null for every type but a plane.")]
+        [DataRow(SpriteType.Helicopter, "copterFlight", "{\"phase\":2,\"block\":null}", "The save's sprites.list[0].copterFlight.phase must be one of 0, 1, got 2.")]
+        [DataRow(SpriteType.Helicopter, "copterFlight", "{\"phase\":1,\"block\":{\"x\":1,\"y\":1}}", "The save's sprites.list[0].copterFlight.block must be null for a returning helicopter.")]
+        [DataRow(SpriteType.Helicopter, "copterFlight", "{\"phase\":0,\"block\":{\"x\":0,\"y\":100}}", "The save's sprites.list[0].copterFlight.block.y must be from 0 to 99, got 100.")]
+        [DataRow(SpriteType.Helicopter, "copterFlight", null, "The save's sprites.list[0].copterFlight is missing.")]
+        [DataRow(SpriteType.Airplane, "copterFlight", "{\"phase\":1,\"block\":null}", "The save's sprites.list[0].copterFlight must be null for every type but a helicopter.")]
+        public void FromSave_FlightThatDoesNotSuitItsSprite_IsRefusedNamingIt(SpriteType type, string key, string? flight, string message)
+        {
+            JsonNode save = SetAt("sprites.list[0].type", ((int)type).ToString());
+            JsonObject sprite = ObjectAt(save, "sprites.list[0]");
+
+            if (flight is null)
+            {
+                sprite.Remove(key);
+            }
+            else
+            {
+                sprite[key] = JsonNode.Parse(flight);
+            }
+
+            Assert.AreEqual(message, Assert.Throws<SaveFormatException>(() => Simulation.FromSave(save.ToJsonString())).Message);
+        }
+
         private static JsonObject Resave(string text)
         {
             return Simulation.FromSave(text).Save();
@@ -527,7 +620,8 @@ namespace Micropolis.Rules.Tests
         }
 
         // The run save with the value at a path replaced by the given JSON. A sprite given a type takes the first frame,
-        // which every type has, so it loads whatever frame the run left it on.
+        // which every type has, so it loads whatever frame the run left it on, and the mission and flights its type
+        // loads with: a leaving ship's, a departing plane's and a returning helicopter's, and null for the rest.
         private static JsonNode SetAt(string path, string json)
         {
             JsonNode save = JsonNode.Parse(RunText)!;
@@ -546,7 +640,11 @@ namespace Micropolis.Rules.Tests
 
                 if (path.StartsWith("sprites.list[", StringComparison.Ordinal) && key == "type")
                 {
+                    int type = value!.GetValue<int>();
                     parent["frame"] = 1;
+                    parent["mission"] = type == (int)SpriteType.Ship ? JsonNode.Parse("{\"phase\":2,\"port\":null,\"dockCount\":0}") : null;
+                    parent["planeFlight"] = type == (int)SpriteType.Airplane ? JsonNode.Parse("{\"phase\":0,\"airport\":null}") : null;
+                    parent["copterFlight"] = type == (int)SpriteType.Helicopter ? JsonNode.Parse("{\"phase\":1,\"block\":null}") : null;
                 }
             }
 

@@ -41,12 +41,6 @@ namespace Micropolis.Rules
 
         public long SpriteCycle { get; internal set; }
 
-        /// <summary>
-        /// The distance getDir last found, in pixels across and down, which every sprite shares: a sprite that reads it
-        /// without calling getDir first reads whatever distance getDir last found.
-        /// </summary>
-        public long AbsDist { get; internal set; }
-
         public IReadOnlyList<Sprite> SpriteList => _spriteList;
 
         /// <summary>
@@ -108,10 +102,11 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The direction from the origin to the destination, as a sprite's frame numbers it, leaving the distance
-        /// between them in <see cref="AbsDist"/>.
+        /// The direction from the origin to the destination, as a sprite's frame numbers it. The original's getDir also
+        /// left the distance between them in a variable every sprite shared, which only a sprite that had just called it
+        /// still reads here, as <see cref="Distance"/>.
         /// </summary>
-        public int GetDir(long orgX, long orgY, long destX, long destY)
+        public static int GetDir(long orgX, long orgY, long destX, long destY)
         {
             long deltaX = destX - orgX;
             long deltaY = destY - orgY;
@@ -128,7 +123,6 @@ namespace Micropolis.Rules
 
             deltaX = Math.Abs(deltaX);
             deltaY = Math.Abs(deltaY);
-            AbsDist = deltaX + deltaY;
 
             // The original's other branch tests deltaY * 2 < deltaY, which never holds, so a destination mostly across
             // never turns the direction toward the horizontal
@@ -143,6 +137,14 @@ namespace Micropolis.Rules
             }
 
             return DirectionTable[i];
+        }
+
+        /// <summary>
+        /// The distance from the origin to the destination, in pixels across and down.
+        /// </summary>
+        public static long Distance(long orgX, long orgY, long destX, long destY)
+        {
+            return Math.Abs(destX - orgX) + Math.Abs(destY - orgY);
         }
 
         /// <summary>
@@ -223,14 +225,31 @@ namespace Micropolis.Rules
             NewSprite(SpriteType.Explosion, x - 40, y - 16);
         }
 
-        public void GeneratePlane(int x, int y)
+        /// <summary>
+        /// A plane departing from the tile at (x, y) as from an airport centred there, unless a plane is on the map, and
+        /// the plane made, or <see langword="null"/> for none.
+        /// </summary>
+        public Sprite? GeneratePlane(int x, int y)
         {
             if (GetSprite(SpriteType.Airplane) is not null)
             {
-                return;
+                return null;
             }
 
-            MakeSprite(SpriteType.Airplane, SpriteUtils.WorldToPix(x) + 48, SpriteUtils.WorldToPix(y) + 12);
+            return MakeSprite(SpriteType.Airplane, AirplaneSprite.PixelX(x), AirplaneSprite.PixelY(y));
+        }
+
+        /// <summary>
+        /// A plane departing from or arriving at the airport centred at (x, y), at even odds, unless a plane is on the
+        /// map. A rule change from the original, whose every plane departs and then wanders.
+        /// </summary>
+        public void GenerateFlight(int x, int y)
+        {
+            // Making the plane draws nothing, so the draw that picks its flight is the scan's next either way
+            if (GeneratePlane(x, y) is Sprite plane && Random.GetChance(1))
+            {
+                AirplaneSprite.Arrive(this, plane, new Position(x, y));
+            }
         }
 
         public void GenerateTrain(Census census, int x, int y)
@@ -269,14 +288,19 @@ namespace Micropolis.Rules
             return MakeSprite(SpriteType.Ship, ShipSprite.PixelX(x), ShipSprite.PixelY(y));
         }
 
-        public void GenerateCopter(int x, int y)
+        /// <summary>
+        /// A helicopter taking off from the airport centred at (x, y) to report the densest traffic, unless one is on the
+        /// map or no block's traffic is heavy. A rule change from the original, whose helicopter heads for a random
+        /// point whatever the traffic.
+        /// </summary>
+        public void GenerateCopter(int x, int y, BlockMap trafficDensity)
         {
-            if (GetSprite(SpriteType.Helicopter) is not null)
+            if (GetSprite(SpriteType.Helicopter) is not null || CopterSprite.DensestTraffic(trafficDensity) is not Position block)
             {
                 return;
             }
 
-            MakeSprite(SpriteType.Helicopter, SpriteUtils.WorldToPix(x), SpriteUtils.WorldToPix(y) + 30);
+            MakeSprite(SpriteType.Helicopter, SpriteUtils.WorldToPix(x), SpriteUtils.WorldToPix(y) + 30).CopterFlight = CopterFlight.ToTraffic(block);
         }
 
         /// <summary>
@@ -396,6 +420,8 @@ namespace Micropolis.Rules
             sprite.Flag = 0;
             sprite.ReachedLand = false;
             sprite.Mission = null;
+            sprite.PlaneFlight = null;
+            sprite.CopterFlight = null;
 
             switch (sprite.Type)
             {
@@ -404,7 +430,7 @@ namespace Micropolis.Rules
                     break;
 
                 case SpriteType.Helicopter:
-                    CopterSprite.Init(this, sprite);
+                    CopterSprite.Init(sprite);
                     break;
 
                 case SpriteType.Airplane:
@@ -468,7 +494,6 @@ namespace Micropolis.Rules
             saveData["sprites"] = new JsonObject
             {
                 ["spriteCycle"] = SpriteCycle,
-                ["absDist"] = AbsDist,
                 ["list"] = new JsonArray(_spriteList.Select(sprite => (JsonNode?)sprite.Save()).ToArray()),
             };
         }
@@ -478,7 +503,6 @@ namespace Micropolis.Rules
             saveData.ReadObject("sprites", sprites =>
             {
                 SpriteCycle = sprites.ReadSafeInteger("spriteCycle");
-                AbsDist = sprites.ReadSafeInteger("absDist");
                 _spriteList = sprites.ReadObjectList("list", sprite => Sprite.Load(sprite, Map)).ToList();
             });
         }
