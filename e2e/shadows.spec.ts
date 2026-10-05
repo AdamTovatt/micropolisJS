@@ -62,7 +62,7 @@ test("overlapping shadows show the darker value, not their sum", async ({page}) 
 
   // Each tile in view, with the dirt tiles whose shadows reach it, itself included
   const sampled: {tile: Tile, shadows: number, x: number, y: number}[] = [];
-  for (const {tile, column, row} of await player.wholeTilesInView()) {
+  for (const {tile, x, y} of await player.wholeTilesInView()) {
     let shadows = 0;
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -72,8 +72,8 @@ test("overlapping shadows show the darker value, not their sum", async ({page}) 
         }
       }
     }
-    sampled.push({tile, shadows, x: Math.floor(canvas.x + (column + 0.5) * view.tileWidth),
-                  y: Math.floor(canvas.y + (row + 0.5) * view.tileWidth)});
+    sampled.push({tile, shadows, x: Math.floor(canvas.x + x + view.tileWidth / 2),
+                  y: Math.floor(canvas.y + y + view.tileWidth / 2)});
   }
 
   // The middle pixel of each tile

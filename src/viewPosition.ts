@@ -24,10 +24,12 @@ type PixelPoint = Point;
 
 // How many tiles the canvas shows, and how far its origin may move
 interface Viewport {
+  // The tiles the canvas shows across and down, a fraction where a tile at its edge shows in part
+  tilesInViewX: number;
+  tilesInViewY: number;
+  // The whole tiles that fit across and down, which a view centred on a tile is centred by
   wholeTilesInViewX: number;
   wholeTilesInViewY: number;
-  totalTilesInViewX: number;
-  totalTilesInViewY: number;
   minX: number;
   maxX: number;
   minY: number;
@@ -37,30 +39,28 @@ interface Viewport {
 // How far the origin may move each way
 type OriginLimits = Pick<Viewport, "minX" | "maxX" | "minY" | "maxY">;
 
-// The origin's limits along one axis, for a view of the tiles given, whole and in all, of a map the length given: the
-// origin moves so far that every map tile can be seen whole, and no whole tile of void shows beyond the map. A view
-// longer than the map along the axis centres it, which leaves the origin no room to move.
-function axisLimits(wholeTiles: number, viewTiles: number, mapLength: number): {min: number, max: number} {
-  if (wholeTiles <= mapLength) {
-    return {min: 0, max: mapLength - wholeTiles};
+// The origin's limits along one axis, for a view of the tiles given of a map the length given: the origin moves from
+// the map's first tile to where the view's far edge meets the map's, so no void shows beyond the map. A view longer
+// than the map along the axis centres it exactly, which leaves the origin no room to move.
+function axisLimits(viewTiles: number, mapLength: number): {min: number, max: number} {
+  if (viewTiles <= mapLength) {
+    return {min: 0, max: mapLength - viewTiles};
   }
 
-  const centred = Math.round((mapLength - viewTiles) / 2);
+  const centred = (mapLength - viewTiles) / 2;
   return {min: centred, max: centred};
 }
 
 function viewport(canvasWidth: number, canvasHeight: number, tileWidth: number, mapWidth: number,
                   mapHeight: number): Viewport {
-  // How many tiles fit?
-  const wholeTilesInViewX = Math.floor(canvasWidth / tileWidth);
-  const wholeTilesInViewY = Math.floor(canvasHeight / tileWidth);
-  const totalTilesInViewX = Math.ceil(canvasWidth / tileWidth);
-  const totalTilesInViewY = Math.ceil(canvasHeight / tileWidth);
-  const x = axisLimits(wholeTilesInViewX, canvasWidth / tileWidth, mapWidth);
-  const y = axisLimits(wholeTilesInViewY, canvasHeight / tileWidth, mapHeight);
+  const tilesInViewX = canvasWidth / tileWidth;
+  const tilesInViewY = canvasHeight / tileWidth;
+  const x = axisLimits(tilesInViewX, mapWidth);
+  const y = axisLimits(tilesInViewY, mapHeight);
 
   return {
-    wholeTilesInViewX, wholeTilesInViewY, totalTilesInViewX, totalTilesInViewY,
+    tilesInViewX, tilesInViewY,
+    wholeTilesInViewX: Math.floor(tilesInViewX), wholeTilesInViewY: Math.floor(tilesInViewY),
     minX: x.min, maxX: x.max, minY: y.min, maxY: y.max,
   };
 }
@@ -70,10 +70,20 @@ function heldOrigin(x: number, y: number, view: Viewport): TilePoint {
   return {x: Math.max(view.minX, Math.min(view.maxX, x)), y: Math.max(view.minY, Math.min(view.maxY, y))};
 }
 
-// The origin that puts the tile at (x, y) in the middle of the view, held within the origin's limits
+// The origin, on whole tiles, that puts the tile at (x, y) in the middle of the view, held within the origin's limits
 function centredOrigin(x: number, y: number, view: Viewport): TilePoint {
   return heldOrigin(Math.floor(x) - Math.ceil(view.wholeTilesInViewX / 2),
                     Math.floor(y) - Math.ceil(view.wholeTilesInViewY / 2), view);
+}
+
+// The origin along an axis after a scroll of the whole tiles given, negative for back: the first tile of the scroll
+// takes an origin between tiles to the next whole tile its way, so from 3.4 a tile forward is 4 and a tile back is 3
+function scrolledAxis(origin: number, tiles: number): number {
+  if (tiles === 0) {
+    return origin;
+  }
+
+  return tiles > 0 ? Math.floor(origin) + tiles : Math.ceil(origin) + tiles;
 }
 
 // The zoom steps, in CSS pixels a tile is drawn on the canvas, from the farthest out. The view opens at the first.
@@ -89,27 +99,59 @@ function steppedZoom(zoom: number, steps: number): number {
   return ZOOM_STEPS[Math.max(0, Math.min(ZOOM_STEPS.length - 1, index + steps))];
 }
 
-// The origin that keeps the tile under a point of the canvas, in CSS pixels, under it as the zoom changes from one tile
-// width to another, with the origin on whole tiles and held within the new viewport's limits
+// The origin that keeps the point of the map under a point of the canvas, in CSS pixels, under it as the zoom changes
+// from one tile width to another, held within the new viewport's limits
 function zoomedOrigin(origin: TilePoint, point: PixelPoint, from: number, to: number, view: Viewport): TilePoint {
-  return heldOrigin(origin.x + Math.floor(point.x / from) - Math.floor(point.x / to),
-                    origin.y + Math.floor(point.y / from) - Math.floor(point.y / to), view);
+  return heldOrigin(origin.x + point.x / from - point.x / to, origin.y + point.y / from - point.y / to, view);
 }
 
-// The map tile under a point of the canvas, or null past the canvas' right or bottom edge
-function canvasPointToTile(x: number, y: number, origin: TilePoint, tileWidth: number, canvasWidth: number,
-                           canvasHeight: number): TilePoint | null {
+// The origin that keeps the point of the map the pointer grabbed at one point of the canvas, in CSS pixels, under it at
+// another, tileWidth CSS pixels a tile, before it is held within the limits
+function pannedOrigin(grabbed: TilePoint, from: PixelPoint, to: PixelPoint, tileWidth: number): TilePoint {
+  return {x: grabbed.x - (to.x - from.x) / tileWidth, y: grabbed.y - (to.y - from.y) / tileWidth};
+}
+
+// Where the map is drawn: the device pixel of the map, tilePixels device pixels a tile from its top-left corner, that
+// lands at the canvas's top-left. It is the origin snapped to whole device pixels, so tiles stay crisp and a pan
+// doesn't shimmer, and everything that places tiles on the canvas, or finds the tile under a point of it, places them
+// from it.
+function drawnOrigin(origin: TilePoint, tilePixels: number): PixelPoint {
+  return {x: Math.round(origin.x * tilePixels), y: Math.round(origin.y * tilePixels)};
+}
+
+// The map tile under a point of the canvas, in CSS pixels, as the map is drawn from the origin at tileWidth CSS pixels
+// a tile and pixelRatio device pixels to the CSS pixel; it may lie off the map
+function tileUnderPoint(x: number, y: number, origin: TilePoint, tileWidth: number, pixelRatio: number): TilePoint {
+  const tilePixels = tileWidth * pixelRatio;
+  const drawn = drawnOrigin(origin, tilePixels);
+  return {x: Math.floor((drawn.x + x * pixelRatio) / tilePixels),
+          y: Math.floor((drawn.y + y * pixelRatio) / tilePixels)};
+}
+
+// The map tile under a point of the canvas, as tileUnderPoint finds it, or null past the canvas' right or bottom edge
+function tileOnCanvasUnderPoint(x: number, y: number, origin: TilePoint, tileWidth: number, pixelRatio: number,
+                                canvasWidth: number, canvasHeight: number): TilePoint | null {
   if (x >= canvasWidth || y >= canvasHeight) {
     return null;
   }
 
-  return {x: origin.x + Math.floor(x / tileWidth), y: origin.y + Math.floor(y / tileWidth)};
+  return tileUnderPoint(x, y, origin, tileWidth, pixelRatio);
 }
 
-// Where the view's origin is, which moves within the viewport's limits
+// Where a pan took hold: the origin then, the point of the canvas the pointer pressed, in CSS pixels, and the tile
+// width then
+interface Grip {
+  origin: TilePoint;
+  point: PixelPoint;
+  tileWidth: number;
+}
+
+// Where the view's origin is, which moves within the viewport's limits. It may lie between tiles.
 class ViewPosition {
   private originX = 0;
   private originY = 0;
+  // The pan under way, or null for none
+  private grip: Grip | null = null;
 
   constructor(private view: Viewport) {}
 
@@ -119,7 +161,8 @@ class ViewPosition {
 
   // The last tile in view, partly or whole
   get maxTile(): TilePoint {
-    return {x: this.originX + this.view.totalTilesInViewX - 1, y: this.originY + this.view.totalTilesInViewY - 1};
+    return {x: Math.ceil(this.originX + this.view.tilesInViewX) - 1,
+            y: Math.ceil(this.originY + this.view.tilesInViewY) - 1};
   }
 
   get viewport(): Viewport {
@@ -132,21 +175,40 @@ class ViewPosition {
     this.moveTo(this.origin);
   }
 
-  // Moves the origin the whole tiles given across and down, held within the limits
+  // Moves the origin the whole tiles given across and down, the first of them to the next whole tile, as
+  // scrolledAxis moves it, held within the limits
   scrollBy(tilesX: number, tilesY: number): void {
-    this.moveTo({x: this.originX + tilesX, y: this.originY + tilesY});
+    this.moveTo({x: scrolledAxis(this.originX, tilesX), y: scrolledAxis(this.originY, tilesY)});
   }
 
   centreOn(x: number, y: number): void {
     this.moveTo(centredOrigin(x, y, this.view));
   }
 
-  // The tile width changed from one zoom step to another, to the viewport given: the tile under the point of the
-  // canvas, in CSS pixels, stays under it as far as the limits allow
+  // The tile width changed from one zoom step to another, to the viewport given: the point of the map under the point
+  // of the canvas, in CSS pixels, stays under it as far as the limits allow
   zoom(view: Viewport, point: PixelPoint, from: number, to: number): void {
     const origin = zoomedOrigin(this.origin, point, from, to, view);
     this.view = view;
     this.moveTo(origin);
+  }
+
+  // Takes hold of the map at a point of the canvas, in CSS pixels, tileWidth CSS pixels a tile, for a pan
+  grab(point: PixelPoint, tileWidth: number): void {
+    this.grip = {origin: this.origin, point, tileWidth};
+  }
+
+  // Moves the point of the map grabbed under a point of the canvas, as far as the limits allow: at an edge the view
+  // stops, and the map comes back under the pointer as the pointer comes back
+  pan(point: PixelPoint): void {
+    if (this.grip !== null) {
+      this.moveTo(pannedOrigin(this.grip.origin, this.grip.point, point, this.grip.tileWidth));
+    }
+  }
+
+  // Lets go of the map, the view left where the pan took it
+  release(): void {
+    this.grip = null;
   }
 
   // The one place the origin moves, held within the limits
@@ -157,5 +219,8 @@ class ViewPosition {
   }
 }
 
-export { ViewPosition, ZOOM_STEPS, canvasPointToTile, centredOrigin, steppedZoom, viewport, zoomedOrigin };
+export {
+  ViewPosition, ZOOM_STEPS, centredOrigin, drawnOrigin, pannedOrigin, scrolledAxis, steppedZoom, tileOnCanvasUnderPoint,
+  tileUnderPoint, viewport, zoomedOrigin,
+};
 export type { OriginLimits, PixelPoint, TilePoint, Viewport };

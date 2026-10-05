@@ -37,7 +37,7 @@ describe("the record of the frame drawn last", () => {
             values[(row + 1) * width + column + 1] = value;
             frames[(row + 1) * width + column + 1] = frame ?? value;
         }
-        return {x: 10, y: 20, width, height: VIEW_HEIGHT + 2, margin: 1, values, frames};
+        return {x: 10, y: 20, width, height: VIEW_HEIGHT + 2, margin: 1, offset: {x: 0, y: 0}, values, frames};
     }
 
     const train = {type: 1, frame: 2, x: ORIGIN.x + 2 * 16, y: ORIGIN.y + 2 * 16, width: 32};
@@ -133,13 +133,22 @@ describe("the record of the frame drawn last", () => {
 
 describe("the device pixels of the damage", () => {
 
+    const NONE = {x: 0, y: 0};
+
     it("are the tiles' pixels, where a tile's edges fall on whole pixels", () => {
-        expect(damagedPixels([{x: 8, y: 0, width: 4, height: 8}], 32)).toEqual([{x: 256, y: 0, width: 128, height: 256}]);
+        expect(damagedPixels([{x: 8, y: 0, width: 4, height: 8}], 32, NONE))
+            .toEqual([{x: 256, y: 0, width: 128, height: 256}]);
     });
 
     it("take in, rounded out, each pixel a tile's edge falls within", () => {
         // At 17.6 pixels a tile, tiles 8 to 15 run from pixel 140.8 to 281.6, and tile 8's row from 140.8 to 158.4
-        expect(damagedPixels([{x: 8, y: 8, width: 8, height: 1}], 17.6))
+        expect(damagedPixels([{x: 8, y: 8, width: 8, height: 1}], 17.6, NONE))
             .toEqual([{x: 140, y: 140, width: 142, height: 19}]);
+    });
+
+    it("are moved back by the view's offset into its first tile", () => {
+        // The view starts 5 pixels right of and 3 below its first tile's top-left
+        expect(damagedPixels([{x: 0, y: 0, width: 1, height: 1}, {x: 8, y: 0, width: 4, height: 8}], 32, {x: 5, y: 3}))
+            .toEqual([{x: -5, y: -3, width: 32, height: 32}, {x: 251, y: -3, width: 128, height: 256}]);
     });
 });

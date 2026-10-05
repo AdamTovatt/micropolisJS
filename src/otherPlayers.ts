@@ -46,8 +46,8 @@ export class OtherPlayers {
     this.reporter.update(reportedCursor(tool, size, tile, onMap), Date.now());
   }
 
-  // The others' boxes to draw on a view from this origin, each in the colour of the tool its player holds
-  outlines(origin: TilePoint, toolColour: (tool: CursorTool) => string): MouseOutline[] {
-    return otherOutlines(this.cursors.showing(Date.now()), origin, toolColour);
+  // The others' boxes to draw, each in the colour of the tool its player holds
+  outlines(toolColour: (tool: CursorTool) => string): MouseOutline[] {
+    return otherOutlines(this.cursors.showing(Date.now()), toolColour);
   }
 }

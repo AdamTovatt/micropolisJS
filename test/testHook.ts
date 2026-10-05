@@ -47,6 +47,7 @@ function gameOn(source: CitySource, state: CityState) {
         toolToast: {dismiss: () => {
             game.toastDismissals++;
         }},
+        hoverTile: {x: 7, y: 9} as {x: number, y: number} | null,
     };
 
     return game;
@@ -60,6 +61,7 @@ const IDLE_GAME = {
     monsterTV: {current: true},
     notificationBar: {dismiss: () => {}},
     toolToast: {dismiss: () => {}},
+    hoverTile: null,
 };
 
 // The hook on the source, with its driver attached, and the client's copy of the source's city. What the hook sends,
@@ -360,6 +362,14 @@ describe("the test hook", () => {
         const {hook} = await holdingGame("nothing");
 
         expect(hook.view()).toEqual({originX: 3, originY: 4, limits: LIMITS, tileWidth: 32});
+    });
+
+    it("tells the map tile the player's hover box is drawn at, or none", async () => {
+        const {hook, game} = await holdingGame("nothing");
+        const shown = hook.hoverTile();
+        game.hoverTile = null;
+
+        expect([shown, hook.hoverTile()]).toEqual([{x: 7, y: 9}, null]);
     });
 
     it("tells whether the map and the monster TV are both current", async () => {

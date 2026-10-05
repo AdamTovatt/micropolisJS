@@ -35,11 +35,11 @@ test("a zoom key with the pointer off the map zooms around the middle of the vie
 
   await player.zoomWithKeys(1);
 
-  // The tile under the middle of the canvas at 16 pixels a tile is under it at 32
+  // The point of the map under the middle of the canvas at 16 pixels a tile is under it at 32
   const middle = {x: Math.floor(canvas.width / 2), y: Math.floor(canvas.height / 2)};
   const after = await player.view();
-  expect({x: after.originX + Math.floor(middle.x / 32), y: after.originY + Math.floor(middle.y / 32)})
-    .toEqual({x: before.originX + Math.floor(middle.x / 16), y: before.originY + Math.floor(middle.y / 16)});
+  expect(after.originX + middle.x / 32).toBeCloseTo(before.originX + middle.x / 16, 9);
+  expect(after.originY + middle.y / 32).toBeCloseTo(before.originY + middle.y / 16, 9);
   expect(problems).toEqual([]);
 });
 
@@ -74,7 +74,7 @@ test("a zoom in the middle of a drag is held back, and the drag lays only the ti
   await page.mouse.wheel(0, -300);
   await page.keyboard.press("+");
   await page.mouse.up();
-  await page.evaluate(() => window.micropolisTestHook!.applyInput());
+  await player.applyInput();
 
   expect((await player.view()).tileWidth, "the zoom after the drag").toBe(16);
   const save = await player.save();

@@ -11,7 +11,7 @@
  *
  */
 
-import { requiredElement } from "./domElements";
+import { requiredElement, takesTyping } from "./domElements";
 import { Emitter } from "./emitter";
 import { GameCanvas } from "./gameCanvas";
 import * as UiMessages from "./uiMessages";
@@ -74,8 +74,9 @@ const SCROLL_WAYS: Record<ScrollKey, {axis: Axis, way: Way}> = {
 };
 
 // The scrolling along one axis. The key last pressed of those held sets the way. The time it is held builds up into
-// pixels at SCROLL_SPEED, and the pixels into whole tiles, which leaves the view's origin on whole tiles; what is left
-// over carries to the next take. A press moves the view a tile at once, even one that comes and goes between two takes.
+// pixels at SCROLL_SPEED, and the pixels into whole tiles, which the view steps its origin by, from one between tiles
+// to the next whole tile first; what is left over carries to the next take. A press moves the view a tile at once, even
+// one that comes and goes between two takes.
 class AxisScroll {
   // The ways of the keys held, the last pressed last
   private held: Way[] = [];
@@ -246,16 +247,107 @@ export function isToolPress(e: {button: number, shiftKey: boolean, altKey: boole
   return e.button === 0 && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
 }
 
-const CURSOR_CLASSES = ["pointer", "helpPointer"];
+const CURSOR_CLASSES = ["pointer", "helpPointer", "grab", "grabbing"];
 
-// The class that gives the canvas the cursor for the tool chosen: the question mark for the query tool, the hand for
+// Where the map is in a pan: free, with Space up; ready, with Space held and the map shown under the open hand; or
+// held, dragged under the closed hand
+export type PanState = "free" | "ready" | "held";
+
+// The class that gives the canvas the cursor: the closed hand while a pan holds the map, the open hand while Space is
+// ready to; otherwise the cursor for the tool chosen, the question mark for the query tool and the pointing hand for
 // the others, and none, the default cursor, while no tool is chosen
-export function cursorClass(toolName: string | null): string | null {
+export function cursorClass(toolName: string | null, pan: PanState): string | null {
+  if (pan !== "free") {
+    return pan === "held" ? "grabbing" : "grab";
+  }
+
   if (toolName === null) {
     return null;
   }
 
   return toolName === "query" ? "helpPointer" : "pointer";
+}
+
+// Whether a key press is Space
+export function isSpace(e: {key: string}): boolean {
+  return e.key === " ";
+}
+
+// Whether a press of Space readies a pan. It is left to the page while a window holds the input or the element with
+// the focus takes typing (takesTyping in domElements.ts), where Space is typing, and with Ctrl, Alt or Meta held, where
+// it is the browser's.
+export function spacePans(e: {key: string} & Modifiers, windowHoldsInput: boolean,
+                          focusTakesTyping: boolean): boolean {
+  return isSpace(e) && !windowHoldsInput && !focusTakesTyping && !isShortcut(e);
+}
+
+// Space and the primary button over the map, as a pan follows them. Space down readies a pan, unless a press of the
+// primary button on the canvas is under way, which it waits for: a tool's drag or click finishes as normal. A press
+// while a pan is ready takes hold of the map until the button or Space comes up. A press that began as a pan applies
+// no tool, even once Space has come up before the button.
+export class SpacePan {
+  private spaceDown = false;
+  // Whether a press of the primary button on the canvas is down
+  private pressDown = false;
+  // Whether the press under way, or the last one, began as a pan
+  private panPress = false;
+  private holding = false;
+
+  get state(): PanState {
+    if (this.holding) {
+      return "held";
+    }
+
+    return this.spaceDown && !this.pressDown ? "ready" : "free";
+  }
+
+  // Whether Space is down, as a press that readied a pan put it
+  get spaceIsDown(): boolean {
+    return this.spaceDown;
+  }
+
+  // Whether the press of the primary button under way, or the last one, began as a pan, and so applies no tool
+  get pressPans(): boolean {
+    return this.panPress;
+  }
+
+  pressSpace(): void {
+    this.spaceDown = true;
+  }
+
+  // Space came up. Returns whether it let go of the map.
+  releaseSpace(): boolean {
+    this.spaceDown = false;
+    return this.letGoOfMap();
+  }
+
+  // A press of the primary button on the canvas. Returns whether it takes hold of the map.
+  pressButton(): boolean {
+    this.panPress = this.state === "ready";
+    this.holding = this.panPress;
+    this.pressDown = true;
+    return this.panPress;
+  }
+
+  // The primary button came up, wherever the pointer is. Returns whether it let go of the map.
+  releaseButton(): boolean {
+    this.pressDown = false;
+    return this.letGoOfMap();
+  }
+
+  // The page lost the keyboard and mouse, and never hears Space or the button come up. Returns whether it let go of the
+  // map.
+  releaseAll(): boolean {
+    this.spaceDown = false;
+    this.pressDown = false;
+    return this.letGoOfMap();
+  }
+
+  private letGoOfMap(): boolean {
+    const held = this.holding;
+    this.holding = false;
+    return held;
+  }
 }
 
 // Removes the highlight from the tool button chosen
@@ -272,6 +364,17 @@ export interface ToolClick {
   x: number;
   y: number;
   start: boolean;
+}
+
+// The map's view as the input reads and moves it: the CSS pixels a tile is drawn, at the zoom it is at; the map tile
+// drawn under a point of the canvas; and a pan, which takes hold of the map at a point of the canvas, keeps that point
+// of the map under the pointer as it moves, and lets go
+export interface InputView {
+  readonly tileWidth: number;
+  tileUnder(x: number, y: number): TilePoint;
+  grab(point: PixelPoint): void;
+  panTo(point: PixelPoint): void;
+  release(): void;
 }
 
 export class InputStatus extends Emitter {
@@ -294,23 +397,28 @@ export class InputStatus extends Emitter {
   private readonly canvas: HTMLElement;
   private readonly pauseButton: HTMLElement;
 
-  // Mouse drags: the tile a drag last reported, as a column and row
+  // Mouse drags: the map tile a drag last reported
   private dragging = false;
   private lastDragX = -1;
   private lastDragY = -1;
+
+  // Space and the primary button, as a pan follows them
+  private readonly spacePan = new SpacePan();
 
   private readonly mouseDownHandler = (e: MouseEvent) => this.onMouseDown(e);
   private readonly mouseMoveHandler = (e: MouseEvent) => this.onMouseMove(e);
   private readonly mouseUpHandler = (e: MouseEvent) => this.onMouseUp(e);
   private readonly canvasClickHandler = (e: MouseEvent) => this.onCanvasClick(e);
+  // A pan follows the pointer wherever it goes until the button comes up
+  private readonly panMoveHandler = (e: MouseEvent) => this.view.panTo(this.relativeCoordinates(e));
 
   private readonly wheelZoom = new WheelZoom();
   // Where the pointer is over the canvas, tool or no tool, which the zoom keys zoom around, or null while it is off it
   private pointer: PixelPoint | null = null;
 
-  // tileWidth gives the CSS pixels a tile is drawn, at the zoom the canvas is at, and windowHoldsInput whether a window
-  // holds the keyboard and mouse, which leaves the keys to it but Escape
-  constructor(private readonly tileWidth: () => number, private readonly windowHoldsInput: () => boolean) {
+  // view is the map's view, which the input reads the zoom and the tiles from and pans, and windowHoldsInput whether a
+  // window holds the keyboard and mouse, which leaves the keys to it but Escape
+  constructor(private readonly view: InputView, private readonly windowHoldsInput: () => boolean) {
     super();
     this.canvas = requiredElement(GameCanvas.DEFAULT_ID);
     this.pauseButton = requiredElement("pauseRequest");
@@ -319,7 +427,16 @@ export class InputStatus extends Emitter {
     document.addEventListener("keydown", (e) => this.onKeyDown(e));
     document.addEventListener("keyup", (e) => this.onKeyUp(e));
     // A page that loses the keyboard never hears the keys held come up
-    window.addEventListener("blur", () => this.scrollKeys.releaseAll(performance.now()));
+    window.addEventListener("blur", () => {
+      this.scrollKeys.releaseAll(performance.now());
+      this.followPan(this.spacePan.releaseAll());
+    });
+    // The primary button comes up wherever the pointer is, a pan's included
+    window.addEventListener("mouseup", (e) => {
+      if (e.button === 0) {
+        this.followPan(this.spacePan.releaseButton());
+      }
+    });
 
     this.canvas.addEventListener("mouseenter", () => this.onMouseEnter());
     this.canvas.addEventListener("mouseleave", () => this.onMouseLeave());
@@ -328,6 +445,8 @@ export class InputStatus extends Emitter {
     this.canvas.addEventListener("mousemove", (e) => {
       this.pointer = this.relativeCoordinates(e);
     });
+    // Before the tool's own listeners, which are added later, as the pointer enters the canvas with a tool chosen
+    this.canvas.addEventListener("mousedown", (e) => this.onCanvasPress(e));
 
     document.querySelectorAll<HTMLElement>(".toolButton").forEach((button) => {
       button.addEventListener("click", (e) => this.onToolButton(e, button));
@@ -361,8 +480,13 @@ export class InputStatus extends Emitter {
     this.showCursor();
   }
 
+  // Where the map is in a pan (SpacePan)
+  get pan(): PanState {
+    return this.spacePan.state;
+  }
+
   private showCursor(): void {
-    const cursor = cursorClass(this.toolName);
+    const cursor = cursorClass(this.toolName, this.pan);
 
     this.canvas.classList.remove(...CURSOR_CLASSES);
     if (cursor !== null) {
@@ -371,10 +495,11 @@ export class InputStatus extends Emitter {
   }
 
   // The whole tiles to scroll the view across and down at the time given, since the last take. A window holding the
-  // keyboard holds the view still: the scroll owed for a key held as it opened is dropped.
+  // keyboard holds the view still, and so does a pan holding the map, which keeps the point of the map it grabbed under
+  // the pointer: the scroll owed for a key held then is dropped.
   takeScroll(now: number): TilePoint {
-    const scroll = this.scrollKeys.take(now, this.tileWidth());
-    return this.windowHoldsInput() ? {x: 0, y: 0} : scroll;
+    const scroll = this.scrollKeys.take(now, this.view.tileWidth);
+    return this.windowHoldsInput() || this.pan === "held" ? {x: 0, y: 0} : scroll;
   }
 
   // Whether Escape was pressed since the last take: a press is latched until the game takes it, so a tap that comes and
@@ -397,6 +522,17 @@ export class InputStatus extends Emitter {
       return;
     }
 
+    // Space readies a pan, and never scrolls the page, unless it is left to the page (spacePans). A focused button
+    // pressed by Space on its way up is not pressed either: its keyup's default is prevented too.
+    if (isSpace(e)) {
+      if (spacePans(e, this.windowHoldsInput(), takesTyping(e.target))) {
+        e.preventDefault();
+        this.spacePan.pressSpace();
+        this.showCursor();
+      }
+      return;
+    }
+
     if (this.windowHoldsInput()) {
       return;
     }
@@ -407,11 +543,11 @@ export class InputStatus extends Emitter {
     }
 
     // Not mid-drag: the tile under the pointer can move as the zoom changes, and the drag would lay the tool along the
-    // line to it
+    // line to it, or a pan would keep a point of the map under the pointer at the zoom it took hold at
     const steps = zoomKey(e);
     if (steps !== null) {
       e.preventDefault();
-      if (!this.dragging) {
+      if (!this.dragging && this.pan !== "held") {
         this.emit(UiMessages.ZOOM_REQUESTED, {steps, point: this.pointer} satisfies ZoomRequest);
       }
     }
@@ -428,7 +564,7 @@ export class InputStatus extends Emitter {
     e.preventDefault();
     const steps = this.wheelZoom.steps(e.deltaY, e.deltaMode);
     // Not mid-drag, as for the zoom keys
-    if (steps !== 0 && !this.dragging) {
+    if (steps !== 0 && !this.dragging && this.pan !== "held") {
       this.emit(UiMessages.ZOOM_REQUESTED, {steps, point: this.relativeCoordinates(e)} satisfies ZoomRequest);
     }
   }
@@ -439,6 +575,43 @@ export class InputStatus extends Emitter {
     if (key !== null && key !== "escape") {
       this.scrollKeys.release(key, performance.now());
     }
+
+    // Space up mid-pan stops the pan where it is
+    if (isSpace(e) && this.spacePan.spaceIsDown) {
+      e.preventDefault();
+      this.followPan(this.spacePan.releaseSpace());
+    }
+  }
+
+  // A press of the primary button on the map. It takes the focus from a field that takes typing, as a press on the page
+  // does, which the tool's listeners prevent for a drag: the field would keep Space as typing. While a pan is ready it
+  // takes hold of the map, and nothing else: the tool's listeners leave alone a press that begins a pan.
+  private onCanvasPress(e: MouseEvent): void {
+    if (e.button !== 0) {
+      return;
+    }
+
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && takesTyping(focused)) {
+      focused.blur();
+    }
+
+    if (this.spacePan.pressButton()) {
+      this.view.grab(this.relativeCoordinates(e));
+      window.addEventListener("mousemove", this.panMoveHandler);
+      e.preventDefault();
+    }
+    this.showCursor();
+  }
+
+  // Follows a change of the pan's state: when the map was let go, by the button or Space coming up, the pan ends with
+  // the view where it took it
+  private followPan(letGo: boolean): void {
+    if (letGo) {
+      this.view.release();
+      window.removeEventListener("mousemove", this.panMoveHandler);
+    }
+    this.showCursor();
   }
 
   private relativeCoordinates(e: MouseEvent): {x: number, y: number} {
@@ -461,7 +634,7 @@ export class InputStatus extends Emitter {
   }
 
   private onMouseDown(e: MouseEvent): void {
-    if (!isToolPress(e)) {
+    if (!isToolPress(e) || this.spacePan.pressPans) {
       return;
     }
 
@@ -472,19 +645,24 @@ export class InputStatus extends Emitter {
     this.dragging = true;
     this.emit(UiMessages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: true} satisfies ToolClick);
 
-    this.lastDragX = Math.floor(this.mouseX / this.tileWidth());
-    this.lastDragY = Math.floor(this.mouseY / this.tileWidth());
+    const tile = this.view.tileUnder(this.mouseX, this.mouseY);
+    this.lastDragX = tile.x;
+    this.lastDragY = tile.y;
 
     this.canvas.addEventListener("mouseup", this.mouseUpHandler);
     e.preventDefault();
   }
 
   private onMouseUp(e: MouseEvent): void {
+    this.endDrag();
+    this.canvas.removeEventListener("mouseup", this.mouseUpHandler);
+    e.preventDefault();
+  }
+
+  private endDrag(): void {
     this.dragging = false;
     this.lastDragX = -1;
     this.lastDragY = -1;
-    this.canvas.removeEventListener("mouseup", this.mouseUpHandler);
-    e.preventDefault();
   }
 
   private onMouseLeave(): void {
@@ -494,9 +672,7 @@ export class InputStatus extends Emitter {
 
     // Watch out: we might have been mid-drag
     if (this.dragging) {
-      this.dragging = false;
-      this.lastDragX = -1;
-      this.lastDragY = -1;
+      this.endDrag();
     }
 
     this.canvas.removeEventListener("click", this.canvasClickHandler);
@@ -511,10 +687,9 @@ export class InputStatus extends Emitter {
     this.mouseX = coords.x;
     this.mouseY = coords.y;
 
-    // A drag continues from the tile last reported: the game fills in the tiles a fast move skips
+    // A drag continues from the map tile last reported: the game fills in the tiles a fast move skips
     if (this.dragging) {
-      const x = Math.floor(this.mouseX / this.tileWidth());
-      const y = Math.floor(this.mouseY / this.tileWidth());
+      const {x, y} = this.view.tileUnder(this.mouseX, this.mouseY);
 
       if (x !== this.lastDragX || y !== this.lastDragY) {
         this.emit(UiMessages.TOOL_CLICKED, {x: this.mouseX, y: this.mouseY, start: false} satisfies ToolClick);
@@ -524,8 +699,10 @@ export class InputStatus extends Emitter {
     }
   }
 
+  // The click that ends a press which began a pan applies no tool
   private onCanvasClick(e: MouseEvent): void {
-    if (!isToolPress(e) || this.mouseX === -1 || this.mouseY === -1 || this.dragging) {
+    if (!isToolPress(e) || this.mouseX === -1 || this.mouseY === -1 || this.dragging ||
+        this.spacePan.pressPans) {
       return;
     }
 

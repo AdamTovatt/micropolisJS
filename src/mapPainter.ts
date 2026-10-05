@@ -19,11 +19,13 @@ import type { Tint } from "./overlayRenderer";
 import type { PaintableMap, PaintableSprite } from "./paintable";
 import type { MapArt } from "./renderAssets";
 import type { RenderArt } from "./renderManifest";
-import type { TilePoint, ViewPosition } from "./viewPosition";
+import { drawnOrigin } from "./viewPosition";
+import type { PixelPoint, TilePoint, ViewPosition } from "./viewPosition";
 import { WebGLRenderer } from "./webglRenderer";
 
-// The part of the map a painter draws: the view's top-left tile, the tiles it shows across and down, the last of each
-// perhaps only in part, and the device pixels a tile is drawn
+// The part of the map a painter draws: the view's origin, the point of the map at its top-left in tiles, which may lie
+// between tiles; the tiles it shows across and down, the first and last of each perhaps only in part; and the device
+// pixels a tile is drawn. The map is drawn from the origin snapped to whole device pixels (drawnOrigin).
 export interface PaintedView {
   origin: TilePoint;
   across: number;
@@ -33,8 +35,8 @@ export interface PaintedView {
 
 // The part of the map a view at the position shows, tilePixels device pixels a tile
 export function paintedView(position: ViewPosition, tilePixels: number): PaintedView {
-  const {totalTilesInViewX, totalTilesInViewY} = position.viewport;
-  return {origin: position.origin, across: totalTilesInViewX, down: totalTilesInViewY, tilePixels};
+  const {tilesInViewX, tilesInViewY} = position.viewport;
+  return {origin: position.origin, across: tilesInViewX, down: tilesInViewY, tilePixels};
 }
 
 // What a painter draws its frames with: the WebGL renderer, as webglRenderer.ts describes each
@@ -93,16 +95,17 @@ export class MapPainter {
       return false;
     }
 
-    const tiles = this.readTiles(view, isPaused);
     const {tilePixels} = view;
-    const drawnView = {originX: view.origin.x, originY: view.origin.y, tilePixels, width: this.target.width,
+    const origin = drawnOrigin(view.origin, tilePixels);
+    const tiles = this.readTiles(view, origin, isPaused);
+    const drawnView = {originX: origin.x, originY: origin.y, tilePixels, width: this.target.width,
                        height: this.target.height};
     const damage = this.drawn.damage(drawnView, tiles, sprites);
     if (damage === null) {
       return false;
     }
 
-    const areas = damage === "all" ? null : damagedPixels(damage, tilePixels);
+    const areas = damage === "all" ? null : damagedPixels(damage, tilePixels, tiles.offset);
     buildMapFrame(this.frame, this.art, tiles, tilePixels, tint, sprites, areas);
     this.renderer.draw(this.frame, areas);
     return true;
@@ -130,14 +133,17 @@ export class MapPainter {
     this.renderer.release();
   }
 
-  // The tiles in view, and a margin around them as wide as the farthest shadow reaches, whose anchors' shadows may
-  // reach into the view
-  private readTiles({origin, across, down}: PaintedView, isPaused?: boolean): FrameTiles {
+  // The tiles in view, from the drawn origin, in device pixels, and a margin around them as wide as the farthest shadow
+  // reaches, whose anchors' shadows may reach into the view
+  private readTiles({across, down, tilePixels}: PaintedView, origin: PixelPoint, isPaused?: boolean): FrameTiles {
     const margin = this.art.shadowReach;
-    const x = origin.x - margin;
-    const y = origin.y - margin;
-    const width = across + 2 * margin;
-    const height = down + 2 * margin;
+    // The tile at the view's top-left, and how far into it the view starts
+    const first = {x: Math.floor(origin.x / tilePixels), y: Math.floor(origin.y / tilePixels)};
+    const offset = {x: origin.x - first.x * tilePixels, y: origin.y - first.y * tilePixels};
+    const x = first.x - margin;
+    const y = first.y - margin;
+    const width = Math.ceil((offset.x + across * tilePixels) / tilePixels) + 2 * margin;
+    const height = Math.ceil((offset.y + down * tilePixels) / tilePixels) + 2 * margin;
 
     const values = this.map.getTileValuesForPainting(x, y, width, height, this.values);
     const frames = this.frames;
@@ -146,6 +152,6 @@ export class MapPainter {
     }
     this.animationManager.getTiles(frames, x, y, width, height, isPaused);
 
-    return {x, y, width, height, margin, values, frames};
+    return {x, y, width, height, margin, offset, values, frames};
   }
 }

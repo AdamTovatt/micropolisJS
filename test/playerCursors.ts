@@ -203,12 +203,13 @@ describe("the other players' hover boxes", () => {
         });
     });
 
-    it("are drawn at their tiles less the view's origin, in their tools' colours, named in their players'", () => {
+    it("are drawn at their map tiles, in their tools' colours, named in their players'", () => {
         const views = [{player: "id-ana", name: "Ana", colour: "#f032e6", cursor: ZONE}];
         const toolColour = (tool: string) => `colour of ${tool}`;
 
-        expect(otherOutlines(views, {x: 4, y: 15}, toolColour)).toEqual([{
-            x: 7, y: 5, width: 3, height: 3, colour: "colour of residential", label: {name: "Ana", colour: "#f032e6"},
+        expect(otherOutlines(views, toolColour)).toEqual([{
+            x: ZONE.x, y: ZONE.y, width: 3, height: 3, colour: "colour of residential",
+            label: {name: "Ana", colour: "#f032e6"},
         }]);
     });
 });

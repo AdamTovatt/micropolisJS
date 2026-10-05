@@ -119,6 +119,30 @@ describe("a painter of the map", () => {
         expect(drawn[0].areas).toBeNull();
     });
 
+    it("reads a tile more each way from an origin between tiles, whose first and last tiles show in part", () => {
+        const {painter, reads, drawn} = newPainter();
+        const margin = art.shadowReach;
+
+        // Map pixel (168, 84) at 16 a tile: 8 pixels into tile 10 across and 4 into tile 5 down
+        painter.paint({...VIEW, origin: {x: 10.5, y: 5.25}}, noTint, []);
+
+        expect(reads.mock.calls.map((call) => call.slice(0, 4))).toEqual([[
+            10 - margin, 5 - margin, VIEW.across + 1 + 2 * margin, VIEW.down + 1 + 2 * margin,
+        ]]);
+        expect(drawn[0].ground).toHaveLength((VIEW.across + 1) * (VIEW.down + 1));
+    });
+
+    it("draws the whole view again when its origin moves by a device pixel, and not when it moves by less", () => {
+        const {painter, drawn} = newPainter();
+
+        painter.paint(VIEW, noTint, []);
+        // A sixty-fourth of a tile is a quarter of a pixel at 16 a tile, which the map is drawn from as no move
+        expect(painter.paint({...VIEW, origin: {x: 10 + 1 / 64, y: 5}}, noTint, [])).toBe(false);
+        expect(painter.paint({...VIEW, origin: {x: 10 + 1 / 16, y: 5}}, noTint, [])).toBe(true);
+
+        expect(drawn.map((frame) => frame.areas)).toEqual([null, null]);
+    });
+
     it("draws the frame the animation manager picks: an unpowered zone's tile blinks to the lightning bolt", () => {
         const {painter, drawn} = newPainter({x: 10, y: 5, value: ZONE | ZONEBIT});
 

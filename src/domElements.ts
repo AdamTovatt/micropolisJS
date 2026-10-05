@@ -66,6 +66,21 @@ export function screenPixelRatio(): number {
   return window.devicePixelRatio || 1;
 }
 
+// Whether an element takes typing, Space included, while it has the focus: a text field or another form control a key
+// sets, such as a select or a check box, or editable text. A button is not one: a tool button keeps the focus once
+// clicked, and Space there pans the map rather than pressing the button again.
+export function takesTyping(element: EventTarget | null): boolean {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (element instanceof HTMLInputElement) {
+    return !["button", "submit", "reset", "image"].includes(element.type);
+  }
+
+  return element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement || element.isContentEditable;
+}
+
 // What showing and hiding an element reads and writes
 // The window whose stylesheets lay out elements of type E
 export interface StylingWindow<E> {
