@@ -13,7 +13,8 @@
 
 import { ActivityEntry, ActivityFeed, activityEntry, LINE_LIFETIME_MS, MOST_LINES } from "../src/playerActivity";
 import { PlayerRoster } from "../src/playerRoster";
-import { Command, CommandResult, LOCAL_PLAYER, Outcome } from "../src/protocol";
+import { Command, CommandResult, Outcome } from "../src/protocol";
+import { LOCAL_PLAYER } from "./helpers/commandLog";
 
 const ANA = "id-ana";
 const BO = "id-bo";

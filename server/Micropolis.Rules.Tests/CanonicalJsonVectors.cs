@@ -16,7 +16,7 @@ using System.Globalization;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The canonical text of numbers, strings and documents as <c>src/canonicalJson.ts</c> writes them, from
+    /// The canonical text of numbers, strings and documents (<c>docs/state-hash.md</c>), from
     /// <c>conformance/canonicalJson.json</c>.
     /// </summary>
     public sealed record CanonicalJsonVectors(

@@ -16,7 +16,7 @@ import { Text } from "./text";
 
 // Draws a map overlay: one layer of the simulation's maps as a semi-transparent tint over the tiles, with a legend.
 // It draws only from the simulation's answer to an overlay query, never from simulation objects, so it works the
-// same against the simulation in the page and against a server.
+// same against any city source.
 
 type Rgb = readonly [number, number, number];
 

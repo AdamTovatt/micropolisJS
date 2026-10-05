@@ -10,7 +10,7 @@
 # city simulation game and its source code (the project or "licensee(s)") as a courtesy of the owner.
 #
 
-# The airliner, sprite 3 (src/airplaneSprite.js): frames 0 to 7 fly at CRUISE, 0 heading north and
+# The airliner, sprite 3 (AirplaneSprite in the C# rules): frames 0 to 7 fly at CRUISE, 0 heading north and
 # each next frame an eighth of a turn clockwise; 8 to 10 take off eastward, 10 on the runway and 9
 # and 8 climbing, which the game shows from 10 down to 8 before the plane flies on as frame 2. Its
 # shadow falls away from it by its height, so it reads as flying.

@@ -13,9 +13,13 @@
 
 import * as Messages from "../src/messages";
 import { LastEvent, NewsHold, routeMessage } from "../src/news";
-import { SPRITE_MONSTER, SPRITE_TORNADO } from "../src/spriteConstants";
+import { spriteType } from "./helpers/ruleConstants";
 
 const SECOND = 1000;
+
+// The monster's and the tornado's sprite types, as a sprites message numbers them
+const SPRITE_MONSTER = spriteType("monster");
+const SPRITE_TORNADO = spriteType("tornado");
 const HOLD = 20 * SECOND;
 
 // A message of each tone, and a disaster's, whose tone is bad

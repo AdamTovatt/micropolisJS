@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The monster's start and move, as <c>src/monsterSprite.js</c> brings the original's doMonsterSprite.
+    /// The monster's start and move, after the original's doMonsterSprite in sprite.cpp.
     /// </summary>
     internal static class MonsterSprite
     {

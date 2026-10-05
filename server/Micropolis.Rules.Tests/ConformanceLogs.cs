@@ -19,9 +19,9 @@ namespace Micropolis.Rules.Tests
 {
     /// <summary>
     /// The command logs under <c>conformance/logs/</c> (<c>docs/command-log.md</c>), read by <see cref="CommandLog"/>,
-    /// as the C# headless runner reads one, which checks what <c>parseLog</c> in <c>src/commandLog.ts</c> checks. On
-    /// top of it the reader is stricter, as the readers of the other conformance files are: it refuses a key the format
-    /// doesn't define, a level beside a save, which <c>parseLog</c> ignores, and a log with no checkpoint.
+    /// as the C# headless runner reads one. On top of it the reader is stricter, as the readers of the other
+    /// conformance files are: it refuses a key the format doesn't define, a level beside a save, which
+    /// <see cref="CommandLog"/> ignores, and a log with no checkpoint.
     /// </summary>
     public static class ConformanceLogs
     {

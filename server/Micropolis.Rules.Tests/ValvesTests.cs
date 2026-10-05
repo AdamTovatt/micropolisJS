@@ -14,14 +14,14 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The demand caps, tested directly rather than left to whichever caps the unit snapshots' cities happen to reach.
+    /// The demand caps, tested directly rather than left to whichever caps the fixtures' cities happen to reach.
     /// </summary>
     [TestClass]
     public sealed class ValvesTests
     {
-        // An empty city at no tax on the easy level moves the valves by 379, -400 and 800, as the TypeScript's setValves
-        // does: from 1000 to 1379, 600 and 1500, the last clamped, and from -1000 to -621, -1400 and -200. A capped valve
-        // that would be above zero is held at zero, and one below zero is left where it is.
+        // An empty city at no tax on the easy level moves the valves by 379, -400 and 800, as Valves.SetValves works it
+        // out: from 1000 to 1379, 600 and 1500, the last clamped, and from -1000 to -621, -1400 and -200. A capped
+        // valve that would be above zero is held at zero, and one below zero is left where it is.
         [TestMethod]
         [DataRow(1000L, false, false, false, 1379L, 600L, 1500L)]
         [DataRow(1000L, true, false, false, 0L, 600L, 1500L)]

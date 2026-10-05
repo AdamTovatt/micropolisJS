@@ -274,10 +274,10 @@ export function parseServerMessage(text: string): ServerMessage {
   }
 }
 
-// The commands a player sends the simulation: every change a player makes to the city. commands.ts validates each one
-// as the simulation receives it.
+// The commands a player sends the simulation: every change a player makes to the city. The server's rules validate
+// each one as the simulation receives it (CommandReader in Micropolis.Rules).
 
-// The tools that change the city, as cityTools.ts builds them
+// The tools that change the city, as CityTools in the C# rules builds them
 export const TOOL_NAMES = [
   "airport", "bulldozer", "coal", "commercial", "fire", "industrial", "nuclear", "park", "police", "port", "rail",
   "residential", "road", "stadium", "wire",
@@ -358,11 +358,8 @@ export function commandTypes(): string[] {
   return Object.keys(COMMAND_TYPES);
 }
 
-// A player's id. Single player has the one player.
+// A player's id
 export type PlayerId = string;
-
-// The player of a city source whose simulation runs in the browser: the one player there is
-export const LOCAL_PLAYER: PlayerId = "local";
 
 // What came of a command. A tool command is ok when the tool succeeded at every tile of its path, and otherwise takes
 // the outcome of the first tile where it didn't, which its player is told of.
@@ -381,7 +378,7 @@ export interface CommandResult {
 
 // The queries a player sends the simulation: questions about the city that change nothing. A query is answered at
 // once, between steps or during them, and never logged as a command, since replaying it would change nothing.
-// queries.ts validates each one and builds its answer.
+// The C# rules' Queries validates each one and builds its answer.
 
 // The maps the simulation computes, which an overlay shows one at a time over the city
 export const OVERLAY_LAYERS = [
@@ -432,7 +429,7 @@ export interface OverlayAnswer {
   values: number[];
 }
 
-// What the query tool calls a tile: the categories of the original's doZoneStatus, whose table queries.ts holds. The
+// What the query tool calls a tile: the categories of the original's doZoneStatus, whose table Queries holds. The
 // original lists industrial and the drawbridge twice, under two ranges of tiles each, and both ranges of each are
 // one category here. URANIUM is the nuclear plant's swirl, which the original shows as "Ur 238".
 export const ZONE_CATEGORIES = [
@@ -643,9 +640,9 @@ export interface TilesMessage {
   changes: TileChange[];
 }
 
-// A sprite as the client draws it: its type, counted from 1 as spriteConstants.ts numbers them, which is its row of
-// the sprite sheet; its frame, counted from 1, its column; and the square it is drawn in, width map pixels a side,
-// with its top-left corner at map pixel (x, y)
+// A sprite as the client draws it: its type, counted from 1 as the original's SPRITE_TRAIN and its siblings number
+// them, which is its row of the sprite sheet; its frame, counted from 1, its column; and the square it is drawn in,
+// width map pixels a side, with its top-left corner at map pixel (x, y)
 export interface SpriteView {
   type: number;
   frame: number;
@@ -828,12 +825,10 @@ export interface CityJoined {
 }
 
 // A session's command log, as a city source records it and the answer to a commandLog request carries it: the log,
-// which the headless runner replays (docs/command-log.md); the steps the city has taken since the session began; and
-// why the log has no checkpoints, or null when it has them
+// which the headless runner replays (docs/command-log.md), and the steps the city has taken since the session began
 export interface SessionLog {
   log: object;
   step: number;
-  unhashed: string | null;
 }
 
 // What came of an advance, as the answer to an advance request carries it: the steps it took, whether a year-end

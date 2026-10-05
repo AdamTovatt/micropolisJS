@@ -28,7 +28,7 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DynamicData(nameof(GatedSpeeds))]
-        public void TakeSpeedCycle_ComparedWithTypeScript_LetsAPhaseThroughAtTheSameSteps(string speedName)
+        public void TakeSpeedCycle_ComparedWithSpeedGate_LetsAPhaseThroughAtTheSameSteps(string speedName)
         {
             GatedSpeed expected = Gate.Speeds.Single(speed => speed.Speed == speedName);
             Simulation city = City(Gate.Fixture, "built");
@@ -66,7 +66,7 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEqual(new[] { "{\"month\":0,\"year\":1900}" }, events);
         }
 
-        // As the TypeScript's test of the year one million: the city goes back to 1900, in the same month
+        // The year one million: the city goes back to 1900, in the same month
         [TestMethod]
         public void Step_ReachingTheYearOneMillion_GoesBackTo1900InTheSameMonth()
         {
@@ -116,8 +116,8 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(CanonicalJson.Write(before), CanonicalJson.Write(city.Save()));
         }
 
-        // A paused city's step runs no phase, but a phase run paused skips its scan as the TypeScript does, whose
-        // frequency at the paused speed is undefined
+        // A paused city's step runs no phase, but a phase run paused skips its scan, which has no frequency at the
+        // paused speed
         [TestMethod]
         public void Simulate_PausedAtAScanPhase_SkipsTheScan()
         {

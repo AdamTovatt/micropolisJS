@@ -43,9 +43,8 @@ namespace Micropolis.Headless
     internal sealed record WriteFixtures : HeadlessCommand;
 
     /// <summary>
-    /// The headless runner's arguments, as <c>headless/commandLine.ts</c> takes them: <c>(--seed &lt;n&gt; | --fixture
-    /// &lt;name&gt; [--reseed &lt;n&gt;]) [--speed &lt;speed&gt;] --steps &lt;n&gt;</c>, or <c>--log &lt;file&gt;</c>
-    /// alone; and <c>--write-fixtures</c> alone.
+    /// The headless runner's arguments: <c>(--seed &lt;n&gt; | --fixture &lt;name&gt; [--reseed &lt;n&gt;]) [--speed
+    /// &lt;speed&gt;] --steps &lt;n&gt;</c>, or <c>--log &lt;file&gt;</c> alone; and <c>--write-fixtures</c> alone.
     /// </summary>
     internal static partial class HeadlessCommandLine
     {
@@ -57,14 +56,6 @@ namespace Micropolis.Headless
         private const string WriteFixturesOption = "--write-fixtures";
 
         private static readonly string[] ValueOptions = ["--seed", "--fixture", "--reseed", "--speed", "--steps", "--log"];
-
-        // The speeds a run may be set to, by the names the command line takes
-        private static readonly IReadOnlyDictionary<string, Speed> RunningSpeeds = new Dictionary<string, Speed>
-        {
-            ["slow"] = Speed.Slow,
-            ["medium"] = Speed.Medium,
-            ["fast"] = Speed.Fast,
-        };
 
         /// <summary>
         /// The arguments parsed, or an <see cref="ArgumentException"/> naming what is wrong with them.
@@ -121,9 +112,8 @@ namespace Micropolis.Headless
 
             if (options.TryGetValue("--speed", out string? speedName))
             {
-                speed = RunningSpeeds.TryGetValue(speedName!, out Speed running)
-                    ? running
-                    : throw new ArgumentException($"--speed is one of {string.Join(", ", RunningSpeeds.Keys)}, got {speedName}.");
+                speed = RunningSpeeds.Named(speedName!)
+                    ?? throw new ArgumentException($"--speed is one of {string.Join(", ", RunningSpeeds.All.Select(RunningSpeeds.Name))}, got {speedName}.");
             }
 
             long steps = WholeNumber(options, "--steps", long.MaxValue) ?? throw new ArgumentException("--steps is required.");

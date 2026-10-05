@@ -12,13 +12,14 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using static Micropolis.Rules.Tests.ConformanceJson;
 
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The commands the TypeScript reference applied in <c>conformance/commands.json</c>: each case's commands applied
-    /// in order to one city, with the result the simulation gave each and the state hash it left.
+    /// The commands in <c>conformance/commands.json</c>: each case's commands applied in order to one city, with the
+    /// result the simulation gives each and the state hash it leaves.
     /// </summary>
     public static class ConformanceCommands
     {
@@ -71,7 +72,7 @@ namespace Micropolis.Rules.Tests
         /// </summary>
         public string ReadStartText()
         {
-            return Fixture is null ? CanonicalJson.Write(State) : ConformanceFile.Read($"saves/{Fixture}.built.json");
+            return Fixture is null ? CanonicalJson.Write(State) : FixtureSaves.At(Fixture, FixtureSaves.Built).ReadCommitted();
         }
 
         public override string ToString()

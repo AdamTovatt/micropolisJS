@@ -12,8 +12,8 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using Micropolis.Rules;
-using Micropolis.SourceTree;
 
 namespace Micropolis.Benchmarks
 {
@@ -24,15 +24,9 @@ namespace Micropolis.Benchmarks
     internal abstract record BenchmarkCase(string Name, Speed Speed)
     {
         /// <summary>
-        /// The name of the speed, as the report writes it and the headless runner names it (<c>headless/city.ts</c>).
+        /// The name of the speed, as the report writes it and the headless runner's <c>--speed</c> option names it.
         /// </summary>
-        public string SpeedName => Speed switch
-        {
-            Speed.Slow => "slow",
-            Speed.Medium => "medium",
-            Speed.Fast => "fast",
-            _ => throw new InvalidOperationException($"A benchmark runs a city at a running speed, not {Speed}."),
-        };
+        public string SpeedName => RunningSpeeds.Name(Speed);
 
         /// <summary>
         /// A fresh city, as the case starts it.
@@ -46,17 +40,17 @@ namespace Micropolis.Benchmarks
     /// </summary>
     internal sealed record FixtureCase(string Fixture, Speed Speed, bool DisastersEnabled) : BenchmarkCase(Fixture, Speed)
     {
-        public string SavePath => $"conformance/saves/{Fixture}.run.json";
+        public FixtureSavePoint Save => FixtureSaves.At(Fixture, FixtureSaves.Run);
 
         public override Simulation Start()
         {
-            JsonObject save = JsonNode.Parse(File.ReadAllText(RepositoryFiles.GetPath(SavePath)))!.AsObject();
+            JsonObject save = JsonNode.Parse(Save.ReadCommitted())!.AsObject();
             save["disasters"]!["disastersEnabled"] = DisastersEnabled;
             Simulation city = Simulation.FromSave(CanonicalJson.Write(save));
 
             if (city.Speed != Speed)
             {
-                throw new InvalidDataException($"{SavePath} is saved at {city.Speed}, but its case runs it at {Speed}.");
+                throw new InvalidDataException($"The save {Save.Name} is saved at {city.Speed}, but its case runs it at {Speed}.");
             }
 
             return city;

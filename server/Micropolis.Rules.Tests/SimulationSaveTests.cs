@@ -12,21 +12,20 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using static Micropolis.Rules.Tests.SavePaths;
 
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// Loading and saving the saved states the TypeScript reference writes, and refusing what
+    /// Loading and saving the fixtures' saved states under <c>conformance/saves/</c>, and refusing what
     /// <c>docs/state-hash.md</c> doesn't allow.
     /// </summary>
     [TestClass]
     public sealed class SimulationSaveTests
     {
-        private static readonly IReadOnlyList<ConformanceSave> Saves = ConformanceSaves.Load();
-
         // A save with sprites, a non-null announcement and a power source waiting: the underfunded town after its run
-        private static readonly string RunText = Saves.Single(save => save.Fixture == "underfunded" && save.Point == "run").ReadText();
+        private static readonly string RunText = FixtureSaves.At("underfunded", FixtureSaves.Run).ReadCommitted();
 
         // Read only: a test that changes the save parses its own copy of RunText
         private static readonly JsonNode Run = JsonNode.Parse(RunText)!;
@@ -238,19 +237,19 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DynamicData(nameof(ConformanceSaves.AllSaves), typeof(ConformanceSaves))]
-        public void Save_LoadedConformanceSave_WritesTheSameCanonicalText(ConformanceSave save)
+        public void Save_LoadedConformanceSave_WritesTheSameCanonicalText(FixtureSavePoint save)
         {
-            string text = save.ReadText();
+            string text = save.ReadCommitted();
 
             Assert.AreEqual(text, CanonicalJson.Write(Resave(text)));
         }
 
-        // The file's SHA-256 is the TypeScript's state hash, which the generator checks against the golden hash
+        // The file's SHA-256 is its state hash, which FixtureSavesTests checks against its fixture log's checkpoint
         [TestMethod]
         [DynamicData(nameof(ConformanceSaves.AllSaves), typeof(ConformanceSaves))]
-        public void Save_LoadedConformanceSave_HashesAsTypeScript(ConformanceSave save)
+        public void Save_LoadedConformanceSave_HashesAsTheFile(FixtureSavePoint save)
         {
-            string text = save.ReadText();
+            string text = save.ReadCommitted();
 
             Assert.AreEqual(StateHash.HashCanonicalText(text), StateHash.HashSavedState(Resave(text)));
         }

@@ -11,7 +11,7 @@
 #
 
 # The traffic helicopter, sprite 2, in its eight frames: 0 heading north and each next frame an
-# eighth of a turn clockwise (src/copterSprite.js). It flies HEIGHT above the ground it is over,
+# eighth of a turn clockwise (CopterSprite in the C# rules). It flies HEIGHT above the ground it is over,
 # so its shadow falls away from it by that height and it reads as flying. It is drawn SIZE times
 # its modelled size, as small and as low as it must be for it and its shadow to stay inside the
 # middle two tiles of the frame: the game draws a helicopter into a square of two tiles, as the

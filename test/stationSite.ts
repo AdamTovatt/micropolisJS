@@ -13,11 +13,9 @@
 
 import type { GameSave, Tile } from "../e2e/player";
 import { chebyshev, Rect, tileAt, tilesAround, tilesIn } from "../e2e/savedMap";
-import { planStation, runsOf, savedFireCover, StationPlan, STRONGEST_COVER } from "../e2e/stationSite";
-import { BlockMap } from "../src/blockMap";
-import { BlockMapUtils } from "../src/blockMapUtils.js";
+import { planStation, runsOf, savedFireCover, stationCover, StationPlan, STRONGEST_COVER } from "../e2e/stationSite";
 import { CONDBIT, ZONEBIT } from "../src/tileFlags";
-import { TileUtils } from "../src/tileUtils.js";
+import { repositoryJson } from "./helpers/repository";
 import { DIRT, FIRE, LHPOWER, POWERPLANT, RIVER, ROADS, ROADS2, TREEBASE, WOODS, WOODS5 } from "../src/tileValues";
 
 const WIDTH = 48;
@@ -66,29 +64,24 @@ function treesAround(save: GameSave, centre: Tile): Tile[] {
 
 // The cover at the fire of a station of full strength at the centre, as the game's fire analysis smooths it
 function coverAt(save: GameSave, centre: Tile, fire: Tile): number {
-  const fireStationMap = new BlockMap(WIDTH, HEIGHT, 8);
-  const fireStationEffectMap = new BlockMap(WIDTH, HEIGHT, 8);
-  fireStationMap.worldSet(centre.x, centre.y, save.budget.fireEffect);
-  BlockMapUtils.fireAnalysis({fireStationMap, fireStationEffectMap});
-
-  return fireStationEffectMap.worldGet(fire.x, fire.y);
+  return stationCover(WIDTH, HEIGHT, centre, save.budget.fireEffect).worldGet(fire.x, fire.y);
 }
 
 // The tiles a fire may reach before the station answers it, either way
 const FIRE_REACH = 2;
 
 // A line tile the wire tool lays on: clear land or trees, or a straight road the line crosses at right angles, so
-// with its neighbours in the line above and below a road running across, or beside one running down
+// with its neighbours in the line above and below a road running across, or beside one running down. The tests' maps
+// hold only roads without traffic.
 function laysOn(save: GameSave, line: Tile[], i: number): boolean {
   const id = tileAt(save, line[i]);
   if (id === DIRT || (id >= TREEBASE && id <= WOODS5)) {
     return true;
   }
 
-  const road = TileUtils.normalizeRoad(id);
   const neighbours = [line[i - 1], line[i + 1]];
-  return i < line.length - 1 && (road === ROADS || road === ROADS2) &&
-    neighbours.every((tile) => tile === undefined || (road === ROADS ? tile.x === line[i].x : tile.y === line[i].y));
+  return i < line.length - 1 && (id === ROADS || id === ROADS2) &&
+    neighbours.every((tile) => tile === undefined || (id === ROADS ? tile.x === line[i].x : tile.y === line[i].y));
 }
 
 // What a plan must hold wherever the fire is: a station clear of the fire whose cover reaches it at the strongest,
@@ -250,6 +243,21 @@ describe("the fire stage's station plan", () => {
                                  fire))
             .toThrow("No site near the fire at (30, 20)");
     });
+});
+
+describe("a station's cover", () => {
+
+    // Each block's cover, row by row, as the C# rules' fire analysis spreads a station's, which the fixture tool writes
+    // to conformance/stationCover.json
+    const spread = repositoryJson<{mapWidth: number, mapHeight: number,
+                                   cases: {centre: Tile, fireEffect: number, cover: number[][]}[]}>("conformance/stationCover.json");
+
+    it.each(spread.cases.map((spreadCase) => [spreadCase.centre, spreadCase.fireEffect, spreadCase]))(
+        "spreads as the game spreads it, from a station at %o with a fire effect of %d", (_, __, {centre, fireEffect, cover}) => {
+            const spreadHere = stationCover(spread.mapWidth, spread.mapHeight, centre, fireEffect);
+
+            expect(cover.map((row, y) => row.map((___, x) => spreadHere.get(x, y)))).toEqual(cover);
+        });
 });
 
 describe("the fire department's cover in a save", () => {

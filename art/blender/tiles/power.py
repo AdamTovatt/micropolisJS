@@ -11,7 +11,7 @@
 #
 
 # Power lines: every piece the wire tool lays (210 to 220, by which neighbours conduct, WireTable
-# in src/connector.js), and the line over water (208, 209), on poles standing in the water where
+# in the C# rules' ConnectingTool), and the line over water (208, 209), on poles standing in the water where
 # the original sinks the cable. Also the warning an unpowered zone blinks in place of its middle
 # tile (827).
 

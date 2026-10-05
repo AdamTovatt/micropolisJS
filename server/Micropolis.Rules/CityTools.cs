@@ -14,8 +14,17 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The tools that change the city, with their costs, by the names tool commands give them, as
-    /// <c>src/cityTools.ts</c> builds them.
+    /// What each tool costs a tile it is applied at, before any bulldozing it does first, as <see cref="CityTools"/>
+    /// builds the tools.
+    /// </summary>
+    public static class ToolCosts
+    {
+        public static IReadOnlyDictionary<ToolName, long> All =>
+            CityTools.Create(new GameMap(1, 1)).ToDictionary(tool => tool.Key, tool => tool.Value.ToolCost);
+    }
+
+    /// <summary>
+    /// The tools that change the city, with their costs, by the names tool commands give them.
     /// </summary>
     internal static class CityTools
     {

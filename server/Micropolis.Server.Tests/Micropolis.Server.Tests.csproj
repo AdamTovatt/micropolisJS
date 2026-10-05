@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Micropolis.Conformance\Micropolis.Conformance.csproj" />
     <ProjectReference Include="..\Micropolis.Server\Micropolis.Server.csproj" />
     <ProjectReference Include="..\Micropolis.SourceTree\Micropolis.SourceTree.csproj" />
   </ItemGroup>

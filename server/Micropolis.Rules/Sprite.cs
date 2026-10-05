@@ -16,7 +16,7 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// A sprite's kind, as <c>src/spriteConstants.ts</c> numbers them.
+    /// A sprite's kind, as the original's <c>SPRITE_TRAIN</c> and its siblings number them.
     /// </summary>
     public enum SpriteType
     {
@@ -95,7 +95,7 @@ namespace Micropolis.Rules
         /// </summary>
         public long YHot => Traits.YHot;
 
-        private static SpriteTraits TraitsOf(SpriteType type)
+        public static SpriteTraits TraitsOf(SpriteType type)
         {
             return type switch
             {

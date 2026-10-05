@@ -11,48 +11,36 @@
  *
  */
 
-import { replay } from "../headless/runner";
 import type { CityStart } from "../src/citySource";
 import { CityState } from "../src/cityState";
-import { CommandLog } from "../src/commandLog";
-import { MapGenerator } from "../src/mapGenerator.js";
 import { CITY_ID, Query, QueryAnswer, SPEEDS, StateMessage } from "../src/protocol";
-import { Random } from "../src/random";
-import { SaveFormat } from "../src/savedGame";
-import { Simulation } from "../src/simulation.js";
-import { STEPS_PER_SECOND } from "../src/stepDriver";
-import { BIT_MASK } from "../src/tileFlags";
-import { pageSource, SourceFactory, SourceUnderTest, WebSocketSourceFactory } from "./helpers/citySources";
+import { SourceServer, SourceUnderTest, startSourceServer } from "./helpers/citySources";
 import { STEPS_PER_CITY_TIME } from "./helpers/cityTimes";
+import { parseLog } from "./helpers/commandLog";
 import { answerTo } from "./helpers/queryAnswers";
+import { gameSaveHash } from "./helpers/stateHash";
 import { serverTestsEnabled, START_SERVER_TIMEOUT_MS } from "./helpers/testServer";
 
-// The contract every city source keeps, whatever runs the simulation behind it. The cities are new ones, and saves of
-// new ones.
+// The contract the city source keeps, against the real server, which only CI's server job tests against
+// (testServer.ts). The cities are new ones, and saves of new ones.
 
 const SEED = 2026;
-// The milliseconds a number of steps takes in real time
-const millisecondsFor = (steps: number) => steps * 1000 / STEPS_PER_SECOND;
+// The milliseconds a number of steps takes in real time, at the 60 steps a second the server's cities take
+const millisecondsFor = (steps: number) => steps * 1000 / 60;
 
-describe(pageSource.name, () => contract(pageSource));
-
-// The WebSocket source runs against the real server, which only CI's server job tests against (testServer.ts)
-const webSocketSource = new WebSocketSourceFactory();
-(serverTestsEnabled() ? describe : describe.skip)(webSocketSource.name, () => {
-    beforeAll(() => webSocketSource.startServer(), START_SERVER_TIMEOUT_MS);
-    afterAll(() => webSocketSource.stopServer());
-
-    contract(webSocketSource);
-});
-
-function contract(factory: SourceFactory): void {
+(serverTestsEnabled() ? describe : describe.skip)("the WebSocket source", () => {
+    let server: SourceServer;
+    beforeAll(async () => {
+        server = await startSourceServer();
+    }, START_SERVER_TIMEOUT_MS);
+    afterAll(() => server?.stop());
 
     let tested: SourceUnderTest;
     let state: CityState;
     let messages: StateMessage[];
 
     beforeEach(async () => {
-        tested = await factory.create();
+        tested = await server.create();
         state = new CityState(tested.source);
         messages = [];
         tested.source.subscribe((message) => messages.push(message));
@@ -81,7 +69,7 @@ function contract(factory: SourceFactory): void {
 
     // The save of a city started on a source of its own
     async function savedElsewhere(start: CityStart): Promise<string> {
-        const other = await factory.create();
+        const other = await server.create();
         try {
             await other.source.start(start);
             return await other.source.driver.savedGame();
@@ -90,9 +78,9 @@ function contract(factory: SourceFactory): void {
         }
     }
 
-    // A city as a start resolves with it: only a city on the server has an id another player could join it by
+    // A city as a start resolves with it: its id, which another player could join it by
     function startedCity(name: string, seed: number) {
-        return {name, seed, city: factory.onServer ? expect.stringMatching(CITY_ID) : null};
+        return {name, seed, city: expect.stringMatching(CITY_ID)};
     }
 
     // Starts a new city on the seed's map, and takes the first turn of the source's loop, which starts its clock
@@ -104,13 +92,19 @@ function contract(factory: SourceFactory): void {
 
     describe("before a city has started", () => {
 
-        it("answers a map preview with the map a new city on the seed starts on", async () => {
+        // A new city starts on the map the preview shows, as "starting a city" checks
+        it("answers a map preview with the seed's map, a tile id and flags for each of its tiles", async () => {
             const answer = await ask({type: "mapPreview", seed: SEED});
-            const map = MapGenerator(Random.mapStream(SEED));
 
-            expect(answer).toMatchObject({type: "mapPreview", seed: SEED, width: map.width, height: map.height});
-            const tiles = (answer as {tiles: number[]}).tiles;
-            expect(tiles[map.width * 10 + 20] & BIT_MASK).toBe(map.getTileValue(20, 10));
+            expect(answer).toMatchObject({type: "mapPreview", seed: SEED, width: 120, height: 100});
+            expect((answer as {tiles: number[]}).tiles).toHaveLength(120 * 100);
+        });
+
+        it("answers a map preview of another seed with another map", async () => {
+            const preview = await ask({type: "mapPreview", seed: SEED}) as {tiles: number[]};
+            const another = await ask({type: "mapPreview", seed: SEED + 1}) as {tiles: number[]};
+
+            expect(another.tiles).not.toEqual(preview.tiles);
         });
 
         it.each([-1, 0.5, 2 ** 32])("rejects a map preview of a seed that isn't a uint32, %d", async (seed) => {
@@ -163,7 +157,7 @@ function contract(factory: SourceFactory): void {
             await tested.run(millisecondsFor(100));
             const text = await tested.source.driver.savedGame();
 
-            const other = await factory.create();
+            const other = await server.create();
             try {
                 expect(await other.source.start({save: text})).toEqual(startedCity("Saved", SEED));
                 expect(await other.source.driver.savedGame()).toBe(text);
@@ -178,15 +172,13 @@ function contract(factory: SourceFactory): void {
             const saved = () => JSON.parse(before) as Record<string, unknown>;
 
             // A failure on the server reaches the page in the C# rules' words
-            await expect(tested.source.start({save: "not a save"}))
-                .rejects.toThrow(factory.onServer ? /^The save's state is not JSON/ : SyntaxError);
+            await expect(tested.source.start({save: "not a save"})).rejects.toThrow(/^The save's state is not JSON/);
             const nameless = saved();
             delete nameless.name;
             await expect(tested.source.start({save: JSON.stringify(nameless)})).rejects.toThrow("The save's name must be a string.");
             const mapless = saved();
             delete mapless.map;
-            await expect(tested.source.start({save: JSON.stringify(mapless)}))
-                .rejects.toThrow(factory.onServer ? "The save's map is missing." : TypeError);
+            await expect(tested.source.start({save: JSON.stringify(mapless)})).rejects.toThrow("The save's map is missing.");
 
             expect(await tested.source.driver.savedGame()).toBe(before);
         });
@@ -253,30 +245,6 @@ function contract(factory: SourceFactory): void {
             expect(await tested.source.driver.cityTime()).toBe(0);
         });
 
-        if (factory.onServer) {
-            it("steps while the player can't see it: one player's view doesn't hold a shared city", async () => {
-                await startNewCity();
-                tested.source.setViewerVisible(false);
-
-                await tested.run(millisecondsFor(STEPS_PER_CITY_TIME));
-
-                expect(await tested.source.driver.cityTime()).toBe(1);
-            });
-        } else {
-            it("doesn't step while the player can't see it, and resumes without catching up", async () => {
-                await startNewCity();
-                tested.source.setViewerVisible(false);
-
-                await tested.run(millisecondsFor(10 * STEPS_PER_CITY_TIME));
-                expect(await tested.source.driver.cityTime()).toBe(0);
-
-                tested.source.setViewerVisible(true);
-                await tested.run(millisecondsFor(10 * STEPS_PER_CITY_TIME));
-                await tested.run(millisecondsFor(STEPS_PER_CITY_TIME));
-                expect(await tested.source.driver.cityTime()).toBe(1);
-            });
-        }
-
         it("sends nothing on a turn that changes nothing", async () => {
             await startNewCity();
             tested.source.send({type: "setSpeed", speed: SPEEDS.paused});
@@ -294,7 +262,8 @@ function contract(factory: SourceFactory): void {
             expect(await ask({type: "tileReport", x: 30, y: 30})).toMatchObject({type: "tileReport", x: 30, y: 30});
         });
 
-        it("keeps a log of the session that replays to the city's state", async () => {
+        // The C# rules replay a log the server keeps, as GoldenPlaythroughTests does the playthrough's
+        it("keeps a log of the session that ends at a checkpoint of the city's state", async () => {
             await startNewCity();
             tested.source.send({type: "tool", tool: "road", path: [{x: 30, y: 30}, {x: 31, y: 30}],
                                 autoBulldoze: true});
@@ -302,11 +271,13 @@ function contract(factory: SourceFactory): void {
 
             const recorded = await tested.source.commandLog();
 
-            expect(recorded.unhashed).toBeNull();
+            expect(Object.keys(recorded).sort()).toEqual(["log", "step"]);
             expect(recorded.step).toBeGreaterThan(0);
-            const log = recorded.log as CommandLog;
+            const log = parseLog(recorded.log);
             expect(log.entries).toHaveLength(1);
-            expect(await replay(log).verified).toBe(log.checkpoints.length);
+            expect(log.checkpoints[log.checkpoints.length - 1]).toEqual({
+                step: recorded.step, hash: gameSaveHash(JSON.parse(await tested.source.driver.savedGame())),
+            });
         });
     });
 
@@ -395,51 +366,21 @@ function contract(factory: SourceFactory): void {
                                                      error: "The city is not stepping: it is paused"});
             expect(await driver.cityTime()).toBe(0);
         });
-
-        // A city on the server steps whether or not a player sees it, and its simulation is out of a test's reach
-        if (!factory.onServer) {
-            it("refuses to advance a city the player can't see", async () => {
-                const driver = tested.source.driver;
-                await driver.hold();
-                await startNewCity();
-                tested.source.setViewerVisible(false);
-
-                expect(await driver.advance(1)).toEqual({steps: 0, budgetReviewDue: false,
-                                                         error: "The city is not stepping: the player can't see it"});
-            });
-
-            it("reports the steps a stalled advance took, and why it failed", async () => {
-                const driver = tested.source.driver;
-                await driver.hold();
-                await startNewCity();
-                const stalled = jest.spyOn(Simulation.prototype, "step").mockImplementation(() => undefined);
-
-                try {
-                    expect(await driver.advance(STEPS_PER_CITY_TIME)).toEqual({
-                        steps: STEPS_PER_CITY_TIME, budgetReviewDue: false,
-                        error: expect.stringMatching(/^The city stalled: /),
-                    });
-                } finally {
-                    stalled.mockRestore();
-                }
-            });
-        }
     });
 
     it("gives a save whose text is the save format's", async () => {
         await startNewCity();
 
-        expect(SaveFormat.parse(await tested.source.driver.savedGame())).toMatchObject({name: "Town"});
+        expect(JSON.parse(await tested.source.driver.savedGame()))
+            .toMatchObject({name: "Town", version: expect.any(Number), map: {width: 120, height: 100}});
     });
 
-    // The server's store keeps a city on the server, as Micropolis.Server.Tests checks, and a source in the browser
-    // gives its city's save as text
-    it(factory.onServer ? "saves the city in the server's store, giving no text" : "saves the city as its save's text",
-       async () => {
+    // The server's store keeps the city, as Micropolis.Server.Tests checks
+    it("saves the city in the server's store", async () => {
         await startNewCity();
         tested.source.send({type: "tool", tool: "road", path: [{x: 30, y: 30}], autoBulldoze: true});
         await tested.run(millisecondsFor(100));
 
-        expect(await tested.source.save()).toBe(factory.onServer ? null : await tested.source.driver.savedGame());
+        await expect(tested.source.save()).resolves.toBeUndefined();
     });
-}
+});

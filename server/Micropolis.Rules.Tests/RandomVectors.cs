@@ -18,7 +18,7 @@ using System.Text.Json.Serialization;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The random stream's reference vectors, from <c>conformance/random.json</c>, shared with <c>test/random.ts</c>.
+    /// The random stream's reference vectors, from <c>conformance/random.json</c>.
     /// Every list is checked non-empty, so a vector the file lost fails here rather than passing over nothing.
     /// </summary>
     public sealed record RandomVectors(

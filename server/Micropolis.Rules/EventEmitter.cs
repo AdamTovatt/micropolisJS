@@ -16,16 +16,15 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Listeners by event name, as <c>src/eventEmitter.js</c> keeps them: an event goes to its name's listeners in the
-    /// order they were added, and an event no one listens to goes nowhere. Names are the strings of
-    /// <see cref="Messages"/>.
+    /// Listeners by event name: an event goes to its name's listeners in the order they were added, and an event no one
+    /// listens to goes nowhere. Names are the strings of <see cref="Messages"/>.
     /// </summary>
     public sealed class EventEmitter
     {
         private readonly Dictionary<string, List<Action<JsonNode?>>> _listeners = new Dictionary<string, List<Action<JsonNode?>>>();
 
         /// <summary>
-        /// Sees every event before its listeners do, whatever its name, as a unit snapshot records the simulation's.
+        /// Sees every event before its listeners do, whatever its name, as a test records the simulation's.
         /// </summary>
         internal Action<string, JsonNode?>? Observer { get; set; }
 

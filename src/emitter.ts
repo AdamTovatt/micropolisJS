@@ -12,8 +12,8 @@
  */
 
 // The base of a client object that announces what the player does, such as a window closing or a button clicked, to
-// the listeners added for each event, by its name from messages.ts. The simulation has its own emitter
-// (eventEmitter.js), which the client never imports.
+// the listeners added for each event, by its name from uiMessages.ts. The simulation's events are its own
+// (EventEmitter in the C# rules), and reach the client only as state messages.
 export class Emitter {
   private readonly listeners = new Map<string, ((value: never) => void)[]>();
 

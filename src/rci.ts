@@ -41,8 +41,8 @@ export interface Rect {
 // The bar for one kind of zone, by its place from residential, in pixels
 export function barRect(index: number, value: number): Rect {
   // Industrial demand is scaled up from its range of 1500 to residential's 2000. Commercial demand's range is 1500 too
-  // (valves.js), but its bar is not scaled. The original scales neither: drawValve (w_update.c in micropolis-activity)
-  // clamps all three demands to 1500, and UISetDemand (micropolis.tcl) draws them on one scale.
+  // (Valves in the C# rules), but its bar is not scaled. The original scales neither: drawValve (w_update.c in
+  // micropolis-activity) clamps all three demands to 1500, and UISetDemand (micropolis.tcl) draws them on one scale.
   if (index > 1) {
     value = Math.floor(2000 / 1500 * value);
   }

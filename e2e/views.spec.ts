@@ -15,11 +15,11 @@ import { Page, expect, test } from "@playwright/test";
 
 import { SPRITE_SHEET } from "../src/renderManifest";
 import { PREVIEW_TILE_SIZE, SplashCanvas } from "../src/splashCanvas";
-import { SPRITE_TORNADO } from "../src/spriteConstants";
 import { WATER_HIGH, WATER_LOW, WOODS_HIGH, WOODS_LOW } from "../src/tileValues";
 import { serverForTests } from "./gameServer";
 import { collectPageProblems, contextLoss, isContextLost } from "./page";
 import { Player, startGame, TESTER } from "./player";
+import { TORNADO_SPRITE } from "./ruleNumbers";
 import { tileAt } from "./savedMap";
 import { SEED } from "./stages";
 import { everyTile, serveTestArt, solidAtlas } from "./testArt";
@@ -31,7 +31,7 @@ import { everyTile, serveTestArt, solidAtlas } from "./testArt";
 const TV_CANVAS = "#tvCanvas";
 const PREVIEW_CANVAS = "#SplashCanvas";
 
-const TORNADO_SIDE = SPRITE_SHEET[SPRITE_TORNADO - 1].width;
+const TORNADO_SIDE = SPRITE_SHEET[TORNADO_SPRITE - 1].width;
 
 const server = serverForTests("manual");
 

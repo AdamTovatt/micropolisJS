@@ -16,14 +16,14 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The sprites, as <c>src/spriteManager.js</c> keeps them, after the original's sprite.cpp: the list, newest first,
-    /// which is the order they move in, the counter that paces them, how each type is made, and what the moves share.
-    /// Each type's move is its own class, as each is its own <c>*Sprite.js</c> file.
+    /// The sprites, after the original's sprite.cpp: the list, newest first, which is the order they move in, the
+    /// counter that paces them, how each type is made, and what the moves share. Each type's move is its own class, as
+    /// each is its own <c>do*Sprite</c> function in the original.
     /// </summary>
     /// <remarks>
     /// A sprite that dies stays in the list, at frame 0, until the next pass of <see cref="MoveObjects"/> reaches it,
     /// and a new sprite of its type takes its place rather than joining the list. Explosions are the one type the list
-    /// holds any number of. The sounds the sprites make, which nothing in the TypeScript hears, aren't raised.
+    /// holds any number of. The sounds the sprites make in the original aren't raised, since nothing plays them.
     /// </remarks>
     public sealed class SpriteManager
     {
@@ -49,8 +49,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Raises the <see cref="Messages.DISASTER_MESSAGES"/>, the <see cref="Messages.CRASHES"/> and
-        /// <see cref="Messages.HEAVY_TRAFFIC"/>, as <c>src/spriteManager.js</c> raises them and passes them on from its
-        /// sprites.
+        /// <see cref="Messages.HEAVY_TRAFFIC"/>, its own and those it passes on from its sprites.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -307,7 +306,7 @@ namespace Micropolis.Rules
         /// The monster rises from the river tile at (x, y), which places its hot spot five tiles east and one south. A
         /// sighting names the sprite to follow by its type.
         /// </summary>
-        public void MakeMonsterAt(int x, int y)
+        private void MakeMonsterAt(int x, int y)
         {
             MakeSprite(SpriteType.Monster, SpriteUtils.WorldToPix(x) + 48, SpriteUtils.WorldToPix(y));
             Events.Emit(Messages.MONSTER_SIGHTED, NewsPlaces.Trackable(x + 5, y, SpriteType.Monster));

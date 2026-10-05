@@ -16,7 +16,7 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The disasters, as <c>src/disasterManager.js</c> brings them after the original's disasters.cpp, and their state:
+    /// The disasters, after the original's disasters.cpp, and their state:
     /// how long a flood has left, and whether random disasters happen.
     /// </summary>
     public sealed class DisasterManager
@@ -48,7 +48,7 @@ namespace Micropolis.Rules
         public bool DisastersEnabled { get; internal set; }
 
         /// <summary>
-        /// Raises the <see cref="Messages.DISASTER_MESSAGES"/>, as <c>src/disasterManager.js</c> does.
+        /// Raises the <see cref="Messages.DISASTER_MESSAGES"/>.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -108,7 +108,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// The random fire: one tile drawn at random, which burns if it is a building, but no zone's centre.
         /// </summary>
-        public void SetFire()
+        private void SetFire()
         {
             int x = _random.GetRandom(_map.Width - 1);
             int y = _random.GetRandom(_map.Height - 1);

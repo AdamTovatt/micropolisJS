@@ -11,9 +11,11 @@
  *
  */
 
-import { Level } from "../headless/city";
 import { evaluationView } from "../src/evaluationWindow";
-import { CITY_CLASSES, CITY_PROBLEMS, type EvaluationRecord } from "../src/protocol";
+import { CITY_CLASSES, CITY_PROBLEMS, type EvaluationRecord, GAME_LEVELS } from "../src/protocol";
+
+// The difficulty, by its number in GAME_LEVELS
+const Level = {easy: GAME_LEVELS.indexOf("EASY"), medium: GAME_LEVELS.indexOf("MED"), hard: GAME_LEVELS.indexOf("HARD")};
 
 // The breakdown's points sum to scoreDelta, so last year's score was 504 - -29 = 533
 const RECORD: EvaluationRecord = {

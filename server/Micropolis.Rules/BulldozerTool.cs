@@ -14,12 +14,12 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The bulldozer, as <c>src/bulldozerTool.js</c> and the original's <c>bulldozerTool</c>: it blows a zone up into
+    /// The bulldozer, as the original's <c>bulldozerTool</c>: it blows a zone up into
     /// rubble from any of its tiles, and dozes anything else bulldozable to dirt, or back to water where it spans
     /// water.
     /// </summary>
     /// <remarks>
-    /// The TypeScript tool also emits the explosion sounds, which nothing listens to: the simulation passes no sound
+    /// The original's tool also makes the explosion sounds, which this one leaves out: the simulation passes no sound
     /// on.
     /// </remarks>
     internal sealed class BulldozerTool : ConnectingTool
@@ -48,7 +48,7 @@ namespace Micropolis.Rules
             {
                 AddCost(BulldozerCost);
 
-                // The zone sizes there are, 3, 4 and 6; any other leaves the zone standing, as the TypeScript's switch
+                // The zone sizes there are, 3, 4 and 6; any other leaves the zone standing, as the original's switch
                 if (zone.ZoneSize is 3 or 4 or 6)
                 {
                     PutRubble(x + zone.DeltaX - 1, y + zone.DeltaY - 1, zone.ZoneSize, random);

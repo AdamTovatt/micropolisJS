@@ -16,9 +16,8 @@ using static Micropolis.Rules.Tests.FixtureCities;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The yearly evaluation's branches, as <c>test/evaluation.ts</c> and <c>test/evaluationOracle.ts</c> test the
-    /// TypeScript's: capped demand, fires, jobs past a short's range and an empty city, tested directly rather than
-    /// left to whichever of them the unit snapshots' cities happen to reach.
+    /// The yearly evaluation's branches: capped demand, fires, jobs past a short's range and an empty city, tested
+    /// directly rather than left to whichever of them the fixtures' cities happen to reach.
     /// </summary>
     [TestClass]
     public sealed class EvaluationTests
@@ -109,9 +108,9 @@ namespace Micropolis.Rules.Tests
         }
 
         /// <summary>
-        /// The suburb, evaluated as a new city in a problem-free year, as <c>problemFreeYear</c> in
-        /// <c>test/helpers/evaluationCity.ts</c> sets it: no crime, pollution, land value, traffic, fires or tax, full
-        /// funding, uncapped valves, every zone powered, and as many residents as jobs. Its base score is 1000.
+        /// The suburb, evaluated as a new city in a problem-free year: no crime, pollution, land value, traffic, fires
+        /// or tax, full funding, uncapped valves, every zone powered, and as many residents as jobs. Its base score is
+        /// 1000.
         /// </summary>
         private static Simulation ProblemFreeCity(long resPop)
         {

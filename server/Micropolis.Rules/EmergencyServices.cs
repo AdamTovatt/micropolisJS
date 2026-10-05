@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Police and fire stations, as <c>src/emergencyServices.js</c> notes their cover.
+    /// Police and fire stations, as the original's <c>doSpecialZone</c> in zone.cpp notes their cover.
     /// </summary>
     public static class EmergencyServices
     {

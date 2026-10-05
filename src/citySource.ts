@@ -17,18 +17,18 @@ import type { QuerySource } from "./querySource";
 // The only way the client reaches the city. A source sends the city commands and queries, and delivers the state
 // messages the city sends back to its subscribers, in the order it sent them. The simulation behind it steps itself,
 // at the speed the city was set to: the client sends speed and pause as commands, and paints whatever state came
-// last. Where the simulation runs is the source's business: in the page or on a server.
+// last. Where the simulation runs is the source's business: the page plays through the WebSocket source, whose city
+// runs on the server.
 
 // Where a city starts: a new city, under the name the player gave it, on the map a game seed generates, at a level, by
 // its number in GAME_LEVELS; or a saved game, as the text save gave
 export type CityStart = {name: string, seed: number, level: number} | {save: string};
 
-// A city that has started: its name, its game seed, and its id, by which any player joins it, or null for a city in the
-// browser, which no one else can join
+// A city that has started: its name, its game seed, and its id, by which any player joins it
 export interface StartedCity {
   name: string;
   seed: number;
-  city: string | null;
+  city: string;
 }
 
 // The end-to-end runner's channel, in debug mode: it holds the source's step driver, so that the city steps only when
@@ -63,13 +63,8 @@ export interface CitySource extends QuerySource {
   // full map among them. It fails, leaving the city before it, on a save that won't load.
   start(start: CityStart): Promise<StartedCity>;
   send(command: Command): void;
-  // Whether the player can see the city: not while the tab is hidden or the screen is too small to play. A source in
-  // the browser stops stepping while the player can't, as single-player always has; a shared city on a server steps on.
-  // It is not a command: it is never logged, and the simulation's rules never see it.
-  setViewerVisible(visible: boolean): void;
-  // Saves the city where it is kept. A source in the browser gives the saved game's text, the city's name with it, for
-  // the page to keep; the server's keeps the city in its store, and gives null once the store has.
-  save(): Promise<string | null>;
+  // Saves the city in the server's store, and resolves once the store has kept it
+  save(): Promise<void>;
   // The session's command log: every command applied since the city started, and checkpoints of its state hash
   commandLog(): Promise<SessionLog>;
 }
@@ -96,7 +91,7 @@ export interface Pending {
 }
 
 // What becomes of a query a remote source asks. The reply is called as the answer arrives, so what goes wrong in it, or
-// in the query, is thrown there, as the in-page source throws it at the call, rather than lost in a promise. A query
+// in the query, is thrown there, as a query answered at the call would throw it, rather than lost in a promise. A query
 // the source gives up on is never answered, which is said out loud: what asked it carries on without the answer.
 export function queryReply(query: Query, reply: (answer: QueryAnswer) => void): Required<Pending> {
   return {

@@ -86,11 +86,19 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Writes the map under <c>map</c>: its size, its positions, and each tile's raw value row by row.
+        /// Writes the map under <c>map</c> (<see cref="SavedObject"/>).
         /// </summary>
         internal void Save(JsonObject saveData)
         {
-            saveData["map"] = new JsonObject
+            saveData["map"] = SavedObject();
+        }
+
+        /// <summary>
+        /// The map as a save holds it: its size, its positions, and each tile's raw value row by row.
+        /// </summary>
+        public JsonObject SavedObject()
+        {
+            return new JsonObject
             {
                 ["cityCentreX"] = CityCentreX,
                 ["cityCentreY"] = CityCentreY,
@@ -148,8 +156,8 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The map's own tile at (x, y), which changes the map as it changes. Off the map, as <c>getTile</c> in
-        /// <c>src/gameMap.js</c> does, it is a new tile of <see cref="TileValues.TILE_INVALID"/> belonging to nothing.
+        /// The map's own tile at (x, y), which changes the map as it changes. Off the map it is a new tile of
+        /// <see cref="TileValues.TILE_INVALID"/> belonging to nothing.
         /// </summary>
         public Tile GetTile(int x, int y)
         {
@@ -208,9 +216,8 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Gives a tile the value and flags of <paramref name="tile"/>, as <c>setTo</c> in <c>src/gameMap.js</c>, which
-        /// puts the tile itself on the map; the map keeps its own, so later changes to <paramref name="tile"/> don't
-        /// reach it.
+        /// Gives a tile the value and flags of <paramref name="tile"/>. The map keeps its own tile, so later changes to
+        /// <paramref name="tile"/> don't reach it.
         /// </summary>
         public void SetTo(int x, int y, Tile tile)
         {
@@ -219,12 +226,12 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Lays a zone of <paramref name="size"/> by <paramref name="size"/> tiles from the centre's upper left
-        /// neighbour, as <c>putZone</c> in <c>src/gameMap.js</c>: the values count up row by row from the centre's less
-        /// <c>size + 1</c>, each tile burnable and conductive, and the centre the zone's centre.
+        /// neighbour: the values count up row by row from the centre's less <c>size + 1</c>, each tile burnable and
+        /// conductive, and the centre the zone's centre.
         /// </summary>
         /// <remarks>
-        /// As the TypeScript, it checks the centre and the far corner are on the map before it lays a tile; a zone
-        /// past the near edge throws as it reaches the first tile off the map.
+        /// It checks the centre and the far corner are on the map before it lays a tile; a zone past the near edge
+        /// throws as it reaches the first tile off the map.
         /// </remarks>
         public void PutZone(int centreX, int centreY, int centreTile, int size)
         {

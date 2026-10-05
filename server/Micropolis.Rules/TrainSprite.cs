@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The train's start and move, as <c>src/trainSprite.js</c> brings the original's doTrainSprite.
+    /// The train's start and move, after the original's doTrainSprite in sprite.cpp.
     /// </summary>
     internal static class TrainSprite
     {

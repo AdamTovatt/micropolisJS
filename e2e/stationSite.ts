@@ -11,13 +11,13 @@
  *
  */
 
-import { BlockMap } from "../src/blockMap";
-import { BlockMapUtils } from "../src/blockMapUtils.js";
 import { CONDBIT } from "../src/tileFlags";
-import { TileUtils } from "../src/tileUtils.js";
 import { DIRT, NUCLEAR, POWERPLANT, ROADS, ROADS2, TREEBASE, WOODS5 } from "../src/tileValues";
 import type { GameSave, Player, Tile } from "./player";
-import { chebyshev, inBounds, rawTileAt, savedBlockMapAt, tileAt, tilesAround, tilesIn, tilesWhere } from "./savedMap";
+import {
+  BlockMap, chebyshev, inBounds, isFire, normalizeRoad, rawTileAt, savedBlockMapAt, tileAt, tilesAround, tilesIn,
+  tilesWhere,
+} from "./savedMap";
 
 // Where the playthrough's fire stage builds its fire station, chosen from the city as the fire left it, so the stage
 // holds wherever the random stream lands the fire: a site whose cover reaches the fire, a road beside it, and a power
@@ -73,7 +73,7 @@ class FireSite {
   private readonly fires: Tile[];
 
   constructor(readonly save: GameSave) {
-    this.fires = tilesWhere(save, (id) => TileUtils.isFire(id));
+    this.fires = tilesWhere(save, isFire);
   }
 
   index(tile: Tile): number {
@@ -94,7 +94,7 @@ class FireSite {
   // A straight road a line crosses at right angles going by step, as the wire tool lays a line over one
   crossable(tile: Tile, by: Tile): boolean {
     return inBounds(this.save, tile) && this.clearOfFire(tile) &&
-      TileUtils.normalizeRoad(tileAt(this.save, tile)) === (by.y !== 0 ? ROADS : ROADS2);
+      normalizeRoad(tileAt(this.save, tile)) === (by.y !== 0 ? ROADS : ROADS2);
   }
 
   // The tiles the power scan reaches from the plants through conducting tiles, leaving out those beside a fire,
@@ -118,17 +118,40 @@ class FireSite {
     return reached;
   }
 
-  // The cover at the fire of a station alone at the centre, with power and a road, at the city's funding: as the scan
-  // records it on the fire station map and the fire analysis smooths it
+  // The cover at the fire of a station alone at the centre, with power and a road, at the city's funding
   coverAt(centre: Tile, fire: Tile): number {
     const {width, height} = this.save.map;
-    const fireStationMap = new BlockMap(width, height, FIRE_BLOCK_SIZE);
-    const fireStationEffectMap = new BlockMap(width, height, FIRE_BLOCK_SIZE);
-    fireStationMap.worldSet(centre.x, centre.y, this.save.budget.fireEffect);
-    BlockMapUtils.fireAnalysis({fireStationMap, fireStationEffectMap});
-
-    return fireStationEffectMap.worldGet(fire.x, fire.y);
+    return stationCover(width, height, centre, this.save.budget.fireEffect).worldGet(fire.x, fire.y);
   }
+}
+
+// The fire department's cover of a station alone at the centre of a map of the size given, at the fire effect the
+// city's funding gives it: as the scan records the station on the fire station map, and the fire analysis spreads it
+// with three passes of smoothing
+export function stationCover(mapWidth: number, mapHeight: number, centre: Tile, fireEffect: number): BlockMap {
+  const width = Math.ceil(mapWidth / FIRE_BLOCK_SIZE);
+  const height = Math.ceil(mapHeight / FIRE_BLOCK_SIZE);
+  let cover = new Array<number>(width * height).fill(0);
+  cover[Math.floor(centre.x / FIRE_BLOCK_SIZE) + Math.floor(centre.y / FIRE_BLOCK_SIZE) * width] = fireEffect;
+  for (let pass = 0; pass < 3; pass++) {
+    cover = smoothed(cover, width, height);
+  }
+
+  return new BlockMap(mapWidth, mapHeight, FIRE_BLOCK_SIZE, cover);
+}
+
+// A block map's values, row by row, width blocks to a row and height rows, smoothed as the fire analysis smooths the
+// fire station map (SpreadStationCover in the C# rules' BlockMapUtils): each block's value and a quarter of the sum of
+// the blocks beside it on the map, halved, each division dropping its fraction
+function smoothed(blocks: readonly number[], width: number, height: number): number[] {
+  const at = (x: number, y: number) => blocks[x + y * width];
+  return blocks.map((value, i) => {
+    const x = i % width;
+    const y = Math.floor(i / width);
+    const beside = (x > 0 ? at(x - 1, y) : 0) + (x < width - 1 ? at(x + 1, y) : 0) +
+      (y > 0 ? at(x, y - 1) : 0) + (y < height - 1 ? at(x, y + 1) : 0);
+    return Math.floor((value + Math.floor(beside / 4)) / 2);
+  });
 }
 
 // The station's site near the fire, with its road and its line: the sites whose three by three tiles are all

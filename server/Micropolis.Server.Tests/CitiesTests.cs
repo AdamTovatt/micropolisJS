@@ -38,7 +38,7 @@ namespace Micropolis.Server.Tests
         // What a save past the client address's limit fails with
         private const string TooManySaves = "Too many saves were made from here. Try again in a few seconds.";
 
-        // A tornado's sprite type, as src/spriteConstants.ts numbers it
+        // A tornado's sprite type, as the protocol numbers it
         private const int Tornado = (int)SpriteType.Tornado;
 
         [TestMethod]
@@ -131,7 +131,8 @@ namespace Micropolis.Server.Tests
                 grace.StateMessages.Select(message => (string)message["type"]!).ToArray());
         }
 
-        // test/sharedCity.ts checks the sprites and the news against what the browser's host sends for the same city
+        // The tornado's sprite and the news the monster TV follows it by, and the sprites as they are to a player who
+        // joins
         [TestMethod]
         public async Task Advance_CityWithATornado_SendsItsSpriteAndNewsThatFollowsItAndStepsOn()
         {

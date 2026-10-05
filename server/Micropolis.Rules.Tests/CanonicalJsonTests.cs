@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 
 namespace Micropolis.Rules.Tests
 {
@@ -57,13 +58,13 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(vector.Text, CanonicalJson.Write(JsonNode.Parse(vector.Json)));
         }
 
-        // Each save the TypeScript wrote, parsed, whose numbers the writer reads from the text: it writes the save as the
-        // TypeScript did. SimulationSaveTests writes each from the model's numbers.
+        // Each save under conformance/saves/, parsed, whose numbers the writer reads from the text: it writes the save
+        // as the file holds it. SimulationSaveTests writes each from the model's numbers.
         [TestMethod]
         [DynamicData(nameof(ConformanceSaves.AllSaves), typeof(ConformanceSaves))]
-        public void Write_ParsedConformanceSave_WritesItsText(ConformanceSave save)
+        public void Write_ParsedConformanceSave_WritesItsText(FixtureSavePoint save)
         {
-            string text = save.ReadText();
+            string text = save.ReadCommitted();
 
             Assert.AreEqual(text, CanonicalJson.Write(JsonNode.Parse(text)));
         }
@@ -76,7 +77,7 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual("[-7,4294967295,-9007199254740992,0.5299999713897705]", CanonicalJson.Write(numbers));
         }
 
-        // An integer the model holds that no double is exactly: the C# has gone where the TypeScript's numbers can't
+        // An integer the model holds that no double is exactly: the C# has gone where JavaScript's numbers can't
         [TestMethod]
         [DataRow(9007199254740993L)]
         [DataRow(-9007199254740993L)]

@@ -83,6 +83,15 @@ namespace Micropolis.Rules
 
         public static GameMap Generate(RandomStream random)
         {
+            return Lay(random).Map;
+        }
+
+        /// <summary>
+        /// The map <see cref="Generate"/> generates from the stream, drawing the same, with the land it laid and the
+        /// lakes it drew.
+        /// </summary>
+        public static GeneratedMap Lay(RandomStream random)
+        {
             int createIsland = random.GetRandom(2) - 1;
 
             GameMap map = new GameMap(MapWidth, MapHeight);
@@ -93,7 +102,7 @@ namespace Micropolis.Rules
                 if (random.GetRandom(100) < 10)
                 {
                     MakeIsland(map, random);
-                    return map;
+                    return new GeneratedMap(map, MapLand.Island, 0);
                 }
             }
 
@@ -114,14 +123,21 @@ namespace Micropolis.Rules
             DoRivers(map, terrainPos, random);
 
             // Lay a few lakes.
-            MakeLakes(map, random);
+            int lakes = MakeLakes(map, random);
 
             SmoothRiver(map, random);
 
             // And add trees.
             DoTrees(map, random);
 
-            return map;
+            MapLand land = createIsland switch
+            {
+                1 => MapLand.NakedIsland,
+                0 => MapLand.Land,
+                _ => MapLand.LandAfterIslandDraw,
+            };
+
+            return new GeneratedMap(map, land, lakes);
         }
 
         private static void ClearMap(GameMap map)
@@ -186,9 +202,11 @@ namespace Micropolis.Rules
             DoTrees(map, random);
         }
 
-        private static void MakeLakes(GameMap map, RandomStream random)
+        // Lays the lakes, and returns how many it drew
+        private static int MakeLakes(GameMap map, RandomStream random)
         {
             int numLakes = random.GetRandom(10);
+            int lakes = numLakes;
 
             while (numLakes > 0)
             {
@@ -198,6 +216,8 @@ namespace Micropolis.Rules
                 MakeSingleLake(map, new Position(x, y), random);
                 numLakes--;
             }
+
+            return lakes;
         }
 
         private static void MakeSingleLake(GameMap map, Position pos, RandomStream random)

@@ -70,7 +70,8 @@ namespace Micropolis.Rules
         public const int NumComplaints = 4;
 
         /// <summary>
-        /// The votes a poll stops at (<c>voteProblems</c> in <c>src/evaluation.js</c>), so the most one problem draws.
+        /// The votes a poll stops at (<c>voteProblems</c> in the original's evaluate.cpp), so the most one problem
+        /// draws.
         /// </summary>
         public const int MaxVotes = 100;
 
@@ -91,7 +92,7 @@ namespace Micropolis.Rules
         public long CityScoreDelta { get; internal set; }
 
         /// <summary>
-        /// A new city's evaluation, as the <c>Evaluation</c> constructor in <c>src/evaluation.js</c> starts it.
+        /// A new city's evaluation, as the original's <c>evalInit</c> starts it.
         /// </summary>
         public Evaluation()
         {
@@ -111,8 +112,7 @@ namespace Micropolis.Rules
         public IReadOnlyList<ScoreStep> CityScoreBreakdown { get; internal set; }
 
         /// <summary>
-        /// Raises <see cref="Messages.CLASSIFICATION_UPDATED"/> and <see cref="Messages.SCORE_UPDATED"/>, as
-        /// <c>src/evaluation.js</c> does.
+        /// Raises <see cref="Messages.CLASSIFICATION_UPDATED"/> and <see cref="Messages.SCORE_UPDATED"/>.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -289,7 +289,7 @@ namespace Micropolis.Rules
 
                 // A deliberate divergence: evaluate.cpp's loop cycles through PROBNUM + 1 slots, past the end of its
                 // problem table, which is undefined behaviour no port can reproduce. This cycles through the seven
-                // problems, as the TypeScript does.
+                // problems.
                 problem = (problem + 1) % NumProblems;
                 loopCount++;
             }
@@ -306,7 +306,8 @@ namespace Micropolis.Rules
             long trafficTotal = 0;
             long count = 1;
 
-            // Each land value block, and the traffic at its corner, as the TypeScript steps through the map
+            // Each land value block, and the traffic at its corner, as getTrafficAverage in evaluate.cpp steps through
+            // the map
             for (int x = 0; x < landValueMap.Width * landValueMap.BlockSize; x += landValueMap.BlockSize)
             {
                 for (int y = 0; y < landValueMap.Height * landValueMap.BlockSize; y += landValueMap.BlockSize)

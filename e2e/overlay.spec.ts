@@ -30,7 +30,7 @@ import { everyTile, serveTestArt, solidAtlas } from "./testArt";
 // The steps the city takes for the land value scan to have run, at the city's speed, medium
 const STEPS = 1000;
 
-// The land value layer's answer, as far as its colour ramp reads it: its range, from queries.ts
+// The land value layer's answer, as far as its colour ramp reads it: its range, from Queries in the C# rules
 const LAND_VALUE: OverlayAnswer = {type: "overlay", layer: "landValue", blockSize: 2, width: 0, height: 0, low: 0,
                                    high: 250, values: []};
 

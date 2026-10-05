@@ -114,9 +114,8 @@ class TestHook {
   async advance(steps: number): Promise<Advanced> {
     const game = this.attachedGame();
     const driver = this.attachedDriver();
-    // Before anything is sent, so a call refused changes nothing. The source checks both again: a city in the browser
-    // with checkStepCount in cityTimeModel.ts, which the page can't import, since it imports the simulation, and a city
-    // on the server with CityTimeModel in Micropolis.Rules.
+    // Before anything is sent, so a call refused changes nothing. The server checks both again, with CityTimeModel in
+    // Micropolis.Rules.
     if (!Number.isInteger(steps) || steps < 0) {
       throw new Error(`Steps are taken in whole numbers, got ${steps}`);
     }

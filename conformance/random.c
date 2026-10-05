@@ -17,7 +17,7 @@
  *
  * next, jump and splitmix_next are the reference implementations of xoshiro128** 1.1 and SplitMix64 by David
  * Blackman and Sebastiano Vigna (https://prng.di.unimi.it/, public domain), unchanged but for their names. The seeding
- * and the 16-bit draws follow the specification in src/random.ts. */
+ * and the 16-bit draws follow the specification in RandomStream, in server/Micropolis.Rules. */
 
 #include <stdint.h>
 #include <stdio.h>

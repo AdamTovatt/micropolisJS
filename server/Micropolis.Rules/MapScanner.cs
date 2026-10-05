@@ -14,15 +14,14 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// A tile handler, called by the map scan with the tile's position and the simulation's data, as the handlers in
-    /// <c>src/</c> are called with <c>(map, x, y, simData)</c>.
+    /// A tile handler, called by the map scan with the map, the tile's position and the simulation's data.
     /// </summary>
     public delegate void TileHandler(GameMap map, int x, int y, SimData simData);
 
     /// <summary>
-    /// The map scan of <c>src/mapScanner.js</c>, which phases 1–8 run over one eighth of the map's columns each. For
-    /// every tile from <see cref="TileValues.FLOOD"/> up it runs the scan's core, then the first handler whose criterion
-    /// matches the tile, in the order the handlers were added.
+    /// The map scan, as <c>mapScan</c> in the original's simulate.cpp, which phases 1–8 run over one eighth of the
+    /// map's columns each. For every tile from <see cref="TileValues.FLOOD"/> up it runs the scan's core, then the
+    /// first handler whose criterion matches the tile, in the order the handlers were added.
     /// </summary>
     public sealed class MapScanner
     {
@@ -51,14 +50,6 @@ namespace Micropolis.Rules
         public void AddAction(Func<Tile, bool> criterion, TileHandler action)
         {
             _actions.Add(new ScanAction(criterion, action));
-        }
-
-        /// <summary>
-        /// Forgets every handler, so the simulation can register handler families anew.
-        /// </summary>
-        internal void ClearActions()
-        {
-            _actions.Clear();
         }
 
         /// <summary>

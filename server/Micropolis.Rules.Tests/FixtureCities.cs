@@ -12,11 +12,12 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The fixtures' cities, from the saves the TypeScript reference writes under <c>conformance/saves/</c>.
+    /// The fixtures' cities, from the saves the fixture tool writes under <c>conformance/saves/</c>.
     /// </summary>
     internal static class FixtureCities
     {
@@ -35,14 +36,14 @@ namespace Micropolis.Rules.Tests
         /// </summary>
         public static Simulation City(string fixture, string point, Action<JsonObject>? change = null)
         {
-            ConformanceSave save = ConformanceSaves.Load().Single(save => save.Fixture == fixture && save.Point == point);
+            string text = FixtureSaves.At(fixture, point).ReadCommitted();
 
             if (change is null)
             {
-                return Simulation.FromSave(save.ReadText());
+                return Simulation.FromSave(text);
             }
 
-            JsonObject saveData = JsonNode.Parse(save.ReadText())!.AsObject();
+            JsonObject saveData = JsonNode.Parse(text)!.AsObject();
             change(saveData);
 
             return Simulation.FromSave(CanonicalJson.Write(saveData));

@@ -14,10 +14,10 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The tax collection against the original's collectTax, as <c>test/collectTaxOracle.ts</c> compares the
-    /// TypeScript's, over cities the unit snapshots never reach. The original is transcribed from simulate.cpp in C#'s
-    /// own <see langword="float"/> and <see langword="short"/>, so this also proves that the port's doubles, rounded
-    /// through <see cref="JsMath.Fround"/>, work out what single precision does.
+    /// The tax collection against the original's collectTax, over cities the fixtures never reach. The original is
+    /// transcribed from simulate.cpp in C#'s own <see langword="float"/> and <see langword="short"/>, so this also
+    /// proves that the port's doubles, rounded through <see cref="JsMath.Fround"/>, work out what single precision
+    /// does.
     /// </summary>
     [TestClass]
     public sealed class CollectTaxOracleTests

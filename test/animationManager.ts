@@ -13,7 +13,6 @@
 
 import { ANIMATION_PERIOD, AnimationManager, BLINK_PERIOD, isInSequence, nextAnimationFrame }
     from "../src/animationManager";
-import { GameMap } from "../src/gameMap.js";
 import { ANIMBIT, BULLBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
 import { DIRT, FIRE, FOUNTAIN, FREEZ, LASTFIRE, LASTTINYEXP, LIGHTNINGBOLT, RADAR0, RADAR7, TILE_INVALID, TINYEXP }
     from "../src/tileValues";
@@ -214,13 +213,14 @@ describe("the animation manager", () => {
         const X = 10;
         const Y = 10;
 
-        // The frames painted for the tile at (X, Y) over the given number of animation periods
-        function paint(map: InstanceType<typeof GameMap>, periods: number) {
-            const animationManager = new AnimationManager(map);
+        // The frames painted for a tile at (X, Y) whose raw value stays the one given, as the map holds it until the
+        // simulation's scan clears the explosion, over the given number of animation periods
+        function paint(rawValue: number, periods: number) {
+            const animationManager = newManager();
             const painted: number[] = [];
 
             for (let i = 0; i < periods; i++) {
-                const tileValues = [map.getTile(X, Y).getRawValue()];
+                const tileValues = [rawValue];
                 animationManager.getTiles(tileValues, X, Y, 1, 1);
                 painted.push(tileValues[0]);
                 jest.advanceTimersByTime(ANIMATION_PERIOD + 1);
@@ -230,22 +230,9 @@ describe("the animation manager", () => {
         }
 
         it("plays its frames, then holds the last one", () => {
-            const map = new GameMap(120, 100);
-            map.setTile(X, Y, TINYEXP, ANIMBIT | BULLBIT);
-
-            const painted = paint(map, 10);
+            const painted = paint(TINYEXP | ANIMBIT | BULLBIT, 10);
 
             expect(painted).toEqual([861, 862, 863, 864, 865, 866, LASTTINYEXP, LASTTINYEXP, LASTTINYEXP, LASTTINYEXP]);
-        });
-
-        it("leaves the explosion in the map for the simulation to clear", () => {
-            const map = new GameMap(120, 100);
-            map.setTile(X, Y, TINYEXP, ANIMBIT | BULLBIT);
-
-            paint(map, 10);
-
-            expect(map.getTileValue(X, Y)).toBe(TINYEXP);
-            expect(map.getTileFlags(X, Y)).toBe(ANIMBIT | BULLBIT);
         });
     });
 });

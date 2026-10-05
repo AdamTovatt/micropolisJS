@@ -14,20 +14,20 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The counters city time follows from, as <c>CityClock</c> in <c>src/cityTimeModel.ts</c>.
+    /// The counters city time follows from.
     /// </summary>
     public readonly record struct CityTimeCounters(Speed Speed, long SpeedCycle, long Phase, long CityTime);
 
     /// <summary>
-    /// How far city time gets in a number of steps, from the step and phase counters alone, as
-    /// <c>src/cityTimeModel.ts</c> models it, function for function: the speed cycle lets a phase through, and city
-    /// time advances on phase 0. A run that ends anywhere else has stalled. It restates the simulation's speed gate on
-    /// purpose: an independent model, so a city that stops letting phases through can't vouch for itself.
+    /// How far city time gets in a number of steps, from the step and phase counters alone: the speed cycle lets a
+    /// phase through, and city time advances on phase 0. A run that ends anywhere else has stalled. It restates the
+    /// simulation's speed gate on purpose: an independent model, so a city that stops letting phases through can't
+    /// vouch for itself.
     /// </summary>
     public static class CityTimeModel
     {
         private const int PhasesPerCycle = 16;
-        private const int SpeedCycleMax = 1023;
+        private const int SpeedCycleMax = Simulation.SpeedCycles - 1;
 
         public static CityTimeCounters CountersOf(Simulation city)
         {
@@ -87,6 +87,15 @@ namespace Micropolis.Rules
         }
 
         // Steps a phase is let through on, by speed: every 5th at slow, every 3rd at medium, every one at fast
+        /// <summary>
+        /// The steps a unit of city time takes at the running speed, away from the wrap of the step counter: one phase
+        /// of the cycle every so many steps, and a unit of city time a cycle.
+        /// </summary>
+        public static int StepsPerCityTime(Speed speed)
+        {
+            return StepsPerPhase(speed) * PhasesPerCycle;
+        }
+
         private static int StepsPerPhase(Speed speed)
         {
             return speed switch

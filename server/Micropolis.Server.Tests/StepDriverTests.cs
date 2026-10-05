@@ -14,7 +14,7 @@
 namespace Micropolis.Server.Tests
 {
     /// <summary>
-    /// The step driver, as test/stepDriver.ts tests the browser's.
+    /// The step driver: real time turned into steps at 60 a second.
     /// </summary>
     [TestClass]
     public sealed class StepDriverTests

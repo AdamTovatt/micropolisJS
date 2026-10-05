@@ -3,13 +3,13 @@
     "target": "es5",
     "lib": ["es2020", "es2022.error", "dom"],
     "module": "commonjs",
-    "allowJs": true,
     "outDir": "dist/src",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "resolveJsonModule": true
   }
 }

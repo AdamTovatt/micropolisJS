@@ -14,8 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Restores the tiles of the zones it is given, as <c>src/repairManager.js</c> does: the map scan checks each zone
-    /// centre, and a zone whose criterion matches is repaired every time the city time clears its period's bits.
+    /// Restores the tiles of the zones it is given, as the original's <c>repairZone</c> does: the map scan checks each
+    /// zone centre, and a zone whose criterion matches is repaired every time the city time clears its period's bits.
     /// </summary>
     public sealed class RepairManager
     {
@@ -42,14 +42,6 @@ namespace Micropolis.Rules
         public void AddAction(Func<Tile, bool> criterion, int period, int zoneSize)
         {
             _actions.Add(new RepairAction(criterion, period, zoneSize));
-        }
-
-        /// <summary>
-        /// Forgets every action, so the simulation can register handler families anew.
-        /// </summary>
-        internal void ClearActions()
-        {
-            _actions.Clear();
         }
 
         public void RepairZone(int x, int y, int zoneSize)

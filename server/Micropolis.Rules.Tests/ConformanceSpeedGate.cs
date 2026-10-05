@@ -15,7 +15,7 @@ namespace Micropolis.Rules.Tests
 {
     /// <summary>
     /// <c>conformance/speedGate.json</c>: at each running speed, the steps of a fixture's run, counted from 0, at which
-    /// the TypeScript ran a phase.
+    /// a phase runs.
     /// </summary>
     public sealed record ConformanceSpeedGate(string Fixture, int Steps, IReadOnlyList<GatedSpeed> Speeds)
     {

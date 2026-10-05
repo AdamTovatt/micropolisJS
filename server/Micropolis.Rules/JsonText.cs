@@ -20,7 +20,7 @@ namespace Micropolis.Rules
 {
     /// <summary>
     /// Untrusted JSON text, such as a command a player sends, read as ECMAScript's <c>JSON.parse</c> reads it, so the
-    /// simulation takes it as the TypeScript does: every string and key as the UTF-16 code units it escapes, a lone
+    /// simulation takes it as a browser does: every string and key as the UTF-16 code units it escapes, a lone
     /// surrogate included, which System.Text.Json refuses to read as a key; a key written twice as its last value; an
     /// object's keys in the order JSON.parse gives them, array indices first; and every number as a double, one too
     /// large for a double as infinite.

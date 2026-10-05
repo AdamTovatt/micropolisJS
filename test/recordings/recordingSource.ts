@@ -62,10 +62,7 @@ export class RecordingSource implements CitySource {
 
     async start(start: CityStart): Promise<StartedCity> {
         const started = await this.record("start", [start], () => this.recorded.start(start));
-        if (started.city !== null) {
-            this.cities.push(started.city);
-        }
-
+        this.cities.push(started.city);
         return started;
     }
 
@@ -95,12 +92,7 @@ export class RecordingSource implements CitySource {
         });
     }
 
-    setViewerVisible(visible: boolean): void {
-        this.entries.push({call: "setViewerVisible", arguments: [visible]});
-        this.recorded.setViewerVisible(visible);
-    }
-
-    save(): Promise<string | null> {
+    save(): Promise<void> {
         return this.record("save", [], () => this.recorded.save());
     }
 

@@ -17,11 +17,6 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run lint
-      - name: Check the conformance files against the TypeScript reference that writes them
-        run: |
-          npm run conformance
-          git status --porcelain -- conformance
-          test -z "$(git status --porcelain -- conformance)"
   server:
     runs-on: ubuntu-latest
     steps:
@@ -48,7 +43,7 @@ jobs:
           cat "$RUNNER_TEMP/benchmarks.md"
           grep -q '^| Fixture | Speed | Steps/s | ms/step | Bytes/step |$' "$RUNNER_TEMP/benchmarks.md"
       - run: npm ci
-      # The client's tests that start the server just built: the city sources' contract and the city two players share
+      # The client's tests that start the server just built: the city source's contract and the city two players share
       - name: Run the client's tests against the real server
         run: npx jest --coverage=false test/citySource.ts test/sharedCity.ts
         env:

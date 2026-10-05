@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using Micropolis.Rules;
 
 namespace Micropolis.Headless.Tests
@@ -23,7 +24,7 @@ namespace Micropolis.Headless.Tests
 
         private static string LogPath(string name)
         {
-            return Fixtures.LogPath(Fixtures.CommittedLogs, name);
+            return Fixtures.LogPath(ConformanceDirectories.Committed, name);
         }
 
         private static CommandLog Committed(string name)
@@ -54,10 +55,9 @@ namespace Micropolis.Headless.Tests
         }
 
         // The expected hash is the same city stepped directly, which pins the wiring, not the rules: the fixture logs
-        // pin those. A hash copied from the TypeScript runner would be a golden outside the logs, which no command
-        // regenerates after a rule change. The summary: 2000 steps at fast speed are 125 units of city time, two years
-        // and a half from 1900; nothing is built, so no one lives there, and no tax has touched the 20000 a city starts
-        // with.
+        // pin those. A hash copied from another run would be a golden outside the logs, which no command regenerates
+        // after a rule change. The summary: 2000 steps at fast speed are 125 units of city time, two years and a half
+        // from 1900; nothing is built, so no one lives there, and no tax has touched the 20000 a city starts with.
         [TestMethod]
         public void Run_Seed_PrintsTheHashThenTheYearPopulationAndFunds()
         {
@@ -75,15 +75,15 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void StartCity_Fixture_IsItsCityAsBuilt()
         {
-            Assert.AreEqual(Committed("suburb").Checkpoints[0].Hash, Hash(HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null), Fixtures.CommittedLogs)));
+            Assert.AreEqual(Committed("suburb").Checkpoints[0].Hash, Hash(HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null), ConformanceDirectories.Committed)));
         }
 
         [TestMethod]
         public void StartCity_FixtureAtAnotherSpeed_KeepsItsStream()
         {
-            Simulation saved = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null), Fixtures.CommittedLogs);
+            Simulation saved = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, null), ConformanceDirectories.Committed);
 
-            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, Speed.Fast), Fixtures.CommittedLogs);
+            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", null, Speed.Fast), ConformanceDirectories.Committed);
 
             Assert.AreEqual(Speed.Medium, saved.Speed);
             Assert.AreEqual(Speed.Fast, city.Speed);
@@ -93,7 +93,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void StartCity_FixtureReseeded_TakesTheSeedAndItsSimulationStream()
         {
-            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", 7, null), Fixtures.CommittedLogs);
+            Simulation city = HeadlessRunner.StartCity(new RunStart(null, "suburb", 7, null), ConformanceDirectories.Committed);
 
             Assert.AreEqual(7u, city.Seed);
             CollectionAssert.AreEqual(RandomStream.SimulationStream(7).GetState(), city.Random.GetState());
@@ -107,7 +107,7 @@ namespace Micropolis.Headless.Tests
         public void StartCity_WrongStart_ThrowsNamingTheProblem(uint? seed, string? fixture, uint? reseed, string problem)
         {
             ArgumentException exception = Assert.ThrowsExactly<ArgumentException>(
-                () => HeadlessRunner.StartCity(new RunStart(seed, fixture, reseed, null), Fixtures.CommittedLogs));
+                () => HeadlessRunner.StartCity(new RunStart(seed, fixture, reseed, null), ConformanceDirectories.Committed));
 
             StringAssert.Contains(exception.Message, problem);
         }
@@ -135,7 +135,7 @@ namespace Micropolis.Headless.Tests
         {
             RunReport report = HeadlessRunner.Run(new ReplayLog(LogPath(MidRun.Name)), HeadlessFiles.Committed);
 
-            // Every command of the mid-run log applies, as the generator checks
+            // Every command of the mid-run log applies
             Assert.AreEqual($"{MidRun.Entries.Count} commands: {MidRun.Entries.Count} ok", report.Lines[0]);
             Assert.AreEqual($"{MidRun.CheckpointSteps.Count} checkpoints match", report.Lines[1]);
             Assert.AreEqual(Committed(MidRun.Name).Checkpoints[^1].Hash, report.Lines[2]);

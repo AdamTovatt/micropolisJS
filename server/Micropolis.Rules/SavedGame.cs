@@ -17,15 +17,12 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// A saved game as the browser stores it, and its migration from an older version to the current one, as
-    /// <c>src/savedGame.ts</c> migrates it: the simulation's save beside the game's own keys, the city's name and the
-    /// version stamped on it.
+    /// A saved game as the server's store and a save file hold it, and its migration from an older version to the
+    /// current one: the simulation's save beside the game's own keys, the city's name and the version stamped on it.
     /// </summary>
     /// <remarks>
-    /// It migrates from version 5 on, the first that holds the complete simulation state, which this private build has
-    /// written since the headless runner came. The steps from versions 1 to 4 stay in TypeScript's
-    /// <c>transitionOldSave</c> until the TypeScript simulation is deleted, and an older save is refused, naming its
-    /// version.
+    /// It migrates from version 5 on, the first that holds the complete simulation state. An older save is refused,
+    /// naming its version.
     /// </remarks>
     public static class SavedGame
     {
@@ -34,8 +31,8 @@ namespace Micropolis.Rules
         /// </summary>
         public const int OldestVersion = 5;
 
-        // The step that upgrades a save from each version to the next, from OldestVersion on, as UPGRADES in
-        // src/savedGame.ts has them from its own: a save is upgraded by every step from its own version's on
+        // The step that upgrades a save from each version to the next, from OldestVersion on: a save is upgraded by
+        // every step from its own version's on
         private static readonly IReadOnlyList<Action<JsonObject>> Upgrades =
         [
             // From version 5: the flag for whether the player had followed the donation link, for a donation request
@@ -105,10 +102,10 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The text a city is saved as, as <c>SaveFormat.serialise</c> writes the city host's save: its name, then
-        /// what the simulation saves, stamped with the current version, written as <c>JSON.stringify</c> writes it. The
-        /// keys and values are the browser's, and so is the state hash, which sorts the keys; within a component the
-        /// keys may come in another order than the browser's.
+        /// The text a city is saved as: its name, then what the simulation saves, stamped with the current version,
+        /// written as <c>JSON.stringify</c> writes it. The keys and values are those <c>docs/state-hash.md</c> lists;
+        /// the order of the keys within a component is no part of the format, and the state hash, sorting them, never
+        /// sees it.
         /// </summary>
         public static string Write(string name, Simulation city)
         {
@@ -162,7 +159,7 @@ namespace Micropolis.Rules
 
             if (version < OldestVersion)
             {
-                throw new SaveFormatException("version", $"is {shown}, older than version {OldestVersion}, the first that holds the complete state: only the TypeScript migrates it");
+                throw new SaveFormatException("version", $"is {shown}, older than version {OldestVersion}, the first that holds the complete state");
             }
 
             if (version > CurrentVersion)

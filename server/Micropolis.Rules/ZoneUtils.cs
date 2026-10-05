@@ -20,7 +20,7 @@ namespace Micropolis.Rules
     public readonly record struct BigZone(int ZoneSize, int DeltaX, int DeltaY);
 
     /// <summary>
-    /// What the zone handlers share, as <c>src/zoneUtils.js</c> holds it.
+    /// What the zone handlers share, after the helpers of the original's zone.cpp.
     /// </summary>
     public static class ZoneUtils
     {

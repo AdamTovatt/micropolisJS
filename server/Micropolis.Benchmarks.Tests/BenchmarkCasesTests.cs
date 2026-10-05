@@ -12,8 +12,8 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using Micropolis.Rules;
-using Micropolis.SourceTree;
 
 namespace Micropolis.Benchmarks.Tests
 {
@@ -23,7 +23,7 @@ namespace Micropolis.Benchmarks.Tests
         [TestMethod]
         public void All_Fixtures_AreEveryRunSaveInNameOrder()
         {
-            List<string> runSaves = Directory.GetFiles(Path.Combine(RepositoryFiles.Root, "conformance", "saves"), "*.run.json")
+            List<string> runSaves = Directory.GetFiles(ConformanceDirectories.Committed.Saves, "*.run.json")
                 .Select(path => Path.GetFileName(path)[..^".run.json".Length])
                 .Order(StringComparer.Ordinal)
                 .ToList();
@@ -31,8 +31,7 @@ namespace Micropolis.Benchmarks.Tests
             List<FixtureCase> fixtures = BenchmarkCases.All().OfType<FixtureCase>().ToList();
 
             CollectionAssert.AreEqual(runSaves, fixtures.Select(fixture => fixture.Name).ToList());
-            CollectionAssert.AreEqual(runSaves.Select(name => $"conformance/saves/{name}.run.json").ToList(),
-                                      fixtures.Select(fixture => fixture.SavePath).ToList());
+            CollectionAssert.AreEqual(runSaves.Select(name => $"{name}.run").ToList(), fixtures.Select(fixture => fixture.Save.Name).ToList());
         }
 
         [TestMethod]
@@ -40,7 +39,7 @@ namespace Micropolis.Benchmarks.Tests
         {
             foreach (FixtureCase fixture in BenchmarkCases.All().OfType<FixtureCase>())
             {
-                JsonNode save = JsonNode.Parse(File.ReadAllText(Path.Combine(RepositoryFiles.Root, fixture.SavePath)))!;
+                JsonNode save = JsonNode.Parse(fixture.Save.ReadCommitted())!;
 
                 Assert.AreEqual((int)save["simulation"]!["speed"]!, (int)fixture.Speed, fixture.Name);
             }
@@ -65,25 +64,13 @@ namespace Micropolis.Benchmarks.Tests
         [TestMethod]
         public void Of_Fixtures_RunWithDisastersOnWhenMadeForThem()
         {
-            List<FixtureCase> fixtures = BenchmarkCases.Of(["disasters", "forestFire", "suburb"]).OfType<FixtureCase>().ToList();
+            List<FixtureCase> fixtures = BenchmarkCases.Of([Fixtures.Named("suburb"), Fixtures.Named("forestFire"), Fixtures.Named("disasters")])
+                .OfType<FixtureCase>().ToList();
 
             CollectionAssert.AreEqual(
                 new[] { new FixtureCase("disasters", Speed.Medium, true), new FixtureCase("forestFire", Speed.Medium, true),
                         new FixtureCase("suburb", Speed.Medium, false) },
                 fixtures);
-        }
-
-        [TestMethod]
-        public void FixtureNames_Checkpoints_AreTheirFixturesInOrdinalOrder()
-        {
-            CollectionAssert.AreEqual(new[] { "B", "a", "b" },
-                                      BenchmarkCases.FixtureNames("""{"b":{},"a":{},"B":{}}""").ToList());
-        }
-
-        [TestMethod]
-        public void FixtureNames_NoFixtures_Fails()
-        {
-            Assert.ThrowsExactly<InvalidDataException>(() => BenchmarkCases.FixtureNames("{}"));
         }
 
         [TestMethod]
@@ -98,7 +85,7 @@ namespace Micropolis.Benchmarks.Tests
         public void Start_Fixture_IsTheSavedCityOtherwise()
         {
             FixtureCase fixture = new FixtureCase("suburb", Speed.Medium, false);
-            string saved = File.ReadAllText(Path.Combine(RepositoryFiles.Root, fixture.SavePath));
+            string saved = fixture.Save.ReadCommitted();
 
             Assert.AreEqual(saved, CanonicalJson.Write(fixture.Start().Save()));
         }

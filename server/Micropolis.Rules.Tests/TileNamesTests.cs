@@ -16,8 +16,9 @@ using System.Reflection;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// <see cref="TileValues"/> and <see cref="TileFlags"/> against <c>src/tileValues.ts</c> and
-    /// <c>src/tileFlags.ts</c>, through <c>conformance/tiles.json</c>: the same names with the same values.
+    /// <see cref="TileValues"/> and <see cref="TileFlags"/> against <c>conformance/tiles.json</c>, which
+    /// <c>test/vocabulary.ts</c> holds the client's <c>src/tileValues.ts</c> and <c>src/tileFlags.ts</c> to: the same
+    /// names with the same values.
     /// </summary>
     [TestClass]
     public sealed class TileNamesTests
@@ -25,13 +26,13 @@ namespace Micropolis.Rules.Tests
         private static readonly ConformanceTiles Names = ConformanceTiles.Load();
 
         [TestMethod]
-        public void TileValues_ComparedWithTypeScript_HoldTheSameNamesAndValues()
+        public void TileValues_ComparedWithTheTilesFile_HoldTheSameNamesAndValues()
         {
             AssertSameConstants(Names.Values, typeof(TileValues));
         }
 
         [TestMethod]
-        public void TileFlags_ComparedWithTypeScript_HoldTheSameNamesAndValues()
+        public void TileFlags_ComparedWithTheTilesFile_HoldTheSameNamesAndValues()
         {
             AssertSameConstants(Names.Flags, typeof(TileFlags));
         }

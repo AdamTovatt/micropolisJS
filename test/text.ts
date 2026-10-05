@@ -11,10 +11,13 @@
  *
  */
 
-import { ADVISOR_SUBJECTS } from "../src/cityStatus";
 import * as Messages from "../src/messages";
 import { Text } from "../src/text";
 import * as UiMessages from "../src/uiMessages";
+import { RULES } from "./helpers/ruleConstants";
+
+// The advisor conditions a status record lists, as the C# rules give them
+const ADVISOR_SUBJECTS = RULES.advisorConditions;
 
 const MILESTONES = [
     Messages.REACHED_CAPITAL, Messages.REACHED_CITY, Messages.REACHED_MEGALOPOLIS, Messages.REACHED_METROPOLIS,
@@ -25,7 +28,7 @@ const MILESTONES = [
 // other events it announces, and the client's own messages
 const SHOWN_SUBJECTS = [
     ...ADVISOR_SUBJECTS, ...Messages.DISASTER_MESSAGES, ...Messages.CRASHES, ...MILESTONES, Messages.NO_MONEY,
-    Messages.HEAVY_TRAFFIC, UiMessages.WELCOME, UiMessages.LOG_UNCHECKED, Messages.BUDGET_REVIEW_DUE,
+    Messages.HEAVY_TRAFFIC, UiMessages.WELCOME, Messages.BUDGET_REVIEW_DUE,
 ];
 
 function subjectsWithTone(tone: string): string[] {

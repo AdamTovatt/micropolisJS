@@ -15,7 +15,12 @@ import { SpriteFollower, ViewState, isOutOfView, renderView } from "../src/monst
 import { spriteTile } from "../src/paintable";
 import type { ViewElement } from "../src/monsterTV";
 import { SpriteView } from "../src/protocol";
-import { SPRITE_MONSTER, SPRITE_TORNADO, SPRITE_TRAIN } from "../src/spriteConstants";
+import { spriteType } from "./helpers/ruleConstants";
+
+// The sprite types, as a sprites message numbers them
+const SPRITE_TRAIN = spriteType("train");
+const SPRITE_MONSTER = spriteType("monster");
+const SPRITE_TORNADO = spriteType("tornado");
 
 // A sprite of the type whose square is centred on map tile (x, y), as a sprites message gives it
 function spriteOver(type: number, x: number, y: number): SpriteView {
@@ -53,8 +58,8 @@ describe("monsterTV", () => {
             expect(spriteTile({type: SPRITE_TRAIN, frame: 1, x: 100, y: 200, width: 32})).toEqual({x: 7, y: 13});
         });
 
-        // The tornado's funnel is drawn rising from where it is (tornadoSprite.js draws it 40 pixels up and 24 left of
-        // its position): the view centres on the funnel, a tile above the ground it stands on
+        // The tornado's funnel is drawn rising from where it is, its square 40 pixels up and 24 left of its position:
+        // the view centres on the funnel, a tile above the ground it stands on
         it("is the tile under the tornado's funnel, a tile above its position", () => {
             const position = {x: 30 * 16 + 8, y: 40 * 16 + 8};
             const tornado = {type: SPRITE_TORNADO, frame: 1, x: position.x - 24, y: position.y - 40, width: 48};

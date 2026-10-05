@@ -16,9 +16,9 @@ using Micropolis.Rules;
 namespace Micropolis.Headless
 {
     /// <summary>
-    /// The headless runner's command line, as <c>headless/cli.ts</c> runs it: runs a city from a seed or a fixture and
-    /// prints its state hash, then the year, population and funds; replays a command log, counting its commands'
-    /// outcomes and verifying its checkpoints; or writes every fixture's log (<see cref="FixtureLogs"/>).
+    /// The headless runner's command line: runs a city from a seed or a fixture and prints its state hash, then the
+    /// year, population and funds; replays a command log, counting its commands' outcomes and verifying its
+    /// checkpoints; or writes every fixture's log (<see cref="FixtureLogs"/>).
     /// </summary>
     internal static class HeadlessProgram
     {

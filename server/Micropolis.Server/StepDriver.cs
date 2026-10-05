@@ -14,9 +14,9 @@
 namespace Micropolis.Server
 {
     /// <summary>
-    /// Turns real time into simulation steps at a fixed rate, as <c>src/stepDriver.ts</c> does in the browser. Time is
-    /// owed until it adds up to a whole step, so a slow turn is followed by several steps rather than losing time. Real
-    /// time only paces the city: what the city becomes depends on the number of steps alone.
+    /// Turns real time into simulation steps at a fixed rate, <see cref="StepsPerSecond"/>. Time is owed until it adds
+    /// up to a whole step, so a slow turn is followed by several steps rather than losing time. Real time only paces
+    /// the city: what the city becomes depends on the number of steps alone.
     /// </summary>
     internal sealed class StepDriver
     {

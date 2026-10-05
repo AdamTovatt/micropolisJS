@@ -11,6 +11,9 @@
  *
  */
 
+using Micropolis.Conformance;
+using Micropolis.Rules;
+
 namespace Micropolis.Headless.Tests
 {
     /// <summary>
@@ -130,33 +133,76 @@ namespace Micropolis.Headless.Tests
             StringAssert.StartsWith(error, "The log has no checkpoints");
         }
 
+        // The one full run of the tool: every file it writes, named here apart from the writers, is the committed
+        // file byte for byte, and a file it no longer writes goes from the directories it alone writes
         [TestMethod]
-        public void Run_WriteFixtures_PrintsEachLogWrittenAndPasses()
+        public void Run_WriteFixtures_WritesEveryFileAsCommittedAndNoOtherAndPasses()
         {
-            using TemporaryDirectory logs = TemporaryDirectory.WithTheLogs();
+            using TemporaryDirectory conformance = TemporaryDirectory.WithTheToolsInputs();
+            string[] stale = ["logs/renamed.log.json", "saves/renamed.run.json", "events/renamed.events.json", "migrated/renamed.json"];
+            foreach (string file in stale)
+            {
+                conformance.Write(file, "stale");
+            }
+            List<string> expected =
+            [
+                .. FixtureLogs.Names.Select(name => Path.Combine("logs", $"{name}.log.json")),
+                .. FixtureSaves.All.Select(save => Path.Combine("saves", $"{save.Name}.json")),
+                .. FixtureLogs.Names.Select(name => Path.Combine("events", $"{name}.events.json")),
+                "commands.json", "queries.json", "speedGate.json", "maps.json", "helpers.json", "runs.json", "ruleConstants.json", "stationCover.json",
+                .. Directory.GetFiles(ConformanceDirectories.Committed.SaveVersions).Select(sample => Path.Combine("migrated", Path.GetFileName(sample))),
+            ];
 
-            (int code, string output, string error) = Run(["--write-fixtures"], HeadlessFiles.Committed with { Logs = logs.Path });
+            (int code, string output, string error) =
+                Run(["--write-fixtures"], new HeadlessFiles(conformance.Conformance, FixtureLogs.CommittedGoldenPlaythrough));
 
             Assert.AreEqual(HeadlessProgram.Passed, code);
-            CollectionAssert.AreEqual(FixtureLogs.Names.Select(name => $"wrote {Fixtures.LogPath(logs.Path, name)}").ToArray(),
-                                      output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
             Assert.AreEqual("", error);
+            CollectionAssert.AreEquivalent(expected.Select(file => $"wrote {Path.Combine(conformance.Path, file)}").ToList(),
+                                           output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).ToList());
+            CollectionAssert.AreEquivalent(expected, conformance.FilesBut(conformance.Conformance.SaveVersions).ToList());
+            foreach (string file in expected)
+            {
+                Assert.AreEqual(File.ReadAllText(Path.Combine(ConformanceDirectories.Committed.Root, file)),
+                                File.ReadAllText(Path.Combine(conformance.Path, file)), file);
+            }
         }
 
-        // A golden playthrough it can't copy is a file the run refuses, not a defect to trace, and every log stays as it was
+        // A golden playthrough it can't copy is a file the run refuses, not a defect to trace, and every file stays as
+        // it was, though every fixture's log was built before it
         [TestMethod]
-        public void Run_WriteFixturesFromABrokenGoldenPlaythrough_PrintsTheReasonAndFails()
+        public void Run_WriteFixturesFromABrokenGoldenPlaythrough_PrintsTheReasonAndFailsWritingNothing()
         {
-            using TemporaryDirectory logs = TemporaryDirectory.WithTheLogs();
-            string golden = logs.Write("goldenPlaythrough.json", "{\"log\":");
-            logs.Write($"town{Rules.CommandLog.FileExtension}", "stale");
+            using TemporaryDirectory conformance = TemporaryDirectory.WithTheToolsInputs();
+            string golden = conformance.Write("goldenPlaythrough.json", "{\"log\":");
+            conformance.Write($"logs/town{CommandLog.FileExtension}", "stale");
+            IReadOnlyList<string> before = conformance.FilesBut("");
 
-            (int code, string output, string error) = Run(["--write-fixtures"], new HeadlessFiles(logs.Path, golden));
+            (int code, string output, string error) = Run(["--write-fixtures"], new HeadlessFiles(conformance.Conformance, golden));
 
             Assert.AreEqual(HeadlessProgram.Failed, code);
             Assert.AreEqual("", output);
             StringAssert.StartsWith(error, $"The golden playthrough {golden} is not JSON: ");
-            Assert.AreEqual("stale", File.ReadAllText(Fixtures.LogPath(logs.Path, "town")));
+            Assert.AreEqual("stale", File.ReadAllText(Fixtures.LogPath(conformance.Conformance, "town")));
+            CollectionAssert.AreEquivalent(before.ToList(), conformance.FilesBut("").ToList());
+        }
+
+        // The migrated saves are built last, after every log, save and event, so a sample save that fails there shows
+        // that nothing is written until everything is built
+        [TestMethod]
+        public void Run_WriteFixturesFromASampleSaveWithNoVersion_PrintsTheReasonAndFailsWritingNothing()
+        {
+            using TemporaryDirectory conformance = TemporaryDirectory.WithTheToolsInputs();
+            conformance.Write("saveVersions/version5.json", "{}");
+            IReadOnlyList<string> before = conformance.FilesBut("");
+
+            (int code, string output, string error) =
+                Run(["--write-fixtures"], new HeadlessFiles(conformance.Conformance, FixtureLogs.CommittedGoldenPlaythrough));
+
+            Assert.AreEqual(HeadlessProgram.Failed, code);
+            Assert.AreEqual("", output);
+            Assert.AreEqual($"The sample save version5.json holds no whole version.{Environment.NewLine}", error);
+            CollectionAssert.AreEquivalent(before.ToList(), conformance.FilesBut("").ToList());
         }
     }
 }

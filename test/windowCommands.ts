@@ -11,9 +11,15 @@
  *
  */
 
-import { commandRejection } from "../src/commands";
-import { CommandResult, LOCAL_PLAYER, SPEEDS } from "../src/protocol";
+import { CommandResult, SPEEDS } from "../src/protocol";
 import { budgetCommand, settingsCommands, toolOutcome } from "../src/windowCommands";
+import { LOCAL_PLAYER } from "./helpers/commandLog";
+import { repositoryJson } from "./helpers/repository";
+
+// A command as the server reads it: its example under protocol/examples/commands, which the server's tests read too
+function commandExample(name: string): unknown {
+    return repositoryJson(`protocol/examples/commands/${name}.json`);
+}
 
 describe("the settings window's commands", () => {
 
@@ -23,12 +29,9 @@ describe("the settings window's commands", () => {
         expect(settingsCommands(shown, shown)).toEqual([]);
     });
 
-    it("set each setting the player changed", () => {
-        expect(settingsCommands(shown, {autoBudget: false, disasters: true, speed: SPEEDS.fast})).toEqual([
-            {type: "setAutoBudget", on: false},
-            {type: "setDisasters", on: true},
-            {type: "setSpeed", speed: SPEEDS.fast},
-        ]);
+    it("set each setting the player changed, as the server reads the commands", () => {
+        expect(settingsCommands(shown, {autoBudget: false, disasters: true, speed: SPEEDS.paused})).toEqual(
+            [commandExample("set-auto-budget"), commandExample("set-disasters"), commandExample("set-speed")]);
     });
 
     it.each([
@@ -45,11 +48,14 @@ describe("the budget window's command", () => {
         const command = budgetCommand({fire: 40}, 9);
 
         expect(command).toEqual({type: "setBudget", tax: 9, fire: 40});
-        expect(commandRejection(command, 120, 100)).toBeNull();
     });
 
-    it("sets the tax alone when no slider moved", () => {
-        expect(budgetCommand({}, 7)).toEqual({type: "setBudget", tax: 7});
+    it.each([
+        ["sets the tax and every service's funding when every slider moved", {road: 100, fire: 75, police: 50}, 7,
+         "set-budget"],
+        ["sets the tax alone when no slider moved", {}, 9, "set-budget-tax-only"],
+    ])("%s, as the server reads the command", (_, funding, tax, example) => {
+        expect(budgetCommand(funding, tax)).toEqual(commandExample(example));
     });
 });
 

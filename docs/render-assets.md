@@ -81,4 +81,4 @@ The shadow image is then `left` + 1 + `right` tiles wide and `top` + 1 + `bottom
 
 ## The fallback
 
-A tile id with no entry draws its 16 px tile from `images/tiles.png` as ground, with no shadow and no objects, and a sprite frame with no entry draws from `images/sprites.png`, a 48 px cell per frame, a row per type. `fallbackManifest()` generates these entries from the sheets' layout, and `test/renderManifest.ts` checks they cover every tile id and every frame of every sprite type the simulation's sprite modules state.
+A tile id with no entry draws its 16 px tile from `images/tiles.png` as ground, with no shadow and no objects, and a sprite frame with no entry draws from `images/sprites.png`, a 48 px cell per frame, a row per type. `fallbackManifest()` generates these entries from the sheets' layout, and `test/renderManifest.ts` checks they cover every tile id and every frame of every sprite type in the sheet's layout, `SPRITE_SHEET`, which `test/vocabulary.ts` holds to the frames the rules give each type (`conformance/ruleConstants.json`).

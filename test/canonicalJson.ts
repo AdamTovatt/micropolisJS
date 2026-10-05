@@ -11,11 +11,43 @@
  *
  */
 
-import { canonicalJson } from "../src/canonicalJson";
-import { hashSavedState } from "../src/stateHash";
+import { readdirSync } from "fs";
+import type { CommandLog } from "./helpers/commandLog";
+import { repositoryJson, repositoryPath } from "./helpers/repository";
+import { canonicalJson, gameSaveHash, hashSavedState } from "./helpers/stateHash";
 
-// The cases docs/state-hash.md specifies, which the C# port reproduces
+// The cases conformance/canonicalJson.json holds, which the C# tests read too: a number by its IEEE double's bits, a
+// string by its UTF-16 code units, and a document by its JSON, each with its canonical text
+interface CanonicalCases {
+    numbers: {bits: string, text: string}[];
+    strings: {codeUnits: number[], text: string}[];
+    documents: {json: string, text: string}[];
+}
 
+const CASES = repositoryJson<CanonicalCases>("conformance/canonicalJson.json");
+
+function numberOfBits(bits: string): number {
+    const view = new DataView(new ArrayBuffer(8));
+    view.setBigUint64(0, BigInt(bits));
+    return view.getFloat64(0);
+}
+
+describe("the canonical text of the conformance cases", () => {
+
+    it.each([
+        ["numbers", CASES.numbers.map(({bits, text}) => ({value: numberOfBits(bits), text}))],
+        ["strings", CASES.strings.map(({codeUnits, text}) => ({value: String.fromCharCode(...codeUnits), text}))],
+        ["documents", CASES.documents.map(({json, text}) => ({value: JSON.parse(json) as unknown, text}))],
+    ])("is the text the file gives for each of its %s", (_, cases) => {
+        expect(cases.length).toBeGreaterThan(0);
+        const wrong = cases.map(({value, text}) => ({value, expected: text, actual: canonicalJson(value)}))
+            .filter(({expected, actual}) => actual !== expected);
+
+        expect(wrong).toEqual([]);
+    });
+});
+
+// The cases docs/state-hash.md specifies, which CanonicalJson in the C# rules reproduces
 describe("the canonical text", () => {
 
     it("sorts keys by UTF-16 code unit at every level, with no whitespace", () => {
@@ -57,9 +89,35 @@ describe("the canonical text", () => {
 
 describe("the state hash", () => {
 
-    it("is the SHA-256 of the canonical text's UTF-8 bytes, in lowercase hexadecimal", async () => {
+    it("is the SHA-256 of the canonical text's UTF-8 bytes, in lowercase hexadecimal", () => {
         // sha256 of the bytes {"a":"é","b":1}, computed with coreutils' sha256sum
-        expect(await hashSavedState({b: 1, a: "é"}))
-            .toBe("aa58fba8483623bed37c1b02edfccbdd9a53123837c20bfa4cb4049993a2872e");
+        expect(hashSavedState({b: 1, a: "é"})).toBe("aa58fba8483623bed37c1b02edfccbdd9a53123837c20bfa4cb4049993a2872e");
     });
+});
+
+// Each fixture's saves as the C# rules wrote them to conformance/saves/, with the checkpoints its log holds there: its
+// first as built and its last after its run
+const FIXTURE_SAVES = readdirSync(repositoryPath("conformance/saves")).map((file) => {
+    const [fixture, point] = file.split(".");
+    const checkpoints = repositoryJson<CommandLog>(`conformance/logs/${fixture}.log.json`).checkpoints;
+    return {file, checkpoint: point === "built" ? checkpoints[0] : checkpoints[checkpoints.length - 1]};
+});
+
+describe("the state hash of a fixture's save", () => {
+
+    it.each(FIXTURE_SAVES)("is its log's checkpoint, for $file", ({file, checkpoint}) => {
+        expect(hashSavedState(repositoryJson<object>(`conformance/saves/${file}`))).toBe(checkpoint.hash);
+    });
+});
+
+describe("the state hash of a game's save", () => {
+
+    it("is the hash of the save without the city's name and the save version", () => {
+        expect(gameSaveHash({name: "Town", version: 9, b: 1, a: "é"})).toBe(hashSavedState({b: 1, a: "é"}));
+    });
+
+    it.each([["name", {version: 9, a: 1}], ["version", {name: "Town", a: 1}]])(
+        "is refused for a save without its %s", (key, save) => {
+            expect(() => gameSaveHash(save)).toThrow(`this one lacks ${key}`);
+        });
 });

@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using Micropolis.Rules;
 
 namespace Micropolis.Headless.Tests
@@ -28,7 +29,7 @@ namespace Micropolis.Headless.Tests
 
         private static string Committed(string name)
         {
-            return File.ReadAllText(Fixtures.LogPath(Fixtures.CommittedLogs, name));
+            return File.ReadAllText(Fixtures.LogPath(ConformanceDirectories.Committed, name));
         }
 
         [TestMethod]
@@ -37,13 +38,13 @@ namespace Micropolis.Headless.Tests
         {
             Fixture fixture = Fixtures.Logs.Single(log => log.Name == name);
 
-            Assert.AreEqual(Committed(name), FixtureLogs.Build(fixture, Fixtures.CommittedLogs).Write());
+            Assert.AreEqual(Committed(name), FixtureLogs.Build(fixture, ConformanceDirectories.Committed).Write());
         }
 
         [TestMethod]
         public void Logs_ComparedWithTheCommittedFiles_AreOneEach()
         {
-            List<string> committed = Directory.GetFiles(Fixtures.CommittedLogs, $"*{CommandLog.FileExtension}")
+            List<string> committed = Directory.GetFiles(ConformanceDirectories.Committed.Logs, $"*{CommandLog.FileExtension}")
                 .Select(path => Path.GetFileName(path)[..^CommandLog.FileExtension.Length])
                 .ToList();
 
@@ -69,8 +70,8 @@ namespace Micropolis.Headless.Tests
             StringAssert.StartsWith(exception.Message, $"The golden playthrough {path} {problem}");
         }
 
-        // As the generator does, the tool copies only a log that still replays, since a rule change that moves the
-        // playthrough is pinned by running it again, not by copying its log
+        // The tool copies only a log that still replays, since a rule change that moves the playthrough is pinned by
+        // running it again, not by copying its log
         [TestMethod]
         public void CopyPlaythrough_GoldenLogThatNoLongerReplays_ThrowsAskingForItToBeRepinned()
         {
@@ -93,7 +94,7 @@ namespace Micropolis.Headless.Tests
         {
             CommandLog committed = CommandLog.Parse(Committed("disasters"));
 
-            CommandLog built = FixtureLogs.Build(Fixtures.Named("disasters"), Fixtures.CommittedLogs);
+            CommandLog built = FixtureLogs.Build(Fixtures.Named("disasters"), ConformanceDirectories.Committed);
 
             Assert.IsInstanceOfType<SaveStart>(built.Start);
             Assert.AreEqual(((SaveStart)committed.Start).Save.ToJsonString(), ((SaveStart)built.Start).Save.ToJsonString());
@@ -105,47 +106,11 @@ namespace Micropolis.Headless.Tests
             Fixture town = Fixtures.Named("town");
             Fixture changed = town with { Entries = town.Entries.Skip(1).ToList() };
 
-            CommandLog built = FixtureLogs.Build(changed, Fixtures.CommittedLogs);
+            CommandLog built = FixtureLogs.Build(changed, ConformanceDirectories.Committed);
             CommandLog committed = CommandLog.Parse(Committed("town"));
 
             Assert.AreNotEqual(committed.Checkpoints[0].Hash, built.Checkpoints[0].Hash);
             Assert.AreNotEqual(committed.Checkpoints[1].Hash, built.Checkpoints[1].Hash);
-        }
-
-        [TestMethod]
-        public void WriteAll_CopyOfTheLogs_WritesEachAsCommitted()
-        {
-            using TemporaryDirectory logs = TemporaryDirectory.WithTheLogs();
-            logs.Write($"town{CommandLog.FileExtension}", "stale");
-
-            IReadOnlyList<string> written = FixtureLogs.WriteAll(logs.Path, FixtureLogs.CommittedGoldenPlaythrough);
-
-            Assert.HasCount(FixtureLogs.Names.Count, written);
-            foreach (string name in FixtureLogs.Names)
-            {
-                Assert.AreEqual(Committed(name), File.ReadAllText(Fixtures.LogPath(logs.Path, name)), name);
-            }
-        }
-
-        // A log that fails to build leaves every file as it was, though the logs built before it were fine
-        [TestMethod]
-        public void WriteAll_LogThatFailsToBuild_WritesNoFile()
-        {
-            using TemporaryDirectory logs = TemporaryDirectory.WithTheLogs();
-            logs.Write($"broke{CommandLog.FileExtension}", "stale");
-            logs.Write($"disasters{CommandLog.FileExtension}", "{}");
-
-            Assert.ThrowsExactly<InvalidDataException>(() => FixtureLogs.WriteAll(logs.Path, FixtureLogs.CommittedGoldenPlaythrough));
-
-            Assert.AreEqual("stale", File.ReadAllText(Fixtures.LogPath(logs.Path, "broke")));
-        }
-
-        [TestMethod]
-        public void Named_UnknownFixture_ThrowsListingTheFixtures()
-        {
-            ArgumentException exception = Assert.ThrowsExactly<ArgumentException>(() => Fixtures.Named("metropolis"));
-
-            StringAssert.Contains(exception.Message, "No fixture named metropolis: the fixtures are broke, disasters");
         }
     }
 }

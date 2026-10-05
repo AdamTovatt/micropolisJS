@@ -18,11 +18,15 @@ namespace Micropolis.Rules
 {
     /// <summary>
     /// The advisor conditions, each named by its message, and the city status record the simulation publishes each
-    /// cycle, as <c>src/cityStatus.ts</c> builds it: the single home of the conditions' tests, which the advisor
-    /// messages ask too.
+    /// cycle: the single home of the conditions' tests, which the advisor messages ask too.
     /// </summary>
     public static class CityStatus
     {
+        /// <summary>
+        /// Every advisor condition, by its message, in the order the status record lists those that hold.
+        /// </summary>
+        public static IReadOnlyList<string> AdvisorConditionNames => AdvisorConditions.Select(condition => condition.Condition).ToList();
+
         // Each advisor condition and the test for it, in the order the status record lists those that hold.
         // NOT_ENOUGH_POWER is the power scan's own verdict, which it reports as it finishes.
         private static readonly IReadOnlyList<(string Condition, Func<Census, Budget, PowerManager, bool> Holds)> AdvisorConditions =

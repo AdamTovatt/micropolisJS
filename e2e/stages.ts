@@ -13,18 +13,14 @@
 
 import { expect } from "@playwright/test";
 
-import { CITY_TIME_PER_YEAR, stepsPerCityTime, stepsPerYear } from "../src/cityTimeModel";
-import { cityTools } from "../src/cityTools";
-import { GameMap } from "../src/gameMap.js";
-import { Simulation } from "../src/simulation.js";
 import { POWERBIT } from "../src/tileFlags";
-import { TileUtils } from "../src/tileUtils.js";
 import {
   AIRPORT, COMCLR, FIRESTATION, FREEZ, HROADPOWER, INDCLR, LASTPOWER, LASTRUBBLE, POLICESTATION, POWERBASE, POWERPLANT,
   RUBBLE, VROADPOWER,
 } from "../src/tileValues";
 import { GameSave, Player, Tile } from "./player";
-import { Rect, rawTileAt, tileAt, tilesIn, tilesWhere } from "./savedMap";
+import { AIRPORT_COST, CITY_TIMES_PER_YEAR, STEPS_PER_CITY_TIME } from "./ruleNumbers";
+import { isFire, isRoad, Rect, rawTileAt, tileAt, tilesIn, tilesWhere } from "./savedMap";
 import { buildStation, planStation, savedFireCover, STRONGEST_COVER } from "./stationSite";
 
 // The playthrough: one city played from a fixed seed through stages in order, each building on the last. A stage is
@@ -38,12 +34,10 @@ export const CITY_NAME = "Playthrough";
 // The name the player signs in to the game server under
 export const PLAYER_NAME = "Mayor";
 
-// The steps in a year at the city's speed, medium
-const YEAR = stepsPerYear(Simulation.SPEED_MED);
-
-// What the game charges for an airport. A tool's cost is a property of every tool, which the type of the city's tools
-// leaves out.
-const AIRPORT_COST = (cityTools(new GameMap(120, 100)).airport as unknown as {toolCost: number}).toolCost;
+// The steps in a unit of city time at the city's speed, the units in a year, and the steps in a year
+const CITY_TIME = STEPS_PER_CITY_TIME;
+const CITY_TIME_PER_YEAR = CITY_TIMES_PER_YEAR;
+const YEAR = CITY_TIME_PER_YEAR * CITY_TIME;
 
 // The building site, all in view and clear of the panels at the runner's window size. Every tile a stage builds on
 // at a fixed place lies in these rectangles, all clear land on the seed's map.
@@ -76,7 +70,7 @@ async function advanceUntil(player: Player, holds: (save: GameSave) => boolean, 
       throw new Error(`Waited ${limit} units of city time for ${what}${describe ? `: ${describe(save)}` : ""}`);
     }
 
-    await player.advance(stepsPerCityTime(Simulation.SPEED_MED));
+    await player.advance(CITY_TIME);
     save = await player.save();
   }
 
@@ -112,7 +106,7 @@ export const STAGES: Stage[] = [
       const road = tilesIn({left: 47, top: 36, right: 69, bottom: 36})
         .filter((tile) => tile.x !== 48)
         .map((tile) => tileAt(save, tile));
-      expect(road.every((id) => TileUtils.isRoad(id)), `road tiles ${road}`).toBe(true);
+      expect(road.every((id) => isRoad(id)), `road tiles ${road}`).toBe(true);
       const line = tilesIn({left: 63, top: 34, right: 66, bottom: 34}).map((tile) => tileAt(save, tile));
       expect(line.every(isPowerLine), `power line tiles ${line}`).toBe(true);
       expect([HROADPOWER, VROADPOWER], "the line across the road").toContain(tileAt(save, {x: 48, y: 36}));
@@ -203,7 +197,7 @@ export const STAGES: Stage[] = [
       // Without auto-budget, the year end pays the city's services and the Budget button marks the budget to review,
       // while the city steps on
       await player.setAutoBudget(false);
-      await player.advanceUntilBudgetReview(YEAR, stepsPerCityTime(Simulation.SPEED_MED));
+      await player.advanceUntilBudgetReview(YEAR, CITY_TIME);
 
       await player.setSlider("#taxRate", 9);
       await player.setSlider("#policeRate", 90);
@@ -228,7 +222,7 @@ export const STAGES: Stage[] = [
       await player.dragTiles({x: row.left, y: row.top}, {x: row.right, y: row.top}, 2);
 
       const save = await player.save();
-      const skipped = tilesIn(row).filter((tile) => !TileUtils.isRoad(tileAt(save, tile)));
+      const skipped = tilesIn(row).filter((tile) => !isRoad(tileAt(save, tile)));
       expect(skipped, "tiles of the drag that are not road").toEqual([]);
     },
   },
@@ -240,7 +234,7 @@ export const STAGES: Stage[] = [
       // the fire. Building takes no steps, so the station stands before the fire's first scan.
       await player.triggerDisaster("Fire");
       const lit = await player.save();
-      const fires = tilesWhere(lit, TileUtils.isFire);
+      const fires = tilesWhere(lit, isFire);
       expect(fires, "the tiles on fire").toHaveLength(1);
       const fire = fires[0];
       const plan = planStation(lit, fire);
@@ -248,12 +242,12 @@ export const STAGES: Stage[] = [
 
       const built = await player.save();
       expect(tileAt(built, plan.centre), "the fire station's centre").toBe(FIRESTATION);
-      expect(TileUtils.isRoad(tileAt(built, plan.road)), "the road beside the station").toBe(true);
+      expect(isRoad(tileAt(built, plan.road)), "the road beside the station").toBe(true);
       const line = plan.line.map((tile) => tileAt(built, tile));
       expect(line.every(isPowerLine), `the power line's tiles ${line}`).toBe(true);
 
       // Even under the strongest cover a burning tile goes out on only one scan in eight, so a fire can last a year
-      const burning = (save: GameSave) => tilesWhere(save, TileUtils.isFire);
+      const burning = (save: GameSave) => tilesWhere(save, isFire);
       const out = await advanceUntil(player, (save) => burning(save).length === 0, "the fire to go out",
                                      2 * CITY_TIME_PER_YEAR, (save) => `burning at ${JSON.stringify(burning(save))}`);
       const burnt = tileAt(out, fire);
@@ -301,10 +295,10 @@ export const STAGES: Stage[] = [
       await player.showTiles(tilesIn(row));
       await player.dragTiles({x: row.left, y: row.top}, {x: row.right, y: row.top});
       const save = await player.save();
-      const notRoad = tilesIn(row).filter((tile) => !TileUtils.isRoad(tileAt(save, tile)));
+      const notRoad = tilesIn(row).filter((tile) => !isRoad(tileAt(save, tile)));
       expect(notRoad, "tiles of the zoomed drag that are not road").toEqual([]);
-      expect(TileUtils.isRoad(tileAt(save, {x: row.left - 1, y: row.top})), "the tile before the drag").toBe(false);
-      expect(TileUtils.isRoad(tileAt(save, {x: row.right + 1, y: row.top})), "the tile after the drag").toBe(false);
+      expect(isRoad(tileAt(save, {x: row.left - 1, y: row.top})), "the tile before the drag").toBe(false);
+      expect(isRoad(tileAt(save, {x: row.right + 1, y: row.top})), "the tile after the drag").toBe(false);
 
       await player.zoomWithKeys(-1);
       await player.zoomWithWheel({x: 53, y: 30}, -1);

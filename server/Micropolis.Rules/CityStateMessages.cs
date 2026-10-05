@@ -16,15 +16,15 @@ using System.Diagnostics.CodeAnalysis;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The state messages a city sends, and what it has sent: the diffing half of <c>HostedCity</c> in
-    /// <c>src/cityHost.ts</c>, which listens to the simulation's events and turns what changed into state messages.
+    /// The state messages a city sends, and what it has sent: the diffing half of a hosted city, which listens to the
+    /// simulation's events and turns what changed into state messages.
     /// Every player in a city is sent the same messages, so a city has one. Building them never changes the city.
     /// </summary>
     public sealed class CityStateMessages
     {
-        // A sprite's square on the sprite sheet, and where it is drawn from its position, by type, as each sprite's
-        // traits in src/*Sprite.js give them to BaseSprite: the protocol's view of a sprite, which goes with the
-        // messages. The simulation keeps only what moves a sprite (SpriteTraits).
+        // A sprite's square on the sprite sheet, and where it is drawn from its position, by type, as the original's
+        // initSprite gives them: the protocol's view of a sprite, which goes with the messages. The simulation keeps
+        // only what moves a sprite (SpriteTraits).
         private static readonly IReadOnlyDictionary<SpriteType, (int Width, int XOffset, int YOffset)> SpriteGeometry =
             new Dictionary<SpriteType, (int, int, int)>
             {
@@ -61,8 +61,8 @@ namespace Micropolis.Rules
             MarkSent();
 
             EventEmitter events = city.Events;
-            // The rules write each of these payloads with the fields of the message or record the client is sent, as
-            // newsMessage in src/cityHost.ts reads the news
+            // The rules write each of these payloads with the fields of the message or record the client is sent, so
+            // each reads straight into it
             events.AddEventListener(Messages.FRONT_END_MESSAGE, payload => _events.Add(ProtocolJson.FromNode<NewsMessage>(payload!)));
             events.AddEventListener(Messages.COMMAND_RESULT, payload => _events.Add(new CommandResultMessage(CommandResult.FromPayload(payload!))));
             events.AddEventListener(Messages.BUDGET_REVIEW_DUE, _ => _events.Add(new BudgetReviewDueMessage()));

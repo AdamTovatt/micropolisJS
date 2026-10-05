@@ -23,18 +23,6 @@ namespace Micropolis.Rules.Tests
     [TestClass]
     public sealed class InfrastructureHandlersTests
     {
-        // The families and the handlers each registers with the map scanner
-        private static readonly Dictionary<string, string[]> FamilyHandlers = new Dictionary<string, string[]>
-        {
-            ["emergencyServices"] = ["policeStationFound", "fireStationFound"],
-            ["miscTiles"] = ["fireFound", "radiationFound", "floodFound", "explosionFound"],
-            ["powerManager"] = ["coalPowerFound", "nuclearPowerFound"],
-            ["road"] = ["roadFound"],
-            ["stadia"] = ["emptyStadiumFound", "fullStadiumFound"],
-        };
-
-        private static readonly string[] Families = FamilyHandlers.Keys.ToArray();
-
         // IZB is the centre of the first industrial zone with buildings, which a fire leaves standing, since only a centre
         // past it explodes; the next building's centre is the first that does
         private const int ExplodingIndustrialCentre = IZB + 9;
@@ -55,30 +43,6 @@ namespace Micropolis.Rules.Tests
         private const uint MeltdownSeed = 6572;
 
         private const int FloodCycles = 30;
-
-        // Every map scan the TypeScript recorded with one of the family's modules alone registered matches, in every
-        // fixture whose map scans are recorded a family at a time, the rare branches' points included. Between them they
-        // reach every handler the families register.
-        [TestMethod]
-        public void MapScan_InfrastructureFamilyAlone_MatchesTypeScript()
-        {
-            List<UnitSnapshot> familyScans = UnitSnapshots.Load()
-                .Where(snapshot => snapshot.Unit == "mapScanner.mapScan" && snapshot.Handlers.Count == 1)
-                .ToList();
-            List<UnitSnapshot> records = familyScans.Where(snapshot => Families.Contains(snapshot.Handlers[0])).ToList();
-
-            CollectionAssert.AreEquivalent(Families, records.Select(snapshot => snapshot.Handlers[0]).Distinct().ToList());
-            CollectionAssert.AreEquivalent(
-                FamilyHandlers.SelectMany(family => family.Value.Select(handler => $"{family.Key}.{handler}")).ToList(),
-                records.SelectMany(snapshot => snapshot.Reached).Distinct().ToList());
-            CollectionAssert.AreEquivalent(familyScans.Select(snapshot => snapshot.Fixture).Distinct().ToList(),
-                                           records.Select(snapshot => snapshot.Fixture).Distinct().ToList());
-
-            foreach (UnitSnapshot snapshot in records)
-            {
-                Assert.IsNull(UnitSnapshotRunner.Run(UnitSnapshots.ReadRecord(snapshot)), snapshot.ToString());
-            }
-        }
 
         // An industrial zone with buildings in it sets off an explosion when it catches, whose hot spot is the middle of
         // the zone's centre

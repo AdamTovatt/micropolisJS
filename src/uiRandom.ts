@@ -11,9 +11,7 @@
  *
  */
 
-// The UI's own randomness, unseeded, so it never touches a simulation's stream. No simulation module may import it
-// (CLAUDE.md). The one draw from it on the simulation's side is the seed a save from before seeds gets as it migrates
-// (savedGame.ts).
+// The UI's own randomness, unseeded, so it never touches a city's stream, which only the server's rules draw from.
 
 const UINT32_RANGE = 2 ** 32;
 

@@ -13,7 +13,8 @@
 
 import { browserCityEnvironment } from "./browserCityEnvironment";
 import { CityClient } from "./cityClient";
-import { joinLinkedCity, leaveLostCity, linkedCity, ServerCity } from "./cityLink";
+import { joinLinkedCity, leaveLostCity, linkedCity } from "./cityLink";
+import type { StartedCity } from "./citySource";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { requiredElement, setShown } from "./domElements";
@@ -125,7 +126,7 @@ async function start(seed: number | null, city: string | null): Promise<void> {
   // again
   const cities = new CityList(pageStore());
   const parts = {source, state, presence: cityClient, mapArt};
-  const play = (started: ServerCity) => {
+  const play = (started: StartedCity) => {
     cities.remember({city: started.city, name: started.name});
     new Game(parts, started);
   };

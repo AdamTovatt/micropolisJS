@@ -11,7 +11,7 @@
  *
  */
 
-import { Command, CommandResult, Outcome, PlayerId, ServiceAmounts } from "./protocol";
+import { Command, CommandResult, DisasterKind, Outcome, PlayerId, ServiceAmounts } from "./protocol";
 
 // The commands the player's choices in the game's windows send, and what the game shows of their results
 
@@ -49,8 +49,13 @@ export function budgetCommand(funding: Partial<ServiceAmounts>, tax: number): Co
   return {type: "setBudget", tax, ...funding};
 }
 
-// The outcome of the player's own tool command a result tells of, and null for any other result. A result's command is whatever arrived, so it is checked before it is read: here rather than with
-// validation.ts's isRecord, since the client imports nothing of the simulation's but the vocabulary it shares.
+// What the disaster window sends for the disaster the player chose
+export function disasterCommand(kind: DisasterKind): Command {
+  return {type: "triggerDisaster", kind};
+}
+
+// The outcome of the player's own tool command a result tells of, and null for any other result. A result's command
+// is whatever arrived, so it is checked before it is read.
 export function toolOutcome(result: CommandResult, player: PlayerId): Outcome | null {
   const command = result.command;
   if (result.player !== player || typeof command !== "object" || command === null || !("type" in command) ||

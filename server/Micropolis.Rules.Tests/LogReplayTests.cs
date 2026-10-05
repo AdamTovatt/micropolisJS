@@ -16,8 +16,7 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// Every command log under <c>conformance/logs/</c> replays in C# to the TypeScript's state hash at each of its
-    /// checkpoints.
+    /// Every command log under <c>conformance/logs/</c> replays to the state hash at each of its checkpoints.
     /// </summary>
     [TestClass]
     public sealed class LogReplayTests
@@ -58,7 +57,7 @@ namespace Micropolis.Rules.Tests
         }
 
         // A command applied a step early or late moves the hash where it should have applied, which only a checkpoint
-        // the TypeScript took there can see
+        // taken there can see
         [TestMethod]
         public void Load_SharedLogs_CheckACommandPartwayThroughARunWhereItApplies()
         {

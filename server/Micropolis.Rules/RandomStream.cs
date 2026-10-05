@@ -14,9 +14,10 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The simulation's random stream, ported bit for bit from <c>src/random.ts</c>, whose header specifies it:
-    /// xoshiro128** 1.1 seeded from a uint32 game seed with SplitMix64, and 16-bit draws with rejection sampling in
-    /// <see cref="GetRandom"/>. <c>conformance/random.json</c> holds the reference vectors both ports test against.
+    /// The simulation's random stream, which another implementation must reproduce bit for bit: xoshiro128** 1.1 seeded
+    /// from a uint32 game seed with SplitMix64, and 16-bit draws with rejection sampling in <see cref="GetRandom"/>.
+    /// <c>conformance/random.json</c> holds reference vectors from the C reference implementation, which its tests
+    /// read in place.
     /// </summary>
     public sealed class RandomStream
     {

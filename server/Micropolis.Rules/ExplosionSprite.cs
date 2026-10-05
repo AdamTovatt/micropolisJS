@@ -16,7 +16,7 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The explosion's start and move, as <c>src/explosionSprite.js</c> brings the original's doExplosionSprite.
+    /// The explosion's start and move, after the original's doExplosionSprite in sprite.cpp.
     /// </summary>
     internal static class ExplosionSprite
     {

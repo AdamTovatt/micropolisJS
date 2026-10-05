@@ -101,13 +101,13 @@ def single_tile(tile_id):
 
 def _slots(kind, first, grid):
     # A populated zone's designs by slot: the game picks slot = land value * densities + density
-    # (placeResidential, placeCommercial, placeIndustrial), nine ids each from `first`. `grid`
+    # (PlaceResidential, PlaceCommercial, PlaceIndustrial in the C# rules), nine ids each from `first`. `grid`
     # has a row per land value, low to high, and in it a design per density, low to high
     return {f'{kind}_{design}': first + 9 * slot
             for slot, design in enumerate(design for row in grid for design in row)}
 
 
-# Each zone's first tile id, its top-left, from which its ids run in rows (src/buildingTool.js).
+# Each zone's first tile id, its top-left, from which its ids run in rows (BuildingTool in the C# rules).
 # A populated zone's design is chosen by what it shows: denser across a row, from bare ground and
 # car parks to gardens, plazas and glass down the rows.
 ZONES = {
@@ -157,9 +157,9 @@ FRAMES = {
     'nuclear_power_plant': {820: range(952, 956)},
 }
 
-# Each vehicle's sprite type (src/spriteConstants.ts), the tiles a side of the square the game draws
-# it into (SPRITE_SHEET in src/renderManifest.ts), and its frames (src/*Sprite.js). A vehicle renders
-# at three tiles a frame, standing on its middle, and is cropped to the middle of it
+# Each vehicle's sprite type (SpriteType in the C# rules), the tiles a side of the square the game
+# draws it into (SPRITE_SHEET in src/renderManifest.ts), and its frames
+# (conformance/ruleConstants.json). A vehicle renders at three tiles a frame, standing on its middle, and is cropped to the middle of it
 SPRITES = {
     'train': {'type': 1, 'square': 2, 'frames': 5},
     'helicopter': {'type': 2, 'square': 2, 'frames': 8},

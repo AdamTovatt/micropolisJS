@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The wire tool, as <c>src/wireTool.js</c> and the original's <c>layWire</c>: a power line on dirt, one under
+    /// The wire tool, as the original's <c>layWire</c>: a power line on dirt, one under
     /// water beside a conductor it can join, and a crossing over a straight road or rail.
     /// </summary>
     internal sealed class WireTool : LayingTool

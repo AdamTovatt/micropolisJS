@@ -18,8 +18,7 @@ namespace Micropolis.Rules.Tests
 {
     /// <summary>
     /// The drawbridge as doBridge in the original's simulate.cpp opens and closes it, with no ship near and roads funded
-    /// in full, on a stream whose first draw is the one chance in 8 that opens a bridge or in 4 that closes one, as
-    /// <c>test/road.ts</c> tests the TypeScript.
+    /// in full, on a stream whose first draw is the one chance in 8 that opens a bridge or in 4 that closes one.
     /// </summary>
     [TestClass]
     public sealed class RoadTests

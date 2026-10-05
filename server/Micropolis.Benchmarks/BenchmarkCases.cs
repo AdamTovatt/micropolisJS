@@ -12,24 +12,19 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using Micropolis.Rules;
-using Micropolis.SourceTree;
 
 namespace Micropolis.Benchmarks
 {
     /// <summary>
-    /// The cities the benchmark runs, the one list both measurements take: each fixture <c>conformance/saves/</c>
-    /// holds, from its city after its golden run at the speed it is saved at, then a new city at each running speed.
+    /// The cities the benchmark runs, the one list both measurements take: each fixture (<see cref="Fixtures.All"/>), in
+    /// name order, from its city after its golden run at the speed it is saved at, with random disasters on for a
+    /// fixture made for them (<see cref="Fixture.ForDisasters"/>) and off for every other, as its golden run has them;
+    /// then a new city at each running speed.
     /// </summary>
     internal static class BenchmarkCases
     {
-        /// <summary>
-        /// The fixtures made for the disasters, whose cities run with random disasters on, as issue #61 decides. Every
-        /// other fixture runs with them off, as its golden run does.
-        /// </summary>
-        public static readonly IReadOnlySet<string> DisasterFixtures =
-            new HashSet<string> { "disasters", "forestFire", "harbourWithDisasters" };
-
         /// <summary>
         /// The seed the new cities are generated from: any generated map would do.
         /// </summary>
@@ -37,22 +32,22 @@ namespace Micropolis.Benchmarks
 
         public static IReadOnlyList<BenchmarkCase> All()
         {
-            return Of(FixtureNames(File.ReadAllText(RepositoryFiles.GetPath("conformance/saves/checkpoints.json"))));
+            return Of(Fixtures.All);
         }
 
         /// <summary>
-        /// The cases of the fixtures given, then the new cities.
+        /// The cases of the fixtures given, in name order, then the new cities.
         /// </summary>
-        internal static IReadOnlyList<BenchmarkCase> Of(IReadOnlyList<string> fixtures)
+        internal static IReadOnlyList<BenchmarkCase> Of(IReadOnlyList<Fixture> fixtures)
         {
             List<BenchmarkCase> cases = new List<BenchmarkCase>();
 
-            foreach (string fixture in fixtures)
+            foreach (Fixture fixture in fixtures.OrderBy(fixture => fixture.Name, StringComparer.Ordinal))
             {
-                cases.Add(new FixtureCase(fixture, SavedSpeed(fixture), DisasterFixtures.Contains(fixture)));
+                cases.Add(new FixtureCase(fixture.Name, SavedSpeed(fixture.Name), fixture.ForDisasters));
             }
 
-            foreach (Speed speed in new[] { Speed.Slow, Speed.Medium, Speed.Fast })
+            foreach (Speed speed in RunningSpeeds.All)
             {
                 cases.Add(new NewCityCase(NewCitySeed, Level.Easy, speed));
             }
@@ -60,24 +55,9 @@ namespace Micropolis.Benchmarks
             return cases;
         }
 
-        /// <summary>
-        /// The fixtures <c>checkpoints.json</c>'s text lists, in name order.
-        /// </summary>
-        internal static IReadOnlyList<string> FixtureNames(string checkpointsJson)
-        {
-            JsonObject checkpoints = JsonNode.Parse(checkpointsJson)!.AsObject();
-
-            if (checkpoints.Count == 0)
-            {
-                throw new InvalidDataException("conformance/saves/checkpoints.json lists no fixtures.");
-            }
-
-            return checkpoints.Select(fixture => fixture.Key).Order(StringComparer.Ordinal).ToList();
-        }
-
         private static Speed SavedSpeed(string fixture)
         {
-            JsonNode save = JsonNode.Parse(File.ReadAllText(RepositoryFiles.GetPath($"conformance/saves/{fixture}.run.json")))!;
+            JsonNode save = JsonNode.Parse(FixtureSaves.At(fixture, FixtureSaves.Run).ReadCommitted())!;
             return (Speed)(int)save["simulation"]!["speed"]!;
         }
     }

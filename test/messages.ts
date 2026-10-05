@@ -30,8 +30,8 @@ function shared(names: [string, unknown][]): string[][] {
     return Array.from(byString.values()).filter((sharing) => sharing.length > 1);
 }
 
-// An event is known by its string alone: a listener, a front-end message's subject and a unit snapshot's record of the
-// events emitted all name it so. Two names sharing one string would be one event. The client's own notices are shown
+// An event is known by its string alone: a listener, a front-end message's subject and a test's record of the events
+// emitted all name it so. Two names sharing one string would be one event. The client's own notices are shown
 // by their subjects as the city's news is, so the client's names share no string with the city's either.
 describe("the event names", () => {
 

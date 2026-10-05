@@ -16,8 +16,8 @@ using System.Reflection;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The figures the advisor reads, as <c>test/cityStatus.ts</c> sets them: a calm city, in which no advisor condition
-    /// holds, with the figures given changed. A figure is named as the TypeScript names it, and given as
+    /// The figures the advisor reads: a calm city, in which no advisor condition holds, with the figures given changed.
+    /// A figure is named as its property is but with the first letter lowered, and given as
     /// <c>name=value</c>, separated by commas.
     /// </summary>
     internal sealed record CityFigures(Census Census, Budget Budget, PowerManager Power)
@@ -56,7 +56,8 @@ namespace Micropolis.Rules.Tests
             return city;
         }
 
-        // Sets the figure, named as the TypeScript names it, on whichever of the three holds it
+        // Sets the figure, named as its property is but with the first letter lowered, on whichever of the three
+        // holds it
         private void Set(string name, long value)
         {
             string property = char.ToUpperInvariant(name[0]) + name[1..];

@@ -41,7 +41,7 @@ namespace Micropolis.Rules
         /// a number JSON can't hold written as <c>null</c>. A JSON number too large for a double parses as
         /// infinite, as in JavaScript.
         /// </summary>
-        internal static string Stringify(JsonNode? value)
+        public static string Stringify(JsonNode? value)
         {
             return WriteText(value, "the value", true);
         }
@@ -263,8 +263,8 @@ namespace Micropolis.Rules
             }
         }
 
-        // An integer the model holds beyond 2^53, which no double is exactly: the C# has worked out a value the
-        // TypeScript's numbers can't hold, and writing it would round it. A number parsed from text is the double
+        // An integer the model holds beyond 2^53, which no double is exactly: the C# has worked out a value a
+        // JavaScript number can't hold, and writing it would round it. A number parsed from text is the double
         // JSON.parse reads, and passes.
         private static void RefuseInexactInteger(JsonValue value)
         {

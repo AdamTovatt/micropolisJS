@@ -21,8 +21,7 @@ namespace Micropolis.Headless.Tests
     /// the playthrough ended on. The log's own checkpoints are replayed with every other log's
     /// (<see cref="FixtureLogsTests"/> and <c>LogReplayTests</c>); a stage's checkpoint is not one of them, since a
     /// stage may end partway through the commands stamped with a step. Only C# checks the stage checkpoints, as #65
-    /// decided when the playthrough moved onto the server; until the TypeScript simulation is deleted,
-    /// <c>npm run conformance</c> still replays the log's own checkpoints in TypeScript.
+    /// decided when the playthrough moved onto the server.
     /// </summary>
     [TestClass]
     public sealed class GoldenPlaythroughTests

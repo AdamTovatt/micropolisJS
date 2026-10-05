@@ -43,7 +43,7 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(5, map.Get(2, 1));
         }
 
-        // As test/blockMap.ts sets and gets by world coordinates, on a map of three by three blocks of four tiles
+        // Set and got by world coordinates, on a map of three by three blocks of four tiles
         [TestMethod]
         public void WorldSet_TileInABlock_SetsTheBlock()
         {

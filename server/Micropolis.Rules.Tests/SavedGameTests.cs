@@ -13,25 +13,25 @@
 
 using System.Globalization;
 using System.Text.Json.Nodes;
-using Micropolis.SourceTree;
+using Micropolis.Conformance;
 
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
     /// The migration of saved games against the sample saves under <c>conformance/saveVersions/</c>, one or more of
-    /// each version from 5 on, frozen as the game wrote them, and the state the TypeScript's migration loads each to,
-    /// which <c>conformance/migrated/</c> holds.
+    /// each version from 5 on, frozen as the game wrote them, and the state each migrates and loads to, which
+    /// <c>conformance/migrated/</c> holds.
     /// </summary>
     [TestClass]
     public sealed class SavedGameTests
     {
-        public static IEnumerable<object[]> Samples => Directory.GetFiles(RepositoryFiles.GetPath("conformance/saveVersions"), "*.json")
+        public static IEnumerable<object[]> Samples => Directory.GetFiles(ConformanceDirectories.Committed.SaveVersions, "*.json")
             .Order(StringComparer.Ordinal)
             .Select(path => new object[] { Path.GetFileName(path) });
 
         [TestMethod]
         [DynamicData(nameof(Samples))]
-        public void Load_SampleSave_IsTheStateTypeScriptMigratesItTo(string fileName)
+        public void Load_SampleSave_IsTheCommittedMigratedState(string fileName)
         {
             string expected = ConformanceFile.Read($"migrated/{fileName}");
             Simulation city = SavedGame.Load(ConformanceFile.Read($"saveVersions/{fileName}"), out string name);
@@ -41,23 +41,11 @@ namespace Micropolis.Rules.Tests
 
             if (CanonicalJson.Write(state) != expected)
             {
-                Assert.Fail(SnapshotComparison.StateDifference(JsonNode.Parse(expected)!, state, city) ?? "The states differ.");
+                Assert.Fail(StateComparison.StateDifference(JsonNode.Parse(expected)!, state, city) ?? "The states differ.");
             }
         }
 
-        // Every version from the oldest migrated to the current one has a sample, so a new version can't go untested
-        [TestMethod]
-        public void Samples_EveryVersionFromTheOldest_HasOne()
-        {
-            HashSet<int> versions = Samples
-                .Select(sample => (int)(double)JsonText.Parse(ConformanceFile.Read($"saveVersions/{sample[0]}"))!["version"]!)
-                .ToHashSet();
-
-            CollectionAssert.AreEquivalent(Enumerable.Range(SavedGame.OldestVersion, SavedGame.CurrentVersion - SavedGame.OldestVersion + 1).ToList(),
-                                           versions.ToList());
-        }
-
-        // The sample of the current version is the text the TypeScript game wrote, so a city loaded from it writes it
+        // The sample of the current version is the text the game wrote, so a city loaded from it writes it
         // back, but for the order of the keys within a component, which the rules write in an order of their own
         [TestMethod]
         public void Write_CityOfTheCurrentSample_WritesTheSampleAsTheGameDid()
@@ -125,9 +113,9 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(message, exception.Message);
         }
 
-        // As the TypeScript's `if`: the year end is paid for a value JavaScript takes as true, as for true itself, and
-        // not for one it takes as false, as for a save that never waited. Each outcome is compared with true's or with
-        // the key's absence, whether the payment is ported yet or not.
+        // As a JavaScript `if`: the year end is paid for a value JavaScript takes as true, as for true itself, and not
+        // for one it takes as false, as for a save that never waited. Each outcome is compared with true's or with the
+        // key's absence.
         [TestMethod]
         [DataRow("1", true)]
         [DataRow("\"yes\"", true)]

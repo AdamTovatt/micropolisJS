@@ -16,10 +16,9 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// What of the traffic the unit snapshots need not reach, as <c>test/traffic.ts</c> has it: the helicopter, which
-    /// they cannot, since they are recorded from cities with no sprites, where a drive that takes a block to its heaviest
-    /// traffic and then draws 0 from five points the helicopter at the block; and the tiles at and just past each end of
-    /// a destination's range.
+    /// What of the traffic the fixtures' cities need not reach: the helicopter, where a drive that takes a block to its
+    /// heaviest traffic and then draws 0 from five points the helicopter at the block; the farthest a drive goes; and
+    /// the tiles at and just past each end of a destination's range.
     /// </summary>
     [TestClass]
     public sealed class TrafficTests
@@ -49,6 +48,28 @@ namespace Micropolis.Rules.Tests
             (Sprite helicopter, (long, long) destination) = Drive(SeedWhoseFirstDraw(draw => draw != 0));
 
             Assert.AreEqual(destination, (helicopter.DestX, helicopter.DestY));
+        }
+
+        // A drive goes thirty moves at most: along a straight road, which draws nothing, it arrives at a destination
+        // beside its thirtieth move's tile, and never at one beside its thirty-first
+        [TestMethod]
+        [DataRow(30, TrafficResult.RouteFound)]
+        [DataRow(31, TrafficResult.NoRouteFound)]
+        public void MakeTraffic_DestinationBesideTheMoveGiven_ArrivesWithinThirtyMovesOnly(int moves, TrafficResult expected)
+        {
+            const int zoneY = 50;
+            GameMap map = new GameMap(120, 100);
+            // From the zone's first perimeter tile north, a tile for each move, then the destination
+            for (int i = 0; i <= moves; i++)
+            {
+                map.SetTile(RoadX, zoneY - 2 - i, ROADS, 0);
+            }
+            map.SetTile(RoadX, zoneY - 3 - moves, COMBASE, 0);
+
+            TrafficResult result = new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(0))
+                .MakeTraffic(ZoneX, zoneY, new BlockMaps(map.Width, map.Height), TrafficDestination.Commercial);
+
+            Assert.AreEqual(expected, result);
         }
 
         [TestMethod]

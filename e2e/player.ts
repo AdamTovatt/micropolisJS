@@ -14,9 +14,9 @@
 import { expect, Page } from "@playwright/test";
 import { readFileSync } from "fs";
 
-import { CommandLog, joinSessions, parseLog } from "../src/commandLog";
 import type { Advanced, View } from "../src/testHook";
 import { steppedZoom } from "../src/viewPosition";
+import { CommandLog, joinSessions, parseLog } from "../test/helpers/commandLog";
 import { CITY_LINK, GameServer } from "./gameServer";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the

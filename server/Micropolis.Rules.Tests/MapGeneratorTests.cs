@@ -16,7 +16,7 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The C# generator against the TypeScript reference, through <c>conformance/maps.json</c>.
+    /// The generator against the maps of <c>conformance/maps.json</c>.
     /// </summary>
     [TestClass]
     public sealed class MapGeneratorTests
@@ -29,14 +29,14 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DynamicData(nameof(Seeds))]
-        public void Generate_ConformanceSeed_HashesAsTypeScriptMap(MapSeed seed)
+        public void Generate_ConformanceSeed_HashesAsTheCommittedMap(MapSeed seed)
         {
             Assert.AreEqual(seed.Hash, StateHash.HashSavedState(SavedMapObject(seed.Seed)));
         }
 
         [TestMethod]
         [DynamicData(nameof(ListedMaps))]
-        public void Generate_ListedSeed_LaysEveryTileAsTypeScript(ListedMap listed)
+        public void Generate_ListedSeed_LaysEveryTileAsCommitted(ListedMap listed)
         {
             JsonObject map = SavedMapObject(listed.Seed);
 

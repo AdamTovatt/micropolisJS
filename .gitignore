@@ -6,7 +6,6 @@ e2e-report/
 e2e-results/
 node_modules/
 TODO
-headless/fixtures/export/
 server/**/bin/
 server/**/obj/
 .cities/

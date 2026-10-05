@@ -1,6 +1,8 @@
 <Solution>
   <Project Path="Micropolis.Benchmarks/Micropolis.Benchmarks.csproj" />
   <Project Path="Micropolis.Benchmarks.Tests/Micropolis.Benchmarks.Tests.csproj" />
+  <Project Path="Micropolis.Conformance/Micropolis.Conformance.csproj" />
+  <Project Path="Micropolis.Conformance.Tests/Micropolis.Conformance.Tests.csproj" />
   <Project Path="Micropolis.Rules/Micropolis.Rules.csproj" />
   <Project Path="Micropolis.Headless.Tests/Micropolis.Headless.Tests.csproj" />
   <Project Path="Micropolis.Headless/Micropolis.Headless.csproj" />

@@ -67,11 +67,10 @@ namespace Micropolis.Rules
         private IReadOnlyDictionary<ToolName, CityTool> Tools => _tools ??= CityTools.Create(Map);
 
         /// <summary>
-        /// Applies the commands received since the last call, in the order they arrived, as <c>applyCommands</c> in
-        /// <c>src/simulation.js</c>. They apply between steps, separately from them, so a paused city takes them too.
-        /// Each is validated first, and a rejected one changes nothing. Each command's result is emitted as
-        /// <see cref="Messages.COMMAND_RESULT"/>, and returned in the same order. The simulation never branches on
-        /// the player.
+        /// Applies the commands received since the last call, in the order they arrived. They apply between steps,
+        /// separately from them, so a paused city takes them too. Each is validated first, and a rejected one changes
+        /// nothing. Each command's result is emitted as <see cref="Messages.COMMAND_RESULT"/>, and returned in the same
+        /// order. The simulation never branches on the player.
         /// </summary>
         public IReadOnlyList<CommandResult> ApplyCommands(IReadOnlyList<ReceivedCommand> received)
         {

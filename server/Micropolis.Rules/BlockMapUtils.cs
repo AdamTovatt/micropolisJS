@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The map-wide scans of <c>src/blockMapUtils.js</c>, which phases 10–15 run over the block maps.
+    /// The map-wide scans of the original's scan.cpp, which phases 10–15 run over the block maps.
     /// </summary>
     public static class BlockMapUtils
     {

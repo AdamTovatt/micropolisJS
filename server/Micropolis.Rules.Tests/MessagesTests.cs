@@ -17,13 +17,13 @@ using System.Text.Json;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// <see cref="Messages"/> against <c>src/messages.ts</c>, through <c>conformance/messages.json</c>: each name the
-    /// C# holds has the TypeScript's string, or list of strings.
+    /// <see cref="Messages"/> against <c>conformance/messages.json</c>, which <c>test/vocabulary.ts</c> holds the
+    /// client's <c>src/messages.ts</c> to: the same names, each with the same string, or list of strings.
     /// </summary>
     [TestClass]
     public sealed class MessagesTests
     {
-        private static readonly IReadOnlyDictionary<string, JsonElement> TypeScript = ConformanceMessages.Load().Messages;
+        private static readonly IReadOnlyDictionary<string, JsonElement> Defined = ConformanceMessages.Load().Messages;
 
         public static IEnumerable<object[]> Strings => typeof(Messages).GetFields(BindingFlags.Public | BindingFlags.Static)
             .Where(constant => constant.IsLiteral)
@@ -35,14 +35,21 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DynamicData(nameof(Strings))]
-        public void Message_ComparedWithTypeScript_HasTheSameString(string name, string value)
+        public void Message_ComparedWithTheMessagesFile_HasTheSameString(string name, string value)
         {
-            Assert.IsTrue(TypeScript.ContainsKey(name), $"src/messages.ts has no {name}.");
-            Assert.AreEqual(TypeScript[name].GetString(), value);
+            Assert.IsTrue(Defined.ContainsKey(name), $"conformance/messages.json has no {name}.");
+            Assert.AreEqual(Defined[name].GetString(), value);
         }
 
-        // An event is known by its string alone: a listener, a front-end message's subject and a recorded event all
-        // name it so, and two names sharing one string would be one event, as test/messages.ts checks the TypeScript's
+        // A name the file holds that the rules lack is one the client knows and no city sends
+        [TestMethod]
+        public void MessagesFile_EachName_IsOneTheRulesHold()
+        {
+            CollectionAssert.AreEquivalent(Defined.Keys.ToList(), Strings.Concat(Lists).Select(name => (string)name[0]).ToList());
+        }
+
+        // An event is known by its string alone: a listener and a front-end message's subject both name it so, and two
+        // names sharing one string would be one event, as test/messages.ts checks the client's
         [TestMethod]
         public void Messages_EachName_HasAStringNoOtherNameShares()
         {
@@ -67,10 +74,10 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DynamicData(nameof(Lists))]
-        public void MessageList_ComparedWithTypeScript_HasTheSameStringsInOrder(string name, string[] values)
+        public void MessageList_ComparedWithTheMessagesFile_HasTheSameStringsInOrder(string name, string[] values)
         {
-            Assert.IsTrue(TypeScript.ContainsKey(name), $"src/messages.ts has no {name}.");
-            CollectionAssert.AreEqual(TypeScript[name].EnumerateArray().Select(value => value.GetString()).ToArray(), values);
+            Assert.IsTrue(Defined.ContainsKey(name), $"conformance/messages.json has no {name}.");
+            CollectionAssert.AreEqual(Defined[name].EnumerateArray().Select(value => value.GetString()).ToArray(), values);
         }
     }
 }

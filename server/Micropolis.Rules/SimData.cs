@@ -14,8 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// What a tile handler and a unit of work are given, as <c>_constructSimData</c> in <c>src/simulation.js</c> builds
-    /// it: the simulation's components, and the city time and level as they were when it was built.
+    /// What a tile handler and a unit of work are given: the simulation's components, and the city time and level as
+    /// they were when it was built.
     /// </summary>
     public sealed class SimData
     {

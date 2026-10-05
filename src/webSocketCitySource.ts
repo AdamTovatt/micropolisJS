@@ -13,8 +13,7 @@
 
 import type { CityClient, CityStatus } from "./cityClient";
 import { PendingCalls, queryReply, Subscribers, trackingHold } from "./citySource";
-import type { ServerCity } from "./cityLink";
-import type { CityDriver, CitySource, CityStart, Pending } from "./citySource";
+import type { CityDriver, CitySource, CityStart, Pending, StartedCity } from "./citySource";
 import { errorMessage } from "./errorMessage";
 import type {
   CityJoined, CityMessage, ClientRequest, Command, PlayerId, Query, QueryAnswer, RequestAnswer, RequestAnswers, SessionLog,
@@ -73,14 +72,14 @@ export class WebSocketCitySource implements CitySource {
   }
 
   // A new city starts on the server, and a saved game is uploaded to start there, under a new id
-  async start(start: CityStart): Promise<ServerCity> {
+  async start(start: CityStart): Promise<StartedCity> {
     return this.joined(await ("seed" in start
       ? this.request((id) => ({type: "start", id, name: start.name, seed: start.seed, level: start.level}))
       : this.request((id) => ({type: "upload", id, save: start.save}))));
   }
 
   // Joins the city with the id, as another player started it, once its whole state has been delivered
-  async join(city: string): Promise<ServerCity> {
+  async join(city: string): Promise<StartedCity> {
     return this.joined(await this.request((id) => ({type: "join", id, city})));
   }
 
@@ -100,12 +99,9 @@ export class WebSocketCitySource implements CitySource {
     }
   }
 
-  // A shared city steps whether or not this player can see it, so the server is never told
-  setViewerVisible(): void {}
-
   // The city is kept in the server's store, the one place it is kept, and the save resolves once it is
-  save(): Promise<null> {
-    return this.request((id) => ({type: "save", id}));
+  save(): Promise<void> {
+    return this.done((id) => ({type: "save", id}));
   }
 
   commandLog(): Promise<SessionLog> {
@@ -118,7 +114,7 @@ export class WebSocketCitySource implements CitySource {
     return this.done((id) => ({type: "turn", id, milliseconds}));
   }
 
-  private joined({city, name, seed}: CityJoined): ServerCity {
+  private joined({city, name, seed}: CityJoined): StartedCity {
     this.current = city;
     return {name, seed, city};
   }

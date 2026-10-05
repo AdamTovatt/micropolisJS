@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Commercial zones, as <c>src/commercial.js</c> grows and declines them.
+    /// Commercial zones, as the original's <c>doCommercial</c> in zone.cpp grows and declines them.
     /// </summary>
     public static class Commercial
     {
