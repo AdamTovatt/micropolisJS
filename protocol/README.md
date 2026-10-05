@@ -235,8 +235,9 @@ commands or takes steps. The sprites, the date, the population and the records g
 sent last. The simulation publishes `status` and `demand` each cycle, and a batch carries only the latest of each it
 published since the batch before. A batch announces each recomputed layer at most once in `overlayUpdated`, however
 often the turn recomputed it. The events, `news`, `commandResult`, `budgetReviewDue` and `overlayUpdated`, go in the
-order they came. A city that starts sends the whole map, the sprites, the date, the population and the `evaluation`,
-`budget` and `settings` records (see Records), then the rest as they come.
+order they came, and `trips` last. A city that starts sends the whole map, the sprites, the date, the population and
+the `evaluation`, `budget` and `settings` records (see Records), then the rest as they come; a player who joins is
+sent no trips offered before.
 
 - `map` is the whole map: `width` and `height`, in tiles, and `tiles`, each tile's raw value with its flags, row by
   row, top row first.
@@ -266,6 +267,13 @@ order they came. A city that starts sends the whole map, the sprites, the date, 
 - `budgetReviewDue` says that the year end paid the budget with values the player should review: auto-budget is off,
   or couldn't cover the services. The city steps on: nothing waits for the review.
 - `overlayUpdated` names a `layer` the simulation has recomputed, which an overlay showing it asks for again.
+- `trips` lists, in `routes`, the trips the city offered since the batch before, in the order it offered them, for the
+  client to draw as cars. A trip is the route of a drive the traffic rule completed: every tile the drive stood on, in
+  order, each `{"x", "y"}`, from the road it started on to the tile beside its destination. The city offers only
+  trips on road alone (road, a road bridge, or road crossing rail or a power line), and at most one every 6 steps: at
+  the end of each step whose index is a multiple of 6, the latest such trip completed since the last one offered, if
+  it is still on road alone, dropping the others. A step's index is counted from 0 since the city was started or
+  loaded, among the steps it took while not paused. A batch with none offered carries no `trips`. Trips are a picture of what the rules do: the rules never read them, and no save or log holds them.
 
 ## Examples
 

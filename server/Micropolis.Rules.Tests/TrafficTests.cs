@@ -67,10 +67,51 @@ namespace Micropolis.Rules.Tests
             }
             map.SetTile(RoadX, zoneY - 3 - moves, COMBASE, 0);
 
-            TrafficResult result = new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(0))
+            TrafficResult result = new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(0), new Trips(map))
                 .MakeTraffic(ZoneX, zoneY, new BlockMaps(map.Width, map.Height), TrafficDestination.Commercial);
 
             Assert.AreEqual(expected, result);
+        }
+
+        // From the zone's first perimeter tile a road runs north to a commercial tile, with a branch east at its middle to
+        // another, so a draw picks the way at the junction: whichever it takes, the route is every tile the drive stood
+        // on, from the road it started on, one tile to the next, to the tile beside the commercial one where it arrived
+        [TestMethod]
+        public void MakeTraffic_RouteFound_RecordsEveryTileFromTheStartRoadToWhereItArrived()
+        {
+            GameMap map = new GameMap(120, 100);
+            Position start = new Position(RoadX, ZoneY - 2);
+            Position[] north = [start, new Position(RoadX, ZoneY - 3), new Position(RoadX, ZoneY - 4), new Position(RoadX, ZoneY - 5), new Position(RoadX, ZoneY - 6)];
+            Position[] east = [new Position(RoadX + 1, ZoneY - 4), new Position(RoadX + 2, ZoneY - 4), new Position(RoadX + 3, ZoneY - 4)];
+            foreach (Position road in north.Concat(east))
+            {
+                map.SetTile(road.X, road.Y, ROADS, 0);
+            }
+            map.SetTile(RoadX, ZoneY - 7, COMBASE, 0);
+            map.SetTile(RoadX + 3, ZoneY - 5, COMBASE, 0);
+
+            List<TilePosition> northRoute = north.Select(Tile).ToList();
+            List<TilePosition> eastRoute = north[..3].Concat(east).Select(Tile).ToList();
+            HashSet<string> taken = new HashSet<string>();
+
+            for (uint seed = 1; seed <= 16; seed++)
+            {
+                // The trip is the route, offered as the step it arrived in ends: step 0, a multiple of six
+                Trips trips = new Trips(map);
+                List<IReadOnlyList<TilePosition>> offered = new List<IReadOnlyList<TilePosition>>();
+                trips.Offered += offered.Add;
+
+                Assert.AreEqual(TrafficResult.RouteFound,
+                                new Traffic(map, new SpriteManager(map, RandomStream.FromSeed(0)), RandomStream.FromSeed(seed), trips)
+                                    .MakeTraffic(ZoneX, ZoneY, new BlockMaps(map.Width, map.Height), TrafficDestination.Commercial));
+                trips.Stepped();
+
+                List<TilePosition> route = offered.Single().ToList();
+                CollectionAssert.AreEqual(route[^1] == northRoute[^1] ? northRoute : eastRoute, route);
+                taken.Add(route[^1] == northRoute[^1] ? "north" : "east");
+            }
+
+            CollectionAssert.AreEquivalent(new[] { "north", "east" }, taken.ToList(), "The draws never took one of the ways.");
         }
 
         [TestMethod]
@@ -115,12 +156,17 @@ namespace Micropolis.Rules.Tests
             BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
             blockMaps.TrafficDensityMap.WorldSet(RoadX, ArrivalY, HeavyTraffic);
 
-            TrafficResult result = new Traffic(map, spriteManager, RandomStream.FromSeed(seed))
+            TrafficResult result = new Traffic(map, spriteManager, RandomStream.FromSeed(seed), new Trips(map))
                 .MakeTraffic(ZoneX, ZoneY, blockMaps, TrafficDestination.Industrial);
 
             Assert.AreEqual(TrafficResult.RouteFound, result);
             Assert.AreEqual(Traffic.MaxTrafficDensity, blockMaps.TrafficDensityMap.WorldGet(RoadX, ArrivalY));
             return (helicopter, destination);
+        }
+
+        private static TilePosition Tile(Position position)
+        {
+            return new TilePosition(position.X, position.Y);
         }
 
         // The first seed whose stream's first draw from five passes the test

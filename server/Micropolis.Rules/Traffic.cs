@@ -74,15 +74,21 @@ namespace Micropolis.Rules
         private readonly GameMap _map;
         private readonly SpriteManager _spriteManager;
         private readonly RandomStream _random;
+        private readonly Trips _trips;
 
         // Every other position of the drive, which the traffic density map counts once the drive arrives
         private readonly List<Position> _stack = new List<Position>();
 
-        public Traffic(GameMap map, SpriteManager spriteManager, RandomStream random)
+        // Every position of the drive, in order, from the road it started on: the trip it is, once it arrives
+        private readonly List<Position> _route = new List<Position>();
+
+        /// <param name="trips">Takes the route of each drive that arrives, which nothing in the rules reads.</param>
+        public Traffic(GameMap map, SpriteManager spriteManager, RandomStream random, Trips trips)
         {
             _map = map;
             _spriteManager = spriteManager;
             _random = random;
+            _trips = trips;
         }
 
         /// <summary>
@@ -92,6 +98,7 @@ namespace Micropolis.Rules
         public TrafficResult MakeTraffic(int x, int y, BlockMaps blockMaps, TrafficDestination destination)
         {
             _stack.Clear();
+            _route.Clear();
 
             Position? roadPos = FindPerimeterRoad(new Position(x, y));
 
@@ -99,6 +106,7 @@ namespace Micropolis.Rules
             {
                 if (TryDrive(start, destination))
                 {
+                    _trips.Arrived(_route);
                     AddToTrafficDensityMap(blockMaps);
                     return TrafficResult.RouteFound;
                 }
@@ -199,6 +207,7 @@ namespace Micropolis.Rules
         {
             Direction? dirLast = null;
             Position drivePos = startPos;
+            _route.Add(drivePos);
 
             // Maximum distance to try
             for (int dist = 0; dist < MaxTrafficDistance; dist++)
@@ -208,6 +217,7 @@ namespace Micropolis.Rules
                 {
                     drivePos = Position.Move(drivePos, dir);
                     dirLast = dir.OppositeDirection();
+                    _route.Add(drivePos);
 
                     if ((dist & 1) != 0)
                     {
@@ -221,7 +231,9 @@ namespace Micropolis.Rules
                 }
                 else
                 {
-                    // A dead end: back up, forgetting the last position saved, though the drive goes on from here
+                    // A dead end: back up, forgetting the last position saved, though the drive goes on from here.
+                    // It stands where it stood, so the route takes nothing, and with the same ways open it finds the
+                    // same dead end until it gives up: a drive that arrives never met one
                     if (_stack.Count > 0)
                     {
                         _stack.RemoveAt(_stack.Count - 1);

@@ -207,7 +207,7 @@ namespace Micropolis.Rules
                 {
                     TilePosition last = path[i - 1];
 
-                    if (Math.Abs(position.X - last.X) + Math.Abs(position.Y - last.Y) != 1)
+                    if (!position.IsNextTo(last))
                     {
                         return $"tile {i} of the path, ({position.X}, {position.Y}), is not next to the tile before it, ({last.X}, {last.Y})";
                     }

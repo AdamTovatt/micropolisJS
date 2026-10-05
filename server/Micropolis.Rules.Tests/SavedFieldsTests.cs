@@ -43,7 +43,8 @@ namespace Micropolis.Rules.Tests
                 {
                     ["MapScanner"] = "holds only the tile handlers",
                     ["RepairManager"] = "holds only the tile handlers",
-                    ["TrafficManager"] = "its route stack is cleared at the start of every use",
+                    ["TrafficManager"] = "its route stack and route are cleared at the start of every use",
+                    ["Trips"] = "the trips offered for the client to draw as cars, which the rules never read",
                     ["_tools"] = "a tool holds staged edits only while a command applies, and clears them before the next",
                     ["_cityYearLast"] = "the date last sent to the UI, which a load resets",
                     ["_cityMonthLast"] = "the date last sent to the UI, which a load resets",

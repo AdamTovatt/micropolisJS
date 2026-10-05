@@ -277,11 +277,20 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// A tile of a tool's path.
+    /// A tile of a tool's path or a trip's route.
     /// </summary>
     public readonly record struct TilePosition(
         [property: JsonPropertyName("x")] int X,
-        [property: JsonPropertyName("y")] int Y);
+        [property: JsonPropertyName("y")] int Y)
+    {
+        /// <summary>
+        /// Whether the tile shares a side with the other: one tile away, across or down.
+        /// </summary>
+        public bool IsNextTo(TilePosition other)
+        {
+            return Math.Abs(X - other.X) + Math.Abs(Y - other.Y) == 1;
+        }
+    }
 
     /// <summary>
     /// A change a player makes to the city, discriminated by its <c>type</c> field, as <c>Command</c> in

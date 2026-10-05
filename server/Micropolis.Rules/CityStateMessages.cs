@@ -51,6 +51,8 @@ namespace Micropolis.Rules
         private DemandMessage? _lastDemand;
         // The events since the last messages, in the order the simulation sent them: one overlay message per layer
         private List<StateMessage> _events = new List<StateMessage>();
+        // The trips offered since the last messages, in the order they were offered
+        private List<IReadOnlyList<TilePosition>> _trips = new List<IReadOnlyList<TilePosition>>();
 
         /// <summary>
         /// Takes the city as it stands as sent, so the first new messages are what changes from here: a player who
@@ -75,6 +77,8 @@ namespace Micropolis.Rules
             });
             events.AddEventListener(RulesEvents.CityStatusUpdated, status => _status = _lastStatus = status);
             events.AddEventListener(RulesEvents.ValvesUpdated, demand => _demand = _lastDemand = demand);
+            // The trips the client draws as cars, which no player who joins is sent
+            city.Trips.Offered += route => _trips.Add(route);
         }
 
         [MemberNotNull(nameof(_tiles))]
@@ -112,8 +116,8 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// The state messages since the last call: the tiles that changed; the sprites, date, population and records
-        /// that differ from those sent last; then the status and demand published since, and the events in the order
-        /// they came.
+        /// that differ from those sent last; then the status and demand published since, the events in the order they
+        /// came, and the trips offered since, if any was.
         /// </summary>
         public IReadOnlyList<StateMessage> NewMessages()
         {
@@ -149,6 +153,13 @@ namespace Micropolis.Rules
 
             messages.AddRange(_events);
             _events = new List<StateMessage>();
+
+            if (_trips.Count > 0)
+            {
+                messages.Add(new TripsMessage(_trips));
+                _trips = new List<IReadOnlyList<TilePosition>>();
+            }
+
             return messages;
         }
 

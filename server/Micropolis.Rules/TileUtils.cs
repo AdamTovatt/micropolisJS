@@ -58,8 +58,22 @@ namespace Micropolis.Rules
 
         public static bool IsDriveable(int tileValue)
         {
-            return (tileValue >= TileValues.ROADBASE && tileValue <= TileValues.LASTROAD) ||
-                   (tileValue >= TileValues.RAILHPOWERV && tileValue <= TileValues.LASTRAIL);
+            return IsRoadway(tileValue) || (tileValue >= TileValues.RAILHPOWERV && tileValue <= TileValues.LASTRAIL);
+        }
+
+        /// <summary>
+        /// Whether a car drives on the tile: road, a road bridge, or road crossing rail or a power line. A drive the
+        /// traffic rule makes may also run on rail alone (<see cref="IsDriveable(int)"/>), which no car does.
+        /// </summary>
+        public static bool CarriesCars(int tileValue)
+        {
+            return IsRoadway(tileValue) || tileValue == TileValues.HRAILROAD || tileValue == TileValues.VRAILROAD;
+        }
+
+        // Road, its bridges, its traffic and its crossings of power lines: the road tiles a drive runs on
+        private static bool IsRoadway(int tileValue)
+        {
+            return tileValue >= TileValues.ROADBASE && tileValue <= TileValues.LASTROAD;
         }
 
         public static bool IsDriveable(Tile tile)

@@ -113,6 +113,30 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
+        public void NewMessages_TripsOffered_SendsThemOnceLastInTheOrderOffered()
+        {
+            List<IReadOnlyList<TilePosition>> offered = new List<IReadOnlyList<TilePosition>>();
+            CityStateMessages messages = AfterSomeCycles(city => city.Trips.Offered += offered.Add);
+
+            IReadOnlyList<StateMessage> sent = messages.NewMessages();
+
+            Assert.IsGreaterThan(1, offered.Count, "Too few trips offered to check.");
+            Assert.AreEqual(ProtocolJson.Serialize(new TripsMessage(offered)), ProtocolJson.Serialize(sent[^1]));
+            Assert.AreEqual(1, Types(sent).Count(type => type == "trips"));
+            CollectionAssert.DoesNotContain(Types(messages.NewMessages()), "trips");
+        }
+
+        // A player who joins is sent no trips offered before
+        [TestMethod]
+        public void FullState_TripsOfferedAndNotYetSent_SendsNone()
+        {
+            CityStateMessages messages = AfterSomeCycles();
+
+            CollectionAssert.DoesNotContain(Types(messages.FullState()), "trips");
+            CollectionAssert.Contains(Types(messages.NewMessages()), "trips");
+        }
+
+        [TestMethod]
         public void NewMessages_StatusSent_DoesNotSendItAgain()
         {
             CityStateMessages messages = AfterSomeCycles();
@@ -159,11 +183,12 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(StateHash.HashSavedState(alone.Save()), StateHash.HashSavedState(watched.Save()));
         }
 
-        // The messages of a city that has run eight whole cycles since they were built
-        private static CityStateMessages AfterSomeCycles()
+        // The messages of a city that has run eight whole cycles since they were built, watched first by what is given
+        private static CityStateMessages AfterSomeCycles(Action<Simulation>? watch = null)
         {
             Simulation city = City("suburbFast", "run");
             CityStateMessages messages = new CityStateMessages(city);
+            watch?.Invoke(city);
 
             for (int step = 0; step < 8 * 16; step++)
             {
@@ -178,7 +203,7 @@ namespace Micropolis.Rules.Tests
             city.ApplyCommands([new ReceivedCommand("ada", new JsonObject { ["type"] = "setSpeed", ["speed"] = (int)speed })]);
         }
 
-        // Where a message goes in a batch: the tiles, the records, the status, the demand, then the events
+        // Where a message goes in a batch: the tiles, the records, the status, the demand, the events, then the trips
         private static int Rank(string type)
         {
             return type switch
@@ -187,6 +212,7 @@ namespace Micropolis.Rules.Tests
                 "sprites" or "date" or "population" or "evaluation" or "budget" or "settings" => 1,
                 "status" => 2,
                 "demand" => 3,
+                "trips" => 5,
                 _ => 4,
             };
         }
