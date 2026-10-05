@@ -56,15 +56,15 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// A seaport's centre: it counts, and powered, sends out a ship when none sails.
+        /// A seaport's centre: it counts, and when no ship sails, calls one to it, which comes if a ship can reach it.
         /// </summary>
         private static void PortFound(GameMap map, int x, int y, SimData simData)
         {
             simData.Census.SeaportPop += 1;
 
-            if (map.GetTile(x, y).IsPowered() && simData.SpriteManager.GetSprite(SpriteType.Ship) is null)
+            if (simData.SpriteManager.GetSprite(SpriteType.Ship) is null)
             {
-                simData.SpriteManager.GenerateShip();
+                simData.SpriteManager.GenerateShip(x, y);
             }
         }
 

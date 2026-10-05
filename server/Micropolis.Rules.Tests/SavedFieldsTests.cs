@@ -64,6 +64,7 @@ namespace Micropolis.Rules.Tests
             {
                 ["_spriteList"] = "saved as list, each sprite as its entry", ["Map"] = Reference, ["Random"] = Reference,
                 ["Events"] = Listeners,
+                ["Router"] = "scratch for the ships' route searches, whose results never depend on what an earlier search left",
             }),
             new SavedFieldsCase("the map", City.Map, ["map"], [], new Dictionary<string, string>
             {
@@ -119,6 +120,14 @@ namespace Micropolis.Rules.Tests
             JsonObject entry = list[0]!.AsObject();
 
             Assert.AreEqual("", string.Join(", ", Members(typeof(Sprite)).Where(member => !IsSaved(member, [entry]))));
+        }
+
+        // A ship's mission's fields are saved in the object of its entry's mission, which the run save, holding no ship,
+        // has none of
+        [TestMethod]
+        public void Fields_ShipMission_AreSavedInItsObject()
+        {
+            Assert.AreEqual("", string.Join(", ", Members(typeof(ShipMission)).Where(member => !IsSaved(member, [new ShipMission().Save()]))));
         }
 
         // A member listed as saved apart is excused only because a case of its own checks its fields

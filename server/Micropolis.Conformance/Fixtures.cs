@@ -42,7 +42,8 @@ namespace Micropolis.Conformance
     /// <summary>
     /// Every fixture, and the mid-run logs: each is a command log under <c>conformance/logs/</c>, whose checkpoints are
     /// its golden hashes. A fixture built by commands is a city on seed 8's map at the easy level, which has open land
-    /// and woods from (10, 10) to (53, 33), sent every command before its first step. A fixture that needs what no
+    /// and woods from (10, 10) to (53, 33), and open land east of it on rows 13 to 16 to a river's shore at x 80 to 82,
+    /// sent every command before its first step. A fixture that needs what no
     /// command places starts from a save, which is committed data, kept in its log: the tool writes it back as it reads
     /// it, so no C# code builds it.
     /// </summary>
@@ -155,9 +156,10 @@ namespace Micropolis.Conformance
                               [new SetAutoBudgetCommand(false), new SetBudgetCommand(50, 50, 100, 7)]) with { ForDisasters = true },
             Built("forestFire", "Seed 8's map with two fires set and nothing built",
                   [new TriggerDisasterCommand(DisasterKind.Fire), new TriggerDisasterCommand(DisasterKind.Fire)]) with { ForDisasters = true },
-            Built("harbour", "The town with a seaport, which brings a ship to the channel",
-                  [.. Town, LineOf(ToolName.Wire, 44, 13, 44, 13), BuildingAt(ToolName.Port, 46, 14)]),
-            FromCommittedSave("harbourWithDisasters", "The harbour at the hard level, with random disasters on",
+            // The port's footprint ends two tiles from the river at x 81, past the shore, and a wire along row 13 powers it
+            Built("harbour", "The town with a seaport by the river east of it, which brings ships in from the edge to dock",
+                  [.. Town, LineOf(ToolName.Wire, 44, 13, 75, 13), BuildingAt(ToolName.Port, 77, 14)]),
+            FromCommittedSave("harbourWithDisasters", "The town with a seaport inland, which no ship reaches, at the hard level, with random disasters on",
                               [new SetDisastersCommand(true)]) with { ForDisasters = true },
             Built("hazyWoods", "A residential zone in the woods with a coal plant against each side, and nothing else",
             [

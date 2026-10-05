@@ -151,7 +151,7 @@ namespace Micropolis.Rules
             if (tileValue == BRWV)
             {
                 // An open vertical bridge: possibly close it
-                if (simData.Random.GetChance(3) && simData.SpriteManager.GetBoatDistance(x, y) > 340)
+                if (simData.Random.GetChance(3) && simData.SpriteManager.GetBoatDistance(x, y) > PassedDistance(map, x, y, true))
                 {
                     CloseBridge(map, x, y, VerticalDeltaX, VerticalDeltaY, OpenVertical, CloseVertical);
                 }
@@ -162,7 +162,7 @@ namespace Micropolis.Rules
             if (tileValue == BRWH)
             {
                 // An open horizontal bridge: possibly close it
-                if (simData.Random.GetChance(3) && simData.SpriteManager.GetBoatDistance(x, y) > 340)
+                if (simData.Random.GetChance(3) && simData.SpriteManager.GetBoatDistance(x, y) > PassedDistance(map, x, y, false))
                 {
                     CloseBridge(map, x, y, HorizontalDeltaX, HorizontalDeltaY, OpenHorizontal, CloseHorizontal);
                 }
@@ -172,33 +172,110 @@ namespace Micropolis.Rules
 
             if (simData.SpriteManager.GetBoatDistance(x, y) < 300 || simData.Random.GetChance(7))
             {
-                if ((tileValue & 1) != 0)
-                {
-                    if (x < map.Width - 1)
-                    {
-                        if (map.GetTileValue(x + 1, y) == CHANNEL)
-                        {
-                            // A closed vertical bridge: open it
-                            OpenBridge(map, x, y, VerticalDeltaX, VerticalDeltaY, CloseVertical, OpenVertical);
-                            return true;
-                        }
-                    }
+                bool vertical = (tileValue & 1) != 0;
 
-                    return false;
-                }
-
-                if (y > 0)
+                if (GapValue(map, x, y, vertical) == CHANNEL)
                 {
-                    if (map.GetTileValue(x, y - 1) == CHANNEL)
-                    {
-                        // A closed horizontal bridge: open it
-                        OpenBridge(map, x, y, HorizontalDeltaX, HorizontalDeltaY, CloseHorizontal, OpenHorizontal);
-                        return true;
-                    }
+                    // A closed bridge by the channel: open it
+                    Open(map, x, y, vertical);
+                    return true;
                 }
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Whether the tile at (x, y) is a closed bridge that opens for a ship about to sail through it: the middle of
+        /// a closed bridge's five tiles in a line, with open water at the two corners the open bridge's raised ends
+        /// take, so its opening and closing write only the bridge and the water beside it.
+        /// </summary>
+        /// <remarks>
+        /// A rule change from the original, whose bridges open only over the channel, centred wherever the scan finds
+        /// the channel beside them. A ship opens a bridge over any water itself, centred on the tile it sails through.
+        /// </remarks>
+        internal static bool OpensForShip(GameMap map, int x, int y)
+        {
+            if (!map.TestBounds(x, y) || !IsClosedBridge(map.GetTileValue(x, y)))
+            {
+                return false;
+            }
+
+            bool vertical = (map.GetTileValue(x, y) & 1) != 0;
+            int[] xDelta = vertical ? VerticalDeltaX : HorizontalDeltaX;
+            int[] yDelta = vertical ? VerticalDeltaY : HorizontalDeltaY;
+            int[] closed = vertical ? CloseVertical : CloseHorizontal;
+
+            for (int i = 0; i < 7; i++)
+            {
+                int tileX = x + xDelta[i];
+                int tileY = y + yDelta[i];
+
+                if (!map.TestBounds(tileX, tileY))
+                {
+                    return false;
+                }
+
+                int tileValue = map.GetTileValue(tileX, tileY);
+                bool fits = closed[i] == RIVER
+                    ? TileUtils.IsOpenWater(tileValue)
+                    : IsClosedBridge(tileValue) && (tileValue & 1) == (vertical ? 1 : 0);
+
+                if (!fits)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Opens the closed bridge at (x, y) for a ship, centred on that tile, which <see cref="OpensForShip"/> says
+        /// it may be.
+        /// </summary>
+        internal static void OpenForShip(GameMap map, int x, int y)
+        {
+            Open(map, x, y, (map.GetTileValue(x, y) & 1) != 0);
+        }
+
+        private static void Open(GameMap map, int x, int y, bool vertical)
+        {
+            if (vertical)
+            {
+                OpenBridge(map, x, y, VerticalDeltaX, VerticalDeltaY, CloseVertical, OpenVertical);
+            }
+            else
+            {
+                OpenBridge(map, x, y, HorizontalDeltaX, HorizontalDeltaY, CloseHorizontal, OpenHorizontal);
+            }
+        }
+
+        // A bridge tile, closed, with or without traffic: the tiles the roads' decay turns back into water
+        private static bool IsClosedBridge(int tileValue)
+        {
+            return tileValue >= ROADBASE && tileValue <= LASTROAD && (tileValue & 15) < 2;
+        }
+
+        // How far, in pixels, every ship must be from an open bridge before it may close: the channel's bridges wait
+        // for 340, as the original's do. A rule change for a bridge a ship opened over other water, which closes once
+        // the ship is four tiles away, beyond every tile the closing writes, so a ship docked nearby leaves its road
+        // whole.
+        private static long PassedDistance(GameMap map, int x, int y, bool vertical)
+        {
+            return GapValue(map, x, y, vertical) == CHANNEL ? 340 : 64;
+        }
+
+        // The value of the tile beside a bridge's middle tile that the original checks for the channel, east of a
+        // vertical bridge and north of a horizontal one, or -1 off the map
+        private static int GapValue(GameMap map, int x, int y, bool vertical)
+        {
+            if (vertical)
+            {
+                return x < map.Width - 1 ? map.GetTileValue(x + 1, y) : -1;
+            }
+
+            return y > 0 ? map.GetTileValue(x, y - 1) : -1;
         }
 
         // Opening takes any tile of the closed bridge's shape, traffic included, or the channel, and writes each tile

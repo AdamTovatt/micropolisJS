@@ -36,6 +36,7 @@ namespace Micropolis.Rules
         {
             Map = map;
             Random = random;
+            Router = new ShipRouter(map);
         }
 
         public long SpriteCycle { get; internal set; }
@@ -58,6 +59,11 @@ namespace Micropolis.Rules
         internal GameMap Map { get; }
 
         internal RandomStream Random { get; }
+
+        /// <summary>
+        /// The ships' route searches, on the map.
+        /// </summary>
+        internal ShipRouter Router { get; }
 
         /// <summary>
         /// The sprite of the type the list holds, if it is alive, or <see langword="null"/>: the original keeps one
@@ -236,62 +242,31 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// A ship from the first channel tile, without flags, along an edge of the map, each edge with a chance in four.
+        /// A ship bound for the port centred at (x, y), if it is one a ship sails to, from the edge tile nearest it by
+        /// path length; none when no edge reaches it. A rule change from the original, which sends a ship from the
+        /// first channel tile it finds along an edge, wherever the port is.
         /// </summary>
-        public void GenerateShip()
+        public void GenerateShip(int x, int y)
         {
-            if (Random.GetChance(3))
+            Position port = new Position(x, y);
+
+            if (!Seaports.IsValid(Map, port))
             {
-                for (int x = 4; x < Map.Width - 2; x++)
-                {
-                    if (Map.GetTile(x, 0).GetRawValue() == TileValues.CHANNEL)
-                    {
-                        MakeShipHere(x, 0);
-                        return;
-                    }
-                }
+                return;
             }
 
-            if (Random.GetChance(3))
+            if (Router.Nearest(Seaports.DockTiles(Map, port), (tileX, tileY) => Waterways.IsSailableEdge(Map, tileX, tileY)) is Position entry)
             {
-                for (int y = 1; y < Map.Height - 2; y++)
-                {
-                    if (Map.GetTile(0, y).GetRawValue() == TileValues.CHANNEL)
-                    {
-                        MakeShipHere(0, y);
-                        return;
-                    }
-                }
-            }
-
-            if (Random.GetChance(3))
-            {
-                for (int x = 4; x < Map.Width - 2; x++)
-                {
-                    if (Map.GetTile(x, Map.Height - 1).GetRawValue() == TileValues.CHANNEL)
-                    {
-                        MakeShipHere(x, Map.Height - 1);
-                        return;
-                    }
-                }
-            }
-
-            if (Random.GetChance(3))
-            {
-                for (int y = 1; y < Map.Height - 2; y++)
-                {
-                    if (Map.GetTile(Map.Width - 1, y).GetRawValue() == TileValues.CHANNEL)
-                    {
-                        MakeShipHere(Map.Width - 1, y);
-                        return;
-                    }
-                }
+                MakeShipHere(entry.X, entry.Y).Mission!.Port = port;
             }
         }
 
-        public void MakeShipHere(int x, int y)
+        /// <summary>
+        /// A ship standing on the tile at (x, y), sailing in to no port yet.
+        /// </summary>
+        public Sprite MakeShipHere(int x, int y)
         {
-            MakeSprite(SpriteType.Ship, SpriteUtils.WorldToPix(x) - 47, SpriteUtils.WorldToPix(y));
+            return MakeSprite(SpriteType.Ship, ShipSprite.PixelX(x), ShipSprite.PixelY(y));
         }
 
         public void GenerateCopter(int x, int y)
@@ -420,6 +395,7 @@ namespace Micropolis.Rules
             sprite.Step = 0;
             sprite.Flag = 0;
             sprite.ReachedLand = false;
+            sprite.Mission = null;
 
             switch (sprite.Type)
             {
@@ -470,7 +446,7 @@ namespace Micropolis.Rules
                     break;
 
                 case SpriteType.Ship:
-                    ShipSprite.Move(this, sprite, blockMaps);
+                    ShipSprite.Move(this, sprite);
                     break;
 
                 case SpriteType.Monster:
@@ -503,7 +479,7 @@ namespace Micropolis.Rules
             {
                 SpriteCycle = sprites.ReadSafeInteger("spriteCycle");
                 AbsDist = sprites.ReadSafeInteger("absDist");
-                _spriteList = sprites.ReadObjectList("list", Sprite.Load).ToList();
+                _spriteList = sprites.ReadObjectList("list", sprite => Sprite.Load(sprite, Map)).ToList();
             });
         }
     }

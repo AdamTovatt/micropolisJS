@@ -154,7 +154,7 @@ Simulation code is `server/Micropolis.Rules`, which holds the game rules and not
 
 ## The original as reference
 
-The original C/C++ source is the behavioural reference: <https://github.com/SimHacker/micropolis>, engine in `MicropolisCore/src/MicropolisEngine/src/`. The behaviour of the original's windows, such as the budget window's sliders, lives in the older C and Tcl version under `micropolis-activity/src/sim/` (`w_budget.c`, `w_sim.c`) and its Tcl scripts. The rules follow it closely, function by function — for example `ShipSprite` mirrors `doShipSprite` in `sprite.cpp`. When something behaves oddly, compare against the original before calling it a port bug: much odd behaviour is faithful to 1989, such as ships that wander the channel at random and wreck at dead ends.
+The original C/C++ source is the behavioural reference: <https://github.com/SimHacker/micropolis>, engine in `MicropolisCore/src/MicropolisEngine/src/`. The behaviour of the original's windows, such as the budget window's sliders, lives in the older C and Tcl version under `micropolis-activity/src/sim/` (`w_budget.c`, `w_sim.c`) and its Tcl scripts. The rules follow it closely, function by function — for example `TrainSprite` mirrors `doTrainSprite` in `sprite.cpp`, and a rule changed on purpose says so in a comment at the code. When something behaves oddly, compare against the original before calling it a port bug: much odd behaviour is faithful to 1989.
 
 Where the original's behaviour is undefined in C, the rules keep defined, portable behaviour and name the divergence in a comment at the code. Implementation-defined integer narrowing is matched.
 

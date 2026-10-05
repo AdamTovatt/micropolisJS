@@ -18,8 +18,9 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The drawbridge as doBridge in the original's simulate.cpp opens and closes it, with no ship near and roads funded
-    /// in full, on a stream whose first draw is the one chance in 8 that opens a bridge or in 4 that closes one.
+    /// The drawbridge as doBridge in the original's simulate.cpp opens and closes it, with no ship near but where a test
+    /// places one, and as a ship opens it, with roads funded in full, on a stream whose first draw is the one chance in 8
+    /// that opens a bridge or in 4 that closes one.
     /// </summary>
     [TestClass]
     public sealed class RoadTests
@@ -44,6 +45,14 @@ namespace Micropolis.Rules.Tests
         [
             (-2, -1, HBRDG1 | BULLBIT), (-1, -1, CHANNEL), (0, -1, CHANNEL), (1, -1, CHANNEL), (2, -1, HBRDG3 | BULLBIT),
             (-2, 0, HBRDG0 | BULLBIT), (-1, 0, RIVER), (0, 0, BRWH | BULLBIT), (1, 0, RIVER), (2, 0, HBRDG2 | BULLBIT),
+        ];
+
+        // A plain bridge across a river running north to south, with no channel
+        private static readonly (int Dx, int Dy, int Raw)[] OverTheRiver =
+        [
+            (-2, -1, RIVER), (-1, -1, RIVER), (0, -1, RIVER), (1, -1, RIVER), (2, -1, RIVER),
+            (-2, 0, HBRIDGE | BULLBIT), (-1, 0, HBRIDGE | BULLBIT), (0, 0, HBRIDGE | BULLBIT), (1, 0, HBRIDGE | BULLBIT),
+            (2, 0, HBRIDGE | BULLBIT),
         ];
 
         // A plain bridge across a channel running east to west, and the same bridge open
@@ -118,6 +127,80 @@ namespace Micropolis.Rules.Tests
             Scan(city);
 
             Assert.AreEqual(CHANNEL, city.Map.GetTile(X - 2, Y - 1).GetRawValue());
+        }
+
+        // Over the river rather than the channel, the draw that opens a bridge over the channel at random opens nothing
+        [TestMethod]
+        public void RoadFound_ClosedBridgeOverTheRiverWithNoShipNear_StaysClosed()
+        {
+            Simulation city = CityWith(OverTheRiver);
+
+            Scan(city);
+
+            CollectionAssert.AreEqual(OverTheRiver, RawTiles(city, OverTheRiver));
+        }
+
+        // Over the river, the scan of none of a bridge's tiles opens it, though a ship is near: the ship opens the bridge
+        // it sails through itself, centred on the tile it sails through
+        [TestMethod]
+        [DataRow(-2)]
+        [DataRow(-1)]
+        [DataRow(0)]
+        [DataRow(1)]
+        [DataRow(2)]
+        public void RoadFound_ClosedBridgeOverTheRiverWithAShipNear_StaysClosed(int dx)
+        {
+            Simulation city = CityWith(OverTheRiver);
+            city.SpriteManager.MakeShipHere(X, Y - 1);
+
+            Road.RoadFound(city.Map, X + dx, Y, city.ConstructSimData());
+
+            CollectionAssert.AreEqual(OverTheRiver, RawTiles(city, OverTheRiver));
+        }
+
+        // A ship opens a bridge only around the middle tile of a closed bridge's five in a line, with water at the two
+        // corners the open bridge's raised ends take, so the bridge writes only itself and that water
+        [TestMethod]
+        [DataRow(0, RIVER, true)]
+        [DataRow(0, REDGE, true)]
+        [DataRow(-1, RIVER, false)]
+        [DataRow(1, RIVER, false)]
+        [DataRow(0, DIRT, false)]
+        [DataRow(0, ROADS, false)]
+        public void OpensForShip_BridgeTileOverTheRiver_OnlyTheMiddleOfFiveWithWaterAtTheCorners(int dx, int corner, bool opens)
+        {
+            Simulation city = CityWith(OverTheRiver);
+            city.Map.GetTile(X + 2, Y - 1).SetRawValue(corner);
+
+            Assert.AreEqual(opens, Road.OpensForShip(city.Map, X + dx, Y));
+        }
+
+        // A bridge a ship opened over the river closes once every ship is more than four tiles' pixels from it, so a ship
+        // docked nearby leaves the road whole: a ship 3 tiles north is 63 pixels away, and one 4 tiles north 79
+        [TestMethod]
+        [DataRow(3, false)]
+        [DataRow(4, true)]
+        public void RoadFound_BridgeAShipOpenedOverTheRiver_ClosesOnceTheShipIsFourTilesAway(int tilesNorth, bool closes)
+        {
+            Simulation city = CityWith(OverTheRiver);
+            Road.OpenForShip(city.Map, X, Y);
+            city.SpriteManager.MakeShipHere(X, Y - tilesNorth);
+
+            Scan(city);
+
+            Assert.AreEqual(closes ? HBRIDGE : BRWH, city.Map.GetTileValue(X, Y));
+        }
+
+        // The channel's bridges wait for a ship to be 340 pixels away, as the original's do
+        [TestMethod]
+        public void RoadFound_OpenBridgeOverTheChannelWithAShipFourTilesAway_StaysOpen()
+        {
+            Simulation city = CityWith(OpenHorizontal);
+            city.SpriteManager.MakeShipHere(X, Y - 4);
+
+            Scan(city);
+
+            Assert.AreEqual(BRWH, city.Map.GetTileValue(X, Y));
         }
 
         private static Simulation CityWith((int Dx, int Dy, int Raw)[] tiles)
