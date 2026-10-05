@@ -12,10 +12,11 @@
  *
  */
 
+import type { Cars } from "../src/cars";
 import type { CityDriver, CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
 import { AdvanceResult, BudgetForecastAnswer, Command, EvaluationRecord, FireStationReach, SPEEDS, StatusRecord,
-         TilePosition } from "../src/protocol";
+         TilePosition, Trip } from "../src/protocol";
 import { attachDriverToTestHook, installTestHook, TestHook } from "../src/testHook";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
 import { restoreGlobals, stubGlobal } from "./helpers/globals";
@@ -53,8 +54,12 @@ function gameOn(source: CitySource, state: CityState) {
         gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS, tileWidth: 32,
                      mapCurrent: false},
         monsterTV: {current: false},
-        cars: {driven: () => [0, 0.5]},
+        carsAdded: [] as Parameters<Cars["add"]>[0][],
+        cars: {driven: () => [0, 0.5], add: (routes: Parameters<Cars["add"]>[0]) => {
+            game.carsAdded.push(routes);
+        }},
         carsInView: 1,
+        frameCounts: {animated: 30, painted: 12},
         dismissals: 0,
         notificationBar: {dismiss: () => {
             game.dismissals++;
@@ -87,8 +92,9 @@ const IDLE_GAME = {
     onCommandResult: () => {},
     gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true},
     monsterTV: {current: true},
-    cars: {driven: () => []},
+    cars: {driven: () => [], add: () => {}},
     carsInView: 0,
+    frameCounts: {animated: 0, painted: 0},
     notificationBar: {dismiss: () => {}},
     toolToast: {dismiss: () => {}},
     statusPanel: {show: () => {}},
@@ -443,6 +449,21 @@ describe("the test hook", () => {
         const {hook} = await holdingGame("nothing");
 
         expect([hook.carsDriven(), hook.carsInView()]).toEqual([[0, 0.5], 1]);
+    });
+
+    it("adds the cars the runner asks for to those driving", async () => {
+        const {hook, game} = await holdingGame("nothing");
+        const trip: Trip = [1, 1, "EES"];
+
+        hook.addCars([trip]);
+
+        expect(game.carsAdded).toEqual([[trip]]);
+    });
+
+    it("tells the turns of the animation loop and the frames the map's painter drew", async () => {
+        const {hook} = await holdingGame("nothing");
+
+        expect(hook.frameCounts()).toEqual({animated: 30, painted: 12});
     });
 
     it("tells whether the map and the monster TV are both current", async () => {

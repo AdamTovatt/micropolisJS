@@ -12,6 +12,7 @@
  *
  */
 
+import type { Cars } from "./cars";
 import type { CityDriver } from "./citySource";
 import type { BudgetForecastAnswer, EvaluationRecord, FireStationReach, StatusRecord, TilePosition } from "./protocol";
 import type { OriginLimits } from "./viewPosition";
@@ -29,8 +30,9 @@ interface HookedGame {
   gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits, readonly tileWidth: number,
                readonly mapCurrent: boolean};
   monsterTV: {readonly current: boolean};
-  cars: {driven(): number[]};
+  cars: Pick<Cars, "driven" | "add">;
   readonly carsInView: number;
+  readonly frameCounts: FrameCounts;
   notificationBar: {dismiss(): void};
   toolToast: {dismiss(): void};
   statusPanel: {show(status: StatusRecord): void};
@@ -43,6 +45,13 @@ export interface Advanced {
   // The year-end budget was paid with the player's values during these steps, and the game opens its review on its
   // next tick. The city stepped on regardless: no window holds it.
   budgetReviewDue: boolean;
+}
+
+// The frames the page has gone through since the game started: the turns of its animation loop, and the frames of
+// them the map's painter drew, which falls behind the turns when nothing changed or the GPU was still drawing
+export interface FrameCounts {
+  animated: number;
+  painted: number;
 }
 
 export interface View {
@@ -230,6 +239,16 @@ class TestHook {
   // How many cars the map's view was last painted with
   carsInView(): number {
     return this.attachedGame().carsInView;
+  }
+
+  // Adds cars to those driving, as the city's trips do, for the render benchmark to drive more of them than a city
+  // sends. It changes no city state: cars are the client's alone.
+  addCars(...trips: Parameters<Cars["add"]>): void {
+    this.attachedGame().cars.add(...trips);
+  }
+
+  frameCounts(): FrameCounts {
+    return {...this.attachedGame().frameCounts};
   }
 
   // Whether the map, and the monster TV while it shows, show what they last painted from, drawn to the end. A paint

@@ -52,6 +52,7 @@ import { SpeedControl } from "./speedControl";
 import { StatusPanel } from "./statusPanel";
 import { pageStore } from "./storage";
 import { attachToTestHook } from "./testHook";
+import type { FrameCounts } from "./testHook";
 import { Text } from "./text";
 import { placeToolToast, PlacedToast, toastedFailure } from "./toolToast";
 import { TouchWarnWindow } from "./touchWarnWindow";
@@ -104,6 +105,8 @@ export class Game {
   // The cars driving the trips the city sends, and how many the map's view was last painted with
   readonly cars: Cars;
   private mapCars = 0;
+  // The turns of the animation loop since the game started
+  private animated = 0;
 
   // Debug mode's frame counter
   private readonly fpsValue = requiredElement("fpsValue");
@@ -122,6 +125,7 @@ export class Game {
   };
 
   private readonly commonAnimate = () => {
+    this.animated++;
     const paused = this.speedControl.isPaused();
     // The client's clock, which tile animation reads too
     this.cars.advance(Date.now(), paused);
@@ -280,6 +284,11 @@ export class Game {
   // How many cars the map's view was last painted with
   get carsInView(): number {
     return this.mapCars;
+  }
+
+  // The turns of the animation loop since the game started, and the frames of them the map's view drew
+  get frameCounts(): FrameCounts {
+    return {animated: this.animated, painted: this.gameCanvas.framesPainted};
   }
 
   // The map tile under the pointer that this player's hover box is drawn at, or null while none is

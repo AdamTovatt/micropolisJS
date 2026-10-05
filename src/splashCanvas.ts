@@ -78,7 +78,7 @@ class SplashCanvas {
     }
 
     buildWholeMapFrame(this.frame, this.art, this.map, PREVIEW_TILE_SIZE * this.pixelRatio);
-    this.renderer.draw(this.frame, null);
+    this.renderer.drawWhole(this.frame);
   }
 }
 

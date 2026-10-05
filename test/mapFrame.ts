@@ -299,23 +299,24 @@ describe("a frame of the map", () => {
             expect(buildIn(tilesWith(5, ZONE), right).shadows.count).toBe(0);
         });
 
-        it("draws a sprite whose square reaches into an area, and leaves out one that doesn't", () => {
-            // The view's origin is map pixel (176, 336); the train covers the view's second tile
-            const train = {type: 1, frame: 2, x: 192, y: 336, width: 16};
+        it("draws none of the map for no areas", () => {
+            const frame = buildIn(tilesWith(6, ZONE), []);
 
-            expect([buildIn(tilesWith(0, 0), right, [train]).sprites.count,
-                    buildIn(tilesWith(0, 0), left, [train]).sprites.count]).toEqual([1, 0]);
+            expect([frame.ground.count, frame.shadows.count, frame.objects.count]).toEqual([0, 0, 0]);
         });
 
-        it("draws a car whose square reaches into an area, and leaves out one that doesn't", () => {
-            // In the view's second tile, and in its first
+        it("draws every car and sprite, wherever the areas are: they are drawn over the whole map", () => {
+            // The view's origin is map pixel (176, 336); the train covers the view's second tile, and the cars are in
+            // its second tile and in its first
+            const train = {type: 1, frame: 2, x: 192, y: 336, width: 16};
             const inRight = {x: 196, y: 340, width: 7, direction: "south", colour: 2} as const;
             const inLeft = {x: 180, y: 340, width: 7, direction: "west", colour: 3} as const;
 
-            const drawn = quads(buildIn(tilesWith(0, 0), right, [], 16, [inRight, inLeft]).sprites);
+            const drawn = quads(buildIn(tilesWith(0, 0), [], [train], 16, [inRight, inLeft]).sprites);
 
-            expect(drawn.map(({atlas, quads: found}) => ({atlas, colours: found.map((quad) => quad.colour)})))
-                .toEqual([{atlas: WHITE, colours: [carFloats(2)]}]);
+            expect(drawn.map(({atlas, quads: found}) => ({atlas, quads: found.length})))
+                .toEqual([{atlas: WHITE, quads: 2}, {atlas: FALLBACK_SPRITES, quads: 1}]);
+            expect(drawn[0].quads.map((quad) => quad.colour)).toEqual([carFloats(2), carFloats(3)]);
         });
     });
 

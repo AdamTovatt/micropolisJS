@@ -14,8 +14,9 @@
 
 import { AnimationManager } from "./animationManager";
 import type { PaintableCar } from "./cars";
-import { FrameRecord, damagedPixels } from "./mapDamage";
-import { MapFrame, buildMapFrame, buildWholeMapFrame } from "./mapFrame";
+import { CompositeRecord, FrameRecord, damagedPixels } from "./mapDamage";
+import type { DrawnSquare } from "./mapDamage";
+import { MapFrame, buildMapFrame, buildWholeMapFrame, squareOnView } from "./mapFrame";
 import type { FrameTiles } from "./mapFrame";
 import type { Tint } from "./overlayRenderer";
 import type { PaintableMap, PaintableSprite } from "./paintable";
@@ -42,7 +43,7 @@ export function paintedView(position: ViewPosition, tilePixels: number): Painted
 }
 
 // What a painter draws its frames with: the WebGL renderer, as webglRenderer.ts describes each
-export type FrameRenderer = Pick<WebGLRenderer, "busy" | "draw" | "drawOffscreen" | "release">;
+export type FrameRenderer = Pick<WebGLRenderer, "busy" | "needsWholeLayer" | "draw" | "drawOffscreen" | "release">;
 
 // Where a painter draws: the size of the drawing buffer, in device pixels
 interface Target {
@@ -50,13 +51,28 @@ interface Target {
   readonly height: number;
 }
 
-// Draws views of the map from the map's art: the map's own view and the monster TV's. Each paint draws only the part
-// of the view whose picture would differ from the frame drawn last, and nothing while the GPU is still drawing that
-// frame.
+// A car or a sprite, drawn over the map's layer
+type OverLayer = {kind: "car", square: PaintableCar} | {kind: "sprite", square: PaintableSprite};
+
+// A car's or a sprite's square on the view, as the frame draws it (squareOnView), rounded out to whole device pixels,
+// with what it draws as text, its kind first, so a car and a sprite never share it
+function drawnSquare(drawing: OverLayer, tiles: FrameTiles, tilePixels: number): DrawnSquare<OverLayer> {
+  const {x, y, side} = squareOnView(drawing.square, tiles, tilePixels);
+  return {drawing, key: `${drawing.kind}${JSON.stringify(drawing.square)}`, left: Math.floor(x), top: Math.floor(y),
+          right: Math.ceil(x + side) - 1, bottom: Math.ceil(y + side) - 1};
+}
+
+// Draws views of the map from the map's art: the map's own view and the monster TV's. The renderer keeps the map in a
+// layer of its own, which each paint draws again only where its picture would differ from the layer drawn last; a
+// paint then composites the target where its picture would differ from the last composited (CompositeRecord): the
+// layer copied over it, and the cars and the sprites there over that. It draws nothing while the GPU is still drawing
+// the frame before.
 export class MapPainter {
   private readonly frame = new MapFrame();
-  // What the target was last drawn from
+  // What the map's layer was last drawn from
   private readonly drawn = new FrameRecord();
+  // What the target was last composited with
+  private readonly composited = new CompositeRecord<OverLayer>();
   // The painter's own: the manager remembers what this view painted last
   private readonly animationManager: AnimationManager;
   // Whether the last paint left the target as it was, the GPU still drawing the frame before
@@ -66,8 +82,7 @@ export class MapPainter {
   private readonly values: number[] = [];
   private readonly frames: number[] = [];
 
-  // Draws on the target with the renderer, which keeps the target's drawing buffer, so a paint draws over what the
-  // last one drew
+  // Draws on the target with the renderer, which keeps the map's layer from paint to paint
   constructor(private readonly target: Target, private readonly map: PaintableMap, private readonly art: RenderArt,
               private readonly renderer: FrameRenderer) {
     this.animationManager = new AnimationManager(map);
@@ -89,7 +104,7 @@ export class MapPainter {
   }
 
   // Draws the view, its tiles animated unless the city is paused, each tinted as tint gives it, and the cars and then
-  // the sprites over them, as far as it differs from the frame drawn last. Returns whether it drew a frame.
+  // the sprites over them, unless it would draw the frame drawn last. Returns whether it drew a frame.
   paint(view: PaintedView, tint: (x: number, y: number) => Tint | null, cars: readonly PaintableCar[],
         sprites: readonly PaintableSprite[], isPaused?: boolean): boolean {
     this.behind = this.renderer.busy;
@@ -102,18 +117,27 @@ export class MapPainter {
     const tiles = this.readTiles(view, origin, isPaused);
     const drawnView = {originX: origin.x, originY: origin.y, tilePixels, width: this.target.width,
                        height: this.target.height};
-    const damage = this.drawn.damage(drawnView, tiles, cars, sprites);
-    if (damage === null) {
+    if (this.renderer.needsWholeLayer) {
+      this.drawn.invalidate();
+    }
+    const damage = this.drawn.damage(drawnView, tiles);
+    const areas = damage === null ? [] : damage === "all" ? null : damagedPixels(damage, tilePixels, tiles.offset);
+    const squares = [...cars.map((square) => drawnSquare({kind: "car", square}, tiles, tilePixels)),
+                     ...sprites.map((square) => drawnSquare({kind: "sprite", square}, tiles, tilePixels))];
+    const composite = this.composited.composite(this.target.width, this.target.height, areas, squares);
+    if (composite === null) {
       return false;
     }
 
-    const areas = damage === "all" ? null : damagedPixels(damage, tilePixels, tiles.offset);
-    buildMapFrame(this.frame, this.art, tiles, tilePixels, tint, cars, sprites, areas);
-    this.renderer.draw(this.frame, areas);
+    // The cars and the sprites the composite draws, each in its order
+    const drawnCars = composite.drawn.flatMap((drawing) => drawing.kind === "car" ? [drawing.square] : []);
+    const drawnSprites = composite.drawn.flatMap((drawing) => drawing.kind === "sprite" ? [drawing.square] : []);
+    buildMapFrame(this.frame, this.art, tiles, tilePixels, tint, drawnCars, drawnSprites, areas);
+    this.renderer.draw(this.frame, areas, composite.areas);
     return true;
   }
 
-  // Forgets the frame drawn last, so the next paint draws all of the view: for a change the painter doesn't see, such
+  // Forgets the layer drawn last, so the next paint draws all of the view: for a change the painter doesn't see, such
   // as the overlay shown, or a target sized again, which clears it
   invalidate(): void {
     this.drawn.invalidate();

@@ -16,9 +16,12 @@ import { MapFrame, QUAD_FLOATS, QuadList, QuadRun } from "./mapFrame";
 import type { Rect } from "./rect";
 import { WHITE } from "./renderManifest";
 
-// Draws a map frame with WebGL2, in three passes: every tile's ground; every shadow, merged by the darkest value into a
-// shadow buffer with blendEquation(MAX), which then darkens the ground once; every tile's objects. Then the overlay's
-// tints and the sprites. Colours are premultiplied throughout.
+// Draws a map frame with WebGL2. The map is drawn into a layer of its own, a framebuffer the size of the canvas's
+// drawing buffer, in three passes: every tile's ground; every shadow, merged by the darkest value into a shadow buffer
+// with blendEquation(MAX), which then darkens the ground once; every tile's objects; then the overlay's tints. The layer
+// is kept from frame to frame, so a frame draws it again only where the map changed. Each frame then composites the
+// canvas: the layer copied over the areas the painter names, or over all of it, then the cars and the sprites over
+// that, in one pass. Colours are premultiplied throughout.
 
 // An atlas the renderer draws from: its image, and whether it is a 16 px sheet, scaled up crisp, or rendered art,
 // mipmapped and filtered trilinearly
@@ -111,6 +114,14 @@ interface Program {
   atlasSize: WebGLUniformLocation | null;
 }
 
+// A texture drawn into through a framebuffer, width by height device pixels
+interface Drawable {
+  framebuffer: WebGLFramebuffer;
+  texture: WebGLTexture;
+  width: number;
+  height: number;
+}
+
 // What the context holds, built again when a lost context is restored
 interface Resources {
   textured: Program;
@@ -121,7 +132,9 @@ interface Resources {
   instances: WebGLBuffer;
   textures: Map<string, Texture>;
   // The shadow buffer, kept at the size of the target it was last drawn for
-  shadowBuffer: {framebuffer: WebGLFramebuffer, texture: WebGLTexture, width: number, height: number} | null;
+  shadowBuffer: Drawable | null;
+  // The map's layer, at the size of the canvas's drawing buffer, or null before it is first drawn
+  layer: Drawable | null;
 }
 
 // RGBA pixels, width by height, read by WebGL from the bottom row up, from the top row down
@@ -168,7 +181,8 @@ export class WebGLRenderer {
   // called once a context the browser lost is restored, which leaves the canvas to be drawn again.
   constructor(canvas: HTMLCanvasElement, private readonly atlases: ReadonlyMap<string, AtlasImage>,
               onRestored: () => void) {
-    // The drawing buffer is kept from frame to frame, so a frame draws only the part of the map that changed
+    // The drawing buffer is kept from frame to frame, since a frame copies the map's layer over only part of it, and
+    // the Screenshot window reads it
     const gl = canvas.getContext("webgl2", {alpha: false, antialias: false, depth: false, stencil: false,
                                             premultipliedAlpha: true, preserveDrawingBuffer: true});
     if (gl === null) {
@@ -206,9 +220,11 @@ export class WebGLRenderer {
       gl.deleteBuffer(resources.corners);
       gl.deleteBuffer(resources.instances);
       resources.textures.forEach(({texture}) => gl.deleteTexture(texture));
-      if (resources.shadowBuffer !== null) {
-        gl.deleteFramebuffer(resources.shadowBuffer.framebuffer);
-        gl.deleteTexture(resources.shadowBuffer.texture);
+      for (const drawable of [resources.shadowBuffer, resources.layer]) {
+        if (drawable !== null) {
+          gl.deleteFramebuffer(drawable.framebuffer);
+          gl.deleteTexture(drawable.texture);
+        }
       }
     }
 
@@ -221,21 +237,59 @@ export class WebGLRenderer {
     gl.getExtension("WEBGL_lose_context")?.loseContext();
   }
 
-  // Draws the frame on the canvas within each area, in device pixels from its top-left, leaving the rest as it was
-  // drawn last, or over the whole of its drawing buffer for none
-  draw(frame: MapFrame, areas: readonly Rect[] | null): void {
-    const resources = this.resources;
+  // Whether the next frame must draw the map's layer whole: there is none yet at the size of the canvas's drawing
+  // buffer, since the canvas was sized again or a lost context was restored, which made everything it held again.
+  // While the context is lost nothing is drawn, so nothing is needed.
+  get needsWholeLayer(): boolean {
+    const layer = this.drawableResources()?.layer;
+    return layer === null || (layer !== undefined && (layer.width !== this.gl.drawingBufferWidth ||
+                                                      layer.height !== this.gl.drawingBufferHeight));
+  }
+
+  // Draws the frame's map into the map's layer within each of the layer's areas, in device pixels from its top-left,
+  // leaving the rest of the layer as it was drawn last, or over the whole of it for none; then composites the canvas:
+  // the layer copied over each of the composite's areas, or over all of the canvas for none, and the frame's cars and
+  // sprites over that, which must reach no further than those areas. A layer made again, as needsWholeLayer tells, must
+  // be drawn whole.
+  draw(frame: MapFrame, layerAreas: readonly Rect[] | null, compositeAreas: readonly Rect[] | null): void {
+    const resources = this.drawableResources();
     if (resources === null) {
       return;
     }
 
-    this.drawFrame(resources, frame, {framebuffer: null, width: this.gl.drawingBufferWidth,
-                                      height: this.gl.drawingBufferHeight}, areas);
-    // The last frame's fence, signalled or not, is let go as this one's replaces it
-    if (this.drawing !== null) {
-      this.gl.deleteSync(this.drawing);
+    const gl = this.gl;
+    const width = gl.drawingBufferWidth;
+    const height = gl.drawingBufferHeight;
+    // The map's layer at the drawing buffer's size, made again when that changes
+    const layer = this.drawableFor(resources.layer, width, height, gl.RGBA8);
+    resources.layer = layer;
+    const firsts = this.upload(resources, frame, layer);
+    this.drawMap(resources, frame, layer, layerAreas, firsts);
+
+    // The layer is copied pixel for pixel: the canvas and the layer share their size and their orientation, and a
+    // framebuffer's rows count from the bottom
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, layer.framebuffer);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+    for (const {x, y, width: areaWidth, height: areaHeight} of compositeAreas ?? [{x: 0, y: 0, width, height}]) {
+      const bottom = height - y - areaHeight;
+      gl.blitFramebuffer(x, bottom, x + areaWidth, bottom + areaHeight, x, bottom, x + areaWidth, bottom + areaHeight,
+                         gl.COLOR_BUFFER_BIT, gl.NEAREST);
     }
-    this.drawing = this.gl.fenceSync(this.gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    this.drawSprites(resources, frame, {framebuffer: null, width, height}, firsts);
+    this.fence();
+  }
+
+  // Draws the whole frame straight on the whole canvas, keeping no layer: for a picture drawn once, such as the splash
+  // screen's preview
+  drawWhole(frame: MapFrame): void {
+    const resources = this.drawableResources();
+    if (resources === null) {
+      return;
+    }
+
+    this.drawAll(resources, frame, {framebuffer: null, width: this.gl.drawingBufferWidth,
+                                    height: this.gl.drawingBufferHeight});
+    this.fence();
   }
 
   // Whether the GPU is still drawing the last frame drawn on the canvas. A frame drawn while it is queues behind it:
@@ -249,7 +303,7 @@ export class WebGLRenderer {
   // Draws the frame offscreen, width by height device pixels, and returns its pixels, RGBA, from the top row down, or
   // null while the context is lost
   drawOffscreen(frame: MapFrame, width: number, height: number): Uint8ClampedArray | null {
-    const resources = this.resources;
+    const resources = this.drawableResources();
     if (resources === null) {
       return null;
     }
@@ -265,7 +319,7 @@ export class WebGLRenderer {
     let framebuffer: WebGLFramebuffer | null = null;
     try {
       framebuffer = this.createFramebuffer(texture);
-      this.drawFrame(resources, frame, {framebuffer, width, height}, null);
+      this.drawAll(resources, frame, {framebuffer, width, height});
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
       gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     } finally {
@@ -277,14 +331,21 @@ export class WebGLRenderer {
     return flipRows(pixels, width, height);
   }
 
-  // Draws the frame on the target within each area, or over the whole of it for none. The quads are uploaded once,
-  // then every pass is drawn within one area after another: areas that share pixels draw them whole each time, the
-  // later over the earlier, as each starts by clearing its own.
-  private drawFrame(resources: Resources, frame: MapFrame, target: Target, areas: readonly Rect[] | null): void {
-    const gl = this.gl;
+  // Draws all of the frame on the target: the map, then the cars and the sprites over it
+  private drawAll(resources: Resources, frame: MapFrame, target: Target): void {
     const firsts = this.upload(resources, frame, target);
+    this.drawMap(resources, frame, target, null, firsts);
+    this.drawSprites(resources, frame, target, firsts);
+  }
+
+  // Draws the frame's map on the target within each area, or over the whole of it for none, from the quads upload put
+  // in the instance buffer. Every pass of the map is drawn within one area after another: areas that share pixels draw
+  // them whole each time, the later over the earlier, as each starts by clearing its own.
+  private drawMap(resources: Resources, frame: MapFrame, target: Target, areas: readonly Rect[] | null,
+                  firsts: ReadonlyMap<QuadRun, number>): void {
+    const gl = this.gl;
     if (areas === null) {
-      this.drawPasses(resources, frame, target, firsts);
+      this.drawMapPasses(resources, frame, target, firsts);
       return;
     }
 
@@ -293,11 +354,43 @@ export class WebGLRenderer {
       for (const area of areas) {
         // The scissor's rows count from the bottom
         gl.scissor(area.x, target.height - area.y - area.height, area.width, area.height);
-        this.drawPasses(resources, frame, target, firsts);
+        this.drawMapPasses(resources, frame, target, firsts);
       }
     } finally {
       gl.disable(gl.SCISSOR_TEST);
     }
+  }
+
+  // What the context holds, or null while it is lost. The context is lost before the browser tells the page so, and in
+  // between it draws nothing, and its drawing buffer reads as no pixels.
+  private drawableResources(): Resources | null {
+    return this.gl.isContextLost() ? null : this.resources;
+  }
+
+  // Fences the frame just drawn on the canvas, for busy
+  private fence(): void {
+    const gl = this.gl;
+    // The last frame's fence, signalled or not, is let go as this one's replaces it
+    if (this.drawing !== null) {
+      gl.deleteSync(this.drawing);
+    }
+    this.drawing = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+  }
+
+  // The drawable kept, if it is the size given, or one made in its place, of the texture format given, and so with
+  // nothing drawn on it, letting go of the one kept
+  private drawableFor(kept: Drawable | null, width: number, height: number, format: GLenum): Drawable {
+    if (kept !== null && kept.width === width && kept.height === height) {
+      return kept;
+    }
+
+    if (kept !== null) {
+      this.gl.deleteFramebuffer(kept.framebuffer);
+      this.gl.deleteTexture(kept.texture);
+    }
+
+    const texture = this.createTexture(width, height, format);
+    return {framebuffer: this.createFramebuffer(texture), texture, width, height};
   }
 
   // Uploads every run of the frame's quads, and the composite's over the target if the frame has shadows, into the
@@ -331,7 +424,8 @@ export class WebGLRenderer {
     return firsts;
   }
 
-  private drawPasses(resources: Resources, frame: MapFrame, target: Target, firsts: ReadonlyMap<QuadRun, number>): void {
+  private drawMapPasses(resources: Resources, frame: MapFrame, target: Target,
+                        firsts: ReadonlyMap<QuadRun, number>): void {
     const gl = this.gl;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
@@ -348,7 +442,9 @@ export class WebGLRenderer {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
     if (frame.shadows.count > 0) {
-      const shadowBuffer = this.shadowBufferFor(resources, target);
+      // The shadow buffer at the target's size
+      const shadowBuffer = this.drawableFor(resources.shadowBuffer, target.width, target.height, gl.R8);
+      resources.shadowBuffer = shadowBuffer;
       gl.bindFramebuffer(gl.FRAMEBUFFER, shadowBuffer.framebuffer);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -367,6 +463,18 @@ export class WebGLRenderer {
 
     this.drawList(resources, resources.textured, frame.objects, target, firsts);
     this.drawList(resources, resources.textured, frame.tints, target, firsts);
+  }
+
+  // Draws the frame's cars and sprites over what the target shows
+  private drawSprites(resources: Resources, frame: MapFrame, target: Target,
+                      firsts: ReadonlyMap<QuadRun, number>): void {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
+    gl.viewport(0, 0, target.width, target.height);
+    gl.bindVertexArray(resources.vertexArray);
+    gl.enable(gl.BLEND);
+    gl.blendEquation(gl.FUNC_ADD);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     this.drawList(resources, resources.textured, frame.sprites, target, firsts);
   }
 
@@ -409,24 +517,6 @@ export class WebGLRenderer {
     }
   }
 
-  // The shadow buffer at the target's size, made again when the size changes
-  private shadowBufferFor(resources: Resources, target: Target): NonNullable<Resources["shadowBuffer"]> {
-    const kept = resources.shadowBuffer;
-    if (kept !== null && kept.width === target.width && kept.height === target.height) {
-      return kept;
-    }
-
-    if (kept !== null) {
-      this.gl.deleteFramebuffer(kept.framebuffer);
-      this.gl.deleteTexture(kept.texture);
-    }
-
-    const texture = this.createTexture(target.width, target.height, this.gl.R8);
-    const made = {framebuffer: this.createFramebuffer(texture), texture, width: target.width, height: target.height};
-    resources.shadowBuffer = made;
-    return made;
-  }
-
   private createResources(): Resources {
     const gl = this.gl;
 
@@ -461,6 +551,7 @@ export class WebGLRenderer {
       instances,
       textures,
       shadowBuffer: null,
+      layer: null,
     };
   }
 

@@ -34,29 +34,8 @@ export type PaintableSprite = Readonly<SpriteView>;
 // Sprites are positioned in map pixels, at 16 a tile whatever the tiles are drawn at
 export const SPRITE_PIXELS_PER_TILE = 16;
 
-// An area of a view in tiles from its origin: x and y inclusive, xBound and yBound exclusive
-export interface TileBounds {
-  x: number;
-  xBound: number;
-  y: number;
-  yBound: number;
-}
-
 // The square a sprite or a car is drawn in, width map pixels a side from map pixel (x, y)
 export type PaintableSquare = Pick<PaintableSprite, "x" | "y" | "width">;
-
-// The tiles a sprite's or a car's square covers, in the view whose top-left tile is (originX, originY)
-export function squareTiles(square: PaintableSquare, originX: number, originY: number): TileBounds {
-  const left = square.x - originX * SPRITE_PIXELS_PER_TILE;
-  const top = square.y - originY * SPRITE_PIXELS_PER_TILE;
-
-  return {
-    x: Math.floor(left / SPRITE_PIXELS_PER_TILE),
-    xBound: Math.ceil((left + square.width) / SPRITE_PIXELS_PER_TILE),
-    y: Math.floor(top / SPRITE_PIXELS_PER_TILE),
-    yBound: Math.ceil((top + square.width) / SPRITE_PIXELS_PER_TILE),
-  };
-}
 
 // The map tile under the middle of the square a sprite is drawn in, which a view centres on: what the player sees of
 // the sprite. For most sprites it is the tile the sprite is at; a tornado's funnel rises from its position, and the
