@@ -115,7 +115,7 @@ namespace Micropolis.Headless.Tests
         public void Run_LogWhoseReplayDiffers_PrintsTheCheckpointAndFails()
         {
             (int code, string output, string error) = RunLog(
-                "{\"formatVersion\":1,\"seed\":8,\"level\":0,\"entries\":[],\"checkpoints\":[{\"step\":0,\"hash\":\"" + new string('0', 64) + "\"}]}");
+                "{\"formatVersion\":2,\"seed\":8,\"level\":0,\"entries\":[],\"checkpoints\":[{\"step\":0,\"hash\":\"" + new string('0', 64) + "\"}]}");
 
             Assert.AreEqual(HeadlessProgram.Failed, code);
             Assert.AreEqual("", output);
@@ -126,7 +126,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_LogWithoutCheckpoints_PrintsItsLinesThenFails()
         {
-            (int code, string output, string error) = RunLog("{\"formatVersion\":1,\"seed\":8,\"level\":0,\"entries\":[],\"checkpoints\":[]}");
+            (int code, string output, string error) = RunLog("{\"formatVersion\":2,\"seed\":8,\"level\":0,\"entries\":[],\"checkpoints\":[]}");
 
             Assert.AreEqual(HeadlessProgram.Failed, code);
             StringAssert.StartsWith(output, "0 commands");

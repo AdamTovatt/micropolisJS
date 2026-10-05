@@ -98,6 +98,8 @@ namespace Micropolis.Headless.Tests
 
             Assert.IsInstanceOfType<SaveStart>(built.Start);
             Assert.AreEqual(((SaveStart)committed.Start).Save.ToJsonString(), ((SaveStart)built.Start).Save.ToJsonString());
+            // In the version it was written in, which a change to saved state leaves for the replay to upgrade
+            Assert.AreEqual(((SaveStart)committed.Start).SaveVersion, ((SaveStart)built.Start).SaveVersion);
         }
 
         [TestMethod]

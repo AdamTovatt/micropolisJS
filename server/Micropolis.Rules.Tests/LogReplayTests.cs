@@ -25,7 +25,7 @@ namespace Micropolis.Rules.Tests
 
         // A log from a seed, built by commands at step 0 and checked there and after its run
         private const string ValidLog =
-            "{\"formatVersion\":1,\"seed\":0,\"level\":0," +
+            "{\"formatVersion\":2,\"seed\":0,\"level\":0," +
             "\"entries\":[{\"step\":0,\"player\":\"local\",\"command\":{\"type\":\"addFunds\"}}," +
             "{\"step\":0,\"player\":\"local\",\"command\":{\"type\":\"setAutoBudget\",\"on\":false}}]," +
             "\"checkpoints\":[{\"step\":0,\"hash\":\"" + Hash + "\"},{\"step\":2,\"hash\":\"" + Hash + "\"}]}";
@@ -102,6 +102,47 @@ namespace Micropolis.Rules.Tests
             StringAssert.StartsWith(difference, $"At step {log.Log.Checkpoints[1].Step} the replay's state hash is ");
         }
 
+        // A version 1 log says no save format version, and its save is read as version 10, the version current when
+        // logs began to say it, which is history and never moves with the current version. Once a later version is
+        // current, the replay upgrades that save, as it does a version 2 log's that says 10
+        [TestMethod]
+        public void Verify_SameCityLoggedAtVersion1_ReachesTheSameCheckpoints()
+        {
+            ConformanceLog? fromSave = Logs.FirstOrDefault(log => log.Log.Start is SaveStart { SaveVersion: 10 });
+            Assert.IsNotNull(fromSave, "This test needs a log from a save of version 10.");
+            JsonObject versionOne = fromSave.Log.ToJson();
+            versionOne["formatVersion"] = 1;
+            versionOne.Remove("saveVersion");
+
+            CommandLog read = CommandLog.Read(versionOne);
+
+            Assert.AreEqual(10, ((SaveStart)read.Start).SaveVersion);
+            // Verify fails on the first checkpoint whose hash differs, and these are the version 2 log's
+            LogReplay.Verify(read);
+        }
+
+        // A log keeps a save as it was written, so a save from before an upgrade step was added replays through that
+        // step: the city it starts is the one the save of the version before the current one loads as
+        [TestMethod]
+        public void Verify_SaveOfThePreviousVersion_ReplaysUpgradedToTheCityItLoadsAs()
+        {
+            // One cycle of the simulation's 16 phases at medium speed, which the samples are saved at, so every phase's
+            // work runs on the city as loaded
+            const int Steps = 48;
+            int previous = SavedGame.CurrentVersion - 1;
+            string sample = ConformanceFile.Read($"saveVersions/version{previous}.json");
+            JsonObject state = SavedGame.StripGameKeys(JsonText.Parse(sample)!.AsObject());
+            IReadOnlyList<Checkpoint> loaded = LogReplay.Run(SaveStart.Of(SavedGame.Load(sample, out _)), [], [0, Steps], Steps).Hashed;
+
+            // Verify fails on the first checkpoint whose hash differs from the city the sample loads as
+            LogReplay.Verify(new CommandLog(null, new SaveStart(state, previous), [], loaded));
+
+            // And the upgrade is what made it so: read as the current version, the save loads no city, or another one
+            Exception unupgraded = Assert.Throws<Exception>(
+                () => LogReplay.Verify(new CommandLog(null, new SaveStart(state, SavedGame.CurrentVersion), [], loaded)));
+            Assert.IsTrue(unupgraded is SaveFormatException or ReplayDiffersException, unupgraded.ToString());
+        }
+
         [TestMethod]
         public void FirstDifference_PausedAtStep1_SaysTheLogStepsAPausedCity()
         {
@@ -118,6 +159,8 @@ namespace Micropolis.Rules.Tests
         [DataRow("a log with an unknown member", "\"seed\":0,", "\"seed\":0,\"speed\":2,", "unknown member speed")]
         [DataRow("a log from a seed at no level", "\"level\":0,", "", "a level with a seed, and only then")]
         [DataRow("a log from a save at a level", "\"seed\":0,", "\"save\":{},", "a level with a seed, and only then")]
+        [DataRow("a log from a seed with a save version", "\"seed\":0,", "\"seed\":0,\"saveVersion\":10,", "a saveVersion with a save, and only then")]
+        [DataRow("a log from a save without its version", "\"seed\":0,\"level\":0,", "\"save\":{},", "a saveVersion with a save, and only then")]
         [DataRow("an entry without its player", "\"player\":\"local\",\"command\":{\"type\":\"addFunds\"}", "\"command\":{\"type\":\"addFunds\"}", "an entry lacks player")]
         [DataRow("an entry with an unknown member", "\"player\":\"local\",", "\"player\":\"local\",\"at\":1,", "an entry has an unknown member at")]
         [DataRow("a checkpoint with an unknown member", "{\"step\":2,", "{\"step\":2,\"at\":1,", "a checkpoint has an unknown member at")]

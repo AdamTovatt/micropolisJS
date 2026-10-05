@@ -1,5 +1,5 @@
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "description": "Three rows of zones, the first with no road, whose residents grow to need a hospital and then shrink",
   "seed": 8,
   "level": 0,

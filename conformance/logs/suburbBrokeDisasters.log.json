@@ -1,5 +1,5 @@
 {
-  "formatVersion": 1,
+  "formatVersion": 2,
   "description": "The suburbBroke fixture's log with every disaster a player may trigger, one after another, partway through its run",
   "seed": 8,
   "level": 0,

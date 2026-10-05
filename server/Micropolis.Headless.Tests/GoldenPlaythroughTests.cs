@@ -55,7 +55,7 @@ namespace Micropolis.Headless.Tests
                     return $"Stage \"{stage.Stage}\" replays to state hash {hash}, but its checkpoint is {stage.Hash}";
                 }
 
-                start = new SaveStart(city.Save());
+                start = SaveStart.Of(city);
                 step = stage.Step;
                 commands = stage.Commands;
             }

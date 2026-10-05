@@ -192,6 +192,34 @@ namespace Micropolis.Rules.Tests
             StringAssert.StartsWith(exception.Message, message);
         }
 
+        // A bare state, as a command log holds one, is upgraded by the steps a saved game is, and left as it was
+        [TestMethod]
+        [DynamicData(nameof(Samples))]
+        public void UpgradeState_SampleWithoutTheGameKeys_IsTheStateItsSavedGameMigratesTo(string fileName)
+        {
+            string text = ConformanceFile.Read($"saveVersions/{fileName}");
+            JsonObject migrated = SavedGame.StripGameKeys(SavedGame.Migrate(text));
+            JsonObject sample = JsonText.Parse(text)!.AsObject();
+            int version = (int)sample["version"]!.GetValue<double>();
+            JsonObject state = SavedGame.StripGameKeys(sample);
+            string before = CanonicalJson.Write(state);
+
+            JsonObject upgraded = SavedGame.UpgradeState(state, version);
+
+            Assert.AreEqual(CanonicalJson.Write(migrated), CanonicalJson.Write(upgraded));
+            Assert.AreEqual(before, CanonicalJson.Write(state), "The state upgraded is a copy.");
+        }
+
+        [TestMethod]
+        [DataRow(4, "The save's version is 4, older than version 5")]
+        [DataRow(1000, "The save's version is 1000, newer than version")]
+        public void UpgradeState_VersionNotMigrated_IsRefusedNamingIt(int version, string message)
+        {
+            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.UpgradeState(new JsonObject(), version));
+
+            StringAssert.StartsWith(exception.Message, message);
+        }
+
         // A sample's text with the saved game edited as parsed, so the edit doesn't depend on how the sample is laid out
         private static string Edited(string sample, Action<JsonObject> edit)
         {

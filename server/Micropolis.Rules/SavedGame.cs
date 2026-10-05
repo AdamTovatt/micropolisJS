@@ -93,12 +93,21 @@ namespace Micropolis.Rules
                 ? text!
                 : throw new SaveFormatException("name", "must be a string");
 
+            return Simulation.FromSave(CanonicalJson.Write(StripGameKeys(savedGame)));
+        }
+
+        /// <summary>
+        /// Takes the game's own keys, the city's name and the version, out of a saved game, which leaves the bare
+        /// saved state, as <see cref="Simulation.Save"/> writes one and a command log holds one, and returns it.
+        /// </summary>
+        public static JsonObject StripGameKeys(JsonObject savedGame)
+        {
             foreach (string key in GameKeys)
             {
                 savedGame.Remove(key);
             }
 
-            return Simulation.FromSave(CanonicalJson.Write(savedGame));
+            return savedGame;
         }
 
         /// <summary>
@@ -139,13 +148,32 @@ namespace Micropolis.Rules
             RefuseInfiniteNumbers(savedGame, "state");
             int version = Version(savedGame);
 
+            Upgrade(savedGame, version);
+            savedGame["version"] = CurrentVersion;
+            return savedGame;
+        }
+
+        /// <summary>
+        /// A copy of a bare saved state, as <see cref="Simulation.Save"/> writes one, without the game's own keys, such
+        /// as a command log holds, brought up from save format <paramref name="version"/> to the current one by the
+        /// steps that upgrade a saved game. A version before <see cref="OldestVersion"/> or after the current one fails
+        /// with a <see cref="SaveFormatException"/> naming it.
+        /// </summary>
+        public static JsonObject UpgradeState(JsonObject state, int version)
+        {
+            JsonObject upgraded = state.DeepClone().AsObject();
+
+            Upgrade(upgraded, CheckedVersion(version));
+            return upgraded;
+        }
+
+        // Every step from the version's on
+        private static void Upgrade(JsonObject savedGame, int version)
+        {
             foreach (Action<JsonObject> upgrade in Upgrades.Skip(version - OldestVersion))
             {
                 upgrade(savedGame);
             }
-
-            savedGame["version"] = CurrentVersion;
-            return savedGame;
         }
 
         private static int Version(JsonObject savedGame)
@@ -155,6 +183,12 @@ namespace Micropolis.Rules
                 throw new SaveFormatException("version", $"must be a whole number, not {Described(savedGame, "version")}");
             }
 
+            return CheckedVersion(version);
+        }
+
+        // A whole version, refused before OldestVersion and after the current one
+        private static int CheckedVersion(double version)
+        {
             string shown = CanonicalJson.FormatNumber(version);
 
             if (version < OldestVersion)

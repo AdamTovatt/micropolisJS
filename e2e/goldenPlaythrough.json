@@ -11,7 +11,7 @@
     {"stage":"Zoom in, build, and zoom out","step":9792,"commands":34,"hash":"31ce93d18bf44d8de0f68f533de6903a72fb0b70b05c05b6d8b2c2357980385b"}
   ],
   "log": {
-    "formatVersion": 1,
+    "formatVersion": 2,
     "seed": 23,
     "level": 1,
     "entries": [

@@ -119,7 +119,7 @@ namespace Micropolis.Headless
                 throw new ArgumentException("The city is saved paused: give a speed to run it");
             }
 
-            return LogReplay.StartCity(new SaveStart(save));
+            return LogReplay.StartCity(new SaveStart(save, SavedGame.CurrentVersion));
         }
 
         /// <summary>

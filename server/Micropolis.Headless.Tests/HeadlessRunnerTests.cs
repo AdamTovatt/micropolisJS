@@ -145,7 +145,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_LogWithoutCheckpoints_FailsHavingVerifiedNothing()
         {
-            const string log = "{\"formatVersion\":1,\"seed\":8,\"level\":0,\"entries\":[" +
+            const string log = "{\"formatVersion\":2,\"seed\":8,\"level\":0,\"entries\":[" +
                                "{\"step\":2,\"player\":\"local\",\"command\":{\"type\":\"addFunds\"}}," +
                                "{\"step\":2,\"player\":\"ada\",\"command\":{\"type\":\"nothing\"}}],\"checkpoints\":[]}";
 
@@ -171,7 +171,7 @@ namespace Micropolis.Headless.Tests
         [TestMethod]
         public void Run_LogThatStepsAPausedCity_Fails()
         {
-            const string log = "{\"formatVersion\":1,\"seed\":8,\"level\":0,\"entries\":[" +
+            const string log = "{\"formatVersion\":2,\"seed\":8,\"level\":0,\"entries\":[" +
                                "{\"step\":0,\"player\":\"local\",\"command\":{\"type\":\"setSpeed\",\"speed\":0}}]," +
                                "\"checkpoints\":[{\"step\":5,\"hash\":\"" + "0000000000000000000000000000000000000000000000000000000000000000" + "\"}]}";
 
