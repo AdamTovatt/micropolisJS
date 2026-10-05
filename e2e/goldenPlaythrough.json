@@ -4,11 +4,11 @@
     {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"3e8f90920d9e0885264b1a5aefb1e2989013906de1555dd7971ea80c341f945f"},
     {"stage":"Build while paused","step":5760,"commands":17,"hash":"07b4adb6e4cd35f98c34894a987e6aeeaee71e1ee17eb59284c6512134d3506c"},
     {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"8053e2ece5ced97b82fcbb73fca60cb7e33490c0ff80e7d8eadbe3b8c9639520"},
-    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"6422316db4dcfe25f07a7c8639c60fae93697ef99d1b3a4baee46e127958b5af"},
-    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"2684b723180f60219d477c8fae6fec196ad0e120ab617bf44db62722dde93af8"},
-    {"stage":"A fire, and the fire department's response","step":8640,"commands":33,"hash":"96952829ce802780a995a7737e18f07a16d6fff9664e445468e523be997c39a2"},
-    {"stage":"Save, reload, and carry on","step":9792,"commands":33,"hash":"f03f2e6c811cc9d33c79cb0ac6ea7500bc13b7bdd8c8748089535e8228f8b86c"},
-    {"stage":"Zoom in, build, and zoom out","step":9792,"commands":34,"hash":"31ce93d18bf44d8de0f68f533de6903a72fb0b70b05c05b6d8b2c2357980385b"}
+    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"cfd0e99ad03bbdf7c9e1653c14192b63c22c97b6bbbb82a52fb1796a86fde277"},
+    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"c8e2c0fc8a113dfd41e2e243e2489efcf4a60b2e3373cc77eb624d12b064fb93"},
+    {"stage":"A fire, and the fire department's response","step":8640,"commands":33,"hash":"7f5503f22b89563403a321fd4fea08816378fddbe8546ab0cd3532d45237c1f5"},
+    {"stage":"Save, reload, and carry on","step":9792,"commands":33,"hash":"dea9609934f76390048b9fd018f59cd96964f08df39cd927cdc50a90de58a35b"},
+    {"stage":"Zoom in, build, and zoom out","step":9792,"commands":34,"hash":"337f889e22154f9078ddfba1ae0c98771f7ba86496dba4a4d10b47c6ec1393ce"}
   ],
   "log": {
     "formatVersion": 2,
@@ -53,9 +53,9 @@
     "checkpoints": [
       {"step":0,"hash":"12b5f5491e724a7115743594be3fda72bcfb8544cad879eaf29c99b3be302478"},
       {"step":3600,"hash":"ab81eda48ad0c942e2a31adcbab2d280f786203fc0170ce6a2cfe7d3f9499c44"},
-      {"step":7200,"hash":"785bd3f09d6b7ea96bcf0104dbbd45b9b087981138e82f2bbe5358a1664ae321"},
-      {"step":8640,"hash":"96952829ce802780a995a7737e18f07a16d6fff9664e445468e523be997c39a2"},
-      {"step":9792,"hash":"31ce93d18bf44d8de0f68f533de6903a72fb0b70b05c05b6d8b2c2357980385b"}
+      {"step":7200,"hash":"a189d04e12656753e6c1cacf6ab3da096e243f2ef5100ea5ae90bb2250294ee8"},
+      {"step":8640,"hash":"7f5503f22b89563403a321fd4fea08816378fddbe8546ab0cd3532d45237c1f5"},
+      {"step":9792,"hash":"337f889e22154f9078ddfba1ae0c98771f7ba86496dba4a4d10b47c6ec1393ce"}
     ]
   }
 }

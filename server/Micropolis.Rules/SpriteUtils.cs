@@ -88,6 +88,23 @@ namespace Micropolis.Rules
             return map.GetTileValue((int)worldX, (int)worldY);
         }
 
+        /// <summary>
+        /// The value of the tile under the sprite's hot spot, or -1 off the map.
+        /// </summary>
+        public static int GetHotSpotTileValue(GameMap map, Sprite sprite)
+        {
+            return GetTileValue(map, sprite.X + sprite.XHot, sprite.Y + sprite.YHot);
+        }
+
+        /// <summary>
+        /// Whether the tile value is water: the river, its edges and the channel. A bridge, or a wire or rail over
+        /// water, is not, nor is the -1 of a pixel off the map.
+        /// </summary>
+        public static bool IsWater(int tileValue)
+        {
+            return tileValue >= TileValues.WATER_LOW && tileValue <= TileValues.WATER_HIGH;
+        }
+
         // Whether the tile is a wire or rail over water, or an open drawbridge
         private static bool CheckWet(int tileValue)
         {

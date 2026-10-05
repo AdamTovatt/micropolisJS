@@ -70,6 +70,17 @@ namespace Micropolis.Rules
                 sprites["list"] = new JsonArray();
                 sprites["absDist"] = 0;
             },
+
+            // From version 10: the river spares a monster until it has reached land, and one saved before is taken as
+            // ashore, so it keeps the original's rule. An entry that is no sprite is left for the load to refuse.
+            savedGame =>
+            {
+                foreach (JsonObject sprite in List(Group(savedGame, "sprites"), "list").OfType<JsonObject>())
+                {
+                    sprite["reachedLand"] = Validation.TryGetWholeNumber(sprite["type"], out double type) &&
+                                            type == (int)SpriteType.Monster;
+                }
+            },
         ];
 
         /// <summary>

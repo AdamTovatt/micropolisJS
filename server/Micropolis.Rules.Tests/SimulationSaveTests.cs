@@ -195,6 +195,8 @@ namespace Micropolis.Rules.Tests
                 ["sprites.list[0].newDir"] = ("311", city => city.SpriteManager.SpriteList[0].NewDir),
                 ["sprites.list[0].step"] = ("312", city => city.SpriteManager.SpriteList[0].Step),
                 ["sprites.list[0].flag"] = ("313", city => city.SpriteManager.SpriteList[0].Flag),
+                // A helicopter, which only false suits
+                ["sprites.list[0].reachedLand"] = (null, city => city.SpriteManager.SpriteList[0].ReachedLand),
                 ["disasters.floodCount"] = ("7", city => city.DisasterManager.FloodCount),
                 ["disasters.disastersEnabled"] = ("true", city => city.DisasterManager.DisastersEnabled),
                 ["scannedState.blockMaps.cityCentreDistScoreMap[0]"] = ("51", city => city.BlockMaps.CityCentreDistScoreMap.Get(0, 0)),
@@ -448,6 +450,27 @@ namespace Micropolis.Rules.Tests
             ObjectAt(save, "sprites.list[0]")["_seenLand"] = true;
 
             AssertRejected(save, "sprites.list[0]._seenLand");
+        }
+
+        // Only a monster reaches land, and a monster may have or not
+        [TestMethod]
+        [DataRow("1", "true", "The save's sprites.list[0].reachedLand must be false, got true.")]
+        [DataRow("5", "true", null)]
+        [DataRow("5", "false", null)]
+        public void FromSave_SpriteThatReachedLand_IsReadOnlyForAMonster(string type, string reachedLand, string? message)
+        {
+            JsonNode save = SetAt("sprites.list[0].type", type);
+            ObjectAt(save, "sprites.list[0]")["reachedLand"] = JsonNode.Parse(reachedLand);
+
+            if (message is null)
+            {
+                Assert.AreEqual(reachedLand == "true", Simulation.FromSave(save.ToJsonString()).SpriteManager.SpriteList[0].ReachedLand);
+            }
+            else
+            {
+                AssertRejected(save, "sprites.list[0].reachedLand");
+                Assert.AreEqual(message, Assert.Throws<SaveFormatException>(() => Simulation.FromSave(save.ToJsonString())).Message);
+            }
         }
 
         private static JsonObject Resave(string text)

@@ -103,6 +103,18 @@ namespace Micropolis.Rules
             return value.GetValueKind() == JsonValueKind.True;
         }
 
+        public bool ReadBool(string key, IReadOnlyCollection<bool> allowed)
+        {
+            bool value = ReadBool(key);
+
+            if (!allowed.Contains(value))
+            {
+                throw new SaveFormatException(PathOf(key), $"must be {string.Join(" or ", allowed.Select(Written))}, got {Written(value)}");
+            }
+
+            return value;
+        }
+
         /// <summary>
         /// An integer the specification gives no range: any a JavaScript number holds exactly, within ±2^53.
         /// </summary>
@@ -354,6 +366,11 @@ namespace Micropolis.Rules
         private static string Format(double number)
         {
             return number.ToString("R", CultureInfo.InvariantCulture);
+        }
+
+        private static string Written(bool value)
+        {
+            return value ? "true" : "false";
         }
     }
 }

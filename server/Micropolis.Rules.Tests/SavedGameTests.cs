@@ -71,9 +71,9 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         [DataRow("an older version", "4", "The save's version is 4, older than version 5")]
         [DataRow("the first version", "1", "The save's version is 1, older than version 5")]
-        [DataRow("a newer version", "11", "The save's version is 11, newer than version 10")]
+        [DataRow("a newer version", "12", "The save's version is 12, newer than version 11")]
         [DataRow("a negative version", "-3", "The save's version is -3, older than version 5")]
-        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 10")]
+        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 11")]
         [DataRow("a version that is not whole", "5.5", "The save's version must be a whole number, not 5.5")]
         [DataRow("a version that is text", "\"5\"", "The save's version must be a whole number, not a string.")]
         [DataRow("a version that is a list", "[5]", "The save's version must be a whole number, not a list.")]
@@ -178,6 +178,36 @@ namespace Micropolis.Rules.Tests
             SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _));
 
             Assert.AreEqual(message, exception.Message);
+        }
+
+        // A monster from before the river spared a monster until it reached land is taken as ashore, so it keeps the
+        // original's rule; no other sprite reaches land
+        [TestMethod]
+        public void Load_MonsterFromBeforeTheRiverSparedIt_HasReachedLand()
+        {
+            string text = Edited("version10.json", savedGame =>
+            {
+                JsonArray list = savedGame["sprites"]!["list"]!.AsArray();
+                JsonObject monster = list[0]!.DeepClone().AsObject();
+                monster["type"] = (int)SpriteType.Monster;
+                list.Insert(0, monster);
+            });
+
+            Simulation city = SavedGame.Load(text, out _);
+
+            CollectionAssert.AreEqual(new[] { (SpriteType.Monster, true), (SpriteType.Helicopter, false), (SpriteType.Airplane, false) },
+                city.SpriteManager.SpriteList.Select(sprite => (sprite.Type, sprite.ReachedLand)).ToList());
+        }
+
+        // The step from version 10 leaves an entry that is no sprite for the load to refuse, naming it
+        [TestMethod]
+        public void Load_Version10SpriteListHoldingANumber_IsRefusedNamingTheEntry()
+        {
+            string text = Edited("version10.json", savedGame => savedGame["sprites"]!["list"]![0] = 7);
+
+            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _));
+
+            Assert.AreEqual("sprites.list[0]", exception.Path, exception.Message);
         }
 
         [TestMethod]
