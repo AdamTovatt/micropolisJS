@@ -54,10 +54,19 @@ namespace Micropolis.Benchmarks
                 $"{settings.Steps} steps are timed; the median of {settings.Repeats} " +
                 $"{(settings.Repeats == 1 ? "repeat" : "repeats")}, each from a fresh load.",
                 $"- Bytes/step: {MessageBytes.Source}, over the same steps as the timing.",
+            ];
+
+            foreach (string description in rows.Select(row => row.Case.Description).OfType<string>().Distinct())
+            {
+                lines.Add($"- {description}");
+            }
+
+            lines.AddRange(
+            [
                 "",
                 "| Fixture | Speed | Steps/s | ms/step | Bytes/step |",
                 "|---------|-------|--------:|--------:|-----------:|",
-            ];
+            ]);
 
             foreach (BenchmarkRow row in rows)
             {

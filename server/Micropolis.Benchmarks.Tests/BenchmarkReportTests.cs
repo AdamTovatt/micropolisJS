@@ -40,6 +40,24 @@ namespace Micropolis.Benchmarks.Tests
         }
 
         [TestMethod]
+        public void Write_RowsOfACaseWithADescription_SayItOnceAfterTheMethod()
+        {
+            BenchmarkCase zoned = new ZonedMapCase(Speed.Fast);
+            BenchmarkRow[] rows =
+            [
+                new BenchmarkRow(Suburb, new StepTiming(1000, 1), 10),
+                new BenchmarkRow(zoned, new StepTiming(400, 2.5), 1000),
+                new BenchmarkRow(zoned, new StepTiming(400, 2.5), 1000),
+            ];
+
+            string report = BenchmarkReport.Write(Environment, new BenchmarkSettings(48, 96, 5), rows);
+
+            string description = zoned.Description!;
+            StringAssert.Contains(report, $"over the same steps as the timing.\n- {description}\n\n| Fixture |");
+            StringAssert.Contains(description, $"warms up {ZonedMapCase.MostWarmup} steps at most and times {ZonedMapCase.MostSteps} at most");
+        }
+
+        [TestMethod]
         public void Write_DisasterFixtureRows_NameThemAsRunWithDisasters()
         {
             BenchmarkRow[] rows =

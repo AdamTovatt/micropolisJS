@@ -908,7 +908,7 @@
     {"step":6854,"name":"Date changed","payload":{"type":"date","month":0,"year":1903}},
     {"step":6881,"name":"Total funds has changed","payload":266},
     {"step":6881,"name":"Classification updated","payload":"TOWN"},
-    {"step":6881,"name":"Scoe updated","payload":805},
+    {"step":6881,"name":"Scoe updated","payload":802},
     {"step":6884,"name":"Overlay layer updated","payload":{"type":"overlayUpdated","layer":"trafficDensity"}},
     {"step":6884,"name":"Overlay layer updated","payload":{"type":"overlayUpdated","layer":"rateOfGrowth"}},
     {"step":6884,"name":"Population updated","payload":4020},

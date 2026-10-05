@@ -22,7 +22,7 @@ namespace Micropolis.Benchmarks
     /// The cities the benchmark runs, the one list both measurements take: each fixture (<see cref="Fixtures.All"/>), in
     /// name order, from its city after its golden run at the speed it is saved at, with random disasters on for a
     /// fixture made for them (<see cref="Fixture.ForDisasters"/>) and off for every other, as its golden run has them;
-    /// then a new city at each running speed.
+    /// then a new city at each running speed; then the fully zoned map at fast speed, a map built up from edge to edge.
     /// </summary>
     internal static class BenchmarkCases
     {
@@ -37,7 +37,7 @@ namespace Micropolis.Benchmarks
         }
 
         /// <summary>
-        /// The cases of the fixtures given, in name order, then the new cities.
+        /// The cases of the fixtures given, in name order, then the new cities, then the fully zoned map.
         /// </summary>
         internal static IReadOnlyList<BenchmarkCase> Of(IReadOnlyList<Fixture> fixtures)
         {
@@ -52,6 +52,8 @@ namespace Micropolis.Benchmarks
             {
                 cases.Add(new NewCityCase(NewCitySeed, Level.Easy, speed));
             }
+
+            cases.Add(new ZonedMapCase(Speed.Fast));
 
             return cases;
         }

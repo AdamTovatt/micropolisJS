@@ -25,7 +25,7 @@ namespace Micropolis.Rules
         RouteFound = 1,
 
         /// <summary>
-        /// A route found that costs more than <see cref="TripRouter.SlowFactor"/> times a clear road's straight run
+        /// A route found that costs more than <see cref="TripRouter.SlowCostPerTile"/> for each tile of the straight run
         /// between its ends: found, but the zone's growth score loses <see cref="Traffic.SlowTripPenalty"/>.
         /// </summary>
         SlowRoute = 2,
@@ -97,7 +97,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// What a slow route takes from its zone's growth score, which the original, with no slow trips, never took.
         /// </summary>
-        public const int SlowTripPenalty = 600;
+        public const int SlowTripPenalty = 300;
 
         private readonly GameMap _map;
         private readonly SpriteManager _spriteManager;

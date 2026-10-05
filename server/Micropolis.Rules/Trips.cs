@@ -16,9 +16,10 @@ namespace Micropolis.Rules
 {
     /// <summary>
     /// The trips the traffic rule routes, offered for the client to draw as cars: a picture of what the rules do,
-    /// which the rules never read, never save and draw nothing from the stream for. A trip is the route the router
-    /// found, every tile of it in order from the perimeter tile it starts on, and every trip a car drives on all of is
-    /// offered as it is routed (<see cref="TileUtils.CarriesCars(int)"/>), since a route may run on rail.
+    /// which the rules never read, never save and draw nothing from the stream for. A trip is a run of the route the
+    /// router found, every tile of it in order: a route may run on rail, so each run of it that a car drives on every
+    /// tile of (<see cref="TileUtils.CarriesCars(int)"/>), at least <see cref="ShortestRun"/> tiles long, is offered as
+    /// a trip of its own, as the route is routed, so the cars of one route drive its road parts together.
     /// </summary>
     /// <remarks>
     /// <see cref="Offered"/> is a plain C# event, not one of <see cref="RulesEvents"/>: what the simulation's emitters
@@ -26,6 +27,11 @@ namespace Micropolis.Rules
     /// </remarks>
     public sealed class Trips
     {
+        /// <summary>
+        /// The fewest tiles a run is offered with: a car on a single tile would go nowhere.
+        /// </summary>
+        public const int ShortestRun = 2;
+
         private readonly GameMap _map;
 
         public Trips(GameMap map)
@@ -39,26 +45,44 @@ namespace Micropolis.Rules
         public event Action<Trip>? Offered;
 
         /// <summary>
-        /// Offers the route of a trip routed if a car drives on every tile of it.
+        /// Offers each run of a trip's route that a car drives on every tile of, and that is at least
+        /// <see cref="ShortestRun"/> tiles long, in the order the route takes them.
         /// </summary>
         internal void Routed(IReadOnlyList<Position> route)
         {
-            if (Offered is not null && CarriesCars(route))
+            if (Offered is null)
             {
-                Offered(TripOf(route));
+                return;
+            }
+
+            int start = 0;
+            for (int i = 0; i <= route.Count; i++)
+            {
+                if (i < route.Count && TileUtils.CarriesCars(_map.GetTileValue(route[i].X, route[i].Y)))
+                {
+                    continue;
+                }
+
+                if (i - start >= ShortestRun)
+                {
+                    Offered(TripOf(route, start, i));
+                }
+
+                start = i + 1;
             }
         }
 
-        // The trip that stands on each tile of the route in turn, every tile of it beside the one before
-        private static Trip TripOf(IReadOnlyList<Position> route)
+        // The trip that stands on each tile of the route from start up to end in turn, every tile of it beside the one
+        // before
+        private static Trip TripOf(IReadOnlyList<Position> route, int start, int end)
         {
-            char[] steps = new char[route.Count - 1];
-            for (int i = 1; i < route.Count; i++)
+            char[] steps = new char[end - start - 1];
+            for (int i = start + 1; i < end; i++)
             {
-                steps[i - 1] = StepLetter(route[i - 1], route[i]);
+                steps[i - start - 1] = StepLetter(route[i - 1], route[i]);
             }
 
-            return new Trip(route[0].X, route[0].Y, new string(steps));
+            return new Trip(route[start].X, route[start].Y, new string(steps));
         }
 
         private static char StepLetter(Position from, Position to)
@@ -72,19 +96,6 @@ namespace Micropolis.Rules
             }
 
             throw new InvalidOperationException($"A route steps from {from} to {to}, which is not beside it.");
-        }
-
-        private bool CarriesCars(IReadOnlyList<Position> route)
-        {
-            for (int i = 0; i < route.Count; i++)
-            {
-                if (!TileUtils.CarriesCars(_map.GetTileValue(route[i].X, route[i].Y)))
-                {
-                    return false;
-                }
-            }
-
-            return true;
         }
     }
 }

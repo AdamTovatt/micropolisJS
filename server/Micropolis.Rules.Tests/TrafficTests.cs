@@ -30,8 +30,8 @@ namespace Micropolis.Rules.Tests
         private const int RoadX = ZoneX - 1;
         private const int StartY = ZoneY - 2;
 
-        // The traffic that makes a step onto a road cost exactly SlowFactor clear road tiles
-        private const int LimitTraffic = (TripRouter.SlowFactor - 1) * TripRouter.RoadCost * TripRouter.DensityPerCost;
+        // The traffic that makes a step onto a road cost exactly SlowCostPerTile
+        private const int LimitTraffic = (TripRouter.SlowCostPerTile - TripRouter.RoadCost) * TripRouter.DensityPerCost;
 
         [TestMethod]
         public void MakeTraffic_TrafficCappedAndADrawOfZero_PointsTheHelicopterAtTheRoad()
@@ -69,11 +69,12 @@ namespace Micropolis.Rules.Tests
                                       new[] { StartY, StartY - 1, StartY - 3 }.Select(y => blockMaps.TrafficDensityMap.WorldGet(RoadX, y)).ToArray());
         }
 
-        // A route of two road tiles, whose straight run is one tile: it is slow once it costs more than SlowFactor clear
-        // road tiles, which the traffic on its second tile's block decides
+        // A route of two road tiles, whose straight run is one tile: it is slow once its one step costs more than
+        // SlowCostPerTile, which the traffic on its second tile's block decides
         [TestMethod]
         [DataRow(0, TrafficResult.RouteFound)]
         [DataRow(LimitTraffic, TrafficResult.RouteFound)]
+        [DataRow(LimitTraffic + TripRouter.DensityPerCost - 1, TrafficResult.RouteFound)]
         [DataRow(LimitTraffic + TripRouter.DensityPerCost, TrafficResult.SlowRoute)]
         public void MakeTraffic_RouteCostingAroundTheSlowLimit_IsSlowOnlyPastIt(int traffic, TrafficResult expected)
         {

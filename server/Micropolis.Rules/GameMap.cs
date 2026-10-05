@@ -201,6 +201,15 @@ namespace Micropolis.Rules
             return GetTileValue(position.X, position.Y);
         }
 
+        /// <summary>
+        /// The value and flags of the tile at <c>x + y * Width</c>, as <see cref="Tile.GetRawValue"/> gives them, for a
+        /// search that reads many tiles by their index.
+        /// </summary>
+        internal int RawValueAt(int index)
+        {
+            return _data[index].GetRawValue();
+        }
+
         public int GetTileFlags(int x, int y)
         {
             return GetTileAt(x, y, nameof(GetTileFlags)).GetFlags();

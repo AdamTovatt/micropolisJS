@@ -81,6 +81,21 @@ namespace Micropolis.Benchmarks.Tests
             }
         }
 
+        // Over the case's own fewer steps the bytes differ from the run's, so a row of the run's would show it; and the
+        // timing is of the same steps, or the row would fail its check of one city
+        [TestMethod]
+        public void Measure_CaseRunningFewerSteps_MeasuresThoseSteps()
+        {
+            BenchmarkCase halved = new HalvedCase();
+            BenchmarkSettings settings = new BenchmarkSettings(Warmup: 16, Steps: 64, Repeats: 1);
+            double ownBytes = MessageBytes.Measure(halved, halved.SettingsFor(settings)).BytesPerStep;
+            Assert.AreNotEqual(MessageBytes.Measure(halved, settings).BytesPerStep, ownBytes);
+
+            BenchmarkRow row = BenchmarkRunner.Measure(halved, settings);
+
+            Assert.AreEqual(ownBytes, row.BytesPerStep);
+        }
+
         [TestMethod]
         public void CheckOneCity_BothEndingAlike_Passes()
         {
@@ -95,6 +110,20 @@ namespace Micropolis.Benchmarks.Tests
                                                    new CaseBytes(1, "another hash")));
 
             StringAssert.Contains(exception.Message, "suburb at medium ends at the state hash a hash where it was timed");
+        }
+
+        // A new city that times half the steps the run's settings name
+        private sealed record HalvedCase() : BenchmarkCase("halved", Speed.Fast)
+        {
+            public override Simulation Start()
+            {
+                return Simulation.NewCity(0, Level.Easy, Speed);
+            }
+
+            public override BenchmarkSettings SettingsFor(BenchmarkSettings settings)
+            {
+                return settings with { Steps = settings.Steps / 2 };
+            }
         }
 
         // The table's rows below its header, each as its cells

@@ -29,7 +29,9 @@ namespace Micropolis.Rules
     /// shorter route to it could have: it may miss a destination such a route would reach, and a route it finds is the
     /// cheapest only among those the cut leaves. So it is deterministic, but not exact over every route within the cut.
     /// All its arithmetic is on whole numbers, and it draws from the stream once a trip, to pick. It holds no state
-    /// between searches: its buffers are scratch, which each search starts afresh.
+    /// between searches: what entering a tile costs and which zone's footprint holds it, a search reads from the map
+    /// and the traffic density as they are the first time it asks, and its buffers are scratch, which each search
+    /// starts afresh.
     /// </remarks>
     internal sealed class TripRouter
     {
@@ -39,9 +41,11 @@ namespace Micropolis.Rules
         public const int MaxRouteTiles = 60;
 
         /// <summary>
-        /// How many times a clear road's straight run between a route's ends the route may cost before it is slow.
+        /// What a route may cost for each tile of the straight run between its ends before it is slow: between a clear
+        /// road's <see cref="RoadCost"/> and a road at the heaviest traffic, so a route along jammed roads is slow, as is
+        /// one that goes far round.
         /// </summary>
-        public const int SlowFactor = 3;
+        public const int SlowCostPerTile = 6;
 
         /// <summary>
         /// What entering a rail tile costs, which traffic never adds to.
@@ -57,7 +61,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// The traffic density that adds one to the cost of entering a road tile.
         /// </summary>
-        public const int DensityPerCost = 16;
+        public const int DensityPerCost = 64;
 
         // The step across and down to the neighbour in each direction, north, east, south and west
         private static readonly int[] DeltaX = [0, 1, 0, -1];
@@ -66,25 +70,31 @@ namespace Micropolis.Rules
         // The step of a route's first tile, which no step reached
         private const int NoStep = -1;
 
+        // The owner of a tile no zone's footprint holds
+        private const int NoZone = -1;
+
         // The most a tile costs to enter, and so how many costs past the one settling the search may queue a tile
         private const int MostEnterCost = RoadCost + Traffic.MaxTrafficDensity / DensityPerCost;
+
+        // How many costs the ring of queues holds: one past the most a tile costs to enter, so a tile queued while a cost
+        // settles never joins that cost's queue, nor one holding another cost
+        private const int Ring = MostEnterCost + 1;
+
+        // A zone's centre is its footprint's second tile across and down, so the centre of a zone holding a tile lies
+        // one down and right of it at most, and up and left at most the largest zone's side less two
+        private const int Reach = ZoneUtils.LargestZoneSize - 2;
 
         private readonly GameMap _map;
         private readonly int _width;
         private readonly int _height;
 
-        // By index x + y * width, valid where its mark is the search's: the cost of the cheapest route found to the
-        // tile, its length in tiles, the direction of its last step, and whether the search has settled it
-        private readonly int[] _cost;
-        private readonly int[] _length;
-        private readonly int[] _step;
-        private readonly int[] _mark;
-        private readonly int[] _settled;
+        // The step in index to the neighbour in each direction, and by the index of a tile, a bit for each direction
+        // whose neighbour is on the map
+        private readonly int[] _offset;
+        private readonly byte[] _neighbours;
 
-        // By the index of a tile, valid where its mark is the search's: the centre of the destination zone whose
-        // footprint holds it, or -1 for none
-        private readonly int[] _owner;
-        private readonly int[] _ownerMark;
+        // By the index of a tile, what the search knows of it, one record a tile so that a tile's parts lie together
+        private readonly Place[] _places;
 
         // By the index of a zone's centre, valid where its mark is the search's: whether it is a destination
         private readonly bool[] _isDestination;
@@ -95,8 +105,10 @@ namespace Micropolis.Rules
         private readonly int[] _goal;
         private readonly int[] _foundMark;
 
-        // The tiles queued at each cost, a ring of one more cost than a step can add, and the centres found
-        private readonly List<int>[] _buckets;
+        // The tiles queued at each cost, a ring of one more cost than a step can add, with how many each holds, and the
+        // centres found
+        private readonly int[][] _buckets;
+        private readonly int[] _bucketCount;
         private readonly List<int> _found = new List<int>();
         private int _search;
 
@@ -106,30 +118,39 @@ namespace Micropolis.Rules
             _width = map.Width;
             _height = map.Height;
             int tiles = map.Width * map.Height;
-            _cost = new int[tiles];
-            _length = new int[tiles];
-            _step = new int[tiles];
-            _mark = new int[tiles];
-            _settled = new int[tiles];
-            _owner = new int[tiles];
-            _ownerMark = new int[tiles];
+            _offset = [-_width, 1, _width, -1];
+            _neighbours = new byte[tiles];
+
+            for (int index = 0; index < tiles; index++)
+            {
+                for (int step = 0; step < 4; step++)
+                {
+                    if (OnMap(index % _width + DeltaX[step], index / _width + DeltaY[step]))
+                    {
+                        _neighbours[index] |= (byte)(1 << step);
+                    }
+                }
+            }
+
+            _places = new Place[tiles];
             _isDestination = new bool[tiles];
             _destinationMark = new int[tiles];
             _goal = new int[tiles];
             _foundMark = new int[tiles];
-            _buckets = new List<int>[MostEnterCost + 1];
+            _buckets = new int[Ring][];
+            _bucketCount = new int[Ring];
 
             for (int i = 0; i < _buckets.Length; i++)
             {
-                _buckets[i] = new List<int>();
+                _buckets[i] = new int[16];
             }
         }
 
         /// <summary>
         /// Routes a trip from the zone centred at <paramref name="origin"/> to a zone of the destination's kind, filling
         /// <paramref name="route"/> with every tile of the route in order: <see cref="TrafficResult.RouteFound"/>, or
-        /// <see cref="TrafficResult.SlowRoute"/> where the route costs more than <see cref="SlowFactor"/> times a clear
-        /// road's straight run between its ends. With no road or rail on the zone's perimeter it is
+        /// <see cref="TrafficResult.SlowRoute"/> where the route costs more than <see cref="SlowCostPerTile"/> for each
+        /// tile of the straight run between its ends. With no road or rail on the zone's perimeter it is
         /// <see cref="TrafficResult.NoRoadFound"/>, and with no destination reached
         /// <see cref="TrafficResult.NoRouteFound"/>, the route left empty. Every destination it reaches is weighted one
         /// more than <see cref="MaxRouteTiles"/> less its route's length, and one draw from <paramref name="random"/>
@@ -144,13 +165,15 @@ namespace Micropolis.Rules
 
             foreach (Position tile in Traffic.Perimeter(_map, origin))
             {
-                if (TileUtils.IsDriveable(_map.GetTileValue(tile)))
+                int index = Index(tile.X, tile.Y);
+
+                if (Enter(index, trafficDensity) != 0)
                 {
-                    Label(Index(tile.X, tile.Y), 0, 1, NoStep);
+                    Label(index, 0, 1, NoStep);
                 }
             }
 
-            if (_buckets[0].Count == 0)
+            if (_bucketCount[0] == 0)
             {
                 return TrafficResult.NoRoadFound;
             }
@@ -191,85 +214,87 @@ namespace Micropolis.Rules
             FillRoute(goal, route);
 
             int straightRun = Math.Abs(route[^1].X - route[0].X) + Math.Abs(route[^1].Y - route[0].Y);
-            return _cost[goal] > SlowFactor * RoadCost * straightRun ? TrafficResult.SlowRoute : TrafficResult.RouteFound;
+            return _places[goal].Cost > SlowCostPerTile * straightRun ? TrafficResult.SlowRoute : TrafficResult.RouteFound;
         }
 
         private int Weight(int centre)
         {
-            return MaxRouteTiles + 1 - _length[_goal[centre]];
+            return MaxRouteTiles + 1 - _places[_goal[centre]].Length;
         }
 
         private void Search(TrafficDestination destination, int originIndex, BlockMap trafficDensity)
         {
-            int queued = _buckets[0].Count;
+            int queued = _bucketCount[0];
 
             for (int cost = 0; queued > 0; cost++)
             {
-                List<int> bucket = _buckets[cost % _buckets.Length];
+                int slot = cost % Ring;
+                int[] bucket = _buckets[slot];
+                int count = _bucketCount[slot];
 
                 // Every step costs at least RailCost, so nothing joins this cost while it settles
-                for (int i = 0; i < bucket.Count; i++)
+                for (int i = 0; i < count; i++)
                 {
                     int index = bucket[i];
+                    ref Place place = ref _places[index];
 
-                    if (_cost[index] != cost || _settled[index] == _search)
+                    if (place.Cost != cost || place.Settled == _search)
                     {
                         continue;
                     }
 
-                    _settled[index] = _search;
-                    FindDestinationsBeside(index, destination, originIndex);
-
-                    if (_length[index] < MaxRouteTiles)
-                    {
-                        queued += Expand(index, trafficDensity);
-                    }
+                    queued += Settle(index, destination, originIndex, trafficDensity);
                 }
 
-                queued -= bucket.Count;
-                bucket.Clear();
+                queued -= count;
+                _bucketCount[slot] = 0;
             }
         }
 
-        // Queues the driveable neighbours of a settled tile that this route reaches cheaper, or as cheaply from a
-        // neighbour earlier in north, east, south, west, and says how many it queued
-        private int Expand(int index, BlockMap trafficDensity)
+        // Settles a tile, its route the cheapest, and takes each neighbour of it: a destination zone whose footprint
+        // holds it has its goal here, unless the search reached it cheaper, or as cheaply at a tile earlier row by row;
+        // and a driveable one is queued where this route reaches it cheaper, or as cheaply from a neighbour earlier in
+        // north, east, south, west, short of the cut. Says how many it queued.
+        private int Settle(int index, TrafficDestination destination, int originIndex, BlockMap trafficDensity)
         {
-            int x = index % _width;
-            int y = index / _width;
+            ref Place settled = ref _places[index];
+            settled.Settled = _search;
+            int neighbours = _neighbours[index];
+            int cost = settled.Cost;
+            int length = settled.Length + 1;
             int queued = 0;
 
             for (int step = 0; step < 4; step++)
             {
-                int nextX = x + DeltaX[step];
-                int nextY = y + DeltaY[step];
-
-                if (!OnMap(nextX, nextY))
+                if ((neighbours & (1 << step)) == 0)
                 {
                     continue;
                 }
 
-                int tileValue = _map.GetTileValue(nextX, nextY);
+                int next = index + _offset[step];
+                int enter = Enter(next, trafficDensity);
 
-                if (!TileUtils.IsDriveable(tileValue))
+                if (enter == 0)
                 {
-                    continue;
+                    FoundBeside(next, index, destination, originIndex);
                 }
-
-                int next = Index(nextX, nextY);
-                int cost = _cost[index] + EnterCost(tileValue, nextX, nextY, trafficDensity);
-
-                if (_mark[next] != _search || cost < _cost[next])
+                else if (length <= MaxRouteTiles)
                 {
-                    Label(next, cost, _length[index] + 1, step);
-                    queued++;
-                }
-                else if (cost == _cost[next] && Back(step) < Back(_step[next]))
-                {
-                    // As cheap, from a neighbour earlier in the order, and queued at this cost already: a tile queued is
-                    // settled only once every cheaper one has been
-                    _length[next] = _length[index] + 1;
-                    _step[next] = step;
+                    int nextCost = cost + enter;
+                    ref Place place = ref _places[next];
+
+                    if (place.Mark != _search || nextCost < place.Cost)
+                    {
+                        Label(next, nextCost, length, step);
+                        queued++;
+                    }
+                    else if (nextCost == place.Cost && Back(step) < Back(place.Step))
+                    {
+                        // As cheap, from a neighbour earlier in the order, and queued at this cost already: a tile queued
+                        // is settled only once every cheaper one has been
+                        place.Length = (byte)length;
+                        place.Step = (sbyte)step;
+                    }
                 }
             }
 
@@ -282,76 +307,27 @@ namespace Micropolis.Rules
             return (step + 2) % 4;
         }
 
-        private static int EnterCost(int tileValue, int x, int y, BlockMap trafficDensity)
+        // The zone whose footprint holds a tile beside a settled one has its goal there, if it is a destination other
+        // than the trip's own zone, unless the search reached it cheaper, or as cheaply at a tile earlier row by row
+        private void FoundBeside(int tile, int settled, TrafficDestination destination, int originIndex)
         {
-            if (!TileUtils.CarriesCars(tileValue))
+            int centre = Owner(tile);
+
+            if (centre == NoZone || centre == originIndex || !IsDestination(centre, destination))
             {
-                return RailCost;
+                return;
             }
 
-            return RoadCost + trafficDensity.WorldGet(x, y) / DensityPerCost;
-        }
-
-        // Each destination zone beside a settled tile has its goal there, unless the search reached it cheaper, or as
-        // cheaply at a tile earlier row by row
-        private void FindDestinationsBeside(int index, TrafficDestination destination, int originIndex)
-        {
-            int x = index % _width;
-            int y = index / _width;
-
-            for (int step = 0; step < 4; step++)
+            if (_foundMark[centre] != _search)
             {
-                int nextX = x + DeltaX[step];
-                int nextY = y + DeltaY[step];
-
-                if (!OnMap(nextX, nextY))
-                {
-                    continue;
-                }
-
-                int centre = Owner(Index(nextX, nextY), destination);
-
-                if (centre < 0 || centre == originIndex)
-                {
-                    continue;
-                }
-
-                if (_foundMark[centre] != _search)
-                {
-                    _foundMark[centre] = _search;
-                    _goal[centre] = index;
-                    _found.Add(centre);
-                }
-                else if (_cost[index] == _cost[_goal[centre]] && index < _goal[centre])
-                {
-                    _goal[centre] = index;
-                }
+                _foundMark[centre] = _search;
+                _goal[centre] = settled;
+                _found.Add(centre);
             }
-        }
-
-        // The centre of the destination zone whose footprint holds the tile, or -1 for none
-        private int Owner(int index, TrafficDestination destination)
-        {
-            if (_ownerMark[index] == _search)
+            else if (_places[settled].Cost == _places[_goal[centre]].Cost && settled < _goal[centre])
             {
-                return _owner[index];
+                _goal[centre] = settled;
             }
-
-            _ownerMark[index] = _search;
-            _owner[index] = -1;
-
-            int x = index % _width;
-            int y = index / _width;
-
-            // A road or rail is no zone's, and a zone's centre is its footprint's second tile across and down, so it
-            // lies one down and right of the tile at most, and up and left at most the largest zone's side less two
-            if (!TileUtils.IsDriveable(_map.GetTileValue(x, y)) && CentreCovering(x, y, out int centre) &&
-                IsDestination(centre, destination))
-            {
-                _owner[index] = centre;
-            }
-
-            return _owner[index];
         }
 
         // Whether the zone centred there is a destination, asked once a search for each zone
@@ -366,37 +342,111 @@ namespace Micropolis.Rules
             return _isDestination[centre];
         }
 
-        // The centre of the zone whose footprint holds (x, y), if one does. Zones never overlap, so the first centre found
-        // is the one: a 3×3 zone's, the most common, lies in the 3×3 round the tile, so that is looked through first.
-        private bool CentreCovering(int x, int y, out int centre)
+        // What entering the tile costs, from the map and the traffic density as they are, or 0 for a tile no trip
+        // enters, read the first time the search asks
+        private int Enter(int index, BlockMap trafficDensity)
         {
-            return CentreCovering(x, y, 1, out centre) || CentreCovering(x, y, ZoneUtils.LargestZoneSize - 2, out centre);
+            ref Place place = ref _places[index];
+
+            if (place.EnterMark != _search)
+            {
+                place.EnterMark = _search;
+                place.Enter = (byte)EnterCost(index, trafficDensity);
+            }
+
+            return place.Enter;
         }
 
-        // The centre of a zone whose footprint holds (x, y), from those up to the reach up and left and one down and right
-        private bool CentreCovering(int x, int y, int reach, out int centre)
+        private int EnterCost(int index, BlockMap trafficDensity)
         {
-            for (int centreY = y - reach; centreY <= y + 1; centreY++)
+            int tileValue = _map.RawValueAt(index) & TileFlags.BIT_MASK;
+
+            if (!TileUtils.IsDriveable(tileValue))
             {
-                for (int centreX = x - reach; centreX <= x + 1; centreX++)
+                return 0;
+            }
+
+            if (!TileUtils.CarriesCars(tileValue))
+            {
+                return RailCost;
+            }
+
+            return RoadCost + trafficDensity.WorldGet(index % _width, index / _width) / DensityPerCost;
+        }
+
+        // The centre of the zone whose footprint holds the tile, or NoZone, read from the map as it is the first time
+        // the search asks
+        private int Owner(int index)
+        {
+            ref Place place = ref _places[index];
+
+            if (place.OwnerMark != _search)
+            {
+                place.OwnerMark = _search;
+                place.Owner = FindOwner(index % _width, index / _width);
+            }
+
+            return place.Owner;
+        }
+
+        // Zones rarely overlap, but where they do, a tile is the zone's whose centre comes first in the 3×3 round the
+        // tile, row by row, where a 3×3 zone's centre lies; or failing that, first in the window reaching up and left
+        // as far as any centre can, row by row
+        private int FindOwner(int x, int y)
+        {
+            for (int down = -1; down <= 1; down++)
+            {
+                for (int across = -1; across <= 1; across++)
                 {
-                    if (!OnMap(centreX, centreY) || !_map.GetTile(centreX, centreY).IsZone())
-                    {
-                        continue;
-                    }
+                    int centre = CentreHolding(x, y, across, down);
 
-                    int size = ZoneUtils.SizeAtCentre(_map.GetTileValue(centreX, centreY));
-
-                    if (x >= centreX - 1 && y >= centreY - 1 && x <= centreX + size - 2 && y <= centreY + size - 2)
+                    if (centre != NoZone)
                     {
-                        centre = Index(centreX, centreY);
-                        return true;
+                        return centre;
                     }
                 }
             }
 
-            centre = -1;
-            return false;
+            for (int down = -Reach; down <= 1; down++)
+            {
+                for (int across = -Reach; across <= 1; across++)
+                {
+                    if (across >= -1 && down >= -1)
+                    {
+                        continue;
+                    }
+
+                    int centre = CentreHolding(x, y, across, down);
+
+                    if (centre != NoZone)
+                    {
+                        return centre;
+                    }
+                }
+            }
+
+            return NoZone;
+        }
+
+        // The centre lying (across, down) from the tile, if it is a zone's whose footprint holds the tile, or NoZone
+        private int CentreHolding(int x, int y, int across, int down)
+        {
+            if (!OnMap(x + across, y + down))
+            {
+                return NoZone;
+            }
+
+            int centre = Index(x + across, y + down);
+            int raw = _map.RawValueAt(centre);
+
+            if ((raw & TileFlags.ZONEBIT) == 0)
+            {
+                return NoZone;
+            }
+
+            // The footprint runs from a tile up and left of the centre to its side less two down and right of it
+            int farthest = Math.Min(ZoneUtils.SizeAtCentre(raw & TileFlags.BIT_MASK) - 2, Reach);
+            return across >= -farthest && down >= -farthest ? centre : NoZone;
         }
 
         private void FillRoute(int goal, List<Position> route)
@@ -404,9 +454,9 @@ namespace Micropolis.Rules
             int index = goal;
             route.Add(PositionOf(index));
 
-            while (_step[index] != NoStep)
+            while (_places[index].Step != NoStep)
             {
-                index = Index(index % _width - DeltaX[_step[index]], index / _width - DeltaY[_step[index]]);
+                index -= _offset[_places[index].Step];
                 route.Add(PositionOf(index));
             }
 
@@ -416,11 +466,20 @@ namespace Micropolis.Rules
         // Records a route to the tile and queues it at the route's cost
         private void Label(int index, int cost, int length, int step)
         {
-            _mark[index] = _search;
-            _cost[index] = cost;
-            _length[index] = length;
-            _step[index] = step;
-            _buckets[cost % _buckets.Length].Add(index);
+            ref Place place = ref _places[index];
+            place.Mark = _search;
+            place.Cost = cost;
+            place.Length = (byte)length;
+            place.Step = (sbyte)step;
+
+            int slot = cost % Ring;
+
+            if (_bucketCount[slot] == _buckets[slot].Length)
+            {
+                Array.Resize(ref _buckets[slot], _buckets[slot].Length * 2);
+            }
+
+            _buckets[slot][_bucketCount[slot]++] = index;
         }
 
         // A new search, every tile unlabelled
@@ -428,9 +487,7 @@ namespace Micropolis.Rules
         {
             if (_search == int.MaxValue)
             {
-                Array.Clear(_mark);
-                Array.Clear(_settled);
-                Array.Clear(_ownerMark);
+                Array.Clear(_places);
                 Array.Clear(_destinationMark);
                 Array.Clear(_foundMark);
                 _search = 0;
@@ -438,11 +495,7 @@ namespace Micropolis.Rules
 
             _search++;
             _found.Clear();
-
-            foreach (List<int> bucket in _buckets)
-            {
-                bucket.Clear();
-            }
+            Array.Clear(_bucketCount);
         }
 
         private bool OnMap(int x, int y)
@@ -458,6 +511,22 @@ namespace Micropolis.Rules
         private Position PositionOf(int index)
         {
             return new Position(index % _width, index / _width);
+        }
+
+        // What a search knows of a tile, each part valid where its mark is the search's: the cheapest route found to the
+        // tile, its cost, its length in tiles and the direction of its last step, and whether the search has settled it;
+        // what entering it costs; and the centre of the zone whose footprint holds it
+        private struct Place
+        {
+            public int Mark;
+            public int Settled;
+            public int Cost;
+            public int EnterMark;
+            public int OwnerMark;
+            public int Owner;
+            public byte Length;
+            public sbyte Step;
+            public byte Enter;
         }
     }
 }
