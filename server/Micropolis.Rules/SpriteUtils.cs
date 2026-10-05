@@ -105,14 +105,7 @@ namespace Micropolis.Rules
             return tileValue >= TileValues.WATER_LOW && tileValue <= TileValues.WATER_HIGH;
         }
 
-        // Whether the tile is a wire or rail over water, or an open drawbridge
-        private static bool CheckWet(int tileValue)
-        {
-            return tileValue == TileValues.HPOWER || tileValue == TileValues.VPOWER || tileValue == TileValues.HRAIL ||
-                   tileValue == TileValues.VRAIL || tileValue == TileValues.BRWH || tileValue == TileValues.BRWV;
-        }
-
-        // What a monster, a tornado or a wreck does to the tile under the pixel: a road becomes the river, a flammable
+        // What a monster or a tornado does to the tile under the pixel: a road becomes the river, a flammable
         // tile an explosion or, if it is wet, the river, setting a zone on fire, and blowing up any but a residential one
         public static void DestroyMapTile(SpriteManager manager, GameMap map, BlockMaps blockMaps, long ox, long oy)
         {
@@ -152,7 +145,7 @@ namespace Micropolis.Rules
                 }
             }
 
-            if (CheckWet(tileValue))
+            if (Waterways.IsBuiltOverWater(tileValue))
             {
                 map.SetTile(x, y, TileValues.RIVER, TileFlags.NOFLAGS);
             }

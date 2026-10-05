@@ -1,6 +1,6 @@
 {
   "formatVersion": 2,
-  "description": "The town with a seaport, which brings a ship to the channel",
+  "description": "The town with a seaport by the river east of it, which brings ships in from the edge to dock",
   "seed": 8,
   "level": 0,
   "entries": [
@@ -32,11 +32,11 @@
     {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":14,"y":19},{"x":14,"y":20},{"x":14,"y":21}],"autoBulldoze":true}},
     {"step":0,"player":"local","command":{"type":"tool","tool":"airport","path":[{"x":15,"y":23}],"autoBulldoze":true}},
     {"step":0,"player":"local","command":{"type":"tool","tool":"rail","path":[{"x":14,"y":29},{"x":15,"y":29},{"x":16,"y":29},{"x":17,"y":29},{"x":18,"y":29},{"x":19,"y":29},{"x":20,"y":29},{"x":21,"y":29},{"x":22,"y":29},{"x":23,"y":29},{"x":24,"y":29},{"x":25,"y":29},{"x":26,"y":29},{"x":27,"y":29},{"x":28,"y":29},{"x":29,"y":29},{"x":30,"y":29},{"x":31,"y":29},{"x":32,"y":29},{"x":33,"y":29},{"x":34,"y":29},{"x":35,"y":29},{"x":36,"y":29},{"x":37,"y":29},{"x":38,"y":29},{"x":39,"y":29},{"x":40,"y":29},{"x":41,"y":29},{"x":42,"y":29},{"x":43,"y":29},{"x":44,"y":29},{"x":45,"y":29},{"x":46,"y":29},{"x":47,"y":29},{"x":48,"y":29},{"x":49,"y":29},{"x":50,"y":29}],"autoBulldoze":true}},
-    {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":44,"y":13}],"autoBulldoze":true}},
-    {"step":0,"player":"local","command":{"type":"tool","tool":"port","path":[{"x":46,"y":14}],"autoBulldoze":true}}
+    {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":44,"y":13},{"x":45,"y":13},{"x":46,"y":13},{"x":47,"y":13},{"x":48,"y":13},{"x":49,"y":13},{"x":50,"y":13},{"x":51,"y":13},{"x":52,"y":13},{"x":53,"y":13},{"x":54,"y":13},{"x":55,"y":13},{"x":56,"y":13},{"x":57,"y":13},{"x":58,"y":13},{"x":59,"y":13},{"x":60,"y":13},{"x":61,"y":13},{"x":62,"y":13},{"x":63,"y":13},{"x":64,"y":13},{"x":65,"y":13},{"x":66,"y":13},{"x":67,"y":13},{"x":68,"y":13},{"x":69,"y":13},{"x":70,"y":13},{"x":71,"y":13},{"x":72,"y":13},{"x":73,"y":13},{"x":74,"y":13},{"x":75,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"port","path":[{"x":77,"y":14}],"autoBulldoze":true}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"5fcefea47279c30021dbf97912b0df39849b0defa7d4ebadb3e6ed42ae0ebaf4"},
-    {"step":6912,"hash":"5c029f437e7fc816473d472aa3feab12c4a9861a096454c27ac514b8fd45225b"}
+    {"step":0,"hash":"60101adc0a1eab6cb1907006b20f94bc356f410477dc7eed0bd3b97e33035deb"},
+    {"step":6912,"hash":"e8fa53fbabfe3931c60f030096fd229731cc705d3aea3c841a34efed5d1dde81"}
   ]
 }

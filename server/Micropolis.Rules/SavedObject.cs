@@ -82,6 +82,23 @@ namespace Micropolis.Rules
             });
         }
 
+        public T? ReadNullableObject<T>(string key, Func<SavedObject, T> read) where T : struct
+        {
+            JsonNode? node = Get(key);
+            return node == null ? null : ReadComplete(node, PathOf(key), read);
+        }
+
+        /// <summary>
+        /// A key that has to hold <see langword="null"/>, failing with the problem given when it holds anything else.
+        /// </summary>
+        public void ReadNull(string key, string problem)
+        {
+            if (Get(key) != null)
+            {
+                throw new SaveFormatException(PathOf(key), problem);
+            }
+        }
+
         public List<T> ReadObjectList<T>(string key, Func<SavedObject, T> read)
         {
             return ReadList(key, null, (node, path) => ReadComplete(node, path, read));

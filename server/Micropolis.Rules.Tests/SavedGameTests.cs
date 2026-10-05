@@ -72,9 +72,9 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         [DataRow("an older version", "4", "The save's version is 4, older than version 5")]
         [DataRow("the first version", "1", "The save's version is 1, older than version 5")]
-        [DataRow("a newer version", "12", "The save's version is 12, newer than version 11")]
+        [DataRow("a newer version", "13", "The save's version is 13, newer than version 12")]
         [DataRow("a negative version", "-3", "The save's version is -3, older than version 5")]
-        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 11")]
+        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 12")]
         [DataRow("a version that is not whole", "5.5", "The save's version must be a whole number, not 5.5")]
         [DataRow("a version that is text", "\"5\"", "The save's version must be a whole number, not a string.")]
         [DataRow("a version that is a list", "[5]", "The save's version must be a whole number, not a list.")]
@@ -198,6 +198,39 @@ namespace Micropolis.Rules.Tests
 
             CollectionAssert.AreEqual(new[] { (SpriteType.Monster, true), (SpriteType.Helicopter, false), (SpriteType.Airplane, false) },
                 city.SpriteManager.SpriteList.Select(sprite => (sprite.Type, sprite.ReachedLand)).ToList());
+        }
+
+        // A ship from before ships sailed to a port sails in to no port, and no other sprite has a mission. Left between
+        // two tiles, it sails on to the tile ahead, or off the map.
+        [TestMethod]
+        public void Load_ShipFromBeforeShipsSailedToAPort_SailsInToNoPort()
+        {
+            string text = Edited("version11.json", savedGame =>
+            {
+                JsonArray list = savedGame["sprites"]!["list"]!.AsArray();
+                JsonObject ship = list[1]!.DeepClone().AsObject();
+                ship["type"] = (int)SpriteType.Ship;
+                ship["x"] = ShipSprite.PixelX(30) + 5;
+                ship["y"] = ShipSprite.PixelY(30) + 3;
+                list.Add(ship);
+            });
+
+            Simulation city = SavedGame.Load(text, out _);
+
+            CollectionAssert.AreEqual(
+                new (SpriteType, ShipPhase?, Position?, long?)[]
+                {
+                    (SpriteType.Monster, null, null, null), (SpriteType.Airplane, null, null, null),
+                    (SpriteType.Ship, ShipPhase.SailingIn, null, 0),
+                },
+                city.SpriteManager.SpriteList.Select(sprite => (sprite.Type, sprite.Mission?.Phase, sprite.Mission?.Port, sprite.Mission?.DockCount)).ToList());
+            Sprite ship = city.SpriteManager.GetSprite(SpriteType.Ship)!;
+            for (int step = 0; step < 16 && ship.Frame != 0 && !ShipSprite.IsOnTile(ship); step++)
+            {
+                city.SpriteManager.MoveObjects(city.ConstructSimData());
+            }
+
+            Assert.IsTrue(ship.Frame == 0 || ShipSprite.IsOnTile(ship), $"The ship is at ({ship.X}, {ship.Y}).");
         }
 
         // The step from version 10 leaves an entry that is no sprite for the load to refuse, naming it

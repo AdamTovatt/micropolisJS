@@ -82,6 +82,18 @@ namespace Micropolis.Rules
                                             type == (int)SpriteType.Monster;
                 }
             },
+
+            // From version 11: a ship sails to a port on a mission, which every other sprite holds as null; a ship in
+            // flight sails in to no port, so it finds the nearest port it reaches, or leaves. An entry that is no sprite
+            // is left for the load to refuse.
+            savedGame =>
+            {
+                foreach (JsonObject sprite in List(Group(savedGame, "sprites"), "list").OfType<JsonObject>())
+                {
+                    bool ship = Validation.TryGetWholeNumber(sprite["type"], out double type) && type == (int)SpriteType.Ship;
+                    sprite["mission"] = ship ? new JsonObject { ["phase"] = 0, ["port"] = null, ["dockCount"] = 0 } : null;
+                }
+            },
         ];
 
         /// <summary>

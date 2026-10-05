@@ -90,6 +90,11 @@ namespace Micropolis.Rules
         /// </summary>
         public bool ReachedLand { get; internal set; }
 
+        /// <summary>
+        /// A ship's mission, and <see langword="null"/> for every other type.
+        /// </summary>
+        public ShipMission? Mission { get; internal set; }
+
         public SpriteTraits Traits => TraitsOf(Type);
 
         /// <summary>
@@ -136,12 +141,14 @@ namespace Micropolis.Rules
                 ["step"] = Step,
                 ["flag"] = Flag,
                 ["reachedLand"] = ReachedLand,
+                ["mission"] = Mission?.Save(),
             };
         }
 
         // The frame, 0 for a sprite that died, and a train's direction index the tables its moves read, so a value
-        // outside them is refused here rather than failing the step that moves the sprite. Only a monster reaches land.
-        internal static Sprite Load(SavedObject data)
+        // outside them is refused here rather than failing the step that moves the sprite. Only a monster reaches land,
+        // and only a ship has a mission, whose port is a tile of the map.
+        internal static Sprite Load(SavedObject data, GameMap map)
         {
             SpriteType type = data.ReadEnum<SpriteType>("type");
 
@@ -161,7 +168,19 @@ namespace Micropolis.Rules
                 Step = data.ReadSafeInteger("step"),
                 Flag = data.ReadSafeInteger("flag"),
                 ReachedLand = data.ReadBool("reachedLand", type == SpriteType.Monster ? [false, true] : [false]),
+                Mission = ReadMission(data, type, map),
             };
+        }
+
+        private static ShipMission? ReadMission(SavedObject data, SpriteType type, GameMap map)
+        {
+            if (type == SpriteType.Ship)
+            {
+                return data.ReadObject("mission", saved => ShipMission.Load(saved, map));
+            }
+
+            data.ReadNull("mission", "must be null for every type but a ship");
+            return null;
         }
     }
 }

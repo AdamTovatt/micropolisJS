@@ -198,6 +198,8 @@ namespace Micropolis.Rules.Tests
                 ["sprites.list[0].flag"] = ("313", city => city.SpriteManager.SpriteList[0].Flag),
                 // A helicopter, which only false suits
                 ["sprites.list[0].reachedLand"] = (null, city => city.SpriteManager.SpriteList[0].ReachedLand),
+                // A helicopter, which only null suits
+                ["sprites.list[0].mission"] = (null, city => city.SpriteManager.SpriteList[0].Mission?.Save()),
                 ["disasters.floodCount"] = ("7", city => city.DisasterManager.FloodCount),
                 ["disasters.disastersEnabled"] = ("true", city => city.DisasterManager.DisastersEnabled),
                 ["scannedState.blockMaps.cityCentreDistScoreMap[0]"] = ("51", city => city.BlockMaps.CityCentreDistScoreMap.Get(0, 0)),
@@ -462,6 +464,48 @@ namespace Micropolis.Rules.Tests
                 AssertRejected(save, "sprites.list[0].reachedLand");
                 Assert.AreEqual(message, Assert.Throws<SaveFormatException>(() => Simulation.FromSave(save.ToJsonString())).Message);
             }
+        }
+
+        // A ship's mission loads into its properties: its phase, its port on the map or none, and its docking countdown
+        [TestMethod]
+        [DataRow("{\"phase\":2,\"port\":null,\"dockCount\":0}", ShipPhase.Leaving, -1, -1, 0)]
+        [DataRow("{\"phase\":1,\"port\":{\"x\":119,\"y\":99},\"dockCount\":1200}", ShipPhase.Docked, 119, 99, 1200)]
+        public void FromSave_ShipMission_LoadsIntoItsProperties(string mission, ShipPhase phase, int portX, int portY, int dockCount)
+        {
+            JsonNode save = SetAt("sprites.list[0].type", ((int)SpriteType.Ship).ToString());
+            ObjectAt(save, "sprites.list[0]")["mission"] = JsonNode.Parse(mission);
+
+            ShipMission loaded = Simulation.FromSave(save.ToJsonString()).SpriteManager.SpriteList[0].Mission!;
+
+            Position? port = portX < 0 ? null : new Position(portX, portY);
+            Assert.AreEqual((phase, port, (long)dockCount), (loaded.Phase, loaded.Port, loaded.DockCount));
+        }
+
+        // Only a ship has a mission, which it has to have, with a phase it knows, a port on the map, and a docking
+        // countdown of at most 1200 steps. A mission of null stands for none: a missing one is refused as missing.
+        [TestMethod]
+        [DataRow(SpriteType.Ship, "{\"phase\":3,\"port\":null,\"dockCount\":0}", "The save's sprites.list[0].mission.phase must be one of 0, 1, 2, got 3.")]
+        [DataRow(SpriteType.Ship, "{\"phase\":1,\"port\":{\"x\":120,\"y\":99},\"dockCount\":0}", "The save's sprites.list[0].mission.port.x must be from 0 to 119, got 120.")]
+        [DataRow(SpriteType.Ship, "{\"phase\":1,\"port\":null,\"dockCount\":1201}", "The save's sprites.list[0].mission.dockCount must be from 0 to 1200, got 1201.")]
+        [DataRow(SpriteType.Ship, "{\"phase\":1,\"port\":null,\"dockCount\":-1}", "The save's sprites.list[0].mission.dockCount must be from 0 to 1200, got -1.")]
+        [DataRow(SpriteType.Ship, "null", "The save's sprites.list[0].mission must be an object.")]
+        [DataRow(SpriteType.Ship, null, "The save's sprites.list[0].mission is missing.")]
+        [DataRow(SpriteType.Helicopter, "{\"phase\":0,\"port\":null,\"dockCount\":0}", "The save's sprites.list[0].mission must be null for every type but a ship.")]
+        public void FromSave_MissionThatDoesNotSuitItsSprite_IsRefusedNamingIt(SpriteType type, string? mission, string message)
+        {
+            JsonNode save = SetAt("sprites.list[0].type", ((int)type).ToString());
+            JsonObject sprite = ObjectAt(save, "sprites.list[0]");
+
+            if (mission is null)
+            {
+                sprite.Remove("mission");
+            }
+            else
+            {
+                sprite["mission"] = JsonNode.Parse(mission);
+            }
+
+            Assert.AreEqual(message, Assert.Throws<SaveFormatException>(() => Simulation.FromSave(save.ToJsonString())).Message);
         }
 
         private static JsonObject Resave(string text)
