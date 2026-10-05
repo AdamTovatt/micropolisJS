@@ -335,6 +335,7 @@ export class CityClient implements Presence {
   private scheduleReconnect(): void {
     const delay = this.reconnectDelayMs;
     this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, LONGEST_RECONNECT_DELAY_MS);
+    // Nothing waits on a try: one that fails schedules the next itself, and its outcome reaches the client's listeners
     this.environment.schedule(() => { void this.reconnect(); }, delay);
   }
 

@@ -185,6 +185,7 @@ export class GameServer {
 
       upstream.onopen = () => unsent.splice(0).forEach((message) => upstream.send(message));
       upstream.onmessage = (event) => socket.send(event.data as string);
+      // The upstream's close event has no caller to wait, and the page sees the socket close
       upstream.onclose = (event) => void socket.close({code: event.code, reason: event.reason});
       socket.onMessage((message) => {
         if (forwarded.intercept?.(JSON.parse(message as string) as Record<string, unknown>, socket)) {

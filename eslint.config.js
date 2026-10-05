@@ -43,6 +43,21 @@ export default defineConfig(
     },
   },
   {
+    // A promise nobody awaits fails silently, so each is awaited, handled, or marked void with the reason nothing
+    // waits on it. These rules read types, through the project service from tsconfig.json.
+    files: ["src/**/*.ts", "test/**/*.ts", "e2e/**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+    },
+  },
+  {
     files: ["test/**/*.ts"],
     languageOptions: {
       globals: globals.jest,

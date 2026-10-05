@@ -311,6 +311,7 @@ describe("the city client", () => {
         it("says it is welcomed once the socket it opens again after one closed before the hello is", async () => {
             const {browser, client} = await signedIn();
             let welcomed: boolean | null = null;
+            // Not awaited, so the test can see the welcome still unsettled while the socket is down
             void client.welcomed().then((online) => {
                 welcomed = online;
             });

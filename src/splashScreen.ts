@@ -122,13 +122,14 @@ class SplashScreen {
       return;
     }
 
+    // A change event has no caller to wait: the city starts from here once the file is read
     void file.text().then((text) => {
       // The player moved on while the file was read
       if (this.departed) {
         return;
       }
 
-      // A file that reads as a save can still fail to start
+      // A file that reads as a save can still fail to start, which launch tells the player, so nothing waits on it
       void this.launch(() => this.parts.source.start({save: text}),
                        (reason) => alert(`Could not start ${file.name}: ${reason}`));
     });
@@ -165,6 +166,7 @@ class SplashScreen {
     setShown(this.start, false);
 
     const start = {name: this.nameInput.value || "MyTown", seed: this.seed, level: checkedLevel()};
+    // A submit event has no caller to wait, and launch tells the player of a city that couldn't start
     void this.launch(() => this.parts.source.start(start), (reason) => {
       alert(`The city could not start: ${reason}`);
       showSplashScreen(this.parts, this.seed, this.lobby);
@@ -182,7 +184,8 @@ class SplashScreen {
     this.fileInput.addEventListener("change", this.onFileChosen);
 
     // A city that can't be joined stays on the list, as a server that couldn't reach its store may yet join it: the
-    // player forgets it once it's gone for good
+    // player forgets it once it's gone for good. A click has no caller to wait, and launch tells the player of a city
+    // that couldn't be joined.
     this.cityList = new CityListView(lobby.cities, (known) => void this.launch(() => parts.source.join(known.city),
       (reason) => alert(`${known.name} can't be joined: ${reason}`)));
 
