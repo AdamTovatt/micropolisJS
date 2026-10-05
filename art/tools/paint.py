@@ -21,8 +21,10 @@ and what to check are in the art-painting skill (.claude/skills/art-painting/SKI
 A job is an asset rendered into art/blender/out/<asset>, or a set named in SETS, laid out in a grid
 and painted as one canvas. prep writes the model inputs, paint paints them through generate.py
 (--only repaints some, --paving names the job's surfaces), and build writes the painted layers to
-art/painted/out/<asset>. The inputs and paintings stay in art/painted/raw/<job>, which git ignores.
-paint reads the API key as generate.py does. Needs Pillow, NumPy and SciPy.
+art/painted/out/<asset>, and a single tile's ground and objects to art/painted/built/<asset> too,
+from which join gives the single tiles their donors' paintings. The inputs and paintings stay in
+art/painted/raw/<job>, which git ignores. paint reads the API key as generate.py does. Needs Pillow,
+NumPy and SciPy.
 """
 
 import argparse
@@ -40,9 +42,10 @@ from scipy import ndimage
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from designs import (ART, DIRT, HBRIDGE, HPOWER, HRAIL, LHPOWER, LHRAIL, LVPOWER, LVRAIL, PAINTED,  # noqa: E402
-                     RENDERS, RIVER, ROADS, ROADS2, SINGLE_TILES, SPRITES, VBRIDGE, VPOWER, VRAIL, WOODS, load,
-                     single_tile, single_tile_ids, sprite_frame, tile_asset, zone_frame, zone_frames)
+from designs import (ART, BUILT, BUILT_LAYERS, DIRT, HBRIDGE, HPOWER, HRAIL, LHPOWER, LHRAIL,  # noqa: E402
+                     LVPOWER, LVRAIL, PAINTED, RENDERS, RIVER, ROADS, ROADS2, SINGLE_TILES, SPRITES, VBRIDGE,
+                     VPOWER, VRAIL, WOODS, built_layers, built_tiles, is_joined, load, single_tile,
+                     single_tile_assets, single_tile_ids, sprite_frame, tile_asset, zone_frame, zone_frames)
 from generate import MODEL  # noqa: E402
 
 RAW = os.path.join(ART, 'painted', 'raw')
@@ -549,11 +552,13 @@ def build(job):
         with open(os.path.join(out, 'painting.json'), 'w') as f:
             json.dump({'job': job, 'paintings': {k: record[k] for k in painted}}, f, indent=2)
             f.write('\n')
-        if '/' in m['asset'] and not r.vehicle:
-            # a single tile's: join() works from these, so it can run again without wrapping a donor twice
-            kept = os.path.join(RAW, 'built', m['asset'])
+        if m['asset'] in single_tile_assets():
+            # a single tile's: join() works from these, so it can run again without wrapping a donor twice. A
+            # tile the join leaves keeps them too, so every single tile's painting is built the same way, and
+            # its painted layers are checked against them (art/tools/tests/test_join.py)
+            kept = os.path.join(BUILT, m['asset'])
             os.makedirs(kept, exist_ok=True)
-            for layer in ('ground', 'objects'):
+            for layer in BUILT_LAYERS:
                 shutil.copy(os.path.join(out, f'{layer}.png'), os.path.join(kept, f'{layer}.png'))
         print(f'{m["asset"]}: ground held to the render at {replaced:.1%} of its pixels')
 
@@ -586,36 +591,44 @@ def flattened(image):
     return Image.fromarray(np.clip(a, 0, 255).round().astype(np.uint8), image.mode)
 
 
-def join(tolerance=3):
-    # Give every painted single tile its donors' paintings wherever its render is the donor's to
-    # within `tolerance`: the ground everywhere it is, and the objects where both are opaque.
-    # Blender's tiles join because the surfaces they share are one texture laid the same way on
-    # every tile; this makes the painted surfaces one painting in the same way, so painted tiles
-    # join where their renders do. Works from the built layers build() keeps, so it can run again.
-    kept = os.path.join(RAW, 'built')
-    tiles = sorted(f'{s}/{t}' for s in os.listdir(kept) for t in os.listdir(os.path.join(kept, s)))
-    donors = []
-    for asset, axes, layers in DONORS:
-        if asset not in tiles:
-            print(f'{asset}: not painted yet, so no donor')
-            continue
-        rendered = load(RENDERS, asset)
+def donor_paintings(built=BUILT, donors=DONORS):
+    # Each donor's painting of each layer it gives, as join() lays it on other tiles, in the order of
+    # `donors`: (asset, layer, RGBA array), wrapped along its axes, and a surface donor flattened. A
+    # donor with no built layers fails, naming it, rather than leaving the tiles it gives to unjoined
+    paintings = []
+    for asset, axes, layers in donors:
+        built_asset = built_layers(asset, built)
         for layer in layers:
-            blender = np.asarray(rendered.layers[layer]).astype(int)
-            painted = wrapped(Image.open(os.path.join(kept, asset, f'{layer}.png')).convert('RGBA'), axes)
+            painted = wrapped(built_asset[layer], axes)
             if axes == 'xy':
                 painted = flattened(painted)
-            donors.append((layer, blender, np.asarray(painted)))
-    for asset in tiles:
-        out = os.path.join(PAINTED, asset)
+            paintings.append((asset, layer, np.asarray(painted)))
+    return paintings
+
+
+def join(tolerance=3, built=BUILT, out=PAINTED, renders=RENDERS, donors=DONORS):
+    # Give every painted single tile but those NOT_JOINED names its donors' paintings wherever its
+    # render is the donor's to within `tolerance`: the ground everywhere it is, and the objects where
+    # both are opaque, keeping their alpha; where several donors match, the first in `donors` gives.
+    # Blender's tiles join because the surfaces they share are one texture laid the same way on
+    # every tile; this makes the painted surfaces one painting in the same way, so painted tiles
+    # join where their renders do. Works from the layers build() keeps in `built`, so it can run
+    # again, and writes each joined tile's BUILT_LAYERS into `out`.
+    given = [(layer, np.asarray(load(renders, asset).layers[layer]).astype(int), painted)
+             for asset, layer, painted in donor_paintings(built, donors)]
+    for asset in built_tiles(built):
+        if not is_joined(asset):
+            continue
         shares = []
-        rendered = load(RENDERS, asset)
-        for layer in ('ground', 'objects'):
+        rendered = load(renders, asset)
+        kept = built_layers(asset, built)
+        os.makedirs(os.path.join(out, asset), exist_ok=True)
+        for layer in BUILT_LAYERS:
             mine = np.asarray(rendered.layers[layer]).astype(int)
-            result = np.asarray(Image.open(os.path.join(kept, asset, f'{layer}.png')).convert('RGBA')).copy()
+            result = np.asarray(kept[layer]).copy()
             free = np.ones(mine.shape[:2], bool)
-            for given, blender, painted in donors:
-                if given != layer:
+            for donor_layer, blender, painted in given:
+                if donor_layer != layer:
                     continue
                 same = np.abs(mine[..., :3] - blender[..., :3]).max(axis=-1) <= tolerance
                 if layer == 'objects':
@@ -625,7 +638,7 @@ def join(tolerance=3):
                 free &= ~take
             shares.append(float((~free).mean()))
             image = Image.fromarray(result, 'RGBA')
-            (image.convert('RGB') if layer == 'ground' else image).save(os.path.join(out, f'{layer}.png'))
+            (image.convert('RGB') if layer == 'ground' else image).save(os.path.join(out, asset, f'{layer}.png'))
         print(f'{asset}: {shares[0]:.0%} of the ground and {shares[1]:.0%} of the objects from donors')
 
 
@@ -753,7 +766,8 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     p.add_argument('step', choices=('prep', 'paint', 'build', 'join'))
     p.add_argument('jobs', nargs='*', help='asset names under art/blender/out, or sets named in SETS; join takes '
-                                           'none, and joins every painted single tile')
+                                           'none, and joins every painted single tile but those NOT_JOINED in '
+                                           'designs.py names')
     p.add_argument('--only', help='paint: the inputs to paint, comma-separated; by default those prep found the '
                                   'job needs')
     p.add_argument('--paving', help="paint: the sentence naming what the job's ground is made of, or for a frames "

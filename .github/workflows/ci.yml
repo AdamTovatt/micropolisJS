@@ -59,7 +59,8 @@ jobs:
           git diff -- test/recordings | head -c 20000
           test -z "$(git status --porcelain -- test/recordings)"
 
-  # The art build's committed output (images/) against the build from the committed painted layers
+  # The art build's committed output (images/) against the build from the committed painted layers, and the painted
+  # single tiles against the committed layers the paint build's join works from (art/painted/built/)
   art:
     runs-on: ubuntu-latest
     steps:

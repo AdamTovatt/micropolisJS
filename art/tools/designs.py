@@ -30,6 +30,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ART = os.path.join(HERE, '..')
 RENDERS = os.path.join(ART, 'blender', 'out')      # the renders, which git ignores
 PAINTED = os.path.join(ART, 'painted', 'out')      # the painted layers, committed
+BUILT = os.path.join(ART, 'painted', 'built')      # each painted single tile's BUILT_LAYERS as the paint build
+                                                   # made them, before the join, committed
 IMAGES = os.path.join(ART, '..', 'images')         # where the atlas build writes what the game draws
 
 TILE_PX = 64                   # the art's pixels a tile (TILE_PX in art/blender/tileart.py)
@@ -81,6 +83,18 @@ SINGLE_TILES = {
 # building's own shadow lies dense under the roof the warning replaces
 OVER_SHADOWS = set(SINGLE_TILES['power']['unpowered'])
 
+# The single tiles whose painted layers the paint build's join leaves as the build made them, each with why. The
+# join gives a tile a donor's painting wherever their renders agree to within a few levels, which on a tile that
+# shares no surface with a donor are only stray pixels that happen to match (join() in tools/paint.py)
+NOT_JOINED = {
+    # each house stands on its own lawn, which no donor paints
+    *SINGLE_TILES['houses']['houses'],
+    # the fountain stands on its own lawn, which no donor paints. Its built layers are its painting's record: its
+    # paint job was laid out with the fountain's retired frames 841 to 843 beside it, whose renders
+    # art/blender/tiles/parks.py no longer makes, so the job cannot be built again as it was painted
+    *SINGLE_TILES['parks']['fountain'],
+}
+
 
 def single_tile_ids(name):
     # every tile id a single tile set renders, low to high
@@ -98,6 +112,30 @@ def single_tile(tile_id):
         if tile_id in single_tile_ids(name):
             return tile_asset(name, tile_id)
     return None
+
+
+def single_tile_assets():
+    # every single tile's asset, by set, low to high
+    return [tile_asset(name, t) for name in SINGLE_TILES for t in single_tile_ids(name)]
+
+
+def is_joined(asset):
+    # whether the join gives a single tile's asset its donors' paintings: every one's but those NOT_JOINED names
+    return int(asset.split('/')[1]) not in NOT_JOINED
+
+
+def built_tiles(root=BUILT):
+    # every single tile with built layers under `root`, by its asset name
+    return sorted(f'{s}/{t}' for s in os.listdir(root) for t in os.listdir(os.path.join(root, s)))
+
+
+def built_layers(asset, root=BUILT):
+    # a single tile's built layers, BUILT_LAYERS by name, as RGBA; one missing fails, naming it
+    directory = os.path.join(root, asset)
+    missing = [k for k in BUILT_LAYERS if not os.path.exists(os.path.join(directory, f'{k}.png'))]
+    if missing:
+        raise FileNotFoundError(f'{directory} has no {" or ".join(f"{k}.png" for k in missing)}')
+    return {k: Image.open(os.path.join(directory, f'{k}.png')).convert('RGBA') for k in BUILT_LAYERS}
 
 
 def _slots(kind, first, grid):
@@ -186,7 +224,7 @@ def zone_frames(zone):
 
 def asset_names():
     # every asset the tables name, each a directory of layers
-    names = [tile_asset(name, t) for name in SINGLE_TILES for t in single_tile_ids(name)]
+    names = single_tile_assets()
     names += list(ZONES)
     names += [zone_frame(zone, k) for zone in FRAMES for k in range(zone_frames(zone))]
     names += [sprite_frame(vehicle, k) for vehicle, sprite in SPRITES.items() for k in range(sprite['frames'])]
@@ -199,6 +237,7 @@ def is_vehicle(asset):
 
 
 LAYERS = ('ground', 'shadow', 'objects')
+BUILT_LAYERS = ('ground', 'objects')       # the layers of a single tile the paint build keeps and the join writes
 NO_MARGIN = {'left': 0, 'top': 0, 'right': 0, 'bottom': 0}
 
 
