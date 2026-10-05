@@ -89,6 +89,7 @@ is the output of the game that wrote it, byte for byte, so writing it again from
 | `version9.json` | `17098d0` |
 | `version10.json` | `faeaf92` |
 | `version11.json` | `78a9fa7` |
+| `version12.json` | `e6d655a` |
 
 ## Files the fixture tool writes
 
