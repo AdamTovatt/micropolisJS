@@ -418,6 +418,7 @@ namespace Micropolis.Rules
             sprite.NewDir = 0;
             sprite.Step = 0;
             sprite.Flag = 0;
+            sprite.ReachedLand = false;
 
             switch (sprite.Type)
             {

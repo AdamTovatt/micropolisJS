@@ -718,5 +718,5 @@
     {"fixture":"underfunded","point":"run","x":42,"y":17,"value":634,"kind":"industrial","population":2,"perimeterRoad":{"x":41,"y":15},"landPollutionValue":0},
     {"fixture":"underfunded","point":"run","x":15,"y":23,"value":716,"kind":null,"population":null,"perimeterRoad":null,"landPollutionValue":0}
   ],
-  "boatDistances": {"fixture":"town","point":"run","ship":{"count":0,"destX":609,"destY":1295,"dir":0,"flag":0,"frame":3,"newDir":0,"origX":0,"origY":0,"soundCount":0,"step":0,"type":4,"x":600,"y":500},"distances":[{"x":0,"y":0,"distance":1132},{"x":1,"y":1,"distance":1100},{"x":37,"y":31,"distance":52},{"x":56,"y":12,"distance":556},{"x":119,"y":99,"distance":2356}]}
+  "boatDistances": {"fixture":"town","point":"run","ship":{"count":0,"destX":609,"destY":1295,"dir":0,"flag":0,"frame":3,"newDir":0,"origX":0,"origY":0,"reachedLand":false,"soundCount":0,"step":0,"type":4,"x":600,"y":500},"distances":[{"x":0,"y":0,"distance":1132},{"x":1,"y":1,"distance":1100},{"x":37,"y":31,"distance":52},{"x":56,"y":12,"distance":556},{"x":119,"y":99,"distance":2356}]}
 }

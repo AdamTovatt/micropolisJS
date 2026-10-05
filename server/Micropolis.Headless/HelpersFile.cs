@@ -62,7 +62,7 @@ namespace Micropolis.Headless
         private static JsonObject Ship => new JsonObject
         {
             ["count"] = 0, ["destX"] = 609, ["destY"] = 1295, ["dir"] = 0, ["flag"] = 0, ["frame"] = 3, ["newDir"] = 0,
-            ["origX"] = 0, ["origY"] = 0, ["soundCount"] = 0, ["step"] = 0, ["type"] = (int)SpriteType.Ship, ["x"] = 600, ["y"] = 500,
+            ["origX"] = 0, ["origY"] = 0, ["reachedLand"] = false, ["soundCount"] = 0, ["step"] = 0, ["type"] = (int)SpriteType.Ship, ["x"] = 600, ["y"] = 500,
         };
 
         /// <summary>

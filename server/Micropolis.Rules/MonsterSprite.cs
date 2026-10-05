@@ -141,10 +141,18 @@ namespace Micropolis.Rules
                 sprite.Count--;
             }
 
-            // Off the map, or back in the river before its time is up, it dies
-            int tileValue = SpriteUtils.GetTileValue(manager.Map, sprite.X + sprite.XHot, sprite.Y + sprite.YHot);
+            // Off the map, or back in the river before its time is up, it dies. A rule change from the original, which
+            // checks the river from the first step, so a monster born in it rarely came ashore: the river spares a
+            // monster until its hot spot has been on land, outside the water range. A bridge, or a wire or rail over
+            // water, is land by that range, though the monster turns it to river as it crosses
+            int tileValue = SpriteUtils.GetHotSpotTileValue(manager.Map, sprite);
 
-            if (tileValue == -1 || (tileValue == TileValues.RIVER && sprite.Count != 0))
+            if (tileValue != -1 && !SpriteUtils.IsWater(tileValue))
+            {
+                sprite.ReachedLand = true;
+            }
+
+            if (tileValue == -1 || (tileValue == TileValues.RIVER && sprite.Count != 0 && sprite.ReachedLand))
             {
                 sprite.Frame = 0;
             }

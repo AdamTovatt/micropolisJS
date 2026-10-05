@@ -83,6 +83,12 @@ namespace Micropolis.Rules
 
         public long Flag { get; internal set; }
 
+        /// <summary>
+        /// Whether a monster's hot spot has been on land, a tile <see cref="SpriteUtils.IsWater"/> doesn't take as water,
+        /// since it rose, or it was saved before the game kept this. Every other type leaves it false.
+        /// </summary>
+        public bool ReachedLand { get; internal set; }
+
         public SpriteTraits Traits => TraitsOf(Type);
 
         /// <summary>
@@ -128,11 +134,12 @@ namespace Micropolis.Rules
                 ["newDir"] = NewDir,
                 ["step"] = Step,
                 ["flag"] = Flag,
+                ["reachedLand"] = ReachedLand,
             };
         }
 
         // The frame, 0 for a sprite that died, and a train's direction index the tables its moves read, so a value
-        // outside them is refused here rather than failing the step that moves the sprite
+        // outside them is refused here rather than failing the step that moves the sprite. Only a monster reaches land.
         internal static Sprite Load(SavedObject data)
         {
             SpriteType type = data.ReadEnum<SpriteType>("type");
@@ -152,6 +159,7 @@ namespace Micropolis.Rules
                 NewDir = data.ReadSafeInteger("newDir"),
                 Step = data.ReadSafeInteger("step"),
                 Flag = data.ReadSafeInteger("flag"),
+                ReachedLand = data.ReadBool("reachedLand", type == SpriteType.Monster ? [false, true] : [false]),
             };
         }
     }
