@@ -246,16 +246,6 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(text, CanonicalJson.Write(Resave(text)));
         }
 
-        // The file's SHA-256 is its state hash, which FixtureSavesTests checks against its fixture log's checkpoint
-        [TestMethod]
-        [DynamicData(nameof(ConformanceSaves.AllSaves), typeof(ConformanceSaves))]
-        public void Save_LoadedConformanceSave_HashesAsTheFile(FixtureSavePoint save)
-        {
-            string text = save.ReadCommitted();
-
-            Assert.AreEqual(StateHash.HashCanonicalText(text), StateHash.HashSavedState(Resave(text)));
-        }
-
         // The round trip can't tell a key read into the wrong property and written back from it, so each key is set to a
         // value its object's other keys don't hold, read back from its property, and saved back to its key
         [TestMethod]

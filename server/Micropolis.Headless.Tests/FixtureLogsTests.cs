@@ -11,6 +11,7 @@
  *
  */
 
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using Micropolis.Conformance;
 using Micropolis.Rules;
@@ -25,6 +26,9 @@ namespace Micropolis.Headless.Tests
     [TestClass]
     public sealed class FixtureLogsTests
     {
+        // Each log built once, for the tests that read it
+        private static readonly ConcurrentDictionary<string, Lazy<CommandLog>> BuiltLogs = new ConcurrentDictionary<string, Lazy<CommandLog>>();
+
         public static IEnumerable<object[]> Logs => Fixtures.Logs.Select(fixture => new object[] { fixture.Name });
 
         private static string Committed(string name)
@@ -32,13 +36,17 @@ namespace Micropolis.Headless.Tests
             return File.ReadAllText(Fixtures.LogPath(ConformanceDirectories.Committed, name));
         }
 
+        private static CommandLog Built(string name)
+        {
+            return BuiltLogs.GetOrAdd(name, _ => new Lazy<CommandLog>(
+                () => FixtureLogs.Build(Fixtures.Logs.Single(log => log.Name == name), ConformanceDirectories.Committed))).Value;
+        }
+
         [TestMethod]
         [DynamicData(nameof(Logs))]
         public void Build_EachLog_WritesTheCommittedFileByteForByte(string name)
         {
-            Fixture fixture = Fixtures.Logs.Single(log => log.Name == name);
-
-            Assert.AreEqual(Committed(name), FixtureLogs.Build(fixture, ConformanceDirectories.Committed).Write());
+            Assert.AreEqual(Committed(name), Built(name).Write());
         }
 
         [TestMethod]
@@ -94,7 +102,7 @@ namespace Micropolis.Headless.Tests
         {
             CommandLog committed = CommandLog.Parse(Committed("disasters"));
 
-            CommandLog built = FixtureLogs.Build(Fixtures.Named("disasters"), ConformanceDirectories.Committed);
+            CommandLog built = Built("disasters");
 
             Assert.IsInstanceOfType<SaveStart>(built.Start);
             Assert.AreEqual(((SaveStart)committed.Start).Save.ToJsonString(), ((SaveStart)built.Start).Save.ToJsonString());

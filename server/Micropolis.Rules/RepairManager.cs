@@ -77,7 +77,7 @@ namespace Micropolis.Rules
         {
             foreach (RepairAction current in _actions)
             {
-                // The period's bits are the low bits, which a JavaScript number's int32 conversion keeps
+                // An action is due when the city time has none of the period's bits set
                 if ((cityTime & current.Period) != 0)
                 {
                     continue;

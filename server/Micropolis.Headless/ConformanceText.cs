@@ -24,6 +24,8 @@ namespace Micropolis.Headless
     /// </summary>
     internal static partial class ConformanceText
     {
+        // The two Stringify wrappers only pass through to CanonicalJson. #128 deletes them, with their callers calling
+        // CanonicalJson.Stringify themselves
         public static string Stringify(JsonNode? value)
         {
             return CanonicalJson.Stringify(value);

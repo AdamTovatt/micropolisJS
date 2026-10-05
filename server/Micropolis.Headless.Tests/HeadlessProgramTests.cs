@@ -133,8 +133,9 @@ namespace Micropolis.Headless.Tests
             StringAssert.StartsWith(error, "The log has no checkpoints");
         }
 
-        // The one full run of the tool: every file it writes, named here apart from the writers, is the committed
-        // file byte for byte, and a file it no longer writes goes from the directories it alone writes
+        // The one full run of the tool, for what no test of a single file shows: it writes every file, named here apart
+        // from the writers, and no other, each as committed from the tool's own build, under its own name, and a file
+        // it no longer writes goes from the directories it alone writes
         [TestMethod]
         public void Run_WriteFixtures_WritesEveryFileAsCommittedAndNoOtherAndPasses()
         {
@@ -169,7 +170,7 @@ namespace Micropolis.Headless.Tests
         }
 
         // A golden playthrough it can't copy is a file the run refuses, not a defect to trace, and every file stays as
-        // it was, though every fixture's log was built before it
+        // it was
         [TestMethod]
         public void Run_WriteFixturesFromABrokenGoldenPlaythrough_PrintsTheReasonAndFailsWritingNothing()
         {
@@ -187,8 +188,7 @@ namespace Micropolis.Headless.Tests
             CollectionAssert.AreEquivalent(before.ToList(), conformance.FilesBut("").ToList());
         }
 
-        // The migrated saves are built last, after every log, save and event, so a sample save that fails there shows
-        // that nothing is written until everything is built
+        // A sample save it can't migrate is a file the run refuses, and every file stays as it was
         [TestMethod]
         public void Run_WriteFixturesFromASampleSaveWithNoVersion_PrintsTheReasonAndFailsWritingNothing()
         {

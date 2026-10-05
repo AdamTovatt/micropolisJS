@@ -27,7 +27,7 @@ namespace Micropolis.Rules
 
             if (map.GetTile(x, y).IsPowered())
             {
-                // Occasionally start the big game. The city time's low bits are an int32's, as JavaScript's & takes them.
+                // Occasionally start the big game: when the city time plus the stadium's x and y is a multiple of 32
                 if (((simData.CityTime + x + y) & 31) == 0)
                 {
                     map.PutZone(x, y, TileValues.FULLSTADIUM, 4);

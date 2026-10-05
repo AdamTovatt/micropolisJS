@@ -40,7 +40,7 @@ namespace Micropolis.Headless
 
             foreach (Speed speed in RunningSpeeds.All)
             {
-                Simulation city = HeadlessRunner.StartFromSave(JsonNode.Parse(built)!.AsObject(), null, speed);
+                Simulation city = FixtureSaves.StartCity(built, speed);
                 int speedCycle = city.SpeedCycle;
                 JsonArray phaseSteps = new JsonArray();
 

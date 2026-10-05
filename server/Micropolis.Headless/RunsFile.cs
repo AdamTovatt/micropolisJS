@@ -42,12 +42,12 @@ namespace Micropolis.Headless
 
             foreach (Fixture fixture in Fixtures.All)
             {
-                JsonObject built = JsonNode.Parse(FixtureSaves.TextOf(saves, fixture.Name, FixtureSaves.Built))!.AsObject();
-                Speed saved = (Speed)(int)built["simulation"]!["speed"]!;
+                string built = FixtureSaves.TextOf(saves, fixture.Name, FixtureSaves.Built);
+                Speed saved = FixtureSaves.StartCity(built, null).Speed;
 
                 foreach (Speed speed in RunningSpeeds.All.Where(speed => speed != saved))
                 {
-                    Simulation city = HeadlessRunner.StartFromSave(JsonNode.Parse(built.ToJsonString())!.AsObject(), null, speed);
+                    Simulation city = FixtureSaves.StartCity(built, speed);
                     runs.Add(Run(new JsonObject { ["fixture"] = fixture.Name }, speed, city));
                 }
             }

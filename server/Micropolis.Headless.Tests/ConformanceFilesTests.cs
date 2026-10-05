@@ -20,7 +20,7 @@ namespace Micropolis.Headless.Tests
     /// <summary>
     /// The fixture tool against the committed conformance files: each it writes from the committed logs and saves is
     /// the committed file byte for byte. A change to a case, or to a rule a case reaches, fails here until the files
-    /// are written again. <c>SavedGameTests</c> holds the migrated states, which it works out as the tool does.
+    /// are written again. <c>SavedGameTests</c> holds the migrated states too, which it works out as the tool does.
     /// </summary>
     [TestClass]
     public sealed class ConformanceFilesTests
@@ -99,6 +99,15 @@ namespace Micropolis.Headless.Tests
             List<string> events = Directory.GetFiles(ConformanceDirectories.Committed.Events).Select(path => Path.GetFileName(path)).ToList();
 
             CollectionAssert.AreEquivalent(FixtureLogs.Names.Select(name => $"{name}{FixtureEvents.FileExtension}").ToList(), events);
+        }
+
+        [TestMethod]
+        public void Files_MigratedSaves_AreTheCommittedFilesByteForByte()
+        {
+            foreach ((string path, string text) in MigratedSaves.Files(ConformanceDirectories.Committed))
+            {
+                Assert.AreEqual(File.ReadAllText(path), text, path);
+            }
         }
 
         [TestMethod]

@@ -30,7 +30,6 @@ namespace Micropolis.Rules
             RepairManager = simulator.RepairManager;
             PowerManager = simulator.PowerManager;
             Random = simulator.Random;
-            Simulator = simulator;
             SpriteManager = simulator.SpriteManager;
             TrafficManager = simulator.TrafficManager;
             Valves = simulator.Valves;
@@ -56,8 +55,6 @@ namespace Micropolis.Rules
         public PowerManager PowerManager { get; }
 
         public RandomStream Random { get; }
-
-        public Simulation Simulator { get; }
 
         public SpriteManager SpriteManager { get; }
 

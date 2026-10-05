@@ -69,9 +69,9 @@ namespace Micropolis.Rules
     /// have without it.
     /// </summary>
     /// <remarks>
-    /// Code that computes with the city's integers mirrors JavaScript's operations on doubles rather than C#'s
-    /// integer semantics: <c>Math.floor</c> rounds down where C# division truncates,
-    /// <c>| 0</c> and <c>&gt;&gt;</c> narrow to int32, and <c>Math.round</c> sends halves up.
+    /// Where a rule's integer arithmetic is not C#'s default, the code says so: a division that rounds down goes through
+    /// <see cref="JsMath.FloorDiv(long, long)"/>, where C#'s truncates toward zero, and a value narrowed to 32 bits is
+    /// cast to <see langword="int"/> first.
     /// </remarks>
     public sealed partial class Simulation
     {
@@ -457,7 +457,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The pass a step lets through, as <c>_simulate</c>: the city's first evaluation if it is still due, then
+        /// The pass a step lets through: the city's first evaluation if it is still due, then
         /// the next phase of the cycle.
         /// </summary>
         internal void Simulate(SimData simData)
@@ -612,7 +612,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Sends a component's event as a front-end message with the place it carries, as <c>_wrapMessage</c> does: an
+        /// Sends a component's event as a front-end message with the place it carries: an
         /// event without one, a place of <see langword="null"/>, leaves the message without data.
         /// </summary>
         internal void WrapMessage(string message, NewsPlace? place)
@@ -621,7 +621,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The advisor's messages, as <c>_sendMessages</c> and sendMessages in the original: the growth check, then the
+        /// The advisor's messages, as sendMessages in the original: the growth check, then the
         /// one condition the city time's place in its 64-unit round asks about, sent if it holds. The stadium, seaport
         /// and airport checks also set or clear the demand caps.
         /// </summary>
@@ -793,7 +793,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The city status record at the end of the cycle, as <c>_publishCityStatus</c>: derived, never saved.
+        /// The city status record at the end of the cycle: derived, never saved.
         /// </summary>
         private void PublishCityStatus()
         {

@@ -11,7 +11,6 @@
  *
  */
 
-using System.Text.Json.Nodes;
 using Micropolis.Conformance;
 using Micropolis.Rules;
 
@@ -24,9 +23,10 @@ namespace Micropolis.Headless
     internal sealed record RunReport(IReadOnlyList<string> Lines, string? Failure);
 
     /// <summary>
-    /// Where the files a run reads and writes beside a log it is given are: the conformance directories, whose logs a
-    /// fixture that starts from a save reads it from, and which the fixture tool writes, reading the sample saves of
-    /// their <c>saveVersions/</c>; and the golden playthrough, which the tool copies the playthrough's log from.
+    /// Where the files a run reads and writes beside a log it is given are: the conformance directories, whose built
+    /// saves a fixture's run starts from, and which the fixture tool writes, reading the sample saves of their
+    /// <c>saveVersions/</c> and the logs a fixture that starts from a save reads it from; and the golden playthrough,
+    /// which the tool copies the playthrough's log from.
     /// </summary>
     internal sealed record HeadlessFiles(ConformanceDirectories Conformance, string GoldenPlaythrough)
     {
@@ -70,9 +70,8 @@ namespace Micropolis.Headless
         }
 
         /// <summary>
-        /// The city a run starts from, a fixture that starts from a save reading it from its log in
-        /// <paramref name="directories"/>. A fixture's city is loaded from the save its log builds, so a fixture always
-        /// goes through the load path.
+        /// The city a run starts from: a fixture's is its built save in <paramref name="directories"/>, so a fixture
+        /// always goes through the load path.
         /// </summary>
         public static Simulation StartCity(RunStart start, ConformanceDirectories directories)
         {
@@ -83,43 +82,11 @@ namespace Micropolis.Headless
 
             if (start.Seed is uint seed)
             {
-                if (start.Reseed.HasValue)
-                {
-                    throw new ArgumentException("Reseeding replaces a fixture's stream: a city from a seed already has the stream of its seed");
-                }
-
                 return Simulation.NewCity(seed, Level.Easy, start.Speed ?? Speed.Medium);
             }
 
-            Fixture fixture = Fixtures.Named(start.Fixture!);
-            JsonObject save = LogReplay.Run(fixture.Start(directories), fixture.Entries, [], 0).City.Save();
-            return StartFromSave(save, start.Reseed, start.Speed);
-        }
-
-        /// <summary>
-        /// The city a save holds, with its stream replaced by the simulation stream of <paramref name="reseed"/>, and
-        /// its speed by <paramref name="speed"/>; a city saved paused needs a speed to run.
-        /// </summary>
-        public static Simulation StartFromSave(JsonObject save, uint? reseed, Speed? speed)
-        {
-            JsonObject simulation = save["simulation"]!.AsObject();
-
-            if (reseed is uint seed)
-            {
-                simulation["seed"] = seed;
-                simulation["randomState"] = new JsonArray(RandomStream.SimulationStream(seed).GetState().Select(word => (JsonNode?)word).ToArray());
-            }
-
-            if (speed is Speed running)
-            {
-                simulation["speed"] = (int)running;
-            }
-            else if ((int)simulation["speed"]! == (int)Speed.Paused)
-            {
-                throw new ArgumentException("The city is saved paused: give a speed to run it");
-            }
-
-            return LogReplay.StartCity(new SaveStart(save, SavedGame.CurrentVersion));
+            FixtureSavePoint built = FixtureSaves.At(start.Fixture!, FixtureSaves.Built);
+            return FixtureSaves.StartCity(File.ReadAllText(built.FilePath(directories)), start.Speed);
         }
 
         /// <summary>

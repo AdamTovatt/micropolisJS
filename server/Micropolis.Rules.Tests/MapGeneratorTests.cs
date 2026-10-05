@@ -16,50 +16,12 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The generator against the maps of <c>conformance/maps.json</c>.
+    /// The generator's determinism. What it lays for each seed is <c>conformance/maps.json</c>, which the fixture tool's
+    /// tests hold to the generator byte for byte.
     /// </summary>
     [TestClass]
     public sealed class MapGeneratorTests
     {
-        private static readonly ConformanceMaps Maps = ConformanceMaps.Load();
-
-        public static IEnumerable<object[]> Seeds => Maps.Seeds.Select(seed => new object[] { seed });
-
-        public static IEnumerable<object[]> ListedMaps => Maps.Maps.Select(map => new object[] { map });
-
-        [TestMethod]
-        [DynamicData(nameof(Seeds))]
-        public void Generate_ConformanceSeed_HashesAsTheCommittedMap(MapSeed seed)
-        {
-            Assert.AreEqual(seed.Hash, StateHash.HashSavedState(SavedMapObject(seed.Seed)));
-        }
-
-        [TestMethod]
-        [DynamicData(nameof(ListedMaps))]
-        public void Generate_ListedSeed_LaysEveryTileAsCommitted(ListedMap listed)
-        {
-            JsonObject map = SavedMapObject(listed.Seed);
-
-            Assert.AreEqual(listed.Map.Width, map["width"]!.GetValue<int>());
-            Assert.AreEqual(listed.Map.Height, map["height"]!.GetValue<int>());
-
-            JsonArray tiles = map["tiles"]!.AsArray();
-
-            for (int y = 0; y < listed.Map.Height; y++)
-            {
-                for (int x = 0; x < listed.Map.Width; x++)
-                {
-                    int index = x + y * listed.Map.Width;
-                    Assert.AreEqual(listed.Map.Tiles[index], tiles[index]!.GetValue<int>(), $"The tile at ({x}, {y}) differs.");
-                }
-            }
-
-            Assert.AreEqual(listed.Map.CityCentreX, map["cityCentreX"]!.GetValue<int>());
-            Assert.AreEqual(listed.Map.CityCentreY, map["cityCentreY"]!.GetValue<int>());
-            Assert.AreEqual(listed.Map.PollutionMaxX, map["pollutionMaxX"]!.GetValue<int>());
-            Assert.AreEqual(listed.Map.PollutionMaxY, map["pollutionMaxY"]!.GetValue<int>());
-        }
-
         [TestMethod]
         public void Generate_SameStreamState_GeneratesSameMap()
         {

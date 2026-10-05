@@ -102,8 +102,8 @@ are computed from: a fixture's commands, saved state or a game rule (`CLAUDE.md`
 dotnet run --project server/Micropolis.Headless -- --write-fixtures
 ```
 
-It builds every file before it writes any, so a file that fails to build leaves them all as they were. The tests of
-`Micropolis.Headless.Tests` fail unless each file it writes is the committed file byte for byte, and unless each
+It builds every file before it writes any, so a file that fails to build leaves them all as they were. The tool's
+tests fail unless each file it writes is the committed file byte for byte, and unless each
 directory holds only the files it writes, so the committed files can't drift from the rules that compute them. A
 change to a rule moves the files it reaches, and the commit's diff of them shows what the change did. Each writer
 fails, too, unless its cases still cover what the file is for (`EnsureCovers` in `ConformanceText`), so a file never
@@ -152,7 +152,9 @@ its first checkpoint, as its log builds it, and `<fixture>.run.json` at its last
 canonical text alone, with no final newline, so its SHA-256 is the state hash, which `FixtureSavesTests` checks
 against the log's checkpoints, and the client's `test/canonicalJson.ts` hashes each, with its own canonical text, to
 the same checkpoints. The C# tests start cities from them, the fixtures `Fixtures.cs` lists
-(`ConformanceSaves`), and so does the benchmark (`server/Micropolis.Benchmarks`), from each `<fixture>.run.json`.
+(`ConformanceSaves`), and so does the benchmark (`server/Micropolis.Benchmarks`), from each `<fixture>.run.json`, the
+headless runner's `--fixture`, from the fixture's `<fixture>.built.json`, and the tool's `runs.json` and
+`speedGate.json`, from the built saves.
 
 ### events/
 
@@ -169,14 +171,13 @@ Commands applied to a city, each with the result the simulation gave it, which c
 the commands apply to, the built save of a `fixture` (`saves/<fixture>.built.json`), or a `state` it holds, a new city
 on a small blank map; `results`, each command's result in the order applied, as `COMMAND_RESULT` carries it
 (`player`, `command` as it arrived, `outcome` and `reason`); and `hash`, the state hash of the city after them all.
-`ConformanceCommandsTests` applies each case's commands to its city as their players sent them, and must get the same
-results, each rejection's reason word for word, and leave the same hash.
 
 The cases reach every reason `CommandReader` rejects a command for and every outcome, and the tool fails unless they
 do. The small map's longest command (`CommandReader.MaxCommandLength`) is short enough to list one either side of
 it, with characters `JSON.stringify` escapes, in a type and in a key, and numbers it writes as `Number::toString`
 does. The commands are
-any JSON, a key that is a lone surrogate included, so the C# reads the file as `JSON.parse` does (`JsonText`). Each
+any JSON, a key that is a lone surrogate included, so the tool reads each command's text as `JSON.parse` does
+(`JsonText`). Each
 disaster the player can trigger is a case of its own, so its hash shows what that disaster did.
 
 ### queries.json
@@ -194,8 +195,7 @@ one service named, at the lowest and the highest tax rate, and at a tax rate wit
 they cost and exactly what they cost, so the funds pay some services and scale one back; each overlay layer from the
 first save where it holds a value other than 0; and queries the simulation rejects, on the first save and before any
 city has started. The tool fails unless the queries reach every reason the simulation rejects one for, every category
-and every layer. `ConformanceQueriesTests` must get the same records and answers, each rejection's reason word for
-word. A map preview's answer is the map the seed generates, which `maps.json` holds.
+and every layer. A map preview's answer is the map the seed generates, which `maps.json` holds.
 
 ### speedGate.json
 

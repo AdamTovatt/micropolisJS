@@ -172,7 +172,7 @@ namespace Micropolis.Rules
             // The cash flow scaled to 0–255, its division truncating as the original's does
             MoneyHist10 = Rotated(MoneyHist10, Math.Clamp((budget.CashFlow / 20) + 128, 0, 255));
 
-            // JavaScript's >>, on the population taken to an int32
+            // The residential population in 256s, rounding down, narrowed to 32 bits first
             long resPopScaled = (int)ResPop >> 8;
 
             if (HospitalPop < resPopScaled)

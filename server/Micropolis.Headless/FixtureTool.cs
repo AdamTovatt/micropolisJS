@@ -20,7 +20,8 @@ namespace Micropolis.Headless
     /// The fixture tool, <c>--write-fixtures</c>: regenerates everything the rules compute that the tests compare
     /// against, after a deliberate change to a fixture, to saved state or to a rule. It writes every log
     /// (<see cref="FixtureLogs"/>), every fixture's saves (<see cref="FixtureSaves"/>), the events of each log's replay
-    /// (<see cref="FixtureEvents"/>) and the conformance files the saves give (<see cref="ConformanceFiles"/>).
+    /// (<see cref="FixtureEvents"/>), the conformance files the saves give (<see cref="ConformanceFiles"/>) and the
+    /// sample saves migrated (<see cref="MigratedSaves"/>).
     /// </summary>
     internal static class FixtureTool
     {
@@ -29,15 +30,18 @@ namespace Micropolis.Headless
         /// <summary>
         /// Every file the tool writes, by its path in <paramref name="files"/>' conformance directories. Each is built
         /// from what the directories hold before any is written, since a fixture that starts from a save reads it from
-        /// its log there.
+        /// its log there. The tool's inputs that no fixture builds, the golden playthrough's log and the sample saves,
+        /// are read first, so one it refuses fails the run before it builds any fixture.
         /// </summary>
         public static IReadOnlyList<(string Path, string Text)> Build(HeadlessFiles files)
         {
             ConformanceDirectories directories = files.Conformance;
+            CommandLog playthrough = FixtureLogs.CopyPlaythrough(files.GoldenPlaythrough);
+            IReadOnlyList<(string Path, string Text)> migrated = MigratedSaves.Files(directories);
             IReadOnlyList<(string Name, CommandLog Log)> logs =
             [
                 .. Fixtures.Logs.Select(fixture => (fixture.Name, FixtureLogs.Build(fixture, directories))),
-                (FixtureLogs.Playthrough, FixtureLogs.CopyPlaythrough(files.GoldenPlaythrough)),
+                (FixtureLogs.Playthrough, playthrough),
             ];
             IReadOnlyList<FixtureSave> saves = FixtureSaves.BuildAll(directories);
 
@@ -47,6 +51,7 @@ namespace Micropolis.Headless
                 .. saves.Select(save => (save.At.FilePath(directories), save.Text)),
                 .. logs.Select(log => (FixtureEvents.FilePath(directories, log.Name), FixtureEvents.Write(log.Log))),
                 .. ConformanceFiles.Files(directories, saves),
+                .. migrated,
             ];
         }
 

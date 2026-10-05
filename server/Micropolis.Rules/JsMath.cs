@@ -14,8 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// JavaScript's arithmetic on the city's integers, where it differs from C#'s: the one home of each such rule. The
-    /// rules compute as JavaScript's numbers do, which the conformance files and the command logs' state hashes pin.
+    /// The rules' arithmetic where it differs from C#'s defaults: the one home of each such rule, which the conformance
+    /// files and the command logs' state hashes pin.
     /// </summary>
     public static class JsMath
     {

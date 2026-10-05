@@ -59,9 +59,9 @@ namespace Micropolis.Conformance
     }
 
     /// <summary>
-    /// The saves the fixture tool writes under <c>saves/</c> beside the logs, which the rules' tests and the benchmark
-    /// start cities from: each fixture's state as built and after its run, at the steps of its first and last
-    /// checkpoints.
+    /// The saves the fixture tool writes under <c>saves/</c> beside the logs, which the rules' tests, the benchmark,
+    /// the headless runner and the tool's runs and speed gates start cities from: each fixture's state as built and
+    /// after its run, at the steps of its first and last checkpoints.
     /// </summary>
     public static class FixtureSaves
     {
@@ -107,6 +107,24 @@ namespace Micropolis.Conformance
         public static IReadOnlyList<FixtureSave> BuildAll(ConformanceDirectories directories)
         {
             return Fixtures.All.SelectMany(fixture => Build(fixture, directories)).ToList();
+        }
+
+        /// <summary>
+        /// The city a fixture's save holds, from the save's <paramref name="text"/>, running at
+        /// <paramref name="speed"/> in place of the speed it was saved at, or at the saved speed when none is given.
+        /// </summary>
+        // It lives here, beside the saves it starts, for the runner and the tool's runs and speed gates alike, as #126
+        // decided, rather than in the headless runner
+        public static Simulation StartCity(string text, Speed? speed)
+        {
+            Simulation city = Simulation.FromSave(text);
+
+            if (speed is Speed running)
+            {
+                city.SetSpeed(running);
+            }
+
+            return city;
         }
 
         /// <summary>
