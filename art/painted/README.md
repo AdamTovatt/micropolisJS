@@ -2,7 +2,7 @@
 
 Each Blender render in `art/blender/out/` repainted as an oil painting by an image model, in the render's three layers: `out/<asset>/` holds `ground.png`, `shadow.png` and `objects.png` at the render's sizes, and a copy of its `layers.json`, so the atlas build can take the painted set or the rendered one. `art/tools/paint.py` makes them, as the art-painting skill (`.claude/skills/art-painting/SKILL.md`) describes.
 
-These are committed, unlike the renders: a painting cannot be rebuilt from a script. The model inputs and the 1024 px paintings they were cut from stay in `raw/<job>/`, which git ignores.
+These are committed, unlike the renders: a painting cannot be rebuilt from a script. So is `built/<asset>/`, each single tile's `ground.png` and `objects.png` as the paint build cut them from its paintings, before the join gave it its donors' paintings, which the join works from. The model inputs and the 1024 px paintings they were cut from stay in `raw/<job>/`, which git ignores.
 
 ## Prompts and model
 
