@@ -27,6 +27,8 @@ interface RuleConstants {
     advisorConditions: string[];
     // Each sprite type, as the state messages number it, with its frames, counting from 1
     spriteTypes: {type: number, name: string, frames: number}[];
+    // The tiles along each side of a block of the fire department's cover map
+    fireCoverBlockSize: number;
 }
 
 // Imported as a module rather than read from a path, since the recorder and the end-to-end suite run it as an ES

@@ -120,7 +120,7 @@ namespace Micropolis.Headless
         {
             GameMap map = listed.Generated.Map;
             string fields = string.Concat(map.SavedObject().Where(member => member.Key != "tiles")
-                .Select(member => $"{Stringify(member.Key)}:{Stringify(member.Value)},"));
+                .Select(member => $"{CanonicalJson.Stringify(member.Key)}:{CanonicalJson.Stringify(member.Value)},"));
             int[] tiles = map.RawValues();
             List<string> lines = [$"    {{\"seed\":{listed.Seed},\"map\":{{{fields}\"tiles\":["];
 

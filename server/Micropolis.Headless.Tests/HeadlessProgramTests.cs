@@ -151,7 +151,7 @@ namespace Micropolis.Headless.Tests
                 .. FixtureLogs.Names.Select(name => Path.Combine("logs", $"{name}.log.json")),
                 .. FixtureSaves.All.Select(save => Path.Combine("saves", $"{save.Name}.json")),
                 .. FixtureLogs.Names.Select(name => Path.Combine("events", $"{name}.events.json")),
-                "commands.json", "queries.json", "speedGate.json", "maps.json", "helpers.json", "runs.json", "ruleConstants.json", "stationCover.json",
+                "commands.json", "queries.json", "speedGate.json", "maps.json", "helpers.json", "runs.json", "ruleConstants.json",
                 .. Directory.GetFiles(ConformanceDirectories.Committed.SaveVersions).Select(sample => Path.Combine("migrated", Path.GetFileName(sample))),
             ];
 

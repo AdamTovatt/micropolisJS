@@ -44,6 +44,11 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// A tile's fields, <c>x</c> and <c>y</c>, both required.
+        /// </summary>
+        public static readonly IReadOnlyDictionary<string, bool> TileFields = Fields(required: ["x", "y"]);
+
+        /// <summary>
         /// Whether the keys, but <paramref name="leaveOut"/> when it isn't null, are every required field and
         /// otherwise only optional ones.
         /// </summary>

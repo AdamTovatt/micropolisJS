@@ -12,17 +12,22 @@
  *
  */
 
+import type { FireStationReach } from "../src/protocol";
 import { CONDBIT } from "../src/tileFlags";
 import { DIRT, NUCLEAR, POWERPLANT, ROADS, ROADS2, TREEBASE, WOODS5 } from "../src/tileValues";
 import type { GameSave, Player, Tile } from "./player";
+import { FIRE_COVER_BLOCK_SIZE } from "./ruleNumbers";
 import {
-  BlockMap, chebyshev, inBounds, isFire, normalizeRoad, rawTileAt, savedBlockMapAt, tileAt, tilesAround, tilesIn,
-  tilesWhere,
+  chebyshev, inBounds, isFire, normalizeRoad, rawTileAt, savedBlockMapAt, tileAt, tilesAround, tilesIn, tilesWhere,
 } from "./savedMap";
 
 // Where the playthrough's fire stage builds its fire station, chosen from the city as the fire left it, so the stage
 // holds wherever the random stream lands the fire: a site whose cover reaches the fire, a road beside it, and a power
-// line to the grid.
+// line to the grid. Where a station looks for its road, and the cover it gives with its road on each tile there, are
+// the rules': the game server answers them for each site the plan considers (fireStationReach, in the debug channel).
+
+// What a fire station centred at the station tile would give the target tile, as the game server answers it
+export type StationReach = (station: Tile, target: Tile) => Promise<FireStationReach>;
 
 export interface StationPlan {
   // The station's centre
@@ -42,19 +47,19 @@ export const STRONGEST_COVER = 100;
 // arrives, so a fire reaches two tiles out before the station answers it
 const FIRE_MARGIN = 2;
 
-// The block size of the fire station maps, as the Simulation constructor makes them
-const FIRE_BLOCK_SIZE = 8;
+// How far a station's road may be from its centre either way: on its perimeter, two tiles out. The plan checks each
+// perimeter the server answers against it.
+const ROAD_REACH = 2;
 
 // The longest run of power line laid in one drag, so both its ends fit in the view
 const LONGEST_DRAG = 12;
 
-// The station's perimeter, where Traffic.findPerimeterRoad looks for a road, in its order
-const PERIMETER: Tile[] = [
-  {x: -1, y: -2}, {x: 0, y: -2}, {x: 1, y: -2}, {x: 2, y: -1}, {x: 2, y: 0}, {x: 2, y: 1},
-  {x: 1, y: 2}, {x: 0, y: 2}, {x: -1, y: 2}, {x: -2, y: 1}, {x: -2, y: 0}, {x: -2, y: -1},
-];
-
 const NEIGHBOURS: Tile[] = [{x: 1, y: 0}, {x: -1, y: 0}, {x: 0, y: 1}, {x: 0, y: -1}];
+
+// The blocks of the fire department's cover map, from the fire's, from which a station's road covers the fire at the
+// strongest: the fire's own and the four beside it. A station notes its cover at its road's block, and the fire
+// analysis spreads it to a block beside at about half, and to one diagonal or further at under a quarter.
+const STRONGEST_BLOCKS: Tile[] = [{x: 0, y: 0}, ...NEIGHBOURS];
 
 // What laying a line on a tile costs the plan: trees cost more than bare land or a road, since a fire spreads
 // through them
@@ -118,73 +123,58 @@ class FireSite {
 
     return reached;
   }
-
-  // The cover at the fire of a station alone at the centre, with power and a road, at the city's funding
-  coverAt(centre: Tile, fire: Tile): number {
-    const {width, height} = this.save.map;
-    return stationCover(width, height, centre, this.save.budget.fireEffect).worldGet(fire.x, fire.y);
-  }
 }
 
-// The fire department's cover of a station alone at the centre of a map of the size given, at the fire effect the
-// city's funding gives it: as the scan records the station on the fire station map, and the fire analysis spreads it
-// with three passes of smoothing
-export function stationCover(mapWidth: number, mapHeight: number, centre: Tile, fireEffect: number): BlockMap {
-  const width = Math.ceil(mapWidth / FIRE_BLOCK_SIZE);
-  const height = Math.ceil(mapHeight / FIRE_BLOCK_SIZE);
-  let cover = new Array<number>(width * height).fill(0);
-  cover[Math.floor(centre.x / FIRE_BLOCK_SIZE) + Math.floor(centre.y / FIRE_BLOCK_SIZE) * width] = fireEffect;
-  for (let pass = 0; pass < 3; pass++) {
-    cover = smoothed(cover, width, height);
+// The centres of the stations whose road may lie in one of the blocks from which a road covers the fire at the
+// strongest
+function centresNear(fire: Tile): Tile[] {
+  const size = FIRE_COVER_BLOCK_SIZE;
+  const block = {x: Math.floor(fire.x / size), y: Math.floor(fire.y / size)};
+  const centres = new Map<string, Tile>();
+  for (const by of STRONGEST_BLOCKS) {
+    const left = (block.x + by.x) * size;
+    const top = (block.y + by.y) * size;
+    for (const centre of tilesIn({left: left - ROAD_REACH, top: top - ROAD_REACH, right: left + size - 1 + ROAD_REACH,
+                                  bottom: top + size - 1 + ROAD_REACH})) {
+      centres.set(`${centre.x},${centre.y}`, centre);
+    }
   }
 
-  return new BlockMap(mapWidth, mapHeight, FIRE_BLOCK_SIZE, cover);
-}
-
-// A block map's values, row by row, width blocks to a row and height rows, smoothed as the fire analysis smooths the
-// fire station map (SpreadStationCover in the C# rules' BlockMapUtils): each block's value and a quarter of the sum of
-// the blocks beside it on the map, halved, each division dropping its fraction
-function smoothed(blocks: readonly number[], width: number, height: number): number[] {
-  const at = (x: number, y: number) => blocks[x + y * width];
-  return blocks.map((value, i) => {
-    const x = i % width;
-    const y = Math.floor(i / width);
-    const beside = (x > 0 ? at(x - 1, y) : 0) + (x < width - 1 ? at(x + 1, y) : 0) +
-      (y > 0 ? at(x, y - 1) : 0) + (y < height - 1 ? at(x, y + 1) : 0);
-    return Math.floor((value + Math.floor(beside / 4)) / 2);
-  });
+  return [...centres.values()];
 }
 
 // The station's site near the fire, with its road and its line: the sites whose three by three tiles are all
-// buildable and whose cover at the fire is the strongest, the most cover first, then the fewest trees around, then
-// the nearest, and the first of them with a buildable tile on its perimeter for the road and a line to the grid
-export function planStation(save: GameSave, fire: Tile): StationPlan {
+// buildable, each with its road on the first buildable tile of its perimeter, in the order the station looks for its
+// road there, and whose cover at the fire with its road there, as the server answers it, is the strongest; the most
+// cover first, then the fewest trees around, then the nearest, and the first of them with a line to the grid
+export async function planStation(save: GameSave, fire: Tile, reachOf: StationReach): Promise<StationPlan> {
   const site = new FireSite(save);
   const grid = site.grid();
   const trees = (centre: Tile) => tilesAround(centre, 2).filter((tile) => inBounds(save, tile) &&
                                                                           isTree(tileAt(save, tile))).length;
 
-  // The fire's block and those around it, beyond which no station's cover reaches the fire at its strongest
-  const block = {x: Math.floor(fire.x / FIRE_BLOCK_SIZE), y: Math.floor(fire.y / FIRE_BLOCK_SIZE)};
-  const near = tilesIn({left: (block.x - 1) * FIRE_BLOCK_SIZE, top: (block.y - 1) * FIRE_BLOCK_SIZE,
-                        right: (block.x + 2) * FIRE_BLOCK_SIZE - 1, bottom: (block.y + 2) * FIRE_BLOCK_SIZE - 1});
+  const near = centresNear(fire).filter((centre) => tilesAround(centre, 1).every((tile) => site.buildable(tile)));
+  const reaches = await Promise.all(near.map((centre) => reachOf(centre, fire)));
 
-  const sites = near
-    .filter((centre) => tilesAround(centre, 1).every((tile) => site.buildable(tile)))
-    .map((centre) => ({centre, cover: site.coverAt(centre, fire)}))
-    .filter(({cover}) => cover > STRONGEST_COVER)
-    .map(({centre, cover}) => ({centre, key: [-cover, trees(centre), chebyshev(centre, fire), centre.y, centre.x]}));
+  const sites = near.flatMap((centre, i) => {
+    const {perimeter} = reaches[i];
+    const tooFar = perimeter.find((tile) => chebyshev(tile, centre) > ROAD_REACH);
+    if (tooFar !== undefined) {
+      throw new Error(`The server puts (${tooFar.x}, ${tooFar.y}) on the perimeter of a station at ` +
+                      `(${centre.x}, ${centre.y}), further than the ${ROAD_REACH} tiles the plan looks within`);
+    }
+
+    const road = perimeter.find((tile) => site.buildable(tile));
+    return road === undefined || road.cover <= STRONGEST_COVER ? [] : [{
+      centre, road: {x: road.x, y: road.y}, key: [-road.cover, trees(centre), chebyshev(centre, fire), centre.y, centre.x],
+    }];
+  });
   sites.sort((a, b) => {
     const differs = a.key.findIndex((value, i) => value !== b.key[i]);
     return differs === -1 ? 0 : a.key[differs] - b.key[differs];
   });
 
-  for (const {centre} of sites) {
-    const road = PERIMETER.map((offset) => step(centre, offset)).find((tile) => site.buildable(tile));
-    if (road === undefined) {
-      continue;
-    }
-
+  for (const {centre, road} of sites) {
     const line = lineToTheGrid(site, grid, centre, road);
     if (line !== null) {
       return {centre, road, line};
@@ -280,7 +270,7 @@ function lineToTheGrid(site: FireSite, grid: Set<number>, centre: Tile, road: Ti
 
 // The fire department's cover at the tile as the save holds it, from the last fire analysis
 export function savedFireCover(save: GameSave, tile: Tile): number {
-  return savedBlockMapAt(save, "fireStationEffectMap", FIRE_BLOCK_SIZE, tile);
+  return savedBlockMapAt(save, "fireStationEffectMap", FIRE_COVER_BLOCK_SIZE, tile);
 }
 
 // A line as straight runs of at most longest tiles, each from its first tile to its last, in order: each a drag of the

@@ -37,6 +37,26 @@ namespace Micropolis.Rules
             NoteCover(map, x, y, simData, simData.Budget.FireEffect, simData.BlockMaps.FireStationMap);
         }
 
+        /// <summary>
+        /// What a powered fire station centred at <paramref name="station"/>, as the only fire station on
+        /// <paramref name="map"/>, would give <paramref name="target"/>: for each tile of its perimeter on the map, in the
+        /// order the scan searches them for the station's road, the cover at the target with the station's road on that
+        /// tile, its <paramref name="fireEffect"/> noted there and spread as the fire analysis spreads it. The city is
+        /// untouched: the cover is worked out on block maps of its own.
+        /// </summary>
+        /// <param name="fireEffect">The fire department's funded effect, as the budget gives it.</param>
+        public static FireStationReach FireStationReach(GameMap map, long fireEffect, Position station, Position target)
+        {
+            return new FireStationReach([.. Traffic.Perimeter(map, station).Select(road =>
+            {
+                BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+                blockMaps.FireStationMap.WorldSet(road.X, road.Y, checked((int)fireEffect));
+                BlockMapUtils.FireAnalysis(blockMaps);
+
+                return new RoadReach(road.X, road.Y, blockMaps.FireStationEffectMap.WorldGet(target.X, target.Y));
+            })]);
+        }
+
         public static void RegisterHandlers(MapScanner mapScanner, RepairManager repairManager)
         {
             mapScanner.AddAction(TileValues.POLICESTATION, PoliceStationFound);

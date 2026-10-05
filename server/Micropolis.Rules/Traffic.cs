@@ -173,6 +173,28 @@ namespace Micropolis.Rules
             return null;
         }
 
+        /// <summary>
+        /// The tiles on the perimeter of the zone centred at <paramref name="position"/> that are on the map, in the
+        /// order <see cref="FindPerimeterRoad"/> searches them for a road.
+        /// </summary>
+        public static IReadOnlyList<Position> Perimeter(GameMap map, Position position)
+        {
+            List<Position> perimeter = new List<Position>();
+
+            for (int i = 0; i < PerimX.Length; i++)
+            {
+                int xx = position.X + PerimX[i];
+                int yy = position.Y + PerimY[i];
+
+                if (map.TestBounds(xx, yy))
+                {
+                    perimeter.Add(new Position(xx, yy));
+                }
+            }
+
+            return perimeter;
+        }
+
         private bool TryDrive(Position startPos, TrafficDestination destination)
         {
             Direction? dirLast = null;

@@ -12,7 +12,9 @@
  *
  */
 
-import type { AdvanceResult, Command, PlayerId, Query, QueryAnswer, SessionLog, StateMessage } from "./protocol";
+import type {
+  AdvanceResult, Command, FireStationReach, PlayerId, Query, QueryAnswer, SessionLog, StateMessage, TilePosition,
+} from "./protocol";
 import type { QuerySource } from "./querySource";
 
 // The only way the client reaches the city. A source sends the city commands and queries, and delivers the state
@@ -50,6 +52,11 @@ export interface CityDriver {
   cityTime(): Promise<number>;
   // The saved game's text, the city's name with it, which the runner checks the city by: it is kept nowhere
   savedGame(): Promise<string>;
+  // The city's state hash, as the rules compute it, which the runner checks against its golden checkpoints
+  stateHash(): Promise<string>;
+  // What a fire station centred at the station tile would give the target tile, as the rules work it out without
+  // changing the city
+  fireStationReach(station: TilePosition, target: TilePosition): Promise<FireStationReach>;
 }
 
 export interface CitySource extends QuerySource {

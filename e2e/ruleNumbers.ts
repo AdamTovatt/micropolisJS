@@ -24,3 +24,5 @@ export const CITY_TIMES_PER_YEAR = 48;
 export const AIRPORT_COST = 10000;
 // The tornado's sprite type, as the state messages number it
 export const TORNADO_SPRITE = 6;
+// The tiles along each side of a block of the fire department's cover map, as a save holds it
+export const FIRE_COVER_BLOCK_SIZE = 8;

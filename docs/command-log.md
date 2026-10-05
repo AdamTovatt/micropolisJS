@@ -97,7 +97,9 @@ fails.
 - **The end-to-end playthrough.** The runner downloads each session's log from the debug window and joins them into
   one from the seed (`joinSessions`): a session that loaded the save the one before it ended on carries on its steps,
   with no entry for the load. A joined session may apply no command before its first step: the joined log takes its
-  city there for the city as loaded, which such a command would have changed. `e2e/goldenPlaythrough.json` holds the
+  city there for the city as loaded, which such a command would have changed. Its checkpoint at its first step, the
+  server's hash of the city as it loaded it, must be the hash the session before it ended on, and a session without
+  one is refused. `e2e/goldenPlaythrough.json` holds the
   log, beside each stage's step, the number of the log's entries before it and its hash, and every run's log must be
   that one. A stage may end partway through a step's commands, before those the next stage applies first, so its hash
   is not a checkpoint of the log: `GoldenPlaythroughTests` in `server/Micropolis.Headless.Tests` replays each stage

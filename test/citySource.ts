@@ -19,7 +19,6 @@ import { SourceServer, SourceUnderTest, startSourceServer } from "./helpers/city
 import { STEPS_PER_CITY_TIME } from "./helpers/cityTimes";
 import { parseLog } from "./helpers/commandLog";
 import { answerTo } from "./helpers/queryAnswers";
-import { gameSaveHash } from "./helpers/stateHash";
 import { serverTestsEnabled, START_SERVER_TIMEOUT_MS } from "./helpers/testServer";
 
 // The contract the city source keeps, against the real server, which only CI's server job tests against
@@ -125,6 +124,9 @@ const millisecondsFor = (steps: number) => steps * 1000 / 60;
             await expect(tested.source.save()).rejects.toThrow("No city has started");
             await expect(tested.source.download()).rejects.toThrow("No city has started");
             await expect(tested.source.driver.savedGame()).rejects.toThrow("No city has started");
+            await expect(tested.source.driver.stateHash()).rejects.toThrow("No city has started");
+            await expect(tested.source.driver.fireStationReach({x: 1, y: 1}, {x: 1, y: 1}))
+                .rejects.toThrow("No city has started");
             await expect(tested.source.commandLog()).rejects.toThrow("No city has started");
         });
 
@@ -278,7 +280,7 @@ const millisecondsFor = (steps: number) => steps * 1000 / 60;
             const log = parseLog(recorded.log);
             expect(log.entries).toHaveLength(1);
             expect(log.checkpoints[log.checkpoints.length - 1]).toEqual({
-                step: recorded.step, hash: gameSaveHash(JSON.parse(await tested.source.driver.savedGame())),
+                step: recorded.step, hash: await tested.source.driver.stateHash(),
             });
         });
     });
@@ -367,6 +369,29 @@ const millisecondsFor = (steps: number) => steps * 1000 / 60;
             expect(await driver.advance(1)).toEqual({steps: 0, budgetReviewDue: false,
                                                      error: "The city is not stepping: it is paused"});
             expect(await driver.cityTime()).toBe(0);
+        });
+
+        // The cover's figures are the rules', which Micropolis.Rules.Tests checks against the coverage map
+        it("answers a fire station's reach without changing the city", async () => {
+            const driver = tested.source.driver;
+            await startNewCity();
+            const before = await driver.savedGame();
+
+            const reach = await driver.fireStationReach({x: 0, y: 1}, {x: 0, y: 1});
+
+            // The perimeter's tiles on the map, from the first clockwise the station's road search tries, each covering
+            // the station's own tile
+            expect(reach.perimeter.map(({x, y}) => ({x, y})))
+                .toEqual([{x: 2, y: 0}, {x: 2, y: 1}, {x: 2, y: 2}, {x: 1, y: 3}, {x: 0, y: 3}]);
+            expect(reach.perimeter.filter(({cover}) => cover <= 0)).toEqual([]);
+            expect(await driver.savedGame()).toBe(before);
+        });
+
+        it("refuses a fire station's reach off the map", async () => {
+            await startNewCity();
+
+            await expect(tested.source.driver.fireStationReach({x: 120, y: 0}, {x: 0, y: 0}))
+                .rejects.toThrow("The station and the target are tiles on the city's map");
         });
     });
 

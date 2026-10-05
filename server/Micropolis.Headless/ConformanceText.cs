@@ -12,31 +12,18 @@
  *
  */
 
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Micropolis.Rules;
 
 namespace Micropolis.Headless
 {
     /// <summary>
-    /// What the conformance files the fixture tool writes share beyond their layout, which is <see cref="JsonLines"/>':
-    /// each value written as ECMAScript's <c>JSON.stringify</c> writes it, and the checks that the data a file is
-    /// written from still covers what the file is for.
+    /// What the conformance files the fixture tool writes share beyond their layout, which is <see cref="JsonLines"/>',
+    /// and their values' text, which is <see cref="CanonicalJson"/>': the checks that the data a file is written from
+    /// still covers what the file is for.
     /// </summary>
     internal static partial class ConformanceText
     {
-        // The two Stringify wrappers only pass through to CanonicalJson. #128 deletes them, with their callers calling
-        // CanonicalJson.Stringify themselves
-        public static string Stringify(JsonNode? value)
-        {
-            return CanonicalJson.Stringify(value);
-        }
-
-        public static string Stringify(string value)
-        {
-            return CanonicalJson.Stringify(JsonValue.Create(value));
-        }
-
         /// <summary>
         /// Fails unless the data a file is written from covers what it must, so a file never silently loses a case.
         /// </summary>

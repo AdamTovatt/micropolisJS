@@ -57,6 +57,7 @@ describe("the shared vocabulary", () => {
         expect({...RuleNumbers}).toEqual({STEPS_PER_CITY_TIME: RULES.stepsPerCityTime.medium,
                                           CITY_TIMES_PER_YEAR: RULES.cityTimesPerYear,
                                           AIRPORT_COST: RULES.toolCosts.airport,
-                                          TORNADO_SPRITE: spriteType("tornado")});
+                                          TORNADO_SPRITE: spriteType("tornado"),
+                                          FIRE_COVER_BLOCK_SIZE: RULES.fireCoverBlockSize});
     });
 });

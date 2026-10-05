@@ -138,6 +138,23 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("error")] string? Error);
 
     /// <summary>
+    /// What the debug channel answers of a candidate fire station (<see cref="EmergencyServices.FireStationReach"/>):
+    /// the tiles of its perimeter on the map, in the order the scan searches them for the station's road, each with the
+    /// cover the station would give the target tile with its road there.
+    /// </summary>
+    public sealed record FireStationReach(
+        [property: JsonPropertyName("perimeter")] IReadOnlyList<RoadReach> Perimeter);
+
+    /// <summary>
+    /// A tile of a candidate fire station's perimeter, and the cover the station would give the target with its road
+    /// on it.
+    /// </summary>
+    public sealed record RoadReach(
+        [property: JsonPropertyName("x")] int X,
+        [property: JsonPropertyName("y")] int Y,
+        [property: JsonPropertyName("cover")] int Cover);
+
+    /// <summary>
     /// Another player in the city moved their hover box, or it left the map. The server passes it on to the city's
     /// other players and to nothing else: the simulation never sees it, and no log keeps it.
     /// </summary>

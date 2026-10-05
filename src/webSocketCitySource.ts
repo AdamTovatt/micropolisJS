@@ -54,6 +54,8 @@ export class WebSocketCitySource implements CitySource {
       advance: (steps) => this.request((id) => ({type: "advance", id, steps})),
       cityTime: () => this.request((id) => ({type: "cityTime", id})),
       savedGame: () => this.request((id) => ({type: "savedGame", id})),
+      stateHash: () => this.request((id) => ({type: "stateHash", id})),
+      fireStationReach: (station, target) => this.request((id) => ({type: "fireStationReach", id, station, target})),
     });
   }
 

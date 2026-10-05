@@ -780,6 +780,8 @@ export type ClientMessage =
   | {type: "advance", id: number, steps: number}
   | {type: "cityTime", id: number}
   | {type: "savedGame", id: number}
+  | {type: "stateHash", id: number}
+  | {type: "fireStationReach", id: number, station: TilePosition, target: TilePosition}
   | {type: "turn", id: number, milliseconds: number};
 
 export type ClientMessageType = ClientMessage["type"];
@@ -806,6 +808,9 @@ export interface RequestAnswers {
   cityTime: number;
   // The saved game's text, as the game saves one
   savedGame: string;
+  // The city's state hash, as the C# rules compute it (docs/state-hash.md)
+  stateHash: string;
+  fireStationReach: FireStationReach;
   turn: null;
 }
 
@@ -816,7 +821,8 @@ export type RequestAnswer<Request extends ClientRequest> = RequestAnswers[Reques
 // here fails to compile, and the tests fail on a type with no example.
 const CLIENT_MESSAGE_TYPES: Record<ClientMessageType, true> = {
   cursor: true, start: true, upload: true, join: true, command: true, query: true, save: true, download: true,
-  commandLog: true, hold: true, release: true, flush: true, advance: true, cityTime: true, savedGame: true, turn: true,
+  commandLog: true, hold: true, release: true, flush: true, advance: true, cityTime: true, savedGame: true,
+  stateHash: true, fireStationReach: true, turn: true,
 };
 
 export function clientMessageTypes(): string[] {
@@ -846,4 +852,19 @@ export interface AdvanceResult {
   steps: number;
   budgetReviewDue: boolean;
   error: string | null;
+}
+
+// What a fire station centred at a tile would give a target tile, as the answer to a fireStationReach request carries
+// it, worked out by the rules without changing the city: the tiles of its perimeter on the map, in the order the scan
+// searches them for its road, each with the cover at the target of the station, powered, at the city's fire funding,
+// as the only one on the map, with its road on that tile
+export interface FireStationReach {
+  perimeter: RoadReach[];
+}
+
+// A tile of a fire station's perimeter, and the cover the station would give the target with its road there
+export interface RoadReach {
+  x: number;
+  y: number;
+  cover: number;
 }

@@ -127,7 +127,7 @@ namespace Micropolis.Headless
 
                 foreach (string layer in Queries.Layers.Select(layer => layer.Name).Where(layer => !overlaid.Contains(layer)).ToList())
                 {
-                    JsonObject answered = Answered(save.At.Name, null, Stringify(new JsonObject { ["type"] = "overlay", ["layer"] = layer }), city);
+                    JsonObject answered = Answered(save.At.Name, null, CanonicalJson.Stringify(new JsonObject { ["type"] = "overlay", ["layer"] = layer }), city);
 
                     // A layer the city never computed holds only 0
                     if (answered["answer"]!["values"]!.AsArray().Any(value => (double)value! != 0))

@@ -61,12 +61,6 @@ namespace Micropolis.Headless.Tests
         }
 
         [TestMethod]
-        public void Write_StationCover_IsTheCommittedFileByteForByte()
-        {
-            Assert.AreEqual(Committed(StationCoverFile.FileName), StationCoverFile.Write());
-        }
-
-        [TestMethod]
         public void Write_RuleConstants_IsTheCommittedFileByteForByte()
         {
             Assert.AreEqual(Committed(RuleConstantsFile.FileName), RuleConstantsFile.Write());

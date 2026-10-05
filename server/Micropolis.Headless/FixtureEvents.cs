@@ -14,7 +14,6 @@
 
 using Micropolis.Conformance;
 using Micropolis.Rules;
-using static Micropolis.Headless.ConformanceText;
 
 namespace Micropolis.Headless
 {
@@ -42,8 +41,8 @@ namespace Micropolis.Headless
 
             LogReplay.Run(log.Start, log.Entries, [], log.LastStep, (step, name, payload) =>
                 events.Add(payload is null
-                    ? $"{{\"step\":{step},\"name\":{Stringify(name)}}}"
-                    : $"{{\"step\":{step},\"name\":{Stringify(name)},\"payload\":{Stringify(payload)}}}"));
+                    ? $"{{\"step\":{step},\"name\":{CanonicalJson.Stringify(name)}}}"
+                    : $"{{\"step\":{step},\"name\":{CanonicalJson.Stringify(name)},\"payload\":{CanonicalJson.Stringify(payload)}}}"));
 
             return JsonLines.FileOf(["{", .. JsonLines.ListMemberOfText("events", events, true), "}"]);
         }

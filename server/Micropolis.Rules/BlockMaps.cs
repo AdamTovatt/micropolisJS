@@ -22,6 +22,12 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed class BlockMaps
     {
+        /// <summary>
+        /// The tiles along each side of a block of the police and fire station maps and of the coverage their analyses
+        /// spread from them.
+        /// </summary>
+        public const int StationMapBlockSize = 8;
+
         // The most a station map's block holds: each station adds up to its fully funded effect at the road tile on its
         // perimeter, or at its centre when it has none (EmergencyServices). Either is at most two tiles from its
         // centre, so the stations a block of 8 collects from have their centres in a 12×12 square, and stations three
@@ -37,11 +43,11 @@ namespace Micropolis.Rules
 
             CityCentreDistScoreMap = Of(8, -64, 64);
             CrimeRateMap = Of(2, 0, 250);
-            FireStationMap = Of(8, 0, MaxFireStationMap);
-            FireStationEffectMap = Of(8, 0, MaxFireStationMap);
+            FireStationMap = Of(StationMapBlockSize, 0, MaxFireStationMap);
+            FireStationEffectMap = Of(StationMapBlockSize, 0, MaxFireStationMap);
             LandValueMap = Of(2, 0, 250);
-            PoliceStationMap = Of(8, 0, MaxPoliceStationMap);
-            PoliceStationEffectMap = Of(8, 0, MaxPoliceStationMap);
+            PoliceStationMap = Of(StationMapBlockSize, 0, MaxPoliceStationMap);
+            PoliceStationEffectMap = Of(StationMapBlockSize, 0, MaxPoliceStationMap);
             PollutionDensityMap = Of(2, 0, 255);
             PopulationDensityMap = Of(2, 0, 510);
             RateOfGrowthMap = Of(8, -200, 200);

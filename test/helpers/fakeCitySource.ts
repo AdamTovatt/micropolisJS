@@ -16,7 +16,7 @@ import { isDeepStrictEqual } from "util";
 import { Subscribers, trackingHold } from "../../src/citySource";
 import type { CityDriver, CitySource, CityStart, StartedCity } from "../../src/citySource";
 import type {
-    AdvanceResult, Command, PlayerId, Query, QueryAnswer, SessionLog, StateMessage,
+    AdvanceResult, Command, FireStationReach, PlayerId, Query, QueryAnswer, SessionLog, StateMessage,
 } from "../../src/protocol";
 import type { BranchName, ScenarioName } from "../recordings/scenarios";
 import { asJson, CallEntry, CallName, Entry, isCall, QueryEntry, readRecording, Recording } from "./recordings";
@@ -62,6 +62,9 @@ export class FakeCitySource implements CitySource {
             advance: async (steps) => this.play("advance", [steps]) as AdvanceResult,
             cityTime: async () => this.play("cityTime", []) as number,
             savedGame: async () => this.play("savedGame", []) as string,
+            stateHash: async () => this.play("stateHash", []) as string,
+            fireStationReach: async (station, target) =>
+                this.play("fireStationReach", [station, target]) as FireStationReach,
         });
     }
 

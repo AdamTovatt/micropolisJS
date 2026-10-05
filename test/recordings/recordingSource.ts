@@ -50,6 +50,9 @@ export class RecordingSource implements CitySource {
             advance: (steps) => this.record("advance", [steps], () => recorded.driver.advance(steps)),
             cityTime: () => this.record("cityTime", [], () => recorded.driver.cityTime()),
             savedGame: () => this.record("savedGame", [], () => recorded.driver.savedGame()),
+            stateHash: () => this.record("stateHash", [], () => recorded.driver.stateHash()),
+            fireStationReach: (station, target) => this.record("fireStationReach", [station, target],
+                                                               () => recorded.driver.fireStationReach(station, target)),
         });
     }
 

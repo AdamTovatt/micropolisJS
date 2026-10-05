@@ -112,8 +112,8 @@ namespace Micropolis.Headless
         private static IEnumerable<string> PredicateLines(string key, IReadOnlyList<(string Name, string Line)> predicates)
         {
             return [
-                $"  {Stringify(key)}: {{",
-                .. predicates.Select((predicate, i) => $"    {Stringify(predicate.Name)}: {Stringify(predicate.Line)}{(i < predicates.Count - 1 ? "," : "")}"),
+                $"  {CanonicalJson.Stringify(key)}: {{",
+                .. predicates.Select((predicate, i) => $"    {CanonicalJson.Stringify(predicate.Name)}: {CanonicalJson.Stringify(predicate.Line)}{(i < predicates.Count - 1 ? "," : "")}"),
                 "  },",
             ];
         }

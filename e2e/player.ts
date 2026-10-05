@@ -15,6 +15,7 @@
 import { expect, Page } from "@playwright/test";
 import { readFileSync } from "fs";
 
+import type { FireStationReach } from "../src/protocol";
 import type { Advanced, View } from "../src/testHook";
 import { steppedZoom } from "../src/viewPosition";
 import { CommandLog, joinSessions, parseLog } from "../test/helpers/commandLog";
@@ -231,6 +232,18 @@ export class Player {
 
   async save(): Promise<GameSave> {
     return await this.page.evaluate(() => window.micropolisTestHook!.save()) as GameSave;
+  }
+
+  // The city's state hash, as the game server's rules compute it
+  async stateHash(): Promise<string> {
+    return this.page.evaluate(() => window.micropolisTestHook!.stateHash());
+  }
+
+  // What a fire station centred at the station tile would give the target tile, as the game server's rules work it out
+  // without changing the city
+  async fireStationReach(station: Tile, target: Tile): Promise<FireStationReach> {
+    return this.page.evaluate(({at, to}) => window.micropolisTestHook!.fireStationReach(at, to),
+                              {at: station, to: target});
   }
 
   // The build the page was served from, as the Settings window shows it

@@ -389,6 +389,14 @@ namespace Micropolis.Server
                     await InCityAsync(savedGame.Id, host => JsonValue.Create(host.Save()));
                     break;
 
+                case StateHashRequest stateHash:
+                    await InCityAsync(stateHash.Id, host => JsonValue.Create(host.StateHash()));
+                    break;
+
+                case FireStationReachRequest reach:
+                    await FireStationReachAsync(reach);
+                    break;
+
                 case TurnRequest turn:
                     await TurnAsync(turn);
                     break;
@@ -396,6 +404,23 @@ namespace Micropolis.Server
                 default:
                     throw new InvalidOperationException($"No handling for {request.GetType().Name}.");
             }
+        }
+
+        // Its tiles are checked against the city's map before the city's work is asked for, as a hover box's are
+        private Task FireStationReachAsync(FireStationReachRequest reach)
+        {
+            if (_city is LoadedCity city && !(OnTheMap(city, reach.Station) && OnTheMap(city, reach.Target)))
+            {
+                _connection.Fail(reach.Id, "The station and the target are tiles on the city's map");
+                return Task.CompletedTask;
+            }
+
+            return InCityAsync(reach.Id, host => ProtocolJson.ToNode(host.FireStationReach(reach.Station, reach.Target)));
+        }
+
+        private static bool OnTheMap(LoadedCity city, TilePosition tile)
+        {
+            return tile.X >= 0 && tile.Y >= 0 && tile.X < city.MapWidth && tile.Y < city.MapHeight;
         }
 
         private Task TurnAsync(TurnRequest turn)

@@ -14,7 +14,7 @@
 
 import type { CityDriver, CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
-import { AdvanceResult, Command, SPEEDS } from "../src/protocol";
+import { AdvanceResult, Command, FireStationReach, SPEEDS, TilePosition } from "../src/protocol";
 import { attachDriverToTestHook, installTestHook, TestHook } from "../src/testHook";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
 import { restoreGlobals, stubGlobal } from "./helpers/globals";
@@ -100,9 +100,15 @@ async function townWithoutAutoBudget(branch: BranchName<"town">) {
 // An advance that took no steps, for a driver whose advances the test doesn't look at
 const NO_STEPS: AdvanceResult = {steps: 0, budgetReviewDue: false, error: null};
 
+// What the fake driver answers of the city's state hash and of any fire station's reach
+const HASH = "c".repeat(64);
+const REACH: FireStationReach = {perimeter: [{x: 0, y: 0, cover: 111}]};
+
 // A driver that answers every advance with the result given, and records what it was asked
 class FakeDriver implements CityDriver {
     readonly advances: number[] = [];
+    // The station and the target of each reach asked for
+    readonly reaches: [TilePosition, TilePosition][] = [];
     private held = false;
 
     constructor(private readonly result: AdvanceResult, private readonly saved = "") {}
@@ -126,6 +132,15 @@ class FakeDriver implements CityDriver {
 
     async savedGame(): Promise<string> {
         return this.saved;
+    }
+
+    async stateHash(): Promise<string> {
+        return HASH;
+    }
+
+    async fireStationReach(station: TilePosition, target: TilePosition): Promise<FireStationReach> {
+        this.reaches.push([station, target]);
+        return REACH;
     }
 
     async advance(steps: number): Promise<AdvanceResult> {
@@ -187,7 +202,7 @@ describe("the test hook", () => {
 
     describe("before a game has started", () => {
 
-        it.each(["applyInput", "advance", "save", "cityTime"])("can't %s", async (method) => {
+        it.each(["applyInput", "advance", "save", "cityTime", "stateHash", "fireStationReach"])("can't %s", async (method) => {
             const hook = new TestHook();
             hook.attachDriver(new FakeDriver(NO_STEPS));
             const call = {
@@ -195,6 +210,8 @@ describe("the test hook", () => {
                 advance: () => hook.advance(1),
                 save: () => hook.save(),
                 cityTime: () => hook.cityTime(),
+                stateHash: () => hook.stateHash(),
+                fireStationReach: () => hook.fireStationReach({x: 1, y: 2}, {x: 3, y: 4}),
             }[method]!;
 
             await expect(call()).rejects.toThrow("No game has started");
@@ -324,6 +341,17 @@ describe("the test hook", () => {
         hook.attach(IDLE_GAME);
 
         expect(await hook.save()).toEqual({name: "Town", version: 10});
+    });
+
+    it("reads the state hash and a fire station's reach from the driver", async () => {
+        const hook = new TestHook();
+        const driver = new FakeDriver(NO_STEPS);
+        hook.attachDriver(driver);
+        hook.attach(IDLE_GAME);
+
+        expect(await hook.stateHash()).toBe(HASH);
+        expect(await hook.fireStationReach({x: 1, y: 2}, {x: 3, y: 4})).toEqual(REACH);
+        expect(driver.reaches).toEqual([[{x: 1, y: 2}, {x: 3, y: 4}]]);
     });
 
     // A command the simulation rejects is applied, and logged, all the same

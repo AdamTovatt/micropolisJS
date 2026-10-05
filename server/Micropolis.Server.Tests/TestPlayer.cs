@@ -177,6 +177,14 @@ namespace Micropolis.Server.Tests
             return (string)(await RequestAsync(id => new SavedGameRequest(id)))!;
         }
 
+        /// <summary>
+        /// The city's state hash, through the debug channel.
+        /// </summary>
+        public async Task<string> StateHashAsync()
+        {
+            return (string)(await RequestAsync(id => new StateHashRequest(id)))!;
+        }
+
         public async Task<long> CityTimeAsync()
         {
             return (long)(await RequestAsync(id => new CityTimeRequest(id)))!;

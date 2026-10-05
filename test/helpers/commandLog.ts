@@ -13,7 +13,6 @@
  */
 
 import type { PlayerId } from "../../src/protocol";
-import { hashSavedState } from "./stateHash";
 
 // A command log: where a city starts, every command it was sent, stamped with the step it preceded, and the state
 // hashes it reached along the way. Replaying the log reproduces the city, and its checkpoints check that it does.
@@ -135,9 +134,10 @@ export function parseLog(value: unknown): CommandLog {
 // Sessions played one after another as one log, from where the first one started. Each later session started from a
 // save of the city the one before it ended on, so it carries on where that one stopped: its entries and checkpoints
 // follow, their steps counted on from the step the one before ended at. The log needs no entry for the load, because
-// a load is transparent: the city it loads hashes as the city that was saved. It fails when one isn't, and on a
-// session that applied a command before its first step, whose state there the joined log can't check, since a
-// checkpoint is taken after its step's commands.
+// a load is transparent: the city it loads hashes as the city that was saved, which its checkpoint at its first step
+// says, the server's hash of the city as it loaded it. It fails when one isn't, on a session without that checkpoint,
+// and on a session that applied a command before its first step, whose state there the joined log can't check, since
+// a checkpoint is taken after its step's commands.
 export function joinSessions(sessions: CommandLog[]): CommandLog {
   if (sessions.length === 0) {
     throw new Error("No session to join");
@@ -160,14 +160,19 @@ export function joinSessions(sessions: CommandLog[]): CommandLog {
       throw new Error(`The session before session ${number} has no checkpoints`);
     }
 
-    const loaded = hashSavedState(session.save);
-    if (loaded !== ended.hash) {
-      throw new Error(`Session ${number} loads a city whose state hash is ${loaded}, but the session before it ended ` +
-                      `on ${ended.hash}`);
-    }
-
     if (session.entries.some((entry) => entry.step === 0)) {
       throw new Error(`Session ${number} applies a command before its first step`);
+    }
+
+    // With no command before its first step, its checkpoint there is of the city as loaded, which the server hashed
+    const loaded = session.checkpoints[0];
+    if (loaded === undefined || loaded.step !== 0) {
+      throw new Error(`Session ${number} has no checkpoint of the city it loaded, at its first step`);
+    }
+
+    if (loaded.hash !== ended.hash) {
+      throw new Error(`Session ${number} loads a city whose state hash is ${loaded.hash}, but the session before it ` +
+                      `ended on ${ended.hash}`);
     }
 
     entries.push(...session.entries.map((entry) => ({...entry, step: entry.step + ended.step})));
