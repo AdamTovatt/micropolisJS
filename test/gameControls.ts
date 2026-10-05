@@ -338,13 +338,13 @@ describe("the game's controls", () => {
 
     describe("keyboard", () => {
 
-        it("scrolls the view by the tiles the keys held owe", () => {
+        it("scrolls the view by the tiles the keys held owe, a fraction of a tile included", () => {
             const {controls, input, view} = setUp();
-            input.scroll = {x: 2, y: -1};
+            input.scroll = {x: 2.3125, y: -0.75};
 
             controls.tick(0);
 
-            expect(view.scrolled).toEqual([{x: 2, y: -1}]);
+            expect(view.scrolled).toEqual([{x: 2.3125, y: -0.75}]);
         });
 
         it("clears the tool with Escape while no window shows", () => {

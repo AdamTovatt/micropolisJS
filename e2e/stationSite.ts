@@ -291,7 +291,7 @@ export function runsOf(line: Tile[], longest: number): [Tile, Tile][] {
   return runs;
 }
 
-// Builds the plan through the game's tools, scrolling each piece into view first: the station, its road, then the
+// Builds the plan through the game's tools, panning each piece into view first: the station, its road, then the
 // line, a drag or a click for each run
 export async function buildStation(player: Player, plan: StationPlan): Promise<void> {
   await player.selectTool("fire");

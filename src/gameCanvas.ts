@@ -164,14 +164,13 @@ class GameCanvas {
     return this.height * SPRITE_PIXELS_PER_TILE / this.zoom;
   }
 
-  // Moves the view the whole tiles given across and down, as far as the map's edges, the first of them to the next
-  // whole tile from an origin between tiles
+  // Moves the view the tiles given across and down, a fraction of a tile included, as far as its limits
   scrollBy(tilesX: number, tilesY: number): void {
     this.position.scrollBy(tilesX, tilesY);
   }
 
   // Takes hold of the map at a point of the canvas, in CSS pixels, to pan it: until release, panTo keeps the point of
-  // the map under the pointer, as far as the map's edges allow
+  // the map under the pointer, as far as the view's limits allow
   grab(point: PixelPoint): void {
     this.position.grab(point, this.zoom);
   }

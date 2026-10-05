@@ -1306,9 +1306,11 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   padding: 6px 10px 10px;
 }
 
-/* Wrapped close round the canvas, so the view's rectangle is placed in fractions of the canvas */
+/* Wrapped close round the canvas, so the view's rectangle is placed in fractions of the canvas, and clipped to it where
+   the view reaches past the map */
 #minimapFrame {
   position: relative;
+  overflow: hidden;
   width: fit-content;
   margin: 2px auto 0;
   line-height: 0;
