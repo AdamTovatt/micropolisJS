@@ -1,13 +1,13 @@
 {
   "name": "micropolisJS",
   "version": "0.0.1",
-  "description": "A port of the open-source simulator \"Micropolis\" to Javascript/HTML5",
+  "description": "A modified continuation of Graeme McCutcheon's micropolisJS, his Javascript/HTML5 port of the open-source simulator \"Micropolis\", growing into a multiplayer city builder on a C# server",
   "repository": {
     "type": "git",
-    "url": "https://github.com/graememcc/micropolisJS.git"
+    "url": "https://github.com/AdamTovatt/micropolisJS.git"
   },
   "bugs": {
-    "url": "https://github.com/graememcc/micropolisJS/issues"
+    "url": "https://github.com/AdamTovatt/micropolisJS/issues"
   },
   "type": "module",
   "engines": {
