@@ -11,7 +11,7 @@
 #
 
 # Roads: every piece the road tool lays (66 to 76, by which neighbours are roads, RoadTable in
-# src/connector.js), the bridges over water (64, 65), the roads under a power line (77, 78, 239),
+# the C# rules' ConnectingTool), the bridges over water (64, 65), the roads under a power line (77, 78, 239),
 # the traffic on each of those but 239, and the drawbridges open for a ship.
 #
 # Traffic is four frames of each of those fifteen tiles, which the game cycles through
@@ -19,7 +19,7 @@
 # at 144 to 158 the same way. The game shows a tile's frames in the order +0, +48, +32, +16, so
 # that is the order the cars move in.
 #
-# A drawbridge opens round a ship in the channel (openBridge in src/road.js): the two tiles each
+# A drawbridge opens round a ship in the channel (OpenBridge in the C# rules' Road): the two tiles each
 # side of the middle become water, and the tile beyond each end swings its span round, so that it
 # lies across the tile beside it, north of a bridge running east-west and east of one running
 # north-south. Here it is a swing bridge: in the original's view the spans rise, but in this one a

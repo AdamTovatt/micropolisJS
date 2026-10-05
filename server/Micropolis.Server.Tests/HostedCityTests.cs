@@ -12,8 +12,8 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using Micropolis.Rules;
-using Micropolis.SourceTree;
 
 namespace Micropolis.Server.Tests
 {
@@ -25,7 +25,7 @@ namespace Micropolis.Server.Tests
         [TestMethod]
         public void BudgetReviewsDue_YearEndsWithAutoBudgetOff_CountsEachReviewSent()
         {
-            Simulation town = Simulation.FromSave(File.ReadAllText(RepositoryFiles.GetPath("conformance/saves/town.run.json")));
+            Simulation town = Simulation.FromSave(FixtureSaves.At("town", FixtureSaves.Run).ReadCommitted());
             HostedCity hosted = new HostedCity("Town", town, new SaveStart(town.Save()));
             hosted.Queue.Send(new ReceivedCommand("ada", new JsonObject { ["type"] = "setAutoBudget", ["on"] = false }));
             hosted.Queue.Send(new ReceivedCommand("ada", new JsonObject { ["type"] = "setSpeed", ["speed"] = (int)Speed.Fast }));

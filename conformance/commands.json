@@ -12,6 +12,6 @@
     {"description":"A crash triggered","fixture":"town","results":[{"player":"local","command":{"type":"triggerDisaster","kind":"crash"},"outcome":"ok","reason":null}],"hash":"f8a31df258c06d7b325d0ba9389b5ffc4b13f4044a8e63b82730c5115bad8ebe"},
     {"description":"A meltdown triggered","fixture":"suburbBroke","results":[{"player":"local","command":{"type":"triggerDisaster","kind":"meltdown"},"outcome":"ok","reason":null}],"hash":"e3707b4ec9005933732c63201883c9bd0a404787195f783283dbcc56b928247a"},
     {"description":"A tornado triggered","fixture":"town","results":[{"player":"local","command":{"type":"triggerDisaster","kind":"tornado"},"outcome":"ok","reason":null}],"hash":"0860cc31362038f757cc29a518fe47a30ec9e16b55cea51e6e928bd169120a18"},
-    {"description":"A earthquake triggered","fixture":"town","results":[{"player":"local","command":{"type":"triggerDisaster","kind":"earthquake"},"outcome":"ok","reason":null}],"hash":"3c2453e428c3fb43b6d519afe959f65acfec034bc538a183e7f31029a794add9"}
+    {"description":"An earthquake triggered","fixture":"town","results":[{"player":"local","command":{"type":"triggerDisaster","kind":"earthquake"},"outcome":"ok","reason":null}],"hash":"3c2453e428c3fb43b6d519afe959f65acfec034bc538a183e7f31029a794add9"}
   ]
 }

@@ -18,9 +18,9 @@ using static Micropolis.Rules.Tests.ConformanceJson;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// What the TypeScript reference answered to queries and the records it produced, from
-    /// <c>conformance/queries.json</c>: the category of each tile value, each save's records, and each query with its
-    /// answer, about a save of <c>conformance/saves/</c> or asked before any city has started.
+    /// The answers to queries and the records a city produces, from <c>conformance/queries.json</c>: the category of
+    /// each tile value, each save's records, and each query with its answer, about a save of <c>conformance/saves/</c>
+    /// or asked before any city has started.
     /// </summary>
     public sealed record ConformanceQueries(IReadOnlyList<string> Categories, IReadOnlyList<CityRecords> Records, IReadOnlyList<AnsweredQuery> Answers)
     {
@@ -89,7 +89,7 @@ namespace Micropolis.Rules.Tests
                 ? Simulation.NewCity((uint)(double)start["seed"]!, (Level)(int)(double)start["level"]!, Speed.Medium)
                 : FixtureCities.City((string)City!);
 
-            city.ApplyCommands(Commands.Select(command => new ReceivedCommand("conformance", command?.DeepClone())).ToList());
+            city.ApplyCommands(Commands.Select(command => new ReceivedCommand(PlayerIds.Local,command?.DeepClone())).ToList());
             return city;
         }
 

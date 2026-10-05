@@ -14,9 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The records the simulation produces for the windows to show, as <c>src/evaluationRecord.ts</c>,
-    /// <c>src/budgetRecord.ts</c> and <c>src/settingsRecord.ts</c> build them: each a copy, sharing nothing with the
-    /// city.
+    /// The records the simulation produces for the windows to show: each a copy, sharing nothing with the city.
     /// </summary>
     public static class Records
     {

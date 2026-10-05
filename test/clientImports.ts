@@ -11,31 +11,27 @@
  *
  */
 
-import { modulesReachedFrom, SIMULATION_ROOTS } from "./helpers/importGraph";
+import { readdirSync } from "fs";
 
-// The client reaches the city only through a city source: the page imports no module of the simulation's but the
-// vocabulary the two share, which CLAUDE.md lists with the reason for each. The page plays through the server, so no
-// simulation runs in it.
+import { modulesReachedFrom, SRC } from "./helpers/importGraph";
+
+// src/ is the client, and holds no simulation: the game's rules are the server's (Micropolis.Rules), and the page
+// reaches a city only through a city source. So every module under src/ is one the page imports, and each is
+// TypeScript.
 
 const PAGE = "micropolis.ts";
 
-const SHARED_VOCABULARY = ["messages.ts", "protocol.ts", "tileFlags.ts", "tileValues.ts"];
-
 describe("the page's import graph", () => {
 
-    const simulation = modulesReachedFrom(SIMULATION_ROOTS);
     const page = modulesReachedFrom([PAGE]);
+    const modules = readdirSync(SRC).filter((file) => /\.[jt]s$/.test(file)).sort();
 
-    // So the check below compares graphs that are there: each holds its own, and they meet at the vocabulary
-    it("reaches the client's modules from the page, and meets the simulation only at the shared vocabulary", () => {
+    it("reaches every module under src/, and nothing else under it", () => {
         expect(page).toEqual(expect.arrayContaining(["game.ts", "webSocketCitySource.ts", "cityState.ts", "splashScreen.ts"]));
-        expect(SHARED_VOCABULARY.filter((name) => simulation.includes(name) && page.includes(name)))
-            .toEqual(SHARED_VOCABULARY);
+        expect([...page].sort()).toEqual(modules);
     });
 
-    it("imports no simulation module but the shared vocabulary, not even for its types", () => {
-        const imported = page.filter((name) => simulation.includes(name) && !SHARED_VOCABULARY.includes(name));
-
-        expect(imported.sort()).toEqual([]);
+    it("holds no JavaScript module", () => {
+        expect(modules.filter((file) => file.endsWith(".js"))).toEqual([]);
     });
 });

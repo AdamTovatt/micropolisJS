@@ -84,6 +84,6 @@ describe("the playthrough's report", () => {
         report.write();
 
         expect(readFileSync(join(directory, "index.html"), "utf8"))
-            .toContain(`npm run simulate -- --log ${basename(directory)}/command-log.json`);
+            .toContain(`dotnet run --project server/Micropolis.Headless -- --log ${basename(directory)}/command-log.json`);
     });
 });

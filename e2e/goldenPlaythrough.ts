@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
-import { CommandLog, parseLog } from "../src/commandLog";
+import { CommandLog, parseLog } from "../test/helpers/commandLog";
 
 // The golden playthrough, e2e/goldenPlaythrough.json: each stage's checkpoint, in stage order, and the run's command
 // log. A run either checks itself against it, failing on the first stage that diverged but carrying on, and on a log

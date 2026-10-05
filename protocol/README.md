@@ -90,9 +90,8 @@ but `command` and `cursor`:
   store can't keep fails, saying the server couldn't reach its store, and the city stays loaded, so a later save keeps
   it. One client address may save 10 times at once, and once every 6 seconds after that; a save past that fails,
   saying so, and the connection stays open.
-- `commandLog`: the answer is the city's session log, `{"log", "step", "unhashed"}`: the log (`docs/command-log.md`)
-  since the server last started or loaded the city, the steps the city has taken since, and `null`, since the server
-  always works out its checkpoints' hashes.
+- `commandLog`: the answer is the city's session log, `{"log", "step"}`: the log (`docs/command-log.md`) since the
+  server last started or loaded the city, and the steps the city has taken since.
 - The debug channel, which only a Debug build of the server answers (`dotnet build` or `dotnet run`; `dotnet publish`
   builds Release), and others fail: `hold` holds the step driver of the city the connection is in, and of each city it
   starts or joins after, until a `release`, so that the city steps only when `advance`d; `release` lets the city the
@@ -136,9 +135,9 @@ the request expects it: the examples pin both on both sides.
 
 A command is one change a player makes to the city: a JSON object whose `type` field names it. `src/protocol.ts` and
 `server/Micropolis.Rules/Protocol.cs` define each command's fields, and `docs/command-log.md` says what they mean. The
-simulation validates each command as it receives it (`src/commands.ts`, and `CommandReader` in C#), and rejects one
+simulation validates each command as it receives it (`CommandReader` in `server/Micropolis.Rules`), and rejects one
 with a field missing, a field the command doesn't have, or a value of the wrong kind or outside the range the game
-offers, giving the same reason on either side. Fields may come in any order, and writers put them in the protocol's
+offers, giving the reason in the result. Fields may come in any order, and writers put them in the protocol's
 order. A command is any JSON a player sends, read as `JSON.parse` reads it, so the C# reads one with `JsonText`, which
 takes a key or string holding a lone surrogate, keeps the last value of a key written twice, and puts the keys that
 are array indices first, as `JSON.parse` does. A command nesting objects and lists more than 64 deep, or longer than
@@ -150,9 +149,9 @@ JSON at all rather than as a command to reject.
 ## Queries
 
 A query asks the simulation about the city and changes nothing: a JSON object whose `type` field names it.
-`src/protocol.ts` defines each query and its answer. The simulation validates each query as it receives it
-(`src/queries.ts`, and `Queries` in C#) and answers a rejected one with `{"type": "rejected", "reason"}`, giving the
-same reason on either side. A query is never logged as a command, since replaying it would change nothing.
+`src/protocol.ts` defines each query and its answer, and `QueryAnswers.cs` mirrors them. The simulation validates
+each query as it receives it (`Queries` in `server/Micropolis.Rules`) and answers a rejected one with
+`{"type": "rejected", "reason"}`. A query is never logged as a command, since replaying it would change nothing.
 
 - `overlay` names a `layer`, one of the maps the simulation computes, and is answered with the layer's values in
   blocks: `blockSize`, the tiles a block covers along each side; `width` and `height`, the blocks across and down;
@@ -256,26 +255,24 @@ player's browser sends, each file in `examples/session/` is one body of `/api/se
 file in `examples/commands/` is one command, and each file in `examples/queries/` is one query. An example is its exact
 wire text on one line, then a newline, in UTF-8 without a byte order mark. Each side's tests read every example of
 what that side reads or writes, deserialize it into their own types and serialize it back, and fail unless the bytes
-are identical, so a field renamed, added or dropped on one side turns that side red. Each side reads back every example of a body, message, command or query it reads, and
-writes back every example of one it writes, building it from the example's fields where it has no reader for it. The
-simulation reads a command or a query by validating it, so such an example must also be one it accepts. Each side's
-tests also fail when a message type, a session body, a command type or a query type that side reads or writes has no
-example. The browser writes a message of `examples/client/` as an object literal, so its tests check that the
-WebSocket source writes each with the example's fields, in order, and the server's read each and write it back.
+are identical, so a field renamed, added or dropped on one side turns that side red. Each side reads back every
+example of a body, message, command or query it reads, and writes back every example of one it writes, building it
+from the example's fields where it has no reader for it. The simulation reads a command or a query by validating it,
+so the server's tests also check it accepts each example. The client writes a command or a query as plain JSON, so
+its tests check that each example is plain JSON written back to the same bytes. Each side's tests also fail when a
+message type, a session body, a command type or a query type that side reads or writes has no example. The browser
+writes a message of `examples/client/` as an object literal, so its tests check that the WebSocket source writes each
+with the example's fields, in order, and the server's read each and write it back.
 
-Each file in `examples/records/` is one record, named after its type. The client's tests write each one back through
-the simulation's own code, from the example's fields, and the server's write each back from its C# type, and both fail
-on a record type with no example.
+Each file in `examples/records/` is one record, named after its type. The server's tests write each back from its C#
+type to the same bytes, and both sides' tests fail on a record type with no example.
 
-Each file in `examples/answers/` is one answer to a query, named after its type. The client's tests check its shape,
-as they check a state message's below, against what the simulation answers, and the server's write each back from its
-C# type to the same bytes. Both fail on an answer type with no example.
+Each file in `examples/answers/` is one answer to a query, named after its type. The server's tests write each back
+from its C# type to the same bytes, and both sides' tests fail on an answer type with no example.
 
 Each file in `examples/state/` is one state message other than a record, named after its type, with more than one
-for a message that comes in more than one shape. The client's tests check its shape, not its bytes: that the city host
-(`src/cityHost.ts`) writes each with the example's field names, in the same order, each with a value of the same
-kind. The server's tests write each back from its C# type to the same bytes. Both fail on a state message type with no
-example among these and the records.
+for a message that comes in more than one shape. The server's tests write each back from its C# type to the same
+bytes, and both sides' tests fail on a state message type with no example among these and the records.
 
 `reader-cases.json` holds the messages both readers must reject, messages they must accept and write back in the
 protocol's order, and session bodies a reader must reject, each tested by the sides that read that body.

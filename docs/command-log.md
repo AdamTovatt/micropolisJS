@@ -2,11 +2,11 @@
 
 A command log records a city's session: where the city started, every command it was sent, and the state hashes it
 reached along the way. Replaying a log reproduces the city, so logs are the end-to-end suite and the conformance
-suite (`CLAUDE.md`, Direction 3): replayed headless and in the browser while the TypeScript simulation exists, and on
-the server after. `src/commandLog.ts` reads and writes them, `CommandRecorder` in `server/Micropolis.Server` writes
-the logs of the cities on the server, and `headless/runner.ts` replays them. In C#, `CommandLog` and `LogReplay` in
-`server/Micropolis.Rules` read, write and replay them: the C# headless runner replays any log, and the game-rules
-tests every log under `conformance/logs/` (`conformance/README.md`).
+suite of the game rules (`CLAUDE.md`, Direction 3). `CommandRecorder` in `server/Micropolis.Server` writes the logs of
+the cities on the server, and `CommandLog` and `LogReplay` in `server/Micropolis.Rules` read, write and replay them:
+the headless runner replays any log, and the game rules' tests every log under `conformance/logs/`
+(`conformance/README.md`). The end-to-end runner reads and joins the logs it downloads with
+`test/helpers/commandLog.ts`.
 
 ## The file
 
@@ -16,15 +16,15 @@ A log is a JSON object:
 |-----|-------|
 | `formatVersion` | `1` |
 | `seed` and `level` | The city starts as a new game: the map the game seed generates, the seed's simulation stream, the level (0 easy, 1 medium, 2 hard) and medium speed |
-| `save` | Or: the city starts from this saved state, as `Simulation.save` writes it (`docs/state-hash.md`) |
+| `save` | Or: the city starts from this saved state, as `Simulation.Save` writes it (`docs/state-hash.md`) |
 | `description` | Optional: what the log is for, in words. Replay ignores it |
 | `entries` | The commands, in the order they were applied |
 | `checkpoints` | The state hashes to check, in order of step |
 
-A log has exactly one of `seed` and `save`, and a `level` only with a `seed`. It holds no other key: `parseLog` and the
-C# `CommandLog` ignore one, and a `level` beside a `save`, while the C# tests' reader of the conformance logs refuses
-both. A log that builds on a fixture starts
-from the fixture's built state, `conformance/saves/<name>.built.json`, as its `save`.
+A log has exactly one of `seed` and `save`, and a `level` only with a `seed`. It holds no other key: `CommandLog` and
+the end-to-end runner's `parseLog` ignore one, and a `level` beside a `save`, while the C# tests' reader of the
+conformance logs refuses both. A log that builds on a fixture, such as a mid-run log, starts where the fixture's
+starts and holds the fixture's commands before its own.
 
 The format version covers the file and the commands it holds: a change to the file's keys, or to the commands, their
 fields or what they accept, is a new version, since a replayer of the old one would read the log differently. A
@@ -39,17 +39,16 @@ Each entry is `{"step", "player", "command"}`:
   stays on the same index however long it is paused. Entries are in order of step, and entries with the same step
   are in the order they applied.
 - `player` is the id of the player who sent it, a string: on the server, the id the server gave the player as it
-  signed in, and in a city the browser runs for the client's tests or the headless runner, the one player there is,
-  `"local"`. The simulation never branches on the player.
-- `command` is the command as it arrived. `src/protocol.ts` defines the commands, and `src/commands.ts` how they are
-  validated. A log holds every command the city was sent, rejected ones included: a rejected command changes nothing,
-  and a replay rejects it again, which checks that the validation agrees. A command nesting objects and lists deeper
-  than `MAX_COMMAND_DEPTH`, or longer than `maxCommandLength` allows, room for a tool command over every tile of the
-  map, is rejected before anything else is read, which bounds an entry. The server never logs one: it closes the
-  connection that sent it, since the game sends none.
+  signed in, and in a fixture's log, the one player there is, `"local"`. The simulation never branches on the player.
+- `command` is the command as it arrived. `src/protocol.ts` defines the commands, and `CommandReader` in
+  `server/Micropolis.Rules` how they are validated. A log holds every command the city was sent, rejected ones
+  included: a rejected command changes nothing, and a replay rejects it again, which checks that the validation
+  agrees. A command nesting objects and lists deeper than `MaxCommandDepth`, or longer than `MaxCommandLength` allows,
+  room for a tool command over every tile of the map, is rejected before anything else is read, which bounds an entry.
+  The server never logs one: it closes the connection that sent it, since the game sends none.
 
 The commands, by `type`, with what their fields mean. `Command` in `src/protocol.ts` gives their exact fields,
-`commandRejection` in `src/commands.ts` the values each accepts, and `protocol/examples/commands/` an example of each.
+`CommandReader` the values each accepts, and `protocol/examples/commands/` an example of each.
 
 | `type` | Fields |
 |--------|--------|
@@ -76,22 +75,13 @@ fails.
 
 ## Where logs come from
 
-- **The browser.** With `?debug=1`, the debug window downloads the session's log. A new game's log starts from its
-  seed and level, and a loaded game's from the state it loaded. The game takes a checkpoint every 3,600 steps, a
-  minute of play, from step 0, and one more of the city as the log is downloaded. A browser offers the Web Crypto
-  the hash needs only to a page served over https or from localhost; elsewhere the log downloads without
-  checkpoints, and the game says so.
 - **The server.** A city on the server keeps one log of every player's commands, each entry with the id of the
   player who sent it, in the order the server received them, and the C# rules work out its checkpoints' hashes. A
   new city's log starts from its seed and level; an uploaded city's, and a city's each time the server loads it
-  again, from its saved state. The debug window downloads it as the browser's. `test/sharedCity.ts` replays the log
-  of a city two players ran headless in TypeScript, and every checkpoint must match: the end-to-end conformance check
-  of the server's rules and step loop.
-- **Fixtures.** Each fixture in `headless/fixtures/` is a log whose checkpoints are its golden hashes: one at step 0,
-  of the city as its log builds it, and one after a fixed run. A fixture that needs what no command places starts
-  from a save instead: the city another fixture's commands build, with its script's writes. `npm run fixtures`
-  exports each as `headless/fixtures/export/<name>.log.json`, and `npm run conformance` writes those the C# replays
-  to `conformance/logs/`, which `server/Micropolis.Headless` writes the same from the C# rules (`conformance/README.md`).
+  again, from its saved state. The server takes a checkpoint every 3,600 steps, a minute of play, from step 0, and
+  one more of the city as the log is handed over. With `?debug=1`, the debug window downloads it.
+- **Fixtures.** Each fixture is a log whose checkpoints are its golden hashes, which the fixture tool works out and
+  writes to `conformance/logs/`, as `conformance/README.md` describes.
 - **The end-to-end playthrough.** The runner downloads each session's log from the debug window and joins them into
   one from the seed (`joinSessions`): a session that loaded the save the one before it ended on carries on its steps,
   with no entry for the load. A joined session may apply no command before its first step: the joined log takes its
@@ -103,11 +93,10 @@ fails.
   which logs each command under the id of the player who sent it, a new one each time a player signs in, so the run
   names its players by when each first appears in its log, `"player 1"` first, and the golden log holds those names.
   A run that took its log puts it in its report, `e2e-report/command-log.json`; one that ended at a failed stage, or
-  couldn't join its sessions, has none. `npm run conformance` copies the golden log
-  to `conformance/logs/playthrough.log.json`, which the C# replays.
+  couldn't join its sessions, has none. The fixture tool copies the golden log to
+  `conformance/logs/playthrough.log.json`, which the C# replays.
 
-`npm run simulate -- --log <file>` replays the whole log and counts its commands' outcomes. It then reports that the
-checkpoints all match, or fails naming the earliest that didn't, or, for a log with no checkpoints, fails because it
-verified nothing; and it prints the state hash it ended at. A log without checkpoints ends at its last command, so
-its replay stops there, wherever the session went on to. `dotnet run --project server/Micropolis.Headless -- --log
-<file>` does the same in C#.
+`dotnet run --project server/Micropolis.Headless -- --log <file>` replays the whole log and counts its commands'
+outcomes. It then reports that the checkpoints all match, or fails naming the earliest that didn't, or, for a log
+with no checkpoints, fails because it verified nothing; and it prints the state hash it ended at. A log without
+checkpoints ends at its last command, so its replay stops there, wherever the session went on to.

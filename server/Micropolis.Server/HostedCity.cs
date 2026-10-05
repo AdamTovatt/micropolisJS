@@ -16,9 +16,8 @@ using Micropolis.Rules;
 namespace Micropolis.Server
 {
     /// <summary>
-    /// A city a host runs: the simulation, the queue and log of its commands, and the budget reviews due, the half of
-    /// <c>HostedCity</c> in <c>src/cityHost.ts</c> that runs the city. The other half, which builds the state messages
-    /// it sends, is the rules' <see cref="CityStateMessages"/>.
+    /// A city a host runs: the simulation, the queue and log of its commands, and the budget reviews due. What builds
+    /// the state messages it sends is the rules' <see cref="CityStateMessages"/>.
     /// </summary>
     internal sealed class HostedCity
     {

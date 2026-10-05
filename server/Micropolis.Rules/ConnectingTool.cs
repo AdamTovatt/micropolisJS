@@ -14,8 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// A tool that fixes how the roads, rails and wires around what it changed connect, as <c>src/connector.js</c> and
-    /// the original's <c>connect.cpp</c> do: the building, bulldozer, road, rail and wire tools.
+    /// A tool that fixes how the roads, rails and wires around what it changed connect, as the original's
+    /// <c>connect.cpp</c> does: the building, bulldozer, road, rail and wire tools.
     /// </summary>
     internal abstract class ConnectingTool : CityTool
     {

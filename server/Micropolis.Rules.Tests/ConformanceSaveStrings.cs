@@ -14,7 +14,7 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// <c>conformance/saveStrings.json</c>: the strings a save may hold, in the TypeScript's order.
+    /// <c>conformance/saveStrings.json</c>: the strings a save may hold, in the order the rules list them.
     /// </summary>
     public sealed record ConformanceSaveStrings(
         IReadOnlyList<string> CityClasses, IReadOnlyList<string> ScoreReasons, IReadOnlyList<string> CityClassMessages)

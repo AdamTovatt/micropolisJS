@@ -17,15 +17,14 @@ using System.Text.RegularExpressions;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// Every command in <c>conformance/commands.json</c> applied in C#: each must come to the result the TypeScript
-    /// gave it, the rejection's reason word for word included, and each case must leave the state hash it did.
+    /// Every command in <c>conformance/commands.json</c> applied in C#: each must come to the result the file holds,
+    /// the rejection's reason word for word included, and each case must leave the state hash the file holds.
     /// </summary>
     [TestClass]
     public sealed partial class ConformanceCommandsTests
     {
-        // The reasons a command is rejected with, each number they quote written #, as REJECTION_REASONS in
-        // conformance/generate.ts lists the TypeScript's. Kept here rather than read from commands.json: once the
-        // TypeScript simulation is deleted, with the generator and commands.json, this is the list
+        // The reasons a command is rejected with, each number they quote written #, kept here by hand rather than read
+        // from commands.json: the rules write that file, so a list read from it would hold whatever they reach
         private static readonly string[] RejectionReasons =
         [
             "a command nests objects and lists at most # deep",
@@ -63,7 +62,7 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DynamicData(nameof(Cases), DynamicDataDisplayName = nameof(DisplayName))]
-        public void ApplyCommands_SharedCase_GivesTheTypeScriptResults(CommandCase commandCase)
+        public void ApplyCommands_ConformanceCase_GivesTheCommittedResults(CommandCase commandCase)
         {
             Simulation city = Simulation.FromSave(commandCase.ReadStartText());
             List<JsonNode?> emitted = new List<JsonNode?>();
@@ -84,11 +83,10 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(commandCase.Hash, StateHash.HashSavedState(city.Save()));
         }
 
-        // The cases reach every reason listed, as the generator checks the TypeScript's: the reasons the C# gives them,
-        // told apart by their words with each number they quote written #, are the list. So a case dropped from the file
-        // can't leave a reason untested, and a reason a case reaches that isn't listed fails too. The list is kept by
-        // hand: a reason the C# gains that no case reaches is in neither set, so it is listed, with a case, when it is
-        // added, as REJECTION_REASONS is
+        // The cases reach every reason listed: the reasons the C# gives them, told apart by their words with each
+        // number they quote written #, are the list. So a case dropped from the file can't leave a reason untested, and
+        // a reason a case reaches that isn't listed fails too. The list is kept by hand: a reason the C# gains that no
+        // case reaches is in neither set, so it is listed, with a case, when it is added
         [TestMethod]
         public void ApplyCommands_SharedCases_GiveEveryRejectionReason()
         {
@@ -131,7 +129,7 @@ namespace Micropolis.Rules.Tests
             ConformanceAssert.Broken(() => ConformanceCommands.Parse(json), description, message);
         }
 
-        // A number as a reason quotes it, as the generator's /[0-9-][0-9e+.-]*/g finds one
+        // A number as a reason quotes it: a digit or minus sign, then any run of digits, signs, points and e
         [GeneratedRegex("[0-9-][0-9e+.-]*")]
         private static partial Regex QuotedNumber();
     }

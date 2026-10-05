@@ -13,11 +13,6 @@
 
 import { readFileSync } from "fs";
 
-import { AirplaneSprite } from "../src/airplaneSprite.js";
-import { BoatSprite } from "../src/boatSprite.js";
-import { CopterSprite } from "../src/copterSprite.js";
-import { ExplosionSprite } from "../src/explosionSprite.js";
-import { MonsterSprite } from "../src/monsterSprite.js";
 import {
     FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, RenderManifest, SPRITE_SHEET, WHITE, checkAtlasSizes,
     checkRectsInAtlases,
@@ -26,18 +21,7 @@ import {
 import { repositoryPath } from "./helpers/repository";
 import { tileImageOrigin } from "../src/tileSet";
 import { TILE_COUNT } from "../src/tileValues";
-import { TornadoSprite } from "../src/tornadoSprite.js";
-import { TrainSprite } from "../src/trainSprite.js";
 
-// What a sprite module states about its sprite: its type's number, the pixels a side of its square, and its frames
-interface SpriteModule {
-    ID: number;
-    width: number;
-    frames: number;
-}
-
-const SPRITE_MODULES = [TrainSprite, CopterSprite, AirplaneSprite, BoatSprite, MonsterSprite, TornadoSprite,
-                        ExplosionSprite] as unknown as SpriteModule[];
 
 // A PNG's size, from its header: the width and height start 16 bytes in
 function pngSize(path: string): {width: number, height: number} {
@@ -81,25 +65,17 @@ describe("the render manifest", () => {
             expect(fallback.tiles.size).toBe(TILE_COUNT);
         });
 
-        it("knows each sprite type's frames and size as the simulation's sprite modules state them", () => {
-            const stated = SPRITE_MODULES.map((module) => ({id: module.ID, frames: module.frames, width: module.width}))
-                .sort((a, b) => a.id - b.id);
-
-            expect(stated.map(({id}) => id)).toEqual(SPRITE_SHEET.map((_, index) => index + 1));
-            expect(stated.map(({frames, width}) => ({frames, width}))).toEqual(SPRITE_SHEET);
-        });
-
         it("draws every frame of every sprite type from its cell of images/sprites.png", () => {
-            for (const module of SPRITE_MODULES) {
-                for (let frame = 1; frame <= module.frames; frame++) {
-                    expect(fallback.sprites.get(spriteKey(module.ID, frame))).toEqual({
-                        atlas: FALLBACK_SPRITES, x: (frame - 1) * 48, y: (module.ID - 1) * 48,
-                        width: module.width, height: module.width,
+            SPRITE_SHEET.forEach(({frames, width}, row) => {
+                const type = row + 1;
+                for (let frame = 1; frame <= frames; frame++) {
+                    expect(fallback.sprites.get(spriteKey(type, frame))).toEqual({
+                        atlas: FALLBACK_SPRITES, x: (frame - 1) * 48, y: (type - 1) * 48, width, height: width,
                     });
                 }
-            }
+            });
 
-            expect(fallback.sprites.size).toBe(SPRITE_MODULES.reduce((sum, module) => sum + module.frames, 0));
+            expect(fallback.sprites.size).toBe(SPRITE_SHEET.reduce((sum, {frames}) => sum + frames, 0));
         });
 
         it("lies wholly on the sheets", () => {

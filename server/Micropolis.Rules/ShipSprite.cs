@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The ship's start and move, as <c>src/boatSprite.js</c> brings the original's doShipSprite.
+    /// The ship's start and move, after the original's doShipSprite in sprite.cpp.
     /// </summary>
     internal static class ShipSprite
     {

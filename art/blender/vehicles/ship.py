@@ -11,7 +11,7 @@
 #
 
 # The cargo ship, sprite 4, in its eight frames: 0 heading north and each next frame an eighth of
-# a turn clockwise (src/boatSprite.js). A hull with a pointed bow, hatches along its deck, the
+# a turn clockwise (ShipSprite in the C# rules). A hull with a pointed bow, hatches along its deck, the
 # bridge and funnel at the stern, and its wake on the water behind it and at its bow.
 
 import math

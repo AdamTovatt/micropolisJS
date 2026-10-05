@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Stadiums, as <c>src/stadia.js</c> fills and empties them for games.
+    /// Stadiums, as the original's <c>doSpecialZone</c> in zone.cpp fills and empties them for games.
     /// </summary>
     public static class Stadia
     {

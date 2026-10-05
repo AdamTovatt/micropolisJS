@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Industrial zones, as <c>src/industrial.js</c> grows and declines them.
+    /// Industrial zones, as the original's <c>doIndustrial</c> in zone.cpp grows and declines them.
     /// </summary>
     public static class Industrial
     {

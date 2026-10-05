@@ -14,8 +14,8 @@
 import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetChoice, BudgetWindow } from "./budgetWindow";
 import type { Presence } from "./cityClient";
-import { linkToCity, ServerCity } from "./cityLink";
-import type { CitySource } from "./citySource";
+import { linkToCity } from "./cityLink";
+import type { CitySource, StartedCity } from "./citySource";
 import { CityState } from "./cityState";
 import { ClientConfig } from "./clientConfig";
 import { DebugAction, DebugWindow } from "./debugWindow";
@@ -54,7 +54,7 @@ import { placeToolToast, PlacedToast, toastedFailure } from "./toolToast";
 import { TouchWarnWindow } from "./touchWarnWindow";
 import * as UiMessages from "./uiMessages";
 import type { TilePoint } from "./viewPosition";
-import { budgetCommand, settingsCommands, toolOutcome } from "./windowCommands";
+import { budgetCommand, disasterCommand, settingsCommands, toolOutcome } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
 // What a game is made from: the city source and the client's copy of its city, the server's word of the other players,
@@ -112,8 +112,8 @@ export class Game {
   private readonly lastEvent = new LastEvent();
   // The city settings as the settings window showed them, which its choices are compared with when it closes
   private settingsShown: SettingsRecord | null = null;
-  // Whether the source was last told the player can see the city
-  private viewerVisible: boolean | null = null;
+  // Whether the player can see the city, which decides whether the other players see this player's hover box
+  private viewerVisible = false;
 
   // Debug mode's frame counter
   private readonly fpsValue = requiredElement("fpsValue");
@@ -172,7 +172,7 @@ export class Game {
   private readonly animate: () => void;
 
   // A game of the city the source has started, which the state has followed from its start
-  constructor({source, state, presence, mapArt}: GameParts, started: ServerCity) {
+  constructor({source, state, presence, mapArt}: GameParts, started: StartedCity) {
     this.source = source;
     this.state = state;
     this.seed = started.seed;
@@ -360,16 +360,10 @@ export class Game {
     });
   }
 
-  // Tells the source whenever the player stops or starts being able to see the city: the city steps only while the
-  // player can, unless it is a shared city on a server. It is hidden while the screen is too small to play, which only
-  // a resize changes, or the tab is hidden: a hidden tab is not watched, so the city waits rather than running on
-  // unseen.
+  // Notes whether the player can see the city: not while the screen is too small to play, which only a resize
+  // changes, or while the tab is hidden. The city on the server steps on either way, as its other players see it.
   private readonly updateViewerVisible = (): void => {
-    const visible = !isShown(this.tooSmall) && !document.hidden;
-    if (visible !== this.viewerVisible) {
-      this.viewerVisible = visible;
-      this.source.setViewerVisible(visible);
-    }
+    this.viewerVisible = !isShown(this.tooSmall) && !document.hidden;
   };
 
   private revealControls(): void {
@@ -382,7 +376,7 @@ export class Game {
     this.windows.closed();
 
     if (kind !== null) {
-      this.source.send({type: "triggerDisaster", kind});
+      this.source.send(disasterCommand(kind));
     }
   }
 
@@ -413,17 +407,12 @@ export class Game {
     });
   }
 
-  // Saves the session's command log as a file, for the headless runner to replay: `npm run simulate -- --log <file>`.
-  // Where the source can't work out state hashes, the log has no checkpoints, and the player is told. A log the source
-  // can't give is said out loud, as a save is.
+  // Saves the session's command log as a file, for the headless runner to replay:
+  // `dotnet run --project server/Micropolis.Headless -- --log <file>`. A log the source can't give is said out loud, as
+  // a save is.
   private downloadLog(): void {
     this.source.commandLog().then((recorded) => {
       downloadJson(`micropolis-log-${recorded.step}.json`, JSON.stringify(recorded.log));
-
-      if (recorded.unhashed !== null) {
-        console.error(`The command log has no checkpoints: ${recorded.unhashed}`);
-        this.notificationBar.show({subject: UiMessages.LOG_UNCHECKED});
-      }
     }, (error: unknown) => window.alert(`The command log couldn't be downloaded: ${errorMessage(error)}`));
   }
 
@@ -560,7 +549,7 @@ export class Game {
   // Tells the others where this player's hover box is: nowhere while it isn't drawn, a window holding the mouse, or
   // while the player can't see the city, such as in a hidden tab, where the pointer may never leave the canvas
   private reportCursor(): void {
-    const shown = this.mouse !== null && this.viewerVisible === true;
+    const shown = this.mouse !== null && this.viewerVisible;
     const tile = shown
       ? this.gameCanvas.canvasCoordinateToTileCoordinate(this.inputStatus.mouseX, this.inputStatus.mouseY)
       : null;

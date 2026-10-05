@@ -11,7 +11,8 @@
  *
  */
 
-import type { ServerCities, ServerCity } from "./cityLink";
+import type { ServerCities } from "./cityLink";
+import type { StartedCity } from "./citySource";
 import { CityListView } from "./cityListView";
 import { ClientMap } from "./cityState";
 import { ClientConfig } from "./clientConfig";
@@ -63,7 +64,7 @@ export interface Lobby {
   // The cities this browser started or joined
   cities: CityList;
   // Plays the city that started or was joined
-  play(started: ServerCity): void;
+  play(started: StartedCity): void;
 }
 
 // Shows the splash screen, first offering the map of the seed, or of a new one when given none. While the screen is too
@@ -225,14 +226,14 @@ class SplashScreen {
   // starts or is joined at a time, and no new one starts while it does, which the player is told. Only the start is
   // caught here: a game that fails to build is a defect, which goes unhandled rather than being taken for a city that
   // couldn't start.
-  private async launch(starting: () => Promise<ServerCity>, failed: (reason: string) => void): Promise<void> {
+  private async launch(starting: () => Promise<StartedCity>, failed: (reason: string) => void): Promise<void> {
     if (this.loading) {
       alert(STILL_STARTING);
       return;
     }
 
     this.loading = true;
-    let started: ServerCity;
+    let started: StartedCity;
     try {
       started = await starting();
     } catch (err) {

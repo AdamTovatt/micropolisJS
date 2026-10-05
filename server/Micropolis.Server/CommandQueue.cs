@@ -16,10 +16,10 @@ using Micropolis.Rules;
 namespace Micropolis.Server
 {
     /// <summary>
-    /// Drives a city with commands and steps, as <c>src/commandQueue.ts</c> does in the browser: commands queue as they
-    /// arrive, from every player in the city, and apply in arrival order between steps, whenever
-    /// <see cref="ApplyCommands"/> is called, whether or not the city is stepping. Each is stamped with the index of the
-    /// step it precedes, and handed to the recorder in the order applied.
+    /// Drives a city with commands and steps: commands queue as they arrive, from every player in the city, and apply
+    /// in arrival order between steps, whenever <see cref="ApplyCommands"/> is called, whether or not the city is
+    /// stepping. Each is stamped with the index of the step it precedes, and handed to the recorder in the order
+    /// applied.
     /// </summary>
     internal sealed class CommandQueue
     {

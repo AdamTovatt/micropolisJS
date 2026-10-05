@@ -11,11 +11,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const ADD_TS_EXTENSIONS_TO_WEPACK = [".ts", ".tsx", ".js"];
-const SUPPORT_FULLY_QUALIFIED_TS_ESM_IMPORTS = {
-  ".js": [".js", ".ts"],
-  ".cjs": [".cjs", ".cts"],
-  ".mjs": [".mjs", ".mts"],
-};
 const HANDLE_TYPESCRIPT_WITH_TS_LOADER = {
   test: /\.([cm]?ts|tsx)$/,
   loader: "ts-loader",
@@ -92,7 +87,6 @@ export default {
   entry: './src/micropolis.ts',
   resolve: {
     extensions: ADD_TS_EXTENSIONS_TO_WEPACK,
-    extensionAlias: SUPPORT_FULLY_QUALIFIED_TS_ESM_IMPORTS,
   },
   module: {
     rules: [

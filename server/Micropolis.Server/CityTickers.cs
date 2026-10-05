@@ -14,8 +14,7 @@
 namespace Micropolis.Server
 {
     /// <summary>
-    /// What drives a city host's loop: the time now, in milliseconds, and a way to run a callback again soon, as
-    /// <c>Ticker</c> in <c>src/cityHost.ts</c>.
+    /// What drives a city host's loop: the time now, in milliseconds, and a way to run a callback again soon.
     /// </summary>
     internal interface ITicker
     {
@@ -77,7 +76,8 @@ namespace Micropolis.Server
 
     /// <summary>
     /// A city's loop run by the debug channel, on a clock that moves only when told: <see cref="Run"/> takes one turn
-    /// of it, after moving the clock on, as the client's tests run the browser's hosts (test/helpers/manualTicker.ts).
+    /// of it, after moving the clock on, for the client's tests, which start the server with such a clock
+    /// (test/helpers/testServer.ts).
     /// </summary>
     internal sealed class ManualTicker : ITicker
     {

@@ -18,7 +18,8 @@ import { CheckpointCheck } from "./goldenPlaythrough";
 
 // The playthrough's report: one static page showing every stage in order, with its screenshot, so anyone can flip
 // through it and see the game working. Each checkpoint's save sits beside it, and the splash screen's Load starts it on
-// the game server as a new city. So does the run's command log, which the headless runner replays: `npm run simulate -- --log <file>`.
+// the game server as a new city. So does the run's command log, which the headless runner replays:
+// `dotnet run --project server/Micropolis.Headless -- --log <file>`.
 
 // What a stage came to, and its checkpoint
 export interface StageResult {
@@ -125,7 +126,7 @@ export class Report {
 <p>Build ${escapeHtml(this.buildId)}, seed ${this.seed}. Play a stage's save again with the splash screen's
 "Load game", which starts it on the game server as a new city.</p>
 ${this.log === null ? "" : `<p>The run's <a href="${this.log}">command log</a> replays headless with
-<code>npm run simulate -- --log ${basename(this.directory)}/${this.log}</code>, from the repository root.</p>`}
+<code>dotnet run --project server/Micropolis.Headless -- --log ${basename(this.directory)}/${this.log}</code>, from the repository root.</p>`}
 ${this.failures.length > 0 ? `<h2 class="failed">The run failed</h2>\n${errorBlock(this.failures.join("\n"))}` : ""}
 ${stages}
 ${driverRun}

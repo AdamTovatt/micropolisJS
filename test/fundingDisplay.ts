@@ -12,7 +12,12 @@
  */
 
 import { percentLabel, wholePercent } from "../src/fundingDisplay";
-import { fundingPercent } from "../src/serviceFunding";
+
+// The funding a slider sets a service to, as the budget record carries it: the slider's whole percent / 100, kept in a
+// float, as the original's slider handlers store it (SimCmdRoadFund and its siblings in micropolis-activity's w_sim.c)
+function fundingPercent(percent: number): number {
+    return Math.fround(percent / 100);
+}
 
 describe("wholePercent", () => {
 

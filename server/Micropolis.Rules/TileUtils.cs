@@ -14,8 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The tile predicates of <c>src/tileUtils.js</c>, which the handlers and the tools share. Each that takes a tile
-    /// value also takes a tile, and reads its value, as the original's <c>unwrapTile</c> lets it.
+    /// The tile predicates the handlers and the tools share. Each that takes a tile value also takes a tile, and reads
+    /// its value.
     /// </summary>
     public static class TileUtils
     {

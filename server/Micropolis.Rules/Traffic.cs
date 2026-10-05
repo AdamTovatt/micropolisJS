@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// What a zone's drive came to, as <c>Traffic.ROUTE_FOUND</c> and its siblings in <c>src/traffic.js</c> number it.
+    /// What a zone's drive came to, as the original's <c>makeTraffic</c> in traffic.cpp numbers it.
     /// </summary>
     public enum TrafficResult
     {
@@ -24,9 +24,9 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// The tiles a drive ends beside, from the lowest tile value to the highest, as <c>Traffic.COMMERCIAL</c> and its
-    /// siblings in <c>src/traffic.js</c>, and driveDone in the original, have them: not the kind of zone each is named
-    /// for. No drive ends beside an empty residential zone, whose tiles lie below <see cref="TileValues.LHTHR"/>.
+    /// The tiles a drive ends beside, from the lowest tile value to the highest, as driveDone in the original has them:
+    /// not the kind of zone each is named for. No drive ends beside an empty residential zone, whose tiles lie below
+    /// <see cref="TileValues.LHTHR"/>.
     /// </summary>
     public sealed record TrafficDestination(int Low, int High)
     {
@@ -55,7 +55,8 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// The traffic a zone generates, as <c>src/traffic.js</c> drives it from the zone to a destination along the roads.
+    /// The traffic a zone generates, as the original's traffic.cpp drives it from the zone to a destination along the
+    /// roads.
     /// </summary>
     public sealed class Traffic
     {

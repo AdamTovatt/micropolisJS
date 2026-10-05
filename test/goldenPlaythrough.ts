@@ -19,7 +19,7 @@ import {
     GoldenCheck, GoldenPlaythrough, goldenPlaythroughFor, GoldenRun, goldenText, GoldenWriter, namedByAppearance,
     readGoldenRun, StageCheckpoint,
 } from "../e2e/goldenPlaythrough";
-import { CommandLog } from "../src/commandLog";
+import { CommandLog } from "./helpers/commandLog";
 
 const STAGES = ["Roads", "Zones", "Fire"];
 const HASH = {a: "a".repeat(64), b: "b".repeat(64), c: "c".repeat(64), x: "e".repeat(64), y: "f".repeat(64)};

@@ -40,8 +40,7 @@ namespace Micropolis.Rules
         /// </summary>
         public const long MaxFireStationEffect = 1000;
 
-        // A new city's budget starts as the Budget constructor in src/budget.js starts it: a tax of 7%, auto-budget on,
-        // and every service fully funded
+        // A new city's budget starts at a tax of 7%, with auto-budget on and every service fully funded
 
         public long TotalFunds { get; internal set; }
 
@@ -79,7 +78,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Raises <see cref="Messages.FUNDS_CHANGED"/>, <see cref="Messages.BUDGET_REVIEW_DUE"/> and
-        /// <see cref="Messages.NO_MONEY"/>, as <c>src/budget.js</c> does.
+        /// <see cref="Messages.NO_MONEY"/>.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -245,9 +244,9 @@ namespace Micropolis.Rules
         public ServiceAmounts<double> Percents => new ServiceAmounts<double>(RoadPercent, FirePercent, PolicePercent);
 
         /// <summary>
-        /// What the year-end budget would leave if it ran now, as <c>forecast</c> in <c>src/budget.js</c>: from the
-        /// current funds and the most recent tax collection and maintenance costs, with each service given funded at
-        /// its whole percent, as <see cref="SetFunding"/> would set it, and the others at the percentages they have.
+        /// What the year-end budget would leave if it ran now: from the current funds and the most recent tax
+        /// collection and maintenance costs, with each service given funded at its whole percent, as
+        /// <see cref="SetFunding"/> would set it, and the others at the percentages they have.
         /// </summary>
         public YearForecast Forecast(int? road, int? fire, int? police)
         {

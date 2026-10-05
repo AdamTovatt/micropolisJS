@@ -13,16 +13,22 @@
 
 import { readFileSync } from "fs";
 
-import { commandRejection } from "../src/commands";
 import { chosenDisaster, disasterOptionID } from "../src/disasterWindow";
 import { DISASTER_KINDS } from "../src/protocol";
-import { repositoryPath } from "./helpers/repository";
+import { disasterCommand } from "../src/windowCommands";
+import { repositoryJson, repositoryPath } from "./helpers/repository";
 
 describe("the disaster window's choice", () => {
 
     it.each([...DISASTER_KINDS])("is the disaster %s, which a triggerDisaster command takes", (kind) => {
         expect(chosenDisaster(kind)).toBe(kind);
-        expect(commandRejection({type: "triggerDisaster", kind}, 120, 100)).toBeNull();
+    });
+
+    // The command's example under protocol/examples/commands, which the server's tests read too
+    it("makes the command the server reads", () => {
+        const example = repositoryJson<{kind: string}>("protocol/examples/commands/trigger-disaster.json");
+
+        expect(disasterCommand(chosenDisaster(example.kind)!)).toEqual(example);
     });
 
     it("is none for the option that triggers none", () => {

@@ -16,9 +16,9 @@ using Micropolis.Rules;
 namespace Micropolis.Server
 {
     /// <summary>
-    /// Records a city's session log as its command queue drives it, as <c>CommandRecorder</c> in
-    /// <c>src/commandLog.ts</c> does in the browser, as a <see cref="CommandLog"/>: each command as it applies, and a
-    /// checkpoint of the state hash just before each step that is a whole number of intervals in, step 0 included.
+    /// Records a city's session log as its command queue drives it, as a <see cref="CommandLog"/>: each command as it
+    /// applies, and a checkpoint of the state hash just before each step that is a whole number of intervals in, step 0
+    /// included.
     /// </summary>
     internal sealed class CommandRecorder
     {

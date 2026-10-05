@@ -26,9 +26,9 @@ namespace Micropolis.Rules
     public sealed record RejectedCommand(string Reason) : CommandReading;
 
     /// <summary>
-    /// Reads the commands a player sends the simulation, as <c>src/commands.ts</c> validates them. They arrive
-    /// untrusted: a valid command is exactly its type's fields, each in the range the game offers, and anything else is
-    /// rejected with the reason <c>commandRejection</c> gives, word for word, since a command's result carries it.
+    /// Reads the commands a player sends the simulation. They arrive untrusted: a valid command is exactly its type's
+    /// fields, each in the range the game offers, and anything else is rejected with the reason it fails, which a
+    /// command's result carries.
     /// </summary>
     public static class CommandReader
     {
@@ -43,7 +43,7 @@ namespace Micropolis.Rules
         /// </summary>
         public const int MaxCommandDepth = 64;
 
-        // Each command's fields but its type, required or optional, as FIELDS in src/commands.ts
+        // Each command's fields but its type, required or optional
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> CommandFields =
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.Ordinal)
             {

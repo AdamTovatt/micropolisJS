@@ -14,8 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// JavaScript's arithmetic on the city's integers, where it differs from C#'s: the one home of each rule the port
-    /// needs, so every unit computes as the TypeScript reference does.
+    /// JavaScript's arithmetic on the city's integers, where it differs from C#'s: the one home of each such rule. The
+    /// rules compute as JavaScript's numbers do, which the conformance files and the command logs' state hashes pin.
     /// </summary>
     public static class JsMath
     {
@@ -36,8 +36,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// <c>Math.fround</c>: the nearest single-precision value, as a C# <c>(float)</c> cast gives it, kept as the
-        /// double it equals. The TypeScript wraps each operand and result of the original's float arithmetic in it, and
-        /// the port wraps the same ones.
+        /// double it equals. The rules wrap each operand and result of the original's float arithmetic in it.
         /// </summary>
         public static double Fround(double value)
         {

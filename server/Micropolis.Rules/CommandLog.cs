@@ -11,7 +11,6 @@
  *
  */
 
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -38,8 +37,8 @@ namespace Micropolis.Rules
     public sealed record Checkpoint(long Step, string Hash);
 
     /// <summary>
-    /// A command log (<c>docs/command-log.md</c>), as <c>src/commandLog.ts</c> reads it, and written as the
-    /// conformance files lay one out: a line to each entry and each checkpoint, so a diff shows which moved, and the
+    /// A command log, read as <c>docs/command-log.md</c> specifies it, and written as the conformance files lay one
+    /// out: a line to each entry and each checkpoint, so a diff shows which moved, and the
     /// save it starts from, if any, on one line.
     /// </summary>
     public sealed record CommandLog(string? Description, LogStart Start, IReadOnlyList<LoggedCommand> Entries,
@@ -48,8 +47,7 @@ namespace Micropolis.Rules
         public const int FormatVersion = 1;
 
         /// <summary>
-        /// A recorder's checkpoint every this many steps, a minute of play, as <c>CHECKPOINT_INTERVAL</c> in
-        /// <c>src/commandLog.ts</c>.
+        /// A recorder's checkpoint every this many steps, a minute of play, as <c>docs/command-log.md</c> specifies.
         /// </summary>
         public const int CheckpointInterval = 3600;
 
@@ -183,49 +181,31 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The log's text, ending in a newline: <see cref="ToJson"/> with a line to each member, and to each value of a
-        /// list.
+        /// The log's text, ending in a newline: <see cref="ToJson"/> laid out by <see cref="JsonLines"/>, a line to each
+        /// member, and to each value of a list.
         /// </summary>
         public string Write()
         {
             JsonObject log = ToJson();
-            StringBuilder text = new StringBuilder("{\n");
+            List<string> lines = ["{"];
             int member = 0;
 
             foreach ((string key, JsonNode? value) in log)
             {
-                string end = ++member < log.Count ? "," : "";
+                bool last = ++member == log.Count;
 
                 if (value is JsonArray list)
                 {
-                    AppendList(text, key, list, end);
+                    lines.AddRange(JsonLines.ListMember(key, list.ToList(), last));
                 }
                 else
                 {
-                    text.Append($"  {CanonicalJson.Stringify(key)}: {CanonicalJson.Stringify(value)}{end}\n");
+                    lines.Add(JsonLines.Member(key, value, last));
                 }
             }
 
-            return text.Append("}\n").ToString();
-        }
-
-        // One JSON value per line, in a list
-        private static void AppendList(StringBuilder text, string key, JsonArray values, string end)
-        {
-            if (values.Count == 0)
-            {
-                text.Append($"  {CanonicalJson.Stringify(key)}: []{end}\n");
-                return;
-            }
-
-            text.Append($"  {CanonicalJson.Stringify(key)}: [\n");
-
-            for (int i = 0; i < values.Count; i++)
-            {
-                text.Append($"    {CanonicalJson.Stringify(values[i])}{(i < values.Count - 1 ? "," : "")}\n");
-            }
-
-            text.Append($"  ]{end}\n");
+            lines.Add("}");
+            return JsonLines.FileOf(lines);
         }
 
         private static List<LoggedCommand> ReadEntries(JsonNode? node)

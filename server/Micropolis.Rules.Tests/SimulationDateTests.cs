@@ -16,8 +16,7 @@ using static Micropolis.Rules.Tests.FixtureCities;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The city's date, as <c>getDate</c> in <c>src/simulation.js</c> works it out from city time: four units a month,
-    /// 48 a year, from 1900.
+    /// The city's date, as the simulation works it out from city time: four units a month, 48 a year, from 1900.
     /// </summary>
     [TestClass]
     public sealed class SimulationDateTests

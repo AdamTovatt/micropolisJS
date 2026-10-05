@@ -24,7 +24,6 @@ export const DISASTER_REQUESTED = "Disaster Requested";
 export const DISASTER_WINDOW_CLOSED = "Disaster window closed";
 export const EVAL_REQUESTED = "Evaluation Requested";
 export const EVAL_WINDOW_CLOSED = "Eval window closed";
-export const LOG_UNCHECKED = "Command log saved without checkpoints";
 export const MINIMAP_TOGGLE_REQUESTED = "Minimap toggle requested";
 export const PAUSE_REQUESTED = "Pause requested";
 export const QUERY_WINDOW_CLOSED = "Query window closed";

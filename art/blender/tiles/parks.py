@@ -10,7 +10,7 @@
 # city simulation game and its source code (the project or "licensee(s)") as a courtesy of the owner.
 #
 
-# Parks: the park tool lays one of five at random on each tile it covers (src/parkTool.js),
+# Parks: the park tool lays one of five at random on each tile it covers (ParkTool in the C# rules),
 # whatever is beside it: a garden, tiles 40 to 43, or a fountain, tile 840, which the game draws
 # as one still frame. So each is complete in itself on a mown lawn that runs to every edge, and a
 # stretch of park reads as one lawn.

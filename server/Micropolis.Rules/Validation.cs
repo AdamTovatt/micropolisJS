@@ -17,8 +17,8 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The checks untrusted JSON is read with, as <c>src/validation.ts</c>: the commands and queries a player sends,
-    /// the messages that carry them, and saved games.
+    /// The checks untrusted JSON is read with: the commands and queries a player sends, the messages that carry them,
+    /// and saved games.
     /// </summary>
     internal static class Validation
     {

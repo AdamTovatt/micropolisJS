@@ -18,9 +18,9 @@ namespace Micropolis.Rules
     public sealed partial class Simulation
     {
         /// <summary>
-        /// The answer to a query, such as an overlay's layer or a tile's report, or its rejection, as
-        /// <c>answerQuery</c> in <c>src/simulation.js</c>. A query only reads the city: it changes nothing, draws
-        /// nothing from the stream, and is never logged, so it may be asked at any time.
+        /// The answer to a query, such as an overlay's layer or a tile's report, or its rejection. A query only reads
+        /// the city: it changes nothing, draws nothing from the stream, and is never logged, so it may be asked at any
+        /// time.
         /// </summary>
         public QueryAnswer AnswerQuery(JsonNode? query)
         {
@@ -28,8 +28,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The evaluation record the evaluation window shows, as <c>evaluationRecord</c> in <c>src/simulation.js</c>:
-        /// the last evaluation, at the city's level.
+        /// The evaluation record the evaluation window shows: the last evaluation, at the city's level.
         /// </summary>
         public EvaluationRecord EvaluationRecord()
         {
@@ -37,7 +36,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The budget record the budget window opens on, as <c>budgetRecord</c> in <c>src/simulation.js</c>.
+        /// The budget record the budget window opens on.
         /// </summary>
         public BudgetRecord BudgetRecord()
         {
@@ -45,8 +44,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The settings record the settings window and the pause button show, as <c>settingsRecord</c> in
-        /// <c>src/simulation.js</c>.
+        /// The settings record the settings window and the pause button show.
         /// </summary>
         public SettingsRecord SettingsRecord()
         {

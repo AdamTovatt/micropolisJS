@@ -49,11 +49,10 @@ function stubSource() {
         start: async () => ({name: "Town", seed: 1, city: `city id ${++cities}`}),
         send: () => {},
         ask: (_, reply) => pending.push(reply),
-        setViewerVisible: () => {},
         save: async () => {
             throw new Error("The city failed");
         },
-        commandLog: async () => ({log: {}, step: 0, unhashed: null}),
+        commandLog: async () => ({log: {}, step: 0}),
     };
 
     return {

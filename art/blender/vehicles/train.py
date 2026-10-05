@@ -11,7 +11,7 @@
 #
 
 # The train, sprite 1: one railcar, as the original's, in the frames the game shows it in
-# (src/trainSprite.js): 0 running north-south, 1 east-west, 2 north-west to south-east, 3
+# (TrainSprite in the C# rules): 0 running north-south, 1 east-west, 2 north-west to south-east, 3
 # north-east to south-west, and 4 under water, where nothing of it shows.
 
 import os

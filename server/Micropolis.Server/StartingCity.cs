@@ -16,8 +16,7 @@ using Micropolis.Rules;
 namespace Micropolis.Server
 {
     /// <summary>
-    /// A city as it starts to be hosted, as <c>startCity</c> in <c>src/cityHost.ts</c> builds one: its name, the
-    /// simulation, and where its command log starts.
+    /// A city as it starts to be hosted: its name, the simulation, and where its command log starts.
     /// </summary>
     internal sealed record StartingCity(string Name, Simulation City, LogStart LogStart)
     {

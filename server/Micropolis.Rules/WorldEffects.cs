@@ -14,9 +14,9 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The tiles a tool means to change, staged over the map until the tool knows the city can pay, as
-    /// <c>src/worldEffects.js</c> and the original's <c>ToolEffects</c> stage them: a staged tile is read in place of
-    /// the map's, and applying them writes each to the map.
+    /// The tiles a tool means to change, staged over the map until the tool knows the city can pay, as the original's
+    /// <c>ToolEffects</c> stage them: a staged tile is read in place of the map's, and applying them writes each to the
+    /// map.
     /// </summary>
     internal sealed class WorldEffects
     {
@@ -36,7 +36,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// The tile staged at (x, y), or the map's own tile there, which the caller only reads.
         /// </summary>
-        // A tool reads only tiles on the map: the TypeScript's map warns of a read off it, which no tool makes
+        // A tool reads only tiles on the map, so a read off it is a defect, which throws
         public Tile GetTile(int x, int y)
         {
             if (!_map.TestBounds(x, y))

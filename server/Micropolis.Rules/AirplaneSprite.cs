@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The plane's start and move, as <c>src/airplaneSprite.js</c> brings the original's doAirplaneSprite.
+    /// The plane's start and move, after the original's doAirplaneSprite in sprite.cpp.
     /// </summary>
     internal static class AirplaneSprite
     {

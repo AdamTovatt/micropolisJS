@@ -2,12 +2,12 @@
 
 The state hash identifies a city's complete simulation state. Two simulations whose hashes match evolve identically
 as long as they are given the same commands (`src/protocol.ts`), each of which carries whatever setting of its
-sender's it depends on. The headless runner prints the hash, and the C# port is correct when it produces the same
-hash from the same seed, starting state and command log (`CLAUDE.md`, Direction 3). This document specifies it so the
-two produce identical bytes. `src/canonicalJson.ts` and `src/stateHash.ts` are the reference implementation, and
-`CanonicalJson` and `StateHash` in `server/Micropolis.Rules` the port. `conformance/canonicalJson.json` holds the
-canonical text the reference writes for numbers, strings and documents, which the port's tests check: a change to a
-rule below regenerates it (`npm run conformance`).
+sender's it depends on. A command log's checkpoints are state hashes (`docs/command-log.md`), and the headless runner
+prints one. This document specifies it, so every implementation of it writes identical bytes: `CanonicalJson` and
+`StateHash` in `server/Micropolis.Rules`, which the game rules and the server hash with, and
+`test/helpers/stateHash.ts`, with which the end-to-end runner hashes the saves the game server sends.
+`conformance/canonicalJson.json` holds the canonical text of numbers, strings and documents, which the tests of both
+read, and which is edited by hand: a change to a rule below changes its cases in the same commit.
 
 ## The hash
 
@@ -36,18 +36,18 @@ The canonical text is JSON with these rules:
     `|n − 1|` (`1e+21`, `1.5e-7`).
   - A negative number is `-` followed by the form of its magnitude. Negative zero is written `0`.
 
-  An integer must be an exact double, from −2^53 to 2^53: a JavaScript number holds no other, so the C# port refuses
-  to write an integer its model holds beyond them rather than round it. A number parsed from text is the double
-  `JSON.parse` reads.
+  An integer must be an exact double, from −2^53 to 2^53: a JavaScript number holds no other, so `CanonicalJson`
+  refuses to write an integer its model holds beyond them rather than round it. A number parsed from text is the
+  double `JSON.parse` reads.
 
-  .NET's shortest round-trip formatting produces the same digits `s` but lays them out differently, so the port
-  formats them by the rules above.
+  .NET's shortest round-trip formatting produces the same digits `s` but lays them out differently, so
+  `CanonicalJson` formats them by the rules above.
 - **Nothing else** has a canonical form. Undefined values, NaN, infinities and non-data objects are errors, never
   dropped or coerced.
 
 ## The saved state
 
-The saved state is the object `Simulation.save` writes. It holds everything that determines how the city evolves,
+The saved state is the object `Simulation.Save` writes. It holds everything that determines how the city evolves,
 the random stream included, so a city restored from it continues exactly as it would have without the save.
 
 Each component's state is an object under its own key: `simulation`, `map`, `evaluation`, `valves`, `budget`, `census`,
@@ -56,9 +56,9 @@ numbers are integers. A list ordered "row by row" holds the entry for (x, y) at 
 is the list's own width: the map's width in tiles for a per-tile list, and the block map's width in blocks for a
 block map.
 
-The C# port's `Simulation.FromSave` (`server/Micropolis.Rules`) reads a saved state against this specification: a key
-written twice, missing or unknown, or a value of the wrong type or outside the range given here or in the block-map
-comments of the `Simulation` constructor in `src/simulation.js`, fails with an error naming the key.
+`Simulation.FromSave` (`server/Micropolis.Rules`) reads a saved state against this specification: a key written
+twice, missing or unknown, or a value of the wrong type or outside the range given here or for its block map in the
+`BlockMaps` constructor, fails with an error naming the key.
 
 ### Simulation
 
@@ -75,7 +75,7 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 | `simulation.lastPowerMessage` | The city time of the last power shortage or blackout notification, or `null` for none |
 | `simulation.initialEvaluationPending` | `true` until the city has been evaluated before its first phase |
 | `simulation.seed` | The game seed, a uint32 |
-| `simulation.randomState` | The simulation stream's four uint32 state words (`src/random.ts`) |
+| `simulation.randomState` | The simulation stream's four uint32 state words (`RandomStream`) |
 
 ### Map
 
@@ -83,8 +83,8 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 |-----|-------|
 | `map.width`, `map.height` | The map's size in tiles |
 | `map.tiles` | One raw value per tile, row by row: the tile value (bits 0–9) combined with its flags (bits 10–15, `src/tileFlags.ts`) |
-| `map.cityCentreX`, `map.cityCentreY` | The population centre, a tile of the map: the average position of the zones the last population scan found, or the map's centre when it found none (`populationDensityScan` in `src/blockMapUtils.js`) |
-| `map.pollutionMaxX`, `map.pollutionMaxY` | The most polluted tile, a tile of the map: one the pollution scan visits (`pollutionTerrainLandValueScan` in `src/blockMapUtils.js`), or the map's centre before any scan |
+| `map.cityCentreX`, `map.cityCentreY` | The population centre, a tile of the map: the average position of the zones the last population scan found, or the map's centre when it found none (`PopulationDensityScan` in `BlockMapUtils`) |
+| `map.pollutionMaxX`, `map.pollutionMaxY` | The most polluted tile, a tile of the map: one the pollution scan visits (`PollutionTerrainLandValueScan` in `BlockMapUtils`), or the map's centre before any scan |
 
 ### Evaluation
 
@@ -97,7 +97,7 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 | `evaluation.cityAssessedValue` | The assessed value |
 | `evaluation.cityClassLast` | The class last reported |
 | `evaluation.cityScoreDelta` | The score's last change |
-| `evaluation.problemVotes` | Seven `{"index", "voteCount"}` objects from the last poll, in the poll's sorted order: `index` is a problem, 0–6, and `voteCount` its votes, 0–100, since the poll stops at 100 votes (`voteProblems` in `src/evaluation.js`) |
+| `evaluation.problemVotes` | Seven `{"index", "voteCount"}` objects from the last poll, in the poll's sorted order: `index` is a problem, 0–6, and `voteCount` its votes, 0–100, since the poll stops at 100 votes (`voteProblems` in the original's evaluate.cpp, and `Evaluation`) |
 | `evaluation.problemOrder` | The four top problems' indices, 7 for none |
 | `evaluation.cityScoreBreakdown` | The last score calculation's steps, in order, as `{"reason", "points"}` objects: the points each step moved the score. The reasons, in calculation order, are `"PROBLEMS"`, `"RES_CAP"`, `"COM_CAP"`, `"IND_CAP"`, `"ROAD_FUNDING"`, `"POLICE_FUNDING"`, `"FIRE_FUNDING"`, `"RES_OVERSUPPLY"`, `"COM_OVERSUPPLY"`, `"IND_OVERSUPPLY"`, `"MIGRATION"`, `"FIRES"`, `"TAXES"`, `"UNPOWERED_ZONES"`, `"RANGE"` and `"AVERAGING"`. `"PROBLEMS"` and `"AVERAGING"` are always listed, and each other step only when it moved the score. The first is measured from last year's score, and the points sum to `cityScoreDelta`. Empty until the first evaluation, and after an evaluation that finds the city empty |
 
@@ -149,33 +149,30 @@ comments of the `Simulation` constructor in `src/simulation.js`, fails with an e
 
 | Key | Value |
 |-----|-------|
-| `scannedState.blockMaps` | One list per block map, row by row: `cityCentreDistScoreMap`, `crimeRateMap`, `fireStationMap`, `fireStationEffectMap`, `landValueMap`, `policeStationMap`, `policeStationEffectMap`, `pollutionDensityMap`, `populationDensityMap`, `rateOfGrowthMap`, `terrainDensityMap` and `trafficDensityMap`. A block map of block size `b` over the 120×100 map is `ceil(120 / b)` blocks wide and `ceil(100 / b)` high: 195 entries at size 8, 750 at size 4, 3000 at size 2. The `Simulation` constructor in `src/simulation.js` gives each map's block size and range. The temporary maps are scratch space and are not saved |
+| `scannedState.blockMaps` | One list per block map, row by row: `cityCentreDistScoreMap`, `crimeRateMap`, `fireStationMap`, `fireStationEffectMap`, `landValueMap`, `policeStationMap`, `policeStationEffectMap`, `pollutionDensityMap`, `populationDensityMap`, `rateOfGrowthMap`, `terrainDensityMap` and `trafficDensityMap`. A block map of block size `b` over the 120×100 map is `ceil(120 / b)` blocks wide and `ceil(100 / b)` high: 195 entries at size 8, 750 at size 4, 3000 at size 2. The `BlockMaps` constructor gives each map's block size and range. The temporary maps are scratch space and are not saved |
 | `scannedState.power.powerGrid` | One entry per tile, row by row: 1 where the last power scan delivered power |
-| `scannedState.power.powerStack` | The `{"x", "y"}` power sources the map scan has found for the next power scan, in push order: each a tile of the map, a power plant's or one the power scan reached (`src/powerManager.js`) |
+| `scannedState.power.powerStack` | The `{"x", "y"}` power sources the map scan has found for the next power scan, in push order: each a tile of the map, a power plant's or one the power scan reached (`PowerManager`) |
 | `scannedState.power.powerCapacity`, `scannedState.power.powerLoad` | The last power scan's capacity and load |
 | `scannedState.census` | The census's scan counts: `poweredZoneCount`, `unpoweredZoneCount`, `firePop`, `roadTotal`, `railTotal`, `resZonePop`, `comZonePop`, `indZonePop`, `hospitalPop`, `churchPop`, `policeStationPop`, `fireStationPop`, `stadiumPop`, `coalPowerPop`, `nuclearPowerPop`, `seaportPop`, `airportPop` and `needHospital` (−1, 0 or 1), and `trafficAverage`, which is not always an integer |
 
 ## Golden hashes
 
-Each fixture is a command log (`docs/command-log.md`) whose checkpoints are its golden hashes: the **built** hash at
-step 0, of the state its log builds before its first step, and the **run** hash after a fixed run at the speed its
-built state holds. `test/goldenHashes.ts` replays every fixture and checks both. `npm run fixtures` exports each
-fixture's log to `headless/fixtures/export/<name>.log.json`, and `conformance/README.md` describes the copies of each
-fixture's state at both checkpoints. The C# port takes the built state as its starting state and steps it at that
-speed to the run checkpoint's step, and must produce the run hash: `CityRunTests` does, with the fixture's city run.
+Each fixture is a command log (`docs/command-log.md`) under `conformance/logs/` whose checkpoints are its golden
+hashes, the **built** hash at step 0 and the **run** hash after a fixed run, as `conformance/README.md` describes.
+`LogReplayTests` replays every log to every checkpoint, and the client's `test/canonicalJson.ts` hashes each fixture's
+saved state at the built and run checkpoints to the same hashes.
 
 `e2e/goldenPlaythrough.json` pins the hash of the city at each stage of the end-to-end playthrough: the hash of the
-keys `Simulation.save` writes, taken from the save the game server sends the page (`src/gameSaveHash.ts`), which
-leaves out what the next section lists. It also holds the playthrough's command log, which `GoldenPlaythroughTests`
-in `server/Micropolis.Headless.Tests` replays to each of those hashes.
+save the game server sends the page, without what the next section lists (`gameSaveHash` in
+`test/helpers/stateHash.ts`). It also holds the playthrough's command log, which `GoldenPlaythroughTests` in
+`server/Micropolis.Headless.Tests` replays to each of those hashes.
 
 ## What the hash leaves out
 
-What sits beside the simulation's state in a save is not hashed: the city's name, which the city host adds as it saves
-(`src/cityHost.ts`), and the save version, which `savedGame.ts` stamps as it writes the save's text. The server's
-saves carry the same two, which `SavedGame.Write` adds as the server writes a city to its store (`CityStore`). A
-player's own settings, such as auto-bulldoze, are not saved with the city at all: each command carries the ones it
-depends on.
+What sits beside the simulation's state in a save is not hashed: the city's name and the save version, which
+`SavedGame.Write` adds as it writes the save's text, as the server does when it keeps a city in its store
+(`CityStore`). A player's own settings, such as auto-bulldoze, are not saved with the city at all: each command
+carries the ones it depends on.
 
 The simulation decides when to send the advisor's notifications, so the counters it decides that with are city
 state and are hashed. What is left out is what only remembers what one display was last told, such as the last

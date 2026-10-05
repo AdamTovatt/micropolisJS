@@ -12,6 +12,7 @@
  */
 
 using System.Text.Json.Nodes;
+using Micropolis.Conformance;
 using Micropolis.Rules;
 
 namespace Micropolis.Headless
@@ -23,22 +24,22 @@ namespace Micropolis.Headless
     internal sealed record RunReport(IReadOnlyList<string> Lines, string? Failure);
 
     /// <summary>
-    /// Where the files a run reads and writes beside a log it is given are: the directory of the fixtures' logs, which
-    /// a fixture that starts from a save reads it from, and which the fixture tool writes; and the golden playthrough,
-    /// which the tool copies the playthrough's log from.
+    /// Where the files a run reads and writes beside a log it is given are: the conformance directories, whose logs a
+    /// fixture that starts from a save reads it from, and which the fixture tool writes, reading the sample saves of
+    /// their <c>saveVersions/</c>; and the golden playthrough, which the tool copies the playthrough's log from.
     /// </summary>
-    internal sealed record HeadlessFiles(string Logs, string GoldenPlaythrough)
+    internal sealed record HeadlessFiles(ConformanceDirectories Conformance, string GoldenPlaythrough)
     {
         /// <summary>
         /// The repository's own files, as the command line runs on them.
         /// </summary>
-        public static HeadlessFiles Committed => new HeadlessFiles(Fixtures.CommittedLogs, FixtureLogs.CommittedGoldenPlaythrough);
+        public static HeadlessFiles Committed => new HeadlessFiles(ConformanceDirectories.Committed, FixtureLogs.CommittedGoldenPlaythrough);
     }
 
     /// <summary>
-    /// Starts a city from a seed, a fixture or a command log and advances it step by step, as <c>headless/runner.ts</c>
-    /// and <c>headless/run.ts</c> do, or writes every fixture's log. A run never stalls silently: it fails when the city
-    /// is paused, or doesn't advance city time as far as the step count implies.
+    /// Starts a city from a seed, a fixture or a command log and advances it step by step, or writes every fixture's
+    /// log. A run never stalls silently: it fails when the city is paused, or doesn't advance city time as far as the
+    /// step count implies.
     /// </summary>
     internal static class HeadlessRunner
     {
@@ -51,7 +52,7 @@ namespace Micropolis.Headless
             switch (command)
             {
                 case WriteFixtures:
-                    return new RunReport(FixtureLogs.WriteAll(files.Logs, files.GoldenPlaythrough).Select(path => $"wrote {path}").ToList(), null);
+                    return new RunReport(FixtureTool.WriteAll(files).Select(path => $"wrote {path}").ToList(), null);
                 case ReplayLog replayLog:
                     CommandLog log = CommandLog.Parse(File.ReadAllText(replayLog.Path));
                     Replay replay = LogReplay.Verify(log);
@@ -60,7 +61,7 @@ namespace Micropolis.Headless
                         ? new RunReport([OutcomeCounts(replay.Results), .. CityLines(replay.City)], "The log has no checkpoints, so its replay verified nothing")
                         : new RunReport([OutcomeCounts(replay.Results), $"{log.Checkpoints.Count} checkpoints match", .. CityLines(replay.City)], null);
                 case RunCity run:
-                    Simulation city = StartCity(run.Start, files.Logs);
+                    Simulation city = StartCity(run.Start, files.Conformance);
                     Advance(city, run.Steps);
                     return new RunReport(CityLines(city), null);
                 default:
@@ -70,10 +71,10 @@ namespace Micropolis.Headless
 
         /// <summary>
         /// The city a run starts from, a fixture that starts from a save reading it from its log in
-        /// <paramref name="logs"/>. A fixture's city is loaded from the save its log builds, so a fixture always goes
-        /// through the load path.
+        /// <paramref name="directories"/>. A fixture's city is loaded from the save its log builds, so a fixture always
+        /// goes through the load path.
         /// </summary>
-        public static Simulation StartCity(RunStart start, string logs)
+        public static Simulation StartCity(RunStart start, ConformanceDirectories directories)
         {
             if (start.Seed.HasValue == (start.Fixture != null))
             {
@@ -91,7 +92,7 @@ namespace Micropolis.Headless
             }
 
             Fixture fixture = Fixtures.Named(start.Fixture!);
-            JsonObject save = LogReplay.Run(fixture.Start(logs), fixture.Entries, [], 0).City.Save();
+            JsonObject save = LogReplay.Run(fixture.Start(directories), fixture.Entries, [], 0).City.Save();
             return StartFromSave(save, start.Reseed, start.Speed);
         }
 

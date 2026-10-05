@@ -11,7 +11,6 @@
  *
  */
 
-import { commandRejection } from "../src/commands";
 import { dragPath, ToolPaths } from "../src/dragPath";
 
 const xy = (path: {x: number, y: number}[]) => path.map(({x, y}) => [x, y]);
@@ -54,12 +53,14 @@ describe("a drag's path", () => {
                         const to = {x: toX, y: toY};
                         const path = dragPath(from, to);
                         const ends = path.length === 0 ? from : path[path.length - 1];
+                        // A tool command's path moves one tile along a row or a column from each tile to the next
+                        const tiles = [from, ...path];
+                        const stepsOne = path.every((tile, i) =>
+                            Math.abs(tile.x - tiles[i].x) + Math.abs(tile.y - tiles[i].y) === 1);
                         checked++;
 
                         if (path.length !== Math.abs(toX - fromX) + Math.abs(toY - fromY) ||
-                            ends.x !== toX || ends.y !== toY ||
-                            commandRejection({type: "tool", tool: "road", path: [from, ...path], autoBulldoze: true},
-                                             120, 100) !== null) {
+                            ends.x !== toX || ends.y !== toY || !stepsOne) {
                             wrong.push({from, to, path});
                         }
                     }

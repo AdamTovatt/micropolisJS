@@ -17,7 +17,8 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The cases of <c>test/zoneUtils.ts</c>, and the fire's fall in the rate of growth stopping at its floor.
+    /// A burning zone: the tiles it makes bulldozable, as far as the original's fireZone sweeps, and the fire's fall in
+    /// the rate of growth stopping at its floor.
     /// </summary>
     [TestClass]
     public sealed class ZoneUtilsTests

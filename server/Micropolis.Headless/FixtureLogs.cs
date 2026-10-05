@@ -11,23 +11,23 @@
  *
  */
 
+using Micropolis.Conformance;
 using Micropolis.Rules;
 using Micropolis.SourceTree;
 
 namespace Micropolis.Headless
 {
     /// <summary>
-    /// The fixture tool: builds each fixture's log, its checkpoints the state hashes its replay in C# reaches, and
-    /// writes every log. While the TypeScript simulation exists, <c>npm run conformance</c> writes the committed logs
-    /// and this tool must write the same, which <c>FixtureLogsTests</c> checks; once it is deleted, writing them here is
-    /// how every fixture's checkpoints are regenerated after a deliberate rule change. The playthrough's come from its
-    /// golden file, which the end-to-end run rewrites.
+    /// The logs the fixture tool writes: each fixture's and mid-run log, its checkpoints the state hashes its replay
+    /// reaches, which is how every checkpoint is regenerated after a deliberate rule change, and the playthrough's,
+    /// from its golden file, which the end-to-end run rewrites. The tool must write the committed logs byte for byte,
+    /// which <c>FixtureLogsTests</c> checks.
     /// </summary>
     internal static class FixtureLogs
     {
         /// <summary>
         /// The end-to-end playthrough's log, which no script builds: the game server recorded it as the browser played,
-        /// and the tool copies it from the golden playthrough, as the generator does.
+        /// and the tool copies it from the golden playthrough.
         /// </summary>
         public const string Playthrough = "playthrough";
 
@@ -43,10 +43,9 @@ namespace Micropolis.Headless
 
         /// <summary>
         /// The playthrough's log, as the golden playthrough at <paramref name="goldenPlaythrough"/> holds it, once its
-        /// replay has matched every checkpoint, as the generator checks it. An <see cref="InvalidDataException"/> names
-        /// the file when it is no golden playthrough (<see cref="GoldenPlaythrough.Read"/>), and a
-        /// <see cref="ReplayDiffersException"/> asks for the playthrough to be pinned again when its log no longer
-        /// replays.
+        /// replay has matched every checkpoint. An <see cref="InvalidDataException"/> names the file when it is no
+        /// golden playthrough (<see cref="GoldenPlaythrough.Read"/>), and a <see cref="ReplayDiffersException"/> asks
+        /// for the playthrough to be pinned again when its log no longer replays.
         /// </summary>
         public static CommandLog CopyPlaythrough(string goldenPlaythrough)
         {
@@ -67,34 +66,13 @@ namespace Micropolis.Headless
 
         /// <summary>
         /// The fixture's log, with the state hash its replay reaches at each of its checkpoint steps, a fixture that
-        /// starts from a save reading it from its log in <paramref name="directory"/>.
+        /// starts from a save reading it from its log in <paramref name="directories"/>.
         /// </summary>
-        public static CommandLog Build(Fixture fixture, string directory)
+        public static CommandLog Build(Fixture fixture, ConformanceDirectories directories)
         {
-            LogStart start = fixture.Start(directory);
+            LogStart start = fixture.Start(directories);
             Replay replay = LogReplay.Run(start, fixture.Entries, fixture.CheckpointSteps, fixture.CheckpointSteps[^1]);
             return new CommandLog(fixture.Description, start, fixture.Entries, replay.Hashed);
-        }
-
-        /// <summary>
-        /// Builds every log, the playthrough's copied from <paramref name="goldenPlaythrough"/>, then writes each to its
-        /// file in <paramref name="directory"/>, and returns the paths written. Every log is built before any is
-        /// written, since a fixture that starts from a save reads it from its log there, and a log that fails to build
-        /// leaves every file as it was.
-        /// </summary>
-        public static IReadOnlyList<string> WriteAll(string directory, string goldenPlaythrough)
-        {
-            List<(string Path, string Text)> logs = Fixtures.Logs
-                .Select(fixture => (Fixtures.LogPath(directory, fixture.Name), Build(fixture, directory).Write()))
-                .Append((Fixtures.LogPath(directory, Playthrough), CopyPlaythrough(goldenPlaythrough).Write()))
-                .ToList();
-
-            foreach ((string path, string text) in logs)
-            {
-                File.WriteAllText(path, text);
-            }
-
-            return logs.Select(log => log.Path).ToList();
         }
     }
 }

@@ -18,10 +18,9 @@ namespace Micropolis.Rules.Tests
 {
     /// <summary>
     /// Every field a stateful component holds is saved, under its own name in camel case in one of the component's
-    /// groups of the save, or listed with the reason it isn't, as <c>test/savedFields.ts</c> checks the TypeScript: a
-    /// field the simulation adds is either saved or explained. A field is a declared one or a property's backing field,
-    /// named by its property. A field holding a component saved under a key of its own is listed as saved apart, and
-    /// that component has a case of its own.
+    /// groups of the save, or listed with the reason it isn't: a field the simulation adds is either saved or
+    /// explained. A field is a declared one or a property's backing field, named by its property. A field holding a
+    /// component saved under a key of its own is listed as saved apart, and that component has a case of its own.
     /// </summary>
     [TestClass]
     public sealed class SavedFieldsTests
@@ -110,7 +109,7 @@ namespace Micropolis.Rules.Tests
                             $"Fields of {testCase.Name} explained but saved, or no longer held.");
         }
 
-        // Each sprite's fields are saved in its entry of the sprite list, as test/spriteManager.ts checks them
+        // Each sprite's fields are saved in its entry of the sprite list
         [TestMethod]
         public void Fields_Sprite_AreSavedInItsEntry()
         {

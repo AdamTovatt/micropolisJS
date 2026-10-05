@@ -23,7 +23,7 @@ import { repositoryPath } from "./repository";
 // from there, each played on a city of its own.
 
 // The calls that return at once, which nothing comes back from: no state is delivered during them
-export type SignalName = "send" | "setViewerVisible";
+export type SignalName = "send";
 
 // The calls a source answers once it has made them, after the state they changed
 export type RequestName = "start" | "save" | "commandLog" | "hold" | "release" | "flush" | "advance" | "cityTime"

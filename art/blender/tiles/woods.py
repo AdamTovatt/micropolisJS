@@ -11,7 +11,7 @@
 #
 
 # Woods, tiles 21 to 37. The map generator gives a woods tile one of nine shapes by which of its
-# four neighbours are woods too (treeTable in src/mapGenerator.js): woods all round (37), open
+# four neighbours are woods too (TreeTable in the C# rules' MapGenerator): woods all round (37), open
 # land on one side (29, 31, 33, 35), or on two sides that meet (30, 32, 34, 36). Each shape but 37
 # has a second tile, eight below it, for the tiles of odd x + y, so two of a kind side by side
 # differ.

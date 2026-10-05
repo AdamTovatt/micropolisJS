@@ -15,7 +15,7 @@ import { test } from "@playwright/test";
 import { writeFileSync } from "fs";
 import { join } from "path";
 
-import { gameSaveHash } from "../src/gameSaveHash";
+import { gameSaveHash } from "../test/helpers/stateHash";
 import { serverForTests } from "./gameServer";
 import { GoldenPlaythrough, goldenPlaythroughFor, namedByAppearance } from "./goldenPlaythrough";
 import { collectPageProblems } from "./page";
@@ -92,7 +92,7 @@ test("the playthrough", async ({page}) => {
     const save = await player.save();
     result.save = `${stem}.json`;
     writeFileSync(join(report.directory, result.save), JSON.stringify(save));
-    const hash = await gameSaveHash(save);
+    const hash = gameSaveHash(save);
     result.hash = hash;
 
     result.error = withPageProblems(result.error);

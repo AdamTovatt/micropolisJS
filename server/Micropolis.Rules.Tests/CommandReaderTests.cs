@@ -14,7 +14,7 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// What <c>conformance/commands.json</c> can't hold, since the TypeScript writes it with <c>JSON.stringify</c>:
+    /// What <c>conformance/commands.json</c> can't hold, since each command there is a JSON value:
     /// commands only text can carry. The file holds every other case.
     /// </summary>
     [TestClass]

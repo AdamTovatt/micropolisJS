@@ -14,8 +14,8 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The year end's funding of the services, as <c>test/serviceFunding.ts</c> tests the TypeScript's: the unit
-    /// snapshots reach only the shortfalls the fixtures' cities run into.
+    /// The year end's funding of the services, tested directly: the fixtures' cities run into only some of the
+    /// shortfalls.
     /// </summary>
     [TestClass]
     public sealed class ServiceFundingTests

@@ -14,8 +14,8 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// A small deterministic generator for a test's random inputs, the same on every run, as <c>test/helpers/lcg.ts</c>
-    /// is the TypeScript tests'. It is the test's own, so the inputs do not draw on the simulation's random stream.
+    /// A small deterministic generator for a test's random inputs, the same on every run. It is the test's own, so the
+    /// inputs do not draw on the simulation's random stream.
     /// </summary>
     internal sealed class Lcg
     {

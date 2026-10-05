@@ -14,8 +14,8 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The tools' rules that no fixture's city reaches, as <c>test/tools.ts</c> tests them in the TypeScript: the unit
-    /// snapshots of <c>simulation.applyCommands</c> prove the rest against the TypeScript.
+    /// The tools' rules that no fixture's city reaches: the fixtures' logs and <c>conformance/commands.json</c> prove
+    /// the rest.
     /// </summary>
     [TestClass]
     public sealed class CityToolsTests

@@ -16,15 +16,14 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The advisor conditions at their thresholds and the city status record, as <c>test/cityStatus.ts</c> tests the
-    /// TypeScript's: the unit snapshots reach only the conditions the fixtures' cities meet.
+    /// The advisor conditions at their thresholds and the city status record: the fixtures' cities meet only some of
+    /// the conditions.
     /// </summary>
     [TestClass]
     public sealed class CityStatusTests
     {
-        // Each condition's figures at its thresholds: the last value that triggers it, and the first that does not. The
-        // TypeScript's rows that change the budget's most effective funding are left out, as the C# holds it in
-        // constants.
+        // Each condition's figures at its thresholds: the last value that triggers it, and the first that does not. No
+        // row changes the budget's most effective funding, which the rules hold in constants.
         [TestMethod]
         [DataRow(Messages.NOT_ENOUGH_POWER, "powerCapacity=700,powerLoad=701", true)]
         [DataRow(Messages.NOT_ENOUGH_POWER, "powerCapacity=700,powerLoad=700", false)]

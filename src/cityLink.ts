@@ -27,13 +27,10 @@ export interface PageWindow {
   history: {state: unknown, replaceState(data: unknown, unused: string, url: string): void};
 }
 
-// A city on the server, which always has an id
-export type ServerCity = StartedCity & {city: string};
-
 // What starts and joins cities on the server: the WebSocket source, once a server has welcomed the player
 export interface ServerCities {
-  start(start: CityStart): Promise<ServerCity>;
-  join(city: string): Promise<ServerCity>;
+  start(start: CityStart): Promise<StartedCity>;
+  join(city: string): Promise<StartedCity>;
 }
 
 // The city on the server the page's address names, or null for none, or for one whose id isn't one
@@ -48,9 +45,9 @@ export function linkedCity(page: PageWindow): string | null {
 
 // Joins the city the page was opened with, and plays it, or says why it can't, after which the player chooses a city on
 // the splash screen. Whether it joined.
-export async function joinLinkedCity(city: string, joiner: Pick<ServerCities, "join">, play: (started: ServerCity) => void,
-                                     page: PageWindow): Promise<boolean> {
-  let started: ServerCity;
+export async function joinLinkedCity(city: string, joiner: Pick<ServerCities, "join">,
+                                     play: (started: StartedCity) => void, page: PageWindow): Promise<boolean> {
+  let started: StartedCity;
   try {
     started = await joiner.join(city);
   } catch (e) {
@@ -63,7 +60,7 @@ export async function joinLinkedCity(city: string, joiner: Pick<ServerCities, "j
 }
 
 // Puts a city on the server in the page's address, in place of the page's own entry in its history
-export function linkToCity(started: ServerCity, page: PageWindow): void {
+export function linkToCity(started: StartedCity, page: PageWindow): void {
   page.history.replaceState(page.history.state, "", withCityOption(page.location.href, started.city));
 }
 

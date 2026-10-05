@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The helicopter's start and move, as <c>src/copterSprite.js</c> brings the original's doCopterSprite.
+    /// The helicopter's start and move, after the original's doCopterSprite in sprite.cpp.
     /// </summary>
     internal static class CopterSprite
     {

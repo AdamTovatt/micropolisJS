@@ -14,7 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Rail, the seaport and the airport, as <c>src/transport.js</c> runs them and sends out their sprites.
+    /// Rail, the seaport and the airport, as the original runs them and sends out their sprites: <c>doRail</c> in
+    /// simulate.cpp, and <c>doSpecialZone</c> in zone.cpp for the port and the airport.
     /// </summary>
     public static class Transport
     {
@@ -22,7 +23,7 @@ namespace Micropolis.Rules
         /// A rail tile, as the original's doRail: it counts, may send out a train, and with roads underfunded may
         /// decay, a rail bridge to the river and other rail to rubble, unless it carries a wire.
         /// </summary>
-        public static void RailFound(GameMap map, int x, int y, SimData simData)
+        private static void RailFound(GameMap map, int x, int y, SimData simData)
         {
             simData.Census.RailTotal += 1;
             simData.SpriteManager.GenerateTrain(simData.Census, x, y);
@@ -56,7 +57,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// A seaport's centre: it counts, and powered, sends out a ship when none sails.
         /// </summary>
-        public static void PortFound(GameMap map, int x, int y, SimData simData)
+        private static void PortFound(GameMap map, int x, int y, SimData simData)
         {
             simData.Census.SeaportPop += 1;
 
@@ -70,7 +71,7 @@ namespace Micropolis.Rules
         /// An airport's centre: it counts, and powered, turns its radar and may send out a plane, or failing that a
         /// helicopter; unpowered, its radar stands still.
         /// </summary>
-        public static void AirportFound(GameMap map, int x, int y, SimData simData)
+        private static void AirportFound(GameMap map, int x, int y, SimData simData)
         {
             simData.Census.AirportPop += 1;
 

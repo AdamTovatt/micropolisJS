@@ -39,11 +39,11 @@ namespace Micropolis.Rules
 
     /// <summary>
     /// How the budget funds road, fire and police services at year end, as doBudgetNow in the original's budget.cpp
-    /// does, and the effect that funding has, as its updateFundEffects does: <c>src/serviceFunding.ts</c>.
+    /// does, and the effect that funding has, as its updateFundEffects does.
     /// </summary>
     /// <remarks>
     /// The original keeps each funding percentage in a float and does this arithmetic in float, which
-    /// <see cref="JsMath.Fround"/> reproduces as the TypeScript's <c>Math.fround</c> does.
+    /// <see cref="JsMath.Fround"/> reproduces by rounding each operand and result to the nearest single.
     /// </remarks>
     public static class ServiceFunding
     {

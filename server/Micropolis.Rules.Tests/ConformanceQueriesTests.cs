@@ -18,7 +18,7 @@ namespace Micropolis.Rules.Tests
 {
     /// <summary>
     /// Every query in <c>conformance/queries.json</c> answered in C#, and every save's records produced: each must be
-    /// the TypeScript's, a rejection's reason word for word included.
+    /// the file's, a rejection's reason word for word included.
     /// </summary>
     [TestClass]
     public sealed class ConformanceQueriesTests
@@ -38,7 +38,7 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DynamicData(nameof(Records), DynamicDataDisplayName = nameof(DisplayName))]
-        public void Records_SharedCity_AreTheTypeScriptRecords(CityRecords records)
+        public void Records_ConformanceCity_AreTheCommittedRecords(CityRecords records)
         {
             Simulation city = records.Build();
 
@@ -49,7 +49,7 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DynamicData(nameof(Answers), DynamicDataDisplayName = nameof(DisplayName))]
-        public void AnswerQuery_SharedQuery_GivesTheTypeScriptAnswer(AnsweredQuery answered)
+        public void AnswerQuery_ConformanceQuery_GivesTheCommittedAnswer(AnsweredQuery answered)
         {
             QueryAnswer answer = answered.Save is null
                 ? Queries.AnswerWithoutCity(answered.Query?.DeepClone())
@@ -77,7 +77,7 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
-        public void ZoneCategory_EveryTileValue_IsTheTypeScriptCategory()
+        public void ZoneCategory_EveryTileValue_IsTheCommittedCategory()
         {
             IReadOnlyList<string> categories = ConformanceQueries.Load().Categories;
 

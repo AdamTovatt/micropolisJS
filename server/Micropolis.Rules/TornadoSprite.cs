@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The tornado's start and move, as <c>src/tornadoSprite.js</c> brings the original's doTornadoSprite.
+    /// The tornado's start and move, after the original's doTornadoSprite in sprite.cpp.
     /// </summary>
     internal static class TornadoSprite
     {

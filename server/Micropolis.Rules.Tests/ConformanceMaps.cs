@@ -14,7 +14,7 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The maps the TypeScript generator makes, from <c>conformance/maps.json</c>: the hash of each seed's map
+    /// The maps the generator makes, from <c>conformance/maps.json</c>: the hash of each seed's map
     /// object, and every tile of a few, so a mismatch can be located.
     /// </summary>
     public sealed record ConformanceMaps(IReadOnlyList<MapSeed> Seeds, IReadOnlyList<ListedMap> Maps)

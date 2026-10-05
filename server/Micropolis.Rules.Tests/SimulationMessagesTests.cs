@@ -17,13 +17,12 @@ using static Micropolis.Rules.Tests.FixtureCities;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The events the simulation passes on from its components, as <c>Simulation.init</c> in <c>src/simulation.js</c>
-    /// wires them, and those it sends itself.
+    /// The events the simulation passes on from its components, and those it sends itself.
     /// </summary>
     [TestClass]
     public sealed class SimulationMessagesTests
     {
-        // As the TypeScript's test of the throttle: a power message is sent unless one was, three years (144) or less
+        // The throttle: a power message is sent unless one was, three years (144) or less
         // before
         [TestMethod]
         [DataRow(244L, false)]
@@ -110,7 +109,7 @@ namespace Micropolis.Rules.Tests
                 new[] { $"{Messages.VALVES_UPDATED} {{\"commercial\":-50,\"industrial\":25,\"residential\":100}}" }, events);
         }
 
-        // The layers each phase recomputes, as LAYER_PHASES in src/queries.ts lists them
+        // The layers each phase recomputes
         [TestMethod]
         [DataRow(9, new string[0])]
         [DataRow(10, new[] { "trafficDensity", "rateOfGrowth" })]
@@ -131,7 +130,7 @@ namespace Micropolis.Rules.Tests
 
         // Two calm cities, the first with every advisor condition holding that can hold beside the others, the second with
         // the rest: through the city time's 64-unit round the advisor asks about each condition at its own place, as
-        // _sendMessages in src/simulation.js lays them out, and sends nothing at any other
+        // sendMessages in the original's message.cpp lays them out, and sends nothing at any other
         [TestMethod]
         [DataRow(
             "cityTax=13,coalPowerPop=0,comPop=101,comZonePop=6,crimeAverage=101,fireEffect=699,indPop=71,indZonePop=33," +

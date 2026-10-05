@@ -16,8 +16,8 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// A commercial zone whose drive finds no route, which no fixture's commercial zone reaches: as
-    /// <c>test/commercial.ts</c> has it, such a zone never grows, and draws nothing to decide it.
+    /// A commercial zone whose drive finds no route, which no fixture's commercial zone reaches: such a
+    /// zone never grows, and draws nothing to decide it.
     /// </summary>
     [TestClass]
     public sealed class CommercialTests

@@ -14,8 +14,8 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The strings the C# save model reads and writes against the TypeScript's, through
-    /// <c>conformance/saveStrings.json</c>: the same strings in the same order.
+    /// The strings the C# save model reads and writes against <c>conformance/saveStrings.json</c>: the same strings in
+    /// the same order.
     /// </summary>
     [TestClass]
     public sealed class SaveStringsTests
@@ -23,19 +23,19 @@ namespace Micropolis.Rules.Tests
         private static readonly ConformanceSaveStrings Strings = ConformanceSaveStrings.Load();
 
         [TestMethod]
-        public void CityClass_ComparedWithTypeScript_NamesTheSameClassesInOrder()
+        public void CityClass_ComparedWithSaveStrings_NamesTheSameClassesInOrder()
         {
             CollectionAssert.AreEqual(Strings.CityClasses.ToList(), SavedName.All<CityClass>().ToList());
         }
 
         [TestMethod]
-        public void ScoreReason_ComparedWithTypeScript_NamesTheSameReasonsInOrder()
+        public void ScoreReason_ComparedWithSaveStrings_NamesTheSameReasonsInOrder()
         {
             CollectionAssert.AreEqual(Strings.ScoreReasons.ToList(), SavedName.All<ScoreReason>().ToList());
         }
 
         [TestMethod]
-        public void CityClassMessages_ComparedWithTypeScript_AreTheSameMessagesInOrder()
+        public void CityClassMessages_ComparedWithSaveStrings_AreTheSameMessagesInOrder()
         {
             CollectionAssert.AreEqual(Strings.CityClassMessages.ToList(), Simulation.CityClassMessages.ToList());
         }

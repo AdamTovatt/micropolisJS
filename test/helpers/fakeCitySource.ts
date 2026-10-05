@@ -87,12 +87,8 @@ export class FakeCitySource implements CitySource {
         queueMicrotask(() => reply(recorded.answer));
     }
 
-    setViewerVisible(visible: boolean): void {
-        this.play("setViewerVisible", [visible]);
-    }
-
-    async save(): Promise<string | null> {
-        return this.play("save", []) as string | null;
+    async save(): Promise<void> {
+        this.play("save", []);
     }
 
     async commandLog(): Promise<SessionLog> {

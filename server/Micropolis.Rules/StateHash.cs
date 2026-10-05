@@ -29,7 +29,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The state hash of a state given as its canonical text, such as a save the TypeScript wrote.
+        /// The state hash of a state given as its canonical text, such as a save under <c>conformance/saves/</c>.
         /// </summary>
         public static string HashCanonicalText(string canonicalText)
         {

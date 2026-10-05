@@ -32,8 +32,8 @@ namespace Micropolis.Rules
         private static readonly Direction[] AllDirections = [North, NorthEast, East, SouthEast, South, SouthWest, West, NorthWest];
 
         /// <summary>
-        /// North, east, south and west, in that order: the order <c>forEachCardinalDirection</c> in
-        /// <c>src/direction.ts</c> visits them, which a walk that stops at the first ways it finds depends on.
+        /// North, east, south and west, in that order: the order a walk over the cardinal directions visits them in,
+        /// which a walk that stops at the first ways it finds depends on.
         /// </summary>
         public static readonly IReadOnlyList<Direction> CardinalDirections = [North, East, South, West];
 

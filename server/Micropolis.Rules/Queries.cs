@@ -17,15 +17,15 @@ using static Micropolis.Rules.Validation;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// How the simulation answers the queries a player sends it, as <c>src/queries.ts</c> does. They arrive untrusted,
-    /// like commands: each is validated before it is answered, and anything else is rejected with the reason
-    /// <c>queryRejection</c> gives, word for word. Answering reads the city and changes nothing.
+    /// How the simulation answers the queries a player sends it. They arrive untrusted, like commands: each is
+    /// validated before it is answered, and anything else is rejected with the reason it fails. Answering reads the
+    /// city and changes nothing.
     /// </summary>
     public static class Queries
     {
         /// <summary>
-        /// The layers an overlay shows, in the order of <c>OVERLAY_LAYERS</c> in <c>src/protocol.ts</c>, as
-        /// <c>LAYERS</c> and <c>LAYER_PHASES</c> in <c>src/queries.ts</c> give them.
+        /// The layers an overlay shows, in the order of <c>OVERLAY_LAYERS</c> in <c>src/protocol.ts</c>, each with the
+        /// block map it reads, its range and the phase that recomputes it.
         /// </summary>
         public static readonly IReadOnlyList<OverlayLayer> Layers =
         [
@@ -43,7 +43,7 @@ namespace Micropolis.Rules
             new OverlayLayer("powerGrid", null, 0, 1, 11),
         ];
 
-        // Each query's fields but its type, required or optional, as FIELDS in src/queries.ts
+        // Each query's fields but its type, required or optional
         private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, bool>> QueryFields =
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.Ordinal)
             {
@@ -54,10 +54,9 @@ namespace Micropolis.Rules
             };
 
         // The first tile of each category, in order: a tile belongs to the last category whose first tile it reaches.
-        // This is idArray in tool.cpp of the original's MicropolisCore, which doZoneStatus searches, as CATEGORY_STARTS
-        // in src/queries.ts holds it. The original also ends the table at 956, the first tile it has no category for,
-        // which it reports past the end of its list of names; the port's tiles from 956 on are churches it never
-        // builds, and fall in the last category.
+        // This is idArray in tool.cpp of the original's MicropolisCore, which doZoneStatus searches. The original also
+        // ends the table at 956, the first tile it has no category for, which it reports past the end of its list of
+        // names; the rules' tiles from 956 on are churches it never builds, and fall in the last category.
         private static readonly IReadOnlyList<(int Start, string Category)> CategoryStarts =
         [
             (TileValues.DIRT, "CLEAR"), (TileValues.RIVER, "WATER"), (TileValues.TREEBASE, "TREES"),
@@ -138,11 +137,11 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The category of a tile value without its flags, as <c>zoneCategory</c> in <c>src/queries.ts</c> and
-        /// doZoneStatus in the original's tool.cpp find it. The coal plant's smoke lies among the industrial tiles, so
-        /// it is first taken for the plant. MicropolisCore's doZoneStatus reports dirt past the end of its list of
-        /// names (its comment says "This breaks the program"); the older C version, doZoneStatus in
-        /// micropolis-activity's w_tool.c, reports it as clear, and so does the port.
+        /// The category of a tile value without its flags, as doZoneStatus in the original's tool.cpp finds it. The
+        /// coal plant's smoke lies among the industrial tiles, so it is first taken for the plant. MicropolisCore's
+        /// doZoneStatus reports dirt past the end of its list of names (its comment says "This breaks the program");
+        /// the older C version, doZoneStatus in micropolis-activity's w_tool.c, reports it as clear, and so does the
+        /// port.
         /// </summary>
         public static string ZoneCategory(int tile)
         {
@@ -240,9 +239,8 @@ namespace Micropolis.Rules
 
     /// <summary>
     /// A layer an overlay shows: its name; the block map it reads, which is null for the power grid; the ends of its
-    /// range, as the comment on each map in the <c>Simulation</c> constructor in <c>src/simulation.js</c> states it;
-    /// and the phase whose scan recomputes it, after which the simulation emits <see cref="Messages.OVERLAY_UPDATED"/>
-    /// for it.
+    /// range, the range its block map keeps its values to; and the phase whose scan recomputes it, after which the
+    /// simulation emits <see cref="Messages.OVERLAY_UPDATED"/> for it.
     /// </summary>
     public sealed record OverlayLayer(string Name, Func<BlockMaps, BlockMap>? Map, int Low, int High, int Phase);
 }

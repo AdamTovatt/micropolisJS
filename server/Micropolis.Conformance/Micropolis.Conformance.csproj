@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The fixtures: the command logs the fixture tool writes, the saves their replays reach, and where the conformance
+       files are, which the tool, the rules' tests and the benchmark all take from here -->
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Micropolis.Conformance.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Micropolis.Rules\Micropolis.Rules.csproj" />
+    <ProjectReference Include="..\Micropolis.SourceTree\Micropolis.SourceTree.csproj" />
+  </ItemGroup>
+
+</Project>

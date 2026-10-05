@@ -121,13 +121,11 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("seed")] uint Seed);
 
     /// <summary>
-    /// The city's session log: the log, the steps the city has taken since the session began, and why the log has no
-    /// checkpoints, which is always null on the server, since it can always work out a state hash.
+    /// The city's session log: the log, and the steps the city has taken since the session began.
     /// </summary>
     public sealed record SessionLog(
         [property: JsonPropertyName("log")] JsonObject Log,
-        [property: JsonPropertyName("step")] long Step,
-        [property: JsonPropertyName("unhashed")] string? Unhashed);
+        [property: JsonPropertyName("step")] long Step);
 
     /// <summary>
     /// What came of a debug advance: the steps it took, whether a year-end budget review fell due during them, and why
@@ -588,8 +586,8 @@ namespace Micropolis.Rules
     public static class PlayerIds
     {
         /// <summary>
-        /// The one player of a city played in the browser alone, <c>LOCAL_PLAYER</c> in <c>src/protocol.ts</c>, whom a
-        /// single-player session's log names.
+        /// The one player a single-player command log names, such as a fixture's, <c>LOCAL_PLAYER</c> in
+        /// <c>test/helpers/commandLog.ts</c>.
         /// </summary>
         public const string Local = "local";
     }

@@ -34,7 +34,7 @@ namespace Micropolis.Rules
         public bool IndCap { get; internal set; }
 
         /// <summary>
-        /// Raises <see cref="Messages.VALVES_UPDATED"/>, as <c>src/valves.js</c> does.
+        /// Raises <see cref="Messages.VALVES_UPDATED"/>.
         /// </summary>
         internal EventEmitter Events { get; } = new EventEmitter();
 
@@ -67,7 +67,7 @@ namespace Micropolis.Rules
 
             // Residential zones scale their population index when reporting it to the census. The original stores the
             // total in a short, and its (short) drops the fraction. Past a short's range C leaves that conversion
-            // undefined, and the port keeps the whole value. The division is in floating point, keeping the fraction.
+            // undefined, and the rules keep the whole value. The division is in floating point, keeping the fraction.
             double normalizedResPop = Fround(census.ResPop / (double)Census.ResPopDenom);
             census.TotalPop = (long)Math.Truncate(Fround(Fround(normalizedResPop + census.ComPop) + census.IndPop));
 

@@ -11,17 +11,13 @@
  *
  */
 
-import { RUN_STEPS } from "../headless/fixtures/fixture";
-import { fixtureSave, replay } from "../headless/runner";
 import type { SessionStore } from "../src/cityClient";
 import type { CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
-import { CHECKPOINT_INTERVAL, CommandLog } from "../src/commandLog";
 import { Command, CommandResult, StateMessage } from "../src/protocol";
-import { SaveFormat } from "../src/savedGame";
-import { SPRITE_AIRPLANE, SPRITE_SHIP, SPRITE_TORNADO, SPRITE_TRAIN } from "../src/spriteConstants";
 import { WebSocketCitySource } from "../src/webSocketCitySource";
-import { pageSource } from "./helpers/citySources";
+import { parseLog } from "./helpers/commandLog";
+import { gameSaveHash } from "./helpers/stateHash";
 import {
     memorySessionStore, NodeCityEnvironment, serverTestsEnabled, signedInClient, START_SERVER_TIMEOUT_MS, startTestServer,
     TestServer,
@@ -29,9 +25,7 @@ import {
 
 // One city on the server, run by two players, as CLAUDE.md's Decided multiplayer shape has it: both players' commands go
 // into the city's one stream in the order the server receives them, both receive the same state, and the city's one log
-// replays headless in TypeScript to every checkpoint the server's C# rules hashed. That replay, and the same city's
-// state messages from the browser's host, are the end-to-end conformance check of the server's step loop. A tornado
-// puts a sprite on the map, which the state messages draw and the news follows.
+// holds every command, with checkpoints of the city's state hash.
 
 const describeOnServer = serverTestsEnabled() ? describe : describe.skip;
 
@@ -48,8 +42,8 @@ const COMMANDS: Command[] = [
     {type: "triggerDisaster", kind: "tornado"},
 ];
 
-// The fixture whose city has a train, a plane and a ship at the end of its run
-const SPRITES_FIXTURE = "harbour";
+// A log's checkpoints come every this many steps, a minute of play (docs/command-log.md)
+const CHECKPOINT_INTERVAL = 3600;
 
 // A player in the browser: a session of its own, on a connection of its own
 interface Player {
@@ -122,7 +116,7 @@ describeOnServer("a city two players share", () => {
     }
 
     it("applies both players' commands in the order they arrived, sends both the same state, and logs one stream " +
-       "that replays in TypeScript to every checkpoint", async () => {
+       "checkpointed at the city's state hash", async () => {
         const ada = await signIn("Ada");
         const grace = await signIn("Grace");
         await ada.source.driver.hold();
@@ -146,64 +140,12 @@ describeOnServer("a city two players share", () => {
             ({player: senders[i].source.player, command, outcome: "ok", reason: null})));
 
         const recorded = await grace.source.commandLog();
-        const log = recorded.log as CommandLog;
+        const log = parseLog(recorded.log);
         expect(log.entries.map(({player, command}) => ({player, command})))
             .toEqual(COMMANDS.map((command, i) => ({player: senders[i].source.player, command})));
-        // From step 0, past the first interval, to the city now
+        // From step 0, past the first interval, to the city now, whose state the last one hashes
         expect(log.checkpoints.map(({step}) => step)).toEqual([0, CHECKPOINT_INTERVAL, CHECKPOINT_INTERVAL + 400]);
-        expect(await replay(log).verified).toBe(3);
-    });
-
-    it("sends what the browser's host sends for the same city and commands", async () => {
-        const ada = await signIn("Ada");
-        const page = await pageSource.create();
-        const pageMessages: StateMessage[] = [];
-        page.source.subscribe((message) => pageMessages.push(message));
-
-        try {
-            for (const source of [ada.source, page.source]) {
-                await source.driver.hold();
-                await source.start({name: "Same", seed: SEED, level: 0});
-                COMMANDS.forEach((command) => source.send(command));
-                // A step first, whose batch draws the tornado, which a long advance's one batch may come after
-                await source.driver.advance(1);
-                await source.driver.advance(CHECKPOINT_INTERVAL + 399);
-            }
-
-            const drawn = pageMessages.flatMap((message) => (message.type === "sprites" ? message.sprites : []));
-            expect(drawn.map(({type}) => type)).toContain(SPRITE_TORNADO);
-
-            // Each command result names its player, which on the page is the one local player
-            const asOnThePage = ada.messages.map((message) => (message.type === "commandResult"
-                ? {...message, result: {...message.result, player: page.source.player}}
-                : message));
-            expect(asOnThePage).toEqual(pageMessages);
-        } finally {
-            page.close();
-        }
-    });
-
-    it("sends what the browser's host sends for a saved city whose trains, planes and ships come and go", async () => {
-        const ada = await signIn("Ada");
-        const page = await pageSource.create();
-        const pageMessages: StateMessage[] = [];
-        page.source.subscribe((message) => pageMessages.push(message));
-        const save = SaveFormat.serialise({...fixtureSave(SPRITES_FIXTURE), name: "Harbour"});
-
-        try {
-            for (const source of [ada.source, page.source]) {
-                await source.driver.hold();
-                await source.start({save});
-                await source.driver.advance(RUN_STEPS);
-            }
-
-            const drawn = pageMessages.flatMap((message) => (message.type === "sprites" ? message.sprites : []))
-                .map(({type}) => type);
-            expect(Array.from(new Set(drawn)).sort()).toEqual([SPRITE_TRAIN, SPRITE_AIRPLANE, SPRITE_SHIP].sort());
-            expect(ada.messages).toEqual(pageMessages);
-        } finally {
-            page.close();
-        }
+        expect(log.checkpoints[2].hash).toBe(gameSaveHash(JSON.parse(await grace.source.driver.savedGame())));
     });
 
     it("gives a player who joins the whole city as it stands", async () => {

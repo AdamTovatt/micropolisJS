@@ -14,10 +14,9 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The demand valves against the original's setValves, as <c>test/valvesOracle.ts</c> compares the TypeScript's,
-    /// over cities the unit snapshots never reach. The original is transcribed from simulate.cpp in C#'s own
-    /// <see langword="float"/>, so this also proves that the port's doubles, rounded through
-    /// <see cref="JsMath.Fround"/>, work out what single precision does.
+    /// The demand valves against the original's setValves, over cities the fixtures never reach. The original is
+    /// transcribed from simulate.cpp in C#'s own <see langword="float"/>, so this also proves that the port's doubles,
+    /// rounded through <see cref="JsMath.Fround"/>, work out what single precision does.
     /// </summary>
     [TestClass]
     public sealed class ValvesOracleTests

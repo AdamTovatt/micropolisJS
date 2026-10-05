@@ -17,12 +17,12 @@ namespace Micropolis.Rules
 {
     /// <summary>
     /// The block maps the scans write and later phases read, saved under <c>scannedState.blockMaps</c>, each with the
-    /// block size and range the <c>Simulation</c> constructor in <c>src/simulation.js</c> gives it.
+    /// block size and the range its values keep to.
     /// </summary>
     public sealed class BlockMaps
     {
         // The most a station map's block holds: each station adds up to its fully funded effect at the road tile on its
-        // perimeter, or at its centre when it has none (emergencyServices.js). Either is at most two tiles from its
+        // perimeter, or at its centre when it has none (EmergencyServices). Either is at most two tiles from its
         // centre, so the stations a block of 8 collects from have their centres in a 12×12 square, and stations three
         // tiles a side that don't overlap have at most one centre in each of its sixteen 3×3 squares.
         private const int MaxPoliceStationMap = 16 * (int)Budget.MaxPoliceStationEffect;

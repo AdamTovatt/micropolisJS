@@ -11,7 +11,7 @@
 #
 
 # Rail: every piece the rail tool lays (226 to 236, by which neighbours are rail, RailTable in
-# src/connector.js), the track over water (224, 225), and where it crosses a power line (221,
+# the C# rules' ConnectingTool), the track over water (224, 225), and where it crosses a power line (221,
 # 222) or a road (237, 238). Over water the original draws the track sunk under it; here it
 # crosses on a low bridge, as a road does.
 

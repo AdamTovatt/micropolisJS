@@ -11,6 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- For the fixtures, Fixtures.cs, whose saves it runs -->
+    <ProjectReference Include="..\Micropolis.Conformance\Micropolis.Conformance.csproj" />
     <ProjectReference Include="..\Micropolis.Rules\Micropolis.Rules.csproj" />
     <ProjectReference Include="..\Micropolis.SourceTree\Micropolis.SourceTree.csproj" />
   </ItemGroup>

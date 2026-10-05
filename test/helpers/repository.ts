@@ -11,9 +11,15 @@
  *
  */
 
+import { readFileSync } from "fs";
 import { join } from "path";
 
 // A path from the repository root, for the files the TypeScript and C# tests share
 export function repositoryPath(relativePath: string): string {
     return join(__dirname, "../..", relativePath);
+}
+
+// The JSON of a file the TypeScript and C# tests share, read in place by its path from the repository root
+export function repositoryJson<T>(relativePath: string): T {
+    return JSON.parse(readFileSync(repositoryPath(relativePath), "utf8")) as T;
 }

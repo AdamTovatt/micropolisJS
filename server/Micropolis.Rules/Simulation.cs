@@ -16,7 +16,7 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The game speed, as <c>Simulation.SPEED_PAUSED</c> and its siblings in <c>src/simulation.js</c> number it.
+    /// The game speed, numbered as the original's <c>simSpeed</c>: 0 paused, then slow, medium and fast.
     /// </summary>
     public enum Speed
     {
@@ -27,7 +27,34 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// The difficulty, as <c>Simulation.LEVEL_EASY</c> and its siblings in <c>src/simulation.js</c> number it.
+    /// The speeds a city runs at, slowest first, by the names the tools and the conformance files give them.
+    /// </summary>
+    public static class RunningSpeeds
+    {
+        public static readonly IReadOnlyList<Speed> All = [Speed.Slow, Speed.Medium, Speed.Fast];
+
+        public static string Name(Speed speed)
+        {
+            return speed switch
+            {
+                Speed.Slow => "slow",
+                Speed.Medium => "medium",
+                Speed.Fast => "fast",
+                _ => throw new ArgumentOutOfRangeException(nameof(speed), speed, "Not a running speed."),
+            };
+        }
+
+        /// <summary>
+        /// The running speed of the name, or <see langword="null"/> for a name no running speed has.
+        /// </summary>
+        public static Speed? Named(string name)
+        {
+            return All.Cast<Speed?>().FirstOrDefault(speed => Name(speed!.Value) == name);
+        }
+    }
+
+    /// <summary>
+    /// The difficulty, numbered as the original's <c>LEVEL_EASY</c> and its siblings: easy, medium and hard.
     /// </summary>
     public enum Level
     {
@@ -42,8 +69,8 @@ namespace Micropolis.Rules
     /// have without it.
     /// </summary>
     /// <remarks>
-    /// A JavaScript number is a double, so code that computes with the city's integers mirrors the JavaScript
-    /// operations rather than C#'s integer semantics: <c>Math.floor</c> rounds down where C# division truncates,
+    /// Code that computes with the city's integers mirrors JavaScript's operations on doubles rather than C#'s
+    /// integer semantics: <c>Math.floor</c> rounds down where C# division truncates,
     /// <c>| 0</c> and <c>&gt;&gt;</c> narrow to int32, and <c>Math.round</c> sends halves up.
     /// </remarks>
     public sealed partial class Simulation
@@ -53,28 +80,6 @@ namespace Micropolis.Rules
         /// </summary>
         public static readonly IReadOnlyList<string> CityClassMessages =
             Enum.GetValues<CityClass>().Select(ClassAnnouncement).OfType<string>().ToList();
-
-        // The handler families, each a module of src/ that registers tile handlers with the map scanner and zones with
-        // the repair manager, by name, in the order Simulation.init registers them: the first handler whose criterion
-        // matches a tile is the one the scan calls, so the order is part of the game rules
-        private static readonly IReadOnlyList<(string Name, Action<Simulation> Register)> Families =
-        [
-            ("commercial", city => Commercial.RegisterHandlers(city.MapScanner, city.RepairManager)),
-            ("emergencyServices", city => EmergencyServices.RegisterHandlers(city.MapScanner, city.RepairManager)),
-            ("industrial", city => Industrial.RegisterHandlers(city.MapScanner, city.RepairManager)),
-            ("miscTiles", city => MiscTiles.RegisterHandlers(city.MapScanner, city.RepairManager)),
-            ("powerManager", city => city.PowerManager.RegisterHandlers(city.MapScanner, city.RepairManager)),
-            ("road", city => Road.RegisterHandlers(city.MapScanner, city.RepairManager)),
-            ("residential", city => Residential.RegisterHandlers(city.MapScanner, city.RepairManager)),
-            ("stadia", city => Stadia.RegisterHandlers(city.MapScanner, city.RepairManager)),
-            ("transport", city => Transport.RegisterHandlers(city.MapScanner, city.RepairManager)),
-        ];
-
-        /// <summary>
-        /// The names of the handler families, in the order <c>Simulation.init</c> registers them, which is part of the
-        /// game rules: the first handler whose criterion matches a tile is the one the scan calls.
-        /// </summary>
-        public static readonly IReadOnlyList<string> HandlerFamilies = Families.Select(family => family.Name).ToList();
 
         // The year city time 0 falls in
         private const long StartingYear = 1900;
@@ -134,13 +139,23 @@ namespace Micropolis.Rules
         public long CityTime { get; private set; }
 
         /// <summary>
-        /// The city's date from its city time, as <c>getDate</c> in <c>src/simulation.js</c>: the month from 0, and
-        /// the year. The month is JavaScript's >> on the remainder, which keeps the city time's sign.
+        /// The city's date from its city time, four units a month: the month from 0, and the year. The month is an
+        /// arithmetic shift of the remainder, which keeps the city time's sign, and the year rounds down.
         /// </summary>
-        public (long Month, long Year) Date => ((int)(CityTime % 48) >> 2, JsMath.FloorDiv(CityTime, 48) + StartingYear);
+        public (long Month, long Year) Date => ((int)(CityTime % CityTimesPerYear) >> 2, JsMath.FloorDiv(CityTime, CityTimesPerYear) + StartingYear);
 
         /// <summary>
-        /// The step counter, 0–1023.
+        /// The units of city time in a year, four to a month.
+        /// </summary>
+        public const int CityTimesPerYear = 48;
+
+        /// <summary>
+        /// How many values the step counter takes, from 0, before it wraps to 0.
+        /// </summary>
+        public const int SpeedCycles = 1024;
+
+        /// <summary>
+        /// The step counter, 0 to <see cref="SpeedCycles"/> − 1.
         /// </summary>
         public int SpeedCycle { get; private set; }
 
@@ -191,22 +206,29 @@ namespace Micropolis.Rules
         public Traffic TrafficManager { get; }
 
         /// <summary>
-        /// The events the simulation sends, as <c>Simulation</c> in <c>src/simulation.js</c> emits them, its
-        /// components' included as it passes them on: front-end messages, the date, the speed, the overlays, the city
-        /// status, and the evaluation's, budget's and valves' updates.
+        /// The events the simulation sends, its components' included as it passes them on: front-end messages, the
+        /// date, the speed, the overlays, the city status, and the evaluation's, budget's and valves' updates.
         /// </summary>
         public EventEmitter Events { get; } = new EventEmitter();
 
         public bool IsPaused => Speed == Speed.Paused;
 
         /// <summary>
-        /// A new city on the map the seed generates, simulated from the seed's stream, as the <c>Simulation</c>
-        /// constructor in <c>src/simulation.js</c> starts one on the map <c>MapGenerator</c> generates from the seed's
-        /// map stream: 20000 in funds, then the first scans, which a saved game holds the results of.
+        /// A new city on the map <see cref="MapGenerator"/> generates from the seed's map stream, simulated from the
+        /// seed's stream: 20000 in funds, then the first scans, which a saved game holds the results of.
         /// </summary>
         public static Simulation NewCity(uint seed, Level gameLevel, Speed speed)
         {
-            Simulation city = new Simulation(MapGenerator.Generate(RandomStream.MapStream(seed)), seed)
+            return NewCity(MapGenerator.Generate(RandomStream.MapStream(seed)), seed, gameLevel, speed);
+        }
+
+        /// <summary>
+        /// A new city on the map given, such as a blank one, simulated from the seed's stream, as
+        /// <see cref="NewCity(uint, Level, Speed)"/> starts one on the map the seed generates.
+        /// </summary>
+        public static Simulation NewCity(GameMap map, uint seed, Level gameLevel, Speed speed)
+        {
+            Simulation city = new Simulation(map, seed)
             {
                 GameLevel = gameLevel,
                 Speed = speed,
@@ -226,8 +248,8 @@ namespace Micropolis.Rules
         /// the wrong type or outside its documented range fails with a <see cref="SaveFormatException"/> naming where.
         /// </summary>
         /// <remarks>
-        /// A save is read in the current format only, with its scanned state. A browser save that <c>storage.ts</c>
-        /// migrated from a version without the scanned state holds <c>null</c> for it, which only a scan can fill.
+        /// A save is read in the current format only, with its scanned state. A save that holds <c>null</c> for it,
+        /// which only a scan could fill, is refused.
         /// </remarks>
         public static Simulation FromSave(string saveText)
         {
@@ -261,7 +283,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The city's save, as <c>Simulation.save</c> in <c>src/simulation.js</c> writes it.
+        /// The city's save: the complete simulation state, under the keys <c>docs/state-hash.md</c> lists.
         /// </summary>
         public JsonObject Save()
         {
@@ -320,9 +342,9 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// One loop of the simulation, as <c>step</c> in <c>src/simulation.js</c> and simLoop in the original: a phase
-        /// of the city cycle when the game speed lets one through, then one move of every sprite. A paused
-        /// simulation's step does nothing.
+        /// One loop of the simulation, as simLoop in the original: a phase of the city cycle when the game speed lets
+        /// one through, then one move of every sprite. A paused simulation's step does nothing, as the original's
+        /// simFrame and moveObjects do nothing at speed 0.
         /// </summary>
         public void Step()
         {
@@ -350,7 +372,7 @@ namespace Micropolis.Rules
         /// </summary>
         internal bool TakeSpeedCycle()
         {
-            if (++SpeedCycle > 1023)
+            if (++SpeedCycle >= SpeedCycles)
             {
                 SpeedCycle = 0;
             }
@@ -381,8 +403,7 @@ namespace Micropolis.Rules
             return new SimData(this);
         }
 
-        // Passes the components' events on, as Simulation.init in src/simulation.js listens to them, and registers
-        // every handler family
+        // Passes the components' events on, and registers every subsystem's tile handlers
         private void Init()
         {
             foreach (string evaluationEvent in new[] { Messages.CLASSIFICATION_UPDATED, Messages.SCORE_UPDATED })
@@ -411,33 +432,22 @@ namespace Micropolis.Rules
 
             SpriteManager.Events.AddEventListener(Messages.HEAVY_TRAFFIC, payload => WrapMessage(Messages.HEAVY_TRAFFIC, payload));
 
-            RegisterHandlers(HandlerFamilies);
+            // Each component registers its tile handlers with the map scanner and its zones with the repair manager.
+            // The first handler whose criterion matches a tile is the one the scan calls, so this order is part of
+            // the game rules
+            Commercial.RegisterHandlers(MapScanner, RepairManager);
+            EmergencyServices.RegisterHandlers(MapScanner, RepairManager);
+            Industrial.RegisterHandlers(MapScanner, RepairManager);
+            MiscTiles.RegisterHandlers(MapScanner, RepairManager);
+            PowerManager.RegisterHandlers(MapScanner, RepairManager);
+            Road.RegisterHandlers(MapScanner, RepairManager);
+            Residential.RegisterHandlers(MapScanner, RepairManager);
+            Stadia.RegisterHandlers(MapScanner, RepairManager);
+            Transport.RegisterHandlers(MapScanner, RepairManager);
         }
 
-        /// <summary>
-        /// Replaces the map scanner's handlers and the repair manager's zones with those the named families register,
-        /// in the order given. The simulation registers every family, in <see cref="HandlerFamilies"/>' order; a unit
-        /// snapshot of <c>mapScan</c> may register fewer, as the TypeScript that recorded it did.
-        /// </summary>
-        internal void RegisterHandlers(IEnumerable<string> families)
-        {
-            MapScanner.ClearActions();
-            RepairManager.ClearActions();
-
-            foreach (string name in families)
-            {
-                (string Name, Action<Simulation> Register) family = Families.FirstOrDefault(candidate => candidate.Name == name);
-
-                if (family.Register is null)
-                {
-                    throw new ArgumentException($"No handler family named {name}.", nameof(families));
-                }
-
-                family.Register(this);
-            }
-        }
-
-        // A new city's first scans, as _scan in src/simulation.js
+        // A new city's first scans, which a saved game holds the results of, as doSimInit in the original's
+        // simulate.cpp runs them
         private void Scan()
         {
             MapScanner.MapScan(0, Map.Width, ConstructSimData());
@@ -464,7 +474,7 @@ namespace Micropolis.Rules
             RunPhase(simData);
         }
 
-        // One phase of the 16-phase cycle, as simulate in src/simulation.js dispatches it
+        // One phase of the 16-phase cycle, as simulate in the original's simulate.cpp dispatches it
         private void RunPhase(SimData simData)
         {
             PhaseCycle &= 15;
@@ -495,9 +505,8 @@ namespace Micropolis.Rules
                 case 6:
                 case 7:
                 case 8:
-                    // For a width that isn't a multiple of 8 the TypeScript's bounds are fractions, and it reads tiles
-                    // at fractional columns, which don't exist. C# divides as the original's integers do, so the
-                    // eighths cover every column once; at the width the game's maps have, 120, both agree.
+                    // Divided as the original's integers are, so the eighths cover every column once, whether or not
+                    // the width is a multiple of 8, as the game's maps' 120 is.
                     MapScanner.MapScan((PhaseCycle - 1) * Map.Width / 8, PhaseCycle * Map.Width / 8, simData);
                     break;
 
@@ -584,8 +593,7 @@ namespace Micropolis.Rules
         }
 
         // Whether a scan of phases 11–15 runs this cycle, at its frequency for the game speed. A paused city's step
-        // runs no phase, but its frequency would be the TypeScript's lookup at index -1, undefined, and a modulo by it
-        // is never 0, so a phase run paused skips the scan.
+        // runs no phase, and a phase run while paused skips the scan.
         private bool ScanDue(int[] frequencies)
         {
             return Speed != Speed.Paused && SimCycle % frequencies[(int)Speed - 1] == 0;
@@ -801,7 +809,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// The city status record at the end of the cycle, as <c>_publishCityStatus</c>: derived, never saved.
         /// </summary>
-        internal void PublishCityStatus()
+        private void PublishCityStatus()
         {
             Events.Emit(Messages.CITY_STATUS_UPDATED, CityStatus.Build(Census, Budget, PowerManager, Valves));
         }
@@ -837,8 +845,8 @@ namespace Micropolis.Rules
                 year = StartingYear;
             }
 
-            year = (year - StartingYear) - JsMath.FloorDiv(CityTime, 48);
-            CityTime += year * 48;
+            year = (year - StartingYear) - JsMath.FloorDiv(CityTime, CityTimesPerYear);
+            CityTime += year * CityTimesPerYear;
             UpdateTime();
         }
 
@@ -867,7 +875,7 @@ namespace Micropolis.Rules
             GameLevel = simulation.ReadEnum<Level>("gameLevel");
             Speed = simulation.ReadEnum<Speed>("speed");
             CityTime = simulation.ReadSafeInteger("cityTime");
-            SpeedCycle = simulation.ReadInt("speedCycle", 0, 1023);
+            SpeedCycle = simulation.ReadInt("speedCycle", 0, SpeedCycles - 1);
             PhaseCycle = simulation.ReadInt("phaseCycle", 0, 15);
             SimCycle = simulation.ReadInt("simCycle", 0, 1023);
             CityPopLast = simulation.ReadSafeInteger("cityPopLast");

@@ -14,8 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// A tool that changes the city, as <c>src/baseTool.js</c> defines one: <see cref="DoTool"/> stages its edits at a
-    /// tile and sets <see cref="Result"/>, and <see cref="ModifyIfEnoughFunding"/> applies them if the budget can pay.
+    /// A tool that changes the city: <see cref="DoTool"/> stages its edits at a tile and sets <see cref="Result"/>, and
+    /// <see cref="ModifyIfEnoughFunding"/> applies them if the budget can pay.
     /// </summary>
     internal abstract class CityTool
     {

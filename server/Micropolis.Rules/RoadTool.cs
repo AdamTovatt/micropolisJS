@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The road tool, as <c>src/roadTool.js</c> and the original's <c>layRoad</c>: road on dirt, a bridge over water
+    /// The road tool, as the original's <c>layRoad</c>: road on dirt, a bridge over water
     /// beside a road that leads onto it, and a crossing over a straight power line or rail.
     /// </summary>
     internal sealed class RoadTool : LayingTool

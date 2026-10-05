@@ -17,8 +17,8 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Roads and bridges, as <c>src/road.js</c> wears them down, shows their traffic, and opens and closes the
-    /// drawbridges.
+    /// Roads and bridges, as the original's <c>doRoad</c> and <c>doBridge</c> in simulate.cpp wear them down, show
+    /// their traffic, and open and close the drawbridges.
     /// </summary>
     public static class Road
     {

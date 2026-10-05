@@ -17,8 +17,8 @@ using Micropolis.Rules;
 namespace Micropolis.Server.Tests
 {
     /// <summary>
-    /// The command queue and the recorder it drives, as test/commandQueue.ts and test/commandLog.ts test the browser's:
-    /// commands applied in the order they arrived, each stamped with the step it precedes, and the log's checkpoints.
+    /// The command queue and the recorder it drives: commands applied in the order they arrived, each stamped with the
+    /// step it precedes, and the log's checkpoints.
     /// </summary>
     [TestClass]
     public sealed class CommandQueueTests

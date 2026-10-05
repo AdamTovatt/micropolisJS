@@ -15,7 +15,7 @@ namespace Micropolis.Rules
 {
     /// <summary>
     /// A tool that puts down a zone or a building of <c>size</c> by <c>size</c> tiles centred on the tile clicked, as
-    /// <c>src/buildingTool.js</c> and the original's <c>buildBuilding</c> do.
+    /// the original's <c>buildBuilding</c> does.
     /// </summary>
     internal sealed class BuildingTool : ConnectingTool
     {

@@ -14,7 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Fire, radiation, flood and explosion tiles, as <c>src/miscTiles.js</c> spreads and clears them.
+    /// Fire, radiation, flood and explosion tiles, as the original's <c>mapScan</c> in simulate.cpp spreads and clears
+    /// them.
     /// </summary>
     public static class MiscTiles
     {

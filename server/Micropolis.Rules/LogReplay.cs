@@ -11,6 +11,8 @@
  *
  */
 
+using System.Text.Json.Nodes;
+
 namespace Micropolis.Rules
 {
     /// <summary>
@@ -20,19 +22,21 @@ namespace Micropolis.Rules
     public sealed record Replay(Simulation City, IReadOnlyList<CommandResult> Results, IReadOnlyList<Checkpoint> Hashed);
 
     /// <summary>
-    /// Replays a command log as the browser played it, as <c>replay</c> in <c>headless/runner.ts</c> does: before each
-    /// step, the commands stamped with it, in the order listed, then the step. A checkpoint is taken after its step's
-    /// commands, before the step itself. A paused city takes commands but never steps, so a log that steps one is not
-    /// a log the game wrote, and fails, as does a city whose city time falls behind its steps
-    /// (<see cref="CityTimeModel"/>).
+    /// Replays a command log as the game played it: before each step, the commands stamped with it, in the order
+    /// listed, then the step. A checkpoint is taken after its step's commands, before the step itself. A paused city
+    /// takes commands but never steps, so a log that steps one is not a log the game wrote, and fails, as does a city
+    /// whose city time falls behind its steps (<see cref="CityTimeModel"/>).
     /// </summary>
     public static class LogReplay
     {
         /// <summary>
         /// Replays the entries from the start to step <paramref name="to"/>, after that step's commands, hashing the
-        /// city at each of <paramref name="checkpointSteps"/> it reaches, which ascend.
+        /// city at each of <paramref name="checkpointSteps"/> it reaches, which ascend. <paramref name="onEvent"/>, when
+        /// given, sees every event the city emits once it has started, with the index of the step it came in, as the
+        /// entries count steps; a payload of <see langword="null"/> is an event emitted without one.
         /// </summary>
-        public static Replay Run(LogStart start, IReadOnlyList<LoggedCommand> entries, IReadOnlyList<long> checkpointSteps, long to)
+        public static Replay Run(LogStart start, IReadOnlyList<LoggedCommand> entries, IReadOnlyList<long> checkpointSteps, long to,
+                                 Action<long, string, JsonNode?>? onEvent = null)
         {
             Simulation city = StartCity(start);
             List<CommandResult> results = new List<CommandResult>();
@@ -40,6 +44,11 @@ namespace Micropolis.Rules
             int entry = 0;
             int checkpoint = 0;
             long step = 0;
+
+            if (onEvent is not null)
+            {
+                city.Events.Observer = (name, payload) => onEvent(step, name, payload);
+            }
 
             void CheckpointAt(long at)
             {
@@ -83,7 +92,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Replays the whole log, matching each of its checkpoints, or a <see cref="ReplayDiffersException"/> naming the
-        /// earliest that it didn't match, worded as <c>headless/runner.ts</c> words it.
+        /// earliest that it didn't match.
         /// </summary>
         public static Replay Verify(CommandLog log)
         {
@@ -102,7 +111,7 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The city a log starts from: a new city from a seed starts at medium speed, as in the browser.
+        /// The city a log starts from: a new city from a seed starts at medium speed, as a city a player starts on the server does.
         /// </summary>
         public static Simulation StartCity(LogStart start)
         {

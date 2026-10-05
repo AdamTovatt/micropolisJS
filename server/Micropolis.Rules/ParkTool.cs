@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The park tool, as <c>src/parkTool.js</c> and the original's <c>putDownPark</c>: woods or, one time in five, a
+    /// The park tool, as the original's <c>putDownPark</c>: woods or, one time in five, a
     /// fountain, on plain dirt.
     /// </summary>
     internal sealed class ParkTool : CityTool

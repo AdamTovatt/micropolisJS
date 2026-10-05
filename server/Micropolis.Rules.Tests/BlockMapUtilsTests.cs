@@ -17,8 +17,7 @@ namespace Micropolis.Rules.Tests
     public sealed class BlockMapUtilsTests
     {
         // The cap of 300 on crime before the police shows only where the police then take it below 250, which no
-        // fixture's city reaches, so the unit snapshots can't prove it. test/blockMapUtils.ts pins the TypeScript's
-        // crimeScan to the same rate from the same input.
+        // fixture's city reaches, so no log's checkpoint can prove it.
         [TestMethod]
         public void CrimeScan_CrimePastItsCapUnderPolice_CapsItBeforeThePolice()
         {

@@ -11,11 +11,9 @@
  *
  */
 
-using System.IO.Compression;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using Micropolis.SourceTree;
+using Micropolis.Conformance;
 
 namespace Micropolis.Rules.Tests
 {
@@ -27,26 +25,7 @@ namespace Micropolis.Rules.Tests
     {
         public static string Read(string name)
         {
-            return File.ReadAllText(RepositoryFiles.GetPath($"conformance/{name}"));
-        }
-
-        /// <summary>
-        /// The JSON list a gzipped file holds, such as the unit snapshots' records or a city run's events.
-        /// </summary>
-        public static JsonArray ReadGzippedArray(string name)
-        {
-            return ReadGzipped(name) as JsonArray ?? throw new InvalidDataException($"{name} holds no list.");
-        }
-
-        /// <summary>
-        /// The JSON a gzipped file holds, such as a trace.
-        /// </summary>
-        public static JsonNode ReadGzipped(string name)
-        {
-            using FileStream stream = File.OpenRead(RepositoryFiles.GetPath($"conformance/{name}"));
-            using GZipStream gzip = new GZipStream(stream, CompressionMode.Decompress);
-
-            return JsonNode.Parse(gzip) ?? throw new InvalidDataException($"{name} holds null.");
+            return File.ReadAllText(ConformanceDirectories.Committed.File(name));
         }
 
         public static T Parse<T>(string json, params JsonConverter[] converters)

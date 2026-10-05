@@ -11,7 +11,8 @@
  *
  */
 
-import { joinLinkedCity, leaveLostCity, linkedCity, linkToCity, PageWindow, ServerCity } from "../src/cityLink";
+import { joinLinkedCity, leaveLostCity, linkedCity, linkToCity, PageWindow } from "../src/cityLink";
+import type { StartedCity } from "../src/citySource";
 
 const CITY = "0123456789abcdef0123456789abcdef";
 
@@ -38,11 +39,11 @@ class FakePage implements PageWindow {
 
 describe("a city's link", () => {
 
-    const started: ServerCity = {name: "Town", seed: 2026, city: CITY};
+    const started: StartedCity = {name: "Town", seed: 2026, city: CITY};
 
     it("joins the city it names and plays it", async () => {
         const page = new FakePage(`http://localhost:44903/?city=${CITY}`);
-        const played: ServerCity[] = [];
+        const played: StartedCity[] = [];
         const joined: string[] = [];
 
         const result = await joinLinkedCity(CITY, {join: async (city) => {

@@ -11,16 +11,16 @@
  *
  */
 
-import { stepsPerCityTime, stepsPerYear } from "../../src/cityTimeModel";
-import { SPEEDS } from "../../src/protocol";
+import { RULES } from "./ruleConstants";
 
-// The steps the tests' cities take, at the speeds they run at
+// The steps the tests' cities take, at the speeds they run at, as the C# rules count them (ruleConstants.ts): the steps
+// a unit of city time takes, away from the wrap of the speed cycle that gates the phases, and the units in a year
 
 // A city time at medium speed, the speed a new city starts at
-export const STEPS_PER_CITY_TIME = stepsPerCityTime(SPEEDS.medium);
+export const STEPS_PER_CITY_TIME = RULES.stepsPerCityTime.medium;
 
 // A city time at fast speed, one cycle of the simulation's sixteen phases, every one of which runs at fast speed; and
 // a year of them, at the speed the tests' grown cities run at
-export const FAST_CYCLE = stepsPerCityTime(SPEEDS.fast);
-export const CYCLES_IN_A_YEAR = 48;
-export const YEAR = stepsPerYear(SPEEDS.fast);
+export const FAST_CYCLE = RULES.stepsPerCityTime.fast;
+export const CYCLES_IN_A_YEAR = RULES.cityTimesPerYear;
+export const YEAR = CYCLES_IN_A_YEAR * FAST_CYCLE;

@@ -12,7 +12,7 @@
 
 # The single-tile houses, 249 to 260, which a residential zone grows round its middle before it
 # fills with a block, and falls back to when it empties. The zone picks a house by the land's
-# value (placeResidential in src/residential.js): three houses for each of four values, from
+# value (PlaceResidential in the C# rules' Residential): three houses for each of four values, from
 # worn bungalows on bare yards (249 to 251) through plain houses on lawns (252 to 254) and larger
 # houses in gardens (255 to 257) to villas with pools (258 to 260). Each stands alone on its
 # tile, with its yard and drive inside it, since its neighbours may be anything.

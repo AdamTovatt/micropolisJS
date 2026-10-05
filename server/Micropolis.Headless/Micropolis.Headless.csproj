@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Micropolis.Conformance\Micropolis.Conformance.csproj" />
     <ProjectReference Include="..\Micropolis.Rules\Micropolis.Rules.csproj" />
     <ProjectReference Include="..\Micropolis.SourceTree\Micropolis.SourceTree.csproj" />
   </ItemGroup>

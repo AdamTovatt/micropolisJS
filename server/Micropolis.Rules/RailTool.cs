@@ -14,7 +14,7 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The rail tool, as <c>src/railTool.js</c> and the original's <c>layRail</c>: rail on dirt, a tunnel under water
+    /// The rail tool, as the original's <c>layRail</c>: rail on dirt, a tunnel under water
     /// beside a rail that leads into it, and a crossing over a straight power line or road.
     /// </summary>
     internal sealed class RailTool : LayingTool

@@ -19,11 +19,10 @@ using System.Reflection.PortableExecutable;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The rules for simulation code, held over the compiled Micropolis.Rules as <c>test/simulationImports.ts</c> holds
-    /// them over the TypeScript simulation: no clock, no randomness but <see cref="RandomStream"/>, nothing read from
-    /// the machine, and no <c>Math</c> function whose result can differ between runtimes. The check reads the
-    /// assembly's metadata, which lists every type and member of another assembly the code refers to, so a reference
-    /// is found however the source spells it.
+    /// The rules for simulation code, held over the compiled Micropolis.Rules: no clock, no randomness but
+    /// <see cref="RandomStream"/>, nothing read from the machine, and no <c>Math</c> function whose result can differ
+    /// between runtimes. The check reads the assembly's metadata, which lists every type and member of another assembly
+    /// the code refers to, so a reference is found however the source spells it.
     /// </summary>
     [TestClass]
     public sealed class PortableRulesTests
@@ -68,8 +67,7 @@ namespace Micropolis.Rules.Tests
             ["System.Environment"] = ["get_CurrentManagedThreadId"],
         };
 
-        // The Math functions whose results are exact everywhere, as PORTABLE_MATH in test/simulationImports.ts lists
-        // JavaScript's: every other function of Math and MathF is forbidden
+        // The Math functions whose results are exact everywhere: every other function of Math and MathF is forbidden
         private static readonly HashSet<string> PortableMath =
         [
             "Abs", "BigMul", "Ceiling", "Clamp", "CopySign", "DivRem", "Floor", "Max", "Min", "Round", "Sign", "Truncate",

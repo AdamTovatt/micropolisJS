@@ -1,0 +1,2 @@
+# The tests compare what the fixture tool writes against the conformance files byte for byte, and the tool writes \n
+conformance/** text eol=lf

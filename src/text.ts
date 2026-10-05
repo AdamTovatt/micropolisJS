@@ -179,9 +179,6 @@ const messages: {[subject: string]: MessageText} = {
   [Messages.REACHED_MEGALOPOLIS]: {text: "Now a megalopolis! Population has reached 500,000", tone: "good"},
   [Messages.REACHED_METROPOLIS]: {text: "Now a metropolis! Population has reached 100,000", tone: "good"},
   [Messages.REACHED_TOWN]: {text: "Now a town! Population has reached 2,000", tone: "good"},
-  // The debug window's download, where the page can't work out state hashes
-  [UiMessages.LOG_UNCHECKED]: {text: "Command log saved without checkpoints: this page can't work out state hashes",
-                             tone: "bad"},
 };
 
 // Status panel strings

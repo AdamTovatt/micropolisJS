@@ -17,10 +17,10 @@ using Micropolis.Rules;
 namespace Micropolis.Server
 {
     /// <summary>
-    /// One city on the server, as <c>src/cityHost.ts</c> hosts one in the browser: the simulation, the queue every
-    /// player's commands apply through, the city's command log, and the step driver that steps it in real time. It runs
-    /// its own loop, and hands the state messages each turn produced to publish, after the turn's steps. It is not
-    /// thread-safe: everything it does is its city's work, which runs one piece at a time.
+    /// One city on the server: the simulation, the queue every player's commands apply through, the city's command log,
+    /// and the step driver that steps it in real time. It runs its own loop, and hands the state messages each turn
+    /// produced to publish, after the turn's steps. It is not thread-safe: everything it does is its city's work, which
+    /// runs one piece at a time.
     /// </summary>
     internal sealed class CityHost
     {
@@ -92,7 +92,7 @@ namespace Micropolis.Server
 
         public SessionLog CommandLog()
         {
-            return new SessionLog(_city.Recorder.Log().ToJson(), _city.Queue.StepIndex, null);
+            return new SessionLog(_city.Recorder.Log().ToJson(), _city.Queue.StepIndex);
         }
 
         // The debug channel (CityDriver in src/citySource.ts)
@@ -115,10 +115,10 @@ namespace Micropolis.Server
         }
 
         /// <summary>
-        /// Applies the commands sent so far, then takes this many steps at the city's own speed, as <c>advance</c> in
-        /// <c>src/cityHost.ts</c>. It fails, saying why, when the steps are not a whole number, the driver is not held,
-        /// the city doesn't step, or city time doesn't advance as far as the steps imply. What else the rules throw on
-        /// the way fails the city, as it would on the server's clock.
+        /// Applies the commands sent so far, then takes this many steps at the city's own speed. It fails, saying why,
+        /// when the steps are not a whole number, the driver is not held, the city doesn't step, or city time doesn't
+        /// advance as far as the steps imply. What else the rules throw on the way fails the city, as it would on the
+        /// server's clock.
         /// </summary>
         public AdvanceResult Advance(double steps)
         {

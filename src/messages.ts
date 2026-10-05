@@ -12,9 +12,9 @@
  */
 
 // CLASSIFICATION_UPDATED, DATE_UPDATED, FUNDS_CHANGED, POPULATION_UPDATED, SCORE_UPDATED and SPEED_CHANGED are
-// simulation behaviour, which the C# port mirrors, and which the client doesn't read: it shows the date, the speed and
-// the city's figures from the state messages the city host sends. The client's own events and notices, which no city
-// sends, are in uiMessages.ts.
+// simulation behaviour, which Messages in the C# rules names, and which the client doesn't read: it shows the date, the
+// speed and the city's figures from the state messages the server's city host sends. The client's own events and
+// notices, which no city sends, are in uiMessages.ts.
 
 export const BUDGET_REVIEW_DUE = "Year-end budget to review";
 export const BLACKOUTS_REPORTED = "Blackouts reported";
@@ -23,7 +23,6 @@ export const CLASSIFICATION_UPDATED = "Classification updated";
 export const COMMAND_RESULT = "Command result";
 export const DATE_UPDATED = "Date changed";
 export const EARTHQUAKE = "Earthquake";
-export const EVAL_UPDATED = "Evaluation Updated";
 export const EXPLOSION_REPORTED = "Explosion Reported";
 export const FIRE_REPORTED = "Fire!";
 export const FIRE_STATION_NEEDS_FUNDING = "Fire station needs funding";
@@ -58,15 +57,9 @@ export const REACHED_CITY = "Now a city";
 export const REACHED_METROPOLIS = "Now a metropolis";
 export const REACHED_MEGALOPOLIS = "Now a megalopolis";
 export const REACHED_TOWN = "Now a town";
-export const REACHED_VILLAGE = "Now a village";
 export const ROAD_NEEDS_FUNDING = "Roads need funding";
 export const SCORE_UPDATED = "Scoe updated";
 export const SHIP_CRASHED = "Shipwrecked";
-export const SOUND_EXPLOSIONHIGH = "Explosion! Bang!";
-export const SOUND_EXPLOSIONLOW = "Explosion! Boom!";
-export const SOUND_HEAVY_TRAFFIC = "Heavy Traffic sound";
-export const SOUND_HONKHONK = "HonkHonk sound";
-export const SOUND_MONSTER = "Monster sound";
 export const SPEED_CHANGED = "Speed changed";
 export const TAX_TOO_HIGH = "Tax too high";
 export const TORNADO_SIGHTED = "Tornado sighted";

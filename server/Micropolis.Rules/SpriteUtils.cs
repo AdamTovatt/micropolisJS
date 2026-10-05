@@ -14,8 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// What the sprites' moves share, as <c>src/spriteUtils.js</c> exports it: converting between pixels and tiles,
-    /// turning, colliding, and what a sprite does to the tile under it.
+    /// What the sprites' moves share, after the helpers of the original's sprite.cpp: converting between pixels and
+    /// tiles, turning, colliding, and what a sprite does to the tile under it.
     /// </summary>
     internal static class SpriteUtils
     {

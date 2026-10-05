@@ -12,7 +12,7 @@
 
 # The river: open water (2, 3 and the ships' channel, 4) and its shores (5 to 20). The map
 # generator gives a water tile next to land one of eight shores, by which of its four neighbours
-# are water (riverEdges in src/mapGenerator.js), and picks either of two tiles for each at random:
+# are water (RiverEdges in the C# rules' MapGenerator), and picks either of two tiles for each at random:
 # a strip of land along one side, or water in one corner with land along the two sides away from
 # it. Each pair is the same shore with a different wobble.
 

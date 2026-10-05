@@ -14,7 +14,8 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// Residential zones and hospitals, as <c>src/residential.js</c> grows and declines them.
+    /// Residential zones and hospitals, as the original's <c>doResidential</c> and <c>doHospChur</c> in zone.cpp grow
+    /// and decline them.
     /// </summary>
     public static class Residential
     {

@@ -22,14 +22,6 @@ export default defineConfig(
   },
   js.configs.recommended,
   {
-    // The simulation's legacy modules, which run without a DOM: test/simulationImports.ts holds them to the globals
-    // they may use, and console is the only one beyond the language's own.
-    files: ["src/**/*.js"],
-    languageOptions: {
-      globals: {console: "readonly"},
-    },
-  },
-  {
     // Build and tool configuration, run by Node.
     files: ["*.js", "*.cjs"],
     languageOptions: {
