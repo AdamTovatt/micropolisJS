@@ -11,7 +11,7 @@ The pipeline's layout, conventions and tools are in `art/README.md`, the texture
 
 - **Blender.** On an ARM Linux machine, install Ubuntu's package (`sudo apt install blender`): Blender ships no ARM Linux build, and the `bpy` wheel and the snap have none either. That build lacks OpenImageDenoise, so `render()` turns denoising off; never turn it on.
 - **Python tools.** `art/tools/*.py` need the packages pinned in `art/requirements.txt`, which neither the system Python nor Blender's own has. Make a virtualenv in the scratchpad (`python3 -m venv`, `pip install -r art/requirements.txt`) and run the tools and their tests with it.
-- **Image generation.** `art/tools/generate.py` makes textures, sprite sheets and reference sheets from a prompt with Gemini's image model, and reads the API key from `GEMINI_API_KEY`. On Adam's machine the key is in `~/.config/gemini.env`: `set -a; . ~/.config/gemini.env; set +a` before running it, and never print the key or put it in the repository.
+- **Image generation.** `art/tools/generate.py` makes textures, sprite sheets and reference sheets from a prompt with Gemini's image model, and reads the API key from `GEMINI_API_KEY`, which must be set before running it; if it isn't, ask the user for it. Never print the key or put it in the repository.
 - **Time.** A zone takes from half a minute to a minute and a half on 16 cores; the shadow pass of a tall building is the slow part.
 
 ## The loop

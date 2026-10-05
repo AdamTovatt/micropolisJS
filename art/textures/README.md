@@ -12,45 +12,45 @@ Source textures for rendering tile art in Blender. A render maps them onto its s
 
 ## Files
 
-Each entry gives the real-world size the image depicts, so a scene scales it consistently, and the prompt it was generated from. The entries that name no model were generated outside the repository; the others by `tools/generate.py` with the model named. Google claims no ownership of what its Gemini API generates (the [Gemini API Additional Terms of Service](https://ai.google.dev/terms)), so those images can ship under the game's licence.
+Each entry gives the real-world size the image depicts, so a scene scales it consistently, and what generated it: ChatGPT, or `tools/generate.py` with the model the entry names. Below it is the prompt the image was generated from, where one was recorded. Why images of both kinds can ship under the game's licence is in `../README.md`.
 
 ### `roof-membrane.png`
 
-A weathered flat roof: dark grey bitumen membrane laid in strips with seams, patches, scattered gravel and fixings. About 5 m across.
+A weathered flat roof: dark grey bitumen membrane laid in strips with seams, patches, scattered gravel and fixings. About 5 m across. Generated with ChatGPT.
 
 > Seamless tileable texture of a weathered flat commercial roof, dark grey bitumen membrane with faint seams, water stains, small gravel patches and scattered debris, viewed straight down, flat even lighting, no shadows.
 
 ### `paving-slabs.png`
 
-Beige concrete paving: a 4×4 grid of square slabs with moss in the joints and light staining. About 2 m across (slabs of roughly 50 cm).
+Beige concrete paving: a 4×4 grid of square slabs with moss in the joints and light staining. About 2 m across (slabs of roughly 50 cm). Generated with ChatGPT.
 
 > Seamless tileable texture of a beige concrete paving slab plaza, square slabs about 50 cm across with thin dark joints, slight colour variation between slabs, light dirt and stains, viewed straight down, flat even lighting.
 
 ### `asphalt.png`
 
-Worn dark asphalt with fine aggregate, hairline cracks and oil stains, without road markings. About 3 m across.
+Worn dark asphalt with fine aggregate, hairline cracks and oil stains, without road markings. About 3 m across. Generated with ChatGPT.
 
 > Seamless tileable texture of worn dark asphalt with fine grain, small cracks and oil stains, viewed straight down, flat even lighting, no markings.
 
 ### `glass-curtain-wall.png`
 
-A blue glass office facade: tall rectangular panes in thin dark frames, reflecting sky and clouds, a few with blinds behind. About 9½ panes across and 6 storeys high. The column at the horizontal wrap is narrower than the rest, which shows only up close.
+A blue glass office facade: tall rectangular panes in thin dark frames, reflecting sky and clouds, a few with blinds behind. About 9½ panes across and 6 storeys high. The column at the horizontal wrap is narrower than the rest, which shows only up close. Generated with ChatGPT.
 
 > Seamless tileable texture of a blue glass office curtain wall, viewed straight on, a regular grid of rectangular panes with thin dark aluminium frames, panes varying slightly in tint and reflecting soft sky and clouds, no perspective.
 
 ### `lawn-grass.png`
 
-Short lawn grass with clover, slight variation in tone and a few dry patches. About 2 m across.
+Short lawn grass with clover, slight variation in tone and a few dry patches. About 2 m across. Generated with ChatGPT.
 
 > Seamless tileable texture of short green lawn grass with slight variation and a few dry patches, viewed straight down, flat even lighting.
 
 ### `foliage-leaves.png`
 
-Dense foliage seen from above: small lobed leaves in mixed greens, with dark gaps between the clumps. For tree crowns and hedges. About 1.5 m across.
+Dense foliage seen from above: small lobed leaves in mixed greens, with dark gaps between the clumps. For tree crowns and hedges. About 1.5 m across. Generated with ChatGPT.
 
 ### `concrete-facade.png`
 
-A light grey precast concrete office facade: a grid of deep-set dark windows with blinds, 9 windows across and 6 storeys high, with faint rain streaks. About 30 m across. Cropped from the generated 1254 × 1254 image to its middle 1254 × 1155, so that it holds exactly 6 storeys and wraps vertically.
+A light grey precast concrete office facade: a grid of deep-set dark windows with blinds, 9 windows across and 6 storeys high, with faint rain streaks. About 30 m across. Cropped from the generated 1254 × 1254 image to its middle 1254 × 1155, so that it holds exactly 6 storeys and wraps vertically. Generated with ChatGPT.
 
 > Seamless tileable texture of a light grey concrete building facade with a regular grid of small dark rectangular windows, viewed straight on, no perspective, flat even lighting.
 

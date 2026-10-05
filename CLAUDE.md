@@ -4,7 +4,7 @@
 
 A continuation of [micropolisJS](https://github.com/graememcc/micropolisJS), Graeme McCutcheon's hand-written JavaScript/HTML5 port of Micropolis — the GPL release of the original 1989 SimCity. A 120×100 tile city, drawn on a canvas in the browser. Every city is simulated on the game's server, shared by every player in it, and kept in the server's store; with no server answering, the page says so and offers no game.
 
-This repository is Adam's private continuation. The aim is to grow it from a faithful single-player port into the foundation of a multiplayer city builder with a richer simulated world. The **Direction** section below is the source of truth for where the code is heading.
+This repository is Adam's continuation. The aim is to grow it from a faithful single-player port into the foundation of a multiplayer city builder with a richer simulated world. The **Direction** section below is the source of truth for where the code is heading.
 
 | Component   | Technology                                                                         |
 |-------------|------------------------------------------------------------------------------------|
@@ -38,7 +38,7 @@ Ask before writing code that settles an open decision; record the decision under
 ## Git
 
 - Default branch is `main`.
-- `origin` is the private repository `AdamTovatt/micropolisJS`. `upstream` is `graememcc/micropolisJS`: fetch from it to pick up the original author's changes, never push to it.
+- `origin` is the repository `AdamTovatt/micropolisJS`. `upstream` is `graememcc/micropolisJS`: fetch from it to pick up the original author's changes, never push to it.
 
 ## Commands
 

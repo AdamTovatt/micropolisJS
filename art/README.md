@@ -2,6 +2,8 @@
 
 Sources for rendering the game's tile art in Blender, one zone or one set of single tiles at a time. Every image here ships with the game's source, so its generator's or author's terms must allow distribution under GPLv3 (`LICENSE`).
 
+The generated images come from Google's Gemini image model or from ChatGPT, and where each image is described names its generator. Google claims no ownership of what its Gemini API generates (the [Gemini API Additional Terms of Service](https://ai.google.dev/terms)), and OpenAI's [Terms of Use](https://openai.com/policies/terms-of-use) assign what ChatGPT generates to the user, so images of both kinds can ship under the game's licence.
+
 - `references/`: concept sheets of whole zones that the scenes are modelled on, described in `references/README.md`.
 - `textures/`: seamless surface textures (roofs, paving, glass, grass). Their rules and provenance are in `textures/README.md`.
 - `sheets/`: sprite sheets of whole objects drawn on black, seen from above, and the game's original 16 px sheets, `tiles-original.png` and `sprites-original.png`, as they were before any art was painted into them.
@@ -129,5 +131,5 @@ python art/tools/cutout.py art/sheets/<sheet>.png art/cutouts/<sheet> <prefix>
 
 It counts near-black area joined to the sheet's border as background, so a sheet's objects must not touch each other or the border.
 
-- **`sheets/cars.png`** → `cutouts/cars/car-01` to `car-21`: cars, nose up, in three rows of seven. The last two in each row are larger: estates and vans (`car-06`, `car-07`, `car-13`, `car-21`) and pickups (`car-14`, `car-20`).
-- **`sheets/plants.png`** → `cutouts/plants/plant-01` to `plant-40`: trees (`01` to `11`), small trees and flowering shrubs (`12` to `19`), hedges and bushes (`20` to `29`, with `20` and `21` hedge-shaped), and small plants (`30` to `40`). `plant-34`, `plant-36` and `plant-40` show black from the sheet between their leaves and twigs.
+- **`sheets/cars.png`** → `cutouts/cars/car-01` to `car-21`: cars, nose up, in three rows of seven. The last two in each row are larger: estates and vans (`car-06`, `car-07`, `car-13`, `car-21`) and pickups (`car-14`, `car-20`). Generated with ChatGPT.
+- **`sheets/plants.png`** → `cutouts/plants/plant-01` to `plant-40`: trees (`01` to `11`), small trees and flowering shrubs (`12` to `19`), hedges and bushes (`20` to `29`, with `20` and `21` hedge-shaped), and small plants (`30` to `40`). `plant-34`, `plant-36` and `plant-40` show black from the sheet between their leaves and twigs. Generated with ChatGPT.
