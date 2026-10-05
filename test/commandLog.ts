@@ -47,6 +47,10 @@ describe("a command log read from a file", () => {
             "Checkpoint 0 of the command log is not a {step, hash}"],
         ["a checkpoint at a step between steps", {...valid, checkpoints: [{step: 0.5, hash: HASH}]},
             "Checkpoint 0 of the command log is not a {step, hash}"],
+        ["a checkpoint past 2^53 - 1", {...valid, checkpoints: [{step: 2 ** 53, hash: HASH}]},
+            "Checkpoint 0 of the command log is not a {step, hash}"],
+        ["an entry past 2^53 - 1", {...valid, entries: [{step: 2 ** 53, player: "p", command: {}}]},
+            "Entry 0 of the command log is not a {step, player, command}"],
         ["two checkpoints at one step", {...valid, checkpoints: [{step: 3, hash: HASH}, {step: 3, hash: HASH}]},
             "Checkpoint 1 of the command log, at step 3, is not after the one above it"],
     ])("is refused for %s", (_, value, message) => {
@@ -56,6 +60,12 @@ describe("a command log read from a file", () => {
     // The city validates the commands as it applies them, as it does a player's
     it("is read with commands of any shape", () => {
         const log = {...valid, description: "anything", entries: [{step: 0, player: "p", command: "not a command"}]};
+
+        expect(parseLog(log)).toEqual(log);
+    });
+
+    it("is read at the last step a log holds, 2^53 - 1", () => {
+        const log = {...valid, checkpoints: [{step: Number.MAX_SAFE_INTEGER, hash: HASH}]};
 
         expect(parseLog(log)).toEqual(log);
     });

@@ -35,9 +35,9 @@ change to a game rule is not: the commands mean the same, and the checkpoints th
 Each entry is `{"step", "player", "command"}`:
 
 - `step` is the index of the step the command preceded: the number of steps the city had taken since the log began
-  when the command applied. Steps are counted as the simulation takes them, so a paused city, which never steps,
-  stays on the same index however long it is paused. Entries are in order of step, and entries with the same step
-  are in the order they applied.
+  when the command applied, a step as a checkpoint's is. Steps are counted as the simulation takes them, so a paused
+  city, which never steps, stays on the same index however long it is paused. Entries are in order of step, and
+  entries with the same step are in the order they applied.
 - `player` is the id of the player who sent it, a string: on the server, the id the server gave the player as it
   signed in, and in a fixture's log, the one player there is, `"local"`. The simulation never branches on the player.
 - `command` is the command as it arrived. `src/protocol.ts` defines the commands, and `CommandReader` in
@@ -64,7 +64,8 @@ The commands, by `type`, with what their fields mean. `Command` in `src/protocol
 
 Each checkpoint is `{"step", "hash"}`: the state hash (`docs/state-hash.md`) of the city after `step` steps and after
 every command stamped with `step`, which is the city just before it takes step `step`. No two checkpoints share a
-step.
+step. A step, in a checkpoint and in an entry, is a whole number from 0 to 2^53 − 1, the largest a JSON number holds
+exactly (`CommandLog.MaxStep`).
 
 ## Replay
 

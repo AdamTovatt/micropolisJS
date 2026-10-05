@@ -54,8 +54,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+// A whole number from 0 to 2^53 - 1, past which two whole numbers can parse to the same one
 function isStep(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 const START_KEYS = ["seed", "save"];
