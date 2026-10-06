@@ -71,7 +71,8 @@ SINGLE_TILES = {
         'drawbridge_v': range(948, 952),
     },
     'power': {'lines': range(HPOWER, 221), 'unpowered': (827,)},   # the unpowered zone's warning
-    'rail': {'rail': (221, 222, *range(HRAIL, 239))},      # rail, its bridges and crossings
+    'rail': {'rail': (221, 222, *range(HRAIL, 239)),       # rail, its bridges and crossings
+             'stations': (1020, 1021)},                    # the station on straight track
     'houses': {'houses': range(249, 261)},                 # the single-tile houses a residential zone grows
 }
 

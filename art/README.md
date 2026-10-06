@@ -60,7 +60,7 @@ blender --background --python art/blender/tiles/roads.py -- art/blender/out/road
 - `rubble.py`: rubble, and the bulldozer's small explosion.
 - `roads.py`: road pieces, bridges, roads under power lines, and the open drawbridges. The rules' traffic tiles have no art: the game draws them as the plain road they run on, and its traffic as cars.
 - `power.py`: power lines, and the unpowered zone's warning.
-- `rail.py`: rail, its bridges and crossings.
+- `rail.py`: rail, its bridges and crossings, and the station on straight track.
 - `houses.py`: the single-tile houses a residential zone grows.
 
 Which tile ids each set renders, in named groups such as an open drawbridge's frames, is `SINGLE_TILES` in `tools/designs.py`.
