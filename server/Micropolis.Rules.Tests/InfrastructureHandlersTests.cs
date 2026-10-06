@@ -18,8 +18,8 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The infrastructure and service handlers: roads and bridges, the power plants, stadiums, fire, flood, radiation
-    /// and explosion tiles, and the police and fire stations.
+    /// The infrastructure and service handlers: roads and bridges, rail stations, the power plants, stadiums, fire,
+    /// flood, radiation and explosion tiles, and the police and fire stations.
     /// </summary>
     [TestClass]
     public sealed class InfrastructureHandlersTests
@@ -118,6 +118,35 @@ namespace Micropolis.Rules.Tests
 
             Assert.AreEqual(FloodCycles - 1, city.DisasterManager.FloodCount);
             CollectionAssert.AreNotEqual(before, city.Random.GetState());
+        }
+
+        // A station is rail to the map scan: it counts in the rail total, as the rail above it does
+        [TestMethod]
+        public void MapScan_StationOnALine_CountsAsRail()
+        {
+            Simulation city = FixtureCities.City("suburb", "built");
+            city.Map.SetTile(FireX, FireY - 1, LVRAIL, BLBNBIT);
+            city.Map.SetTile(FireX, FireY, VRAILSTATION, BLBNBIT);
+            long before = city.Census.RailTotal;
+
+            city.MapScanner.MapScan(FireX, FireX + 1, city.ConstructSimData());
+
+            Assert.AreEqual(before + 2, city.Census.RailTotal);
+        }
+
+        // With the roads underfunded, a station wears to rubble as rail does, on a stream whose draws wear it
+        [TestMethod]
+        public void MapScan_StationWithTheRoadsUnfunded_WearsToRubble()
+        {
+            Simulation city = FixtureCities.City("suburb", "built");
+            city.Map.SetTile(FireX, FireY, HRAILSTATION, BLBNBIT);
+            city.Budget.RoadEffect = 0;
+            uint seed = Seeds.First(RandomStream.SimulationStream, random => random.GetChance(511) && (random.GetRandom16() & 31) > 0);
+            city.Random.SetState(RandomStream.SimulationStream(seed).GetState());
+
+            city.MapScanner.MapScan(FireX, FireX + 1, city.ConstructSimData());
+
+            Assert.IsTrue(city.Map.GetTileValue(FireX, FireY) is >= RUBBLE and <= LASTRUBBLE, $"The station became {city.Map.GetTileValue(FireX, FireY)}.");
         }
 
         private static Simulation CityWithAFireBesideAZone(int zoneCentre)

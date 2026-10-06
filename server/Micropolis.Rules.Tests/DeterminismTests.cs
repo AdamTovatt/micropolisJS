@@ -57,12 +57,12 @@ namespace Micropolis.Rules.Tests
                             Run(FixtureCities.City("harbourWithDisasters", "built"), Steps * 3));
         }
 
-        // The town saved with a plane arriving at its airport and a helicopter on its way to traffic carries on, flights
-        // and all, as the town never saved does
+        // The underfunded town saved with a plane arriving at its airport and a helicopter on its way to traffic carries
+        // on, flights and all, as the town never saved does
         [TestMethod]
         public void FromSave_AircraftInFlight_ReachesTheHashOfTheRunNeverSaved()
         {
-            Simulation city = FixtureCities.City("town", "run");
+            Simulation city = FixtureCities.City("underfunded", "run");
             Position airport = Enumerable.Range(0, city.Map.Width)
                 .SelectMany(x => Enumerable.Range(0, city.Map.Height).Select(y => new Position(x, y)))
                 .First(tile => city.Map.GetTileValue(tile) == TileValues.AIRPORT);

@@ -114,7 +114,7 @@ namespace Micropolis.Rules
             DisasterManager = new DisasterManager(map, SpriteManager, Random);
             MapScanner = new MapScanner(map);
             RepairManager = new RepairManager(map);
-            Trips = new Trips(map);
+            Trips = new Trips();
             TrafficManager = new Traffic(map, Random, Trips);
             Init();
         }
@@ -208,7 +208,8 @@ namespace Micropolis.Rules
         public Traffic TrafficManager { get; }
 
         /// <summary>
-        /// The trips the traffic rule completes, offered for the client to draw as cars, which the rules never read.
+        /// The trips the traffic rule completes, offered for the client to draw as cars and trains, which the rules
+        /// never read.
         /// </summary>
         public Trips Trips { get; }
 

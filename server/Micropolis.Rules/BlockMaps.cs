@@ -50,6 +50,7 @@ namespace Micropolis.Rules
             PoliceStationEffectMap = Of(StationMapBlockSize, 0, MaxPoliceStationMap);
             PollutionDensityMap = Of(2, 0, 255);
             PopulationDensityMap = Of(2, 0, 510);
+            RailLoadMap = Of(1, 0, Traffic.MaxRailLoad);
             RateOfGrowthMap = Of(8, -200, 200);
             TerrainDensityMap = Of(4, 0, 240);
             TrafficDensityMap = Of(2, 0, 240);
@@ -65,6 +66,7 @@ namespace Micropolis.Rules
                 ("policeStationEffectMap", PoliceStationEffectMap),
                 ("pollutionDensityMap", PollutionDensityMap),
                 ("populationDensityMap", PopulationDensityMap),
+                ("railLoadMap", RailLoadMap),
                 ("rateOfGrowthMap", RateOfGrowthMap),
                 ("terrainDensityMap", TerrainDensityMap),
                 ("trafficDensityMap", TrafficDensityMap),
@@ -115,6 +117,13 @@ namespace Micropolis.Rules
         /// Each block's population density.
         /// </summary>
         public BlockMap PopulationDensityMap { get; }
+
+        /// <summary>
+        /// The riders on each tile of rail, a block a tile so that lines side by side keep their loads apart: what
+        /// the rides the traffic rule routes add to it, which no road's traffic does, decayed as the traffic density
+        /// is. A tile at <see cref="Traffic.MaxRailLoad"/> is full, and no ride enters it.
+        /// </summary>
+        public BlockMap RailLoadMap { get; }
 
         /// <summary>
         /// Each block's rate of growth.

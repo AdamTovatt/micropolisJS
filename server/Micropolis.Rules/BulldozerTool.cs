@@ -17,7 +17,7 @@ namespace Micropolis.Rules
     /// <summary>
     /// The bulldozer, as the original's <c>bulldozerTool</c>: it blows a zone up into
     /// rubble from any of its tiles, and dozes anything else bulldozable to dirt, or back to water where it spans
-    /// water.
+    /// water, but a rail station, which the original never had, back to the rail it stood on.
     /// </summary>
     /// <remarks>
     /// The original's tool also makes the explosion sounds, which this one leaves out: the simulation passes no sound
@@ -123,6 +123,12 @@ namespace Micropolis.Rules
                 case TileValues.HRAIL:
                 case TileValues.VRAIL:
                     WorldEffects.SetTile(x, y, TileValues.RIVER);
+                    break;
+
+                // A station leaves the track it stood on, which the connections fixed after it join again
+                case TileValues.HRAILSTATION:
+                case TileValues.VRAILSTATION:
+                    WorldEffects.SetTile(x, y, TileUtils.TrackUnder(tile.GetValue()), TileFlags.BLBNBIT);
                     break;
 
                 default:

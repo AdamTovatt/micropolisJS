@@ -21,13 +21,14 @@ namespace Micropolis.Rules
     public static class Transport
     {
         /// <summary>
-        /// A rail tile, as the original's doRail: it counts, may send out a train, and with roads underfunded may
-        /// decay, a rail bridge to the river and other rail to rubble, unless it carries a wire.
+        /// A rail tile or a station, as the original's doRail: it counts, and with roads underfunded may decay, a rail
+        /// bridge to the river and other rail, a station's included, to rubble, unless it carries a wire. A rule change
+        /// from the original, whose rail also sent out a train that wandered the track carrying no one: the client draws
+        /// a train for each ride the traffic rule routes (<see cref="Trips"/>).
         /// </summary>
         private static void RailFound(GameMap map, int x, int y, SimData simData)
         {
             simData.Census.RailTotal += 1;
-            simData.SpriteManager.GenerateTrain(simData.Census, x, y);
 
             if (!simData.Budget.ShouldDegradeRoad() || !simData.Random.GetChance(511))
             {

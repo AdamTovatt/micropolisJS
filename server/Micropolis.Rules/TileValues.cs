@@ -322,7 +322,11 @@ namespace Micropolis.Rules
         public const int CHURCH7 = 1014;
         public const int CHURCH7LAST = 1018;
 
-        // tiles 1020-1023 unused
+        // Rail stations, a tile each, through which the track runs on: east and west, or north and south
+        public const int HRAILSTATION = 1020;
+        public const int VRAILSTATION = 1021;
+
+        // tiles 1022-1023 unused
 
         public const int TILE_COUNT = 1024;
 

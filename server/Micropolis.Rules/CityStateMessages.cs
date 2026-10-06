@@ -29,7 +29,6 @@ namespace Micropolis.Rules
         private static readonly IReadOnlyDictionary<SpriteType, (int Width, int XOffset, int YOffset)> SpriteGeometry =
             new Dictionary<SpriteType, (int, int, int)>
             {
-                [SpriteType.Train] = (32, 32, -16),
                 [SpriteType.Helicopter] = (32, 32, -16),
                 [SpriteType.Airplane] = (48, 24, 0),
                 [SpriteType.Ship] = (48, 32, -16),
@@ -51,8 +50,9 @@ namespace Micropolis.Rules
         private DemandMessage? _lastDemand;
         // The events since the last messages, in the order the simulation sent them: one overlay message per layer
         private List<StateMessage> _events = new List<StateMessage>();
-        // The trips offered since the last messages, in the order they were offered
-        private List<Trip> _trips = new List<Trip>();
+        // The runs by road and the rides offered since the last messages, each in the order they were offered
+        private List<Trip> _runs = new List<Trip>();
+        private List<Trip> _rides = new List<Trip>();
 
         /// <summary>
         /// Takes the city as it stands as sent, so the first new messages are what changes from here: a player who
@@ -77,8 +77,9 @@ namespace Micropolis.Rules
             });
             events.AddEventListener(RulesEvents.CityStatusUpdated, status => _status = _lastStatus = status);
             events.AddEventListener(RulesEvents.ValvesUpdated, demand => _demand = _lastDemand = demand);
-            // The trips the client draws as cars, which no player who joins is sent
-            city.Trips.Offered += trip => _trips.Add(trip);
+            // The trips the client draws as cars and trains, which no player who joins is sent
+            city.Trips.RunOffered += run => _runs.Add(run);
+            city.Trips.RideOffered += ride => _rides.Add(ride);
         }
 
         [MemberNotNull(nameof(_tiles))]
@@ -154,10 +155,11 @@ namespace Micropolis.Rules
             messages.AddRange(_events);
             _events = new List<StateMessage>();
 
-            if (_trips.Count > 0)
+            if (_runs.Count > 0 || _rides.Count > 0)
             {
-                messages.Add(new TripsMessage(_trips));
-                _trips = new List<Trip>();
+                messages.Add(new TripsMessage(_runs, _rides));
+                _runs = new List<Trip>();
+                _rides = new List<Trip>();
             }
 
             return messages;

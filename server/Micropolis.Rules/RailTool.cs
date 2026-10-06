@@ -43,22 +43,27 @@ namespace Micropolis.Rules
         }
 
         // A tunnel, when a rail leads into the water from the right, the left, below or above, in that order of
-        // looking. The tests differ from side to side as the original's do.
+        // looking. The tests differ from side to side as the original's do; a station, which the original never had,
+        // leads into the water along its track.
         protected override bool LayOverWater(int x, int y)
         {
             if (NeighbourIs(x + 1, y, tile => tile == TileValues.RAILHPOWERV || tile == TileValues.HRAIL ||
-                                              (tile >= TileValues.LHRAIL && tile <= TileValues.HRAILROAD)) ||
+                                              (tile >= TileValues.LHRAIL && tile <= TileValues.HRAILROAD) ||
+                                              tile == TileValues.HRAILSTATION) ||
                 NeighbourIs(x - 1, y, tile => tile == TileValues.RAILHPOWERV || tile == TileValues.HRAIL ||
-                                              (tile > TileValues.VRAIL && tile < TileValues.VRAILROAD)))
+                                              (tile > TileValues.VRAIL && tile < TileValues.VRAILROAD) ||
+                                              tile == TileValues.HRAILSTATION))
             {
                 WorldEffects.SetTile(x, y, TileValues.HRAIL, TileFlags.BULLBIT);
                 return true;
             }
 
             if (NeighbourIs(x, y + 1, tile => tile == TileValues.RAILVPOWERH || tile == TileValues.VRAILROAD ||
-                                              (tile > TileValues.HRAIL && tile < TileValues.HRAILROAD)) ||
+                                              (tile > TileValues.HRAIL && tile < TileValues.HRAILROAD) ||
+                                              tile == TileValues.VRAILSTATION) ||
                 NeighbourIs(x, y - 1, tile => tile == TileValues.RAILVPOWERH || tile == TileValues.VRAILROAD ||
-                                              (tile > TileValues.HRAIL && tile < TileValues.HRAILROAD)))
+                                              (tile > TileValues.HRAIL && tile < TileValues.HRAILROAD) ||
+                                              tile == TileValues.VRAILSTATION))
             {
                 WorldEffects.SetTile(x, y, TileValues.VRAIL, TileFlags.BULLBIT);
                 return true;

@@ -35,7 +35,6 @@ namespace Micropolis.Rules.Tests
 
         // Each sprite type's crash, by its message, which no golden holds for every type
         [TestMethod]
-        [DataRow(SpriteType.Train, Messages.TRAIN_CRASHED)]
         [DataRow(SpriteType.Helicopter, Messages.HELICOPTER_CRASHED)]
         [DataRow(SpriteType.Airplane, Messages.PLANE_CRASHED)]
         [DataRow(SpriteType.Ship, Messages.SHIP_CRASHED)]

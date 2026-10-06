@@ -12,6 +12,7 @@
  *
  */
 
+using static Micropolis.Rules.Tests.ToolUse;
 using static Micropolis.Rules.TileValues;
 
 namespace Micropolis.Rules.Tests
@@ -45,22 +46,310 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEqual(direct, route);
         }
 
-        // From (23, 50) two ways as long reach (27, 50): north round row 48 on road, or south round row 52 on rail
+        // A road from the east perimeter to (23, 50), then track along row 50 to (28, 50), beside the destination: with
+        // no stations no one rides it; with one at each end, the trip rides from the first to the last
         [TestMethod]
-        public void Route_RailAndRoadAsLong_TakesTheRail()
+        [DataRow(false, TrafficResult.NoRouteFound)]
+        [DataRow(true, TrafficResult.RouteFound)]
+        public void Route_TrackToTheDestination_RiddenOnlyBetweenStations(bool stations, TrafficResult expected)
         {
             GameMap map = Map();
-            Roads(map, Row(50, 22, 23), Column(23, 48, 49), Row(48, 24, 27), Column(27, 49, 49), Row(50, 27, 28));
-            List<Position> rail = [new Position(23, 51), .. Row(52, 23, 27), new Position(27, 51)];
-            foreach (Position tile in rail)
+            Roads(map, Row(50, 22, 23));
+            Track(map, Row(50, 24, 28));
+            if (stations)
             {
-                map.SetTile(tile.X, tile.Y, HRAIL, 0);
+                Station(map, 24, 50);
+                Station(map, 28, 50);
             }
             Zone(map, 30, 50, COMCLR);
 
-            (_, List<Position> route) = Route(map, TrafficDestination.Commercial);
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
 
-            CollectionAssert.AreEqual(new List<Position> { East, new Position(23, 50) }.Concat(rail).Concat(Row(50, 27, 28)).ToList(), route);
+            Assert.AreEqual(expected, result);
+            CollectionAssert.AreEqual(stations ? Going((TravelMode.Road, Row(50, 22, 23)), (TravelMode.Rail, Row(50, 24, 28))) : [], route);
+        }
+
+        // Track on the perimeter with no road and no station is no way out of the zone
+        [TestMethod]
+        public void Route_OnlyTrackOnThePerimeter_FindsNoRoad()
+        {
+            GameMap map = Map();
+            Track(map, Row(50, 22, 28));
+            Zone(map, 30, 50, COMCLR);
+
+            Assert.AreEqual(TrafficResult.NoRoadFound, Route(map, TrafficDestination.Commercial).Result);
+        }
+
+        // From the east perimeter by road to a station at (24, 50), along row 50 to a station at (34, 50), and by road
+        // to (35, 50), beside the destination, costs 30 on empty rail; by road round row 47 costs 72. With every tile of
+        // the line loaded one short of full, the ride costs 74, and the trip goes by road; with one tile full, the line
+        // takes no ride at all.
+        [TestMethod]
+        [DataRow(0, false, false)]
+        [DataRow(Traffic.MaxRailLoad - 1, false, true)]
+        [DataRow(Traffic.MaxRailLoad, true, true)]
+        public void Route_LineLoaded_GoesByRoadOnceTheRideCostsMore(int load, bool oneTile, bool byRoad)
+        {
+            GameMap map = Map();
+            List<Position> road = [new Position(21, 48), new Position(21, 47), .. Row(47, 22, 37), new Position(37, 48)];
+            Roads(map, Row(50, 22, 23), [new Position(35, 50)], road);
+            Station(map, 24, 50);
+            Track(map, Row(50, 25, 33));
+            Station(map, 34, 50);
+            Zone(map, 37, 50, COMCLR);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            foreach (Position tile in oneTile ? [new Position(29, 50)] : Row(50, 24, 34))
+            {
+                blockMaps.RailLoadMap.WorldSet(tile.X, tile.Y, load);
+            }
+
+            (_, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial, blockMaps);
+
+            CollectionAssert.AreEqual(
+                byRoad
+                    ? Going((TravelMode.Road, road))
+                    : Going((TravelMode.Road, Row(50, 22, 23)), (TravelMode.Rail, Row(50, 24, 34)), (TravelMode.Road, [new Position(35, 50)])),
+                route);
+        }
+
+        // No road at the zone: from the east perimeter a walk along row 50 reaches a station at (25, 50) on its fourth
+        // tile, the three before it walked, but one at (26, 50) only after a fourth walked tile
+        [TestMethod]
+        [DataRow(25, TrafficResult.RouteFound)]
+        [DataRow(26, TrafficResult.NoRoadFound)]
+        public void Route_StationAWalkFromTheZone_WalkedToWithinThreeTiles(int stationX, TrafficResult expected)
+        {
+            GameMap map = Map();
+            Station(map, stationX, 50);
+            Track(map, Row(50, stationX + 1, 33));
+            Station(map, 34, 50);
+            Roads(map, [new Position(35, 50)]);
+            Zone(map, 37, 50, COMCLR);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            Assert.AreEqual(expected, result);
+            CollectionAssert.AreEqual(
+                expected == TrafficResult.RouteFound
+                    ? Going((TravelMode.Walk, Row(50, 22, 24)), (TravelMode.Rail, Row(50, 25, 34)), (TravelMode.Road, [new Position(35, 50)]))
+                    : [],
+                route);
+        }
+
+        // A ride from (24, 50) gets off at (30, 50) and walks along row 50 to beside the destination: three tiles to one
+        // centred at (35, 50), but four to one at (36, 50)
+        [TestMethod]
+        [DataRow(35, TrafficResult.RouteFound)]
+        [DataRow(36, TrafficResult.NoRouteFound)]
+        public void Route_DestinationAWalkFromAStation_WalkedToWithinThreeTiles(int destinationX, TrafficResult expected)
+        {
+            GameMap map = Map();
+            Roads(map, Row(50, 22, 23));
+            Station(map, 24, 50);
+            Track(map, Row(50, 25, 29));
+            Station(map, 30, 50);
+            Zone(map, destinationX, 50, COMCLR);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            Assert.AreEqual(expected, result);
+            CollectionAssert.AreEqual(
+                expected == TrafficResult.RouteFound
+                    ? Going((TravelMode.Road, Row(50, 22, 23)), (TravelMode.Rail, Row(50, 24, 30)), (TravelMode.Walk, Row(50, 31, 33)))
+                    : [],
+                route);
+        }
+
+        // A station two tiles east of the perimeter: a river down column 23 leaves no walk to it
+        [TestMethod]
+        [DataRow(false, TrafficResult.RouteFound)]
+        [DataRow(true, TrafficResult.NoRoadFound)]
+        public void Route_WaterBetweenTheZoneAndAStation_WalkedOverNot(bool river, TrafficResult expected)
+        {
+            GameMap map = Map();
+            if (river)
+            {
+                foreach (Position tile in Column(23, 40, 60))
+                {
+                    map.SetTile(tile.X, tile.Y, RIVER, 0);
+                }
+            }
+            Station(map, 24, 50);
+            Track(map, Row(50, 25, 29));
+            Station(map, 30, 50);
+            Zone(map, 32, 50, COMCLR);
+
+            Assert.AreEqual(expected, Route(map, TrafficDestination.Commercial).Result);
+        }
+
+        // A station alone in a road is no way through it: a route gets on there, but rides nowhere and gets off only
+        // after a ride
+        [TestMethod]
+        [DataRow(false, TrafficResult.RouteFound)]
+        [DataRow(true, TrafficResult.NoRouteFound)]
+        public void Route_StationAloneInTheRoad_IsNoWayThrough(bool station, TrafficResult expected)
+        {
+            GameMap map = Map();
+            Roads(map, Row(50, 22, 28));
+            if (station)
+            {
+                Station(map, 24, 50);
+            }
+            Zone(map, 30, 50, COMCLR);
+
+            Assert.AreEqual(expected, Route(map, TrafficDestination.Commercial).Result);
+        }
+
+        // From a road at (23, 50) a station at (24, 50), with track north of it up column 24 to a station at (24, 44),
+        // beside the destination: a ride leaves a station only along its track, so only a station whose track runs north
+        // and south takes it there
+        [TestMethod]
+        [DataRow(false, TrafficResult.RouteFound)]
+        [DataRow(true, TrafficResult.NoRouteFound)]
+        public void Route_TrackLeavingAStationSideways_IsRiddenNot(bool across, TrafficResult expected)
+        {
+            GameMap map = Map();
+            Roads(map, Row(50, 22, 23));
+            Station(map, 24, 50, across);
+            Track(map, Column(24, 45, 49));
+            Station(map, 24, 44, across: false);
+            Zone(map, 24, 42, COMCLR);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            Assert.AreEqual(expected, result);
+            CollectionAssert.AreEqual(
+                across ? [] : Going((TravelMode.Road, Row(50, 22, 23)), (TravelMode.Rail, Column(24, 44, 50).AsEnumerable().Reverse().ToList())),
+                route);
+        }
+
+        // A ride from (24, 50) to beside the destination at (30, 50) runs through the station at (27, 50) without
+        // getting off
+        [TestMethod]
+        public void Route_StationOnTheWay_RiddenThrough()
+        {
+            GameMap map = Map();
+            Roads(map, Row(50, 22, 23));
+            Station(map, 24, 50);
+            Track(map, Row(50, 25, 29));
+            Station(map, 27, 50);
+            Station(map, 30, 50);
+            Zone(map, 32, 50, COMCLR);
+
+            CollectionAssert.AreEqual(Going((TravelMode.Road, Row(50, 22, 23)), (TravelMode.Rail, Row(50, 24, 30))),
+                                      Steps(map, TrafficDestination.Commercial).Route);
+        }
+
+        // No road at the zone: a station on the east perimeter at (22, 50), or a walk of two tiles from it at (24, 50),
+        // and track along row 50 to a station at (28, 50), beside the destination. Empty, the trip rides from it; full,
+        // it takes no ride, and the zone has a way out all the same, as a zone on a jammed road has, but nowhere to go.
+        [TestMethod]
+        [DataRow(22, false, TrafficResult.RouteFound)]
+        [DataRow(22, true, TrafficResult.NoRouteFound)]
+        [DataRow(24, false, TrafficResult.RouteFound)]
+        [DataRow(24, true, TrafficResult.NoRouteFound)]
+        public void Route_StationFullWhereTheTripGetsOn_IsAWayOutThatTakesNoRide(int stationX, bool full, TrafficResult expected)
+        {
+            GameMap map = Map();
+            Station(map, stationX, 50);
+            Track(map, Row(50, stationX + 1, 27));
+            Station(map, 28, 50);
+            Zone(map, 30, 50, COMCLR);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            if (full)
+            {
+                blockMaps.RailLoadMap.WorldSet(stationX, 50, Traffic.MaxRailLoad);
+            }
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial, blockMaps);
+
+            Assert.AreEqual(expected, result);
+            CollectionAssert.AreEqual(
+                full ? [] : Going((TravelMode.Walk, Row(50, 22, stationX - 1)), (TravelMode.Rail, Row(50, stationX, 28))),
+                route);
+        }
+
+        // A station at (26, 50), past a walk from the zone, whose track runs east to a station at (32, 50): a road from
+        // the north perimeter along row 48 comes down into its north side, and from the north side of the other a road
+        // goes on down column 32 to beside the destination. A route gets on and off at a station's side.
+        [TestMethod]
+        public void Route_RoadsAtTheStationsSides_GetsOnAndOffThere()
+        {
+            GameMap map = Map();
+            List<Position> toStation = [.. Row(48, 21, 26), new Position(26, 49)];
+            List<Position> fromStation = Column(32, 51, 52);
+            Roads(map, toStation, fromStation);
+            Station(map, 26, 50);
+            Track(map, Row(50, 27, 31));
+            Station(map, 32, 50);
+            Zone(map, 32, 54, COMCLR);
+
+            CollectionAssert.AreEqual(
+                Going((TravelMode.Road, toStation), (TravelMode.Rail, Row(50, 26, 32)), (TravelMode.Road, fromStation)),
+                Steps(map, TrafficDestination.Commercial).Route);
+        }
+
+        // Two lines along row 50, from a station at (24, 50) to one at (27, 50), and from one at (29, 50) to one at
+        // (32, 50), beside the destination: a road at (28, 50) between them takes the trip from the one to the other
+        [TestMethod]
+        public void Route_TwoLinesJoinedByARoad_RidesBothWithTheRoadBetween()
+        {
+            GameMap map = Map();
+            Roads(map, Row(50, 22, 23), [new Position(28, 50)]);
+            Station(map, 24, 50);
+            Track(map, Row(50, 25, 26));
+            Station(map, 27, 50);
+            Station(map, 29, 50);
+            Track(map, Row(50, 30, 31));
+            Station(map, 32, 50);
+            Zone(map, 34, 50, COMCLR);
+
+            CollectionAssert.AreEqual(
+                Going((TravelMode.Road, Row(50, 22, 23)), (TravelMode.Rail, Row(50, 24, 27)), (TravelMode.Road, [new Position(28, 50)]),
+                      (TravelMode.Rail, Row(50, 29, 32))),
+                Steps(map, TrafficDestination.Commercial).Route);
+        }
+
+        // From a station at (24, 50) track runs east along row 50 to (29, 50), and beside it, along row 51, track runs
+        // from (25, 51) to a station at (30, 51), beside the destination. Each row's straight track leaves by its east
+        // and west sides alone, so no ride crosses from one to the other; with the end of row 50 a curve down into a
+        // junction on row 51, the ride follows it round.
+        [TestMethod]
+        [DataRow(false, TrafficResult.NoRouteFound)]
+        [DataRow(true, TrafficResult.RouteFound)]
+        public void Route_LinesSideBySide_RiddenFromOneToTheOtherOnlyWhereTheyJoin(bool joined, TrafficResult expected)
+        {
+            GameMap map = Map();
+            Roads(map, Row(50, 22, 23));
+            Station(map, 24, 50);
+            Track(map, Row(50, 25, 29), Row(51, 25, 29));
+            Station(map, 30, 51);
+            if (joined)
+            {
+                map.SetTile(29, 50, LVRAIL4, TileFlags.BLBNBIT);
+                map.SetTile(29, 51, LVRAIL6, TileFlags.BLBNBIT);
+            }
+            Zone(map, 32, 51, COMCLR);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            Assert.AreEqual(expected, result);
+            CollectionAssert.AreEqual(
+                joined ? Going((TravelMode.Road, Row(50, 22, 23)), (TravelMode.Rail, [.. Row(50, 24, 29), .. Row(51, 29, 30)])) : [],
+                route);
+        }
+
+        // A road across track at a level crossing goes on by road over it
+        [TestMethod]
+        public void Route_RoadOverALevelCrossing_GoesByRoadOverIt()
+        {
+            GameMap map = Map();
+            Roads(map, Row(50, 22, 28));
+            map.SetTile(25, 50, VRAILROAD, TileFlags.BLBNBIT);
+            Track(map, Column(25, 45, 49), Column(25, 51, 55));
+            Zone(map, 30, 50, COMCLR);
+
+            CollectionAssert.AreEqual(Going((TravelMode.Road, Row(50, 22, 28))), Steps(map, TrafficDestination.Commercial).Route);
         }
 
         // Row 50 east to the destination's west side is seven tiles; from the north-east perimeter a road nine tiles long
@@ -359,26 +648,47 @@ namespace Micropolis.Rules.Tests
             }
         }
 
-        // The tiles of a row from one column to another, west to east
-        private static List<Position> Row(int y, int fromX, int toX)
+        // Straight rail along each way, a row or a column: east and west along a row, and north and south down a column
+        private static void Track(GameMap map, params List<Position>[] ways)
         {
-            return Enumerable.Range(fromX, toX - fromX + 1).Select(x => new Position(x, y)).ToList();
+            foreach (List<Position> way in ways)
+            {
+                int straight = way.All(tile => tile.Y == way[0].Y) ? LHRAIL : LVRAIL;
+
+                foreach (Position tile in way)
+                {
+                    map.SetTile(tile.X, tile.Y, straight, TileFlags.BLBNBIT);
+                }
+            }
         }
 
-        // The tiles of a column from one row to another, north to south
-        private static List<Position> Column(int x, int fromY, int toY)
+        private static void Station(GameMap map, int x, int y, bool across = true)
         {
-            return Enumerable.Range(fromY, toY - fromY + 1).Select(y => new Position(x, y)).ToList();
+            map.SetTile(x, y, across ? HRAILSTATION : VRAILSTATION, TileFlags.BLBNBIT);
+        }
+
+        // The tiles each way in turn, every one of them the way given
+        private static List<RouteStep> Going(params (TravelMode Mode, List<Position> Tiles)[] legs)
+        {
+            return legs.SelectMany(leg => leg.Tiles.Select(tile => new RouteStep(tile, leg.Mode))).ToList();
         }
 
         private static (TrafficResult Result, List<Position> Route) Route(GameMap map, TrafficDestination destination,
                                                                           BlockMaps? blockMaps = null, uint seed = 0,
                                                                           TripRouter? router = null)
         {
-            List<Position> route = new List<Position>();
+            (TrafficResult result, List<RouteStep> steps) = Steps(map, destination, blockMaps, seed, router);
+
+            return (result, steps.Select(step => step.Tile).ToList());
+        }
+
+        private static (TrafficResult Result, List<RouteStep> Route) Steps(GameMap map, TrafficDestination destination,
+                                                                           BlockMaps? blockMaps = null, uint seed = 0,
+                                                                           TripRouter? router = null)
+        {
+            List<RouteStep> route = new List<RouteStep>();
             TrafficResult result = (router ?? new TripRouter(map)).Route(
-                Origin, destination, (blockMaps ?? new BlockMaps(map.Width, map.Height)).TrafficDensityMap,
-                RandomStream.FromSeed(seed), route);
+                Origin, destination, blockMaps ?? new BlockMaps(map.Width, map.Height), RandomStream.FromSeed(seed), route);
 
             return (result, route);
         }

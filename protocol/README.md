@@ -174,7 +174,8 @@ each query as it receives it (`Queries` in `server/Micropolis.Rules`) and answer
   keeps but `housingAppeal`, which it works out from two as it answers: each block's location score for homes, as the
   residential rule scores a zone whose trip found a route, its land value less its pollution, from -3000 to 3000:
   -3000 where the block is too polluted for a home to grow at all, and 0, which no location score is, on clean
-  undeveloped land, which has no land value to score.
+  undeveloped land, which has no land value to score. The rail load, `railLoad`, is a block a tile, so lines side by
+  side show apart.
 - `tileReport` names a tile by `x` and `y`, which must be on the map, and is answered with what the query tool reports
   about it, as raw values: `x` and `y`; `tile`, the tile's value without its flags; `category`, what the query tool
   calls the tile, one of the codes `src/protocol.ts` lists; `populationDensity`, `landValue`, `crime`, `pollution`
@@ -258,7 +259,8 @@ sent no trips offered before.
 - `tiles` lists the tiles whose raw value changed since the last `map` or `tiles` message, in `changes`, each
   `{"x", "y", "value"}`.
 - `sprites` lists every sprite on the map, in `sprites`, each `{"type", "frame", "x", "y", "width"}`: its type, which
-  is its row of the sprite sheet, and its frame, its column, both counted from 1; and the square it is drawn in,
+  is its row of the sprite sheet, and its frame, its column, both counted from 1, the first row the trains', which the
+  client draws from rides and no city sends; and the square it is drawn in,
   `width` map pixels a side with its top-left corner at map pixel (`x`, `y`). A map pixel is a sixteenth of a tile.
 - `date` is the city's date: `month`, from 0, and `year`.
 - `population` is the city's `population` as the last monthly growth check counted it. The `evaluation` record's
@@ -281,14 +283,18 @@ sent no trips offered before.
 - `budgetReviewDue` says that the year end paid the budget with values the player should review: auto-budget is off,
   or couldn't cover the services. The city steps on: nothing waits for the review.
 - `overlayUpdated` names a `layer` the simulation has recomputed, which an overlay showing it asks for again.
-- `trips` lists, in `routes`, the trips the city offered since the batch before, in the order it offered them, for the
-  client to draw as cars. The traffic rule finds a zone a route, from a tile of the zone's perimeter to the tile beside
-  its destination, which may run on rail. A trip is a run of it on road alone (road, a road bridge, or road crossing
-  rail or a power line), of two tiles or more and as long as the road goes, written `[x, y, "steps"]`: the tile it
-  starts on, then a letter for each step to the next tile of the run, `N` (up the map, to `y - 1`), `E` (`x + 1`), `S`
-  (`y + 1`) or `W` (`x - 1`), such as `[9, 8, "NNE"]` for (9, 8), (9, 7), (9, 6) and (10, 6). The city offers each run
-  of a route as a trip of its own, in the route's order, as it routes it. A batch with none offered carries no
-  `trips`. Trips are a picture of what the rules do: the rules never read them, and no save or log holds them.
+- `trips` lists the trips the city offered since the batch before: in `routes`, the runs by road, for the client to
+  draw as cars, and in `rides`, the rides by rail, for it to draw as trains, each in the order it offered them. The
+  traffic rule finds a zone a route, from a tile of the zone's perimeter to the tile beside its destination, which goes
+  by road, rides rail from a station to a station, and walks a few tiles to or from a station. A run by road is a run
+  of the route by road (road, a road bridge, or road crossing rail or a power line), of two tiles or more and as long
+  as the route goes by road; a ride is a run of it by rail, from the station it gets on at to the one it gets off at,
+  through any station between. Each is written `[x, y, "steps"]`: the tile it starts on, then a letter for each step to
+  the next tile of it, `N` (up the map, to `y - 1`), `E` (`x + 1`), `S` (`y + 1`) or `W` (`x - 1`), such as
+  `[9, 8, "NNE"]` for (9, 8), (9, 7), (9, 6) and (10, 6). The city offers each run and each ride of a route as one of
+  its own, in the route's order, as it routes it; where the route walks it offers nothing. A batch with none offered
+  carries no `trips`, and one with runs but no rides, or rides but no runs, carries the other list empty. Trips are a
+  picture of what the rules do: the rules never read them, and no save or log holds them.
 
 ## Examples
 

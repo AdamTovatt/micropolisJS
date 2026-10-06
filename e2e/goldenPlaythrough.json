@@ -1,14 +1,14 @@
 {
   "checkpoints": [
-    {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"96a4b76ad4670eee2c1ce9e573fbdaf3ce87a63802f7c0f2a05359078737b63e"},
-    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"b99042d9aae332e43ec58f77b9417190ec2ac78b85bc8d77ee0f3f09f0e8aaf7"},
-    {"stage":"Build while paused","step":5760,"commands":17,"hash":"6dfcfd9823256df9dde3639bbcf93feae140126f62b46583f72d92efc51dce63"},
-    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"1b418f84fc5536d2b68bbdb6ffcfceee588324ff66dcfd753af221476d7fda87"},
-    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"8a73745a140be55f4d898b9bd7ebeb98131bae3218cd70009cd72abe63116b32"},
-    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"7b40a51cdc06d64d0ff74dc8e1a5c268489c6cb0f2d98b13f649add64210cf51"},
-    {"stage":"A fire, and the fire department's response","step":11376,"commands":36,"hash":"d5108b8bf12260454712aa0e41df88a09833eba757a8bc8d6cb23fc777da2a04"},
-    {"stage":"Save, reload, and carry on","step":12528,"commands":36,"hash":"4b939e267228e1e899dcf8f9f733e9374a95ec1b9ac59bca5c06f9322af24c5e"},
-    {"stage":"Zoom in, build, and zoom out","step":12528,"commands":37,"hash":"bf914f1fa944760cf276f88619aa167f70bbebccc41db3de596c4896e60b2475"}
+    {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"9733bf2aeceba6677d3de9803bdace073188eb539c6c95ec8c9b45b8e15a1de9"},
+    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"9ce6808a7c62efd3e8fde05b5a3eb5708fcdde66efaf42cce12d476b15390d7d"},
+    {"stage":"Build while paused","step":5760,"commands":17,"hash":"42b234870212834d4630ec5b152a887344ec04e0057ad8266bc7bf28f7ae854d"},
+    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"4efaecf8d86695ce799e5445e3c7d1ae685475c51e878f472ba4401312c1686e"},
+    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"d659b4faa52eb4d1db98c1f4bc15f0f695092b6957f230db451082146ad21ba5"},
+    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"90f79103f164e2793016bb1d14dfff79efd15599e896907546e1e889a5356835"},
+    {"stage":"A fire, and the fire department's response","step":11376,"commands":36,"hash":"fe53dcceb462bf64fd0372eacc0f0b4b5845a5d30eab555e5689c61a0c86a54f"},
+    {"stage":"Save, reload, and carry on","step":12528,"commands":36,"hash":"c41edb25e4efef3e423a3298ff4d790f3876d2b86d694268790796003d093935"},
+    {"stage":"Zoom in, build, and zoom out","step":12528,"commands":37,"hash":"28d8fa381fb51959b7489c71f0983b0720c437743e2264e54d16de761da29639"}
   ],
   "log": {
     "formatVersion": 2,
@@ -54,12 +54,12 @@
       {"step":12528,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
     ],
     "checkpoints": [
-      {"step":0,"hash":"c8d63c5e8fd94165461a609bbed78358750ec2f55d396dab521ab34b830d6614"},
-      {"step":3600,"hash":"852c3fa84e1c2d6a1dbfce7497080dae268b9b4b60aab481d66bd7d89f44e413"},
-      {"step":7200,"hash":"d26696fb70106224fd5639155899c92a560ef1f1dc7eaaa84582c592704c081a"},
-      {"step":10800,"hash":"5cd02df92391a5e838f92573d966352007a28331cf1abfec311c57cec476cb25"},
-      {"step":11376,"hash":"d5108b8bf12260454712aa0e41df88a09833eba757a8bc8d6cb23fc777da2a04"},
-      {"step":12528,"hash":"bf914f1fa944760cf276f88619aa167f70bbebccc41db3de596c4896e60b2475"}
+      {"step":0,"hash":"b722e97ca75f1c18a2d951829e82415706db9bc7c2e53e9e5ede77cb8042cc87"},
+      {"step":3600,"hash":"5baadca8c66e334aa7261b543acc5dc84477f5fa1b14f6f842ac68048c09312d"},
+      {"step":7200,"hash":"7ae7299a7a2bacd46365fccc0e705ff9df111fe9412a0690d4781b48953fadde"},
+      {"step":10800,"hash":"93c268f5f668ad4b8ebeeaac2ab2d1df761bedb26d45462157c7a96a07c809ed"},
+      {"step":11376,"hash":"fe53dcceb462bf64fd0372eacc0f0b4b5845a5d30eab555e5689c61a0c86a54f"},
+      {"step":12528,"hash":"28d8fa381fb51959b7489c71f0983b0720c437743e2264e54d16de761da29639"}
     ]
   }
 }

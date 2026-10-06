@@ -39,8 +39,7 @@ namespace Micropolis.Rules.Tests
         public static TrafficResult Trip(GameMap map, BlockMaps blockMaps, int x, int y, TrafficDestination destination,
                                          RandomStream random)
         {
-            return new TripRouter(map).Route(new Position(x, y), destination, blockMaps.TrafficDensityMap, random,
-                                             new List<Position>());
+            return new TripRouter(map).Route(new Position(x, y), destination, blockMaps, random, new List<RouteStep>());
         }
     }
 }

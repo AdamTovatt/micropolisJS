@@ -252,14 +252,6 @@ namespace Micropolis.Rules
             }
         }
 
-        public void GenerateTrain(Census census, int x, int y)
-        {
-            if (census.TotalPop > 20 && GetSprite(SpriteType.Train) is null && Random.GetRandom(25) == 0)
-            {
-                MakeSprite(SpriteType.Train, SpriteUtils.WorldToPix(x) - 39, SpriteUtils.WorldToPix(y) + 6);
-            }
-        }
-
         /// <summary>
         /// A ship bound for the port centred at (x, y), if it is one a ship sails to, from the edge tile nearest it by
         /// path length; none when no edge reaches it. A rule change from the original, which sends a ship from the
@@ -364,14 +356,13 @@ namespace Micropolis.Rules
             }
         }
 
-        // A monster or a tornado blows up the aircraft, ships and trains it touches
+        // A monster or a tornado blows up the aircraft and ships it touches
         internal void ExplodeVulnerableSprites(Sprite sprite)
         {
             foreach (Sprite s in _spriteList.ToList())
             {
                 if (s.Frame != 0 &&
-                    (s.Type == SpriteType.Airplane || s.Type == SpriteType.Helicopter || s.Type == SpriteType.Ship ||
-                     s.Type == SpriteType.Train) &&
+                    (s.Type == SpriteType.Airplane || s.Type == SpriteType.Helicopter || s.Type == SpriteType.Ship) &&
                     SpriteUtils.CheckSpriteCollision(sprite, s))
                 {
                     ExplodeSprite(s);
@@ -425,10 +416,6 @@ namespace Micropolis.Rules
 
             switch (sprite.Type)
             {
-                case SpriteType.Train:
-                    TrainSprite.Init(sprite);
-                    break;
-
                 case SpriteType.Helicopter:
                     CopterSprite.Init(sprite);
                     break;
@@ -459,10 +446,6 @@ namespace Micropolis.Rules
         {
             switch (sprite.Type)
             {
-                case SpriteType.Train:
-                    TrainSprite.Move(this, sprite);
-                    break;
-
                 case SpriteType.Helicopter:
                     CopterSprite.Move(this, sprite, blockMaps);
                     break;

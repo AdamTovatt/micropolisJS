@@ -17,11 +17,12 @@ using System.Text.Json.Nodes;
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// A sprite's kind, as the original's <c>SPRITE_TRAIN</c> and its siblings number them.
+    /// A sprite's kind, as the original's <c>SPRITE_HELICOPTER</c> and its siblings number them. The original's first,
+    /// <c>SPRITE_TRAIN</c>, 1, is no sprite of the rules': the client draws a train for each ride the traffic rule routes
+    /// (<see cref="Trips"/>), from the sprite sheet's first row.
     /// </summary>
     public enum SpriteType
     {
-        Train = 1,
         Helicopter = 2,
         Airplane = 3,
         Ship = 4,
@@ -85,7 +86,7 @@ namespace Micropolis.Rules
         public long Flag { get; internal set; }
 
         /// <summary>
-        /// Whether a monster's hot spot has been on land, a tile <see cref="SpriteUtils.IsWater"/> doesn't take as water,
+        /// Whether a monster's hot spot has been on land, a tile <see cref="TileUtils.IsWater"/> doesn't take as water,
         /// since it rose, or it was saved before the game kept this. Every other type leaves it false.
         /// </summary>
         public bool ReachedLand { get; internal set; }
@@ -121,7 +122,6 @@ namespace Micropolis.Rules
         {
             return type switch
             {
-                SpriteType.Train => new SpriteTraits(40, -8, RulesEvents.TrainCrashed, 5),
                 SpriteType.Helicopter => new SpriteTraits(40, -8, RulesEvents.HelicopterCrashed, 8),
                 SpriteType.Airplane => new SpriteTraits(48, 16, RulesEvents.PlaneCrashed, 11),
                 SpriteType.Ship => new SpriteTraits(48, 0, RulesEvents.ShipCrashed, 8),
@@ -157,9 +157,8 @@ namespace Micropolis.Rules
             };
         }
 
-        // The frame, 0 for a sprite that died, and a train's direction index the tables its moves read, so a value
-        // outside them is refused here rather than failing the step that moves the sprite. Only a monster reaches land,
-        // only a ship has a mission, whose port is a tile of the map, and only a plane or a helicopter its flight.
+        // The frame is 0 for a sprite that died, or one of its type's. Only a monster reaches land, only a ship has a
+        // mission, whose port is a tile of the map, and only a plane or a helicopter its flight.
         internal static Sprite Load(SavedObject data, GameMap map)
         {
             SpriteType type = data.ReadEnum<SpriteType>("type");
@@ -175,7 +174,7 @@ namespace Micropolis.Rules
                 DestY = data.ReadSafeInteger("destY"),
                 Count = data.ReadSafeInteger("count"),
                 SoundCount = data.ReadSafeInteger("soundCount"),
-                Dir = type == SpriteType.Train ? data.ReadInt("dir", 0, TrainSprite.CantMove) : data.ReadSafeInteger("dir"),
+                Dir = data.ReadSafeInteger("dir"),
                 NewDir = data.ReadSafeInteger("newDir"),
                 Step = data.ReadSafeInteger("step"),
                 Flag = data.ReadSafeInteger("flag"),

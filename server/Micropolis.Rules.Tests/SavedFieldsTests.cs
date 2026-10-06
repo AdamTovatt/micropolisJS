@@ -30,7 +30,8 @@ namespace Micropolis.Rules.Tests
         private const string Listeners = "its event listeners, which the simulation attaches as it builds the city";
         private const string BlockMapShape = "given by the BlockMaps constructor for the map's key and the game map's size";
 
-        private static readonly Simulation City = FixtureCities.City("town", "run");
+        // A run that ends with a plane in flight, so a sprite's entry has fields to check
+        private static readonly Simulation City = FixtureCities.City("underfunded", "run");
 
         private static readonly JsonObject Save = City.Save();
 
@@ -117,7 +118,7 @@ namespace Micropolis.Rules.Tests
         public void Fields_Sprite_AreSavedInItsEntry()
         {
             JsonArray list = Group("sprites")["list"]!.AsArray();
-            Assert.IsNotEmpty(list, "The town's run ends with no sprite to check.");
+            Assert.IsNotEmpty(list, "The underfunded town's run ends with no sprite to check.");
             JsonObject entry = list[0]!.AsObject();
 
             Assert.AreEqual("", string.Join(", ", Members(typeof(Sprite)).Where(member => !IsSaved(member, [entry]))));

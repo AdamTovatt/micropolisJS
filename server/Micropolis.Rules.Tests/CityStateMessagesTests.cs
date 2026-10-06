@@ -47,10 +47,10 @@ namespace Micropolis.Rules.Tests
             Simulation city = City("suburb", "run");
             CityStateMessages messages = new CityStateMessages(city);
 
-            Sprite train = city.SpriteManager.MakeSprite(SpriteType.Train, 100, 200);
+            Sprite copter = city.SpriteManager.MakeSprite(SpriteType.Helicopter, 100, 200);
 
-            // A train is drawn 32 wide, 32 right of and 16 above its position
-            Assert.AreEqual($$"""{"type":"sprites","sprites":[{"type":{{(int)SpriteType.Train}},"frame":{{train.Frame}},"x":132,"y":184,"width":32}]}""",
+            // A helicopter is drawn 32 wide, 32 right of and 16 above its position
+            Assert.AreEqual($$"""{"type":"sprites","sprites":[{"type":{{(int)SpriteType.Helicopter}},"frame":{{copter.Frame}},"x":132,"y":184,"width":32}]}""",
                             Wire(messages.NewMessages()).Single());
         }
 
@@ -113,17 +113,35 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
-        public void NewMessages_TripsOffered_SendsThemOnceLastInTheOrderOffered()
+        public void NewMessages_TripsAndRidesOffered_SendsThemOnceLastInTheOrderOffered()
         {
             List<Trip> offered = new List<Trip>();
-            CityStateMessages messages = AfterSomeCycles(city => city.Trips.Offered += offered.Add);
+            List<Trip> ridden = new List<Trip>();
+            CityStateMessages messages = AfterSomeCycles(city =>
+            {
+                city.Trips.RunOffered += offered.Add;
+                city.Trips.RideOffered += ridden.Add;
+            }, "commuters");
 
             IReadOnlyList<StateMessage> sent = messages.NewMessages();
 
             Assert.IsGreaterThan(1, offered.Count, "Too few trips offered to check.");
-            Assert.AreEqual(ProtocolJson.Serialize(new TripsMessage(offered)), ProtocolJson.Serialize(sent[^1]));
+            Assert.IsGreaterThan(1, ridden.Count, "Too few rides offered to check.");
+            Assert.AreEqual(ProtocolJson.Serialize(new TripsMessage(offered, ridden)), ProtocolJson.Serialize(sent[^1]));
             Assert.AreEqual(1, Types(sent).Count(type => type == "trips"));
             CollectionAssert.DoesNotContain(Types(messages.NewMessages()), "trips");
+        }
+
+        // A batch whose trips are rides alone sends its runs by road as an empty list
+        [TestMethod]
+        public void NewMessages_RidesAloneOffered_SendsNoRoutes()
+        {
+            Simulation city = City("town", "built");
+            CityStateMessages messages = new CityStateMessages(city);
+
+            city.Trips.Routed([new RouteStep(new Position(25, 15), TravelMode.Rail), new RouteStep(new Position(26, 15), TravelMode.Rail)]);
+
+            Assert.AreEqual("{\"type\":\"trips\",\"routes\":[],\"rides\":[[25,15,\"E\"]]}", ProtocolJson.Serialize(messages.NewMessages()[^1]));
         }
 
         // A player who joins is sent no trips offered before
@@ -184,9 +202,9 @@ namespace Micropolis.Rules.Tests
         }
 
         // The messages of a city that has run eight whole cycles since they were built, watched first by what is given
-        private static CityStateMessages AfterSomeCycles(Action<Simulation>? watch = null)
+        private static CityStateMessages AfterSomeCycles(Action<Simulation>? watch = null, string fixture = "suburbFast")
         {
-            Simulation city = City("suburbFast", "run");
+            Simulation city = City(fixture, "run");
             CityStateMessages messages = new CityStateMessages(city);
             watch?.Invoke(city);
 

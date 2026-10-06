@@ -128,6 +128,36 @@ namespace Micropolis.Conformance
             BuildingAt(ToolName.Fire, 50, 19),
         ];
 
+        // The commuters' two districts, joined by rail alone: houses west and work east, each either side of a road
+        // along row 15, a line along the same row between the roads with a station at each end, and a coal plant at the
+        // east end. Its power reaches the commercial row beside it, the industry below by a wire at its corner, the
+        // houses south of the road by a wire along row 19, and those north of it by a wire down the west side.
+        private const int DistrictWidth = 3 * 5;
+        private const int HomesLeft = 10;
+        private const int WorkLeft = 45;
+        private const int WorkRight = WorkLeft + DistrictWidth - 1;
+        private const int DistrictsTop = 12;
+        private const int LineY = DistrictsTop + 3;
+        private const int WestStation = HomesLeft + DistrictWidth;
+        private const int EastStation = WorkLeft - 1;
+
+        private static readonly IReadOnlyList<Command> Commuting =
+        [
+            .. ZoneRow("RRRRR", HomesLeft, DistrictsTop),
+            LineOf(ToolName.Road, HomesLeft, LineY, WestStation - 1, LineY),
+            .. ZoneRow("RRRRR", HomesLeft, LineY + 1),
+            .. ZoneRow("CCCCC", WorkLeft, DistrictsTop),
+            LineOf(ToolName.Road, EastStation + 1, LineY, WorkRight, LineY),
+            .. ZoneRow("IIIII", WorkLeft, LineY + 1),
+            BuildingAt(ToolName.Coal, WorkRight + 2, DistrictsTop + 1),
+            LineOf(ToolName.Rail, WestStation, LineY, EastStation, LineY),
+            BuildingAt(ToolName.Station, WestStation, LineY),
+            BuildingAt(ToolName.Station, EastStation, LineY),
+            LineOf(ToolName.Wire, WorkRight + 1, LineY + 1, WorkRight + 1, LineY + 1),
+            LineOf(ToolName.Wire, WestStation - 3, LineY + 4, WorkLeft + 2, LineY + 4),
+            LineOf(ToolName.Wire, HomesLeft - 1, DistrictsTop + 1, HomesLeft - 1, LineY + 2),
+        ];
+
         private static readonly Fixture Suburb = Built(
             "suburb", "The town without its airport and railway, with a fire and a police station", [.. ZonedTown, .. Stations]);
 
@@ -151,6 +181,7 @@ namespace Micropolis.Conformance
         {
             Built("broke", "The town with three fire and three police stations, no tax, and too little in the bank for their upkeep",
                   [.. Town, .. Stations, .. MoreStations, new SetBudgetCommand(100, 100, 100, 0)]),
+            Built("commuters", "Houses and work in two districts joined by a railway alone, with a station at each end", Commuting),
             FromCommittedSave("disasters",
                               "The suburb with fires, a flood, radiation, explosions, a stadium, a fire station and bridges written in",
                               [new SetAutoBudgetCommand(false), new SetBudgetCommand(50, 50, 100, 7)]) with { ForDisasters = true },

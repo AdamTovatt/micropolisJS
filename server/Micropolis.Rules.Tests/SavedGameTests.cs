@@ -72,9 +72,9 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         [DataRow("an older version", "4", "The save's version is 4, older than version 5")]
         [DataRow("the first version", "1", "The save's version is 1, older than version 5")]
-        [DataRow("a newer version", "14", "The save's version is 14, newer than version 13")]
+        [DataRow("a newer version", "15", "The save's version is 15, newer than version 14")]
         [DataRow("a negative version", "-3", "The save's version is -3, older than version 5")]
-        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 13")]
+        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 14")]
         [DataRow("a version that is not whole", "5.5", "The save's version must be a whole number, not 5.5")]
         [DataRow("a version that is text", "\"5\"", "The save's version must be a whole number, not a string.")]
         [DataRow("a version that is a list", "[5]", "The save's version must be a whole number, not a list.")]
@@ -269,6 +269,42 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEquivalent(new[] { heading, 0L }, planeFrames.ToArray());
             Assert.AreEqual((0L, 0L), (plane.Frame, copter.Frame));
             Assert.IsLessThan(30, Math.Abs(copter.X - 300) + Math.Abs(copter.Y - 900));
+        }
+
+        // The version 13 sample holds a train and a plane: the wandering train goes, and the plane flies on
+        [TestMethod]
+        public void Load_Version13WithATrain_DropsTheTrainAlone()
+        {
+            JsonArray saved = JsonText.Parse(ConformanceFile.Read("saveVersions/version13.json"))!["sprites"]!["list"]!.AsArray();
+            Assert.AreEqual("1, 3", string.Join(", ", saved.Select(sprite => sprite!["type"]!.GetValue<double>())), "Setup: the sample's sprites.");
+
+            Simulation city = SavedGame.Load(ConformanceFile.Read("saveVersions/version13.json"), out _);
+
+            CollectionAssert.AreEqual(new[] { SpriteType.Airplane }, city.SpriteManager.SpriteList.Select(sprite => sprite.Type).ToArray());
+        }
+
+        // The step from version 13 starts the rail load empty, a value for each tile of the map
+        [TestMethod]
+        public void Load_Version13_StartsTheRailLoadEmpty()
+        {
+            Simulation city = SavedGame.Load(ConformanceFile.Read("saveVersions/version13.json"), out _);
+
+            int[] load = city.BlockMaps.RailLoadMap.CopyValues();
+            Assert.HasCount(city.Map.Width * city.Map.Height, load);
+            Assert.AreEqual(0, load.Count(value => value != 0));
+        }
+
+        // The step from version 13 leaves a map whose size its tiles don't fill with no rail load, for the load to refuse
+        // naming the map, and makes nothing the size the map claims
+        [TestMethod]
+        public void Load_Version13MapLargerThanItsTiles_IsRefusedNamingTheMap()
+        {
+            string text = Edited("version13.json", savedGame => savedGame["map"]!["width"] = 1_000_000);
+
+            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _));
+
+            Assert.AreEqual("map.tiles", exception.Path, exception.Message);
+            Assert.IsFalse(SavedGame.Migrate(text)["scannedState"]!["blockMaps"]!.AsObject().ContainsKey("railLoadMap"));
         }
 
         // The step from version 12 drops the distance getDir last found, which no sprite reads before measuring it

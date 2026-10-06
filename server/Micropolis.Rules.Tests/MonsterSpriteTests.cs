@@ -33,7 +33,7 @@ namespace Micropolis.Rules.Tests
             Simulation city = Simulation.NewCity(RiverSeed, Level.Easy, Speed.Slow);
             city.SpriteManager.MakeMonster();
             Sprite monster = city.SpriteManager.GetSprite(SpriteType.Monster)!;
-            Assert.IsTrue(SpriteUtils.IsWater(SpriteUtils.GetHotSpotTileValue(city.Map, monster)), "The monster rises with its hot spot on water.");
+            Assert.IsTrue(TileUtils.IsWater(SpriteUtils.GetHotSpotTileValue(city.Map, monster)), "The monster rises with its hot spot on water.");
             bool reachedLand = false;
             bool damagedAshore = false;
 
@@ -43,7 +43,7 @@ namespace Micropolis.Rules.Tests
                 city.Step();
 
                 int hotSpot = SpriteUtils.GetHotSpotTileValue(city.Map, monster);
-                if (monster.Frame != 0 && hotSpot != -1 && !SpriteUtils.IsWater(hotSpot))
+                if (monster.Frame != 0 && hotSpot != -1 && !TileUtils.IsWater(hotSpot))
                 {
                     reachedLand = true;
                     int x = (int)SpriteUtils.PixToWorld(monster.X + 48);

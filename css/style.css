@@ -116,6 +116,7 @@
   --hud-tool-industrial-fill: #ffff00;
   --hud-tool-road-fill: #000000;
   --hud-tool-rail-fill: #a52a2a;
+  --hud-tool-station-fill: #d2691e;
   --hud-tool-wire-fill: #f0e68c;
   --hud-tool-bulldozer-fill: #fa8072;
   --hud-tool-query-fill: #00ffff;
@@ -933,6 +934,10 @@ footer a, footer a:link, footer a:visited, footer a:hover {
 
 #railButton {
   border-top-color: var(--hud-tool-rail-fill);
+}
+
+#stationButton {
+  border-top-color: var(--hud-tool-station-fill);
 }
 
 #wireButton {

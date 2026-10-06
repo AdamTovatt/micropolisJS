@@ -78,8 +78,9 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// The traffic a zone generates: a trip from the zone to a destination of the kind it needs, routed over road and
-    /// rail (<see cref="TripRouter"/>), in place of the original's random drive along the roads in traffic.cpp.
+    /// The traffic a zone generates: a trip from the zone to a destination of the kind it needs, routed by road, by rail
+    /// between stations and on foot to and from them (<see cref="TripRouter"/>), in place of the original's random drive
+    /// along the roads in traffic.cpp.
     /// </summary>
     public sealed class Traffic
     {
@@ -95,6 +96,19 @@ namespace Micropolis.Rules
         internal const int TripTraffic = 5;
 
         /// <summary>
+        /// The most riders a tile of rail holds, at which it is full: decayed as the traffic density is, so from as high.
+        /// </summary>
+        public const int MaxRailLoad = MaxTrafficDensity;
+
+        /// <summary>
+        /// The riders one ride adds to each tile of rail it rides. Tuned so that a line between two busy districts fills:
+        /// at the heaviest a tile's load falls by 34 each cycle, so eight or nine rides a cycle hold a line full, two and
+        /// a half times the trips that jam a straight road's block, each adding <c>TripTraffic</c> to each of the road's
+        /// two tiles there.
+        /// </summary>
+        public const int RideLoad = 4;
+
+        /// <summary>
         /// What a slow route takes from its zone's growth score, which the original, with no slow trips, never took.
         /// </summary>
         public const int SlowTripPenalty = 300;
@@ -104,8 +118,8 @@ namespace Micropolis.Rules
         private readonly Trips _trips;
         private readonly TripRouter _router;
 
-        // Every tile of the trip's route, in order, from the perimeter tile it started on
-        private readonly List<Position> _route = new List<Position>();
+        // Every tile of the trip's route, in order, from the perimeter tile it started on, with how it went over each
+        private readonly List<RouteStep> _route = new List<RouteStep>();
 
         /// <param name="trips">Takes the route of each trip found, which nothing in the rules reads.</param>
         public Traffic(GameMap map, RandomStream random, Trips trips)
@@ -118,16 +132,18 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Routes a trip from the zone centred at (<paramref name="x"/>, <paramref name="y"/>) to a destination of the
-        /// kind given, and counts it in the traffic density map if it finds one.
+        /// kind given, and if it finds one, counts it in the traffic density map where it goes by road and in the rail
+        /// load where it rides. Where it walks it adds to neither.
         /// </summary>
         public TrafficResult MakeTraffic(int x, int y, BlockMaps blockMaps, TrafficDestination destination)
         {
-            TrafficResult result = _router.Route(new Position(x, y), destination, blockMaps.TrafficDensityMap, _random, _route);
+            TrafficResult result = _router.Route(new Position(x, y), destination, blockMaps, _random, _route);
 
             if (result is TrafficResult.RouteFound or TrafficResult.SlowRoute)
             {
                 _trips.Routed(_route);
                 AddToTrafficDensityMap(blockMaps);
+                AddToRailLoadMap(blockMaps);
             }
 
             return result;
@@ -142,24 +158,27 @@ namespace Micropolis.Rules
             return result == TrafficResult.SlowRoute ? SlowTripPenalty : 0;
         }
 
-        // Adds the trip's traffic to the block of every road tile of its route, in order. The original also pointed the
-        // traffic helicopter at a road whose block it took to the heaviest traffic, now and then; the helicopter chooses
-        // its traffic as it takes off (CopterSprite).
+        // Adds the trip's traffic to the block of every tile its route goes over by road, in order, a level crossing's
+        // included. The original also pointed the traffic helicopter at a road whose block it took to the heaviest
+        // traffic, now and then; the helicopter chooses its traffic as it takes off (CopterSprite).
         private void AddToTrafficDensityMap(BlockMaps blockMaps)
         {
-            BlockMap trafficDensityMap = blockMaps.TrafficDensityMap;
+            AddTo(blockMaps.TrafficDensityMap, TravelMode.Road, TripTraffic, MaxTrafficDensity);
+        }
 
-            foreach (Position pos in _route)
+        // Adds the ride's riders to every tile of rail its route rides, in order
+        private void AddToRailLoadMap(BlockMaps blockMaps)
+        {
+            AddTo(blockMaps.RailLoadMap, TravelMode.Rail, RideLoad, MaxRailLoad);
+        }
+
+        private void AddTo(BlockMap map, TravelMode mode, int added, int most)
+        {
+            foreach (RouteStep step in _route)
             {
-                int tileValue = _map.GetTileValue(pos.X, pos.Y);
-
-                if (tileValue >= TileValues.ROADBASE && tileValue < TileValues.POWERBASE)
+                if (step.Mode == mode)
                 {
-                    // Update traffic density.
-                    int traffic = trafficDensityMap.WorldGet(pos.X, pos.Y);
-                    traffic += TripTraffic;
-                    traffic = Math.Min(traffic, MaxTrafficDensity);
-                    trafficDensityMap.WorldSet(pos.X, pos.Y, traffic);
+                    map.WorldSet(step.Tile.X, step.Tile.Y, Math.Min(map.WorldGet(step.Tile.X, step.Tile.Y) + added, most));
                 }
             }
         }

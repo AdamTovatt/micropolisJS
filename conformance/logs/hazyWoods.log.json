@@ -9,7 +9,7 @@
     {"step":0,"player":"local","command":{"type":"tool","tool":"coal","path":[{"x":48,"y":13}],"autoBulldoze":true}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"32ed745c7ba80b2609e897b3bf4b19c98df5d91a790652db740d39d5a42ff466"},
-    {"step":6912,"hash":"6c656ba0636d5566e38d05f89a8b5e7de3faa05e7b9db88bf969a9020e42dd9b"}
+    {"step":0,"hash":"e3c813c53100751b45d0d49149a234ba62c9c86ce16dba9dba40202a7764032d"},
+    {"step":6912,"hash":"97049568469c5becfc7929dc3282cbf9532f011c9b28585282c0125251fbfb16"}
   ]
 }

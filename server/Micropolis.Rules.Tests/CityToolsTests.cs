@@ -12,6 +12,8 @@
  *
  */
 
+using static Micropolis.Rules.Tests.ToolUse;
+
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
@@ -173,13 +175,6 @@ namespace Micropolis.Rules.Tests
 
             Assert.AreEqual(Outcome.Ok, Apply(CityTools.Create(map)[ToolName.Residential], x, y, false));
             Assert.AreEqual(TileValues.FREEZ, map.GetTileValue(x, y));
-        }
-
-        private static Outcome Apply(CityTool tool, int x, int y, bool autoBulldoze, Budget? budget = null)
-        {
-            tool.DoTool(x, y, RandomStream.SimulationStream(0), autoBulldoze);
-            tool.ModifyIfEnoughFunding(budget ?? new Budget { TotalFunds = 20000 });
-            return tool.Result;
         }
     }
 }

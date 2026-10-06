@@ -59,24 +59,52 @@ namespace Micropolis.Rules.Tests
             }
         }
 
-        // Four tiles north from the perimeter, road, road, rail and road, to beside a destination: the trip's traffic
-        // reaches the block of every road tile, and none for the rail. (9, 8) is alone in its block, (9, 7) shares one
-        // with the rail at (9, 6), and (9, 5) is alone in its block too.
+        // North from the perimeter by road over (9, 8) and a level crossing at (9, 7), riding from a station at (9, 6)
+        // through a level crossing at (9, 4) to a station at (9, 3), then walking east over (10, 3) and (11, 3) to beside
+        // a destination centred at (13, 3). The trip's traffic reaches the block of each tile it drives, the crossing
+        // it drives over included, and its riders each tile it rides, the crossing it rides through included; where it
+        // walks it adds neither. (9, 7) shares its block with the station at (9, 6), and (9, 4) with (9, 5).
         [TestMethod]
-        public void MakeTraffic_RouteFound_AddsTheTripsTrafficForEachRoadTile()
+        public void MakeTraffic_RouteByRoadRailAndOnFoot_AddsTrafficWhereItDrivesAndRidersWhereItRides()
         {
             GameMap map = new GameMap(120, 100);
-            map.SetTile(RoadX, StartY, ROADS, 0);
-            map.SetTile(RoadX, StartY - 1, ROADS, 0);
-            map.SetTile(RoadX, StartY - 2, HRAIL, 0);
-            map.SetTile(RoadX, StartY - 3, ROADS, 0);
-            map.PutZone(RoadX, StartY - 5, COMCLR, 3);
+            map.SetTile(RoadX, StartY, ROADS, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, StartY - 1, HRAILROAD, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, StartY - 2, VRAILSTATION, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, StartY - 3, LVRAIL, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, StartY - 4, VRAILROAD, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, StartY - 5, VRAILSTATION, TileFlags.BLBNBIT);
+            map.PutZone(RoadX + 4, StartY - 5, COMCLR, 3);
             BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
 
             Assert.AreEqual(TrafficResult.RouteFound, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
 
-            CollectionAssert.AreEqual(new[] { Traffic.TripTraffic, Traffic.TripTraffic, Traffic.TripTraffic },
-                                      new[] { StartY, StartY - 1, StartY - 3 }.Select(y => blockMaps.TrafficDensityMap.WorldGet(RoadX, y)).ToArray());
+            int[] column = Enumerable.Range(StartY - 5, 6).Reverse().ToArray();
+            CollectionAssert.AreEqual(new[] { Traffic.TripTraffic, Traffic.TripTraffic, Traffic.TripTraffic, 0, 0, 0 },
+                                      column.Select(y => blockMaps.TrafficDensityMap.WorldGet(RoadX, y)).ToArray());
+            CollectionAssert.AreEqual(new[] { 0, 0, Traffic.RideLoad, Traffic.RideLoad, Traffic.RideLoad, Traffic.RideLoad },
+                                      column.Select(y => blockMaps.RailLoadMap.WorldGet(RoadX, y)).ToArray());
+            CollectionAssert.AreEqual(new[] { 0, 0, 0, 0 },
+                                      new[] { blockMaps.TrafficDensityMap.WorldGet(RoadX + 1, StartY - 5), blockMaps.TrafficDensityMap.WorldGet(RoadX + 2, StartY - 5),
+                                              blockMaps.RailLoadMap.WorldGet(RoadX + 1, StartY - 5), blockMaps.RailLoadMap.WorldGet(RoadX + 2, StartY - 5) });
+        }
+
+        // Each ride adds its riders to a tile up to the full load, and no further
+        [TestMethod]
+        public void MakeTraffic_RideOntoATileNearlyFull_FillsItNoFurther()
+        {
+            GameMap map = new GameMap(120, 100);
+            map.SetTile(RoadX, StartY, ROADS, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, StartY - 1, VRAILSTATION, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, StartY - 2, VRAILSTATION, TileFlags.BLBNBIT);
+            map.PutZone(RoadX, StartY - 4, COMCLR, 3);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            blockMaps.RailLoadMap.WorldSet(RoadX, StartY - 2, Traffic.MaxRailLoad - 1);
+
+            Assert.AreEqual(TrafficResult.RouteFound, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
+
+            Assert.AreEqual((Traffic.RideLoad, Traffic.MaxRailLoad),
+                            (blockMaps.RailLoadMap.WorldGet(RoadX, StartY - 1), blockMaps.RailLoadMap.WorldGet(RoadX, StartY - 2)));
         }
 
         // A route of two road tiles, whose straight run is one tile: it is slow once its one step costs more than
@@ -100,9 +128,9 @@ namespace Micropolis.Rules.Tests
         public void MakeTraffic_RouteFound_OffersTheRouteAsATrip()
         {
             GameMap map = TwoTileRoadToCommerce();
-            Trips trips = new Trips(map);
+            Trips trips = new Trips();
             List<Trip> offered = new List<Trip>();
-            trips.Offered += offered.Add;
+            trips.RunOffered += offered.Add;
 
             new Traffic(map, RandomStream.FromSeed(0), trips)
                 .MakeTraffic(ZoneX, ZoneY, new BlockMaps(map.Width, map.Height), TrafficDestination.Commercial);
@@ -173,7 +201,7 @@ namespace Micropolis.Rules.Tests
 
         private static TrafficResult MakeTraffic(GameMap map, BlockMaps blockMaps, RandomStream random)
         {
-            return new Traffic(map, random, new Trips(map))
+            return new Traffic(map, random, new Trips())
                 .MakeTraffic(ZoneX, ZoneY, blockMaps, TrafficDestination.Commercial);
         }
     }
