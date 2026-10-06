@@ -6,7 +6,7 @@ The generated images come from Google's Gemini image model or from ChatGPT, and 
 
 - `references/`: concept sheets of whole zones that the scenes are modelled on, described in `references/README.md`.
 - `textures/`: seamless surface textures (roofs, paving, glass, grass). Their rules and provenance are in `textures/README.md`.
-- `sheets/`: sprite sheets of whole objects drawn on black, seen from above, and the game's original 16 px sheets, `tiles-original.png` and `sprites-original.png`, as they were before any art was painted into them.
+- `sheets/`: sprite sheets of whole objects drawn on black, seen from above, and the game's original 16 px sheets, `tiles-original.png` and `sprites-original.png`, as they were before any art was painted into them, but for the cells of the rail stations, 1020 and 1021, which the original never had: those hold the rendered rail's 16 px tile with a platform along each side of the track, drawn by hand.
 - `cutouts/`: each object cut from a sheet into its own transparent PNG by `tools/cutout.py`.
 - `fonts/`: the typeface of the zone letters, with its licence.
 - `blender/tileart.py`: the shared module: materials, shapes, cutout cards, and the render.

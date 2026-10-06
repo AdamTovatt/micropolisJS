@@ -17,15 +17,26 @@ import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { TilePosition, Trip } from "./protocol";
 
 // The cars the client draws for the city's traffic: each trip a trips message brings (protocol/README.md) becomes a car
-// that drives its route once, on the right-hand side of the road, and is gone at its end. Cars are the client's alone:
-// never simulation sprites, never saved and never in a command log. They move on the client's clock, the one tile
-// animation uses, which the end-to-end suite fixes, so there they stand at the starts of their routes.
+// that drives its route once, on the right-hand side of the road, and is gone at its end, and each ride a car of a
+// train, which runs along the middle of the track from the station it got on at, and is gone into the one it gets off
+// at. Cars are the client's alone: never simulation sprites, never saved and never in a command log. They move on the
+// client's clock, the one tile animation uses, which the end-to-end suite fixes, so there they stand at the starts of
+// their routes.
 
 // How fast a car drives, in tiles a second
 export const CAR_TILES_PER_SECOND = 4;
 
-// The most cars driving at once when every trip becomes one, a share of it at a smaller share of the trips. A car that
-// arrives while that many drive is dropped, so no car is cut short.
+// How fast a train runs, in tiles a second
+export const TRAIN_TILES_PER_SECOND = 6;
+
+// The most cars a train has, one a ride
+export const MOST_TRAIN_CARS = 4;
+
+// How far each car of a train runs behind the one ahead of it, in tiles
+export const TRAIN_CAR_SPACING = 0.75;
+
+// The most cars driving at once when every trip and ride becomes one, a share of it at a smaller share of them, a
+// train's cars counted each. A car or a train that arrives while that many drive is dropped, so none is cut short.
 export const MAX_CARS = 2000;
 
 // The most cars driving at once at the step of the Cars slider given: MAX_CARS times its share, and none at Off
@@ -57,14 +68,25 @@ export interface CarPlace {
 }
 
 // A car as a view draws it: the square it is drawn in, width map pixels a side with its top-left corner at map pixel
-// (x, y), the way it faces, and its colour, by its number from 0, which its route picks
-export interface PaintableCar {
+// (x, y), and the way it faces; a car on the road in its colour, by its number from 0, which its route picks, and a car
+// of a train in the trains' art
+interface CarSquare {
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly direction: CarDirection;
+}
+
+export interface PaintableRoadCar extends CarSquare {
+  readonly kind: "road";
   readonly colour: number;
 }
+
+export interface PaintableTrainCar extends CarSquare {
+  readonly kind: "rail";
+}
+
+export type PaintableCar = PaintableRoadCar | PaintableTrainCar;
 
 // A colour cars come in: its name, by which the render manifest names its art (docs/render-assets.md), and the flat
 // colour, red, green and blue from 0 to 1, a car is drawn in where the manifest has no art for it
@@ -153,17 +175,33 @@ function lanePoint(route: readonly TilePosition[], index: number): {x: number, y
   return point;
 }
 
-// Where a car is on its route, distance tiles from its start, and the way it faces. A route has two tiles at least,
-// and the distance runs from 0 to one less than its tiles.
-export function carPlace(route: readonly TilePosition[], distance: number): CarPlace {
-  const last = route.length - 1;
-  const segment = Math.min(Math.floor(distance), last - 1);
+// The middle of the route's tile, its index given, where the track runs
+function middlePoint(route: readonly TilePosition[], index: number): {x: number, y: number} {
+  return {x: route[index].x + 0.5, y: route[index].y + 0.5};
+}
+
+// Where something on a route is, distance tiles from its start, and the way it faces, passing at each tile the point
+// pointAt gives. A route has two tiles at least, and the distance runs from 0 to one less than its tiles.
+function placeOn(route: readonly TilePosition[], distance: number,
+                 pointAt: (route: readonly TilePosition[], index: number) => {x: number, y: number}): CarPlace {
+  const segment = Math.min(Math.floor(distance), route.length - 2);
   const along = distance - segment;
-  const from = lanePoint(route, segment);
-  const to = lanePoint(route, segment + 1);
+  const from = pointAt(route, segment);
+  const to = pointAt(route, segment + 1);
 
   return {x: from.x + (to.x - from.x) * along, y: from.y + (to.y - from.y) * along,
           direction: directionOf(route[segment], route[segment + 1])};
+}
+
+// Where a car is on its route, distance tiles from its start, and the way it faces: in its right-hand lane
+export function carPlace(route: readonly TilePosition[], distance: number): CarPlace {
+  return placeOn(route, distance, lanePoint);
+}
+
+// Where a car of a train is on its route, distance tiles from its start, and the way it faces: on the middle of the
+// track
+export function trainPlace(route: readonly TilePosition[], distance: number): CarPlace {
+  return placeOn(route, distance, middlePoint);
 }
 
 // The colour a car takes from its route: the same for every car from its start
@@ -172,31 +210,51 @@ export function carColour(route: readonly TilePosition[]): number {
   return (x * 7 + y * 13) % CAR_COLOURS.length;
 }
 
-interface Car {
+// A car on the road, in its colour, or a train of cars, driving its route
+interface Driving {
   readonly route: readonly TilePosition[];
-  // The drive clock's time as the car started, in milliseconds
+  // The drive clock's time as it started, in milliseconds
   readonly start: number;
-  readonly colour: number;
 }
 
-// The cars driving: their own clock, which moves on with the client's while the city runs and stands while it's
-// paused, so each car stands still while the city is paused and picks up again when it runs. Which trips become cars
-// is the step of the Cars slider the player chose (CarSharePreference), read as each trips message arrives, so a smaller
-// share starts fewer cars from then on and every car already driving finishes its route.
+type Vehicle = Driving & (
+  {readonly kind: "road", readonly colour: number} | {readonly kind: "rail", readonly cars: number}
+);
+
+// How many cars a vehicle draws
+function carsOf(vehicle: Vehicle): number {
+  return vehicle.kind === "road" ? 1 : vehicle.cars;
+}
+
+// How far a car or the front of a train goes before it is gone, in tiles: a car to its route's end, and a train until
+// its last car is there
+function lastDistance(vehicle: Vehicle): number {
+  const end = vehicle.route.length - 1;
+  return vehicle.kind === "road" ? end : end + (vehicle.cars - 1) * TRAIN_CAR_SPACING;
+}
+
+// The cars and trains driving: their own clock, which moves on with the client's while the city runs and stands while
+// it's paused, so each stands still while the city is paused and picks up again when it runs. Which trips and rides
+// become cars is the step of the Cars slider the player chose (CarSharePreference), read as each trips message
+// arrives, so a smaller share starts fewer from then on and every one already driving finishes its route.
 export class Cars {
-  private readonly driving: Car[] = [];
+  private readonly driving: Vehicle[] = [];
+  // How many cars the vehicles driving draw, a train's cars counted each
+  private carsDrawn = 0;
   // The drive clock, in milliseconds, and the client's clock as it was last read, or null before then
   private clock = 0;
   private lastNow: number | null = null;
-  // The trips that arrived since the page last joined the city, those that became cars or not alike
+  // The trips and the rides that arrived since the page last joined the city, those that became cars or not alike
   private arrived = 0;
+  private ridden = 0;
 
   // share is the step of the Cars slider, as the player has it now
   constructor(private readonly share: () => CarShareStep) {}
 
-  // The page joined the city, at its start or again after a reconnect: the trips are counted from here
+  // The page joined the city, at its start or again after a reconnect: the trips and rides are counted from here
   joined(): void {
     this.arrived = 0;
+    this.ridden = 0;
   }
 
   // A car for each trip a trips message brings that the step takes (takesTrip), starting now at the trip's start, in
@@ -206,50 +264,113 @@ export class Cars {
     const step = this.share();
     for (const trip of trips) {
       const index = this.arrived++;
-      if (!takesTrip(index, step) || this.driving.length >= carCap(step)) {
+      if (!takesTrip(index, step)) {
         continue;
       }
       const route = tripRoute(trip);
       if (route.length > 1) {
-        this.driving.push({route, start: this.clock, colour: carColour(route)});
+        this.start({route, start: this.clock, kind: "road", colour: carColour(route)}, step);
+      }
+    }
+  }
+
+  // A car of a train for each ride a trips message brings that the step takes, counted as trips are but on their own
+  // (takesTrip): the rides taken that run one path, which starts at the station they get on at and ends at the one they
+  // get off at, ride one train, a car each, up to MOST_TRAIN_CARS, and the rest the trains after it. The trains start
+  // now, at their stations, in the order the first ride of each came, but a train that arrives while its cars would
+  // take those driving past the step's cap (carCap), which is dropped.
+  addRides(rides: readonly Trip[]): void {
+    const step = this.share();
+    const paths = new Map<string, {ride: Trip, count: number}>();
+    for (const ride of rides) {
+      const index = this.ridden++;
+      if (!takesTrip(index, step)) {
+        continue;
+      }
+      const key = JSON.stringify(ride);
+      const path = paths.get(key);
+      if (path === undefined) {
+        paths.set(key, {ride, count: 1});
+      } else {
+        path.count++;
+      }
+    }
+
+    for (const {ride, count} of paths.values()) {
+      const route = tripRoute(ride);
+      for (let left = count; left > 0 && route.length > 1; left -= MOST_TRAIN_CARS) {
+        this.start({route, start: this.clock, kind: "rail", cars: Math.min(left, MOST_TRAIN_CARS)}, step);
       }
     }
   }
 
   // Moves the drive clock on to the client's clock now, in milliseconds, unless the city is paused, and lets go of the
-  // cars at the ends of their routes
+  // cars and trains at the ends of their routes
   advance(now: number, paused: boolean): void {
     if (this.lastNow !== null && !paused) {
       this.clock += Math.max(0, now - this.lastNow);
     }
     this.lastNow = now;
 
-    // In one pass, keeping the cars still driving in the order they started
+    // In one pass, keeping those still driving in the order they started
     let kept = 0;
-    for (const car of this.driving) {
-      if (this.distance(car) < car.route.length - 1) {
-        this.driving[kept++] = car;
+    for (const vehicle of this.driving) {
+      if (this.distance(vehicle) < lastDistance(vehicle)) {
+        this.driving[kept++] = vehicle;
+      } else {
+        this.carsDrawn -= carsOf(vehicle);
       }
     }
     this.driving.length = kept;
   }
 
-  // How far each car driving has driven, in tiles, as the drive clock last moved it
+  // How far each car and the front of each train driving has gone, in tiles, as the drive clock last moved it
   driven(): number[] {
-    return this.driving.map((car) => this.distance(car));
+    return this.driving.map((vehicle) => this.distance(vehicle));
   }
 
-  // Each car driving as a view draws it
+  // Each car driving, and each car of each train on its route, as a view draws it: a train's cars run behind its front,
+  // each TRAIN_CAR_SPACING behind the one ahead, and show from leaving the station it got on at to reaching the one it
+  // gets off at
   paintable(): PaintableCar[] {
-    return this.driving.map((car) => {
-      const {x, y, direction} = carPlace(car.route, this.distance(car));
-      return {x: x * SPRITE_PIXELS_PER_TILE - CAR_PIXELS / 2, y: y * SPRITE_PIXELS_PER_TILE - CAR_PIXELS / 2,
-              width: CAR_PIXELS, direction, colour: car.colour};
-    });
+    const painted: PaintableCar[] = [];
+    for (const vehicle of this.driving) {
+      const distance = this.distance(vehicle);
+      if (vehicle.kind === "road") {
+        const {x, y, direction} = carPlace(vehicle.route, distance);
+        painted.push({kind: "road", ...square(x, y), direction, colour: vehicle.colour});
+        continue;
+      }
+
+      const end = vehicle.route.length - 1;
+      for (let i = 0; i < vehicle.cars; i++) {
+        const behind = distance - i * TRAIN_CAR_SPACING;
+        if (behind >= 0 && behind <= end) {
+          const {x, y, direction} = trainPlace(vehicle.route, behind);
+          painted.push({kind: "rail", ...square(x, y), direction});
+        }
+      }
+    }
+    return painted;
   }
 
-  // How far the car has driven, in tiles
-  private distance(car: Car): number {
-    return (this.clock - car.start) / 1000 * CAR_TILES_PER_SECOND;
+  // Starts a car or a train, unless its cars would take those driving past the step's cap
+  private start(vehicle: Vehicle, step: CarShareStep): void {
+    if (this.carsDrawn + carsOf(vehicle) <= carCap(step)) {
+      this.driving.push(vehicle);
+      this.carsDrawn += carsOf(vehicle);
+    }
   }
+
+  // How far the car, or the front of the train, has gone, in tiles
+  private distance(vehicle: Vehicle): number {
+    const speed = vehicle.kind === "road" ? CAR_TILES_PER_SECOND : TRAIN_TILES_PER_SECOND;
+    return (this.clock - vehicle.start) / 1000 * speed;
+  }
+}
+
+// The square a car is drawn in, whose middle is the point of the map (x, y), in tiles
+function square(x: number, y: number): {x: number, y: number, width: number} {
+  return {x: x * SPRITE_PIXELS_PER_TILE - CAR_PIXELS / 2, y: y * SPRITE_PIXELS_PER_TILE - CAR_PIXELS / 2,
+          width: CAR_PIXELS};
 }

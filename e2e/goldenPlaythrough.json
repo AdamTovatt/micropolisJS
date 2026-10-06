@@ -6,9 +6,10 @@
     {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"4efaecf8d86695ce799e5445e3c7d1ae685475c51e878f472ba4401312c1686e"},
     {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"d659b4faa52eb4d1db98c1f4bc15f0f695092b6957f230db451082146ad21ba5"},
     {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"90f79103f164e2793016bb1d14dfff79efd15599e896907546e1e889a5356835"},
-    {"stage":"A fire, and the fire department's response","step":11376,"commands":36,"hash":"fe53dcceb462bf64fd0372eacc0f0b4b5845a5d30eab555e5689c61a0c86a54f"},
-    {"stage":"Save, reload, and carry on","step":12528,"commands":36,"hash":"c41edb25e4efef3e423a3298ff4d790f3876d2b86d694268790796003d093935"},
-    {"stage":"Zoom in, build, and zoom out","step":12528,"commands":37,"hash":"28d8fa381fb51959b7489c71f0983b0720c437743e2264e54d16de761da29639"}
+    {"stage":"Rail between stations, and a train for each ride","step":9168,"commands":28,"hash":"30e75d04f5fd458359678cf16f5b944761a8d114d6f599c7b39e7ca94e83e93f"},
+    {"stage":"A fire, and the fire department's response","step":11376,"commands":38,"hash":"23a57e0faf7a118484a2951f2eb3379fa2c693968ad0e46f2d98062c51b32845"},
+    {"stage":"Save, reload, and carry on","step":12528,"commands":38,"hash":"35c714d67454e38ee21d17044a1b4ff5cb21458fb185fdf584f8f23da770d945"},
+    {"stage":"Zoom in, build, and zoom out","step":12528,"commands":39,"hash":"70e579a8e0f4109e2d6699ea1d56344b7e282b390e1dc55d6f3ec31a870d5bb8"}
   ],
   "log": {
     "formatVersion": 2,
@@ -38,28 +39,30 @@
       {"step":6912,"player":"player 1","command":{"type":"setBudget","tax":9,"police":90}},
       {"step":6912,"player":"player 1","command":{"type":"setAutoBudget","on":true}},
       {"step":8064,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":47,"y":31},{"x":48,"y":31},{"x":49,"y":31},{"x":50,"y":31},{"x":51,"y":31},{"x":52,"y":31},{"x":53,"y":31},{"x":54,"y":31},{"x":55,"y":31},{"x":56,"y":31},{"x":57,"y":31},{"x":58,"y":31},{"x":59,"y":31},{"x":60,"y":31},{"x":61,"y":31},{"x":62,"y":31},{"x":63,"y":31},{"x":64,"y":31},{"x":65,"y":31},{"x":66,"y":31},{"x":67,"y":31},{"x":68,"y":31},{"x":69,"y":31}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"triggerDisaster","kind":"fire"}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":81,"y":76}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":80,"y":74}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":79,"y":75},{"x":78,"y":75},{"x":77,"y":75}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":77,"y":74},{"x":77,"y":73},{"x":77,"y":72}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":76,"y":72},{"x":75,"y":72},{"x":74,"y":72},{"x":73,"y":72},{"x":72,"y":72},{"x":71,"y":72},{"x":70,"y":72},{"x":69,"y":72}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":69,"y":71},{"x":69,"y":70},{"x":69,"y":69},{"x":69,"y":68}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":68,"y":68},{"x":68,"y":67}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":67,"y":67},{"x":66,"y":67}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":66,"y":66},{"x":66,"y":65},{"x":66,"y":64},{"x":66,"y":63}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":65,"y":63},{"x":65,"y":62},{"x":65,"y":61},{"x":65,"y":60},{"x":65,"y":59}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":59},{"x":64,"y":58},{"x":64,"y":57},{"x":64,"y":56},{"x":64,"y":55},{"x":64,"y":54},{"x":64,"y":53},{"x":64,"y":52},{"x":64,"y":51},{"x":64,"y":50},{"x":64,"y":49},{"x":64,"y":48}],"autoBulldoze":true}},
-      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":47},{"x":64,"y":46},{"x":64,"y":45},{"x":64,"y":44},{"x":64,"y":43},{"x":64,"y":42},{"x":64,"y":41},{"x":64,"y":40}],"autoBulldoze":true}},
+      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"industrial","path":[{"x":74,"y":34}],"autoBulldoze":true}},
+      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":70,"y":34},{"x":71,"y":34},{"x":72,"y":34}],"autoBulldoze":true}},
+      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"rail","path":[{"x":55,"y":32},{"x":56,"y":32},{"x":57,"y":32},{"x":58,"y":32},{"x":59,"y":32},{"x":60,"y":32},{"x":61,"y":32},{"x":62,"y":32},{"x":63,"y":32},{"x":64,"y":32},{"x":65,"y":32},{"x":66,"y":32},{"x":67,"y":32},{"x":68,"y":32},{"x":69,"y":32},{"x":70,"y":32},{"x":71,"y":32},{"x":72,"y":32},{"x":73,"y":32},{"x":74,"y":32}],"autoBulldoze":true}},
+      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"station","path":[{"x":55,"y":32}],"autoBulldoze":true}},
+      {"step":8064,"player":"player 1","command":{"type":"tool","tool":"station","path":[{"x":74,"y":32}],"autoBulldoze":true}},
+      {"step":9168,"player":"player 1","command":{"type":"triggerDisaster","kind":"fire"}},
+      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":71,"y":70}],"autoBulldoze":true}},
+      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":70,"y":68}],"autoBulldoze":true}},
+      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":69,"y":69},{"x":69,"y":68}],"autoBulldoze":true}},
+      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":68,"y":68},{"x":68,"y":67}],"autoBulldoze":true}},
+      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":67,"y":67},{"x":67,"y":66},{"x":67,"y":65},{"x":67,"y":64},{"x":67,"y":63},{"x":67,"y":62},{"x":67,"y":61}],"autoBulldoze":true}},
+      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":66,"y":61},{"x":65,"y":61}],"autoBulldoze":true}},
+      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":65,"y":60},{"x":65,"y":59}],"autoBulldoze":true}},
+      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":59},{"x":64,"y":58},{"x":64,"y":57},{"x":64,"y":56},{"x":64,"y":55},{"x":64,"y":54},{"x":64,"y":53},{"x":64,"y":52},{"x":64,"y":51},{"x":64,"y":50},{"x":64,"y":49},{"x":64,"y":48}],"autoBulldoze":true}},
+      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":47},{"x":64,"y":46},{"x":64,"y":45},{"x":64,"y":44},{"x":64,"y":43},{"x":64,"y":42},{"x":64,"y":41},{"x":64,"y":40}],"autoBulldoze":true}},
       {"step":12528,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
     ],
     "checkpoints": [
       {"step":0,"hash":"b722e97ca75f1c18a2d951829e82415706db9bc7c2e53e9e5ede77cb8042cc87"},
       {"step":3600,"hash":"5baadca8c66e334aa7261b543acc5dc84477f5fa1b14f6f842ac68048c09312d"},
       {"step":7200,"hash":"7ae7299a7a2bacd46365fccc0e705ff9df111fe9412a0690d4781b48953fadde"},
-      {"step":10800,"hash":"93c268f5f668ad4b8ebeeaac2ab2d1df761bedb26d45462157c7a96a07c809ed"},
-      {"step":11376,"hash":"fe53dcceb462bf64fd0372eacc0f0b4b5845a5d30eab555e5689c61a0c86a54f"},
-      {"step":12528,"hash":"28d8fa381fb51959b7489c71f0983b0720c437743e2264e54d16de761da29639"}
+      {"step":10800,"hash":"e5f37114c286567fad35517961a8b3698ebb0c3be6fa4820b414ffc689a65573"},
+      {"step":11376,"hash":"23a57e0faf7a118484a2951f2eb3379fa2c693968ad0e46f2d98062c51b32845"},
+      {"step":12528,"hash":"70e579a8e0f4109e2d6699ea1d56344b7e282b390e1dc55d6f3ec31a870d5bb8"}
     ]
   }
 }

@@ -204,6 +204,13 @@ test("every panel of the HUD fits the screen and its box at its fullest, open, h
       const open = await checkLayout(page, HUD_PANELS);
       await page.screenshot({path: testInfo.outputPath(`hud-${name}.png`)});
       expect.soft(open.problems, `the HUD at ${name}`).toEqual([]);
+      // The tools in two rows of nine, the second the rest, how many each row holds by where its buttons' tops are
+      const buttons = page.locator("#buttons .toolButton");
+      const rows = await buttons.evaluateAll((all) => {
+        const tops = all.map((button) => Math.round(button.getBoundingClientRect().top));
+        return [...new Set(tops)].map((top) => tops.filter((other) => other === top).length);
+      });
+      expect.soft(rows, `the tools' rows at ${name}`).toEqual([9, (await buttons.count()) - 9]);
       expect.soft(open.panels, `the panels showing at ${name}`).toEqual(expect.arrayContaining([...SHOWN, "toolToast"]));
 
       await setFolded(page, true);

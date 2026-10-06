@@ -12,7 +12,7 @@
  *
  */
 
-import type { Cars } from "../src/cars";
+import type { Cars, PaintableCar } from "../src/cars";
 import type { CityDriver, CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
 import { AdvanceResult, BudgetForecastAnswer, Command, EvaluationRecord, FireStationReach, SPEEDS, StatusRecord,
@@ -67,7 +67,11 @@ function gameOn(source: CitySource, state: CityState) {
         cars: {driven: () => [0, 0.5], add: (routes: Parameters<Cars["add"]>[0]) => {
             game.carsAdded.push(routes);
         }},
-        carsInView: 1,
+        carsPainted: [
+            {kind: "rail", x: 0, y: 0, width: 16, direction: "east"},
+            {kind: "road", x: 16, y: 0, width: 16, direction: "east", colour: 0},
+            {kind: "rail", x: 32, y: 0, width: 16, direction: "east"},
+        ] as PaintableCar[],
         frameCounts: {animated: 30, painted: 12},
         dismissals: 0,
         notificationBar: {dismiss: () => {
@@ -106,7 +110,7 @@ const IDLE_GAME = {
     gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true},
     monsterTV: {current: true},
     cars: {driven: () => [], add: () => {}},
-    carsInView: 0,
+    carsPainted: [],
     frameCounts: {animated: 0, painted: 0},
     notificationBar: {dismiss: () => {}},
     toolToast: {dismiss: () => {}},
@@ -460,10 +464,10 @@ describe("the test hook", () => {
         expect([shown, hook.hoverTile()]).toEqual([{x: 7, y: 9}, null]);
     });
 
-    it("tells how far each car driving has driven, and how many the map's view shows", async () => {
+    it("tells how far each car driving has driven, and how many the map's view shows, and of them of trains", async () => {
         const {hook} = await holdingGame("nothing");
 
-        expect([hook.carsDriven(), hook.carsInView()]).toEqual([[0, 0.5], 1]);
+        expect([hook.carsDriven(), hook.carsInView(), hook.trainCarsInView()]).toEqual([[0, 0.5], 3, 2]);
     });
 
     it("adds the cars the runner asks for to those driving", async () => {

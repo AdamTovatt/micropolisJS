@@ -155,6 +155,12 @@ namespace Micropolis.Rules
         private readonly int _height;
         private readonly int _tiles;
 
+        // Each way's routes lie in a block of the routes a power of two long, at least the map's tiles: a route's index
+        // is its way shifted this far, with its tile's index in the bits the mask keeps, so the search, which splits
+        // the index of every route it settles, shifts and masks rather than divides
+        private readonly int _wayShift;
+        private readonly int _tileMask;
+
         // The step in index to the neighbour in each direction, and by the index of a tile, a bit for each direction
         // whose neighbour is on the map
         private readonly int[] _offset;
@@ -193,6 +199,11 @@ namespace Micropolis.Rules
             _width = map.Width;
             _height = map.Height;
             _tiles = map.Width * map.Height;
+            while (1 << _wayShift < _tiles)
+            {
+                _wayShift++;
+            }
+            _tileMask = (1 << _wayShift) - 1;
             _offset = [-_width, 1, _width, -1];
             _neighbours = new byte[_tiles];
 
@@ -208,7 +219,7 @@ namespace Micropolis.Rules
             }
 
             _facts = new Facts[_tiles];
-            _places = new Place[_tiles * Ways];
+            _places = new Place[Ways << _wayShift];
             _isDestination = new bool[_tiles];
             _destinationMark = new int[_tiles];
             _goal = new int[_tiles];
@@ -240,6 +251,7 @@ namespace Micropolis.Rules
         {
             route.Clear();
             Start();
+            bool walks = StationWithinWalk(origin);
 
             foreach (Position tile in Traffic.Perimeter(_map, origin))
             {
@@ -248,19 +260,19 @@ namespace Micropolis.Rules
 
                 if ((facts.Kind & Road) != 0)
                 {
-                    Label(ByRoad * _tiles + index, 0, 1, NoStep, ByRoad);
+                    Label(At(ByRoad, index), 0, 1, NoStep, ByRoad);
                 }
 
                 _setOff |= (facts.Kind & (Road | Station)) != 0;
 
                 if ((facts.Kind & Station) != 0 && facts.RailEnter != 0)
                 {
-                    Label(Boarding * _tiles + index, 0, 1, NoStep, Boarding);
+                    Label(At(Boarding, index), 0, 1, NoStep, Boarding);
                 }
 
-                if ((facts.Kind & Water) == 0)
+                if (walks && (facts.Kind & Water) == 0)
                 {
-                    Label(WalkingOut * _tiles + index, 0, 1, NoStep, WalkingOut);
+                    Label(At(WalkingOut, index), 0, 1, NoStep, WalkingOut);
                 }
             }
 
@@ -308,6 +320,28 @@ namespace Micropolis.Rules
             return _places[goal].Cost > SlowCostPerTile * straightRun ? TrafficResult.SlowRoute : TrafficResult.RouteFound;
         }
 
+        // Whether a station lies within a walk of the zone's perimeter, which lies at most Traffic.PerimeterReach tiles
+        // across and down from its centre: in the box that far round the centre widened by the most a route walks. A
+        // route walks out of its zone only to get on a train, so where no station lies there the search walks nowhere,
+        // which finds the same routes as walking would, and a city without stations pays nothing for walking.
+        private bool StationWithinWalk(Position origin)
+        {
+            int reach = Traffic.PerimeterReach + MostWalkedTiles;
+
+            for (int y = Math.Max(0, origin.Y - reach); y <= Math.Min(_height - 1, origin.Y + reach); y++)
+            {
+                for (int x = Math.Max(0, origin.X - reach); x <= Math.Min(_width - 1, origin.X + reach); x++)
+                {
+                    if (TileUtils.IsRailStation(_map.RawValueAt(Index(x, y)) & TileFlags.BIT_MASK))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         private int Weight(int centre)
         {
             return MaxRouteTiles + 1 - _places[_goal[centre]].Length;
@@ -339,7 +373,9 @@ namespace Micropolis.Rules
                         continue;
                     }
 
-                    queued += Settle(at, destination, originIndex, blockMaps);
+                    queued += at >> _wayShift == ByRoad
+                        ? SettleByRoad(at, destination, originIndex, blockMaps)
+                        : Settle(at, destination, originIndex, blockMaps);
                 }
 
                 queued -= count;
@@ -347,23 +383,72 @@ namespace Micropolis.Rules
             }
         }
 
-        // Settles a route, the cheapest to its tile going over it its way, and takes each neighbour of its tile: a
-        // destination zone whose footprint holds it has its goal here, if the route may arrive, unless the search
-        // reached it cheaper, or as cheaply on a tile earlier row by row; and each way the route may go on onto it is
-        // queued where this route reaches it cheaper, or as cheaply from a neighbour earlier in north, east, south,
-        // west, short of the cut. Says how many it queued.
+        // Settles a route by road, as Settle does a route going any other way: on a map without stations every route
+        // is by road, so the search settles them in a loop of their own, small enough for the compiler to keep tight.
+        // Its neighbour may be arrived beside, driven on along road, or got on a train at, in that order, as Settle
+        // takes them.
+        private int SettleByRoad(int at, TrafficDestination destination, int originIndex, BlockMaps blockMaps)
+        {
+            ref Place settled = ref _places[at];
+            settled.Settled = _search;
+            int index = at & _tileMask;
+            int neighbours = _neighbours[index];
+            int cost = settled.Cost;
+            int length = settled.Length + 1;
+            int queued = 0;
+
+            for (int step = 0; step < 4; step++)
+            {
+                if ((neighbours & (1 << step)) == 0)
+                {
+                    continue;
+                }
+
+                int next = index + _offset[step];
+                ref Facts facts = ref Read(next, blockMaps);
+                int nextKind = facts.Kind;
+
+                if ((nextKind & (Road | Rail)) == 0)
+                {
+                    FoundBeside(next, at, destination, originIndex);
+                }
+
+                if (length > MaxRouteTiles)
+                {
+                    continue;
+                }
+
+                if ((nextKind & Road) != 0)
+                {
+                    queued += Offer(ByRoad, next, facts.RoadEnter, cost, length, step, ByRoad);
+                }
+
+                if ((nextKind & Station) != 0)
+                {
+                    queued += Offer(Boarding, next, facts.RailEnter, cost, length, step, ByRoad);
+                }
+            }
+
+            return queued;
+        }
+
+        // Settles a route, the cheapest to its tile going over it its way, any way but by road (SettleByRoad), and takes
+        // each neighbour of its tile: a destination zone whose footprint holds it has its goal here, if the route may
+        // arrive, unless the search reached it cheaper, or as cheaply on a tile earlier row by row; and each way the
+        // route may go on onto it is queued where this route reaches it cheaper, or as cheaply from a neighbour earlier
+        // in north, east, south, west, short of the cut. Says how many it queued.
         private int Settle(int at, TrafficDestination destination, int originIndex, BlockMaps blockMaps)
         {
             ref Place settled = ref _places[at];
             settled.Settled = _search;
-            int index = at % _tiles;
-            int way = at / _tiles;
+            int index = at & _tileMask;
+            int way = at >> _wayShift;
             int kind = _facts[index].Kind;
             int ends = _facts[index].Ends;
             int neighbours = _neighbours[index];
             int cost = settled.Cost;
             int length = settled.Length + 1;
-            bool arrives = way == ByRoad || way >= WalkingIn || (way == Riding && (kind & Station) != 0);
+            bool arrives = way >= WalkingIn || (way == Riding && (kind & Station) != 0);
             int queued = 0;
 
             for (int step = 0; step < 4; step++)
@@ -389,11 +474,6 @@ namespace Micropolis.Rules
 
                 switch (way)
                 {
-                    case ByRoad:
-                        queued += Offer(ByRoad, next, (nextKind & Road) != 0 ? facts.RoadEnter : 0, cost, length, step, way);
-                        queued += Offer(Boarding, next, (nextKind & Station) != 0 ? facts.RailEnter : 0, cost, length, step, way);
-                        break;
-
                     case Boarding:
                     case Riding:
                         queued += Offer(Riding, next, RidesOn(ends, facts.Ends, step) ? facts.RailEnter : 0, cost, length, step, way);
@@ -448,7 +528,7 @@ namespace Micropolis.Rules
                 return 0;
             }
 
-            int at = way * _tiles + next;
+            int at = At(way, next);
             int nextCost = cost + enter;
             ref Place place = ref _places[at];
 
@@ -499,7 +579,7 @@ namespace Micropolis.Rules
             int goal = _goal[centre];
 
             if (_places[settled].Cost == _places[goal].Cost &&
-                (settled % _tiles < goal % _tiles || (settled % _tiles == goal % _tiles && settled < goal)))
+                ((settled & _tileMask) < (goal & _tileMask) || ((settled & _tileMask) == (goal & _tileMask) && settled < goal)))
             {
                 _goal[centre] = settled;
             }
@@ -524,41 +604,60 @@ namespace Micropolis.Rules
 
             if (facts.Mark != _search)
             {
-                facts.Mark = _search;
-                int tileValue = _map.RawValueAt(index) & TileFlags.BIT_MASK;
-                int x = index % _width;
-                int y = index / _width;
-                int kind = 0;
-                facts.RoadEnter = 0;
-                facts.RailEnter = 0;
-
-                if (TileUtils.CarriesCars(tileValue))
-                {
-                    kind |= Road;
-                    facts.RoadEnter = (byte)(RoadCost + blockMaps.TrafficDensityMap.WorldGet(x, y) / DensityPerCost);
-                }
-
-                if (TileUtils.CarriesTrains(tileValue))
-                {
-                    kind |= Rail;
-                    int load = blockMaps.RailLoadMap.WorldGet(x, y);
-                    facts.RailEnter = load < Traffic.MaxRailLoad ? (byte)(RailCost + load / RailLoadPerCost) : (byte)0;
-                }
-
-                if (TileUtils.IsRailStation(tileValue))
-                {
-                    kind |= Station;
-                }
-                else if (TileUtils.IsWater(tileValue))
-                {
-                    kind |= Water;
-                }
-
-                facts.Kind = (byte)kind;
-                facts.Ends = (byte)TileUtils.RailEnds(tileValue);
+                ReadAfresh(ref facts, index, blockMaps);
             }
 
             return ref facts;
+        }
+
+        // Reads what the tile is to the search, apart from Read, which the search calls for every neighbour of every
+        // route it settles and so stays small enough to inline
+        private void ReadAfresh(ref Facts facts, int index, BlockMaps blockMaps)
+        {
+            facts.Mark = _search;
+            int tileValue = _map.RawValueAt(index) & TileFlags.BIT_MASK;
+            facts.RoadEnter = 0;
+            facts.RailEnter = 0;
+            facts.Ends = 0;
+
+            // Most tiles a search reads carry neither cars nor trains: zones and buildings, and the land between
+            if (!TileUtils.IsDriveable(tileValue))
+            {
+                facts.Kind = TileUtils.IsWater(tileValue) ? (byte)Water : (byte)0;
+                return;
+            }
+
+            int x = index % _width;
+            int y = index / _width;
+            int kind = 0;
+
+            if (TileUtils.CarriesCars(tileValue))
+            {
+                kind |= Road;
+                facts.RoadEnter = (byte)(RoadCost + blockMaps.TrafficDensityMap.WorldGet(x, y) / DensityPerCost);
+            }
+
+            if (TileUtils.CarriesTrains(tileValue))
+            {
+                kind |= Rail;
+                int load = blockMaps.RailLoadMap.WorldGet(x, y);
+                facts.RailEnter = load < Traffic.MaxRailLoad ? (byte)(RailCost + load / RailLoadPerCost) : (byte)0;
+            }
+
+            if (TileUtils.IsRailStation(tileValue))
+            {
+                kind |= Station;
+            }
+            else if (TileUtils.IsWater(tileValue))
+            {
+                kind |= Water;
+            }
+
+            facts.Kind = (byte)kind;
+            if ((kind & Rail) != 0)
+            {
+                facts.Ends = (byte)TileUtils.RailEnds(tileValue);
+            }
         }
 
         // The centre of the zone whose footprint holds the tile, or NoZone, read from the map as it is the first time
@@ -585,15 +684,15 @@ namespace Micropolis.Rules
             while (true)
             {
                 ref Place place = ref _places[at];
-                int index = at % _tiles;
-                route.Add(new RouteStep(PositionOf(index), ModeOf(at / _tiles)));
+                int index = at & _tileMask;
+                route.Add(new RouteStep(PositionOf(index), ModeOf(at >> _wayShift)));
 
                 if (place.Step == NoStep)
                 {
                     break;
                 }
 
-                at = place.From * _tiles + index - _offset[place.Step];
+                at = At(place.From, index - _offset[place.Step]);
             }
 
             route.Reverse();
@@ -655,6 +754,12 @@ namespace Micropolis.Rules
         private int Index(int x, int y)
         {
             return x + y * _width;
+        }
+
+        // The index of the route going over the tile the way given
+        private int At(int way, int index)
+        {
+            return (way << _wayShift) | index;
         }
 
         private Position PositionOf(int index)

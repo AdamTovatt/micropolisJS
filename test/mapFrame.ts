@@ -215,11 +215,11 @@ describe("a frame of the map", () => {
     it("draws each car under the sprites, from its art filling its square, or else a flat rectangle long its way", () => {
         // The view's origin is map tile (11, 21): map pixels (176, 336), at 64 device pixels a tile, so a car's square
         // of a tile is 64 device pixels, and a car with no art 17 by 7 of them, in its middle
-        const north = {x: 180, y: 340, width: 16, direction: "north", colour: 0} as const;
-        const east = {x: 200, y: 340, width: 16, direction: "east", colour: 0} as const;
-        const southBlue = {x: 220, y: 340, width: 16, direction: "south", colour: 1} as const;
-        const train = {type: 1, frame: 2, x: 180, y: 340, width: 32};
-        const frame = build(tilesWith(0, 0), 64, noTint, [train], [north, east, southBlue]);
+        const north = {kind: "road", x: 180, y: 340, width: 16, direction: "north", colour: 0} as const;
+        const east = {kind: "road", x: 200, y: 340, width: 16, direction: "east", colour: 0} as const;
+        const southBlue = {kind: "road", x: 220, y: 340, width: 16, direction: "south", colour: 1} as const;
+        const helicopter = {type: 2, frame: 2, x: 180, y: 340, width: 32};
+        const frame = build(tilesWith(0, 0), 64, noTint, [helicopter], [north, east, southBlue]);
 
         expect([CAR_LENGTH * 64, CAR_BREADTH * 64]).toEqual([17, 7]);
         expect(quads(frame.sprites)).toEqual([
@@ -228,8 +228,23 @@ describe("a frame of the map", () => {
                 {target: [96 + (64 - 17) / 2, 16 + (64 - 7) / 2, 17, 7], source: [0, 0, 1, 1], colour: carFloats(0)},
                 {target: [176 + (64 - 7) / 2, 16 + (64 - 17) / 2, 7, 17], source: [0, 0, 1, 1], colour: carFloats(1)},
             ]},
-            {atlas: FALLBACK_SPRITES, quads: [{target: [16, 16, 128, 128], source: [48, 0, 32, 32], colour: OPAQUE}]},
+            {atlas: FALLBACK_SPRITES, quads: [{target: [16, 16, 128, 128], source: [48, 48, 32, 32], colour: OPAQUE}]},
         ]);
+    });
+
+    // The trains' art is the sprite sheet's first row: its first frame the train running north and south, its second
+    // east and west
+    it("draws each car of a train under the sprites, from the trains' art the way it runs, filling its square", () => {
+        const down = {kind: "rail", x: 180, y: 340, width: 16, direction: "south"} as const;
+        const across = {kind: "rail", x: 200, y: 340, width: 16, direction: "west"} as const;
+        const helicopter = {type: 2, frame: 2, x: 180, y: 340, width: 32};
+        const frame = build(tilesWith(0, 0), 64, noTint, [helicopter], [down, across]);
+
+        expect(quads(frame.sprites)).toEqual([{atlas: FALLBACK_SPRITES, quads: [
+            {target: [16, 16, 64, 64], source: [0, 0, 32, 32], colour: OPAQUE},
+            {target: [96, 16, 64, 64], source: [48, 0, 32, 32], colour: OPAQUE},
+            {target: [16, 16, 128, 128], source: [48, 48, 32, 32], colour: OPAQUE},
+        ]}]);
     });
 
     it("draws tiles and sprites from a view that starts inside its first tile, by the offset into it", () => {
@@ -309,8 +324,8 @@ describe("a frame of the map", () => {
             // The view's origin is map pixel (176, 336); the train covers the view's second tile, and the cars are in
             // its second tile and in its first
             const train = {type: 1, frame: 2, x: 192, y: 336, width: 16};
-            const inRight = {x: 196, y: 340, width: 7, direction: "south", colour: 2} as const;
-            const inLeft = {x: 180, y: 340, width: 7, direction: "west", colour: 3} as const;
+            const inRight = {kind: "road", x: 196, y: 340, width: 7, direction: "south", colour: 2} as const;
+            const inLeft = {kind: "road", x: 180, y: 340, width: 7, direction: "west", colour: 3} as const;
 
             const drawn = quads(buildIn(tilesWith(0, 0), [], [train], 16, [inRight, inLeft]).sprites);
 

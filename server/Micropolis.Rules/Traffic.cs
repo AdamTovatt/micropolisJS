@@ -88,6 +88,11 @@ namespace Micropolis.Rules
         private static readonly int[] PerimX = [-1, 0, 1, 2, 2, 2, 1, 0, -1, -2, -2, -2];
         private static readonly int[] PerimY = [-2, -2, -2, -1, 0, 1, 2, 2, 2, 1, 0, -1];
 
+        /// <summary>
+        /// The farthest a tile of a zone's perimeter (<see cref="Perimeter"/>) lies from its centre, across or down.
+        /// </summary>
+        internal static readonly int PerimeterReach = Math.Max(PerimX.Max(Math.Abs), PerimY.Max(Math.Abs));
+
         // The heaviest traffic a block holds, and the traffic one trip adds to the block of each road tile it takes. A
         // change from the original, whose drive added 50 to every other tile it took: a routed trip runs longer and
         // takes the cheapest roads, so the original's figure on every road tile jams a town until it empties, and this

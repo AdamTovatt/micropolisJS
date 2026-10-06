@@ -19,7 +19,7 @@ import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { PaintableMap, PaintableSprite, PaintableSquare } from "./paintable";
 import type { Rect } from "./rect";
 import { WHITE } from "./renderManifest";
-import type { RenderArt } from "./renderManifest";
+import type { AtlasRect, RenderArt } from "./renderManifest";
 import { BIT_MASK } from "./tileFlags";
 import { TILE_INVALID } from "./tileValues";
 import { plainRoad } from "./trafficTiles";
@@ -194,9 +194,16 @@ export function buildWholeMapFrame(frame: MapFrame, art: RenderArt,
 export const CAR_LENGTH = 17 / 64;
 export const CAR_BREADTH = 7 / 64;
 
-// Adds the quad that draws a car whose square lands at (x, y), side device pixels a side: its art, filling the square,
-// or where the art has none, a rectangle in its flat colour, long the way it faces
+// Adds the quad that draws a car whose square lands at (x, y), side device pixels a side, filling the square: a car of
+// a train from the trains' art, which the 16 px sprite sheet always has, and a car on the road from its colour's art,
+// or where the art has none, as a rectangle in its flat colour, long the way it faces
 function addCar(list: QuadList, art: RenderArt, car: PaintableCar, x: number, y: number, side: number): void {
+  if (car.kind === "rail") {
+    const train = art.trainCar(car.direction);
+    list.add(train.atlas, x, y, side, side, train);
+    return;
+  }
+
   const rect = art.car(car.colour, car.direction);
   if (rect !== null) {
     list.add(rect.atlas, x, y, side, side, rect);
@@ -285,14 +292,19 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
   }
 
   for (const sprite of sprites) {
-    const rect = art.sprite(sprite.type, sprite.frame);
-    if (rect === null) {
-      throw new Error(`No art draws sprite ${sprite.type} frame ${sprite.frame}`);
-    }
-
+    const rect = spriteArt(art, sprite.type, sprite.frame);
     const {x, y, side} = squareOnView(sprite, tiles, tilePixels);
     frame.sprites.add(rect.atlas, x, y, side, side, rect);
   }
+}
+
+// The art of a sprite's type and frame, failing on one no art draws
+function spriteArt(art: RenderArt, type: number, frame: number): AtlasRect {
+  const rect = art.sprite(type, frame);
+  if (rect === null) {
+    throw new Error(`No art draws sprite ${type} frame ${frame}`);
+  }
+  return rect;
 }
 
 // Where the square of a car or a sprite lands on the view the tiles are read for, tilePixels device pixels a tile: its
