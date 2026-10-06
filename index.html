@@ -367,7 +367,7 @@
       <div class="hidden hudPanel hudWindow" id="queryWindow">
         <header id="queryHeader" class="hudWindowTitle">Query</header>
         <div id="queryContainer" class="hudWindowBody">
-          <dl class="hudFigures">
+          <dl id="queryFigures" class="hudFigures">
             <dt>Zone</dt><dd id="queryZoneType"></dd>
             <dt>Density</dt><dd id="queryDensity"></dd>
             <dt>Value</dt><dd id="queryLandValue"></dd>
@@ -375,7 +375,14 @@
             <dt>Pollution</dt><dd id="queryPollution"></dd>
             <dt>Growth</dt><dd id="queryRate"></dd>
             <dt class="queryPowered">Powered</dt><dd class="queryPowered" id="queryPowered"></dd>
+            <dt class="queryGrowthPart">Outlook</dt><dd class="queryGrowthPart" id="queryOutlook"></dd>
+            <dt class="queryBlockersRow">Held back by</dt>
+            <dd class="queryBlockersRow"><ul id="queryBlockers"></ul></dd>
           </dl>
+          <div id="queryGrowthNotes" class="queryGrowthPart">
+            <p id="queryNoRoad" class="queryNote"></p>
+            <p id="queryNowAndThen" class="queryNote"></p>
+          </div>
           <div id="queryDebugList" class="queryDebug hidden">
             <dl class="hudFigures">
               <dt>Tile</dt><dd id="queryTile"></dd>
@@ -392,6 +399,8 @@
               <dt>LandValue</dt><dd id="queryLandValueRaw"></dd>
               <dt>Traffic Density</dt><dd id="queryTrafficDensityRaw"></dd>
               <dt>Density</dt><dd id="queryDensityRaw"></dd>
+              <dt class="queryGrowthPart">ZoneCentre</dt><dd class="queryGrowthPart" id="queryZoneCentreRaw"></dd>
+              <dt class="queryGrowthPart">ZoneScore</dt><dd class="queryGrowthPart" id="queryZoneScoreRaw"></dd>
             </dl>
           </div>
           <div id="queryDebugTable" class="queryDebug hidden">

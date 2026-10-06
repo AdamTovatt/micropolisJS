@@ -14,8 +14,8 @@
 
 import * as Messages from "./messages";
 import {
-  CITY_PROBLEMS, CityClass, DisasterKind, GameLevel, OverlayLayer, ScoreReason, ServiceAmounts, SPEEDS, ToolName,
-  ZoneCategory,
+  CITY_PROBLEMS, CityClass, DisasterKind, GameLevel, GrowthBlocker, GrowthOutlook, GrowthZone, OverlayLayer,
+  ScoreReason, ServiceAmounts, SPEEDS, ToolName, ZoneCategory,
 } from "./protocol";
 import type { ToastedFailure } from "./toolToast";
 import * as UiMessages from "./uiMessages";
@@ -38,6 +38,40 @@ const zoneCategories: Record<ZoneCategory, string> = {
   POLICE_STATION: "Police Department", STADIUM: "Stadium", NUCLEAR_POWER: "Nuclear Power",
   DRAWBRIDGE: "Draw Bridge", RADAR: "Radar Dish", FOUNTAIN: "Fountain", FOOTBALL_GAME: "Steelers 38  Bears 3",
   URANIUM: "Ur 238",
+};
+
+// The query tool's words for how the zone holding a tile grows: where it stands, each thing holding it back, that the
+// rules assess it only now and then, and what its next trip does with no road at its edge, by the kind of zone where
+// they differ
+const growth = {
+  outlooks: {
+    LIKELY_TO_GROW: "Likely to grow",
+    MAY_GROW_OR_DECLINE: "May grow or decline",
+    HOLDS_STEADY: "Holding steady",
+    LIKELY_TO_DECLINE: "Likely to decline",
+  } satisfies Record<GrowthOutlook, string>,
+  blockers: {
+    NO_POWER: "No power",
+    LOW_LAND_VALUE: "Land value too low",
+    POLLUTION_OUTWEIGHS_LAND_VALUE: "Pollution outweighs its land value",
+    TOO_POLLUTED: "Too polluted for anyone to move in",
+    FAR_FROM_CENTRE: "Far from the city centre",
+    LAND_VALUE_LIMITS_SIZE: "Land value too low to grow bigger",
+    NO_FREE_LOT: "No free lot for another house",
+    NEIGHBOURHOOD_TOO_SPARSE: "Too few people nearby for apartments",
+    FULL: "Fully built up",
+  } satisfies Record<Exclude<GrowthBlocker, "LOW_DEMAND">, string>,
+  lowDemand: {
+    RESIDENTIAL: "Low demand for housing", COMMERCIAL: "Low demand for commerce", INDUSTRIAL: "Low demand for industry",
+  } satisfies Record<GrowthZone, string>,
+  nowAndThen: {
+    RESIDENTIAL: "Homes are assessed now and then", COMMERCIAL: "Commerce is assessed now and then",
+    INDUSTRIAL: "Industry is assessed now and then",
+  } satisfies Record<GrowthZone, string>,
+  noRoad: {
+    RESIDENTIAL: "No road at its edge: its people will move out", COMMERCIAL: "No road at its edge: it will decline",
+    INDUSTRIAL: "No road at its edge: it will decline",
+  } satisfies Record<GrowthZone, string>,
 };
 
 // Evaluation window
@@ -254,6 +288,7 @@ export const Text = {
   crimeStrings,
   densityStrings,
   gameLevel,
+  growth,
   landValueStrings,
   messages,
   months,

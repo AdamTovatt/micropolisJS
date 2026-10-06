@@ -20,7 +20,7 @@ import type { Advanced, View } from "../src/testHook";
 import { steppedZoom } from "../src/viewPosition";
 import type { TilePoint } from "../src/viewPosition";
 import { CommandLog, joinSessions, parseLog } from "../test/helpers/commandLog";
-import { CITY_LINK, GameServer } from "./gameServer";
+import { CITY_LINK, type Forwarded, GameServer } from "./gameServer";
 
 // The runner's player: plays the game in the page through real mouse and keyboard input, while the test hook holds the
 // step driver, and moves the city on only through the hook's advance. Every input lands between the same two steps on
@@ -92,13 +92,13 @@ export class Player {
   // Whether each page opened keeps where the pointer last moved
   private trackingPointer = false;
 
-  private constructor(readonly page: Page, private readonly server: GameServer, private readonly name: string) {}
+  private constructor(readonly page: Page, private readonly server: GameServer, private readonly name: string,
+                      readonly forwarded: Forwarded) {}
 
   // A player who plays on the game server under the name, which the page's requests go to, and which the page opens
-  // signed in to (GameServer.forward)
+  // signed in to (GameServer.forward), whose forwarding a spec may watch
   static async onServer(server: GameServer, page: Page, name: string): Promise<Player> {
-    await server.forward(page, name);
-    return new Player(page, server, name);
+    return new Player(page, server, name, await server.forward(page, name));
   }
 
   // Opens the page in debug mode, with more of a query string if given, and holds the driver before the game exists, so

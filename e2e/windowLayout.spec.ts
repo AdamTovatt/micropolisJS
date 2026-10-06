@@ -14,7 +14,9 @@
 
 import { expect, Page, test } from "@playwright/test";
 
-import { type BudgetForecastAnswer, type EvaluationRecord, MAX_RANKED_PROBLEMS, SCORE_REASONS } from "../src/protocol";
+import {
+  type BudgetForecastAnswer, type EvaluationRecord, MAX_RANKED_PROBLEMS, SCORE_REASONS, type TileReportAnswer,
+} from "../src/protocol";
 import { CITY_LIST_KEY } from "../src/storage";
 import { serverForTests, signIn } from "./gameServer";
 import { checkLayout, problemsAtEachSize, SCREENS, WINDOWS } from "./layoutCheck";
@@ -28,9 +30,10 @@ import { SEED, SITE, STAGES } from "./stages";
 // and the no-server message, fit the screen, and nothing in them shows outside them, overflows its box or is cut off,
 // reads under WCAG AA's 4.5:1 or is drawn in any font but Inter. Each is at the fullest the game shows it: the budget
 // and the evaluation with the widest figures, the evaluation with every problem and every step of its score, the query
-// window in debug mode, with its raw values and flags, and the splash screen with more of this browser's cities than
-// its list shows at once and a game it kept from before cities were kept on the server. A window or a screen that
-// scrolls at these sizes fails, since a part scrolled away is a part out of sight.
+// window in debug mode, with its raw values and flags and a zone's growth with every note and the most blockers one
+// zone has, and the splash screen with more of this browser's cities than its list shows at once and a game it kept
+// from before cities were kept on the server. A window or a screen that scrolls at these sizes fails, since a part
+// scrolled away is a part out of sight.
 
 const server = serverForTests("manual");
 
@@ -61,6 +64,21 @@ const FULL_FORECAST: BudgetForecastAnswer = {
     maintenance: {road: MONEY, fire: MONEY, police: MONEY}, funding: {road: 0.999, fire: 0.999, police: 0.999},
   },
   costs: {road: MONEY, fire: MONEY, police: MONEY}, taxes: MONEY, fundsChange: -MONEY, fundsAfterYear: -MONEY,
+};
+
+// A tile report at its fullest: the widest raw values, and a home zone with every note and as many blockers as one
+// zone can have at once, the longest of each set that exclude each other, beside the widest zone score, demand and
+// location at their least, and the longest outlook, which no one zone shows together
+const FULL_REPORT: TileReportAnswer = {
+  type: "tileReport", x: 119, y: 99, tile: 1018, category: "RESIDENTIAL", populationDensity: 510, landValue: 250,
+  crime: 250, pollution: 255, rateOfGrowth: -200, burnable: true, bulldozable: true, conductive: true, animated: true,
+  powered: false, zoneCentre: true, fireStationMap: 8888, fireCoverage: 8888, policeStationMap: 8888,
+  policeCoverage: 8888, terrainDensity: 240, trafficDensity: 240, cityCentreScore: -64,
+  growth: {
+    zone: "RESIDENTIAL", x: 118, y: 98, score: -5000, outlook: "MAY_GROW_OR_DECLINE", assessedNowAndThen: true,
+    roadAtEdge: false,
+    blockers: ["NO_POWER", "LOW_DEMAND", "POLLUTION_OUTWEIGHS_LAND_VALUE", "TOO_POLLUTED", "NEIGHBOURHOOD_TOO_SPARSE"],
+  },
 };
 
 // A window by its element's id, and how a player opens it
@@ -131,13 +149,19 @@ test("each window fits the screen and its box at each size, opened over a town",
     await expect(page.locator(`#${opener.id}`)).toBeHidden();
   }
 
-  // The query window, in debug mode, with the tile's raw values and flags
+  // The query window, in debug mode, with the tile's raw values and flags, then the fullest report, written into the
+  // window as it writes the city's own
   const zone = {x: SITE[0].left + 1, y: SITE[0].bottom - 1};
   await player.showTiles([zone]);
   await player.selectTool("query");
   await player.clickTile(zone);
   await expect(page.locator("#queryWindow")).toBeVisible();
   await expect(page.locator("#queryDebugTable")).toBeVisible();
+  await expect(page.locator("#queryOutlook"), "the city's own zone's growth").not.toBeEmpty();
+  await page.evaluate((report) => window.micropolisTestHook!.showTileReport(report), FULL_REPORT);
+  await expect(page.locator("#queryBlockers li"), "every blocker").toHaveCount(FULL_REPORT.growth!.blockers.length);
+  await expect(page.locator("#queryNoRoad")).toBeVisible();
+  await expect(page.locator("#queryNowAndThen")).toBeVisible();
   found.push(...await problemsAtEachSize(page, WINDOWS, "queryWindow"));
 
   expect(found).toEqual([]);

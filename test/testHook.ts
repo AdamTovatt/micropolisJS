@@ -16,7 +16,7 @@ import type { Cars } from "../src/cars";
 import type { CityDriver, CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
 import { AdvanceResult, BudgetForecastAnswer, Command, EvaluationRecord, FireStationReach, SPEEDS, StatusRecord,
-         TilePosition, Trip } from "../src/protocol";
+         TilePosition, TileReportAnswer, Trip } from "../src/protocol";
 import { attachDriverToTestHook, installTestHook, TestHook } from "../src/testHook";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
 import { restoreGlobals, stubGlobal } from "./helpers/globals";
@@ -41,6 +41,15 @@ const FORECAST: BudgetForecastAnswer = {
     budget: {type: "budget", taxRate: 7, taxesCollected: 900, funds: 5000, maintenance: {road: 300, fire: 100, police: 100},
              funding: {road: 1, fire: 1, police: 1}},
     costs: {road: 300, fire: 100, police: 100}, taxes: 900, fundsChange: 400, fundsAfterYear: 5400,
+};
+
+const REPORT: TileReportAnswer = {
+    type: "tileReport", x: 4, y: 5, tile: 244, category: "RESIDENTIAL", populationDensity: 0, landValue: 90, crime: 0,
+    pollution: 10, rateOfGrowth: 0, burnable: true, bulldozable: true, conductive: true, animated: false, powered: true,
+    zoneCentre: true, fireStationMap: 0, fireCoverage: 0, policeStationMap: 0, policeCoverage: 0, terrainDensity: 0,
+    trafficDensity: 0, cityCentreScore: 0,
+    growth: {zone: "RESIDENTIAL", x: 4, y: 5, score: -320, outlook: "LIKELY_TO_GROW", assessedNowAndThen: false,
+             roadAtEdge: true, blockers: ["LOW_LAND_VALUE"]},
 };
 
 function gameOn(source: CitySource, state: CityState) {
@@ -80,6 +89,10 @@ function gameOn(source: CitySource, state: CityState) {
         evaluationWindow: {write: (record: EvaluationRecord) => {
             game.evaluations.push(record);
         }},
+        reports: [] as TileReportAnswer[],
+        queryWindow: {write: (report: TileReportAnswer) => {
+            game.reports.push(report);
+        }},
         hoverTile: {x: 7, y: 9} as {x: number, y: number} | null,
     };
 
@@ -100,6 +113,7 @@ const IDLE_GAME = {
     statusPanel: {show: () => {}},
     budgetWindow: {write: () => {}},
     evaluationWindow: {write: () => {}},
+    queryWindow: {write: () => {}},
     hoverTile: null,
 };
 
@@ -256,7 +270,7 @@ describe("the test hook", () => {
         });
 
         it.each(["view", "commandsApplied", "dismissNotification", "showStatus", "showEvaluation", "showBudgetForecast",
-                 "viewsCurrent"])("can't %s", (method) => {
+                 "showTileReport", "viewsCurrent"])("can't %s", (method) => {
             const hook = new TestHook();
             const call = {view: () => hook.view(), commandsApplied: () => hook.commandsApplied(),
                           dismissNotification: () => hook.dismissNotification(),
@@ -265,6 +279,7 @@ describe("the test hook", () => {
                                                              industrialCapped: false, conditions: []}),
                           showEvaluation: () => hook.showEvaluation(EVALUATION),
                           showBudgetForecast: () => hook.showBudgetForecast(FORECAST),
+                          showTileReport: () => hook.showTileReport(REPORT),
                           viewsCurrent: () => hook.viewsCurrent()}[method]!;
 
             expect(call).toThrow("No game has started");
@@ -510,5 +525,13 @@ describe("the test hook", () => {
         hook.showBudgetForecast(FORECAST);
 
         expect(game.forecasts).toEqual([FORECAST]);
+    });
+
+    it("writes a tile report into the game's query window", async () => {
+        const {hook, game} = await holdingGame("nothing");
+
+        hook.showTileReport(REPORT);
+
+        expect(game.reports).toEqual([REPORT]);
     });
 });

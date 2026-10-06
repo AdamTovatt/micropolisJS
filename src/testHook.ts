@@ -14,7 +14,9 @@
 
 import type { Cars } from "./cars";
 import type { CityDriver } from "./citySource";
-import type { BudgetForecastAnswer, EvaluationRecord, FireStationReach, StatusRecord, TilePosition } from "./protocol";
+import type {
+  BudgetForecastAnswer, EvaluationRecord, FireStationReach, StatusRecord, TilePosition, TileReportAnswer,
+} from "./protocol";
 import type { OriginLimits } from "./viewPosition";
 
 // The end-to-end runner's hold on the game, installed on the window in debug mode. The runner holds the city source's
@@ -38,6 +40,7 @@ interface HookedGame {
   statusPanel: {show(status: StatusRecord): void};
   budgetWindow: {write(forecast: BudgetForecastAnswer): void};
   evaluationWindow: {write(record: EvaluationRecord): void};
+  queryWindow: {write(report: TileReportAnswer): void};
   readonly hoverTile: {x: number, y: number} | null;
 }
 
@@ -179,6 +182,12 @@ class TestHook {
   // it.
   showBudgetForecast(forecast: BudgetForecastAnswer): void {
     this.attachedGame().budgetWindow.write(forecast);
+  }
+
+  // Writes a tile report into the query window as the city's own would show, for a layout check at a report no tile
+  // of a city gives at once. It changes no city state, and the window shows the city's own the next time it opens.
+  showTileReport(report: TileReportAnswer): void {
+    this.attachedGame().queryWindow.write(report);
   }
 
   // Every step advance has taken, including those of an advance that then failed

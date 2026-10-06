@@ -13,8 +13,8 @@
  */
 
 import { ClientConfig } from "./clientConfig";
-import { requiredElement } from "./domElements";
-import { type TileReportAnswer } from "./protocol";
+import { appendElement, requiredElement, setShown } from "./domElements";
+import { type GrowthBlocker, type GrowthZone, type TileReportAnswer, type ZoneGrowthReport } from "./protocol";
 import { Text } from "./text";
 import { ClosableWindow } from "./windowBase";
 
@@ -68,11 +68,13 @@ function rateOfGrowthBand(rateOfGrowth: number): number {
 // that field, and a field named after one with Band added shows the band it falls in. hasPower says in words whether
 // the tile had power at the map scan's last pass over it, so a power line just laid reads no until the scan reaches
 // it; it is null for a tile power means nothing to, neither a zone nor conductive, such as water or a park, whose row
-// the window leaves out. It is not named powered: that is the debug table's flag. The fields from position on are the
-// debug rows, which show only in debug mode.
+// the window leaves out. It is not named powered: that is the debug table's flag. growth is how the zone holding the
+// tile grows, and null for a tile of no zone that grows, whose rows the window leaves out. The fields from position on
+// are the debug rows, which show only in debug mode.
 export interface QueryView {
   category: string;
   hasPower: string | null;
+  growth: GrowthView | null;
   populationDensityBand: string;
   landValueBand: string;
   crimeBand: string;
@@ -100,12 +102,38 @@ export interface QueryView {
   zoneCentre: string;
 }
 
+// How a zone grows, in words: where it stands; each thing holding it back, none for a zone nothing holds back; that the
+// rules assess it only now and then, or null where they assess it whenever the map scan finds it; what its next trip
+// does with no road at its edge, or null with one; and, for the debug rows, its zone score and its centre, which the
+// report is on, wherever the tile clicked lies in it
+export interface GrowthView {
+  outlook: string;
+  blockers: string[];
+  nowAndThen: string | null;
+  noRoad: string | null;
+  score: string;
+  centre: string;
+}
+
 // The element hasPower is written into, and the class of its row's label and value, which hide without it
 const POWERED_ID = "queryPowered";
 const POWERED_ROW_CLASS = "queryPowered";
 
+// The elements the growth is written into, the class of its rows and of the box of its notes, which hide without it,
+// and of the row of what holds it back, which hides when nothing does
+const GROWTH_IDS: Record<keyof GrowthView, string> = {
+  outlook: "queryOutlook",
+  blockers: "queryBlockers",
+  nowAndThen: "queryNowAndThen",
+  noRoad: "queryNoRoad",
+  score: "queryZoneScoreRaw",
+  centre: "queryZoneCentreRaw",
+};
+const GROWTH_PART_CLASS = "queryGrowthPart";
+const BLOCKERS_ROW_CLASS = "queryBlockersRow";
+
 // The element each field of the view that always shows is written into
-const ELEMENT_IDS: Record<Exclude<keyof QueryView, "hasPower">, string> = {
+const ELEMENT_IDS: Record<Exclude<keyof QueryView, "hasPower" | "growth">, string> = {
   category: "queryZoneType",
   populationDensityBand: "queryDensity",
   landValueBand: "queryLandValue",
@@ -149,12 +177,34 @@ function hasPowerText(report: TileReportAnswer): string | null {
   return report.powered ? Text.poweredStrings.yes : Text.poweredStrings.no;
 }
 
+// LOW_DEMAND names the demand of the zone's own kind
+function blockerText(blocker: GrowthBlocker, zone: GrowthZone): string {
+  return blocker === "LOW_DEMAND" ? Text.growth.lowDemand[zone] : Text.growth.blockers[blocker];
+}
+
+function growthView(growth: ZoneGrowthReport | null): GrowthView | null {
+  if (growth === null) {
+    return null;
+  }
+
+  const words = Text.growth;
+  return {
+    outlook: words.outlooks[growth.outlook],
+    blockers: growth.blockers.map((blocker) => blockerText(blocker, growth.zone)),
+    nowAndThen: growth.assessedNowAndThen ? words.nowAndThen[growth.zone] : null,
+    noRoad: growth.roadAtEdge ? null : words.noRoad[growth.zone],
+    score: `${growth.score}`,
+    centre: `${growth.x}, ${growth.y}`,
+  };
+}
+
 // Every decision about what the window shows is made here, so it is tested under node. The window only writes the
 // view into the DOM. A code without text is a defect the tests catch, so there is no fallback.
 export function queryView(report: TileReportAnswer): QueryView {
   return {
     category: categoryText[report.category],
     hasPower: hasPowerText(report),
+    growth: growthView(report.growth),
     populationDensityBand: Text.densityStrings[populationDensityBand(report.populationDensity)],
     landValueBand: Text.landValueStrings[landValueBand(report.landValue)],
     crimeBand: Text.crimeStrings[crimeBand(report.crime)],
@@ -191,7 +241,38 @@ export class QueryWindow extends ClosableWindow<[TileReportAnswer], void> {
   }
 
   protected fill(report: TileReportAnswer): void {
+    this.write(report);
+  }
+
+  // Writes a report into the window, as it writes the one it opens on
+  write(report: TileReportAnswer): void {
     render(queryView(report), ClientConfig.debug);
+  }
+}
+
+// Shows the elements of the class where shown, and hides them where not
+function showRows(className: string, shown: boolean): void {
+  document.querySelectorAll<HTMLElement>(`.${className}`).forEach((element) => setShown(element, shown));
+}
+
+function renderGrowth(growth: GrowthView | null): void {
+  showRows(GROWTH_PART_CLASS, growth !== null);
+  showRows(BLOCKERS_ROW_CLASS, (growth?.blockers.length ?? 0) > 0);
+
+  const blockers = requiredElement(GROWTH_IDS.blockers);
+  blockers.replaceChildren();
+  for (const blocker of growth?.blockers ?? []) {
+    appendElement(blockers, "li").textContent = blocker;
+  }
+
+  for (const field of ["outlook", "score", "centre"] as const) {
+    requiredElement(GROWTH_IDS[field]).textContent = growth?.[field] ?? "";
+  }
+
+  for (const field of ["nowAndThen", "noRoad"] as const) {
+    const note = requiredElement(GROWTH_IDS[field]);
+    note.textContent = growth?.[field] ?? null;
+    setShown(note, (growth?.[field] ?? null) !== null);
   }
 }
 
@@ -201,9 +282,8 @@ function render(view: QueryView, debug: boolean): void {
   }
 
   requiredElement(POWERED_ID).textContent = view.hasPower;
-  document.querySelectorAll<HTMLElement>(`.${POWERED_ROW_CLASS}`).forEach((element) => {
-    element.style.display = view.hasPower === null ? "none" : "";
-  });
+  showRows(POWERED_ROW_CLASS, view.hasPower !== null);
+  renderGrowth(view.growth);
 
   document.querySelectorAll(".queryDebug").forEach((element) => element.classList.toggle("hidden", !debug));
 }

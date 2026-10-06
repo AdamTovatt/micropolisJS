@@ -1442,11 +1442,51 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   font-size: var(--type-size);
 }
 
-/* The query's raw values and flags, in debug mode, under its figures */
-#queryDebugList {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--hud-edge-fill);
+/* What holds back the zone a query reports on, a line each beside their label, and the notes on its growth under the
+   figures */
+#queryBlockers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.queryNote {
+  margin: 8px 0 0;
+  color: var(--hud-window-muted-text);
+}
+
+/* In debug mode the query's raw values lie beside its figures, the notes on the zone's growth and its flags, so the
+   window at its fullest, a zone held back by all it can be with every note, fits a screen 720 pixels high */
+#queryWindow:has(#queryDebugList:not(.hidden)) {
+  width: 760px;
+}
+
+#queryContainer:has(#queryDebugList:not(.hidden)) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr auto;
+  grid-template-areas: "figures raw" "notes raw" "flags raw" "actions actions";
+  column-gap: 32px;
+}
+
+#queryContainer:has(#queryDebugList:not(.hidden)) #queryFigures {
+  grid-area: figures;
+}
+
+#queryContainer:has(#queryDebugList:not(.hidden)) #queryGrowthNotes {
+  grid-area: notes;
+}
+
+#queryContainer:has(#queryDebugList:not(.hidden)) #queryDebugList {
+  grid-area: raw;
+}
+
+#queryContainer:has(#queryDebugList:not(.hidden)) #queryDebugTable {
+  grid-area: flags;
+}
+
+#queryContainer:has(#queryDebugList:not(.hidden)) #queryForm {
+  grid-area: actions;
 }
 
 #flagsTable {

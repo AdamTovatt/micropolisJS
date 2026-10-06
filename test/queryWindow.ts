@@ -12,7 +12,9 @@
  *
  */
 
-import { type TileReportAnswer, ZONE_CATEGORIES } from "../src/protocol";
+import {
+    GROWTH_BLOCKERS, GROWTH_OUTLOOKS, GROWTH_ZONES, type TileReportAnswer, ZONE_CATEGORIES, type ZoneGrowthReport,
+} from "../src/protocol";
 import { queryView } from "../src/queryWindow";
 
 // A report made up for the view, not one a city gave: each value is different, and each band shows a different label,
@@ -31,6 +33,7 @@ describe("the query window's view", () => {
         expect(queryView(REPORT)).toEqual({
             category: "Residential",
             hasPower: "Yes",
+            growth: null,
             populationDensityBand: "High",
             landValueBand: "Lower Class",
             crimeBand: "Light",
@@ -68,6 +71,67 @@ describe("the query window's view", () => {
             "Residential", "Commercial", "Industrial", "Seaport", "Airport", "Coal Power", "Fire Department",
             "Police Department", "Stadium", "Nuclear Power", "Draw Bridge", "Radar Dish", "Fountain",
             "Steelers 38  Bears 3", "Ur 238",
+        ]);
+    });
+});
+
+// A zone's growth made up for the view, a home that every note applies to
+const GROWTH: ZoneGrowthReport = {
+    zone: "RESIDENTIAL", x: 28, y: 14, score: -2400, outlook: "HOLDS_STEADY", assessedNowAndThen: true,
+    roadAtEdge: false, blockers: ["NO_POWER", "LOW_DEMAND", "TOO_POLLUTED"],
+};
+
+describe("the query window's growth", () => {
+
+    it("words where the zone stands, what holds it back and its notes, with its score and centre for the debug " +
+       "rows", () => {
+        expect(queryView({...REPORT, growth: GROWTH}).growth).toEqual({
+            outlook: "Holding steady",
+            blockers: ["No power", "Low demand for housing", "Too polluted for anyone to move in"],
+            nowAndThen: "Homes are assessed now and then",
+            noRoad: "No road at its edge: its people will move out",
+            score: "-2400",
+            centre: "28, 14",
+        });
+    });
+
+    it("leaves out the notes on a zone assessed whenever the scan finds it, with a road at its edge", () => {
+        const growth = queryView({...REPORT, growth: {...GROWTH, assessedNowAndThen: false, roadAtEdge: true}}).growth;
+
+        expect([growth?.nowAndThen, growth?.noRoad]).toEqual([null, null]);
+    });
+
+    it("words each outlook apart", () => {
+        const words = GROWTH_OUTLOOKS.map(
+            (outlook) => queryView({...REPORT, growth: {...GROWTH, outlook}}).growth?.outlook);
+
+        expect(words.every((word) => typeof word === "string" && word !== "")).toBe(true);
+        expect(new Set(words).size).toBe(GROWTH_OUTLOOKS.length);
+    });
+
+    it.each(GROWTH_ZONES)("words each blocker of a %s zone apart", (zone) => {
+        const growth = queryView({...REPORT, growth: {...GROWTH, zone, blockers: [...GROWTH_BLOCKERS]}}).growth;
+
+        expect(growth?.blockers.every((blocker) => typeof blocker === "string" && blocker !== "")).toBe(true);
+        expect(new Set(growth?.blockers).size).toBe(GROWTH_BLOCKERS.length);
+    });
+
+    it.each(GROWTH_ZONES)("words both notes on a %s zone, apart", (zone) => {
+        const growth = queryView({
+            ...REPORT, growth: {...GROWTH, zone, assessedNowAndThen: true, roadAtEdge: false},
+        }).growth;
+        const notes = [growth?.nowAndThen, growth?.noRoad];
+
+        expect(notes.every((note) => typeof note === "string" && note !== "")).toBe(true);
+        expect(new Set(notes).size).toBe(notes.length);
+    });
+
+    it("names the demand for the zone's own kind", () => {
+        const lowDemand = GROWTH_ZONES.map(
+            (zone) => queryView({...REPORT, growth: {...GROWTH, zone, blockers: ["LOW_DEMAND"]}}).growth?.blockers);
+
+        expect(lowDemand).toEqual([
+            ["Low demand for housing"], ["Low demand for commerce"], ["Low demand for industry"],
         ]);
     });
 });

@@ -488,9 +488,9 @@ export interface TileReportAnswer {
 }
 
 // Where a zone stands, by what its handler can do with it, best first: likely to grow where it can grow and never
-// declines, may grow or decline where it can do both, holds steady where it can do neither, and likely to decline where
-// it can decline and never grows. A zone grows at a zone score above -350 where its grow step refuses it for nothing, and
-// declines at one below 350 where it has people to lose.
+// declines, may grow or decline where it can do both, holds steady where it can do neither, and likely to decline
+// where it can decline and never grows. A zone grows at a zone score above -350 where its grow step refuses it for
+// nothing, and declines at one below 350 where it has people to lose.
 export const GROWTH_OUTLOOKS = ["LIKELY_TO_GROW", "MAY_GROW_OR_DECLINE", "HOLDS_STEADY", "LIKELY_TO_DECLINE"] as const;
 
 export type GrowthOutlook = typeof GROWTH_OUTLOOKS[number];
@@ -513,14 +513,19 @@ export const GROWTH_BLOCKERS = [
 
 export type GrowthBlocker = typeof GROWTH_BLOCKERS[number];
 
+// The categories of the zones that grow, whose tile reports say how
+export const GROWTH_ZONES = ["RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL"] as const satisfies readonly ZoneCategory[];
+
+export type GrowthZone = typeof GROWTH_ZONES[number];
+
 // How a zone grows, as the rules assess it at its centre, (x, y), were its trip to find a route: zone, its category;
 // score, the zone score its handler would assess it by, the demand for its kind and, for homes and commerce, its
-// location score, or a score below any that grows without power; outlook, where it stands; assessedNowAndThen, whether its handler
-// assesses it only now and then, rather than each time the map scan finds it, as it does an empty home zone;
-// roadAtEdge, whether a road or rail lies on its perimeter, without which the next trip its people make declines it,
-// though a zone with no people makes none; and blockers, what holds back its growth.
+// location score, or a score below any that grows without power; outlook, where it stands; assessedNowAndThen,
+// whether its handler assesses it only now and then, rather than each time the map scan finds it, as it does an empty
+// home zone; roadAtEdge, whether a road or rail lies on its perimeter, without which the next trip its people make
+// declines it, though a zone with no people makes none; and blockers, what holds back its growth.
 export interface ZoneGrowthReport {
-  zone: Extract<ZoneCategory, "RESIDENTIAL" | "COMMERCIAL" | "INDUSTRIAL">;
+  zone: GrowthZone;
   x: number;
   y: number;
   score: number;
