@@ -22,7 +22,7 @@ import { Text } from "./text";
 // Every layer but the power grid is a heatmap: a ramp of hues from blue at its low end, through cyan, green and
 // yellow, to red at its high end, all at one opacity, so the map shows through alike everywhere. The ramp spans the
 // values this answer holds, not the layer's range, since real cities use a small part of some ranges: from the least to the greatest of the answer's values but zero, which
-// stays clear and doesn't count. A layer whose range runs either side of zero, the rate of growth, diverges: its ramp
+// stays clear and doesn't count. A layer whose range runs either side of zero diverges: its ramp
 // runs from minus the largest magnitude among the answer's values to plus it, so zero falls at its middle, and stays
 // clear. The power grid is either powered or not, and tints its powered tiles in one colour.
 

@@ -30,18 +30,22 @@ namespace Micropolis.Rules
         /// </summary>
         public static readonly IReadOnlyList<OverlayLayer> Layers =
         [
-            new OverlayLayer("landValue", maps => maps.LandValueMap, 0, 250, 12),
-            new OverlayLayer("pollution", maps => maps.PollutionDensityMap, 0, 255, 12),
-            new OverlayLayer("crime", maps => maps.CrimeRateMap, 0, 250, 13),
+            new OverlayLayer("landValue", city => city.BlockMaps.LandValueMap, 0, 250, 12),
+            // The residential location score of each block, from its land value and pollution, which phase 12 computes
+            // both of
+            new OverlayLayer("housingAppeal", city => Residential.HousingAppealMap(city.BlockMaps),
+                             Residential.LeastLocationScore, Residential.GreatestLocationScore, 12),
+            new OverlayLayer("pollution", city => city.BlockMaps.PollutionDensityMap, 0, 255, 12),
+            new OverlayLayer("crime", city => city.BlockMaps.CrimeRateMap, 0, 250, 13),
             // The map scan of phases 1 to 8 adds to the traffic and growth maps tile by tile, and phase 10 decays them,
             // which completes them for the cycle
-            new OverlayLayer("trafficDensity", maps => maps.TrafficDensityMap, 0, 240, 10),
-            new OverlayLayer("populationDensity", maps => maps.PopulationDensityMap, 0, 510, 14),
-            new OverlayLayer("policeCoverage", maps => maps.PoliceStationEffectMap, 0, 1000, 13),
-            new OverlayLayer("fireCoverage", maps => maps.FireStationEffectMap, 0, 1000, 15),
-            new OverlayLayer("rateOfGrowth", maps => maps.RateOfGrowthMap, -200, 200, 10),
+            new OverlayLayer("trafficDensity", city => city.BlockMaps.TrafficDensityMap, 0, 240, 10),
+            new OverlayLayer("populationDensity", city => city.BlockMaps.PopulationDensityMap, 0, 510, 14),
+            new OverlayLayer("policeCoverage", city => city.BlockMaps.PoliceStationEffectMap, 0, 1000, 13),
+            new OverlayLayer("fireCoverage", city => city.BlockMaps.FireStationEffectMap, 0, 1000, 15),
+            new OverlayLayer("rateOfGrowth", city => city.BlockMaps.RateOfGrowthMap, -200, 200, 10),
             // Each tile, 1 where the last power scan powered it and 0 where it didn't
-            new OverlayLayer("powerGrid", null, 0, 1, 11),
+            new OverlayLayer("powerGrid", city => city.PowerManager.PowerGridMap, 0, 1, 11),
         ];
 
         // Each query's fields but its type, required or optional
@@ -192,7 +196,7 @@ namespace Micropolis.Rules
         private static OverlayAnswer Overlay(string name, Simulation city)
         {
             OverlayLayer layer = Layers.Single(known => known.Name == name);
-            BlockMap map = layer.Map is null ? city.PowerManager.PowerGridMap : layer.Map(city.BlockMaps);
+            BlockMap map = layer.Map(city);
 
             return new OverlayAnswer(name, map.BlockSize, map.Width, map.Height, layer.Low, layer.High, map.CopyValues());
         }
@@ -211,7 +215,8 @@ namespace Micropolis.Rules
                 maps.FireStationMap.WorldGet(x, y), maps.FireStationEffectMap.WorldGet(x, y),
                 maps.PoliceStationMap.WorldGet(x, y), maps.PoliceStationEffectMap.WorldGet(x, y),
                 maps.TerrainDensityMap.WorldGet(x, y), maps.TrafficDensityMap.WorldGet(x, y),
-                maps.CityCentreDistScoreMap.WorldGet(x, y));
+                maps.CityCentreDistScoreMap.WorldGet(x, y),
+                ZoneGrowth.Report(city, x, y));
         }
 
         private static BudgetForecastAnswer BudgetForecast(JsonObject fields, Simulation city)
@@ -235,9 +240,9 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// A layer an overlay shows: its name; the block map it reads, which is null for the power grid; the ends of its
+    /// A layer an overlay shows: its name; the block map of the city it reads, which an answer copies; the ends of its
     /// range, the range its block map keeps its values to; and the phase whose scan recomputes it, after which the
     /// simulation emits <see cref="RulesEvents.OverlayUpdated"/> for it.
     /// </summary>
-    public sealed record OverlayLayer(string Name, Func<BlockMaps, BlockMap>? Map, int Low, int High, int Phase);
+    public sealed record OverlayLayer(string Name, Func<Simulation, BlockMap> Map, int Low, int High, int Phase);
 }

@@ -22,7 +22,7 @@ const REPORT: TileReportAnswer = {
     populationDensity: 152, landValue: 79, crime: 119, pollution: 43, rateOfGrowth: 175,
     burnable: true, bulldozable: true, conductive: true, animated: false, powered: true, zoneCentre: true,
     fireStationMap: 31, fireCoverage: 1000, policeStationMap: 250, policeCoverage: 54, terrainDensity: 7,
-    trafficDensity: 12, cityCentreScore: -44,
+    trafficDensity: 12, cityCentreScore: -44, growth: null,
 };
 
 describe("the query window's view", () => {

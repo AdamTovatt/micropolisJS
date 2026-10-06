@@ -111,7 +111,7 @@ describe("the overlay selection", () => {
             type: "tileReport", x: 0, y: 0, tile: 0, category: "CLEAR", populationDensity: 0, landValue: 0, crime: 0,
             pollution: 0, rateOfGrowth: 0, burnable: false, bulldozable: false, conductive: false, animated: false,
             powered: false, zoneCentre: false, fireStationMap: 0, fireCoverage: 0, policeStationMap: 0, policeCoverage: 0,
-            terrainDensity: 0, trafficDensity: 0, cityCentreScore: 0,
+            terrainDensity: 0, trafficDensity: 0, cityCentreScore: 0, growth: null,
         })).toThrow("The simulation answered an overlay query with an answer of type tileReport");
         expect(shown).toEqual([]);
     });

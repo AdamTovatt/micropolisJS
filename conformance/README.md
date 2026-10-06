@@ -184,19 +184,24 @@ disaster the player can trigger is a case of its own, so its hash shows what tha
 ### queries.json
 
 What the simulation answers to queries, and the records it produces, over the fixtures' saves: `QueryCasesFile` lists
-the queries and asks them. `categories` is what the query tool calls each tile value, from 0. Each of `records` has a
-`city`, the name of a save of `saves/` (`<fixture>.<point>`) or `{"seed", "level"}` for a new city on that seed's map
-at that level; `commands`, applied to the city in order before its records are taken, as they would arrive from a
-player; and the `evaluation`, `budget` and `settings` records the city then produces. The new city reaches what the
-fixtures never do: the hardest level, disasters on, auto-budget off and the game paused. Each of `answers` holds a
-`query` and its `answer`, about the city of the `save` it names, with its funds replaced by `funds` where an answer has
-one, or asked before any city has started where `save` is null: in each save, a tile report at the city's centre and
-at the first tile of each category no save before it reported, and budget forecasts with no service, every service and
-one service named, at the lowest and the highest tax rate, and at a tax rate with a service named; the same forecasts on the first save whose year end has no cash for its services, with half of what
-they cost and exactly what they cost, so the funds pay some services and scale one back; each overlay layer from the
-first save where it holds a value other than 0; and queries the simulation rejects, on the first save and before any
-city has started. The tool fails unless the queries reach every reason the simulation rejects one for, every category
-and every layer. A map preview's answer is the map the seed generates, which `maps.json` holds.
+the queries and asks them. `categories` is what the query tool calls each tile value, from 0. `growthOutlooks` and
+`growthBlockers` are the codes of a zone's growth in a tile report, in the order a report lists blockers, which
+`test/vocabulary.ts` holds the client's lists to. Each of `records` has a `city`, the name of a save of `saves/`
+(`<fixture>.<point>`) or `{"seed", "level"}` for a new city on that seed's map at that level; `commands`, applied to
+the city in order before its records are taken, as they would arrive from a player; and the `evaluation`, `budget`
+and `settings` records the city then produces. The new city reaches what the fixtures never do: the hardest level,
+disasters on, auto-budget off and the game paused. Each of `answers` holds a `query` and its `answer`, about the city
+of the `save` it names, with its funds replaced by `funds` where an answer has one, or asked before any city has
+started where `save` is null: in each save, a tile report at the city's centre, at the first tile of each category no
+save before it reported, and at the centre of the first zone whose growth meets an outlook, a blocker or a want of a
+road at its edge that no save before it reported, and budget forecasts with no service, every service and one service
+named, at the lowest and the highest tax rate, and at a tax rate with a service named; the same forecasts on the
+first save whose year end has no cash for its services, with half of what they cost and exactly what they cost, so the
+funds pay some services and scale one back; each overlay layer from the first save where it holds a value other than
+0; and queries the simulation rejects, on the first save and before any city has started. The tool fails unless the
+queries reach every reason the simulation rejects one for, every category, every layer, the growth of each kind of
+zone, every outlook, a zone with no road at its edge and one held back by more than one thing. A map preview's answer
+is the map the seed generates, which `maps.json` holds.
 
 ### speedGate.json
 

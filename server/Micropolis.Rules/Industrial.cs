@@ -45,11 +45,18 @@ namespace Micropolis.Rules
             ZoneUtils.PutZone(map, x, y, centreTile, zonePower);
         }
 
+        // The population level of the densest zone
+        private const int MostPopulation = 4;
+
+        // What a zone whose trip found no road loses from its zone score, though the handler declines such a zone before
+        // it assesses it
+        private const int NoRoadPenalty = 1000;
+
         private static void GrowZone(GameMap map, int x, int y, BlockMaps blockMaps, int population, int valueCategory,
                                      bool zonePower)
         {
             // Switch to the next category of zone
-            if (population < 4)
+            if (population < MostPopulation)
             {
                 PlaceIndustrial(map, x, y, population, valueCategory, zonePower);
                 ZoneUtils.IncRateOfGrowth(blockMaps, x, y, 8);
@@ -59,8 +66,7 @@ namespace Micropolis.Rules
         private static void DegradeZone(GameMap map, int x, int y, BlockMaps blockMaps, int populationCategory,
                                         int valueCategory, bool zonePower)
         {
-            // An empty zone has nowhere lower to go, and is left as it is, as doIndOut in the original leaves it
-            if (populationCategory == 0)
+            if (!CanDegrade(populationCategory))
             {
                 return;
             }
@@ -103,6 +109,39 @@ namespace Micropolis.Rules
             }
         }
 
+        // The location score of a zone whose trip came to the traffic: industry scores nothing for where it stands, but
+        // loses NoRoadPenalty with no road
+        private static int LocationScore(TrafficResult traffic)
+        {
+            return traffic == TrafficResult.NoRoadFound ? -NoRoadPenalty : 0;
+        }
+
+        // Whether a decline has people to take from the zone of the population level: an empty zone has nowhere lower to
+        // go, and is left as it is, as doIndOut in the original leaves it
+        private static bool CanDegrade(int population)
+        {
+            return population > 0;
+        }
+
+        /// <summary>
+        /// What the handler reads of the industrial zone centred at (x, y) as it assesses it, which it does only now and
+        /// then, were its trip to find a route. With a route, its location score is 0, so nothing names it.
+        /// </summary>
+        internal static ZoneFacts Facts(GameMap map, int x, int y, Valves valves)
+        {
+            int population = GetZonePopulation(map, x, y, map.GetTileValue(x, y));
+            List<GrowthBlocker> growStep = [];
+
+            // What GrowZone refuses
+            if (population >= MostPopulation)
+            {
+                growStep.Add(GrowthBlocker.Full);
+            }
+
+            return new ZoneFacts(valves.IndValve, LocationScore(TrafficResult.RouteFound), null, map.GetTile(x, y).IsPowered(), true,
+                                 CanDegrade(population), growStep);
+        }
+
         /// <summary>
         /// The map scan's handler for an industrial zone's centre, as <c>industrialFound</c>: counts the zone and its
         /// population, animates it by its power, routes a trip from it to housing now and then, and grows or declines it.
@@ -141,23 +180,15 @@ namespace Micropolis.Rules
             // Occasionally assess and perhaps modify the tile
             if (simData.Random.GetChance(7))
             {
-                // Less what a slow trip costs it, a change from the original, which had no slow trips
-                long zoneScore = simData.Valves.IndValve + (trafficOK == TrafficResult.NoRoadFound ? -1000 : 0) -
-                                 Traffic.GrowthPenalty(trafficOK);
+                long zoneScore = ZoneUtils.ZoneScore(simData.Valves.IndValve, LocationScore(trafficOK), trafficOK, zonePower);
 
-                // Unpowered zones should of course be penalized
-                if (!zonePower)
-                {
-                    zoneScore = -500;
-                }
-
-                if (zoneScore > -350 && (zoneScore - 26380) > simData.Random.GetRandom16Signed())
+                if (ZoneUtils.DrawsGrowth(zoneScore, simData.Random))
                 {
                     GrowZone(map, x, y, simData.BlockMaps, population, simData.Random.GetRandom16() & 1, zonePower);
                     return;
                 }
 
-                if (zoneScore < 350 && (zoneScore + 26380) < simData.Random.GetRandom16Signed())
+                if (ZoneUtils.DrawsDecline(zoneScore, simData.Random))
                 {
                     DegradeZone(map, x, y, simData.BlockMaps, population, simData.Random.GetRandom16() & 1, zonePower);
                 }

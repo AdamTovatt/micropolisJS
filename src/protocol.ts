@@ -382,10 +382,13 @@ export interface CommandResult {
 // once, between steps or during them, and never logged as a command, since replaying it would change nothing.
 // The C# rules' Queries validates each one and builds its answer.
 
-// The maps the simulation computes, which an overlay shows one at a time over the city
+// The maps the simulation computes, which an overlay shows one at a time over the city. housingAppeal is each block's
+// location score for homes, as the residential rule computes it from land value less pollution for a zone whose trip
+// found a route, from -3000 to 3000: -3000 where the block is too polluted for a home to grow at all, and 0, which no
+// location score is, on clean undeveloped land, which has no land value to score.
 export const OVERLAY_LAYERS = [
-  "landValue", "pollution", "crime", "trafficDensity", "populationDensity", "policeCoverage", "fireCoverage",
-  "rateOfGrowth", "powerGrid",
+  "landValue", "housingAppeal", "pollution", "crime", "trafficDensity", "populationDensity", "policeCoverage",
+  "fireCoverage", "rateOfGrowth", "powerGrid",
 ] as const;
 
 export type OverlayLayer = typeof OVERLAY_LAYERS[number];
@@ -454,7 +457,9 @@ export type ZoneCategory = typeof ZONE_CATEGORIES[number];
 // terrain from 0 to 240, its traffic from 0 to 240, and its score for nearness to the city centre, from -64 to 64. A
 // station map is cleared as each cycle starts, and the map scan adds the funded effect of each station it finds, halved
 // for a station without power and again for one without a road beside it. When the service's analysis runs, it
-// smooths the station map into the coverage, and leaves its middle step of smoothing in the station map.
+// smooths the station map into the coverage, and leaves its middle step of smoothing in the station map. growth is how
+// the residential, commercial or industrial zone whose footprint holds the tile grows, and null for a tile of no such
+// zone.
 export interface TileReportAnswer {
   type: "tileReport";
   x: number;
@@ -479,6 +484,50 @@ export interface TileReportAnswer {
   terrainDensity: number;
   trafficDensity: number;
   cityCentreScore: number;
+  growth: ZoneGrowthReport | null;
+}
+
+// Where a zone stands, by what its handler can do with it, best first: likely to grow where it can grow and never
+// declines, may grow or decline where it can do both, holds steady where it can do neither, and likely to decline where
+// it can decline and never grows. A zone grows at a zone score above -350 where its grow step refuses it for nothing, and
+// declines at one below 350 where it has people to lose.
+export const GROWTH_OUTLOOKS = ["LIKELY_TO_GROW", "MAY_GROW_OR_DECLINE", "HOLDS_STEADY", "LIKELY_TO_DECLINE"] as const;
+
+export type GrowthOutlook = typeof GROWTH_OUTLOOKS[number];
+
+// What holds back a zone's growth, in the order a report lists them: a condition of the zone rules that stops a zone
+// growing, or a term of its zone score below zero that, at zero, would better where it stands once it has power, but
+// for the result of the zone's trip, which only a trip tells. Where no term would on its own, nothing else is named,
+// and the zone isn't likely to grow, the term furthest below zero is named. NO_POWER, a centre without power, sets the
+// score below any that grows. LOW_DEMAND is the demand term below zero. For homes, the location term below zero is
+// LOW_LAND_VALUE where the land value alone scores it below zero, and otherwise POLLUTION_OUTWEIGHS_LAND_VALUE; and
+// TOO_POLLUTED is pollution above the most a home grows in, whatever the land value. For commerce: FAR_FROM_CENTRE, the
+// location term, a block's score for nearness to the city centre, below zero; and LAND_VALUE_LIMITS_SIZE, a land value
+// too low for a zone as crowded to grow. For an empty home zone: NO_FREE_LOT, no lot round its centre left for a
+// house; and NEIGHBOURHOOD_TOO_SPARSE, a zone full of houses with too few people round it to be built up. FULL, a zone
+// at the greatest population of its kind.
+export const GROWTH_BLOCKERS = [
+  "NO_POWER", "LOW_DEMAND", "LOW_LAND_VALUE", "POLLUTION_OUTWEIGHS_LAND_VALUE", "TOO_POLLUTED", "FAR_FROM_CENTRE",
+  "LAND_VALUE_LIMITS_SIZE", "NO_FREE_LOT", "NEIGHBOURHOOD_TOO_SPARSE", "FULL",
+] as const;
+
+export type GrowthBlocker = typeof GROWTH_BLOCKERS[number];
+
+// How a zone grows, as the rules assess it at its centre, (x, y), were its trip to find a route: zone, its category;
+// score, the zone score its handler would assess it by, the demand for its kind and, for homes and commerce, its
+// location score, or a score below any that grows without power; outlook, where it stands; assessedNowAndThen, whether its handler
+// assesses it only now and then, rather than each time the map scan finds it, as it does an empty home zone;
+// roadAtEdge, whether a road or rail lies on its perimeter, without which the next trip its people make declines it,
+// though a zone with no people makes none; and blockers, what holds back its growth.
+export interface ZoneGrowthReport {
+  zone: Extract<ZoneCategory, "RESIDENTIAL" | "COMMERCIAL" | "INDUSTRIAL">;
+  x: number;
+  y: number;
+  score: number;
+  outlook: GrowthOutlook;
+  assessedNowAndThen: boolean;
+  roadAtEdge: boolean;
+  blockers: GrowthBlocker[];
 }
 
 // An amount for each funded service

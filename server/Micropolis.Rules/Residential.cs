@@ -20,8 +20,28 @@ namespace Micropolis.Rules
     /// </summary>
     public static class Residential
     {
+        /// <summary>
+        /// The least location score, of a zone whose pollution is at least its land value, or with no road
+        /// (<see cref="ZoneUtils.NoRoadLocationScore"/>), and so the least of the housing appeal.
+        /// </summary>
+        public const int LeastLocationScore = -3000;
+
+        /// <summary>
+        /// The greatest location score, and so the greatest of the housing appeal.
+        /// </summary>
+        public const int GreatestLocationScore = 3000;
+
         // The pollution above which a residential zone grows no further
         private const int MaxPollution = 128;
+
+        // The houses an empty zone holds before it is built up, one on each lot round its centre
+        private const int MostHouses = 8;
+
+        // The population of the densest built-up zone
+        private const int MostPopulation = 40;
+
+        // The population density an empty zone full of houses needs above it to be built up
+        private const int ApartmentDensity = 64;
 
         // The lots of an empty zone, in the order degradeZone scans them, column by column, as the tile each becomes when
         // its house is removed, counted from RESBASE: the free zone's tiles run row by row
@@ -155,13 +175,41 @@ namespace Micropolis.Rules
             }
         }
 
+        // Whether one of the 8 lots round the centre is free for a house, as buildHouse finds the best: it builds on a lot
+        // only where one scores above 0
+        private static bool HasFreeLot(GameMap map, int x, int y)
+        {
+            for (int i = 1; i < 9; i++)
+            {
+                int xx = x + HouseXDelta[i];
+                int yy = y + HouseYDelta[i];
+
+                if (map.TestBounds(xx, yy) && EvalLot(map, xx, yy) > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Whether the zone's block is too polluted for anyone to move in, whatever its land value
+        private static bool IsTooPolluted(BlockMaps blockMaps, int x, int y)
+        {
+            return blockMaps.PollutionDensityMap.WorldGet(x, y) > MaxPollution;
+        }
+
+        // Whether the population density round an empty zone full of houses is enough to build it up
+        private static bool IsDenseEnoughToBuildUp(BlockMaps blockMaps, int x, int y)
+        {
+            return blockMaps.PopulationDensityMap.WorldGet(x, y) > ApartmentDensity;
+        }
+
         private static void GrowZone(GameMap map, int x, int y, BlockMaps blockMaps, int population, int lpValue,
                                      bool zonePower, RandomStream random)
         {
-            int pollution = blockMaps.PollutionDensityMap.WorldGet(x, y);
-
             // Cough! Too polluted! No-one wants to move here!
-            if (pollution > MaxPollution)
+            if (IsTooPolluted(blockMaps, x, y))
             {
                 return;
             }
@@ -170,13 +218,13 @@ namespace Micropolis.Rules
 
             if (tileValue == TileValues.FREEZ)
             {
-                if (population < 8)
+                if (population < MostHouses)
                 {
-                    // Zone capacity not yet reached: build another house
+                    // Zone capacity not yet reached: build another house, where a lot is free
                     BuildHouse(map, x, y, lpValue, random);
                     ZoneUtils.IncRateOfGrowth(blockMaps, x, y, 1);
                 }
-                else if (blockMaps.PopulationDensityMap.WorldGet(x, y) > 64)
+                else if (IsDenseEnoughToBuildUp(blockMaps, x, y))
                 {
                     // There is local demand for higher density housing
                     PlaceResidential(map, x, y, 0, lpValue, zonePower);
@@ -186,7 +234,7 @@ namespace Micropolis.Rules
                 return;
             }
 
-            if (population < 40)
+            if (population < MostPopulation)
             {
                 // Zone population not yet maxed out
                 PlaceResidential(map, x, y, JsMath.FloorDiv(population, 8) - 1, lpValue, zonePower);
@@ -197,7 +245,7 @@ namespace Micropolis.Rules
         private static void DegradeZone(GameMap map, int x, int y, BlockMaps blockMaps, int population, int lpValue,
                                         bool zonePower, RandomStream random)
         {
-            if (population == 0)
+            if (!CanDegrade(population))
             {
                 return;
             }
@@ -251,27 +299,131 @@ namespace Micropolis.Rules
             }
         }
 
-        // A score for the zone in the range -3000 to 3000
-        private static int EvalResidential(BlockMaps blockMaps, int x, int y, TrafficResult traffic)
+        // Whether a decline has people to take from the zone of the population: an empty zone has nowhere lower to go
+        private static bool CanDegrade(int population)
+        {
+            return population > 0;
+        }
+
+        // The location score of the zone centred at (x, y), whose trip came to the traffic, as evalRes in the original:
+        // its land value less its pollution, or with no road ZoneUtils.NoRoadLocationScore
+        private static int LocationScore(BlockMaps blockMaps, int x, int y, TrafficResult traffic)
         {
             if (traffic == TrafficResult.NoRoadFound)
             {
-                return -3000;
+                return ZoneUtils.NoRoadLocationScore;
             }
 
-            int landValue = blockMaps.LandValueMap.WorldGet(x, y);
-            landValue -= blockMaps.PollutionDensityMap.WorldGet(x, y);
+            return LandScore(blockMaps.LandValueMap.WorldGet(x, y), blockMaps.PollutionDensityMap.WorldGet(x, y));
+        }
 
-            if (landValue < 0)
+        // Land value less pollution as a score from LeastLocationScore to GreatestLocationScore: the least where the
+        // pollution is at least the land value
+        private static int LandScore(int landValue, int pollution)
+        {
+            int value = landValue - pollution;
+
+            if (value < 0)
             {
-                landValue = 0;
+                value = 0;
             }
             else
             {
-                landValue = Math.Min(landValue * 32, 6000);
+                value = Math.Min(value * 32, GreatestLocationScore - LeastLocationScore);
             }
 
-            return landValue - 3000;
+            return value + LeastLocationScore;
+        }
+
+        // The housing appeal of the tile's block: LeastLocationScore where it is too polluted for a home to grow at all;
+        // otherwise 0 on undeveloped land, which has no land value to score, and which no location score is; and
+        // otherwise the location score of a home there whose trip found a route
+        private static int HousingAppeal(BlockMaps blockMaps, int x, int y)
+        {
+            if (IsTooPolluted(blockMaps, x, y))
+            {
+                return LeastLocationScore;
+            }
+
+            if (blockMaps.LandValueMap.WorldGet(x, y) == BlockMapUtils.UndevelopedLandValue)
+            {
+                return 0;
+            }
+
+            return LocationScore(blockMaps, x, y, TrafficResult.RouteFound);
+        }
+
+        /// <summary>
+        /// The housing appeal of every block, in blocks of the land value map's size, which is the pollution map's: from
+        /// <see cref="LeastLocationScore"/> to <see cref="GreatestLocationScore"/>, the location score of a home there
+        /// whose trip found a route, or the least where the block is too polluted for a home to grow at all, and 0 on
+        /// clean undeveloped land, a value no location score takes.
+        /// </summary>
+        public static BlockMap HousingAppealMap(BlockMaps blockMaps)
+        {
+            BlockMap landValue = blockMaps.LandValueMap;
+            BlockMap appeal = new BlockMap(landValue.Width * landValue.BlockSize, landValue.Height * landValue.BlockSize,
+                                           landValue.BlockSize, LeastLocationScore, GreatestLocationScore);
+
+            for (int blockY = 0; blockY < appeal.Height; blockY++)
+            {
+                for (int blockX = 0; blockX < appeal.Width; blockX++)
+                {
+                    appeal.Set(blockX, blockY, HousingAppeal(blockMaps, blockX * appeal.BlockSize, blockY * appeal.BlockSize));
+                }
+            }
+
+            return appeal;
+        }
+
+        // Whether the handler assesses the zone whose centre has the tile value only now and then, rather than whenever the
+        // map scan finds it, as it does an empty zone
+        private static bool IsAssessedNowAndThen(int tileValue)
+        {
+            return tileValue != TileValues.FREEZ;
+        }
+
+        /// <summary>
+        /// What the handler reads of the residential zone centred at (x, y) as it assesses it, were its trip to find a
+        /// route.
+        /// </summary>
+        internal static ZoneFacts Facts(GameMap map, int x, int y, BlockMaps blockMaps, Valves valves)
+        {
+            int tileValue = map.GetTileValue(x, y);
+            int population = GetZonePopulation(map, x, y, tileValue);
+            List<GrowthBlocker> growStep = [];
+
+            // What GrowZone refuses
+            if (IsTooPolluted(blockMaps, x, y))
+            {
+                growStep.Add(GrowthBlocker.TooPolluted);
+            }
+
+            if (tileValue == TileValues.FREEZ)
+            {
+                if (population < MostHouses && !HasFreeLot(map, x, y))
+                {
+                    growStep.Add(GrowthBlocker.NoFreeLot);
+                }
+                else if (population >= MostHouses && !IsDenseEnoughToBuildUp(blockMaps, x, y))
+                {
+                    growStep.Add(GrowthBlocker.NeighbourhoodTooSparse);
+                }
+            }
+            else if (population >= MostPopulation)
+            {
+                growStep.Add(GrowthBlocker.Full);
+            }
+
+            // A location score below zero is the land value's where the land value alone scores below zero, and
+            // otherwise the pollution's
+            bool lowLandValue = LandScore(blockMaps.LandValueMap.WorldGet(x, y), 0) < 0;
+            GrowthBlocker location = lowLandValue ? GrowthBlocker.LowLandValue : GrowthBlocker.PollutionOutweighsLandValue;
+
+            // An empty zone the draws would grow becomes a hospital a third of the time instead, or stays as it is where
+            // the city needs none. That is the draw's doing, not the zone's, so no blocker names it.
+            return new ZoneFacts(valves.ResValve, LocationScore(blockMaps, x, y, TrafficResult.RouteFound), location,
+                                 map.GetTile(x, y).IsPowered(), IsAssessedNowAndThen(tileValue), CanDegrade(population), growStep);
         }
 
         /// <summary>
@@ -312,20 +464,13 @@ namespace Micropolis.Rules
 
             // Sometimes we will randomly choose to assess this block. However, always assess it if it's empty or
             // contains only single houses.
-            if (tileValue == TileValues.FREEZ || simData.Random.GetChance(7))
+            if (!IsAssessedNowAndThen(tileValue) || simData.Random.GetChance(7))
             {
-                // First, score the individual zone, in the range -3000 to 3000, then take into account global demand
-                // for housing, less what a slow trip costs it, a change from the original, which had no slow trips
-                int locationScore = EvalResidential(simData.BlockMaps, x, y, trafficOK);
-                long zoneScore = simData.Valves.ResValve + locationScore - Traffic.GrowthPenalty(trafficOK);
+                // Score the individual zone, then take into account global demand for housing
+                long zoneScore = ZoneUtils.ZoneScore(simData.Valves.ResValve, LocationScore(simData.BlockMaps, x, y, trafficOK),
+                                                     trafficOK, zonePower);
 
-                // Naturally unpowered zones should be penalized
-                if (!zonePower)
-                {
-                    zoneScore = -500;
-                }
-
-                if (zoneScore > -350 && (zoneScore - 26380) > simData.Random.GetRandom16Signed())
+                if (ZoneUtils.DrawsGrowth(zoneScore, simData.Random))
                 {
                     // If this zone is empty, and residential demand is strong, we might make a hospital
                     if (population == 0 && simData.Random.GetChance(3))
@@ -340,7 +485,7 @@ namespace Micropolis.Rules
                     return;
                 }
 
-                if (zoneScore < 350 && (zoneScore + 26380) < simData.Random.GetRandom16Signed())
+                if (ZoneUtils.DrawsDecline(zoneScore, simData.Random))
                 {
                     // Degrade to the next lower ranked zone, by the land's desirability and pollution
                     int lpValue = ZoneUtils.GetLandPollutionValue(simData.BlockMaps, x, y);

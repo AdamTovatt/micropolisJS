@@ -40,20 +40,37 @@ namespace Micropolis.Rules
             ZoneUtils.PutZone(map, x, y, centreTile, zonePower);
         }
 
-        private static void GrowZone(GameMap map, int x, int y, BlockMaps blockMaps, int population, int lpValue, bool zonePower)
+        // The population level of the densest zone
+        private const int MostPopulation = 5;
+
+        // Whether the land value of the zone's block lets a zone of the population level grow: the higher the land value,
+        // the more crowded a zone it lets grow
+        private static bool LandValueLetsGrow(BlockMaps blockMaps, int x, int y, int population)
         {
             // landValueMap contains values in the range 0-250, representing the desirability of the land. Thus, after
             // shifting, landValue will be in the range 0-7.
             int landValue = blockMaps.LandValueMap.WorldGet(x, y);
             landValue = landValue >> 5;
 
-            if (population > landValue)
+            return population <= landValue;
+        }
+
+        // Whether a decline has people to take from the zone of the population level: an empty zone has nowhere lower to
+        // go, and is left as it is, as doComOut in the original leaves it
+        private static bool CanDegrade(int population)
+        {
+            return population > 0;
+        }
+
+        private static void GrowZone(GameMap map, int x, int y, BlockMaps blockMaps, int population, int lpValue, bool zonePower)
+        {
+            if (!LandValueLetsGrow(blockMaps, x, y, population))
             {
                 return;
             }
 
             // This zone is desirable, and seemingly not too crowded. Switch to the next category of zone.
-            if (population < 5)
+            if (population < MostPopulation)
             {
                 PlaceCommercial(map, x, y, population, lpValue, zonePower);
                 ZoneUtils.IncRateOfGrowth(blockMaps, x, y, 8);
@@ -63,8 +80,7 @@ namespace Micropolis.Rules
         private static void DegradeZone(GameMap map, int x, int y, BlockMaps blockMaps, int populationCategory, int lpCategory,
                                         bool zonePower)
         {
-            // An empty zone has nowhere lower to go, and is left as it is, as doComOut in the original leaves it
-            if (populationCategory == 0)
+            if (!CanDegrade(populationCategory))
             {
                 return;
             }
@@ -79,6 +95,38 @@ namespace Micropolis.Rules
             }
 
             ZoneUtils.IncRateOfGrowth(blockMaps, x, y, -8);
+        }
+
+        // The location score of the zone centred at (x, y), whose trip came to the traffic: its block's score for nearness
+        // to the city centre, or with no road ZoneUtils.NoRoadLocationScore
+        private static int LocationScore(BlockMaps blockMaps, int x, int y, TrafficResult traffic)
+        {
+            return traffic == TrafficResult.NoRoadFound ? ZoneUtils.NoRoadLocationScore : blockMaps.CityCentreDistScoreMap.WorldGet(x, y);
+        }
+
+        /// <summary>
+        /// What the handler reads of the commercial zone centred at (x, y) as it assesses it, which it does only now and
+        /// then, were its trip to find a route.
+        /// </summary>
+        internal static ZoneFacts Facts(GameMap map, int x, int y, BlockMaps blockMaps, Valves valves)
+        {
+            int population = GetZonePopulation(map, x, y, map.GetTileValue(x, y));
+            List<GrowthBlocker> growStep = [];
+
+            // What GrowZone refuses
+            if (!LandValueLetsGrow(blockMaps, x, y, population))
+            {
+                growStep.Add(GrowthBlocker.LandValueLimitsSize);
+            }
+
+            if (population >= MostPopulation)
+            {
+                growStep.Add(GrowthBlocker.Full);
+            }
+
+            // A zone whose trip found no route never grows either, but only a trip tells, and a query routes none
+            return new ZoneFacts(valves.ComValve, LocationScore(blockMaps, x, y, TrafficResult.RouteFound), GrowthBlocker.FarFromCentre,
+                                 map.GetTile(x, y).IsPowered(), true, CanDegrade(population), growStep);
         }
 
         /// <summary>
@@ -118,29 +166,19 @@ namespace Micropolis.Rules
             // Occasionally assess and perhaps modify the tile
             if (simData.Random.GetChance(7))
             {
-                int locationScore = trafficOK == TrafficResult.NoRoadFound ? -3000 :
-                                    simData.BlockMaps.CityCentreDistScoreMap.WorldGet(x, y);
-
-                // Less what a slow trip costs it, a change from the original, which had no slow trips
-                long zoneScore = simData.Valves.ComValve + locationScore - Traffic.GrowthPenalty(trafficOK);
-
-                // Unpowered zones should of course be penalized
-                if (!zonePower)
-                {
-                    zoneScore = -500;
-                }
+                long zoneScore = ZoneUtils.ZoneScore(simData.Valves.ComValve, LocationScore(simData.BlockMaps, x, y, trafficOK),
+                                                     trafficOK, zonePower);
 
                 // As doCommercial in the original, a zone whose trip found no route never grows, and draws nothing to
                 // decide it
-                if (trafficOK != TrafficResult.NoRouteFound && zoneScore > -350 &&
-                    (zoneScore - 26380) > simData.Random.GetRandom16Signed())
+                if (trafficOK != TrafficResult.NoRouteFound && ZoneUtils.DrawsGrowth(zoneScore, simData.Random))
                 {
                     int lpValue = ZoneUtils.GetLandPollutionValue(simData.BlockMaps, x, y);
                     GrowZone(map, x, y, simData.BlockMaps, population, lpValue, zonePower);
                     return;
                 }
 
-                if (zoneScore < 350 && (zoneScore + 26380) < simData.Random.GetRandom16Signed())
+                if (ZoneUtils.DrawsDecline(zoneScore, simData.Random))
                 {
                     int lpValue = ZoneUtils.GetLandPollutionValue(simData.BlockMaps, x, y);
                     DegradeZone(map, x, y, simData.BlockMaps, population, lpValue, zonePower);

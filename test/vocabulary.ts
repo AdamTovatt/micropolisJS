@@ -14,7 +14,7 @@
 
 import * as RuleNumbers from "../e2e/ruleNumbers";
 import * as Messages from "../src/messages";
-import { CITY_CLASSES, SCORE_REASONS } from "../src/protocol";
+import { CITY_CLASSES, GROWTH_BLOCKERS, GROWTH_OUTLOOKS, SCORE_REASONS } from "../src/protocol";
 import { SPRITE_SHEET } from "../src/renderManifest";
 import * as TileFlags from "../src/tileFlags";
 import * as TileValues from "../src/tileValues";
@@ -23,13 +23,15 @@ import { RULES, spriteType } from "./helpers/ruleConstants";
 
 // The vocabulary the client shares with the server's rules, against the conformance files the C# tests hold the rules'
 // own definitions to (conformance/README.md): the tile ids and flag bits, by which the client draws and reads tiles;
-// the names of the city's messages; the city classes and score reasons the evaluation record carries; and the sprite
+// the names of the city's messages; the city classes and score reasons the evaluation record carries; the outlooks and
+// blockers of a zone's growth the tile report carries; and the sprite
 // types' frames, which the sprite sheet holds; and the numbers the end-to-end specs count with. Each name must have its value in the file, and the client may have no
 // name the file lacks.
 
 const tiles = repositoryJson<{values: Record<string, number>, flags: Record<string, number>}>("conformance/tiles.json");
 const messages = repositoryJson<{messages: Record<string, unknown>}>("conformance/messages.json");
 const saveStrings = repositoryJson<{cityClasses: string[], scoreReasons: string[]}>("conformance/saveStrings.json");
+const queries = repositoryJson<{growthOutlooks: string[], growthBlockers: string[]}>("conformance/queries.json");
 
 describe("the shared vocabulary", () => {
 
@@ -45,6 +47,13 @@ describe("the shared vocabulary", () => {
     it("lists the city classes and score reasons as the server's rules do", () => {
         expect([...CITY_CLASSES]).toEqual(saveStrings.cityClasses);
         expect([...SCORE_REASONS]).toEqual(saveStrings.scoreReasons);
+    });
+
+    // In the server's order, which a report lists blockers in
+    it("lists a zone's growth outlooks and blockers as the server's rules do", () => {
+        expect(queries.growthOutlooks.length).toBeGreaterThan(0);
+        expect([...GROWTH_OUTLOOKS]).toEqual(queries.growthOutlooks);
+        expect([...GROWTH_BLOCKERS]).toEqual(queries.growthBlockers);
     });
 
     // The sprite sheet's row for each type, from type 1, holds the frames the rules give the type

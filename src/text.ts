@@ -123,6 +123,7 @@ const overlays: {
   nothingToShow: "Nothing to show yet",
   layers: {
     landValue: {name: "Land value", low: "Low", high: "High"},
+    housingAppeal: {name: "Housing appeal", low: "Poor", high: "High"},
     pollution: {name: "Pollution", low: "None", high: "Heavy"},
     crime: {name: "Crime", low: "None", high: "High"},
     trafficDensity: {name: "Traffic", low: "None", high: "Jammed"},
