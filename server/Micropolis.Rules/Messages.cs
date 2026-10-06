@@ -69,7 +69,6 @@ namespace Micropolis.Rules
         public const string TAX_TOO_HIGH = "Tax too high";
         public const string TORNADO_SIGHTED = "Tornado sighted";
         public const string TRAFFIC_JAMS = "Traffic jams reported";
-        public const string TRAIN_CRASHED = "Train crashed";
         public const string VALVES_UPDATED = "Valves updated";
 
         public static readonly IReadOnlyList<string> DISASTER_MESSAGES =
@@ -88,7 +87,6 @@ namespace Micropolis.Rules
             HELICOPTER_CRASHED,
             PLANE_CRASHED,
             SHIP_CRASHED,
-            TRAIN_CRASHED,
         ];
     }
 }

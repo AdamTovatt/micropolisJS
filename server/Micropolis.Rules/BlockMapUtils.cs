@@ -135,36 +135,41 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Eases each block's traffic: light traffic clears, and heavy traffic falls faster than moderate.
+        /// Eases each block's traffic and each tile's rail load alike: light traffic clears, and heavy traffic falls
+        /// faster than moderate.
         /// </summary>
         public static void NeutraliseTrafficMap(BlockMaps blockMaps)
         {
-            BlockMap trafficDensityMap = blockMaps.TrafficDensityMap;
+            Neutralise(blockMaps.TrafficDensityMap);
+            Neutralise(blockMaps.RailLoadMap);
+        }
 
-            for (int x = 0; x < trafficDensityMap.Width; x++)
+        private static void Neutralise(BlockMap map)
+        {
+            for (int x = 0; x < map.Width; x++)
             {
-                for (int y = 0; y < trafficDensityMap.Height; y++)
+                for (int y = 0; y < map.Height; y++)
                 {
-                    int trafficDensity = trafficDensityMap.Get(x, y);
-                    if (trafficDensity == 0)
+                    int value = map.Get(x, y);
+                    if (value == 0)
                     {
                         continue;
                     }
 
-                    if (trafficDensity <= 24)
+                    if (value <= 24)
                     {
-                        trafficDensity = 0;
+                        value = 0;
                     }
-                    else if (trafficDensity > 200)
+                    else if (value > 200)
                     {
-                        trafficDensity -= 34;
+                        value -= 34;
                     }
                     else
                     {
-                        trafficDensity -= 24;
+                        value -= 24;
                     }
 
-                    trafficDensityMap.Set(x, y, trafficDensity);
+                    map.Set(x, y, value);
                 }
             }
         }

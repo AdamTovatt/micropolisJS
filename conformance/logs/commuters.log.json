@@ -1,0 +1,41 @@
+{
+  "formatVersion": 2,
+  "description": "Houses and work in two districts joined by a railway alone, with a station at each end",
+  "seed": 8,
+  "level": 0,
+  "entries": [
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":11,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":14,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":17,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":20,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":23,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":10,"y":15},{"x":11,"y":15},{"x":12,"y":15},{"x":13,"y":15},{"x":14,"y":15},{"x":15,"y":15},{"x":16,"y":15},{"x":17,"y":15},{"x":18,"y":15},{"x":19,"y":15},{"x":20,"y":15},{"x":21,"y":15},{"x":22,"y":15},{"x":23,"y":15},{"x":24,"y":15}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":11,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":14,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":17,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":20,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"residential","path":[{"x":23,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":46,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":49,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":52,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":55,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"commercial","path":[{"x":58,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"road","path":[{"x":45,"y":15},{"x":46,"y":15},{"x":47,"y":15},{"x":48,"y":15},{"x":49,"y":15},{"x":50,"y":15},{"x":51,"y":15},{"x":52,"y":15},{"x":53,"y":15},{"x":54,"y":15},{"x":55,"y":15},{"x":56,"y":15},{"x":57,"y":15},{"x":58,"y":15},{"x":59,"y":15}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":46,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":49,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":52,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":55,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"industrial","path":[{"x":58,"y":17}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"coal","path":[{"x":61,"y":13}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"rail","path":[{"x":25,"y":15},{"x":26,"y":15},{"x":27,"y":15},{"x":28,"y":15},{"x":29,"y":15},{"x":30,"y":15},{"x":31,"y":15},{"x":32,"y":15},{"x":33,"y":15},{"x":34,"y":15},{"x":35,"y":15},{"x":36,"y":15},{"x":37,"y":15},{"x":38,"y":15},{"x":39,"y":15},{"x":40,"y":15},{"x":41,"y":15},{"x":42,"y":15},{"x":43,"y":15},{"x":44,"y":15}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"station","path":[{"x":25,"y":15}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"station","path":[{"x":44,"y":15}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":60,"y":16}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":22,"y":19},{"x":23,"y":19},{"x":24,"y":19},{"x":25,"y":19},{"x":26,"y":19},{"x":27,"y":19},{"x":28,"y":19},{"x":29,"y":19},{"x":30,"y":19},{"x":31,"y":19},{"x":32,"y":19},{"x":33,"y":19},{"x":34,"y":19},{"x":35,"y":19},{"x":36,"y":19},{"x":37,"y":19},{"x":38,"y":19},{"x":39,"y":19},{"x":40,"y":19},{"x":41,"y":19},{"x":42,"y":19},{"x":43,"y":19},{"x":44,"y":19},{"x":45,"y":19},{"x":46,"y":19},{"x":47,"y":19}],"autoBulldoze":true}},
+    {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":9,"y":13},{"x":9,"y":14},{"x":9,"y":15},{"x":9,"y":16},{"x":9,"y":17}],"autoBulldoze":true}}
+  ],
+  "checkpoints": [
+    {"step":0,"hash":"93e3e92fafd7925afd559f1fbdb39b5e53c692e8783cfe39a4b388ec05d123b8"},
+    {"step":6912,"hash":"ce143eed4201c66b001b3ec0ff8fbefae47119716ba035ba0773cadc1908218c"}
+  ]
+}

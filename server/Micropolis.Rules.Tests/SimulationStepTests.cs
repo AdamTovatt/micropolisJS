@@ -68,8 +68,8 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void Step_CityWithSprites_MovesThem()
         {
-            Simulation city = City("town", "run");
-            Simulation gate = City("town", "run");
+            Simulation city = City("underfunded", "run");
+            Simulation gate = City("underfunded", "run");
             long spriteCycle = city.SpriteManager.SpriteCycle;
             string sprites = CanonicalJson.Write(city.Save()["sprites"]!["list"]!);
 

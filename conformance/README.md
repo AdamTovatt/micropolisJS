@@ -73,6 +73,8 @@ Sample saves, each the whole text of a game's save, its name and version include
 version from 5 on: the oldest `SavedGame` migrates, the first that holds the complete simulation state. Each was
 written by the game of its version, and they are never regenerated, since a version's format never changes:
 `version7AwaitingBudget.json` was saved while a year end waited for the player, which the step from version 7 pays.
+`version14.json` is the commuters fixture after its run, whose rides load the line along row 15 between its stations
+at (25, 15) and (44, 15), and nothing else, which `e2e/railLoad.spec.ts` draws the Rail load overlay over.
 `SavedGameTests` also upgrades each as the bare state a command log holds, and `LogReplayTests` replays the sample of
 the version before the current one from inside a log, as a log written before the last upgrade step was added.
 The fixture tool fails unless every version from 5 to the current one has a sample, so a new version adds one, written
@@ -91,6 +93,7 @@ is the output of the game that wrote it, byte for byte, so writing it again from
 | `version11.json` | `78a9fa7` |
 | `version12.json` | `e6d655a` |
 | `version13.json` | `bae01e2` |
+| `version14.json` | `6f2d270` |
 
 ## Files the fixture tool writes
 

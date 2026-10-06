@@ -80,5 +80,14 @@ namespace Micropolis.Rules.Tests
 
             CollectionAssert.AreEqual(Queries.ZoneCategories.ToList(), named);
         }
+
+        // A station, which the original never had, is rail to the query tool
+        [TestMethod]
+        [DataRow(TileValues.HRAILSTATION)]
+        [DataRow(TileValues.VRAILSTATION)]
+        public void ZoneCategory_Station_IsRail(int tile)
+        {
+            Assert.AreEqual("RAIL", Queries.ZoneCategory(tile));
+        }
     }
 }

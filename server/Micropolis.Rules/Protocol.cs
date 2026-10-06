@@ -199,6 +199,7 @@ namespace Micropolis.Rules
         [JsonStringEnumMemberName("residential")] Residential,
         [JsonStringEnumMemberName("road")] Road,
         [JsonStringEnumMemberName("stadium")] Stadium,
+        [JsonStringEnumMemberName("station")] Station,
         [JsonStringEnumMemberName("wire")] Wire,
         [JsonStringEnumMemberName("query")] Query,
     }
@@ -258,6 +259,7 @@ namespace Micropolis.Rules
         [JsonStringEnumMemberName("residential")] Residential,
         [JsonStringEnumMemberName("road")] Road,
         [JsonStringEnumMemberName("stadium")] Stadium,
+        [JsonStringEnumMemberName("station")] Station,
         [JsonStringEnumMemberName("wire")] Wire,
     }
 

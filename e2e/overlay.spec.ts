@@ -79,12 +79,8 @@ async function selectLayer(player: Player, layer: OverlayLayer): Promise<Overlay
 async function expectTints(player: Player, answer: OverlayAnswer, valueAt: (tile: Tile) => number,
                            ends: Map<number, Tint | null>): Promise<void> {
   const tinted = await player.mapScreenshot();
-  const canvas = await player.canvasBox();
-  const {tileWidth} = await player.view();
-  const tiles = await player.wholeTilesInView();
-  const shown = await samplePixels(player.page, tinted, tiles.map(({x, y}) => ({
-    x: Math.floor(canvas.x + x + tileWidth / 2), y: Math.floor(canvas.y + y + tileWidth / 2),
-  })));
+  const tiles = await player.tileMiddlesInView();
+  const shown = await samplePixels(player.page, tinted, tiles.map(({middle}) => middle));
   const endsShown = new Set<number>();
 
   const wrong: string[] = [];

@@ -1,0 +1,9 @@
+{
+  "full": {
+    "prompt": "Repaint this top-down render of small family cars in six colours, bright red, bright blue, yellow, white, dark green and orange, each seen from directly above facing each of the four ways it drives, on plain grey asphalt as a cosy oil painting of a lovely summer day: visible brushstrokes and soft impasto texture, painterly but clear, warm soft daylight, rich but natural colours, lush summer greens. Every paved surface, such as concrete, asphalt, car parks, paths and gravel, stays that same paving in its own colour, and water stays water; only what is green grass in the render is summer grass. Plain areas stay plain: no new roads, kerbs, paths or markings. Keep the exact composition: every shape, every tree and every boundary between paving and grass in the same position, size and outline, the same straight-down camera angle. Keep every big letter on a roof or on the ground, such as a green R, C or I, exactly as it is: the same letter, shape, size and colour, crisp and flat, never turned into a sign, a helipad or another letter. Do not add trees, bushes, sky or anything else. No other text, no borders.",
+    "model": "gemini-3-pro-image",
+    "references": [
+      "in-full"
+    ]
+  }
+}

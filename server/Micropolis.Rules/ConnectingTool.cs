@@ -188,18 +188,22 @@ namespace Micropolis.Rules
                    tile != TileValues.VROADPOWER && tile != TileValues.HRAILROAD && tile != TileValues.VBRIDGE;
         }
 
+        // Whether a rail joins the tile above or below it. A station joins only along its track, which the original,
+        // with no stations, never had to say.
         private static bool RailJoinsVertically(Tile neighbour)
         {
             int tile = TileUtils.NormalizeRoad(neighbour.GetValue());
-            return tile >= TileValues.RAILHPOWERV && tile <= TileValues.VRAILROAD &&
-                   tile != TileValues.RAILHPOWERV && tile != TileValues.HRAILROAD && tile != TileValues.HRAIL;
+            return (tile >= TileValues.RAILHPOWERV && tile <= TileValues.VRAILROAD &&
+                    tile != TileValues.RAILHPOWERV && tile != TileValues.HRAILROAD && tile != TileValues.HRAIL) ||
+                   (TileUtils.IsRailStation(tile) && TileUtils.TrackUnder(tile) == TileValues.LVRAIL);
         }
 
         private static bool RailJoinsHorizontally(Tile neighbour)
         {
             int tile = TileUtils.NormalizeRoad(neighbour.GetValue());
-            return tile >= TileValues.RAILHPOWERV && tile <= TileValues.VRAILROAD &&
-                   tile != TileValues.RAILVPOWERH && tile != TileValues.VRAILROAD && tile != TileValues.VRAIL;
+            return (tile >= TileValues.RAILHPOWERV && tile <= TileValues.VRAILROAD &&
+                    tile != TileValues.RAILVPOWERH && tile != TileValues.VRAILROAD && tile != TileValues.VRAIL) ||
+                   (TileUtils.IsRailStation(tile) && TileUtils.TrackUnder(tile) == TileValues.LHRAIL);
         }
 
         // Whether a wire joins the tile above or below it: a conductor, but for the pieces fixSingle leaves out

@@ -28,7 +28,7 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ART = os.path.join(HERE, '..')
-RENDERS = os.path.join(ART, 'blender', 'out')      # the renders, which git ignores
+RENDERS = os.path.join(ART, 'blender', 'out')      # the renders, committed, which the join reads
 PAINTED = os.path.join(ART, 'painted', 'out')      # the painted layers, committed
 BUILT = os.path.join(ART, 'painted', 'built')      # each painted single tile's BUILT_LAYERS as the paint build
                                                    # made them, before the join, committed
@@ -71,7 +71,8 @@ SINGLE_TILES = {
         'drawbridge_v': range(948, 952),
     },
     'power': {'lines': range(HPOWER, 221), 'unpowered': (827,)},   # the unpowered zone's warning
-    'rail': {'rail': (221, 222, *range(HRAIL, 239))},      # rail, its bridges and crossings
+    'rail': {'rail': (221, 222, *range(HRAIL, 239)),       # rail, its bridges and crossings
+             'stations': (1020, 1021)},                    # the station on straight track
     'houses': {'houses': range(249, 261)},                 # the single-tile houses a residential zone grows
 }
 

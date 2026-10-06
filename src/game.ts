@@ -16,6 +16,7 @@ import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetWindow } from "./budgetWindow";
 import { CarSharePreference } from "./carShare";
 import { Cars } from "./cars";
+import type { PaintableCar } from "./cars";
 import type { Presence } from "./cityClient";
 import { linkToCity } from "./cityLink";
 import type { CitySource, StartedCity } from "./citySource";
@@ -103,9 +104,9 @@ export class Game {
 
   private readonly newsHold = new NewsHold();
   private readonly lastEvent = new LastEvent();
-  // The cars driving the trips the city sends, and how many the map's view was last painted with
+  // The cars driving the trips and rides the city sends, and those the map's view was last painted with
   readonly cars: Cars;
-  private mapCars = 0;
+  private mapCars: readonly PaintableCar[] = [];
   // The turns of the animation loop since the game started
   private animated = 0;
 
@@ -133,7 +134,7 @@ export class Game {
     const cars = this.cars.paintable();
 
     const mapCars = this.inView(cars, this.gameCanvas);
-    this.mapCars = mapCars.length;
+    this.mapCars = mapCars;
     this.gameCanvas.paint(this.controls.outlines(), mapCars, this.inView(this.state.sprites, this.gameCanvas), paused);
     this.monsterTV.paint(this.inView(cars, this.monsterTV.canvas), this.inView(this.state.sprites, this.monsterTV.canvas),
                          paused);
@@ -283,8 +284,8 @@ export class Game {
     this.controls.sendToolPaths();
   }
 
-  // How many cars the map's view was last painted with
-  get carsInView(): number {
+  // The cars the map's view was last painted with, those of trains among them
+  get carsPainted(): readonly PaintableCar[] {
     return this.mapCars;
   }
 
@@ -319,7 +320,10 @@ export class Game {
     state.on("sprites", ({sprites}) => this.monsterTV.spritesMoved(sprites));
     // The whole map comes as the page joins the city, at its start or again after a reconnect
     state.on("map", () => this.cars.joined());
-    state.on("trips", ({routes}) => this.cars.add(routes));
+    state.on("trips", ({routes, rides}) => {
+      this.cars.add(routes);
+      this.cars.addRides(rides);
+    });
     state.on("news", (news) => this.showNews(news));
     state.on("commandResult", ({result}) => {
       this.handleCommandResult(result);

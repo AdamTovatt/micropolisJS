@@ -19,7 +19,7 @@ import { SpriteView } from "../src/protocol";
 import { spriteType } from "./helpers/ruleConstants";
 
 // The sprite types, as a sprites message numbers them
-const SPRITE_TRAIN = spriteType("train");
+const SPRITE_HELICOPTER = spriteType("helicopter");
 const SPRITE_MONSTER = spriteType("monster");
 const SPRITE_TORNADO = spriteType("tornado");
 
@@ -56,7 +56,7 @@ describe("monsterTV", () => {
 
         it("is the tile under the middle of its square", () => {
             expect(spriteTile(spriteOver(SPRITE_MONSTER, 30, 40))).toEqual({x: 30, y: 40});
-            expect(spriteTile({type: SPRITE_TRAIN, frame: 1, x: 100, y: 200, width: 32})).toEqual({x: 7, y: 13});
+            expect(spriteTile({type: SPRITE_HELICOPTER, frame: 1, x: 100, y: 200, width: 32})).toEqual({x: 7, y: 13});
         });
 
         // The tornado's funnel is drawn rising from where it is, its square 40 pixels up and 24 left of its position:
@@ -90,7 +90,7 @@ describe("monsterTV", () => {
             const {follower, onMove} = newFollower();
             follower.follow(SPRITE_MONSTER);
 
-            follower.update([spriteOver(SPRITE_TRAIN, 1, 1), spriteOver(SPRITE_MONSTER, 30, 40)]);
+            follower.update([spriteOver(SPRITE_HELICOPTER, 1, 1), spriteOver(SPRITE_MONSTER, 30, 40)]);
             follower.update([spriteOver(SPRITE_MONSTER, 31, 40)]);
 
             expect(onMove.mock.calls).toEqual([[{x: 30, y: 40}], [{x: 31, y: 40}]]);
@@ -100,7 +100,7 @@ describe("monsterTV", () => {
             const {follower, onMove, onLost} = newFollower();
             follower.follow(SPRITE_MONSTER);
 
-            follower.update([spriteOver(SPRITE_TRAIN, 1, 1)]);
+            follower.update([spriteOver(SPRITE_HELICOPTER, 1, 1)]);
             follower.update([]);
             follower.update([spriteOver(SPRITE_MONSTER, 30, 40)]);
 

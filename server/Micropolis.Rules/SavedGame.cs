@@ -111,7 +111,40 @@ namespace Micropolis.Rules
                     sprite["copterFlight"] = whole && type == (int)SpriteType.Helicopter ? new JsonObject { ["phase"] = 1, ["block"] = null } : null;
                 }
             },
+
+            // From version 13: the wandering train goes, since the client draws a train for each ride, and the rail
+            // load starts empty on every tile. An entry that is no sprite, or a map without a whole size, is left for
+            // the load to refuse. The rail load holds a value a tile, as many as the map's tiles, which are in hand, so
+            // a save claiming a larger map than its tiles fill makes nothing larger than itself.
+            savedGame =>
+            {
+                JsonArray list = List(Group(savedGame, "sprites"), "list");
+
+                for (int i = list.Count - 1; i >= 0; i--)
+                {
+                    if (IsTrain(list[i]))
+                    {
+                        list.RemoveAt(i);
+                    }
+                }
+
+                JsonObject map = Group(savedGame, "map");
+
+                if (map["tiles"] is JsonArray tiles && Validation.TryGetWholeNumber(map["width"], out double width) &&
+                    Validation.TryGetWholeNumber(map["height"], out double height) && width * height == tiles.Count)
+                {
+                    Group(Group(savedGame, "scannedState"), "blockMaps")["railLoadMap"] = SavedList.Of(new int[tiles.Count]);
+                }
+            },
         ];
+
+        // The type the original's train, the first of its sprites, had, which the game saved until version 14
+        private const int TrainType = 1;
+
+        private static bool IsTrain(JsonNode? sprite)
+        {
+            return sprite is JsonObject fields && Validation.TryGetWholeNumber(fields["type"], out double type) && type == TrainType;
+        }
 
         /// <summary>
         /// The version a save is stamped with now, one past the last step's.

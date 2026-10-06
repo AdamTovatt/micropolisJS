@@ -13,90 +13,68 @@
  */
 
 using System.Text.Json;
-using static Micropolis.Rules.TileValues;
 
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The trips offered for the client's cars: that each run of a route on road alone is offered as it is routed, in
-    /// order, how a trip is written, and that a city's run offers the same trips every time, on road alone.
+    /// The trips offered for the client's cars and trains: that each run of a route by road and each ride is offered as
+    /// it is routed, in order, how a trip is written, and that a city's run offers the same trips every time, its runs
+    /// by road on road and its rides on rail from station to station.
     /// </summary>
     [TestClass]
     public sealed class TripsTests
     {
-        // A road three tiles long, north from (9, 8)
-        private static readonly IReadOnlyList<Position> Road = [new Position(9, 8), new Position(9, 7), new Position(9, 6)];
-
-        // A road east along row 20, from (30, 20)
-        private static readonly IReadOnlyList<Position> OtherRoad = [new Position(30, 20), new Position(31, 20)];
-
         // Computed once, as each run takes 3,000 steps
-        private static readonly Lazy<TownRun> Town = new Lazy<TownRun>(RunTown);
+        private static readonly Lazy<CityRun> Commuters = new Lazy<CityRun>(RunCommuters);
 
         [TestMethod]
-        public void Routed_SeveralTripsOnRoad_OffersEachAsItIsRoutedInOrder()
+        public void Routed_SeveralTripsByRoad_OffersEachAsItIsRoutedInOrder()
         {
-            Trips trips = new Trips(RoadMap([.. Road, .. OtherRoad]));
+            Trips trips = new Trips();
             List<Trip> offered = new List<Trip>();
-            trips.Offered += offered.Add;
+            trips.RunOffered += offered.Add;
 
-            trips.Routed(Road);
+            trips.Routed(By(TravelMode.Road, (9, 8), (9, 7), (9, 6)));
             Assert.HasCount(1, offered);
-            trips.Routed(OtherRoad);
+            trips.Routed(By(TravelMode.Road, (30, 20), (31, 20)));
 
             CollectionAssert.AreEqual(new[] { new Trip(9, 8, "NN"), new Trip(30, 20, "E") }, offered);
         }
 
-        // A route may run on rail, where no car drives, so a route of two tiles with a rail tile leaves a lone road tile,
-        // which is not offered; a road crossing rail is road
+        // East along row 10 from (10, 10): a walk of two tiles, a ride from (12, 10) to (15, 10), a run by road to
+        // (17, 10), a ride from (18, 10) north to (18, 8), a lone tile by road, and a walk. Each run by road of two
+        // tiles or more is a trip, each ride a ride, in the route's order; the walks and the lone tile are nothing.
         [TestMethod]
-        [DataRow(HRAIL, false)]
-        [DataRow(RAILVPOWERH, false)]
-        [DataRow(VRAILROAD, true)]
-        public void Routed_RouteThroughTheTile_IsOfferedOnlyIfACarDrivesOnIt(int tileValue, bool offered)
+        public void Routed_RouteRidingAndWalking_OffersItsRunsByRoadAndItsRidesInOrder()
         {
-            GameMap map = RoadMap(OtherRoad);
-            map.SetTile(31, 20, tileValue, 0);
-            Trips trips = new Trips(map);
-            List<Trip> heard = new List<Trip>();
-            trips.Offered += heard.Add;
-
-            trips.Routed(OtherRoad);
-
-            CollectionAssert.AreEqual(offered ? new[] { new Trip(30, 20, "E") } : [], heard);
-        }
-
-        // East along row 10 from (10, 10), then north at (19, 10): rail at x 13, 15 and 16 leaves road runs of three
-        // tiles, one tile and four, round the corner. Each run of two tiles or more is a trip of its own, in the route's
-        // order, and the lone tile none
-        [TestMethod]
-        public void Routed_RouteRunningOnRail_OffersEachRoadRunOfTwoTilesOrMoreInOrder()
-        {
-            IReadOnlyList<Position> route = [.. Enumerable.Range(10, 10).Select(x => new Position(x, 10)), new Position(19, 9)];
-            GameMap map = RoadMap(route);
-            foreach (int x in new[] { 13, 15, 16 })
-            {
-                map.SetTile(x, 10, HRAIL, 0);
-            }
-            Trips trips = new Trips(map);
-            List<Trip> offered = new List<Trip>();
-            trips.Offered += offered.Add;
+            List<RouteStep> route =
+            [
+                .. By(TravelMode.Walk, (10, 10), (11, 10)),
+                .. By(TravelMode.Rail, (12, 10), (13, 10), (14, 10), (15, 10)),
+                .. By(TravelMode.Road, (16, 10), (17, 10)),
+                .. By(TravelMode.Rail, (18, 10), (18, 9), (18, 8)),
+                .. By(TravelMode.Road, (19, 8)),
+                .. By(TravelMode.Walk, (20, 8)),
+            ];
+            Trips trips = new Trips();
+            List<string> heard = new List<string>();
+            trips.RunOffered += trip => heard.Add($"road {JsonSerializer.Serialize(trip)}");
+            trips.RideOffered += ride => heard.Add($"ride {JsonSerializer.Serialize(ride)}");
 
             trips.Routed(route);
 
-            CollectionAssert.AreEqual(new[] { new Trip(10, 10, "EE"), new Trip(17, 10, "EEN") }, offered);
+            CollectionAssert.AreEqual(new[] { "ride [12,10,\"EEE\"]", "road [16,10,\"E\"]", "ride [18,10,\"NN\"]" }, heard);
         }
 
         // A car on one tile would go nowhere
         [TestMethod]
         public void Routed_RouteOfOneRoadTile_OffersNothing()
         {
-            IReadOnlyList<Position> route = [new Position(9, 8)];
-            Trips trips = new Trips(RoadMap(route));
+            Trips trips = new Trips();
             List<Trip> offered = new List<Trip>();
-            trips.Offered += offered.Add;
+            trips.RunOffered += offered.Add;
 
-            trips.Routed(route);
+            trips.Routed(By(TravelMode.Road, (9, 8)));
 
             Assert.IsEmpty(offered);
         }
@@ -104,13 +82,11 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void Routed_StepEachWay_WritesItsLetter()
         {
-            IReadOnlyList<Position> loop = [new Position(5, 5), new Position(5, 4), new Position(6, 4), new Position(6, 5),
-                                            new Position(5, 5)];
-            Trips trips = new Trips(RoadMap(loop));
+            Trips trips = new Trips();
             List<Trip> offered = new List<Trip>();
-            trips.Offered += offered.Add;
+            trips.RunOffered += offered.Add;
 
-            trips.Routed(loop);
+            trips.Routed(By(TravelMode.Road, (5, 5), (5, 4), (6, 4), (6, 5), (5, 5)));
 
             Assert.AreEqual(new Trip(5, 5, "NESW"), offered.Single());
             Assert.AreEqual("[5,5,\"NESW\"]", JsonSerializer.Serialize(offered.Single()));
@@ -123,11 +99,10 @@ namespace Micropolis.Rules.Tests
         [DataRow(6, 4)]
         public void Routed_RouteNotSteppingToATileBeside_Throws(int x, int y)
         {
-            IReadOnlyList<Position> route = [new Position(5, 5), new Position(x, y)];
-            Trips trips = new Trips(RoadMap(route));
-            trips.Offered += _ => { };
+            Trips trips = new Trips();
+            trips.RunOffered += _ => { };
 
-            Assert.ThrowsExactly<InvalidOperationException>(() => trips.Routed(route));
+            Assert.ThrowsExactly<InvalidOperationException>(() => trips.Routed(By(TravelMode.Road, (5, 5), (x, y))));
         }
 
         [TestMethod]
@@ -151,31 +126,85 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
-        public void Offered_TownRun_OnlyRoadTiles()
+        public void RunOffered_CommutersRun_OnlyRoadTiles()
         {
-            Assert.IsGreaterThan(20, Town.Value.Offers.Count, "Too few trips offered to check.");
-            Assert.AreEqual("", string.Join(", ", Town.Value.OffRoad), "Trips offered with a tile no car drives on.");
+            Assert.IsGreaterThan(20, Commuters.Value.Trips.Count, "Too few trips offered to check.");
+            Assert.AreEqual("", string.Join(", ", Commuters.Value.Faults.Where(fault => fault.StartsWith("trip"))));
+        }
+
+        // Each ride starts and ends at a station and runs on rail between
+        [TestMethod]
+        public void RideOffered_CommutersRun_RunFromStationToStationOnRail()
+        {
+            Assert.IsGreaterThan(20, Commuters.Value.Rides.Count, "Too few rides offered to check.");
+            Assert.AreEqual("", string.Join(", ", Commuters.Value.Faults.Where(fault => fault.StartsWith("ride"))));
         }
 
         [TestMethod]
-        public void Offered_TownRunAgain_IsTheSame()
+        public void RunOffered_CommutersRunAgain_IsTheSame()
         {
-            CollectionAssert.AreEqual(Town.Value.Offers, RunTown().Offers);
+            CityRun again = RunCommuters();
+
+            CollectionAssert.AreEqual(Commuters.Value.Trips, again.Trips);
+            CollectionAssert.AreEqual(Commuters.Value.Rides, again.Rides);
         }
 
-        // The same 600 steps offer trips while the city runs, so none offered while paused is the pause's doing
+        // The same 600 steps offer trips and rides while the city runs, so none offered while paused is the pause's doing
         [TestMethod]
         public void Step_Paused_OffersNothingWhereRunningOffersTrips()
         {
-            Assert.IsGreaterThan(5, TownTripsOver600Steps(paused: false), "Too few trips offered running to check against.");
-            Assert.AreEqual(0, TownTripsOver600Steps(paused: true));
+            Assert.IsGreaterThan(5, CommutersTripsOver600Steps(paused: false), "Too few trips offered running to check against.");
+            Assert.AreEqual(0, CommutersTripsOver600Steps(paused: true));
         }
 
-        private static int TownTripsOver600Steps(bool paused)
+        // The commuters' line with its stations taken back to plain rail carries no one, where with them it carries rides
+        [TestMethod]
+        public void RideOffered_CommutersLineWithoutStations_CarriesNoOne()
         {
-            Simulation city = FixtureCities.City("town", "run");
+            Assert.IsGreaterThan(5, CommutersRidesOver600Steps(stations: true), "Too few rides with the stations to check against.");
+            Assert.AreEqual(0, CommutersRidesOver600Steps(stations: false));
+        }
+
+        private static int CommutersRidesOver600Steps(bool stations)
+        {
+            Simulation city = FixtureCities.City("commuters", "run");
+            int ridden = 0;
+            city.Trips.RideOffered += _ => ridden++;
+            if (!stations)
+            {
+                RemoveStations(city.Map);
+            }
+
+            for (int i = 0; i < 600; i++)
+            {
+                city.Step();
+            }
+
+            return ridden;
+        }
+
+        // Takes each station back to the straight rail it stands on
+        private static void RemoveStations(GameMap map)
+        {
+            for (int x = 0; x < map.Width; x++)
+            {
+                for (int y = 0; y < map.Height; y++)
+                {
+                    int tile = map.GetTileValue(x, y);
+                    if (TileUtils.IsRailStation(tile))
+                    {
+                        map.SetTile(x, y, TileUtils.TrackUnder(tile), TileFlags.BLBNBIT);
+                    }
+                }
+            }
+        }
+
+        private static int CommutersTripsOver600Steps(bool paused)
+        {
+            Simulation city = FixtureCities.City("commuters", "run");
             int offered = 0;
-            city.Trips.Offered += _ => offered++;
+            city.Trips.RunOffered += _ => offered++;
+            city.Trips.RideOffered += _ => offered++;
             if (paused)
             {
                 city.SetSpeed(Speed.Paused);
@@ -189,32 +218,30 @@ namespace Micropolis.Rules.Tests
             return offered;
         }
 
-        // The trips of the town with rail laid over every third tile of its east-west roads, so many of its trips run
-        // on rail, over 3,000 steps from its run save, and each tile of them that no car drives on, as the map had it
-        // then
-        private static TownRun RunTown()
+        // The trips and rides of the commuters fixture over 3,000 steps from its run save, and each tile of a trip no car
+        // drives on, of a ride no train runs on, or a ride's end that is no station, as the map had it then
+        private static CityRun RunCommuters()
         {
-            Simulation city = FixtureCities.City("town", "run");
-            for (int x = 0; x < city.Map.Width; x += 3)
-            {
-                for (int y = 0; y < city.Map.Height; y++)
-                {
-                    if (city.Map.GetTileValue(x, y) == ROADS)
-                    {
-                        city.Map.SetTile(x, y, HRAIL, TileFlags.BULLBIT);
-                    }
-                }
-            }
-
-            List<Trip> offered = new List<Trip>();
-            List<string> offRoad = new List<string>();
+            Simulation city = FixtureCities.City("commuters", "run");
+            List<Trip> trips = new List<Trip>();
+            List<Trip> rides = new List<Trip>();
+            List<string> faults = new List<string>();
             int step = 0;
 
-            city.Trips.Offered += trip =>
+            city.Trips.RunOffered += trip =>
             {
-                offered.Add(trip);
-                offRoad.AddRange(TripRoutes.Tiles(trip).Where(tile => !TileUtils.CarriesCars(city.Map.GetTileValue(tile.X, tile.Y)))
-                                            .Select(tile => $"({tile.X}, {tile.Y}) at step {step}"));
+                trips.Add(trip);
+                faults.AddRange(TripRoutes.Tiles(trip).Where(tile => !TileUtils.CarriesCars(city.Map.GetTileValue(tile.X, tile.Y)))
+                                          .Select(tile => $"trip off road at ({tile.X}, {tile.Y}) at step {step}"));
+            };
+            city.Trips.RideOffered += ride =>
+            {
+                rides.Add(ride);
+                List<TilePosition> tiles = TripRoutes.Tiles(ride);
+                faults.AddRange(tiles.Where(tile => !TileUtils.CarriesTrains(city.Map.GetTileValue(tile.X, tile.Y)))
+                                     .Select(tile => $"ride off rail at ({tile.X}, {tile.Y}) at step {step}"));
+                faults.AddRange(new[] { tiles[0], tiles[^1] }.Where(tile => !TileUtils.IsRailStation(city.Map.GetTileValue(tile.X, tile.Y)))
+                                                             .Select(tile => $"ride ending off a station at ({tile.X}, {tile.Y}) at step {step}"));
             };
 
             for (; step < 3000; step++)
@@ -222,20 +249,15 @@ namespace Micropolis.Rules.Tests
                 city.Step();
             }
 
-            return new TownRun(offered, offRoad);
+            return new CityRun(trips, rides, faults);
         }
 
-        private static GameMap RoadMap(IEnumerable<Position> road)
+        // A route over the tiles in turn, every one the same way
+        private static List<RouteStep> By(TravelMode mode, params (int X, int Y)[] tiles)
         {
-            GameMap map = new GameMap(120, 100);
-            foreach (Position position in road)
-            {
-                map.SetTile(position.X, position.Y, ROADS, 0);
-            }
-
-            return map;
+            return tiles.Select(tile => new RouteStep(new Position(tile.X, tile.Y), mode)).ToList();
         }
 
-        private sealed record TownRun(List<Trip> Offers, List<string> OffRoad);
+        private sealed record CityRun(List<Trip> Trips, List<Trip> Rides, List<string> Faults);
     }
 }

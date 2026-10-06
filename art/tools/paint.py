@@ -23,7 +23,7 @@ and painted as one canvas. prep writes the model inputs, paint paints them throu
 (--only repaints some, --paving names the job's surfaces), and build writes the painted layers to
 art/painted/out/<asset>, and a single tile's ground and objects to art/painted/built/<asset> too,
 from which join gives the single tiles their donors' paintings. The inputs and paintings stay in
-art/painted/raw/<job>, which git ignores. paint reads the API key as generate.py does. Needs Pillow,
+art/painted/raw/<job>, committed with the layers. paint reads the API key as generate.py does. Needs Pillow,
 NumPy and SciPy.
 """
 
@@ -91,7 +91,8 @@ def _tile_sets():
     for vehicle, sprite in VEHICLES.items():
         sets[vehicle] = [sprite_frame(vehicle, k) for k in range(sprite['frames'])]
     sets.update(fours('power', single_tile_ids('power')))
-    sets.update(fours('rail', single_tile_ids('rail')))
+    sets.update(fours('rail', SINGLE_TILES['rail']['rail']))
+    sets['rail-stations'] = tiles('rail', SINGLE_TILES['rail']['stations'])
     return sets
 
 
@@ -132,6 +133,8 @@ SUBJECTS = [
     ('rubble', 'rubble where buildings were knocked down'),
     ('roads', 'pieces of road, with their junctions and bridges, on grassy land'),
     ('power', 'power lines on wooden poles over grassy land and water'),
+    ('rail-stations', 'small railway stations: a straight railway track between two low grey concrete platforms, '
+                      'one with a small shelter with a dark green roof, on grassy land'),
     ('rail', 'pieces of railway track, with its junctions, bridges and crossings, on grassy land'),
     ('train', 'one light grey railcar with a pale grey roof, seen from directly above, in each of the directions '
               'it runs, on plain grass'),

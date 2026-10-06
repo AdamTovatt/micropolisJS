@@ -10,6 +10,5 @@ server/**/bin/
 server/**/obj/
 .cities/
 conformance/random
-art/blender/out/
 __pycache__/
 .pytest_cache/

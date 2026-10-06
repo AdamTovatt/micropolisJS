@@ -1,7 +1,7 @@
 {
   "stepsPerCityTime": {"slow":80,"medium":48,"fast":16},
   "cityTimesPerYear": 48,
-  "toolCosts": {"airport":10000,"bulldozer":10,"coal":3000,"commercial":100,"fire":500,"industrial":100,"nuclear":5000,"park":10,"police":500,"port":3000,"rail":20,"residential":100,"road":10,"stadium":5000,"wire":5},
+  "toolCosts": {"airport":10000,"bulldozer":10,"coal":3000,"commercial":100,"fire":500,"industrial":100,"nuclear":5000,"park":10,"police":500,"port":3000,"rail":20,"residential":100,"road":10,"stadium":5000,"station":500,"wire":5},
   "advisorConditions": [
     "Not enough power",
     "More power needed",
@@ -25,7 +25,6 @@
     "Police need funding"
   ],
   "spriteTypes": [
-    {"type":1,"name":"train","frames":5},
     {"type":2,"name":"helicopter","frames":8},
     {"type":3,"name":"airplane","frames":11},
     {"type":4,"name":"ship","frames":8},

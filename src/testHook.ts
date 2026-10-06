@@ -12,7 +12,7 @@
  *
  */
 
-import type { Cars } from "./cars";
+import type { Cars, PaintableCar } from "./cars";
 import type { CityDriver } from "./citySource";
 import type {
   BudgetForecastAnswer, EvaluationRecord, FireStationReach, StatusRecord, TilePosition, TileReportAnswer,
@@ -33,7 +33,7 @@ interface HookedGame {
                readonly mapCurrent: boolean};
   monsterTV: {readonly current: boolean};
   cars: Pick<Cars, "driven" | "add">;
-  readonly carsInView: number;
+  readonly carsPainted: readonly PaintableCar[];
   readonly frameCounts: FrameCounts;
   notificationBar: {dismiss(): void};
   toolToast: {dismiss(): void};
@@ -247,7 +247,12 @@ class TestHook {
 
   // How many cars the map's view was last painted with
   carsInView(): number {
-    return this.attachedGame().carsInView;
+    return this.attachedGame().carsPainted.length;
+  }
+
+  // How many cars of trains the map's view was last painted with
+  trainCarsInView(): number {
+    return this.attachedGame().carsPainted.filter(({kind}) => kind === "rail").length;
   }
 
   // Adds cars to those driving, as the city's trips do, for the render benchmark to drive more of them than a city

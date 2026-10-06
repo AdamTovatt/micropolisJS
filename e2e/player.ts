@@ -46,7 +46,7 @@ export interface DownloadedFile {
 }
 
 export type Tool ="residential" | "commercial" | "industrial" | "coal" | "nuclear" | "police" | "fire" | "road" |
-  "rail" | "wire" | "port" | "stadium" | "airport" | "park" | "bulldozer" | "query";
+  "rail" | "station" | "wire" | "port" | "stadium" | "airport" | "park" | "bulldozer" | "query";
 
 export type Difficulty = "Easy" | "Med" | "Hard";
 
@@ -658,6 +658,16 @@ export class Player {
     }
 
     return tiles;
+  }
+
+  // Each tile whose whole square is on the canvas (wholeTilesInView), with the pixel of the page at its middle, in CSS
+  // pixels
+  async tileMiddlesInView(): Promise<{tile: Tile, middle: {x: number, y: number}}[]> {
+    const canvas = await this.canvasBox();
+    const {tileWidth} = await this.view();
+    return (await this.wholeTilesInView()).map(({tile, x, y}) => ({
+      tile, middle: {x: Math.floor(canvas.x + x + tileWidth / 2), y: Math.floor(canvas.y + y + tileWidth / 2)},
+    }));
   }
 
   // The view as the map is drawn: the view's origin in device pixels of the map at the zoom, rounded to whole ones, as

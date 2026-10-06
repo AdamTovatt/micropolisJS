@@ -96,15 +96,6 @@ namespace Micropolis.Rules
             return GetTileValue(map, sprite.X + sprite.XHot, sprite.Y + sprite.YHot);
         }
 
-        /// <summary>
-        /// Whether the tile value is water: the river, its edges and the channel. A bridge, or a wire or rail over
-        /// water, is not, nor is the -1 of a pixel off the map.
-        /// </summary>
-        public static bool IsWater(int tileValue)
-        {
-            return tileValue >= TileValues.WATER_LOW && tileValue <= TileValues.WATER_HIGH;
-        }
-
         // What a monster or a tornado does to the tile under the pixel: a road becomes the river, a flammable
         // tile an explosion or, if it is wet, the river, setting a zone on fire, and blowing up any but a residential one
         public static void DestroyMapTile(SpriteManager manager, GameMap map, BlockMaps blockMaps, long ox, long oy)

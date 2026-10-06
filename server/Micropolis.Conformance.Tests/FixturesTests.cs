@@ -59,7 +59,7 @@ namespace Micropolis.Conformance.Tests
         {
             ArgumentException exception = Assert.ThrowsExactly<ArgumentException>(() => Fixtures.Named("metropolis"));
 
-            StringAssert.Contains(exception.Message, "No fixture named metropolis: the fixtures are broke, disasters");
+            StringAssert.Contains(exception.Message, "No fixture named metropolis: the fixtures are broke, commuters, disasters");
         }
     }
 }

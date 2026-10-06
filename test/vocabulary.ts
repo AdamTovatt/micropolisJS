@@ -56,10 +56,12 @@ describe("the shared vocabulary", () => {
         expect([...GROWTH_BLOCKERS]).toEqual(queries.growthBlockers);
     });
 
-    // The sprite sheet's row for each type, from type 1, holds the frames the rules give the type
+    // The sprite sheet's row for each type, from type 1, holds the frames the rules give the type. The first row is the
+    // trains' the client draws from rides, which the rules have no sprite for.
     it("draws each sprite type with the frames the server's rules give it", () => {
-        expect(SPRITE_SHEET.map(({frames}, row) => ({type: row + 1, frames})))
+        expect(SPRITE_SHEET.map(({frames}, row) => ({type: row + 1, frames})).slice(1))
             .toEqual(RULES.spriteTypes.map(({type, frames}) => ({type, frames})));
+        expect(RULES.spriteTypes.map(({type}) => type)).not.toContain(1);
     });
 
     it("gives the end-to-end specs the numbers the server's rules count with", () => {

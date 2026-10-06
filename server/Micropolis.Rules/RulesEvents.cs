@@ -150,7 +150,6 @@ namespace Micropolis.Rules
         public static readonly EventName<NewsPlace> HelicopterCrashed = new EventName<NewsPlace>(Messages.HELICOPTER_CRASHED);
         public static readonly EventName<NewsPlace> PlaneCrashed = new EventName<NewsPlace>(Messages.PLANE_CRASHED);
         public static readonly EventName<NewsPlace> ShipCrashed = new EventName<NewsPlace>(Messages.SHIP_CRASHED);
-        public static readonly EventName<NewsPlace> TrainCrashed = new EventName<NewsPlace>(Messages.TRAIN_CRASHED);
 
         // After the keys they list, which a static field's initializer reads in the order the fields are written
 
@@ -176,7 +175,6 @@ namespace Micropolis.Rules
             HelicopterCrashed,
             PlaneCrashed,
             ShipCrashed,
-            TrainCrashed,
         ];
     }
 }

@@ -316,7 +316,11 @@ export const CHURCH7BASE    = 1010;
 export const CHURCH7        = 1014;
 export const CHURCH7LAST    = 1018;
 
-// tiles 1020-1023 unused
+// Rail stations, a tile each, through which the track runs on: east and west, or north and south
+export const HRAILSTATION   = 1020;
+export const VRAILSTATION   = 1021;
+
+// tiles 1022-1023 unused
 
 export const TILE_COUNT     = 1024;
 

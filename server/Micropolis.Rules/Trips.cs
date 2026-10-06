@@ -15,74 +15,76 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The trips the traffic rule routes, offered for the client to draw as cars: a picture of what the rules do,
-    /// which the rules never read, never save and draw nothing from the stream for. A trip is a run of the route the
-    /// router found, every tile of it in order: a route may run on rail, so each run of it that a car drives on every
-    /// tile of (<see cref="TileUtils.CarriesCars(int)"/>), at least <see cref="ShortestRun"/> tiles long, is offered as
-    /// a trip of its own, as the route is routed, so the cars of one route drive its road parts together.
+    /// The trips the traffic rule routes, offered for the client to draw as cars and trains: a picture of what the rules
+    /// do, which the rules never read, never save and draw nothing from the stream for. The router says how a route
+    /// goes over each tile of it (<see cref="TripRouter"/>), and each run of the route by road, at least
+    /// <see cref="ShortestRun"/> tiles long, is offered as a trip of its own, and each ride, from the station it gets on
+    /// at to the one it gets off at, as a ride of its own, as the route is routed, so the cars and trains of one route
+    /// go together. Where it walks nothing is offered.
     /// </summary>
     /// <remarks>
-    /// <see cref="Offered"/> is a plain C# event, not one of <see cref="RulesEvents"/>: what the simulation's emitters
-    /// send, log replay records, and the fixture tool writes into the event goldens, which trips are no part of.
+    /// <see cref="RunOffered"/> and <see cref="RideOffered"/> are plain C# events, not <see cref="RulesEvents"/>: what the
+    /// simulation's emitters send, log replay records, and the fixture tool writes into the event goldens, which trips
+    /// are no part of.
     /// </remarks>
     public sealed class Trips
     {
         /// <summary>
-        /// The fewest tiles a run is offered with: a car on a single tile would go nowhere.
+        /// The fewest tiles a run by road is offered with: a car on a single tile would go nowhere. A ride runs from one
+        /// station to another, so always holds two tiles or more.
         /// </summary>
         public const int ShortestRun = 2;
 
-        private readonly GameMap _map;
-
-        public Trips(GameMap map)
-        {
-            _map = map;
-        }
+        /// <summary>
+        /// Hears each run by road offered, as it is routed.
+        /// </summary>
+        public event Action<Trip>? RunOffered;
 
         /// <summary>
-        /// Hears each trip offered, as it is routed.
+        /// Hears each ride offered, as it is routed: its start is the station it gets on at, and its last tile the
+        /// station it gets off at.
         /// </summary>
-        public event Action<Trip>? Offered;
+        public event Action<Trip>? RideOffered;
 
         /// <summary>
-        /// Offers each run of a trip's route that a car drives on every tile of, and that is at least
-        /// <see cref="ShortestRun"/> tiles long, in the order the route takes them.
+        /// Offers each run of a trip's route by road at least <see cref="ShortestRun"/> tiles long, and each ride of it,
+        /// in the order the route takes them.
         /// </summary>
-        internal void Routed(IReadOnlyList<Position> route)
+        internal void Routed(IReadOnlyList<RouteStep> route)
         {
-            if (Offered is null)
-            {
-                return;
-            }
-
             int start = 0;
-            for (int i = 0; i <= route.Count; i++)
+
+            for (int i = 1; i <= route.Count; i++)
             {
-                if (i < route.Count && TileUtils.CarriesCars(_map.GetTileValue(route[i].X, route[i].Y)))
+                if (i < route.Count && route[i].Mode == route[start].Mode)
                 {
                     continue;
                 }
 
-                if (i - start >= ShortestRun)
+                if (route[start].Mode == TravelMode.Road && i - start >= ShortestRun)
                 {
-                    Offered(TripOf(route, start, i));
+                    RunOffered?.Invoke(TripOf(route, start, i));
+                }
+                else if (route[start].Mode == TravelMode.Rail)
+                {
+                    RideOffered?.Invoke(TripOf(route, start, i));
                 }
 
-                start = i + 1;
+                start = i;
             }
         }
 
         // The trip that stands on each tile of the route from start up to end in turn, every tile of it beside the one
         // before
-        private static Trip TripOf(IReadOnlyList<Position> route, int start, int end)
+        private static Trip TripOf(IReadOnlyList<RouteStep> route, int start, int end)
         {
             char[] steps = new char[end - start - 1];
             for (int i = start + 1; i < end; i++)
             {
-                steps[i - start - 1] = StepLetter(route[i - 1], route[i]);
+                steps[i - start - 1] = StepLetter(route[i - 1].Tile, route[i].Tile);
             }
 
-            return new Trip(route[start].X, route[start].Y, new string(steps));
+            return new Trip(route[start].Tile.X, route[start].Tile.Y, new string(steps));
         }
 
         private static char StepLetter(Position from, Position to)

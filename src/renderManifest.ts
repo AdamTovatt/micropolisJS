@@ -86,6 +86,9 @@ export const SPRITE_SHEET: ReadonlyArray<{frames: number, width: number}> = [
   {frames: 6, width: 48}, // explosion
 ];
 
+// The sprite sheet's row of the trains' art
+const TRAIN_SPRITE_TYPE = 1;
+
 // The key of a sprite's art in a manifest's sprites, from its type and frame, which count from 1
 export function spriteKey(type: number, frame: number): string {
   return `${type}/${frame}`;
@@ -342,5 +345,17 @@ export class RenderArt {
   // or null for one the manifest has none for, which is drawn in its flat colour
   car(colour: number, direction: CarDirection): AtlasRect | null {
     return this.rendered.cars.get(carKey(CAR_COLOURS[colour].name, direction)) ?? null;
+  }
+
+  // The art of a car of a train facing the way given, drawn into the car's square: the trains' row of the sprite sheet,
+  // which no simulation sprite takes and the 16 px sheet always has, its first frame running north or south and its
+  // second east or west
+  trainCar(direction: CarDirection): AtlasRect {
+    const frame = direction === "north" || direction === "south" ? 1 : 2;
+    const rect = this.sprite(TRAIN_SPRITE_TYPE, frame);
+    if (rect === null) {
+      throw new Error(`No art draws the train's frame ${frame}`);
+    }
+    return rect;
   }
 }

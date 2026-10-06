@@ -251,9 +251,9 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// A run of a route the traffic rule found on road alone, as the <c>trips</c> message carries it,
-    /// <c>[x, y, "NESW…"]</c>: the tile the run starts on, then a letter for each step to the next tile of it, to its
-    /// last.
+    /// A run of a route the traffic rule found by road, or a ride of it from station to station, as the <c>trips</c>
+    /// message carries it, <c>[x, y, "NESW…"]</c>: the tile the run starts on, then a letter for each step to the next
+    /// tile of it, to its last.
     /// </summary>
     [JsonConverter(typeof(TripConverter))]
     public sealed record Trip(int X, int Y, string Steps)
@@ -311,11 +311,13 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// The trips <see cref="Trips"/> offered since the last messages, in the order they were offered, each a run of a
-    /// route on road alone.
+    /// The trips <see cref="Trips"/> offered since the last messages: the runs of routes by road, in the order they were
+    /// offered, and the rides, each from the station it gets on at to the one it gets off at, in the order they were
+    /// offered.
     /// </summary>
     public sealed record TripsMessage(
-        [property: JsonPropertyName("routes")] IReadOnlyList<Trip> Routes) : StateMessage
+        [property: JsonPropertyName("routes")] IReadOnlyList<Trip> Routes,
+        [property: JsonPropertyName("rides")] IReadOnlyList<Trip> Rides) : StateMessage
     {
         [JsonPropertyName("type")]
         [JsonPropertyOrder(-1)]

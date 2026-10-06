@@ -72,10 +72,9 @@ namespace Micropolis.Rules.Tests
             ("map.pollutionMaxY", "-1", "0", "99", "100"),
             ("evaluation.problemVotes[0].index", "-1", "0", "6", "7"),
             ("evaluation.problemVotes[0].voteCount", "-1", "0", "100", "101"),
-            ("sprites.list[0].type", "0", "1", "7", "8"),
-            // The run save's one sprite is a train; FromSave_SpriteOfEachType_ReadsFramesUpToItsLast covers the other types
-            ("sprites.list[0].frame", "-1", "0", "5", "6"),
-            ("sprites.list[0].dir", "-1", "0", "4", "5"),
+            ("sprites.list[0].type", "1", "2", "7", "8"),
+            // The run save's one sprite is a plane; FromSave_SpriteOfEachType_ReadsFramesUpToItsLast covers the other types
+            ("sprites.list[0].frame", "-1", "0", "11", "12"),
             ("scannedState.blockMaps.cityCentreDistScoreMap[0]", "-65", "-64", "64", "65"),
             ("scannedState.blockMaps.crimeRateMap[0]", "-1", "0", "250", "251"),
             ("scannedState.blockMaps.fireStationMap[0]", "-1", "0", "16000", "16001"),
@@ -85,6 +84,7 @@ namespace Micropolis.Rules.Tests
             ("scannedState.blockMaps.policeStationEffectMap[0]", "-1", "0", "16000", "16001"),
             ("scannedState.blockMaps.pollutionDensityMap[0]", "-1", "0", "255", "256"),
             ("scannedState.blockMaps.populationDensityMap[0]", "-1", "0", "510", "511"),
+            ("scannedState.blockMaps.railLoadMap[0]", "-1", "0", "240", "241"),
             ("scannedState.blockMaps.rateOfGrowthMap[0]", "-201", "-200", "200", "201"),
             ("scannedState.blockMaps.terrainDensityMap[0]", "-1", "0", "240", "241"),
             ("scannedState.blockMaps.trafficDensityMap[0]", "-1", "0", "240", "241"),
@@ -193,13 +193,15 @@ namespace Micropolis.Rules.Tests
                 ["sprites.list[0].newDir"] = ("311", city => city.SpriteManager.SpriteList[0].NewDir),
                 ["sprites.list[0].step"] = ("312", city => city.SpriteManager.SpriteList[0].Step),
                 ["sprites.list[0].flag"] = ("313", city => city.SpriteManager.SpriteList[0].Flag),
-                // A train, which only false suits
+                // A plane, which only false suits
                 ["sprites.list[0].reachedLand"] = (null, city => city.SpriteManager.SpriteList[0].ReachedLand),
-                // A train, which only null suits
+                // A plane, which only null suits
                 ["sprites.list[0].mission"] = (null, city => city.SpriteManager.SpriteList[0].Mission?.Save()),
-                // A train, which only null suits
-                ["sprites.list[0].planeFlight"] = (null, city => city.SpriteManager.SpriteList[0].PlaneFlight?.Save()),
-                // A train, which only null suits
+                // A departing plane, which only departing suits without an airport, and only no airport suits departing:
+                // FromSave_PlaneFlight_LoadsIntoItsProperties loads an arriving one
+                ["sprites.list[0].planeFlight.phase"] = (null, city => (int)city.SpriteManager.SpriteList[0].PlaneFlight!.Phase),
+                ["sprites.list[0].planeFlight.airport"] = (null, city => city.SpriteManager.SpriteList[0].PlaneFlight!.Airport?.Save()),
+                // A plane, which only null suits
                 ["sprites.list[0].copterFlight"] = (null, city => city.SpriteManager.SpriteList[0].CopterFlight?.Save()),
                 ["disasters.floodCount"] = ("7", city => city.DisasterManager.FloodCount),
                 ["disasters.disastersEnabled"] = ("true", city => city.DisasterManager.DisastersEnabled),
@@ -212,6 +214,7 @@ namespace Micropolis.Rules.Tests
                 ["scannedState.blockMaps.policeStationEffectMap[0]"] = ("57", city => city.BlockMaps.PoliceStationEffectMap.Get(0, 0)),
                 ["scannedState.blockMaps.pollutionDensityMap[0]"] = ("58", city => city.BlockMaps.PollutionDensityMap.Get(0, 0)),
                 ["scannedState.blockMaps.populationDensityMap[0]"] = ("59", city => city.BlockMaps.PopulationDensityMap.Get(0, 0)),
+                ["scannedState.blockMaps.railLoadMap[0]"] = ("63", city => city.BlockMaps.RailLoadMap.Get(0, 0)),
                 ["scannedState.blockMaps.rateOfGrowthMap[0]"] = ("60", city => city.BlockMaps.RateOfGrowthMap.Get(0, 0)),
                 ["scannedState.blockMaps.terrainDensityMap[0]"] = ("61", city => city.BlockMaps.TerrainDensityMap.Get(0, 0)),
                 ["scannedState.blockMaps.trafficDensityMap[0]"] = ("62", city => city.BlockMaps.TrafficDensityMap.Get(0, 0)),
@@ -291,7 +294,7 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEquivalent(values, Fields.Keys.ToList());
         }
 
-        // The saves hold trains, planes and a ship but no monster, the only sprite with a key of its own: the monster tests
+        // The saves hold planes and a ship but no monster, the only sprite with a key of its own: the monster tests
         // below make one
         [TestMethod]
         public void FromSave_ConformanceSaves_CoverWhatTheLoaderReads()
@@ -352,7 +355,7 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DataRow("the budget's tax rate", "\"budget\":{", "\"budget\":{\"cityTax\":9,", "budget.cityTax")]
-        [DataRow("a sprite's type", "\"list\":[{", "\"list\":[{\"type\":1,", "sprites.list[0].type")]
+        [DataRow("a sprite's type", "\"list\":[{", "\"list\":[{\"type\":2,", "sprites.list[0].type")]
         public void FromSave_KeyWrittenTwice_ThrowsNamingTheKey(string description, string before, string after, string path)
         {
             Assert.Contains(before, RunText, description);
@@ -453,7 +456,7 @@ namespace Micropolis.Rules.Tests
 
         // Only a monster reaches land, and a monster may have or not
         [TestMethod]
-        [DataRow("1", "true", "The save's sprites.list[0].reachedLand must be false, got true.")]
+        [DataRow("2", "true", "The save's sprites.list[0].reachedLand must be false, got true.")]
         [DataRow("5", "true", null)]
         [DataRow("5", "false", null)]
         public void FromSave_SpriteThatReachedLand_IsReadOnlyForAMonster(string type, string reachedLand, string? message)
@@ -516,7 +519,6 @@ namespace Micropolis.Rules.Tests
 
         // A sprite's frame is read from 0 to its type's last, and refused past it
         [TestMethod]
-        [DataRow(SpriteType.Train, 5)]
         [DataRow(SpriteType.Helicopter, 8)]
         [DataRow(SpriteType.Airplane, 11)]
         [DataRow(SpriteType.Ship, 8)]

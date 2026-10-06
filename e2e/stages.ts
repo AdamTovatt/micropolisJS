@@ -16,8 +16,8 @@ import { expect } from "@playwright/test";
 
 import { POWERBIT } from "../src/tileFlags";
 import {
-  AIRPORT, COMCLR, FIRESTATION, FREEZ, HROADPOWER, INDCLR, LASTPOWER, LASTRUBBLE, POLICESTATION, POWERBASE, POWERPLANT,
-  RUBBLE, VROADPOWER,
+  AIRPORT, COMCLR, FIRESTATION, FREEZ, HRAILSTATION, HROADPOWER, INDCLR, LASTPOWER, LASTRUBBLE, POLICESTATION, POWERBASE,
+  POWERPLANT, RUBBLE, VROADPOWER,
 } from "../src/tileValues";
 import { GameSave, Player, Tile } from "./player";
 import { AIRPORT_COST, CITY_TIMES_PER_YEAR, STEPS_PER_CITY_TIME } from "./ruleNumbers";
@@ -48,6 +48,8 @@ export const SITE: Rect[] = [
   {left: 46, top: 40, right: 51, bottom: 45},
   // A second airport, refused for lack of funds
   {left: 71, top: 29, right: 76, bottom: 34},
+  // Industry east of the town, which only rail reaches
+  {left: 70, top: 32, right: 75, bottom: 35},
 ];
 
 export interface Stage {
@@ -239,6 +241,56 @@ export const STAGES: Stage[] = [
       const save = await player.save();
       const skipped = tilesIn(row).filter((tile) => !isRoad(tileAt(save, tile)));
       expect(skipped, "tiles of the drag that are not road").toEqual([]);
+    },
+  },
+  {
+    name: "Rail between stations, and a train for each ride",
+    async play(player) {
+      // Industry east of the town at (74, 34), with no road, powered by a line from the fire station's side, and a
+      // line along row 32 from a station on its north side to one on the north side of the houses at (55, 34). Only
+      // the line reaches the industry, so a trip between it and the town, such as one the houses choose it for, rides.
+      const industry = {x: 74, y: 34};
+      const line = {left: 55, top: 32, right: 74, bottom: 32};
+      const wire = {left: 70, top: 34, right: 72, bottom: 34};
+      const clear = await player.save();
+      const built = [line, wire].flatMap(tilesIn).filter((tile) => tileAt(clear, tile) !== 0);
+      expect(built, "the line's and the wire's tiles that are not clear land").toEqual([]);
+      await player.selectTool("industrial");
+      await player.clickTile(industry);
+      await player.selectTool("wire");
+      await player.dragTiles({x: wire.left, y: wire.top}, {x: wire.right, y: wire.top});
+      await player.selectTool("rail");
+      await player.dragTiles({x: line.left, y: line.top}, {x: line.right, y: line.top});
+      await player.selectTool("station");
+      await player.clickTile({x: line.left, y: line.top});
+      await player.clickTile({x: line.right, y: line.top});
+      await expectTiles(player, [[industry, INDCLR], [{x: line.left, y: line.top}, HRAILSTATION],
+                                 [{x: line.right, y: line.top}, HRAILSTATION]], "the industry and the stations");
+
+      // The city runs until it sends a ride, which the server decides, so the step the stage ends at is the city's
+      // alone, never what the page draws. A town this small rides too seldom for the load to outlast a cycle's easing,
+      // so the save the stage reads between cycles shows none: the Rail load overlay is tested on a line a city's rides
+      // load (railLoad.spec.ts).
+      let rides = 0;
+      player.forwarded.listen = (message, from) => {
+        if (from === "server" && message.type === "state") {
+          for (const sent of message.messages as {type: string, rides?: unknown[]}[]) {
+            rides += sent.type === "trips" ? sent.rides!.length : 0;
+          }
+        }
+      };
+      for (let time = 0; rides === 0; time++) {
+        if (time === CITY_TIME_PER_YEAR) {
+          throw new Error(`Waited ${CITY_TIME_PER_YEAR} units of city time for a ride on the line`);
+        }
+        await player.advance(CITY_TIME);
+      }
+      delete player.forwarded.listen;
+
+      // The page draws a train for the ride, standing at its station on the fixed clock
+      await player.settle();
+      const trainCars = await player.page.evaluate(() => window.micropolisTestHook!.trainCarsInView());
+      expect(trainCars, "the cars of trains in view").toBeGreaterThan(0);
     },
   },
   {

@@ -166,6 +166,7 @@ const overlays: {
     fireCoverage: {name: "Fire coverage", low: "None", high: "Full"},
     rateOfGrowth: {name: "Rate of growth", low: "Declining", high: "Growing"},
     powerGrid: {name: "Power grid", low: "Unpowered", high: "Powered"},
+    railLoad: {name: "Rail load", low: "Empty", high: "Full"},
   },
 };
 
@@ -219,7 +220,6 @@ const messages: {[subject: string]: MessageText} = {
   [Messages.TAX_TOO_HIGH]: {text: "Citizens upset. The tax rate is too high", tone: "bad"},
   [Messages.TORNADO_SIGHTED]: {text: "Tornado reported !", tone: "bad"},
   [Messages.TRAFFIC_JAMS]: {text: "Frequent traffic jams reported", tone: "bad"},
-  [Messages.TRAIN_CRASHED]: {text: "A train crashed ", tone: "bad"},
   [Messages.REACHED_CAPITAL]: {text: "Now a capital! Population has reached 50,000", tone: "good"},
   [Messages.REACHED_CITY]: {text: "Now a city! Population has reached 10,000", tone: "good"},
   [Messages.REACHED_MEGALOPOLIS]: {text: "Now a megalopolis! Population has reached 500,000", tone: "good"},
@@ -239,7 +239,6 @@ const tvTitles: {[subject: string]: string} = {
   [Messages.HELICOPTER_CRASHED]: "Helicopter crash",
   [Messages.PLANE_CRASHED]: "Plane crash",
   [Messages.SHIP_CRASHED]: "Shipwreck",
-  [Messages.TRAIN_CRASHED]: "Train crash",
   [Messages.HEAVY_TRAFFIC]: "Heavy traffic",
 };
 const tvTitleUnknown = "News";
@@ -264,7 +263,7 @@ const playerActions = {
     commercial: "zoned commercial land", fire: "built a fire station", industrial: "zoned industrial land",
     nuclear: "built a nuclear power plant", park: "built a park", police: "built a police station",
     port: "built a seaport", rail: "laid rail", residential: "zoned residential land", road: "built a road",
-    stadium: "built a stadium", wire: "laid power lines",
+    stadium: "built a stadium", station: "built a rail station", wire: "laid power lines",
   } satisfies Record<ToolName, string>,
   taxes: (tax: number) => `set taxes to ${tax}%`,
   funding: {road: "road funding", fire: "fire funding", police: "police funding"} satisfies Record<keyof ServiceAmounts, string>,

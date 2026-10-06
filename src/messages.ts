@@ -65,7 +65,6 @@ export const SPEED_CHANGED = "Speed changed";
 export const TAX_TOO_HIGH = "Tax too high";
 export const TORNADO_SIGHTED = "Tornado sighted";
 export const TRAFFIC_JAMS = "Traffic jams reported";
-export const TRAIN_CRASHED = "Train crashed";
 export const VALVES_UPDATED = "Valves updated";
 
 export const DISASTER_MESSAGES = [
@@ -82,5 +81,4 @@ export const CRASHES = [
   HELICOPTER_CRASHED,
   PLANE_CRASHED,
   SHIP_CRASHED,
-  TRAIN_CRASHED,
 ];

@@ -25,17 +25,9 @@ import atlas  # noqa: E402
 from designs import PAINTED, RENDERS  # noqa: E402
 
 
-def pytest_addoption(parser):
-    parser.addoption('--renders', action='store_true',
-                     help='also run the tests that read the renders in art/blender/out, which git ignores and CI '
-                          'has not, so they run by hand (art/README.md)')
-
-
 @pytest.fixture(scope='session')
-def renders(request):
-    # the renders, for a test that reads them: run only with --renders, and failing, not skipped, where any is missing
-    if not request.config.getoption('--renders'):
-        pytest.skip('reads the renders in art/blender/out: run by hand with --renders')
+def renders():
+    # the committed renders, for a test that reads them, which fails, never skips, where any is missing
     return RENDERS
 
 

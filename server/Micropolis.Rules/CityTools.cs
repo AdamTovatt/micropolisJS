@@ -49,6 +49,7 @@ namespace Micropolis.Rules
             [ToolName.Residential] = 3,
             [ToolName.Road] = 1,
             [ToolName.Stadium] = 4,
+            [ToolName.Station] = 1,
             [ToolName.Wire] = 1,
         };
 
@@ -70,6 +71,7 @@ namespace Micropolis.Rules
                 [ToolName.Residential] = Building(100, TileValues.FREEZ, map, ToolName.Residential, animated: false),
                 [ToolName.Road] = new RoadTool(map),
                 [ToolName.Stadium] = Building(5000, TileValues.STADIUM, map, ToolName.Stadium, animated: false),
+                [ToolName.Station] = new StationTool(map),
                 [ToolName.Wire] = new WireTool(map),
             };
         }

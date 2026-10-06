@@ -105,7 +105,7 @@ namespace Micropolis.Rules.Tests
         // The layers each phase recomputes
         [TestMethod]
         [DataRow(9, new string[0])]
-        [DataRow(10, new[] { "trafficDensity", "rateOfGrowth" })]
+        [DataRow(10, new[] { "trafficDensity", "rateOfGrowth", "railLoad" })]
         [DataRow(11, new[] { "powerGrid" })]
         [DataRow(12, new[] { "landValue", "housingAppeal", "pollution" })]
         [DataRow(13, new[] { "crime", "policeCoverage" })]

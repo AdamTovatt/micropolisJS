@@ -13,8 +13,9 @@
 
 # Rail: every piece the rail tool lays (226 to 236, by which neighbours are rail, RailTable in
 # the C# rules' ConnectingTool), the track over water (224, 225), and where it crosses a power line (221,
-# 222) or a road (237, 238). Over water the original draws the track sunk under it; here it
-# crosses on a low bridge, as a road does.
+# 222) or a road (237, 238), and the station on straight track (1020, 1021), which the original
+# never had. Over water the original draws the track sunk under it; here it crosses on a low
+# bridge, as a road does.
 
 import os
 import sys
@@ -28,8 +29,15 @@ PIECES = {226: 'EW', 227: 'NS', 228: 'NE', 229: 'ES', 230: 'SW', 231: 'NW',
 BRIDGES = {224: 'EW', 225: 'NS'}
 UNDER_POWER = {221: ('EW', 'NS'), 222: ('NS', 'EW')}   # the track's sides, then the power line's
 ROAD_CROSSINGS = {237: ('EW', 'NS'), 238: ('NS', 'EW')}  # the track's sides, then the road's
+STATIONS = {1020: 'EW', 1021: 'NS'}   # the station on straight track, its track's sides
 
 BRIDGE_HALF = 0.15   # the rail bridge's half-width
+
+PLATFORM_FROM, PLATFORM_TO = 0.14, 0.34   # a platform's edges, out from the track's middle
+PLATFORM_END = 0.06                       # how far each platform stops short of the tile's ends
+PLATFORM_Z = 0.03                         # the platform's top
+SHELTER_FROM, SHELTER_TO = 0.3, 0.7       # the shelter's ends, along the track
+SHELTER_Z = 0.13                          # the underside of its roof
 
 
 def materials():
@@ -39,6 +47,9 @@ def materials():
         'girder': ts.material('girder', lambda: t.plain('girder', '5c6670', 0.5, 0.5)),
         'post': ts.material('crossing_post', lambda: t.plain('crossing_post', 'eeeeea', 0.6)),
         'red': ts.material('red', lambda: t.plain('red', 'ff3020')),
+        'platform': ts.material('platform', lambda: t.concrete_yard('platform')),
+        'edge': ts.material('platform_edge', lambda: t.plain('platform_edge', 'e8c840', 0.7)),
+        'canopy': ts.material('canopy', lambda: t.plain('canopy', '3f5f4a', 0.6)),
     }
 
 
@@ -82,6 +93,37 @@ def road_crossing(track_sides, road_sides):
     return build
 
 
+def station(sides):
+    # a station on straight track: a low concrete platform along each side, short of the tile's
+    # ends so the track runs on into its neighbours, a yellow line along each platform's edge, and
+    # a shelter on the north or west platform, a roof on four posts
+    def build():
+        m = materials()
+        ts.land()
+        ts.track(sides)
+
+        def rect(a0, a1, b0, b1, z0, z1, material, name):
+            # a box from a0 to a1 along the track and b0 to b1 across it, from the track's middle,
+            # across growing north of an east-west track and west of a north-south one
+            if sides == 'EW':
+                return t.box(a0, 0.5 + b0, z0, a1, 0.5 + b1, z1, material, name=name)
+            return t.box(0.5 - b1, a0, z0, 0.5 - b0, a1, z1, material, name=name)
+
+        ends = (PLATFORM_END, 1 - PLATFORM_END)
+        for side in (-1, 1):
+            near, far = sorted((side * PLATFORM_FROM, side * PLATFORM_TO))
+            rect(*ends, near, far, 0, PLATFORM_Z, m['platform'], 'platform')
+            edge = side * (PLATFORM_FROM + 0.015)
+            rect(*ends, edge - 0.008, edge + 0.008, PLATFORM_Z, PLATFORM_Z + 0.001, m['edge'], 'platform_edge')
+
+        for a in (SHELTER_FROM + 0.02, SHELTER_TO - 0.04):
+            for b in (PLATFORM_FROM + 0.06, PLATFORM_TO - 0.04):
+                rect(a, a + 0.02, b, b + 0.02, PLATFORM_Z, SHELTER_Z, m['girder'], 'post')
+        rect(SHELTER_FROM, SHELTER_TO, PLATFORM_FROM + 0.04, PLATFORM_TO - 0.02, SHELTER_Z, SHELTER_Z + 0.012,
+             m['canopy'], 'canopy')
+    return build
+
+
 def bridge(sides):
     # a low concrete deck with a steel girder along each side, carrying the track; it crosses the
     # tile's edges by design, the next tile carrying it on
@@ -116,5 +158,7 @@ for tile, (track_sides, line_sides) in UNDER_POWER.items():
     builders[tile] = under_power(track_sides, line_sides)
 for tile, (track_sides, road_sides) in ROAD_CROSSINGS.items():
     builders[tile] = road_crossing(track_sides, road_sides)
+for tile, sides in STATIONS.items():
+    builders[tile] = station(sides)
 
 t.render_tiles(__file__, builders)

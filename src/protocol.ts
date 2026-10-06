@@ -281,7 +281,7 @@ export function parseServerMessage(text: string): ServerMessage {
 // The tools that change the city, as CityTools in the C# rules builds them
 export const TOOL_NAMES = [
   "airport", "bulldozer", "coal", "commercial", "fire", "industrial", "nuclear", "park", "police", "port", "rail",
-  "residential", "road", "stadium", "wire",
+  "residential", "road", "stadium", "station", "wire",
 ] as const;
 
 export type ToolName = typeof TOOL_NAMES[number];
@@ -388,7 +388,7 @@ export interface CommandResult {
 // location score is, on clean undeveloped land, which has no land value to score.
 export const OVERLAY_LAYERS = [
   "landValue", "housingAppeal", "pollution", "crime", "trafficDensity", "populationDensity", "policeCoverage",
-  "fireCoverage", "rateOfGrowth", "powerGrid",
+  "fireCoverage", "rateOfGrowth", "powerGrid", "railLoad",
 ] as const;
 
 export type OverlayLayer = typeof OVERLAY_LAYERS[number];
@@ -798,16 +798,17 @@ export interface OverlayUpdatedMessage {
   layer: OverlayLayer;
 }
 
-// A trip, a run on road alone, of two tiles or more, of the route the traffic rule found for a zone from a tile of the
-// zone's perimeter to the tile beside its destination: the tile it starts on, then a letter for each step to the next
-// tile, N (up the map), E, S or W
+// A trip, a run by road, of two tiles or more, of the route the traffic rule found for a zone from a tile of the zone's
+// perimeter to the tile beside its destination, or a ride of it by rail from the station it got on at to the one it got
+// off at: the tile it starts on, then a letter for each step to the next tile, N (up the map), E, S or W
 export type Trip = [x: number, y: number, steps: string];
 
-// The trips the traffic rule completed that the city offered since its last batch, for the client to draw as cars, in
-// the order they were offered
+// The trips the traffic rule completed that the city offered since its last batch: the runs by road, for the client to
+// draw as cars, and the rides, for it to draw as trains, each in the order they were offered
 export interface TripsMessage {
   type: "trips";
   routes: Trip[];
+  rides: Trip[];
 }
 
 export type StateMessage = MapMessage | TilesMessage | SpritesMessage | DateMessage | PopulationMessage |

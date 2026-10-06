@@ -116,6 +116,7 @@
   --hud-tool-industrial-fill: #ffff00;
   --hud-tool-road-fill: #000000;
   --hud-tool-rail-fill: #a52a2a;
+  --hud-tool-station-fill: #d2691e;
   --hud-tool-wire-fill: #f0e68c;
   --hud-tool-bulldozer-fill: #fa8072;
   --hud-tool-query-fill: #00ffff;
@@ -865,12 +866,13 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   border-color: var(--hud-accent-fill);
 }
 
-/* The tools, a dock of two rows of eight at the foot of the middle. Each is a tile with its name, its cost, and its
-   accent along its top, which is also its outline on the map (inputStatus.ts reads it from the button). Narrower than
-   the dock needs, below the screen sizes the HUD is laid out for, it wraps to more rows. */
+/* The tools, a dock of two rows of nine at the foot of the middle: at its widest, ten of its narrowest columns don't
+   fit. Each is a tile with its name, its cost, and its accent along its top, which is also its outline on the map
+   (inputStatus.ts reads it from the button). Narrower than the dock needs, below the screen sizes the HUD is laid out
+   for, it wraps to more rows. */
 #controls {
   width: 100%;
-  max-width: 820px;
+  max-width: 800px;
 }
 
 /* Folded, the dock is as wide as its strip */
@@ -880,8 +882,8 @@ footer a, footer a:link, footer a:visited, footer a:hover {
 
 #controls:not(.folded) > #buttons {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 4px;
 }
 
 .toolButton.hudButton {
@@ -890,13 +892,14 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   justify-content: flex-end;
   gap: 0;
   height: 46px;
-  padding: 0 7px 5px;
+  padding: 0 5px 5px;
   border-top: 5px solid;
   border-radius: 7px;
   text-align: left;
 }
 
 .toolName {
+  font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -933,6 +936,10 @@ footer a, footer a:link, footer a:visited, footer a:hover {
 
 #railButton {
   border-top-color: var(--hud-tool-rail-fill);
+}
+
+#stationButton {
+  border-top-color: var(--hud-tool-station-fill);
 }
 
 #wireButton {

@@ -146,7 +146,7 @@ namespace Micropolis.Rules
             // water, is land by that range, though the monster turns it to river as it crosses
             int tileValue = SpriteUtils.GetHotSpotTileValue(manager.Map, sprite);
 
-            if (tileValue != -1 && !SpriteUtils.IsWater(tileValue))
+            if (tileValue != -1 && !TileUtils.IsWater(tileValue))
             {
                 sprite.ReachedLand = true;
             }

@@ -46,6 +46,8 @@ namespace Micropolis.Rules
             new OverlayLayer("rateOfGrowth", city => city.BlockMaps.RateOfGrowthMap, -200, 200, 10),
             // Each tile, 1 where the last power scan powered it and 0 where it didn't
             new OverlayLayer("powerGrid", city => city.PowerManager.PowerGridMap, 0, 1, 11),
+            // Each tile's riders, which the map scan adds to and phase 10 decays, as the traffic
+            new OverlayLayer("railLoad", city => city.BlockMaps.RailLoadMap, 0, Traffic.MaxRailLoad, 10),
         ];
 
         // Each query's fields but its type, required or optional
@@ -61,7 +63,7 @@ namespace Micropolis.Rules
         // The first tile of each category, in order: a tile belongs to the last category whose first tile it reaches.
         // This is idArray in tool.cpp of the original's MicropolisCore, which doZoneStatus searches. The original also
         // ends the table at 956, the first tile it has no category for, which it reports past the end of its list of
-        // names; the rules' tiles from 956 on are churches it never builds, and fall in the last category.
+        // names; the rules' tiles from 956 to 1019 are churches it never builds, and fall in the category before.
         private static readonly IReadOnlyList<(int Start, string Category)> CategoryStarts =
         [
             (TileValues.DIRT, "CLEAR"), (TileValues.RIVER, "WATER"), (TileValues.TREEBASE, "TREES"),
@@ -75,6 +77,9 @@ namespace Micropolis.Rules
             (TileValues.FOUNTAIN, "FOUNTAIN"), (TileValues.INDBASE2, "INDUSTRIAL"),
             (TileValues.FOOTBALLGAME1, "FOOTBALL_GAME"), (TileValues.VBRDG0, "DRAWBRIDGE"),
             (TileValues.NUKESWIRL1, "URANIUM"),
+
+            // The rail stations, which the original never had, and the unused tiles after them
+            (TileValues.HRAILSTATION, "RAIL"),
         ];
 
         // Declared after CategoryStarts, since static fields are initialised in the order they are declared

@@ -5,7 +5,7 @@
     "CITY_STATUS_UPDATED": "City status updated",
     "CLASSIFICATION_UPDATED": "Classification updated",
     "COMMAND_RESULT": "Command result",
-    "CRASHES": ["Helicopter crashed","Plane crashed","Shipwrecked","Train crashed"],
+    "CRASHES": ["Helicopter crashed","Plane crashed","Shipwrecked"],
     "DATE_UPDATED": "Date changed",
     "DISASTER_MESSAGES": ["Earthquake","Explosion Reported","Fire!","Flooding reported","Monster sighted","Nuclear Meltdown","Tornado sighted"],
     "EARTHQUAKE": "Earthquake",
@@ -50,7 +50,6 @@
     "TAX_TOO_HIGH": "Tax too high",
     "TORNADO_SIGHTED": "Tornado sighted",
     "TRAFFIC_JAMS": "Traffic jams reported",
-    "TRAIN_CRASHED": "Train crashed",
     "VALVES_UPDATED": "Valves updated"
   }
 }
