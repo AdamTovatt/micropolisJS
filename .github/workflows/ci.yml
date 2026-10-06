@@ -60,7 +60,8 @@ jobs:
           test -z "$(git status --porcelain -- test/recordings)"
 
   # The art build's committed output (images/) against the build from the committed painted layers, and the painted
-  # single tiles against the committed layers the paint build's join works from (art/painted/built/)
+  # single tiles against the paint build's join from the committed layers it works from (art/painted/built/) and the
+  # committed renders (art/blender/out/)
   art:
     runs-on: ubuntu-latest
     steps:

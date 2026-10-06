@@ -13,10 +13,9 @@
 
 """The paint build's join, and the painted single tiles against the layers it works from, committed
 in art/painted/built: a tile repainted without its built layers, or built layers that the join would
-turn into other painted layers than the committed ones, fail here, naming the tiles. Without the
-renders, the tests check only that each pixel of a painted tile is one the join could have written;
-the join itself runs on the committed layers with --renders. Images are compared by their pixels, not
-their PNG bytes, which differ between zlib versions."""
+turn into other painted layers than the committed ones, fail here, naming the tiles. The join runs
+on the committed built layers and renders. Images are compared by their pixels, not their PNG bytes,
+which differ between zlib versions."""
 
 import json
 import os
@@ -26,7 +25,7 @@ import pytest
 from PIL import Image
 
 from designs import BUILT, BUILT_LAYERS, PAINTED, built_layers, built_tiles, is_joined, single_tile_assets
-from paint import donor_paintings, join
+from paint import join
 
 
 def _pixels(root, asset):
@@ -71,29 +70,8 @@ def test_a_tile_the_join_leaves_is_its_built_layers():
         pytest.fail(f'painted single tiles the join leaves differ from their built layers: {", ".join(differ)}')
 
 
-def test_every_pixel_of_a_joined_tile_is_its_built_layers_or_any_donors_painting_there():
-    # The join writes a pixel's colour from a donor's painting of that layer, at the same pixel, or
-    # leaves the built layer's, and keeps the built layer's alpha. Which donor gives a pixel is the
-    # renders' to say, which CI has not, so this takes any donor's: the join from the renders, with
-    # --renders below, is the strict check
-    donors = donor_paintings()
-
-    def strays(layer, painted, built):
-        kept = (painted == built).all(axis=-1)
-        for _, given, donor in donors:
-            if given == layer:
-                kept |= (painted[..., :3] == donor[..., :3]).all(axis=-1) & (painted[..., 3] == built[..., 3])
-        return int((~kept).sum())
-
-    differ = _differing(_tiles(joined=True), PAINTED, BUILT, strays)
-    if differ:
-        pytest.fail(f'painted single tiles hold pixels neither their built layers nor any donor painted: '
-                    f'{", ".join(differ)}')
-
-
 def test_the_join_from_the_built_layers_is_the_painted_layers(renders, tmp_path):
-    # the whole join, run by hand with --renders: what it writes from the built layers and the renders must be the
-    # committed painted layers
+    # the whole join: what it writes from the built layers and the renders must be the committed painted layers
     join(out=str(tmp_path), renders=renders)
     joined = _tiles(joined=True)
     assert built_tiles(str(tmp_path)) == joined

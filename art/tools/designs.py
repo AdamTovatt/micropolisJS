@@ -28,7 +28,7 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ART = os.path.join(HERE, '..')
-RENDERS = os.path.join(ART, 'blender', 'out')      # the renders, which git ignores
+RENDERS = os.path.join(ART, 'blender', 'out')      # the renders, committed, which the join reads
 PAINTED = os.path.join(ART, 'painted', 'out')      # the painted layers, committed
 BUILT = os.path.join(ART, 'painted', 'built')      # each painted single tile's BUILT_LAYERS as the paint build
                                                    # made them, before the join, committed

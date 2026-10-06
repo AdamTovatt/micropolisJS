@@ -23,7 +23,7 @@ and painted as one canvas. prep writes the model inputs, paint paints them throu
 (--only repaints some, --paving names the job's surfaces), and build writes the painted layers to
 art/painted/out/<asset>, and a single tile's ground and objects to art/painted/built/<asset> too,
 from which join gives the single tiles their donors' paintings. The inputs and paintings stay in
-art/painted/raw/<job>, which git ignores. paint reads the API key as generate.py does. Needs Pillow,
+art/painted/raw/<job>, committed with the layers. paint reads the API key as generate.py does. Needs Pillow,
 NumPy and SciPy.
 """
 
