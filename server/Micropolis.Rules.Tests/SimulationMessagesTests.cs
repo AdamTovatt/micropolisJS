@@ -107,7 +107,7 @@ namespace Micropolis.Rules.Tests
         [DataRow(9, new string[0])]
         [DataRow(10, new[] { "trafficDensity", "rateOfGrowth" })]
         [DataRow(11, new[] { "powerGrid" })]
-        [DataRow(12, new[] { "landValue", "pollution" })]
+        [DataRow(12, new[] { "landValue", "housingAppeal", "pollution" })]
         [DataRow(13, new[] { "crime", "policeCoverage" })]
         [DataRow(14, new[] { "populationDensity" })]
         [DataRow(15, new[] { "fireCoverage" })]

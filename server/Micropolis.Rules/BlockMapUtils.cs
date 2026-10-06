@@ -19,6 +19,12 @@ namespace Micropolis.Rules
     /// </summary>
     public static class BlockMapUtils
     {
+        /// <summary>
+        /// The land value of a block with no developed tile, which the land value scan gives no value: a developed block's
+        /// is at least one more.
+        /// </summary>
+        public const int UndevelopedLandValue = 0;
+
         // A map a scan works in, all zeros, which the scans rely on: some add to entries or write only some of them
         // before they read the whole map. Each scan makes its own and never saves it, so no state passes through it
         // from one scan to the next, and its range is never checked.
@@ -293,8 +299,8 @@ namespace Micropolis.Rules
                             landValue -= 20;
                         }
 
-                        // 0 is undeveloped land
-                        landValue = Math.Clamp(landValue, 1, 250);
+                        // UndevelopedLandValue is undeveloped land
+                        landValue = Math.Clamp(landValue, UndevelopedLandValue + 1, 250);
                         landValueMap.Set(x, y, landValue);
 
                         totalLandValue += landValue;
@@ -302,7 +308,7 @@ namespace Micropolis.Rules
                     }
                     else
                     {
-                        landValueMap.Set(x, y, 0);
+                        landValueMap.Set(x, y, UndevelopedLandValue);
                     }
                 }
             }

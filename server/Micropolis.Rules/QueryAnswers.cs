@@ -77,12 +77,37 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("policeCoverage")] int PoliceCoverage,
         [property: JsonPropertyName("terrainDensity")] int TerrainDensity,
         [property: JsonPropertyName("trafficDensity")] int TrafficDensity,
-        [property: JsonPropertyName("cityCentreScore")] int CityCentreScore) : QueryAnswer
+        [property: JsonPropertyName("cityCentreScore")] int CityCentreScore,
+        [property: JsonPropertyName("growth")] ZoneGrowthReport? Growth) : QueryAnswer
     {
         [JsonPropertyName("type")]
         [JsonPropertyOrder(-1)]
         public override string Type => "tileReport";
     }
+
+    /// <summary>
+    /// How the residential, commercial or industrial zone holding a reported tile grows, as the rules assess it at its
+    /// centre were its trip to find a route: <c>ZoneGrowthReport</c> in <c>src/protocol.ts</c>, which says what each
+    /// value is.
+    /// </summary>
+    /// <param name="Zone">The zone's category, <c>RESIDENTIAL</c>, <c>COMMERCIAL</c> or <c>INDUSTRIAL</c>.</param>
+    /// <param name="X">The zone centre's x.</param>
+    /// <param name="Y">The zone centre's y.</param>
+    /// <param name="Score">The zone score the handler would assess it by.</param>
+    /// <param name="Outlook">Where it stands: what its handler can do with it at that score and as it is.</param>
+    /// <param name="AssessedNowAndThen">Whether the handler assesses it only now and then.</param>
+    /// <param name="RoadAtEdge">Whether a road or rail lies on its perimeter, without which the next trip its people make
+    /// declines it, though a zone with no people makes none.</param>
+    /// <param name="Blockers">What holds back its growth, in the order of <see cref="GrowthBlocker"/>.</param>
+    public sealed record ZoneGrowthReport(
+        [property: JsonPropertyName("zone")] string Zone,
+        [property: JsonPropertyName("x")] int X,
+        [property: JsonPropertyName("y")] int Y,
+        [property: JsonPropertyName("score")] long Score,
+        [property: JsonPropertyName("outlook")] GrowthOutlook Outlook,
+        [property: JsonPropertyName("assessedNowAndThen")] bool AssessedNowAndThen,
+        [property: JsonPropertyName("roadAtEdge")] bool RoadAtEdge,
+        [property: JsonPropertyName("blockers")] IReadOnlyList<GrowthBlocker> Blockers);
 
     /// <summary>
     /// The budget now, and what the year end would do with the funding and tax rate asked about: what each service would

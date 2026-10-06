@@ -31,12 +31,14 @@ import {
 // never would. It needs the build `dotnet build server/Micropolis.slnx` makes, and fails naming it without one.
 
 // The city's sockets a page has opened, latest last, and what the spec does to what the page sends on them: true for a
-// message it has answered itself, which the server never sees. stop ends the forwarding before the page closes: it
-// waits for the requests being forwarded, which the page may still be waiting on as a test ends, and closes the sockets
-// to the server without passing their closing on to the page.
+// message it has answered itself, which the server never sees. listen hears each message either side sends, as the
+// forwarding sees it, from the page before the spec may answer it. stop ends the forwarding before the page closes: it
+// waits for the requests being forwarded, which the page may still be waiting on as a test ends, and closes the
+// sockets to the server without passing their closing on to the page.
 export interface Forwarded {
   sockets: WebSocketRoute[];
   intercept?: (message: Record<string, unknown>, socket: WebSocketRoute) => boolean;
+  listen?: (message: Record<string, unknown>, from: "page" | "server") => void;
   stop(): Promise<void>;
 }
 
@@ -185,10 +187,20 @@ export class GameServer {
       const unsent: string[] = [];
 
       upstream.onopen = () => unsent.splice(0).forEach((message) => upstream.send(message));
-      upstream.onmessage = (event) => socket.send(event.data as string);
+      upstream.onmessage = (event) => {
+        // Read only for a spec that listens, since a city's messages can be large
+        if (forwarded.listen !== undefined) {
+          forwarded.listen(JSON.parse(event.data as string) as Record<string, unknown>, "server");
+        }
+        socket.send(event.data as string);
+      };
       // The upstream's close event has no caller to wait, and the page sees the socket close
       upstream.onclose = (event) => void socket.close({code: event.code, reason: event.reason});
       socket.onMessage((message) => {
+        if (forwarded.listen !== undefined) {
+          forwarded.listen(JSON.parse(message as string) as Record<string, unknown>, "page");
+        }
+
         if (forwarded.intercept?.(JSON.parse(message as string) as Record<string, unknown>, socket)) {
           return;
         }

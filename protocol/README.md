@@ -170,7 +170,11 @@ each query as it receives it (`Queries` in `server/Micropolis.Rules`) and answer
   blocks: `blockSize`, the tiles a block covers along each side; `width` and `height`, the blocks across and down;
   `low` and `high`, the ends of the layer's range; and `values`, row by row, top row first. A block in the last
   column or row may reach past the map's edge. A value may pass an end of the range where the original's rules let
-  it, such as the police or fire coverage of several stations in one block.
+  it, such as the police or fire coverage of several stations in one block. Every layer is a block map the simulation
+  keeps but `housingAppeal`, which it works out from two as it answers: each block's location score for homes, as the
+  residential rule scores a zone whose trip found a route, its land value less its pollution, from -3000 to 3000:
+  -3000 where the block is too polluted for a home to grow at all, and 0, which no location score is, on clean
+  undeveloped land, which has no land value to score.
 - `tileReport` names a tile by `x` and `y`, which must be on the map, and is answered with what the query tool reports
   about it, as raw values: `x` and `y`; `tile`, the tile's value without its flags; `category`, what the query tool
   calls the tile, one of the codes `src/protocol.ts` lists; `populationDensity`, `landValue`, `crime`, `pollution`
@@ -181,8 +185,18 @@ each query as it receives it (`Queries` in `server/Micropolis.Rules`) and answer
   cycle starts, then added to by the map scan, which adds the funded effect of each station it finds, halved for a
   station without power and again for one without a road beside it, to the block of the road tile beside it that the
   zones' perimeter search finds first, or of the station when it has none. When the service's analysis runs, it
-  smooths the station map into the coverage and leaves its middle step of smoothing in the station map. The answer
-  carries no display text: the client sorts the values into the bands it shows.
+  smooths the station map into the coverage and leaves its middle step of smoothing in the station map. Last comes
+  `growth`, null for a tile of no residential, commercial or industrial zone, and otherwise how the zone whose
+  footprint holds the tile grows, as the rules assess it at its centre were its trip to find a route, since a query
+  routes no trip: `zone`, the zone's category; `x` and `y`, its centre; `score`, the zone score its handler would
+  assess it by; `outlook`, where it stands by what its handler can do with it, `LIKELY_TO_GROW` where it can grow and
+  never declines, `MAY_GROW_OR_DECLINE` where it can do both, `HOLDS_STEADY` where it can do neither and
+  `LIKELY_TO_DECLINE` where it can decline and never grows; `assessedNowAndThen`, whether its handler assesses it only
+  now and then, rather than each time the map scan finds it, as it does an empty home zone; `roadAtEdge`, whether a
+  road or rail lies on its perimeter, without which the next trip its people make declines it, though a zone with no
+  people makes none; and `blockers`, what holds back its growth, codes `src/protocol.ts` lists, with what each means,
+  in the order an answer gives them. The answer carries no display text: the client sorts the values into the bands
+  it shows, and the codes are the client's to word.
 - `budgetForecast` may name `road`, `fire` and `police`, each a whole percent from 0 to 100 of what that service
   needs, and `tax`, a whole percent from 0 to 20, as `setBudget` does, and is answered with `budget`, the budget now
   as a `budget` record (see Records), and what the year end would do if it came now, from those funds and

@@ -80,10 +80,6 @@ namespace Micropolis.Rules
         // settles never joins that cost's queue, nor one holding another cost
         private const int Ring = MostEnterCost + 1;
 
-        // A zone's centre is its footprint's second tile across and down, so the centre of a zone holding a tile lies
-        // one down and right of it at most, and up and left at most the largest zone's side less two
-        private const int Reach = ZoneUtils.LargestZoneSize - 2;
-
         private readonly GameMap _map;
         private readonly int _width;
         private readonly int _height;
@@ -383,70 +379,12 @@ namespace Micropolis.Rules
             if (place.OwnerMark != _search)
             {
                 place.OwnerMark = _search;
-                place.Owner = FindOwner(index % _width, index / _width);
+                place.Owner = ZoneUtils.ZoneCentre(_map, index % _width, index / _width) is Position centre
+                    ? Index(centre.X, centre.Y)
+                    : NoZone;
             }
 
             return place.Owner;
-        }
-
-        // Zones rarely overlap, but where they do, a tile is the zone's whose centre comes first in the 3×3 round the
-        // tile, row by row, where a 3×3 zone's centre lies; or failing that, first in the window reaching up and left
-        // as far as any centre can, row by row
-        private int FindOwner(int x, int y)
-        {
-            for (int down = -1; down <= 1; down++)
-            {
-                for (int across = -1; across <= 1; across++)
-                {
-                    int centre = CentreHolding(x, y, across, down);
-
-                    if (centre != NoZone)
-                    {
-                        return centre;
-                    }
-                }
-            }
-
-            for (int down = -Reach; down <= 1; down++)
-            {
-                for (int across = -Reach; across <= 1; across++)
-                {
-                    if (across >= -1 && down >= -1)
-                    {
-                        continue;
-                    }
-
-                    int centre = CentreHolding(x, y, across, down);
-
-                    if (centre != NoZone)
-                    {
-                        return centre;
-                    }
-                }
-            }
-
-            return NoZone;
-        }
-
-        // The centre lying (across, down) from the tile, if it is a zone's whose footprint holds the tile, or NoZone
-        private int CentreHolding(int x, int y, int across, int down)
-        {
-            if (!OnMap(x + across, y + down))
-            {
-                return NoZone;
-            }
-
-            int centre = Index(x + across, y + down);
-            int raw = _map.RawValueAt(centre);
-
-            if ((raw & TileFlags.ZONEBIT) == 0)
-            {
-                return NoZone;
-            }
-
-            // The footprint runs from a tile up and left of the centre to its side less two down and right of it
-            int farthest = Math.Min(ZoneUtils.SizeAtCentre(raw & TileFlags.BIT_MASK) - 2, Reach);
-            return across >= -farthest && down >= -farthest ? centre : NoZone;
         }
 
         private void FillRoute(int goal, List<Position> route)

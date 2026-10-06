@@ -119,6 +119,151 @@ namespace Micropolis.Rules
         public const int LargestZoneSize = 6;
 
         /// <summary>
+        /// The zone score a zone is given when its centre has no power, at which no zone grows.
+        /// </summary>
+        public const long UnpoweredZoneScore = -500;
+
+        /// <summary>
+        /// The location score of a home or commercial zone whose trip found no road.
+        /// </summary>
+        public const int NoRoadLocationScore = -3000;
+
+        // A zone's centre is its footprint's second tile across and down, so the centre of a zone holding a tile lies
+        // one down and right of it at most, and up and left at most the largest zone's side less two
+        private const int CentreReach = LargestZoneSize - 2;
+
+        // The zone score a zone must pass to grow, and that it must fall below to decline, as doResidential,
+        // doCommercial and doIndustrial in the original compare it
+        private const long GrowthFloor = -350;
+        private const long DeclineCeiling = 350;
+
+        // What the draw against a zone score is offset by, so that even the best score grows a zone only now and then
+        private const long DrawOffset = 26380;
+
+        /// <summary>
+        /// The centre of the zone whose footprint holds the tile at (x, y), or <see langword="null"/> where none does.
+        /// Zones rarely overlap, but where they do, a tile is the zone's whose centre comes first in the 3×3 round the
+        /// tile, row by row, where a 3×3 zone's centre lies; or failing that, first in the window reaching up and left as
+        /// far as any centre can, row by row.
+        /// </summary>
+        public static Position? ZoneCentre(GameMap map, int x, int y)
+        {
+            for (int down = -1; down <= 1; down++)
+            {
+                for (int across = -1; across <= 1; across++)
+                {
+                    if (HoldsTile(map, x, y, across, down))
+                    {
+                        return new Position(x + across, y + down);
+                    }
+                }
+            }
+
+            for (int down = -CentreReach; down <= 1; down++)
+            {
+                for (int across = -CentreReach; across <= 1; across++)
+                {
+                    if (across >= -1 && down >= -1)
+                    {
+                        continue;
+                    }
+
+                    if (HoldsTile(map, x, y, across, down))
+                    {
+                        return new Position(x + across, y + down);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        // Whether the tile lying (across, down) from (x, y) is the centre of a zone whose footprint holds (x, y)
+        private static bool HoldsTile(GameMap map, int x, int y, int across, int down)
+        {
+            if (!map.TestBounds(x + across, y + down))
+            {
+                return false;
+            }
+
+            int raw = map.RawValueAt(x + across + (y + down) * map.Width);
+
+            if ((raw & TileFlags.ZONEBIT) == 0)
+            {
+                return false;
+            }
+
+            // The footprint runs from a tile up and left of the centre to its side less two down and right of it
+            int farthest = Math.Min(SizeAtCentre(raw & TileFlags.BIT_MASK) - 2, CentreReach);
+            return across >= -farthest && down >= -farthest;
+        }
+
+        /// <summary>
+        /// Whether a zone with this zone score can grow when it is assessed: at or below the floor no draw grows it.
+        /// </summary>
+        public static bool CanGrow(long zoneScore)
+        {
+            return zoneScore > GrowthFloor;
+        }
+
+        /// <summary>
+        /// Whether a zone with this zone score can decline when it is assessed: at or above the ceiling no draw declines
+        /// it.
+        /// </summary>
+        public static bool CanDecline(long zoneScore)
+        {
+            return zoneScore < DeclineCeiling;
+        }
+
+        /// <summary>
+        /// The zone score a handler assesses a zone by, whose trip came to <paramref name="traffic"/>: the demand for its
+        /// kind and its location score, less what a slow trip costs it, a change from the original, which had no slow
+        /// trips; or <see cref="UnpoweredZoneScore"/> without power.
+        /// </summary>
+        public static long ZoneScore(long demand, int locationScore, TrafficResult traffic, bool zonePower)
+        {
+            // Unpowered zones should of course be penalized
+            if (!zonePower)
+            {
+                return UnpoweredZoneScore;
+            }
+
+            return demand + locationScore - Traffic.GrowthPenalty(traffic);
+        }
+
+        /// <summary>
+        /// Where a zone stands by what its handler can do with it: likely to grow where it can only grow, likely to decline
+        /// where it can only decline, either where it can do both, and holding steady where it can do neither.
+        /// </summary>
+        public static GrowthOutlook Outlook(bool canGrow, bool canDecline)
+        {
+            if (canGrow)
+            {
+                return canDecline ? GrowthOutlook.MayGrowOrDecline : GrowthOutlook.LikelyToGrow;
+            }
+
+            return canDecline ? GrowthOutlook.LikelyToDecline : GrowthOutlook.HoldsSteady;
+        }
+
+        /// <summary>
+        /// Whether an assessed zone grows: a zone that can grow draws, and grows when the draw falls under its score, so
+        /// the higher its score the likelier. A zone that can't grow draws nothing.
+        /// </summary>
+        internal static bool DrawsGrowth(long zoneScore, RandomStream random)
+        {
+            return CanGrow(zoneScore) && (zoneScore - DrawOffset) > random.GetRandom16Signed();
+        }
+
+        /// <summary>
+        /// Whether an assessed zone that didn't grow declines: a zone that can decline draws, and declines when the draw
+        /// passes its score, so the lower its score the likelier. A zone that can't decline draws nothing.
+        /// </summary>
+        internal static bool DrawsDecline(long zoneScore, RandomStream random)
+        {
+            return CanDecline(zoneScore) && (zoneScore + DrawOffset) < random.GetRandom16Signed();
+        }
+
+        /// <summary>
         /// The side of the zone whose centre has this value: the airport's 6, which <see cref="CheckZoneSize"/> leaves
         /// out, and every other zone's as it gives it.
         /// </summary>

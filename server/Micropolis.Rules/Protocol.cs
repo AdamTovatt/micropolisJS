@@ -360,6 +360,65 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
+    /// Where a zone stands, as <c>GROWTH_OUTLOOKS</c> in <c>src/protocol.ts</c> names it: what its handler can do with it
+    /// when it assesses it (<see cref="ZoneUtils.Outlook"/>), best first.
+    /// </summary>
+    [JsonConverter(typeof(ProtocolNameConverter<GrowthOutlook>))]
+    public enum GrowthOutlook
+    {
+        /// <summary>The zone can grow and never declines.</summary>
+        [JsonStringEnumMemberName("LIKELY_TO_GROW")] LikelyToGrow,
+
+        /// <summary>The zone can grow or decline.</summary>
+        [JsonStringEnumMemberName("MAY_GROW_OR_DECLINE")] MayGrowOrDecline,
+
+        /// <summary>The zone neither grows nor declines.</summary>
+        [JsonStringEnumMemberName("HOLDS_STEADY")] HoldsSteady,
+
+        /// <summary>The zone can decline and never grows.</summary>
+        [JsonStringEnumMemberName("LIKELY_TO_DECLINE")] LikelyToDecline,
+    }
+
+    /// <summary>
+    /// What holds back a zone's growth, as <c>GROWTH_BLOCKERS</c> in <c>src/protocol.ts</c> names it, in the order a
+    /// report lists them: a condition of the zone handlers or their grow steps that stops a zone growing, or a term of its
+    /// zone score that worsens where it stands, but for the trip's result, which only a trip tells.
+    /// </summary>
+    [JsonConverter(typeof(ProtocolNameConverter<GrowthBlocker>))]
+    public enum GrowthBlocker
+    {
+        /// <summary>The zone's centre has no power, which sets its score to <see cref="ZoneUtils.UnpoweredZoneScore"/>.</summary>
+        [JsonStringEnumMemberName("NO_POWER")] NoPower,
+
+        /// <summary>The demand for the zone's kind is below zero.</summary>
+        [JsonStringEnumMemberName("LOW_DEMAND")] LowDemand,
+
+        /// <summary>A home's land value alone gives it a location score below zero, which its pollution only lowers.</summary>
+        [JsonStringEnumMemberName("LOW_LAND_VALUE")] LowLandValue,
+
+        /// <summary>A home's land value alone gives it a location score of zero or more, but less its pollution, below.</summary>
+        [JsonStringEnumMemberName("POLLUTION_OUTWEIGHS_LAND_VALUE")] PollutionOutweighsLandValue,
+
+        /// <summary>A home's block is too polluted for anyone to move in, whatever its land value.</summary>
+        [JsonStringEnumMemberName("TOO_POLLUTED")] TooPolluted,
+
+        /// <summary>Commerce's block scores below zero for nearness to the city centre.</summary>
+        [JsonStringEnumMemberName("FAR_FROM_CENTRE")] FarFromCentre,
+
+        /// <summary>Commerce's block's land value is too low for a zone as crowded as this one to grow.</summary>
+        [JsonStringEnumMemberName("LAND_VALUE_LIMITS_SIZE")] LandValueLimitsSize,
+
+        /// <summary>An empty home zone has no lot left free for a house among those round its centre.</summary>
+        [JsonStringEnumMemberName("NO_FREE_LOT")] NoFreeLot,
+
+        /// <summary>An empty home zone full of houses has too few people round it to be built up.</summary>
+        [JsonStringEnumMemberName("NEIGHBOURHOOD_TOO_SPARSE")] NeighbourhoodTooSparse,
+
+        /// <summary>The zone is at the greatest population of its kind.</summary>
+        [JsonStringEnumMemberName("FULL")] Full,
+    }
+
+    /// <summary>
     /// The bounds <c>src/protocol.ts</c> sets on what a message carries, beyond the types of its fields.
     /// </summary>
     public static class ProtocolLimits

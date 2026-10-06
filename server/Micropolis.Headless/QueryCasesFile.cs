@@ -21,9 +21,11 @@ namespace Micropolis.Headless
 {
     /// <summary>
     /// <c>conformance/queries.json</c>: what the simulation answers to queries, and the records it produces, over the
-    /// fixtures' saves. It holds the category of each tile value; each save's records, then those of new cities the
+    /// fixtures' saves. It holds the category of each tile value; the names of a zone's growth outlooks and blockers, in
+    /// the order a report lists them, which the client's vocabulary is held to; each save's records, then those of new cities the
     /// fixtures never make; and each query with its answer: about each save, a tile's report the first time its
-    /// category is met and at the city's centre, the forecasts, and each overlay layer once, from the first save
+    /// category is met, at the city's centre, and at a zone's centre the first time an outlook, a blocker or a want of a
+    /// road of its growth is met, the forecasts, and each overlay layer once, from the first save
     /// where it holds a value other than 0; then about the first save, the far corner's report and the queries it
     /// rejects; the queries asked before any city has started; and forecasts of a year whose cash pays only some
     /// services. A map preview's answer is the map <c>maps.json</c> holds, so none is listed.
@@ -115,6 +117,7 @@ namespace Micropolis.Headless
             List<JsonNode?> records = new List<JsonNode?>();
             List<JsonNode?> answers = new List<JsonNode?>();
             HashSet<string> reported = new HashSet<string>(StringComparer.Ordinal);
+            HashSet<string> growthsMet = new HashSet<string>(StringComparer.Ordinal);
             HashSet<string> overlaid = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (FixtureSave save in saves)
@@ -122,7 +125,7 @@ namespace Micropolis.Headless
                 Simulation city = Simulation.FromSave(save.Text);
                 records.Add(Recorded(save.At.Name, [], city));
 
-                answers.AddRange(TileReports(save.At.Name, city, reported));
+                answers.AddRange(TileReports(save.At.Name, city, reported, growthsMet));
                 answers.AddRange(Forecasts.Select(query => Answered(save.At.Name, null, query, city)));
 
                 foreach (string layer in Queries.Layers.Select(layer => layer.Name).Where(layer => !overlaid.Contains(layer)).ToList())
@@ -158,10 +161,18 @@ namespace Micropolis.Headless
             return JsonLines.FileOf([
                 "{",
                 .. JsonLines.ListMember("categories", categories, false),
+                .. JsonLines.ListMember("growthOutlooks", Names<GrowthOutlook>(), false),
+                .. JsonLines.ListMember("growthBlockers", Names<GrowthBlocker>(), false),
                 .. JsonLines.ListMember("records", records, false),
                 .. JsonLines.ListMember("answers", answers, true),
                 "}",
             ]);
+        }
+
+        // The protocol's names of the enumeration's members, in their order, which a growth report lists blockers in
+        private static List<JsonNode?> Names<TEnum>() where TEnum : struct, Enum
+        {
+            return Enum.GetValues<TEnum>().Select(value => (JsonNode?)ProtocolJson.Name(value)).ToList();
         }
 
         // The records the city produces once the commands have applied to it, in order
@@ -196,9 +207,10 @@ namespace Micropolis.Headless
             return answered;
         }
 
-        // Each tile's report the first time its category is met, in the saves' order, and the report at the city's
-        // centre
-        private static List<JsonNode?> TileReports(string save, Simulation city, HashSet<string> reported)
+        // Each tile's report the first time its category is met, in the saves' order, the report at the city's centre,
+        // and the report at a zone's centre the first time its growth's outlook, a blocker of it or its want of a road
+        // is met
+        private static List<JsonNode?> TileReports(string save, Simulation city, HashSet<string> reported, HashSet<string> growthsMet)
         {
             GameMap map = city.Map;
             List<JsonNode?> reports = [Answered(save, null, TileReportQuery(map.CityCentreX, map.CityCentreY), city)];
@@ -214,7 +226,37 @@ namespace Micropolis.Headless
                 }
             }
 
+            for (int y = 0; y < map.Height; y++)
+            {
+                for (int x = 0; x < map.Width; x++)
+                {
+                    if (map.GetTile(x, y).IsZone() && ZoneGrowth.Report(city, x, y) is ZoneGrowthReport growth && IsNew(growth, growthsMet))
+                    {
+                        reports.Add(Answered(save, null, TileReportQuery(x, y), city));
+                    }
+                }
+            }
+
             return reports;
+        }
+
+        // Whether the growth meets an outlook, a blocker or a want of a road at its edge that no report before it met,
+        // noting each it meets
+        private static bool IsNew(ZoneGrowthReport growth, HashSet<string> growthsMet)
+        {
+            List<string> met = [ProtocolJson.Name(growth.Outlook), .. growth.Blockers.Select(ProtocolJson.Name)];
+            if (!growth.RoadAtEdge)
+            {
+                met.Add("no road");
+            }
+
+            bool isNew = false;
+            foreach (string meeting in met)
+            {
+                isNew |= growthsMet.Add(meeting);
+            }
+
+            return isNew;
         }
 
         private static string TileReportQuery(int x, int y)
@@ -276,6 +318,21 @@ namespace Micropolis.Headless
             EnsureCovers(reports.Any(report => (bool)report["powered"]! && (bool)report["zoneCentre"]!), "a tile report of a powered zone centre");
             EnsureCovers(reports.Any(report => (double)report["fireCoverage"]! > 0 && (double)report["policeCoverage"]! > 0),
                          "a tile report covered by fire and police stations");
+
+            List<JsonNode> growths = reports.Select(report => report["growth"]).OfType<JsonNode>().ToList();
+            foreach (string zone in new[] { "RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL" })
+            {
+                EnsureCovers(growths.Any(growth => (string)growth["zone"]! == zone), $"a tile report of the growth of a {zone} zone");
+            }
+
+            foreach (GrowthOutlook outlook in Enum.GetValues<GrowthOutlook>())
+            {
+                EnsureCovers(growths.Any(growth => (string)growth["outlook"]! == ProtocolJson.Name(outlook)),
+                             $"a tile report of a zone whose growth is {ProtocolJson.Name(outlook)}");
+            }
+
+            EnsureCovers(growths.Any(growth => !(bool)growth["roadAtEdge"]!), "a tile report of a zone with no road at its edge");
+            EnsureCovers(growths.Any(growth => growth["blockers"]!.AsArray().Count > 1), "a tile report of a zone held back by more than one thing");
             EnsureCovers(forecasts.Any(forecast => (double)forecast["fundsChange"]! < 0), "a forecast of a year that takes funds away");
             EnsureCovers(forecasts.Any(forecast => ShortfallOf(forecast) == Shortfall.Partly), "a forecast of a year whose cash pays only some of the services");
 

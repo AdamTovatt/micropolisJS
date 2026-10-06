@@ -12,11 +12,12 @@
  *
  */
 
+import type { OverlayAnswer } from "../src/protocol";
 import { BIT_MASK } from "../src/tileFlags";
 import { FIREBASE, LTRFBASE, POWERBASE, ROADBASE } from "../src/tileValues";
 import type { GameSave, Tile } from "./player";
 
-// Reading the map of a save, as the runner and the fire stage's plan read it
+// Reading the map of a save, as the runner and the fire stage's plan read it, and the blocks of an overlay's answer
 
 export interface Rect {
   left: number;
@@ -116,6 +117,12 @@ export class BlockMap {
 export function savedBlockMapAt(save: GameSave, name: string, blockSize: number, tile: Tile): number {
   const blockMaps = (save.scannedState as {blockMaps: Record<string, number[]>}).blockMaps;
   return new BlockMap(save.map.width, save.map.height, blockSize, blockMaps[name]).worldGet(tile.x, tile.y);
+}
+
+// An overlay layer's value at a tile, as the answer to the overlay query gives the layer's blocks
+export function answerBlockAt(answer: OverlayAnswer, tile: Tile): number {
+  const {width, height, blockSize, values} = answer;
+  return new BlockMap(width * blockSize, height * blockSize, blockSize, values).worldGet(tile.x, tile.y);
 }
 
 // How many tiles apart two tiles are, counting a diagonal step as one

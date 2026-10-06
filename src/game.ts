@@ -89,6 +89,7 @@ export class Game {
   readonly statusPanel: StatusPanel;
   readonly budgetWindow: BudgetWindow;
   readonly evaluationWindow: EvaluationWindow;
+  readonly queryWindow: QueryWindow;
   private readonly infoBar: InfoBar;
   private readonly speedControl: SpeedControl;
   readonly monsterTV: MonsterTV;
@@ -213,6 +214,7 @@ export class Game {
     const budgetButton = requiredElement("budgetRequest");
     this.budgetWindow = new BudgetWindow(opacityLayerID, "budget", source);
     this.evaluationWindow = new EvaluationWindow(opacityLayerID, "evalWindow");
+    this.queryWindow = new QueryWindow(opacityLayerID, "queryWindow");
     this.controls = new GameControls({
       input: inputStatus,
       view: this.gameCanvas,
@@ -227,7 +229,7 @@ export class Game {
         screenshotLink: new ScreenshotLinkWindow(opacityLayerID, "screenshotLinkWindow"),
         save: new SaveWindow(opacityLayerID, "saveWindow"),
         touchWarning: new TouchWarnWindow(opacityLayerID, "touchWarnWindow"),
-        query: new QueryWindow(opacityLayerID, "queryWindow"),
+        query: this.queryWindow,
       },
       reviewMarker: {setLit: (lit) => budgetButton.classList.toggle("reviewDue", lit)},
       source,

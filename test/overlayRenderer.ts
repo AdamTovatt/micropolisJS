@@ -16,9 +16,26 @@ import { legendView, OverlayView, rampColour, Tint } from "../src/overlayRendere
 import { OVERLAY_LAYERS, OverlayAnswer, OverlayLayer } from "../src/protocol";
 import { Text } from "../src/text";
 
+// The ends of the layers whose range isn't 0 to 1000, from Queries in the C# rules
+const RANGES: Partial<Record<OverlayLayer, [number, number]>> = {
+    rateOfGrowth: [-200, 200], housingAppeal: [-3000, 3000], powerGrid: [0, 1],
+};
+
+function rangeOf(layer: OverlayLayer): [number, number] {
+    return RANGES[layer] ?? [0, 1000];
+}
+
+// Whether the layer's range runs either side of zero, as the renderer tells from an answer's
+function diverges(layer: OverlayLayer): boolean {
+    const [low, high] = rangeOf(layer);
+    return low < 0 && high > 0;
+}
+
+const DIVERGING_LAYERS = OVERLAY_LAYERS.filter(diverges);
+
 // An answer of the layer, with its range from Queries in the C# rules, holding the values
 function answer(layer: OverlayLayer, values: number[], overrides: Partial<OverlayAnswer> = {}): OverlayAnswer {
-    const [low, high] = layer === "rateOfGrowth" ? [-200, 200] : layer === "powerGrid" ? [0, 1] : [0, 1000];
+    const [low, high] = rangeOf(layer);
     return {type: "overlay", layer, blockSize: 2, width: values.length, height: 1, low, high, values, ...overrides};
 }
 
@@ -87,7 +104,7 @@ describe("the overlay's heatmap", () => {
     });
 
     it.each(HEAT_LAYERS)("tints %s at one opacity throughout", (layer) => {
-        const values = layer === "rateOfGrowth" ? [-150, -7, 3, 90] : [4, 37, 120, 260];
+        const values = diverges(layer) ? [-150, -7, 3, 90] : [4, 37, 120, 260];
         const layerAnswer = answer(layer, values);
 
         expect(values.map((value) => rampColour(layerAnswer, value)!.a)).toEqual(values.map(() => HEAT_ALPHA));
@@ -111,9 +128,9 @@ describe("the overlay's heatmap", () => {
         expect(none.values.map((value) => rampColour(none, value))).toEqual([null, null, null]);
     });
 
-    describe("for the rate of growth, which diverges", () => {
+    describe.each(DIVERGING_LAYERS)("for %s, which diverges", (layer) => {
 
-        const growth = answer("rateOfGrowth", [-40, 0, 12, 120]);
+        const growth = answer(layer, [-40, 0, 12, 120]);
 
         it("tints minus the largest magnitude blue, plus it red, the middle green, and leaves zero untinted", () => {
             expect([rgb(rampColour(growth, -120)), rgb(rampColour(growth, 120)), rgb(rampColour(growth, 1e-9))])
@@ -123,12 +140,12 @@ describe("the overlay's heatmap", () => {
 
         it("tints the least value by its place from minus the largest magnitude, not as the low end", () => {
             expect(rgb(rampColour(growth, -40))).not.toEqual(BLUE);
-            expect(rampColour(growth, -40)).toEqual(rampColour(answer("rateOfGrowth", [-40, 120, -120]), -40));
+            expect(rampColour(growth, -40)).toEqual(rampColour(answer(layer, [-40, 120, -120]), -40));
         });
 
-        it("diverges about zero whatever the answer holds, all growth or all decline", () => {
-            const growing = answer("rateOfGrowth", [30, 60]);
-            const declining = answer("rateOfGrowth", [-30, -60]);
+        it("diverges about zero whatever the answer holds, all above zero or all below", () => {
+            const growing = answer(layer, [30, 60]);
+            const declining = answer(layer, [-30, -60]);
 
             expect([rgb(rampColour(growing, 60)), rgb(rampColour(growing, 30))]).toEqual([RED, YELLOW]);
             expect([rgb(rampColour(declining, -60)), rgb(rampColour(declining, -30))]).toEqual([BLUE, CYAN]);
@@ -159,17 +176,20 @@ describe("the overlay's legend", () => {
         expect(legend.note).toBeNull();
     });
 
-    it("writes the diverging ends as minus and plus the largest magnitude", () => {
-        const legend = legendView(answer("rateOfGrowth", [-40, 0, 12, 120]));
+    it.each([
+        ["rateOfGrowth", "Declining (-120)", "Growing (120)"],
+        ["housingAppeal", "Poor (-120)", "High (120)"],
+    ] as const)("writes %s's diverging ends as minus and plus the largest magnitude", (layer, low, high) => {
+        const legend = legendView(answer(layer, [-40, 0, 12, 120]));
 
-        expect([legend.lowLabel, legend.highLabel]).toEqual(["Declining (-120)", "Growing (120)"]);
+        expect([legend.lowLabel, legend.highLabel]).toEqual([low, high]);
     });
 
     it.each(HEAT_LAYERS)("draws %s's ramp from blue to red, each stop the tint of the value at its place", (layer) => {
-        const values = layer === "rateOfGrowth" ? [-30, 0, 90] : [5, 0, 245];
+        const values = diverges(layer) ? [-30, 0, 90] : [5, 0, 245];
         const layerAnswer = answer(layer, values);
         const found = stops(legendView(layerAnswer).gradient);
-        const [low, high] = layer === "rateOfGrowth" ? [-90, 90] : [5, 245];
+        const [low, high] = diverges(layer) ? [-90, 90] : [5, 245];
 
         expect(found.map(({at}) => at)).toEqual([0, 0.25, 0.5, 0.75, 1]);
         for (const {rgb: colour, a, at} of found) {
