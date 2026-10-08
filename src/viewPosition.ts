@@ -23,6 +23,14 @@ type TilePoint = Point;
 // A position in canvas pixels
 type PixelPoint = Point;
 
+// Tiles of the map, from the left column and the top row to the right column and the bottom row, each included
+interface TileRect {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
 // How many tiles the canvas shows, and how far its origin may move
 interface Viewport {
   // The tiles the canvas shows across and down, a fraction where a tile at its edge shows in part
@@ -154,6 +162,12 @@ class ViewPosition {
             y: Math.ceil(this.originY + this.view.tilesInViewY) - 1};
   }
 
+  // The tiles in view, partly or whole
+  get tilesShown(): TileRect {
+    const last = this.maxTile;
+    return {left: Math.floor(this.originX), top: Math.floor(this.originY), right: last.x, bottom: last.y};
+  }
+
   get viewport(): Viewport {
     return this.view;
   }
@@ -211,4 +225,4 @@ export {
   ViewPosition, ZOOM_STEPS, centredOrigin, drawnOrigin, pannedOrigin, steppedZoom, tileOnCanvasUnderPoint, tileUnderPoint,
   viewport, zoomedOrigin,
 };
-export type { OriginLimits, PixelPoint, TilePoint, Viewport };
+export type { OriginLimits, PixelPoint, TilePoint, TileRect, Viewport };

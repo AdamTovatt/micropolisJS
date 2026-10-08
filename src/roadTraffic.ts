@@ -168,6 +168,17 @@ export class RoadTraffic {
     this.wait(car, 0, clock);
   }
 
+  // Takes a car off the road at once, with no fade, letting go of every tile it holds and waits for, so the cars behind
+  // it and those waiting after it go on as if it had driven away
+  remove(car: RoadCar): void {
+    const at = this.cars.indexOf(car);
+    if (at < 0) {
+      throw new Error(`Car ${car.order} is not on the road`);
+    }
+    this.cars.splice(at, 1);
+    this.forget(car);
+  }
+
   // Moves the cars on by the clock's step, elapsed milliseconds to the clock now, in the order they were added: each
   // appears where its first tile is free, drives as far as the car ahead and the tiles it may take let it, and fades out
   // or is gone at the end of its route. A train is on each of the tiles trainTiles holds by key.

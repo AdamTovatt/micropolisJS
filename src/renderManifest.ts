@@ -710,7 +710,7 @@ export class RenderArt {
     return this.rendered.cars.get(carKey(CAR_COLOURS[colour].name, direction)) ?? null;
   }
 
-  // The art of a car of a train facing the way given, drawn into the car's square: the trains' row of the sprite sheet,
+  // The art of a carriage of a train facing the way given, drawn into its square: the trains' row of the sprite sheet,
   // which no simulation sprite takes and the 16 px sheet always has, its first frame running north or south and its
   // second east or west
   trainCar(direction: CarDirection): AtlasRect {

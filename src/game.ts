@@ -165,7 +165,6 @@ export class Game {
     this.state = state;
     const autoBulldoze = new AutoBulldozePreference(pageStore());
     const carShare = new CarSharePreference(pageStore());
-    this.cars = new Cars(() => carShare.step(), ({x, y}) => isLevelCrossing(state.map.getTileValue(x, y)));
 
     // A city on the server goes in the page's address, so the address invites another player in, and a reload rejoins
     linkToCity(started, window);
@@ -175,6 +174,8 @@ export class Game {
 
     // Note: must init canvas before inputStatus
     this.gameCanvas = new GameCanvas("canvasContainer", state.map, mapArt);
+    this.cars = new Cars(() => carShare.step(), ({x, y}) => isLevelCrossing(state.map.getTileValue(x, y)),
+                         () => this.gameCanvas.tilesShown);
     const windows = new WindowManager();
     const inputStatus = new InputStatus(this.gameCanvas, () => windows.holdsInput());
 

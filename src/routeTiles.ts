@@ -18,7 +18,7 @@ import { HRAILROAD, VRAILROAD } from "./tileValues";
 // The tiles the routes of cars and trains stand on, and the ways between them, which the cars on the road and the
 // trains both go by
 
-// The way a car or a car of a train faces: the way it goes
+// The way a car or a carriage of a train faces: the way it goes
 export type CarDirection = "north" | "east" | "south" | "west";
 
 // Every way a car faces, clockwise from north

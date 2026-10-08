@@ -23,7 +23,7 @@ import type { MapArt } from "./renderAssets";
 import {
   ViewPosition, ZOOM_STEPS, drawnOrigin, steppedZoom, tileOnCanvasUnderPoint, tileUnderPoint, viewport,
 } from "./viewPosition";
-import type { OriginLimits, PixelPoint, TilePoint, Viewport } from "./viewPosition";
+import type { OriginLimits, PixelPoint, TilePoint, TileRect, Viewport } from "./viewPosition";
 
 // A tool's outline. x and y are the map tile under the mouse: the top-left of a tool up to 2x2, and one tile in from
 // the top-left of a bigger one. width and height are tiles. label is the name of the player whose outline it is,
@@ -164,6 +164,11 @@ class GameCanvas {
   // The tiles the view shows across and down, a fraction where a tile at either edge shows in part
   get tilesInView(): TilePoint {
     return {x: this.width / this.zoom, y: this.height / this.zoom};
+  }
+
+  // The tiles of the map the view shows, those at its edges in part included
+  get tilesShown(): TileRect {
+    return this.position.tilesShown;
   }
 
   // The map pixels the view shows across and down, at 16 a tile, as sprites are positioned

@@ -255,7 +255,7 @@ class TestHook {
     return this.attachedGame().carsPainted.length;
   }
 
-  // How many cars of trains the map's view was last painted with
+  // How many carriages of trains the map's view was last painted with
   trainCarsInView(): number {
     return this.attachedGame().carsPainted.filter(({kind}) => kind === "rail").length;
   }

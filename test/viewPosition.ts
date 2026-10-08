@@ -145,6 +145,13 @@ describe("the view", () => {
             expect(positionAt(20.5, 22).maxTile).toEqual({x: 20 + 81 - 1, y: 22 + 57 - 1});
         });
 
+        // 80 tiles across and 56.25 down: from (20.5, 22.25) the view shows columns 20 to 100 and rows 22 to 78, and
+        // from (-3.5, -1.25), past the map's top-left corner, columns -4 to 76 and rows -2 to 54
+        it("knows the tiles in view, those at its edges partly in view included", () => {
+            expect(positionAt(20.5, 22.25).tilesShown).toEqual({left: 20, top: 22, right: 100, bottom: 78});
+            expect(positionAt(-3.5, -1.25).tilesShown).toEqual({left: -4, top: -2, right: 76, bottom: 54});
+        });
+
         it("keeps its origin when the viewport changes", () => {
             const position = new ViewPosition(MAIN);
             position.centreOn(60, 50);
