@@ -31,9 +31,9 @@ UNDER_POWER = {221: ('EW', 'NS'), 222: ('NS', 'EW')}   # the track's sides, then
 ROAD_CROSSINGS = {237: ('EW', 'NS'), 238: ('NS', 'EW')}  # the track's sides, then the road's
 STATIONS = {1020: 'EW', 1021: 'NS'}   # the station on straight track, its track's sides
 
-BRIDGE_HALF = 0.15   # the rail bridge's half-width
+BRIDGE_HALF = ts.BALLAST + 0.03   # the rail bridge's half-width, wide enough for the bed of both tracks
 
-PLATFORM_FROM, PLATFORM_TO = 0.14, 0.34   # a platform's edges, out from the track's middle
+PLATFORM_FROM, PLATFORM_TO = ts.TRACK + 0.11, 0.47   # a platform's edges, out from the railway's middle, past its track's
 PLATFORM_END = 0.06                       # how far each platform stops short of the tile's ends
 PLATFORM_Z = 0.03                         # the platform's top
 SHELTER_FROM, SHELTER_TO = 0.3, 0.7       # the shelter's ends, along the track
@@ -94,33 +94,35 @@ def road_crossing(track_sides, road_sides):
 
 
 def station(sides):
-    # a station on straight track: a low concrete platform along each side, short of the tile's
-    # ends so the track runs on into its neighbours, a yellow line along each platform's edge, and
-    # a shelter on the north or west platform, a roof on four posts
+    # a station on straight double track: a low concrete platform along the outside of each
+    # track, short of the tile's ends so the tracks run on into their neighbours, a yellow line
+    # along each platform's edge, and a shelter on the south or west platform, a roof on four
+    # posts, where the shear that lifts it up and to the right keeps it inside the tile
     def build():
         m = materials()
         ts.land()
         ts.track(sides)
+        shelter = -1 if sides == 'EW' else 1   # the side the shelter stands on, across
 
         def rect(a0, a1, b0, b1, z0, z1, material, name):
-            # a box from a0 to a1 along the track and b0 to b1 across it, from the track's middle,
-            # across growing north of an east-west track and west of a north-south one
+            # a box from a0 to a1 along the track and b0 to b1 across it, from the railway's
+            # middle, across growing north of an east-west track and west of a north-south one
+            b0, b1 = sorted((b0, b1))
             if sides == 'EW':
                 return t.box(a0, 0.5 + b0, z0, a1, 0.5 + b1, z1, material, name=name)
             return t.box(0.5 - b1, a0, z0, 0.5 - b0, a1, z1, material, name=name)
 
         ends = (PLATFORM_END, 1 - PLATFORM_END)
         for side in (-1, 1):
-            near, far = sorted((side * PLATFORM_FROM, side * PLATFORM_TO))
-            rect(*ends, near, far, 0, PLATFORM_Z, m['platform'], 'platform')
+            rect(*ends, side * PLATFORM_FROM, side * PLATFORM_TO, 0, PLATFORM_Z, m['platform'], 'platform')
             edge = side * (PLATFORM_FROM + 0.015)
             rect(*ends, edge - 0.008, edge + 0.008, PLATFORM_Z, PLATFORM_Z + 0.001, m['edge'], 'platform_edge')
 
         for a in (SHELTER_FROM + 0.02, SHELTER_TO - 0.04):
             for b in (PLATFORM_FROM + 0.06, PLATFORM_TO - 0.04):
-                rect(a, a + 0.02, b, b + 0.02, PLATFORM_Z, SHELTER_Z, m['girder'], 'post')
-        rect(SHELTER_FROM, SHELTER_TO, PLATFORM_FROM + 0.04, PLATFORM_TO - 0.02, SHELTER_Z, SHELTER_Z + 0.012,
-             m['canopy'], 'canopy')
+                rect(a, a + 0.02, shelter * b, shelter * (b + 0.02), PLATFORM_Z, SHELTER_Z, m['girder'], 'post')
+        rect(SHELTER_FROM, SHELTER_TO, shelter * (PLATFORM_FROM + 0.04), shelter * (PLATFORM_TO - 0.02), SHELTER_Z,
+             SHELTER_Z + 0.012, m['canopy'], 'canopy')
     return build
 
 

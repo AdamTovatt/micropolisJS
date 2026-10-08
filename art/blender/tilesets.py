@@ -413,11 +413,13 @@ def power_line(sides, pole=True, base=0.0):
         t.shadow_only(t.cylinder(0.5, 0.5, base, base + POLE_SHADOW_Z, 0.012, m['pole'], 10))
 
 
-# A railway is one track: ballast under sleepers under two rails. It all lies low enough to be
-# ground, the bed and the sleepers below a road's pavement and the rails above its asphalt, so
-# that where a road crosses the track it covers the bed and the rails show through it.
-BALLAST = 0.12          # half the bed's width
-GAUGE = 0.045           # a rail's distance from the track's middle
+# A railway is double track, a track each way: one bed of ballast under both, and on it each
+# track's sleepers under its two rails. It all lies low enough to be ground, the bed and the
+# sleepers below a road's pavement and the rails above its asphalt, so that where a road crosses
+# the tracks it covers the bed and the rails show through it.
+TRACK = 0.2             # a track's middle, from the railway's, where the game runs its trains (TRACK_OFFSET in src/cars.ts)
+BALLAST = TRACK + 0.12  # half the bed's width
+GAUGE = 0.045           # a rail's distance from its track's middle
 SLEEPER_HALF = 0.075    # half a sleeper's length, across the track
 SLEEPER_STEP = 0.0625   # sixteen sleepers to a tile
 BED_Z, SLEEPER_Z, RAIL_Z = 0.001, 0.0013, 0.004
@@ -434,8 +436,8 @@ def rail_materials():
 
 
 def track_lines(sides):
-    # the middle line of each track a rail piece lays: one along a straight or round a bend; a T's
-    # through track, and a bend from its third side into each end of it; a crossing's two tracks
+    # the middle line of each railway a rail piece lays: one along a straight or round a bend; a
+    # T's through line, and a bend from its third side into each end of it; a crossing's two lines
     if is_bend(sides):
         return [bend_arc(sides, 0.5)]
     lines = [[_mid(s), _mid(_opposite(s))] for s in ('E', 'N') if s in sides and _opposite(s) in sides]
@@ -462,21 +464,25 @@ def _run_on(line, past):
 
 
 def track(sides, base=0.0, past=None):
-    # The track of a rail piece reaching `sides`, laid on ground at height base. A track on a
-    # bridge's deck stands, so its straight runs on past the edges by past(side) and crosses them
-    # by design (tileart.spans_edge).
+    # The double track of a rail piece reaching `sides`, laid on ground at height base: a track
+    # TRACK either side of each line's middle, its sleepers spread along its own length, so round a
+    # bend the outer track has more than the inner. A track on a bridge's deck stands, so its
+    # straight runs on past the edges by past(side) and crosses them by design (tileart.spans_edge).
     m = rail_materials()
     for i, line in enumerate(track_lines(sides)):
-        dz = i * 0.0001  # crossing tracks at slightly different heights, never coplanar
+        dz = i * 0.0001  # crossing lines at slightly different heights, never coplanar
         run = _run_on(line, past) if past else line
         parts = [strip(run, 2 * BALLAST, base, base + BED_Z + dz, m['ballast'], name='ballast')]
-        count = max(1, round(length(line) / SLEEPER_STEP))
-        for k in range(count):
-            (x, y), (dx, dy) = along(line, (k + 0.5) * length(line) / count)
-            ends = [(x + dy * SLEEPER_HALF, y - dx * SLEEPER_HALF), (x - dy * SLEEPER_HALF, y + dx * SLEEPER_HALF)]
-            strip(ends, 0.022, base, base + SLEEPER_Z + dz, m['sleeper'], name='sleeper')
-        for side in (-1, 1):
-            parts.append(strip(offset(run, side * GAUGE), 0.012, base, base + RAIL_Z + dz, m['rail'], name='rail'))
+        for way in (-1, 1):
+            middle = offset(line, way * TRACK)
+            count = max(1, round(length(middle) / SLEEPER_STEP))
+            for k in range(count):
+                (x, y), (dx, dy) = along(middle, (k + 0.5) * length(middle) / count)
+                ends = [(x + dy * SLEEPER_HALF, y - dx * SLEEPER_HALF), (x - dy * SLEEPER_HALF, y + dx * SLEEPER_HALF)]
+                strip(ends, 0.022, base, base + SLEEPER_Z + dz, m['sleeper'], name='sleeper')
+            for side in (-1, 1):
+                rail = offset(run, way * TRACK + side * GAUGE)
+                parts.append(strip(rail, 0.012, base, base + RAIL_Z + dz, m['rail'], name='rail'))
         if past:
             for p in parts:
                 t.spans_edge(p)

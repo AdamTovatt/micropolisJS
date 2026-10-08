@@ -6,7 +6,7 @@ The generated images come from Google's Gemini image model or from ChatGPT, and 
 
 - `references/`: concept sheets of whole zones that the scenes are modelled on, described in `references/README.md`.
 - `textures/`: seamless surface textures (roofs, paving, glass, grass). Their rules and provenance are in `textures/README.md`.
-- `sheets/`: sprite sheets of whole objects drawn on black, seen from above, and the game's original 16 px sheets, `tiles-original.png` and `sprites-original.png`, as they were before any art was painted into them, but for the cells of the rail stations, 1020 and 1021, which the original never had: those hold the rendered rail's 16 px tile with a platform along each side of the track, drawn by hand.
+- `sheets/`: sprite sheets of whole objects drawn on black, seen from above, and the game's original 16 px sheets, `tiles-original.png` and `sprites-original.png`, as they were before any art was painted into them, but for the cells of the rail stations, 1020 and 1021, which the original never had: those hold a 16 px single track with a platform along each side, drawn by hand.
 - `cutouts/`: each object cut from a sheet into its own transparent PNG by `tools/cutout.py`.
 - `fonts/`: the typeface of the zone letters, with its licence.
 - `blender/tileart.py`: the shared module: materials, shapes, cutout cards, and the render.
@@ -60,7 +60,7 @@ blender --background --python art/blender/tiles/roads.py -- art/blender/out/road
 - `rubble.py`: rubble, and the bulldozer's small explosion.
 - `roads.py`: road pieces, bridges, roads under power lines, and the open drawbridges. The rules' traffic tiles have no art: the game draws them as the plain road they run on, and its traffic as cars.
 - `power.py`: power lines, and the unpowered zone's warning.
-- `rail.py`: rail, its bridges and crossings, and the station on straight track.
+- `rail.py`: rail, its bridges and crossings, and the station on straight track, all double track, a track each way, where the game runs its trains (`TRACK` in `tilesets.py`).
 - `houses.py`: the single-tile houses a residential zone grows.
 
 Which tile ids each set renders, in named groups such as an open drawbridge's frames, is `SINGLE_TILES` in `tools/designs.py`.
