@@ -25,6 +25,8 @@ import { serverTestsEnabled, START_SERVER_TIMEOUT_MS } from "./helpers/testServe
 // (testServer.ts). The cities are new ones, and saves of new ones.
 
 const SEED = 2026;
+// The types of the messages a city's whole state is sent as, in order, while it has published no status or demand
+const WHOLE_STATE = ["map", "sprites", "date", "population", "evaluation", "budget", "settings", "clock"];
 // The milliseconds a number of steps takes in real time, at the 60 steps a second the server's cities take
 const millisecondsFor = (steps: number) => steps * 1000 / 60;
 
@@ -139,12 +141,11 @@ const millisecondsFor = (steps: number) => steps * 1000 / 60;
 
     describe("starting a city", () => {
 
-        it("delivers the whole map, the date, the population and the records before the start resolves", async () => {
+        it("delivers the whole map, the date, the population, the records and the step clock before the start resolves", async () => {
             const started = await tested.source.start({name: "Town", seed: SEED, level: 0});
 
             expect(started).toEqual(startedCity("Town", SEED));
-            expect(messages.map(({type}) => type)).toEqual(["map", "sprites", "date", "population", "evaluation",
-                                                            "budget", "settings"]);
+            expect(messages.map(({type}) => type)).toEqual(WHOLE_STATE);
             expect(clientTiles()).toEqual(await savedTiles());
         });
 
@@ -198,9 +199,8 @@ const millisecondsFor = (steps: number) => steps * 1000 / 60;
             messages.length = 0;
             expect(await tested.source.start({save: other})).toEqual(startedCity("Other", SEED + 1));
 
-            // The whole map again, and every record, though some are as the city before last sent them
-            expect(messages.map(({type}) => type)).toEqual(["map", "sprites", "date", "population", "evaluation",
-                                                            "budget", "settings"]);
+            // The whole map again, the step clock, and every record, though some are as the city before last sent them
+            expect(messages.map(({type}) => type)).toEqual(WHOLE_STATE);
             expect(clientTiles()).toEqual(await savedTiles());
             expect(state.latest("commandResult")).toBeNull();
 
