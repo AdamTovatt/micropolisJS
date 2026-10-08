@@ -43,7 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from designs import (ART, BUILT, BUILT_LAYERS, DIRT, HBRIDGE, HPOWER, HRAIL, LAND_MASK, LHPOWER, LHRAIL,  # noqa: E402
                      LVPOWER, LVRAIL, PAINTED, RENDERS, RIVER, ROADS, ROADS2, SINGLE_TILES, VBRIDGE, VEHICLES,
-                     VPOWER, VRAIL, WOODS, built_layers, built_tiles, is_joined, load, single_tile,
+                     VPOWER, VRAIL, built_layers, built_tiles, is_joined, load, single_tile,
                      single_tile_assets, single_tile_ids, sprite_frame, tile_asset, zone_frame, zone_frames)
 from generate import MODEL  # noqa: E402
 
@@ -77,7 +77,6 @@ def _tile_sets():
     sets.update(fours('houses', single_tile_ids('houses')))
     sets.update(fours('land', single_tile_ids('land')))
     sets.update(fours('water', single_tile_ids('water')))
-    sets.update(fours('woods', single_tile_ids('woods')))
     sets.update(fours('parks', parks['gardens']))
     sets['parks-fountain'] = tiles('parks', parks['fountain'])
     sets.update(fours('rubble', rubble['rubble']))
@@ -111,7 +110,7 @@ def ground_painted(job):
 # surface runs on, so it joins itself: land and water every way, a straight road, rail, wire or
 # bridge along its length. Then every road piece gives its ground wherever another tile's render of it is its own.
 DONORS = ([(single_tile(t), axes, layers) for t, axes, layers in (
-    (DIRT, 'xy', ('ground',)), (RIVER, 'xy', ('ground',)), (WOODS, 'xy', ('ground',)),
+    (DIRT, 'xy', ('ground',)), (RIVER, 'xy', ('ground',)),
     (ROADS, 'x', ('ground',)), (ROADS2, 'y', ('ground',)),
     (HBRIDGE, 'x', ('objects',)), (VBRIDGE, 'y', ('objects',)),
     (LHRAIL, 'x', ('ground', 'objects')), (LVRAIL, 'y', ('ground', 'objects')),
@@ -130,7 +129,6 @@ SUBJECTS = [
     ('houses', 'a sheet of small suburban houses, each on its own square plot of land'),
     ('land', 'a square of open grassy land'),
     ('water', 'a river: open water and pieces of its grassy banks'),
-    ('woods', 'pieces of woodland and the grassy land at its edges'),
     ('parks', 'small square parks on mown lawns'),
     ('rubble', 'rubble where buildings were knocked down'),
     ('roads', 'pieces of road, with their junctions and bridges, on grassy land'),

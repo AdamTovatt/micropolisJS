@@ -18,6 +18,7 @@ import type { Tint } from "./overlayRenderer";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { PaintableMap, PaintableSprite, PaintableSquare } from "./paintable";
 import type { Rect } from "./rect";
+import { woodsAround } from "./canopy";
 import { grassTile } from "./grass";
 import { WHITE } from "./renderManifest";
 import type { AtlasRect, GrassDraw, GrassThrough, RenderArt } from "./renderManifest";
@@ -36,9 +37,10 @@ export const QUAD_FLOATS = 12;
 
 // The floats of a ground quad: a quad's, then the rectangles of its map tile's tile in the world grass's lush and straw
 // sets, in their atlas's pixels (x, y, width, height each), its map tile's position (x, y), what it draws (one of the
-// three below) and one unused, from which the world grass under it is drawn (docs/render-assets.md); all zeros for a
-// ground that lets no grass through
-export const GROUND_QUAD_FLOATS = 24;
+// three below) and the woods around it (woodsAround), then the rectangle of its tile of the canopy, from which
+// the world grass under it, and the canopy over the grass, are drawn (docs/render-assets.md); all zeros for a ground
+// that lets no grass through, and the woods and the canopy's rectangle zeros for one that draws no canopy
+export const GROUND_QUAD_FLOATS = 28;
 
 // What a ground quad draws, so no tile pays for the grass or its ground unless it shows them: its ground alone, opaque;
 // the world grass alone, where its ground lets all of it through; or its ground over the grass
@@ -127,7 +129,7 @@ export class GroundRun extends Run {
       return;
     }
 
-    const {lush, straw, mapX, mapY, through} = grass;
+    const {lush, straw, mapX, mapY, through, canopy} = grass;
     data[at] = lush.x;
     data[at + 1] = lush.y;
     data[at + 2] = lush.width;
@@ -139,17 +141,35 @@ export class GroundRun extends Run {
     data[at + 8] = mapX;
     data[at + 9] = mapY;
     data[at + 10] = through === "all" ? GROUND_GRASS_ONLY : GROUND_OVER_GRASS;
-    data[at + 11] = 0;
+    if (canopy === null) {
+      data.fill(0, at + 11, at + 16);
+      return;
+    }
+
+    data[at + 11] = canopy.woods;
+    data[at + 12] = canopy.tile.x;
+    data[at + 13] = canopy.tile.y;
+    data[at + 14] = canopy.tile.width;
+    data[at + 15] = canopy.tile.height;
   }
 }
 
-// The world grass under a map tile: its tile's rectangle in each set, and the map tile's position
+// The world grass under a map tile: its tile's rectangle in each set, the map tile's position, and the canopy
+// over the grass there, or null for none
 export interface GrassTiles {
   lush: Rect;
   straw: Rect;
   through: GrassThrough;
   mapX: number;
   mapY: number;
+  canopy: CanopyTile | null;
+}
+
+// The canopy over a map tile: its tile's rectangle, and the woods round the map tile it is drawn from (woodsAround),
+// never 0
+export interface CanopyTile {
+  tile: Rect;
+  woods: number;
 }
 
 // A pass's quads, grouped into runs by atlas. In an ordered list, where quads overlap, each run is drawn in the order
@@ -387,14 +407,17 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
       }
 
       const tileArt = art.tile(plainRoad(tiles.frames[index]));
-      // The world grass under a ground that lets any through
+      // The world grass under a ground that lets any through, and the canopy over it where woods stand round it, so
+      // the canopy runs on under every ground that lets the grass through and ends nowhere on a tile's edge
       let under: GrassTiles | null = null;
       if (tileArt.grass !== null) {
         const mapX = tiles.x + column;
         const mapY = tiles.y + row;
         const picked = grassTile(mapX, mapY, grass.constants);
+        const woods = woodsAround(tiles, column, row);
+        const canopy = woods === 0 ? null : {tile: art.canopyTile(mapX, mapY), woods};
         under = {lush: grass.lush.tiles[picked], straw: grass.straw.tiles[picked], mapX, mapY,
-                 through: tileArt.grass};
+                 through: tileArt.grass, canopy};
       }
       frame.ground.addGround(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground, under);
       if (tileArt.objects !== null) {

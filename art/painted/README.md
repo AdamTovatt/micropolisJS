@@ -12,6 +12,13 @@ A zone with an animation also holds each frame's layers in `frame-<n>/`, as its 
 
 An asset whose ground was painted again with its own description of its surfaces, after the general one failed, has that description in its `ground` prompt.
 
+## The canopy
+
+`raw/woods/` holds the painting the canopy's corner tiles are cut from (`tools/grass.py`, `docs/render-assets.md`), with the model inputs it was painted from, both `gemini-3-pro-image`, through `art/tools/generate.py`. The woods have no painted tiles of their own: the game draws the canopy over the world grass from where the map's woods lie.
+
+- `canopy-in.png`, from two references, the world grass's `raw/grass/straw.png` for the brushwork and `canopy-ref.png`, the woods as painted tiles drew them before, for what a forest is: "Paint a new square image: the dense canopy of a summer broadleaf forest seen from directly above, as a top-down strategy game shows it, about six map tiles across. Paint it in exactly the brushwork of the first image, a chaotic, energetic oil painting in the manner of Van Gogh: short swirling impasto strokes, visible brush marks everywhere. The second image shows what the forest is: round crowns of many trees of different sizes packed together, deep and mid greens with olive and a few warm autumn-touched crowns, each crown lit from the upper left and shaded on its lower right, with dark shadowed gaps between crowns giving depth. Even all over, so pieces of it can be laid side by side across a map: no clearings, paths, water, buildings or ground showing, no vignette, no lighting gradient across the whole image. No text, no borders."
+- `canopy.png`, from `canopy-in.png`: "Edit this oil painting of a forest canopy seen from above: repaint almost every orange, yellow and red crown as a green summer crown, in deep, mid and olive greens, keeping at most two or three faintly warm crowns in the whole image. Keep everything else exactly: the same crowns in the same places and sizes, the same chaotic swirling Van Gogh brushwork, the light from the upper left, the dark gaps between crowns. No text, no borders."
+
 ## The world grass
 
 `raw/grass/` holds the two paintings the world grass's sets of corner tiles are cut from (`tools/grass.py`, `docs/render-assets.md`), with the model inputs they were painted from. Both are `gemini-3-pro-image`, through `art/tools/generate.py`.

@@ -15,25 +15,25 @@
 import { createHash } from "crypto";
 
 import {
-    GRASS_MAP, bakeGrassField, grassFieldPixels, grassTile, grassTint, latticeHash, lowbias32, strawShare,
+    GRASS_MAP, bakeGrassField, edgeWobble, grassFieldPixels, grassTile, grassTint, latticeHash, lowbias32, strawShare,
 } from "../src/grass";
 import { parseRenderManifest } from "../src/renderManifest";
 import { repositoryJson } from "./helpers/repository";
 
 // The world grass's hash and noise against conformance/grass.json, which the art build's grass.py writes with the same
-// arithmetic, from the constants of the committed manifest's grass section: the two must agree to the last bit, or the
+// arithmetic, from the constants of the committed manifest's grass and canopy sections: the two must agree to the last bit, or the
 // grass the client draws is not the grass the build made its sets and page background for.
 
 interface Vectors {
   lowbias32: {in: number, out: number}[];
   hashes: {x: number, y: number, seed: number, hash: number}[];
   tiles: {x: number, y: number, tile: number}[];
-  noise: {x: number, y: number, straw: number, tint: number}[];
+  noise: {x: number, y: number, straw: number, tint: number, edge: number}[];
   field: {width: number, height: number, sha256: string};
 }
 
 const vectors = repositoryJson<Vectors>("conformance/grass.json");
-const grass = parseRenderManifest(repositoryJson("images/render/manifest.json")).grass;
+const {grass, canopy} = parseRenderManifest(repositoryJson("images/render/manifest.json"));
 const {width: WIDTH, height: HEIGHT} = GRASS_MAP;
 
 describe("the world grass", () => {
@@ -50,21 +50,22 @@ describe("the world grass", () => {
         expect(grassTile(x, y, grass.constants)).toBe(tile);
     });
 
-    it.each(vectors.noise)("has the build's straw share and tint at ($x, $y)", ({x, y, straw, tint}) => {
+    it.each(vectors.noise)("has the build's straw share, tint and canopy's wobble at ($x, $y)", ({x, y, straw, tint, edge}) => {
         expect(strawShare(x, y, grass.constants)).toBe(straw);
         expect(grassTint(x, y, grass.constants)).toBe(tint);
+        expect(edgeWobble(x, y, canopy.edge, grass.constants)).toBe(edge);
     });
 
     it("bakes the build's field for the map", () => {
-        const field = bakeGrassField(grass.constants, WIDTH, HEIGHT);
+        const field = bakeGrassField(grass.constants, canopy.edge, WIDTH, HEIGHT);
         const k = grass.constants.texelsPerTile;
         expect([WIDTH * k, HEIGHT * k]).toEqual([vectors.field.width, vectors.field.height]);
         expect(createHash("sha256").update(field).digest("hex")).toBe(vectors.field.sha256);
     });
 
-    it("packs the field into the texture's red, the share, and green, the tint, opaque", () => {
-        expect(Array.from(grassFieldPixels(new Uint8Array([10, 20, 255, 0, 0, 7]))))
-            .toEqual([10, 20, 0, 255, 255, 0, 0, 255, 0, 7, 0, 255]);
+    it("packs the field into the texture's red, the share, green, the tint, and blue, the wobble, opaque", () => {
+        expect(Array.from(grassFieldPixels(new Uint8Array([10, 20, 30, 255, 0, 0, 0, 7, 128]))))
+            .toEqual([10, 20, 30, 255, 255, 0, 0, 255, 0, 7, 128, 255]);
     });
 
     it("picks every tile of a set somewhere on the map, and none past them", () => {

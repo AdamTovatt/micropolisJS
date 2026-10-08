@@ -17,7 +17,8 @@ paintings in art/painted/raw/grass, and the hash and noise that pick a tile and 
     python art/tools/grass.py --vectors
 
 writes conformance/grass.json, the vectors the client's hash and noise are held to. The atlas build (atlas.py) builds
-the sets and writes them, with CONSTANTS, into the manifest's grass section.
+the sets and writes them, with CONSTANTS, into the manifest's grass section, and the canopy's set, with CANOPY, into its
+canopy section.
 
 A set is colours ** 4 tiles. Each corner of the map's tile lattice takes a colour from an integer hash of its position,
 and a map tile draws the tile of its four corners' colours: edges always meet, since only an edge's two corners reach
@@ -38,7 +39,7 @@ from PIL import Image
 from scipy import ndimage
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RAW = os.path.join(HERE, '..', 'painted', 'raw', 'grass')
+RAW = os.path.join(HERE, '..', 'painted', 'raw')
 VECTORS = os.path.join(HERE, '..', '..', 'conformance', 'grass.json')
 RULE_CONSTANTS = os.path.join(HERE, '..', '..', 'conformance', 'ruleConstants.json')
 
@@ -75,20 +76,41 @@ CONSTANTS = {
         'warmth': 0.35,
         'warm': [1.1, 1.03, 0.8],
     },
-    # the texels a tile of the baked field of mask and tint, which the client samples linearly
+    # the texels a tile of the baked field of mask, tint and the canopy's wobble, which the client samples linearly
     'texelsPerTile': 8,
 }
 
 # Each set: its painting, how many map tiles across the painting is read as, the mean colour its tiles are moved to,
-# whether its strokes run one way (so a patch only ever turns half round) and whether its broad light and dark patches
-# are taken out. Straw keeps its chaotic brushwork whole; lush, from the empty residential zone's lawn, is moved
-# halfway to straw's colour so its patches read as variation, not another lawn.
+# how its patches may turn, any of the eight ways ('all'), only half round, for strokes that run one way ('half'), or
+# not at all, for light that falls from one side ('none'), whether its broad light and dark patches are taken out, and
+# the seed of its patches' places and turns. Straw keeps its chaotic brushwork whole; lush, from the empty residential
+# zone's lawn, is moved halfway to straw's colour so its patches read as variation, not another lawn.
 SETS = {
-    'lush': {'painting': 'lush.png', 'tiles': 4, 'mean': (92, 112, 29), 'directional': False, 'flatten': True},
-    'straw': {'painting': 'straw.png', 'tiles': 6, 'mean': (103, 116, 39), 'directional': True, 'flatten': False},
+    'lush': {'painting': os.path.join(RAW, 'grass', 'lush.png'), 'tiles': 4, 'mean': (92, 112, 29), 'turns': 'all',
+             'flatten': True, 'seed': 7},
+    'straw': {'painting': os.path.join(RAW, 'grass', 'straw.png'), 'tiles': 6, 'mean': (103, 116, 39),
+              'turns': 'half', 'flatten': False, 'seed': 7},
+}
+
+# The canopy, which the game draws over the grass from where the map's woods lie: a set built as the grass's are, from
+# the painting in art/painted/raw/woods, its crowns lit from the upper left, so never turned, and darker than the grass
+# so the woods read as standing above it, though warm enough to sit with straw
+CANOPY_SET = {'painting': os.path.join(RAW, 'woods', 'canopy.png'), 'tiles': 8, 'mean': (74, 88, 34),
+              'turns': 'none', 'flatten': False, 'seed': 11}
+# What the client draws the canopy with, written into the manifest's canopy section as they are: its corners' seed;
+# where its edge falls on the surface the woods make, from 0 off the woods to 1 within them, and over how much of that
+# surface it fades into the grass; and the wobble of its edge, two octaves of gradient noise on the grass mask's
+# gradients, summed by weight, in the units of that surface, baked into the grass's field from -1 to 1
+CANOPY = {
+    'corners': {'seed': 0x4001},
+    'cut': 0.5,
+    'feather': 0.12,
+    'edge': {
+        'octaves': [{'cell': 0.9, 'seed': 0x6001, 'weight': 1.2, 'turn': [0.819648, 0.572867]},
+                    {'cell': 0.35, 'seed': 0x6002, 'weight': 0.8, 'turn': [0.572867, 0.819648]}],
+    },
 }
 BAND = 14                      # pixels in from a tile's edge over which its centre patch takes over from its corners
-SEED = 7                       # the patches' places, turns and mirrors
 
 
 # The hash, on uint32 arrays: Chris Wellons' lowbias32
@@ -175,14 +197,22 @@ def tint(x, y, constants=CONSTANTS):
     return octaves(value_noise, x, y, constants['tint'])
 
 
-def field(constants=CONSTANTS, width=MAP_WIDTH, height=MAP_HEIGHT):
-    # The baked field the client samples: texelsPerTile texels a tile, each the straw share and the tint at its centre,
-    # as bytes rounded half up, an array of rows of (share, tint)
+def edge(x, y, constants=CONSTANTS, canopy=CANOPY):
+    # the wobble of the canopy's edge at map positions, in tiles
+    return octaves(gradient_noise, x, y, canopy['edge'], constants['mask']['gradients'])
+
+
+def field(constants=CONSTANTS, canopy=CANOPY, width=MAP_WIDTH, height=MAP_HEIGHT):
+    # The baked field the client samples: texelsPerTile texels a tile, each the straw share, the tint and the canopy's
+    # wobble at its centre, the wobble from -1 to 1 as 0 to 1 and held there, as bytes rounded half up, an array of rows
+    # of (share, tint, wobble)
     k = constants['texelsPerTile']
     ys, xs = np.mgrid[0:height * k, 0:width * k].astype(np.float64)
     x, y = (xs + 0.5) / k, (ys + 0.5) / k
     return np.stack([np.floor(straw_share(x, y, constants) * 255.0 + 0.5),
-                     np.floor(tint(x, y, constants) * 255.0 + 0.5)], axis=-1).astype(np.uint8)
+                     np.floor(tint(x, y, constants) * 255.0 + 0.5),
+                     np.floor((np.clip(edge(x, y, constants, canopy), -1.0, 1.0) + 1.0) / 2.0 * 255.0 + 0.5)],
+                    axis=-1).astype(np.uint8)
 
 
 def _dihedral(a, k):
@@ -214,23 +244,27 @@ def blend_weights(u, v, band=BAND):
     return [w * (1 - centre) for w in corners] + [centre]
 
 
-def build_set(name, raw=RAW, constants=CONSTANTS):
+def build_set(spec, constants=CONSTANTS):
     # The set's tiles, colours ** 4 of them, each PX square, as uint8 RGB arrays indexed by wang_tile's number
-    spec = SETS[name]
     colours = constants['colours']
     n = spec['tiles'] * PX
-    m = np.asarray(Image.open(os.path.join(raw, spec['painting'])).convert('RGB').resize((n, n), Image.LANCZOS))
+    m = np.asarray(Image.open(spec['painting']).convert('RGB').resize((n, n), Image.LANCZOS))
     m = m.astype(np.float64)
     if spec['flatten']:
         broad = ndimage.gaussian_filter(m, (12, 12, 0), mode='reflect')
         m = m - broad + broad.mean(axis=(0, 1))
     mean = np.asarray(spec['mean'], dtype=np.float64)
     m = m - m.reshape(-1, 3).mean(axis=0) + mean
-    rng = np.random.default_rng(SEED)
+    rng = np.random.default_rng(spec['seed'])
 
     def patch(side):
         y, x = rng.integers(0, n - side + 1, 2)
-        turn = 2 * int(rng.integers(2)) if spec['directional'] else int(rng.integers(8))
+        if spec['turns'] == 'all':
+            turn = int(rng.integers(8))
+        elif spec['turns'] == 'half':
+            turn = 2 * int(rng.integers(2))
+        else:
+            turn = 0
         return _dihedral(_levelled(m[y:y + side, x:x + side], mean), turn)
     corner_patches = [patch(2 * PX) for _ in range(colours)]
     k = (np.arange(PX) + 0.5) / PX
@@ -254,9 +288,9 @@ def build_set(name, raw=RAW, constants=CONSTANTS):
     return [np.clip(np.floor(t + 0.5), 0, 255).astype(np.uint8) for t in stack]
 
 
-def build_sets(raw=RAW):
+def build_sets():
     # every set's tiles, and each set's mean colour as its tiles have it
-    sets = {name: build_set(name, raw) for name in SETS}
+    sets = {name: build_set(spec) for name, spec in SETS.items()}
     means = {name: [round(float(c), 3) for c in np.mean([t.reshape(-1, 3).mean(axis=0) for t in tiles], axis=0)]
              for name, tiles in sets.items()}
     return sets, means
@@ -290,7 +324,7 @@ def sample(sets, means, side=4, constants=CONSTANTS):
 
 def vectors():
     # The vectors conformance/grass.json holds: the hash, the tile picked and the noise at map positions, and the
-    # SHA-256 of the baked field's bytes, row by row, share and tint
+    # SHA-256 of the baked field's bytes, row by row, share, tint and wobble
     positions = [(0, 0), (1, 0), (0, 1), (7, 3), (119, 99), (120, 100), (-1, -1), (-37, 54), (65535, 2), (12345, 67890)]
     hashes = [{'x': x, 'y': y, 'seed': s, 'hash': int(lattice_hash(x, y, s))}
               for x, y in positions for s in (0, CONSTANTS['corners']['seed'])]
@@ -298,7 +332,8 @@ def vectors():
     points = [(0.0, 0.0), (0.0625, 0.0625), (3.5, 7.25), (59.9375, 49.0625), (119.9375, 99.9375), (-4.5, 2.25),
               (200.5, 300.125)]
     noise = [{'x': x, 'y': y, 'straw': float(straw_share(np.float64(x), np.float64(y))),
-              'tint': float(tint(np.float64(x), np.float64(y)))} for x, y in points]
+              'tint': float(tint(np.float64(x), np.float64(y))), 'edge': float(edge(np.float64(x), np.float64(y)))}
+             for x, y in points]
     baked = field()
     return {'lowbias32': [{'in': v, 'out': int(lowbias32(v))} for v in (0, 1, 0x6A11, 0xDEADBEEF, 0xFFFFFFFF)],
             'hashes': hashes, 'tiles': tiles, 'noise': noise,

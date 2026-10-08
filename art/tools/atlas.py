@@ -35,8 +35,8 @@ from PIL import Image
 
 import grass
 from designs import (CAR, CAR_COLOURS, CAR_WAYS, FRAMES, IMAGES, ORIGINAL_SPRITES, ORIGINAL_TILES, SHEET_COLUMNS,
-                     SHEET_PX, OVER_SHADOWS, SINGLE_TILES, SPRITE_CELL, SPRITES, TILE_PX, ZONES, load, single_tile_ids,
-                     sprite_frame, tile_asset, zone_frame)
+                     SHEET_PX, OVER_SHADOWS, SINGLE_TILES, SPRITE_CELL, SPRITES, TILE_PX, WOODS_HIGH, WOODS_LOW, ZONES,
+                     load, single_tile_ids, sprite_frame, tile_asset, zone_frame)
 
 GUTTER = 4                     # each rectangle's edge pixels repeated this far outward, from a multiple of 4,
                                # so the two mip levels down to 16 px a tile don't bleed (docs/render-assets.md)
@@ -126,6 +126,8 @@ def build(source, out=IMAGES):
     grass_sets, grass_means = grass.build_sets()
     grass_square = grass.sample(grass_sets, grass_means)
     grass_tile = grass_square.crop((0, 0, TILE_PX, TILE_PX)).convert('RGBA')
+    # the canopy, packed with the grass, which the game draws over the grass from where the map's woods lie
+    canopy = grass.build_set(grass.CANOPY_SET)
 
     def claim(tile_id, what):
         if tile_id in ground:
@@ -177,6 +179,12 @@ def build(source, out=IMAGES):
         if tile_id in objects:
             o.alpha_composite(objects[tile_id])
         objects[tile_id] = o
+    # the woods: a ground that lets all the grass through, for the canopy over it, which the 16 px sheet draws whole
+    for tile_id in range(WOODS_LOW, WOODS_HIGH + 1):
+        claim(tile_id, 'the woods')
+        ground[tile_id] = Image.new('RGBA', (TILE_PX, TILE_PX))
+        grass_through[tile_id] = 'all'
+        sheet_tiles[tile_id] = Image.fromarray(canopy[0]).convert('RGBA')
 
     sprites = {}
     for vehicle, sprite in SPRITES.items():
@@ -201,7 +209,8 @@ def build(source, out=IMAGES):
             os.remove(os.path.join(render, old))
     packed = {}
     atlases = {}
-    grass_images = {(name, k): Image.fromarray(t) for name, tiles in grass_sets.items() for k, t in enumerate(tiles)}
+    grass_images = {(name, k): Image.fromarray(t)
+                    for name, tiles in {**grass_sets, 'canopy': canopy}.items() for k, t in enumerate(tiles)}
     for kind, mode, images in (('ground', 'RGBA', ground), ('objects', 'RGBA', objects),
                                ('shadow', 'RGBA', shadows), ('sprites', 'RGBA', {**sprites, **cars}),
                                ('grass', 'RGB', grass_images)):
@@ -227,8 +236,9 @@ def build(source, out=IMAGES):
                    'sets': {name: {'mean': grass_means[name],
                                    'tiles': [packed['grass'][(name, k)] for k in range(len(tiles_of_set))]}
                             for name, tiles_of_set in grass_sets.items()}}
+    canopy_entry = {**grass.CANOPY, 'tiles': [packed['grass'][('canopy', k)] for k in range(len(canopy))]}
     manifest = {'version': 1, 'atlases': atlases, 'tiles': tiles, 'sprites': sprite_entries, 'cars': car_entries,
-                'grass': grass_entry}
+                'grass': grass_entry, 'canopy': canopy_entry}
     with open(os.path.join(render, 'manifest.json'), 'w') as f:
         json.dump(manifest, f, indent=1)
         f.write('\n')
@@ -253,7 +263,7 @@ def build(source, out=IMAGES):
     grass_square.save(os.path.join(out, 'dirtbg.png'), optimize=True)
 
     print(f'{len(tiles)} tile ids, {len(shadows)} shadows, {len(sprites)} sprite frames, {len(cars)} cars and '
-          f'{len(grass_images)} grass tiles from '
+          f'{len(grass_images)} grass and canopy tiles from '
           f'{source}, in '
           f'{len(atlases)} atlases: ' + ', '.join(f'{n} {Image.open(os.path.join(render, p)).size}'
                                                  for n, p in atlases.items()))

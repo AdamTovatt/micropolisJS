@@ -11,9 +11,9 @@
 # city simulation game and its source code (the project or "licensee(s)") as a courtesy of the owner.
 #
 
-"""The world grass: the conformance vectors the client is held to are the ones grass.py computes, a set's tiles meet
-whatever tiles lie beside them, by their blend weights and by the tiles built, and every tile is used. The sets
-themselves are checked through the atlas build, whose committed atlas and manifest hold them."""
+"""The world grass and the canopy: the conformance vectors the client is held to are the ones grass.py computes,
+a set's tiles meet whatever tiles lie beside them, by their blend weights and by the tiles built, and every tile is
+used. The sets themselves are checked through the atlas build, whose committed atlas and manifest hold them."""
 
 import json
 
@@ -43,25 +43,52 @@ def test_tiles_that_share_an_edges_corners_agree_on_it(edge):
     assert np.allclose(weights[kept[0]] + weights[kept[1]], 1)
 
 
-@pytest.mark.parametrize('name', sorted(grass.SETS))
-def test_the_built_tiles_meet_without_a_line(name):
-    # Across the edge of every two tiles that share its corners, the step between the pixels either side is within
-    # 1.5 times an ordinary step between neighbouring pixels inside a tile; tiles mirrored at random so their edges
-    # no longer meet step 1.67 times it and more, these sets 1.37 at most
-    tiles = [t.astype(np.float64) for t in grass.build_set(name)]
+SETS = {**grass.SETS, 'canopy': grass.CANOPY_SET}
+
+
+def lines(tiles):
+    # The edges of two tiles that share its corners, of the tiles given, across which the step between the pixels
+    # either side is over 1.5 times the steps beside it, between each tile's edge pixels and the pixels next in: the
+    # same rows of the painting lie either side, so a line would show as a step out of keeping with its neighbours,
+    # whatever the painting's strokes there
+    tiles = [t.astype(np.float64) for t in tiles]
     colours = grass.CONSTANTS['colours']
     corners = [(t % colours, t // colours % colours, t // colours ** 2 % colours, t // colours ** 3)
                for t in range(len(tiles))]
-    across = np.mean([np.abs(np.diff(t, axis=1)).mean() for t in tiles])
-    down = np.mean([np.abs(np.diff(t, axis=0)).mean() for t in tiles])
+
+    def step(a, b):
+        return np.abs(a - b).mean()
+    found = []
     for a, (nw, ne, sw, se) in enumerate(corners):
         for b, (bnw, bne, bsw, _) in enumerate(corners):
+            first, then = tiles[a], tiles[b]
             if (ne, se) == (bnw, bsw):
-                step = np.abs(tiles[a][:, -1] - tiles[b][:, 0]).mean()
-                assert step <= 1.5 * across, f'{name} tile {a} meets tile {b} east of it with a line'
+                beside = (step(first[:, -1], first[:, -2]) + step(then[:, 1], then[:, 0])) / 2
+                if step(first[:, -1], then[:, 0]) > 1.5 * beside:
+                    found.append(f'tile {a} meets tile {b} east of it with a line')
             if (sw, se) == (bnw, bne):
-                step = np.abs(tiles[a][-1] - tiles[b][0]).mean()
-                assert step <= 1.5 * down, f'{name} tile {a} meets tile {b} south of it with a line'
+                beside = (step(first[-1], first[-2]) + step(then[1], then[0])) / 2
+                if step(first[-1], then[0]) > 1.5 * beside:
+                    found.append(f'tile {a} meets tile {b} south of it with a line')
+    return found
+
+
+@pytest.mark.parametrize('name', sorted(SETS))
+def test_the_built_tiles_meet_without_a_line(name):
+    # These sets step 1.45 times the steps beside an edge at most
+    assert lines(grass.build_set(SETS[name])) == []
+
+
+def test_a_tile_turned_half_round_meets_its_neighbours_with_lines():
+    # A tile turned half round no longer meets the tiles that share its corners, which step 2.14 times and more
+    tiles = grass.build_set(grass.SETS['straw'])
+    turned = 1 + 2 * 3
+    tiles[turned] = np.rot90(tiles[turned], 2)
+    found = lines(tiles)
+    assert any(f'tile {turned} meets' in line for line in found), 'no line east or south of the tile turned'
+    assert any(line.endswith(f'tile {turned} east of it with a line') for line in found), \
+        'no line west of the tile turned'
+    assert all(f'tile {turned} ' in line for line in found), 'a line between tiles not turned'
 
 
 def test_the_weights_sum_to_one_across_a_tile():

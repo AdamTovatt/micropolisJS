@@ -14,7 +14,7 @@
 
 import { expect, Page, test } from "@playwright/test";
 
-import { plainGrass } from "../test/helpers/grassArt";
+import { plainCanopy, plainGrass } from "../test/helpers/grassArt";
 import { CITY_LINK, serverForTests } from "./gameServer";
 import { blockNetwork, collectPageProblems } from "./page";
 import { Player, TESTER } from "./player";
@@ -65,6 +65,7 @@ async function serveArt(page: Page, manifest: TestManifest, other: Buffer | "fai
   await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: {
     ...manifest, atlases: {...manifest.atlases, grass: "grass.png"},
     grass: plainGrass({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
+    canopy: plainCanopy({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
   }}));
   await page.route("**/images/render/*.png", (route) => {
     if (route.request().url().endsWith("/grass.png")) {

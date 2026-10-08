@@ -13,7 +13,7 @@
  */
 
 import { GRASS_MAP, bakeGrassField, grassFieldPixels } from "./grass";
-import type { GrassConstants } from "./grass";
+import type { CanopyEdge, GrassConstants } from "./grass";
 import {
   FALLBACK_SPRITES, FALLBACK_TILES, GRASS_FIELD, RenderArt, RenderManifest, checkAtlasSizes, checkRectsInAtlases,
   parseRenderManifest,
@@ -60,10 +60,10 @@ export function tileSetPixels(mapArt: MapArt): Pixels {
   return context.getImageData(0, 0, image.width, image.height);
 }
 
-// The world grass's field over the map as an image the renderer uploads
-function grassFieldImage(constants: GrassConstants): ImageData {
+// The world grass's field over the map, with the canopy's wobble, as an image the renderer uploads
+function grassFieldImage(constants: GrassConstants, edge: CanopyEdge): ImageData {
   const k = constants.texelsPerTile;
-  const field = bakeGrassField(constants, GRASS_MAP.width, GRASS_MAP.height);
+  const field = bakeGrassField(constants, edge, GRASS_MAP.width, GRASS_MAP.height);
   return new ImageData(grassFieldPixels(field), GRASS_MAP.width * k, GRASS_MAP.height * k);
 }
 
@@ -108,7 +108,7 @@ export async function loadMapArt(tiles: HTMLImageElement, sprites: HTMLImageElem
   await Promise.all(loads);
 
   // The world grass's field of straw share and tint, baked once from the manifest's constants
-  atlases.set(GRASS_FIELD, {image: grassFieldImage(manifest.grass.constants), filter: "field"});
+  atlases.set(GRASS_FIELD, {image: grassFieldImage(manifest.grass.constants, manifest.canopy.edge), filter: "field"});
 
   const sizes = new Map<string, {width: number, height: number}>();
   atlases.forEach(({image}, name) => sizes.set(name, {width: image.width, height: image.height}));

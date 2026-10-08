@@ -179,5 +179,5 @@ def test_join_leaves_a_tile_not_joined(layers, tmp_path):
 
 def test_join_fails_naming_a_donor_with_no_built_layers(layers, tmp_path):
     renders, built = layers
-    with pytest.raises(FileNotFoundError, match='woods/0037'):
-        join(built=built, out=str(tmp_path / 'out'), renders=renders, donors=[*DONORS, ('woods/0037', '', ('ground',))])
+    with pytest.raises(FileNotFoundError, match='parks/0040'):
+        join(built=built, out=str(tmp_path / 'out'), renders=renders, donors=[*DONORS, ('parks/0040', '', ('ground',))])

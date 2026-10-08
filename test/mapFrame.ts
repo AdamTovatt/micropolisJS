@@ -18,16 +18,17 @@ import {
     CAR_BREADTH, CAR_LENGTH, FrameTiles, GROUND_GRASS_ONLY, GROUND_ONLY, GROUND_OVER_GRASS, GROUND_QUAD_FLOATS,
     GroundList, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles,
 } from "../src/mapFrame";
+import { isWoods, woodsAround } from "../src/canopy";
 import type { Run, RunList } from "../src/mapFrame";
 import type { Tint } from "../src/overlayRenderer";
 import type { SpriteView } from "../src/protocol";
 import type { Rect } from "../src/rect";
 import { grassTile } from "../src/grass";
 import { FALLBACK_SPRITES, FALLBACK_TILES, GRASS_FIELD, RenderArt, WHITE, parseRenderManifest } from "../src/renderManifest";
-import { committedGrass, plainGrass } from "./helpers/grassArt";
+import { committedCanopy, committedGrass, plainCanopy, plainGrass } from "./helpers/grassArt";
 import { tileImageOrigin } from "../src/tileSet";
-import { ANIMBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
-import { LIGHTNINGBOLT, LTRFBASE, ROADBASE, ROADS, TILE_INVALID } from "../src/tileValues";
+import { ANIMBIT, BURNBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
+import { LIGHTNINGBOLT, LTRFBASE, ROADBASE, ROADS, TILE_INVALID, WOODS_LOW } from "../src/tileValues";
 
 // Tile 5 is rendered: ground, objects, and a shadow reaching a tile left and a tile down. Tile 6 has rendered ground
 // only. Light traffic on a plain road has the art of its own the painted traffic had, its cars' shadow among it, and the
@@ -55,8 +56,12 @@ const artJson = {
     sprites: {},
     cars: {red: {north: {atlas: "objects", x: 256, y: 0, width: 64, height: 64}}},
     grass: plainGrass({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
+    canopy: plainCanopy({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
 };
 const art = new RenderArt(parseRenderManifest(artJson));
+
+// The floats past a quad's of a ground quad that lets no grass through
+const NO_GRASS = new Array(GROUND_QUAD_FLOATS - QUAD_FLOATS).fill(0);
 
 // A quad as its floats: where it lands, where it comes from, and its colour
 interface Quad {
@@ -401,17 +406,19 @@ describe("a frame of the map", () => {
 
         it("grows a ground list's buffers to hold every ground quad, each its grass floats after the quad's", () => {
             const list = new GroundList();
-            const grass = {lush: box, straw: box, through: "part" as const, mapX: 7, mapY: 3};
+            const grass = {lush: box, straw: box, through: "part" as const, mapX: 7, mapY: 3, canopy: null};
+            const canopy = {tile: {x: 64, y: 128, width: 64, height: 64}, woods: 0b000010000};
             for (let i = 0; i < 1000; i++) {
-                list.addGround("a", i, 0, 1, 1, box, i === 999 ? grass : null);
+                list.addGround("a", i, 0, 1, 1, box, i === 999 ? grass : i === 997 ? {...grass, canopy} : null);
             }
 
             const floats = list.runs[0].floats;
+            const quad = (i: number) => Array.from(floats.slice(i * GROUND_QUAD_FLOATS, (i + 1) * GROUND_QUAD_FLOATS));
             expect(floats.length).toBe(1000 * GROUND_QUAD_FLOATS);
-            expect(Array.from(floats.slice(999 * GROUND_QUAD_FLOATS, 1000 * GROUND_QUAD_FLOATS)))
-                .toEqual([999, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 7, 3, GROUND_OVER_GRASS, 0]);
-            expect(Array.from(floats.slice(998 * GROUND_QUAD_FLOATS + QUAD_FLOATS, 999 * GROUND_QUAD_FLOATS)))
-                .toEqual(new Array(12).fill(0));
+            expect(quad(999)).toEqual([999, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 7, 3,
+                                       GROUND_OVER_GRASS, 0, 0, 0, 0, 0]);
+            expect(quad(998).slice(QUAD_FLOATS)).toEqual(NO_GRASS);
+            expect(quad(997).slice(QUAD_FLOATS + 10)).toEqual([GROUND_OVER_GRASS, 16, 64, 128, 64, 64]);
         });
     });
 
@@ -457,12 +464,15 @@ describe("a frame of the map", () => {
         // part, the zone's none
         const grassJson = committedGrass((set, i) => ({atlas: "grass", x: 64 * i, y: set === "lush" ? 0 : 64,
                                                       width: 64, height: 64}));
+        // and the committed canopy, its tile i at (64 i, 128)
+        const canopyJson = committedCanopy((i) => ({atlas: "grass", x: 64 * i, y: 128, width: 64, height: 64}));
         const grassy = new RenderArt(parseRenderManifest({
             ...artJson,
             atlases: {...artJson.atlases, grass: "grass.png"},
             tiles: {...artJson.tiles, 0: {ground: {atlas: "ground", x: 256, y: 0, width: 64, height: 64}, grass: "all"},
                     [LAWN]: {...artJson.tiles[LAWN], grass: "part"}},
             grass: grassJson,
+            canopy: canopyJson,
         }));
 
         // Each ground quad's grass floats: its tile's rectangle in each set, and its map tile
@@ -480,7 +490,7 @@ describe("a frame of the map", () => {
             expect(grassOf(frame)).toEqual([[11, 21, GROUND_OVER_GRASS], [12, 21, GROUND_GRASS_ONLY]]
                 .map(([x, y, draws]) => {
                     const picked = grassTile(x, y, constants);
-                    return [64 * picked, 0, 64, 64, 64 * picked, 64, 64, 64, x, y, draws, 0];
+                    return [64 * picked, 0, 64, 64, 64 * picked, 64, 64, 64, x, y, draws, 0, 0, 0, 0, 0];
                 }));
         });
 
@@ -490,7 +500,7 @@ describe("a frame of the map", () => {
 
             // Bare land, then the zone
             expect(grassOf(frame).map((floats) => floats[10])).toEqual([GROUND_GRASS_ONLY, GROUND_ONLY]);
-            expect(grassOf(frame)[1]).toEqual(new Array(12).fill(0));
+            expect(grassOf(frame)[1]).toEqual(NO_GRASS);
         });
 
         it("names the grass's atlas, field and colours for the renderer", () => {
@@ -514,7 +524,96 @@ describe("a frame of the map", () => {
         it("draws every ground alone where no tile's ground lets the grass through", () => {
             const frame = build(tilesWith(5, LAWN));
 
-            expect(grassOf(frame)).toEqual([new Array(12).fill(0), new Array(12).fill(0)]);
+            expect(grassOf(frame)).toEqual([NO_GRASS, NO_GRASS]);
+        });
+
+        describe("the canopy", () => {
+
+            const WOODS_TILE = WOODS_LOW + 3;
+            // The art above with the woods' ground letting all the grass through, as the committed manifest's does
+            const wooded = new RenderArt(parseRenderManifest({
+                ...artJson,
+                atlases: {...artJson.atlases, grass: "grass.png"},
+                tiles: {...artJson.tiles, 0: {ground: {atlas: "ground", x: 256, y: 0, width: 64, height: 64}, grass: "all"},
+                        [LAWN]: {...artJson.tiles[LAWN], grass: "part"},
+                        [WOODS_TILE]: {ground: {atlas: "ground", x: 256, y: 0, width: 64, height: 64}, grass: "all"}},
+                grass: grassJson,
+                canopy: canopyJson,
+            }));
+
+            // The canopy floats of each ground quad: the woods round it, and its canopy tile's rectangle
+            function canopyOf(area: FrameTiles, drawnWith = wooded): number[][] {
+                const frame = new MapFrame();
+                buildMapFrame(frame, drawnWith, area, 16, noTint, [], []);
+                return grassOf(frame).map((floats) => floats.slice(11));
+            }
+
+            // The canopy tile map tile (x, y) draws, its woods given: picked by the canopy's own seed, worked out here
+            // apart from the art's, so a canopy picked by the grass's seed fails
+            function canopyAt(x: number, y: number, woods: number): number[] {
+                const seed = canopyJson.corners.seed as number;
+                const picked = grassTile(x, y, {colours: grassJson.colours, corners: {seed}});
+                return [woods, 64 * picked, 128, 64, 64];
+            }
+
+            it("is drawn from the woods' own tiles, by every woods id", () => {
+                expect([20, 21, 37, 39, 40].map(isWoods)).toEqual([false, true, true, true, false]);
+            });
+
+            it("marks the woods round a tile, its own in the middle, a bit for each", () => {
+                // Woods at the area's top-left, its top row's third tile, and its middle row's second, of 4 by 3
+                const values = [WOODS_TILE, 0, WOODS_TILE, 0, 0, WOODS_TILE, 0, 0, 0, 0, 0, 0];
+                const area = {width: 4, height: 3, values};
+
+                // Round the middle row's second tile: north-west 0, north-east 2, its own 4
+                expect(woodsAround(area, 1, 1)).toBe(0b000010101);
+                // Round the middle row's third: north 1, west 3
+                expect(woodsAround(area, 2, 1)).toBe(0b000001010);
+                // The woods' flags and animation are no part of it
+                expect(woodsAround({...area, values: values.map((v) => v === 0 ? v : v | BURNBIT)}, 1, 1))
+                    .toBe(0b000010101);
+            });
+
+            it("takes the woods of the map's edge for the tiles past it, as if the map ran on", () => {
+                // A 2 by 2 map, woods along its top row: past the top, and past the sides of the top row, is woods
+                const area = {width: 2, height: 2, values: [WOODS_TILE, WOODS_TILE, 0, 0]};
+                expect(woodsAround(area, 0, 0)).toBe(0b000111111);
+                // North-east of the bottom-right tile lies past the east edge, and takes the top-right tile's woods
+                expect(woodsAround(area, 1, 1)).toBe(0b000000111);
+                // And off the map in the area a view reads, past its edge
+                const offMap = {width: 3, height: 2, values: [TILE_INVALID, WOODS_TILE, 0, TILE_INVALID, 0, 0]};
+                expect(woodsAround(offMap, 1, 1)).toBe(0b000000011);
+            });
+
+            it("draws over woods, and over bare land beside them, from the woods round each", () => {
+                // Woods at the view's first tile, map tile (11, 21), and bare land beside it at (12, 21)
+                expect(canopyOf(tilesWith(5, WOODS_TILE))).toEqual([canopyAt(11, 21, 0b000010000),
+                                                                    canopyAt(12, 21, 0b000001000)]);
+            });
+
+            it("draws over bare land with woods only at a corner, from the woods in the margin", () => {
+                // Woods in the margin's top-left corner, north-west of the first tile in view
+                expect(canopyOf(tilesWith(0, WOODS_TILE))).toEqual([canopyAt(11, 21, 0b000000001), [0, 0, 0, 0, 0]]);
+            });
+
+            it("draws over a ground that lets the grass through in part, from the woods round it, so it ends on no edge", () => {
+                // Woods in the margin west of the first tile in view, the lawn, whose ground lets the grass through in
+                // part, and two from the second, bare land, which draws none
+                const values = tilesWith(5, LAWN).values.slice();
+                values[4] = WOODS_TILE;
+                expect(canopyOf(tiles(values))).toEqual([canopyAt(11, 21, 0b000001000), [0, 0, 0, 0, 0]]);
+            });
+
+            it("draws none over a ground that lets no grass through, though woods stand round it", () => {
+                // The zone beside woods in the margin west of it
+                const values = tilesWith(5, ZONE).values.slice();
+                values[4] = WOODS_TILE;
+                expect(canopyOf(tiles(values))).toEqual([NO_GRASS.slice(11), [0, 0, 0, 0, 0]]);
+            });
+
+            it("draws none over woods whose ground lets no grass through, and still over the bare land beside", () => {
+                expect(canopyOf(tilesWith(5, WOODS_TILE), grassy).map((floats) => floats[0])).toEqual([0, 0b000001000]);
+            });
         });
     });
 });

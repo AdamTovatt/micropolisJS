@@ -47,7 +47,8 @@ ORIGINAL_SPRITES = os.path.join(ART, 'sheets', 'sprites-original.png')
 # Single tiles the tools name, as src/tileValues.ts names them
 DIRT = 0
 RIVER = 2
-WOODS = 37
+WOODS_LOW, WOODS_HIGH = 21, 39             # the woods, which the game draws as the canopy over the world grass, from
+                                           # where they lie on the map, not as single tiles (grass.py)
 HBRIDGE, VBRIDGE, ROADS, ROADS2 = 64, 65, 66, 67
 HPOWER, VPOWER, LHPOWER, LVPOWER = 208, 209, 210, 211
 HRAIL, VRAIL, LHRAIL, LVRAIL = 224, 225, 226, 227
@@ -60,7 +61,6 @@ _ROAD_PIECES = range(HBRIDGE, 79)          # each road piece: the bridges, roads
 SINGLE_TILES = {
     'land': {'land': (DIRT,)},
     'water': {'water': range(RIVER, 21)},                  # open water and the river's shores
-    'woods': {'woods': range(21, WOODS + 1)},              # woods and their edges
     'parks': {'gardens': range(40, 44), 'fountain': (840,)},
     'rubble': {'rubble': range(44, 48), 'explosion': range(860, 868)},   # the bulldozer's small explosion
     'roads': {

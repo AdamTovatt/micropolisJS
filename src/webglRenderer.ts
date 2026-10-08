@@ -50,7 +50,7 @@ interface Target {
 const CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 
 // The attributes a quad's floats fill, four each, from attribute 1: a quad's target, source and colour, and a ground
-// quad's tile in each grass set and its map tile's position
+// quad's tile in each grass set, its map tile's position and the woods round it, and its canopy tile
 const QUAD_ATTRIBUTES = QUAD_FLOATS / 4;
 const GROUND_ATTRIBUTES = GROUND_QUAD_FLOATS / 4;
 
@@ -89,7 +89,12 @@ void main() {
 }`;
 
 // The ground pass's vertex shader: the textured one's, and from the quad's floats past the colour, the rectangles of
-// its tile in each grass set, its map tile's position and what it draws, for the world grass under the ground
+// its tile in each grass set, its map tile's position, what it draws, the woods round it and its canopy tile's
+// rectangle, for the world grass under the ground and the canopy over the grass. The canopy covers the surface the
+// woods make where it stands above the cut: over each tile, the quadratic Bezier patch through the tile's own woods at
+// its middle, the share of woods of the two tiles at each edge's middle and of the four at each corner, so two tiles
+// meeting at an edge agree along it, a lone tile of woods is a round clump and a clearing a round hole. Its control
+// points are the patch's values with the middle row and column moved so the patch passes through them.
 const GROUND_VERTEX_SHADER = `#version 300 es
 layout(location = 0) in vec2 corner;
 layout(location = 1) in vec4 target;
@@ -97,6 +102,7 @@ layout(location = 2) in vec4 source;
 layout(location = 4) in vec4 lush;
 layout(location = 5) in vec4 straw;
 layout(location = 6) in vec4 tile;
+layout(location = 7) in vec4 canopy;
 uniform vec2 targetSize;
 uniform vec2 atlasSize;
 uniform vec2 grassSize;
@@ -105,7 +111,24 @@ out vec2 uv;
 out vec2 lushUv;
 out vec2 strawUv;
 out vec2 fieldUv;
+out vec2 canopyUv;
+out vec2 inTile;
 flat out int draws;
+flat out int woods;
+// The patch's control points, row by row from the tile's top
+flat out vec3 controlTop;
+flat out vec3 controlMiddle;
+flat out vec3 controlBottom;
+
+// The tile dx across and dy down's woods, 1 or 0, from the bits woodsAround sets (canopy.ts), dx and dy from -1 to 1
+float woodsAt(int dx, int dy) {
+  return float((woods >> ((dy + 1) * 3 + dx + 1)) & 1);
+}
+
+// A row of the patch's values, its middle moved so the row's curve passes through it
+vec3 throughMiddle(vec3 row) {
+  return vec3(row.x, 2.0 * row.y - (row.x + row.z) / 2.0, row.z);
+}
 
 void main() {
   vec2 position = (target.xy + corner * target.zw) / targetSize * 2.0 - 1.0;
@@ -114,14 +137,29 @@ void main() {
   lushUv = (lush.xy + corner * lush.zw) / grassSize;
   strawUv = (straw.xy + corner * straw.zw) / grassSize;
   fieldUv = (tile.xy + corner) / fieldTiles;
+  canopyUv = (canopy.xy + corner * canopy.zw) / grassSize;
+  inTile = corner;
   draws = int(tile.z + 0.5);
+  woods = int(tile.w + 0.5);
+
+  float self = woodsAt(0, 0);
+  vec3 top = vec3((woodsAt(-1, -1) + woodsAt(0, -1) + woodsAt(-1, 0) + self) / 4.0, (woodsAt(0, -1) + self) / 2.0,
+                  (woodsAt(0, -1) + woodsAt(1, -1) + self + woodsAt(1, 0)) / 4.0);
+  vec3 middle = vec3((woodsAt(-1, 0) + self) / 2.0, self, (self + woodsAt(1, 0)) / 2.0);
+  vec3 bottom = vec3((woodsAt(-1, 0) + self + woodsAt(-1, 1) + woodsAt(0, 1)) / 4.0, (self + woodsAt(0, 1)) / 2.0,
+                     (self + woodsAt(1, 0) + woodsAt(0, 1) + woodsAt(1, 1)) / 4.0);
+  controlTop = throughMiddle(top);
+  controlMiddle = throughMiddle(2.0 * middle - (top + bottom) / 2.0);
+  controlBottom = throughMiddle(bottom);
 }`;
 
 // Each tile's ground, over the world grass where it lets the grass through (docs/render-assets.md): the two sets'
 // texels blended by the share of straw, keeping their contrast, then tinted. What a quad draws is one value over all of
 // it, so no tile samples what it doesn't show: an opaque ground only itself, bare land only the grass. Every grass tile
 // is one size on screen, so the grass is sampled at the frame's one mip level, which needs no derivatives in the branch
-// on the share of straw, whose sides the pixels of a quad may split between.
+// on the share of straw, whose sides the pixels of a quad may split between. Over the grass and under the ground, the
+// canopy covers the grass where the woods' surface, wobbled by the field's noise, stands above the cut, fading
+// in over the feather; where it covers all, the grass isn't sampled.
 const GROUND_SHADER = `#version 300 es
 precision highp float;
 uniform sampler2D atlas;
@@ -133,12 +171,25 @@ uniform vec3 warm;
 uniform float brightness;
 uniform float warmth;
 uniform float level;
+uniform float canopyCut;
+uniform float canopyFeather;
 in vec2 uv;
 in vec2 lushUv;
 in vec2 strawUv;
 in vec2 fieldUv;
+in vec2 canopyUv;
+in vec2 inTile;
 flat in int draws;
+flat in int woods;
+flat in vec3 controlTop;
+flat in vec3 controlMiddle;
+flat in vec3 controlBottom;
 out vec4 colour;
+
+// The quadratic Bezier basis at t
+vec3 basis(float t) {
+  return vec3((1.0 - t) * (1.0 - t), 2.0 * t * (1.0 - t), t * t);
+}
 
 void main() {
   if (draws == ${GROUND_ONLY}) {
@@ -148,11 +199,28 @@ void main() {
 
   // Over the grass: the ground where it shows any, or none where it lets all the grass through
   vec4 ground = draws == ${GROUND_OVER_GRASS} ? texture(atlas, uv) : vec4(0.0);
-  vec2 mixed = textureLod(field, fieldUv, 0.0).rg;
+  vec3 mixed = textureLod(field, fieldUv, 0.0).rgb;
   float share = mixed.r;
   float tint = mixed.g;
-  // Most land is all straw or all lush, where the other set weighs nothing and isn't sampled
+  // How much of the grass the canopy covers
+  float cover = 0.0;
+  if (woods != 0) {
+    vec3 across = basis(inTile.x);
+    float surface = dot(basis(inTile.y), vec3(dot(across, controlTop), dot(across, controlMiddle),
+                                             dot(across, controlBottom)));
+    // The wobble, from -1 to 1, moves the edge most where the surface is halfway and none where it is 0 or 1, so it
+    // never makes a hole in the woods or a speck of canopy on open land
+    float held = clamp(surface, 0.0, 1.0);
+    surface += (mixed.b * 2.0 - 1.0) * 4.0 * held * (1.0 - held);
+    cover = clamp((surface - canopyCut) / canopyFeather + 0.5, 0.0, 1.0);
+  }
   vec3 green;
+  if (cover >= 1.0) {
+    green = textureLod(grass, canopyUv, level).rgb;
+    colour = vec4(ground.rgb + green * (1.0 - ground.a), 1.0);
+    return;
+  }
+  // Most land is all straw or all lush, where the other set weighs nothing and isn't sampled
   if (share >= 1.0) {
     green = textureLod(grass, strawUv, level).rgb;
   } else if (share <= 0.0) {
@@ -165,6 +233,9 @@ void main() {
   }
   green *= 1.0 + brightness * (tint - 0.5);
   green = mix(green, green * warm, warmth * clamp((tint - 0.45) * 2.0, 0.0, 1.0));
+  if (cover > 0.0) {
+    green = mix(clamp(green, 0.0, 1.0), textureLod(grass, canopyUv, level).rgb, cover);
+  }
   colour = vec4(ground.rgb + clamp(green, 0.0, 1.0) * (1.0 - ground.a), 1.0);
 }`;
 
@@ -199,8 +270,10 @@ interface Program {
   atlasSize: WebGLUniformLocation | null;
 }
 
-// The ground pass's program, and the further uniforms it draws the world grass with
+// The ground pass's program, and the further uniforms it draws the world grass and the canopy with
 interface GroundProgram extends Program {
+  canopyCut: WebGLUniformLocation | null;
+  canopyFeather: WebGLUniformLocation | null;
   grassSize: WebGLUniformLocation | null;
   fieldTiles: WebGLUniformLocation | null;
   lushMean: WebGLUniformLocation | null;
@@ -624,6 +697,8 @@ export class WebGLRenderer {
     gl.uniform3f(program.warm, ...grass.warm);
     gl.uniform1f(program.brightness, grass.brightness);
     gl.uniform1f(program.warmth, grass.warmth);
+    gl.uniform1f(program.canopyCut, grass.canopyCut);
+    gl.uniform1f(program.canopyFeather, grass.canopyFeather);
     gl.uniform1f(program.level, level);
   }
 
@@ -780,6 +855,8 @@ export class WebGLRenderer {
     const location = (name: string) => gl.getUniformLocation(program, name);
     return {
       ...created,
+      canopyCut: location("canopyCut"),
+      canopyFeather: location("canopyFeather"),
       grassSize: location("grassSize"),
       fieldTiles: location("fieldTiles"),
       lushMean: location("lushMean"),
