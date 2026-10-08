@@ -16,9 +16,11 @@ import type { CarShareStep } from "./carShare";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { Ride, TilePosition, Trip } from "./protocol";
 import { RoadTraffic, carOpacity } from "./roadTraffic";
+import type { RoadCar } from "./roadTraffic";
 import { directionOf, stepOf, tripRoute } from "./routeTiles";
 import type { CarDirection } from "./routeTiles";
 import { Trains, carsShown, tilesOf } from "./trains";
+import type { TileRect } from "./viewPosition";
 
 // The cars the client draws for the city's traffic: each trip a trips message brings (protocol/README.md) becomes a car
 // that drives its route once in the right-hand lane, among the other cars (roadTraffic.ts), and is gone at its end, and
@@ -28,9 +30,29 @@ import { Trains, carsShown, tilesOf } from "./trains";
 // end-to-end suite fixes, so there cars stand at the starts of their routes and trains at their stations.
 
 // The most cars driving at once when every trip and ride becomes one, a share of it at a smaller share of them, a
-// train's cars counted each, and the cars waiting to appear and fading out. A car or a train's car that arrives while that many drive
-// is dropped, so none is cut short.
+// train's cars counted each, and the cars waiting to appear and fading out. A car or a train's car that arrives while
+// that many drive is dropped, but for one near the main map's view (Cars.add).
 export const MAX_CARS = 2000;
+
+// How far round the tiles the main map's view shows a car counts as near it, in tiles
+export const VIEW_MARGIN = 8;
+
+// The tiles near a view: those it shows, and VIEW_MARGIN more on every side
+export function nearView(shown: TileRect): TileRect {
+  return {left: shown.left - VIEW_MARGIN, top: shown.top - VIEW_MARGIN,
+          right: shown.right + VIEW_MARGIN, bottom: shown.bottom + VIEW_MARGIN};
+}
+
+// How far, in tiles, the nearest of a route's tiles from the index given to its end lies from the tiles given, as a
+// king moves: 0 where one of them is among those tiles
+export function distanceFrom(route: readonly TilePosition[], from: number, tiles: TileRect): number {
+  let least = Infinity;
+  for (let index = from; index < route.length && least > 0; index++) {
+    const {x, y} = route[index];
+    least = Math.min(least, Math.max(tiles.left - x, x - tiles.right, tiles.top - y, y - tiles.bottom, 0));
+  }
+  return least;
+}
 
 // The most cars driving at once at the step of the Cars slider given: MAX_CARS times its share, and none at Off
 export function carCap(step: CarShareStep): number {
@@ -159,7 +181,8 @@ export function carColour(route: readonly TilePosition[]): number {
 // The cars and trains: their own drive clock, which moves on with the client's while the city runs and stands while
 // it's paused, so each stands still while the city is paused and picks up again when it runs. Which trips and rides
 // become cars is the step of the Cars slider the player chose (CarSharePreference), read as each trips message
-// arrives, so a smaller share starts fewer from then on and every one already driving finishes its route.
+// arrives, so a smaller share starts fewer from then on and every one already driving finishes its route, but one whose
+// place a car near the view takes (add).
 export class Cars {
   private readonly road: RoadTraffic;
   private readonly trains = new Trains();
@@ -170,9 +193,10 @@ export class Cars {
   private arrived = 0;
   private ridden = 0;
 
-  // share is the step of the Cars slider, as the player has it now, and isCrossing says whether a tile of the map is a
-  // level crossing
-  constructor(private readonly share: () => CarShareStep, isCrossing: (tile: TilePosition) => boolean) {
+  // share is the step of the Cars slider, as the player has it now, isCrossing says whether a tile of the map is a
+  // level crossing, and view is the tiles the main map's view shows now
+  constructor(private readonly share: () => CarShareStep, isCrossing: (tile: TilePosition) => boolean,
+              private readonly view: () => TileRect) {
     this.road = new RoadTraffic(isCrossing);
   }
 
@@ -183,17 +207,20 @@ export class Cars {
   }
 
   // A car for each trip a trips message brings that the step takes (takesTrip), which waits to appear at the trip's
-  // start, in order, but a car that arrives while the step's cap drive (carCap), which is dropped. A trip of no steps
-  // has nowhere to drive.
+  // start, in order, while fewer than the step's cap drive (carCap). With that many, a car near the view takes the
+  // place of one far from it, if any (FarCars.giveWayTo); past it, as after the share went down, one car's place leaves
+  // no room under the cap, so the car is dropped, as any other is. A trip of no steps has nowhere to drive.
   add(trips: readonly Trip[]): void {
     const step = this.share();
+    const cap = carCap(step);
+    const farCars = new FarCars(this.view, this.road);
     for (const trip of trips) {
       const index = this.arrived++;
       if (!takesTrip(index, step)) {
         continue;
       }
       const route = tripRoute(trip);
-      if (route.length > 1 && this.carsHeld() + 1 <= carCap(step)) {
+      if (route.length > 1 && (this.carsHeld() + 1 <= cap || (this.carsHeld() === cap && farCars.giveWayTo(route)))) {
         this.road.add(route, carColour(route), this.clock);
       }
     }
@@ -259,6 +286,51 @@ export class Cars {
   carsHeld(): number {
     return this.road.count + this.trains.cars;
   }
+}
+
+// The cars on the road far from the main map's view, whose places cars near it take while the most drive, as a batch
+// of trips arrives: the tiles near the view, and the cars far from them, are found the first time each is needed, and
+// hold for the rest of the batch, since no car drives on while it arrives and every car it adds once the most drive is
+// near the view
+class FarCars {
+  private near: TileRect | null = null;
+  // The cars far from the view, the farthest last, and of those as far the one added first last
+  private far: RoadCar[] | null = null;
+
+  // view is the tiles the main map's view shows now
+  constructor(private readonly view: () => TileRect, private readonly road: RoadTraffic) {}
+
+  // For a car on the route given with a tile near the view (nearView), takes the car on the road farthest from it off
+  // the road at once, and says whether it did: where one has none of the rest of its route near the view, from where it
+  // is, or its start while it waits to appear (distanceFrom), so a car still driving into the view is never taken off.
+  // Of cars as far, the one added first goes.
+  giveWayTo(route: readonly TilePosition[]): boolean {
+    const near = this.near ??= nearView(this.view());
+    if (distanceFrom(route, 0, near) > 0) {
+      return false;
+    }
+    this.far ??= farFrom(this.road.all, near);
+    const farthest = this.far.pop();
+    if (farthest === undefined) {
+      return false;
+    }
+    this.road.remove(farthest);
+    return true;
+  }
+}
+
+// The cars given with none of the rest of their routes among the tiles given, the farthest from them last, and of those
+// as far the one added first last
+function farFrom(cars: readonly RoadCar[], tiles: TileRect): RoadCar[] {
+  const far: {car: RoadCar, distance: number}[] = [];
+  for (const car of cars) {
+    const distance = distanceFrom(car.route, Math.floor(car.distance), tiles);
+    if (distance > 0) {
+      far.push({car, distance});
+    }
+  }
+  far.sort((a, b) => a.distance - b.distance || b.car.order - a.car.order);
+  return far.map(({car}) => car);
 }
 
 // The square a car is drawn in, whose middle is the point of the map (x, y), in tiles

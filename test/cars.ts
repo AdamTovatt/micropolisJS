@@ -17,7 +17,8 @@ import { readFileSync } from "fs";
 import { CAR_SHARE_STEPS } from "../src/carShare";
 import type { CarShareStep } from "../src/carShare";
 import {
-    CAR_PIXELS, Cars, LANE_OFFSET, MAX_CARS, TRACK_OFFSET, carCap, carColour, carPlace, trainPlace,
+    CAR_PIXELS, Cars, LANE_OFFSET, MAX_CARS, TRACK_OFFSET, VIEW_MARGIN, carCap, carColour, carPlace, distanceFrom,
+    nearView, trainPlace,
 } from "../src/cars";
 import type { CarPlace, PaintableCar } from "../src/cars";
 import { CAR_BREADTH, CAR_LENGTH } from "../src/mapFrame";
@@ -28,6 +29,7 @@ import { sameTile, tripRoute } from "../src/routeTiles";
 import {
     DEPARTURE_INTERVAL, STEPS_PER_SECOND, TRAIN_CAR_SPACING, TRAIN_TILES_PER_SECOND, Trains, tilesOf,
 } from "../src/trains";
+import type { TileRect } from "../src/viewPosition";
 import { repositoryPath } from "./helpers/repository";
 import { RULES } from "./helpers/ruleConstants";
 
@@ -79,14 +81,18 @@ function near(distances: number[]): number[] {
 // The Cars slider's steps, by name
 const [OFF, TENTH, QUARTER, HALF, ALL] = CAR_SHARE_STEPS;
 
+// A view that shows every tile, so every car is near it and none takes another's place
+const EVERY_TILE: TileRect = {left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity};
+
 // The cars, and the client's clock they were last moved to, which runs on an animation frame at a time, on a map whose
-// level crossings are the tiles given
+// level crossings are the tiles given, the main map's view showing the tiles view has
 class Drive {
     now = NOW;
+    view = EVERY_TILE;
     readonly cars: Cars;
 
     constructor(share: () => CarShareStep, crossings: readonly TilePosition[] = []) {
-        this.cars = new Cars(share, (tile) => crossings.some((crossing) => sameTile(crossing, tile)));
+        this.cars = new Cars(share, (tile) => crossings.some((crossing) => sameTile(crossing, tile)), () => this.view);
         this.cars.advance(NOW, false);
     }
 
@@ -443,6 +449,162 @@ describe("the share of the trips that become cars", () => {
         drive.add(...shortTrips(4, 2));
 
         expect(rows(drive)).toEqual([4, 5]);
+    });
+});
+
+describe("the tiles near the main map's view", () => {
+    it("are the tiles it shows and VIEW_MARGIN more on every side", () => {
+        expect(nearView({left: 0, top: 0, right: 9, bottom: 4})).toEqual({left: -8, top: -8, right: 17, bottom: 12});
+        expect(VIEW_MARGIN).toBe(8);
+    });
+
+    // A route west along row 7 from (20, 7) to (4, 7), its thirteenth tile (8, 7) and its sixth (15, 7)
+    const ROW = tripRoute([20, 7, "W".repeat(16)]);
+    const VIEW: TileRect = {left: 0, top: 0, right: 9, bottom: 4};
+    const EAST_OF_IT: TileRect = {left: 30, top: 7, right: 31, bottom: 7};
+
+    it.each<[string, TilePosition[], number, TileRect, number]>([
+        ["a route below and right of the tiles, the farther way", tripRoute([14, 9, "E"]), 0, VIEW, 5],
+        ["a route that drives into the tiles", tripRoute([5, 7, "NNNN"]), 0, VIEW, 0],
+        ["a route along a row below the tiles, from its start", ROW, 0, VIEW, 3],
+        ["a route along a row below the tiles, from a tile below them", ROW, 12, VIEW, 3],
+        ["a route driving away from the tiles, from its start", ROW, 0, EAST_OF_IT, 10],
+        ["a route driving away from the tiles, from a tile on", ROW, 5, EAST_OF_IT, 15],
+    ])("lie from %s as a king moves, from the nearest of its tiles from the index given", (_, route, from, tiles,
+                                                                                           distance) => {
+        expect(distanceFrom(route, from, tiles)).toBe(distance);
+    });
+});
+
+// The view shows columns 0 to 99 of every row the fillers drive: they are near it, and a trip from column 200 or past
+// it is far from it
+describe("the cars near the view, while the most drive", () => {
+    const SHOWN: TileRect = {left: 0, top: 0, right: 99, bottom: MAX_CARS};
+
+    // A trip one step east from the column and row given, far from the view from column 200
+    const from = (x: number, y = 10): Trip => [x, y, "E"];
+
+    // The most cars, the trips given last after near ones, taking every trip, with the view showing SHOWN
+    function full(...last: Trip[]): Drive {
+        const drive = new Drive(() => ALL);
+        drive.view = SHOWN;
+        return drive.add(...shortTrips(0, MAX_CARS - last.length), ...last);
+    }
+
+    // Where the cars on the road showing start, as "column,row", but for the near ones the fillers drive, in the order
+    // they arrived
+    function others({cars}: Drive): string[] {
+        const tile = (pixels: number) => Math.floor((pixels + CAR_PIXELS / 2) / SPRITE_PIXELS_PER_TILE);
+        return cars.paintable().filter((car) => car.kind === "road" && tile(car.x) !== 0)
+            .map((car) => `${tile(car.x)},${tile(car.y)}`);
+    }
+
+    it("take the place of the car farthest from it with the rest of its route outside it, which is gone at once", () => {
+        const drive = full(from(200), from(300));
+
+        drive.add(EAST_TRIP);
+
+        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, ["200,10", "10,5"]]);
+    });
+
+    it("are dropped while every car on the road is near it", () => {
+        const drive = full();
+
+        drive.add(EAST_TRIP);
+
+        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, []]);
+    });
+
+    it("are the only ones that take a far car's place: a car far from it is dropped", () => {
+        const drive = full(from(300));
+
+        drive.add(from(200, 20));
+
+        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, ["300,10"]]);
+    });
+
+    // A car starting at column 400 drives west to column 100, inside the view's margin: it is farther than the car
+    // from column 200, but drives into the view, so it stays
+    it("never take the place of a car still driving into it", () => {
+        const drive = full(from(200), [400, 10, "W".repeat(300)]);
+
+        drive.add(EAST_TRIP);
+
+        expect(others(drive)).toEqual(["400,10", "10,5"]);
+    });
+
+    // A car from column 100, inside the margin, drives east to column 200: five seconds on, at column 120, the rest of
+    // its route is outside the view
+    it("take the place of a car that has driven out of it", () => {
+        const drive = new Drive(() => ALL);
+        drive.view = SHOWN;
+        drive.add([100, 10, "E".repeat(100)]).run(5000);
+        drive.add(...shortTrips(0, MAX_CARS - 1));
+
+        drive.add(EAST_TRIP);
+
+        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, ["10,5"]]);
+    });
+
+    // The cars from (200, 30) and (200, 10) are as far from the view, the one from row 30 added first
+    it("take the place of the one added first of the cars as far", () => {
+        const drive = full(from(200, 30), from(200, 10));
+
+        drive.add(EAST_TRIP);
+
+        expect(others(drive)).toEqual(["200,10", "10,5"]);
+    });
+
+    // Three near trips arrive in one batch: the first takes the place of the car from column 300, the second that of the
+    // car from column 200, and the third is dropped, no car far from the view being left
+    it("take the places of the far cars one by one, farthest first, in a batch of them", () => {
+        const drive = full(from(200), from(300));
+
+        drive.add(EAST_TRIP, [20, 5, "E"], [30, 5, "E"]);
+
+        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, ["10,5", "20,5"]]);
+    });
+
+    // Two cars from (300, 10) go east, the first on east, the second, which waits to appear behind it on its first
+    // tile, turning south: once the first is gone, the second appears and drives on, turning south a tile on
+    it("let the car waiting behind the one whose place they take go on", () => {
+        const drive = full([300, 10, "EE"], [300, 10, "ES"]);
+        const before = others(drive);
+
+        drive.add(EAST_TRIP);
+        const after = others(drive);
+        drive.run(TILE_MS * 1.5);
+
+        expect([before, after, drive.cars.paintable().filter(({kind}) => kind === "road").map(({direction}) => direction)])
+            .toEqual([["300,10"], ["300,10", "10,5"], ["south", "east"]]);
+    });
+
+    // At All, 300 drive, one of them far; then the share goes down to a tenth, whose most is 200: a car near the view
+    // can't fit under it by taking one car's place, so it is dropped and the far car kept
+    it("are dropped while more than the share's most drive, after the share went down", () => {
+        let step = ALL;
+        const drive = new Drive(() => step);
+        drive.view = SHOWN;
+        drive.add(...shortTrips(0, 299), from(300));
+
+        step = TENTH;
+        drive.add(EAST_TRIP);
+
+        expect([drive.cars.carsHeld(), others(drive)]).toEqual([300, ["300,10"]]);
+    });
+
+    // The cars on the road are near the view, at column 0, and a train's car far from it, from (10, 5): a car near it
+    // is dropped rather than take the train's place
+    it("never take the place of a train's car", () => {
+        const drive = new Drive(() => ALL);
+        drive.view = {left: 0, top: 0, right: 1, bottom: MAX_CARS};
+        drive.add(...shortTrips(0, MAX_CARS - 1));
+        drive.cars.addRides([[10, 5, "EEEE", 6000]], 6000);
+
+        drive.add([5, 5, "E"]);
+
+        expect([drive.cars.carsHeld(), drive.cars.paintable().filter(({kind}) => kind === "road").length])
+            .toEqual([MAX_CARS, MAX_CARS - 1]);
     });
 });
 

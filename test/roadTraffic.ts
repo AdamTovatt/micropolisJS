@@ -335,3 +335,66 @@ describe("the cars on the road", () => {
         expect(new Set(road.traffic.all.map(({distance}) => distance.toFixed(6))).size).toBe(1);
     });
 });
+
+describe("a car taken off the road", () => {
+    it("is gone at once, with no fade", () => {
+        const road = new Road().add([10, 5, "EEEE"]).run(200);
+
+        road.traffic.remove(road.traffic.all[0]);
+
+        expect(road.traffic.count).toBe(0);
+    });
+
+    it("can't be taken off again", () => {
+        const road = new Road().add([10, 5, "EEEE"]).run(200);
+        const [car] = road.traffic.all;
+        road.traffic.remove(car);
+
+        expect(() => road.traffic.remove(car)).toThrow("Car 0 is not on the road");
+    });
+
+    it("lets the cars queued behind it in its lane drive on", () => {
+        // A train at (14, 5) the first of three cars stops short of, the other two behind it, each its gap behind the
+        // car ahead: once the first is gone, the second drives up to where the first stood
+        const road = new Road();
+        road.trainTiles.add(tileKey({x: 14, y: 5}));
+        for (let i = 0; i < 3; i++) {
+            road.add([10, 5, "EEEEEE"]).run(400);
+        }
+        road.run(2000);
+
+        road.traffic.remove(road.traffic.all[0]);
+        road.run(1000);
+
+        const distances = road.traffic.all.map(({distance}) => distance);
+        expect(distances[0]).toBeCloseTo(stopsShortOf(4), 6);
+        expect(distances[0] - distances[1]).toBeCloseTo(CAR_GAP, 1);
+    });
+
+    it("lets a car waiting to appear on its first tile appear", () => {
+        // The first car stands on its first tile, short of a train at (11, 5), and the second waits to appear there
+        const road = new Road();
+        road.trainTiles.add(tileKey({x: 11, y: 5}));
+        road.add([10, 5, "EEEE"]).run(500).add([10, 5, "EEEE"]).run(500);
+
+        road.traffic.remove(road.traffic.all[0]);
+        road.run(FRAME);
+
+        expect(road.traffic.all.map(({order, state}) => [order, state])).toEqual([[1, "driving"]]);
+    });
+
+    it("lets the cars that came to wait for a tile after it take it", () => {
+        // The first car stands on its first tile, short of a train at (11, 5); the second waits to appear there, and
+        // the third, which turns south there across the second's path, waits after it. With the second gone, the third
+        // takes the tile once the first has driven off it.
+        const road = new Road();
+        road.trainTiles.add(tileKey({x: 11, y: 5}));
+        road.add([10, 5, "EEEEEEEE"]).run(500).add([10, 5, "EEEE"]).run(200).add([10, 5, "SSSS"]).run(200);
+
+        road.traffic.remove(road.traffic.all[1]);
+        road.trainTiles.clear();
+        road.run(1000);
+
+        expect(road.traffic.all.map(({order, state}) => [order, state])).toEqual([[0, "driving"], [2, "driving"]]);
+    });
+});
