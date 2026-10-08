@@ -124,7 +124,7 @@ const noTint = () => null;
 // A car facing east on the tile column across and row down from the wide view's origin
 function carAt(column: number, row: number): PaintableCar {
     return {kind: "road", x: (WIDE.origin.x + column) * 16, y: (WIDE.origin.y + row) * 16, width: 16, direction: "east",
-            colour: 0};
+            colour: 0, opacity: 1};
 }
 
 describe("a painter of the map", () => {

@@ -19,8 +19,9 @@ import { cpus, loadavg, platform, release } from "os";
 import { join } from "path";
 
 import { CAR_SHARE_KEY, CAR_SHARE_STEPS } from "../src/carShare";
-import { STEP_LETTERS, tripRoute } from "../src/cars";
 import type { Trip } from "../src/protocol";
+import { CAR_TILES_PER_SECOND } from "../src/roadTraffic";
+import { STEP_LETTERS, tripRoute } from "../src/routeTiles";
 import { CITY_LINK, serverForTests } from "./gameServer";
 import { collectPageProblems } from "./page";
 import { Player, TESTER } from "./player";
@@ -28,10 +29,11 @@ import type { GameSave, Tile } from "./player";
 import { isRoad, tilesWhere } from "./savedMap";
 
 // The render benchmark, `npm run benchmark:render`: how fast the page draws the map as the cars on it grow. It plays a
-// fixture's city on a game server of its own, the driver held throughout so no tile changes, and drives synthetic cars
-// on the roads in view, added through the test hook, then counts over a while the turns of the page's animation loop
-// and the frames of them the map's painter drew. It prints a table of both rates and the machine's load average as
-// each was measured, with the machine, the build and the date beside it. Its numbers belong to the machine, so CI
+// fixture's city on a game server of its own, the driver held throughout so no tile changes, and holds a count of
+// synthetic cars on the roads in view, added through the test hook, then counts over a while the turns of the page's
+// animation loop and the frames of them the map's painter drew. It prints a table of both rates, the cars showing on
+// average, fewer than those held where they queue and wait to appear, and the machine's load average as each was
+// measured, with the machine, the build and the date beside it. Its numbers belong to the machine, so CI
 // never runs it, and nothing keeps them.
 
 // The fixture saves the city is chosen from: the run saves, of which it plays the one with the most road tiles
@@ -40,20 +42,25 @@ const RUN_SAVE = /^(.+\.run)\.json$/;
 // The zooms measured, in CSS pixels a tile: the one the game opens at, and the next
 const ZOOMS = [16, 32];
 
-// The cars driven at each zoom, the first the baseline: the view with no cars
+// The cars held at each zoom, the first the baseline: the view with no cars
 const CAR_COUNTS = [0, 60, 200, 500];
 
 // How long the page draws before it is measured, and how long it is measured, in milliseconds
 const WARM_UP_MS = 2000;
 const MEASURE_MS = 10000;
 
+// How often the cars showing are counted over the measurement, in milliseconds
+const SHOWING_SAMPLE_MS = 100;
+
 // The trips laid along the roads in view: how many, the most tiles one stands on, and the seed of their random walks
 const TRIPS = 4096;
 const MOST_ROUTE_TILES = 64;
 const ROUTE_SEED = 163;
 
-// How long the cars of one count may take to drive to the ends of their routes, after which none should be left
-const CARS_GONE_MS = (MOST_ROUTE_TILES / 4 + 10) * 1000;
+// How long the cars of one count may take to drive to the ends of their routes, after which none should be left: the
+// longest route's drive three times over, since cars queue on the way, and slower where a busy page's frames are
+// longer than a car drives in one (LONGEST_DRIVE_MS)
+const CARS_GONE_MS = MOST_ROUTE_TILES / CAR_TILES_PER_SECOND * 3 * 1000;
 
 const server = serverForTests("manual");
 
@@ -62,16 +69,28 @@ const VIEWPORT = {width: 1440, height: 900};
 
 test.use({viewport: VIEWPORT, deviceScaleFactor: 1});
 
-// What one count of cars measured at a zoom: the turns of the page's animation loop a second, and the frames the map's
-// painter drew a second, and the machine's load average over the last minute as it ended, since on software WebGL the
-// rates follow the load
+// What one count of cars held measured at a zoom: the turns of the page's animation loop a second, and the frames the
+// map's painter drew a second, the cars showing on average, and the machine's load average over the last minute as it
+// ended, since on software WebGL the rates follow the load
 interface Measured {
   zoom: number;
   cars: number;
   animated: number;
   painted: number;
+  showing: number;
   load: number;
 }
+
+// The cars showing counted over a measurement: the counts taken, their sum, and the page's timer taking them
+interface ShowingCount {
+  samples: number;
+  cars: number;
+  timer: number;
+}
+
+// The page's window, with what the benchmark keeps on it: the timer keeping the cars held at a count, and the cars
+// showing it counts
+type BenchmarkWindow = Window & {benchmarkCars?: number, benchmarkShowing?: ShowingCount};
 
 // A fixture's save, by its name, and the road tiles on its map, which the city played keeps while the driver is held
 interface Fixture {
@@ -157,21 +176,22 @@ function tripsAlong(roads: readonly Tile[], where: string): Trip[] {
   return trips;
 }
 
-// Keeps the cars driving at the count given: as cars reach the ends of their routes, cars on the next trips take their
-// place. A count of none lets the cars driving finish their routes. Gives the cars driving once the first cars were
-// added, before any could finish.
+// Keeps the cars the page holds at the count given, those showing and those waiting to appear alike, since cars queue
+// and one whose first tile is taken waits: as cars reach the ends of their routes, or are dropped, cars on the next
+// trips take their place. A count of none lets the cars held finish their routes. Gives the cars held once the first
+// cars were added, before any could finish.
 async function keepCarsAt(page: Page, trips: readonly Trip[], count: number): Promise<number> {
   return page.evaluate(({trips, count}) => {
-    const page = window as unknown as {benchmarkCars?: number};
+    const page = window as BenchmarkWindow;
     const hook = window.micropolisTestHook!;
     window.clearInterval(page.benchmarkCars);
     if (count === 0) {
-      return hook.carsDriven().length;
+      return hook.carsHeld();
     }
 
     let next = 0;
     const topUp = () => {
-      const missing = count - hook.carsDriven().length;
+      const missing = count - hook.carsHeld();
       const added = [];
       for (let i = 0; i < missing; i++) {
         added.push(trips[next++ % trips.length]);
@@ -180,25 +200,39 @@ async function keepCarsAt(page: Page, trips: readonly Trip[], count: number): Pr
     };
     topUp();
     page.benchmarkCars = window.setInterval(topUp, 50);
-    return hook.carsDriven().length;
+    return hook.carsHeld();
   }, {trips, count});
 }
 
-async function carsDriving(page: Page): Promise<number> {
-  return page.evaluate(() => window.micropolisTestHook!.carsDriven().length);
+async function carsHeld(page: Page): Promise<number> {
+  return page.evaluate(() => window.micropolisTestHook!.carsHeld());
 }
 
-// The page's frames a second over the measurement, after the warm-up
-async function measure(page: Page): Promise<Pick<Measured, "animated" | "painted" | "load">> {
+// The page's frames a second over the measurement, after the warm-up, and the cars showing on average over it, read
+// every SHOWING_SAMPLE_MS: fewer than those held where cars queue and wait to appear
+async function measure(page: Page): Promise<Pick<Measured, "animated" | "painted" | "showing" | "load">> {
   const read = () => page.evaluate(() => ({...window.micropolisTestHook!.frameCounts(), at: performance.now()}));
 
   await page.waitForTimeout(WARM_UP_MS);
+  await page.evaluate((every) => {
+    const showing: ShowingCount = {samples: 0, cars: 0, timer: 0};
+    showing.timer = window.setInterval(() => {
+      showing.samples++;
+      showing.cars += window.micropolisTestHook!.carsDriven().length;
+    }, every);
+    (window as BenchmarkWindow).benchmarkShowing = showing;
+  }, SHOWING_SAMPLE_MS);
   const start = await read();
   await page.waitForTimeout(MEASURE_MS);
   const end = await read();
+  const showing = await page.evaluate(() => {
+    const {samples, cars, timer} = (window as BenchmarkWindow).benchmarkShowing!;
+    window.clearInterval(timer);
+    return samples === 0 ? 0 : cars / samples;
+  });
   const seconds = (end.at - start.at) / 1000;
   return {animated: (end.animated - start.animated) / seconds, painted: (end.painted - start.painted) / seconds,
-          load: loadavg()[0]};
+          showing, load: loadavg()[0]};
 }
 
 function table(measured: readonly Measured[], fixture: string, buildId: string): string {
@@ -211,14 +245,16 @@ function table(measured: readonly Measured[], fixture: string, buildId: string):
     `Fixture: ${fixture}, ${VIEWPORT.width}×${VIEWPORT.height}, 1 device pixel to the CSS pixel, ` +
       `${MEASURE_MS / 1000} s measured`,
     "",
-    "| Zoom | Cars | Animation frames/s | Painter frames/s | Animation, of baseline | Painter, of baseline | Load |",
-    "|-----:|-----:|-------------------:|-----------------:|-----------------------:|---------------------:|-----:|",
+    "| Zoom | Cars held | Cars showing | Animation frames/s | Painter frames/s | Animation, of baseline | " +
+      "Painter, of baseline | Load |",
+    "|-----:|----------:|-------------:|-------------------:|-----------------:|-----------------------:|" +
+      "---------------------:|-----:|",
   ];
 
   for (const row of measured) {
     // The baseline: the page's animation frames on the same view with no cars
     const baseline = measured.find((other) => other.zoom === row.zoom && other.cars === 0)!.animated;
-    lines.push(`| ${row.zoom} | ${row.cars} | ${row.animated.toFixed(1)} | ${row.painted.toFixed(1)} | ` +
+    lines.push(`| ${row.zoom} | ${row.cars} | ${row.showing.toFixed(0)} | ${row.animated.toFixed(1)} | ${row.painted.toFixed(1)} | ` +
                `${percent(row.animated, baseline)} | ${percent(row.painted, baseline)} | ${row.load.toFixed(1)} |`);
   }
 
@@ -257,13 +293,13 @@ test("the map's frames a second, as the cars on it grow", async ({page}) => {
     const trips = tripsAlong(inView, `the view at ${zoom} px a tile from tile (${originX}, ${originY})`);
 
     for (const cars of CAR_COUNTS) {
-      const driving = await keepCarsAt(page, trips, cars);
+      const held = await keepCarsAt(page, trips, cars);
       if (cars === 0) {
-        await expect.poll(() => carsDriving(page), {message: "the cars driving, once they have finished their routes",
-                                                    timeout: CARS_GONE_MS}).toBe(0);
+        await expect.poll(() => carsHeld(page), {message: "the cars held, once they have finished their routes",
+                                                 timeout: CARS_GONE_MS}).toBe(0);
       } else {
-        // A count the page can't drive, past the cap on the cars driving at once, fails rather than measure fewer
-        expect(driving, "the cars driving").toBe(cars);
+        // A count the page can't hold, past the cap on the cars at once, fails rather than measure fewer
+        expect(held, "the cars held").toBe(cars);
       }
 
       measured.push({zoom, cars, ...await measure(page)});

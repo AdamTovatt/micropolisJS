@@ -12,8 +12,9 @@
  *
  */
 
-import { CAR_COLOURS, CAR_DIRECTIONS } from "./cars";
-import type { CarDirection } from "./cars";
+import { CAR_COLOURS } from "./cars";
+import { CAR_DIRECTIONS } from "./routeTiles";
+import type { CarDirection } from "./routeTiles";
 import type { Rect } from "./rect";
 import { tileImageOrigin } from "./tileSet";
 import { TILE_COUNT } from "./tileValues";

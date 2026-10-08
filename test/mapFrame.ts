@@ -215,9 +215,9 @@ describe("a frame of the map", () => {
     it("draws each car under the sprites, from its art filling its square, or else a flat rectangle long its way", () => {
         // The view's origin is map tile (11, 21): map pixels (176, 336), at 64 device pixels a tile, so a car's square
         // of a tile is 64 device pixels, and a car with no art 17 by 7 of them, in its middle
-        const north = {kind: "road", x: 180, y: 340, width: 16, direction: "north", colour: 0} as const;
-        const east = {kind: "road", x: 200, y: 340, width: 16, direction: "east", colour: 0} as const;
-        const southBlue = {kind: "road", x: 220, y: 340, width: 16, direction: "south", colour: 1} as const;
+        const north = {kind: "road", x: 180, y: 340, width: 16, direction: "north", colour: 0, opacity: 1} as const;
+        const east = {kind: "road", x: 200, y: 340, width: 16, direction: "east", colour: 0, opacity: 1} as const;
+        const southBlue = {kind: "road", x: 220, y: 340, width: 16, direction: "south", colour: 1, opacity: 1} as const;
         const helicopter = {type: 2, frame: 2, x: 180, y: 340, width: 32};
         const frame = build(tilesWith(0, 0), 64, noTint, [helicopter], [north, east, southBlue]);
 
@@ -229,6 +229,20 @@ describe("a frame of the map", () => {
                 {target: [176 + (64 - 7) / 2, 16 + (64 - 17) / 2, 7, 17], source: [0, 0, 1, 1], colour: carFloats(1)},
             ]},
             {atlas: FALLBACK_SPRITES, quads: [{target: [16, 16, 128, 128], source: [48, 48, 32, 32], colour: OPAQUE}]},
+        ]);
+    });
+
+    // A car fading out shows as much of itself as its opacity: its tint premultiplied by it, from its art or in its flat
+    // colour alike, as the renderer blends premultiplied colours
+    it("draws a car fading out with its art's tint, or its flat colour, premultiplied by its opacity", () => {
+        const north = {kind: "road", x: 180, y: 340, width: 16, direction: "north", colour: 0, opacity: 0.25} as const;
+        const east = {kind: "road", x: 200, y: 340, width: 16, direction: "east", colour: 0, opacity: 0.5} as const;
+        const frame = build(tilesWith(0, 0), 64, noTint, [], [north, east]);
+
+        const [red, green, blue] = CAR_COLOURS[0].flat;
+        expect(quads(frame.sprites).map(({quads: found}) => found[0].colour)).toEqual([
+            [0.25, 0.25, 0.25, 0.25],
+            [red * 0.5, green * 0.5, blue * 0.5, 0.5].map(Math.fround),
         ]);
     });
 
@@ -324,8 +338,8 @@ describe("a frame of the map", () => {
             // The view's origin is map pixel (176, 336); the train covers the view's second tile, and the cars are in
             // its second tile and in its first
             const train = {type: 1, frame: 2, x: 192, y: 336, width: 16};
-            const inRight = {kind: "road", x: 196, y: 340, width: 7, direction: "south", colour: 2} as const;
-            const inLeft = {kind: "road", x: 180, y: 340, width: 7, direction: "west", colour: 3} as const;
+            const inRight = {kind: "road", x: 196, y: 340, width: 7, direction: "south", colour: 2, opacity: 1} as const;
+            const inLeft = {kind: "road", x: 180, y: 340, width: 7, direction: "west", colour: 3, opacity: 1} as const;
 
             const drawn = quads(buildIn(tilesWith(0, 0), [], [train], 16, [inRight, inLeft]).sprites);
 
