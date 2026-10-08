@@ -45,6 +45,7 @@ import { CommandResult, NewsMessage } from "./protocol";
 import { QueryWindow } from "./queryWindow";
 import { placeRCI, RCI } from "./rci";
 import { MapArt, tileSetPixels } from "./renderAssets";
+import { isLevelCrossing } from "./routeTiles";
 import { SaveWindow } from "./saveWindow";
 import { ScreenshotLinkWindow } from "./screenshotLinkWindow";
 import { ScreenshotWindow } from "./screenshotWindow";
@@ -164,7 +165,7 @@ export class Game {
     this.state = state;
     const autoBulldoze = new AutoBulldozePreference(pageStore());
     const carShare = new CarSharePreference(pageStore());
-    this.cars = new Cars(() => carShare.step());
+    this.cars = new Cars(() => carShare.step(), ({x, y}) => isLevelCrossing(state.map.getTileValue(x, y)));
 
     // A city on the server goes in the page's address, so the address invites another player in, and a reload rejoins
     linkToCity(started, window);
@@ -320,9 +321,10 @@ export class Game {
     state.on("sprites", ({sprites}) => this.monsterTV.spritesMoved(sprites));
     // The whole map comes as the page joins the city, at its start or again after a reconnect
     state.on("map", () => this.cars.joined());
+    // A batch's step clock comes just before its trips, so the departures its rides board are timed from it
     state.on("trips", ({routes, rides}) => {
       this.cars.add(routes);
-      this.cars.addRides(rides);
+      this.cars.addRides(rides, state.current("clock").steps);
     });
     state.on("news", (news) => this.showNews(news));
     state.on("commandResult", ({result}) => {

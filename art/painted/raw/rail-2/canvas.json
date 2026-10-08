@@ -1,0 +1,30 @@
+{
+  "side": 384,
+  "tile_px": 64,
+  "members": [
+    {
+      "asset": "rail/0226",
+      "x": 32,
+      "y": 32
+    },
+    {
+      "asset": "rail/0227",
+      "x": 224,
+      "y": 32
+    },
+    {
+      "asset": "rail/0228",
+      "x": 32,
+      "y": 224
+    },
+    {
+      "asset": "rail/0229",
+      "x": 224,
+      "y": 224
+    }
+  ],
+  "paint": [
+    "ground"
+  ],
+  "pack": null
+}

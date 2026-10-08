@@ -64,12 +64,12 @@ function gameOn(source: CitySource, state: CityState) {
                      mapCurrent: false},
         monsterTV: {current: false},
         carsAdded: [] as Parameters<Cars["add"]>[0][],
-        cars: {driven: () => [0, 0.5], add: (routes: Parameters<Cars["add"]>[0]) => {
+        cars: {driven: () => [0, 0.5], carsHeld: () => 4, add: (routes: Parameters<Cars["add"]>[0]) => {
             game.carsAdded.push(routes);
         }},
         carsPainted: [
             {kind: "rail", x: 0, y: 0, width: 16, direction: "east"},
-            {kind: "road", x: 16, y: 0, width: 16, direction: "east", colour: 0},
+            {kind: "road", x: 16, y: 0, width: 16, direction: "east", colour: 0, opacity: 1},
             {kind: "rail", x: 32, y: 0, width: 16, direction: "east"},
         ] as PaintableCar[],
         frameCounts: {animated: 30, painted: 12},
@@ -109,7 +109,7 @@ const IDLE_GAME = {
     onCommandResult: () => {},
     gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true},
     monsterTV: {current: true},
-    cars: {driven: () => [], add: () => {}},
+    cars: {driven: () => [], carsHeld: () => 0, add: () => {}},
     carsPainted: [],
     frameCounts: {animated: 0, painted: 0},
     notificationBar: {dismiss: () => {}},
@@ -464,10 +464,11 @@ describe("the test hook", () => {
         expect([shown, hook.hoverTile()]).toEqual([{x: 7, y: 9}, null]);
     });
 
-    it("tells how far each car driving has driven, and how many the map's view shows, and of them of trains", async () => {
+    it("tells how far each car driving has driven, how many the page holds, and how many the map's view shows, and of them of trains", async () => {
         const {hook} = await holdingGame("nothing");
 
-        expect([hook.carsDriven(), hook.carsInView(), hook.trainCarsInView()]).toEqual([[0, 0.5], 3, 2]);
+        expect([hook.carsDriven(), hook.carsHeld(), hook.carsInView(), hook.trainCarsInView()])
+            .toEqual([[0, 0.5], 4, 3, 2]);
     });
 
     it("adds the cars the runner asks for to those driving", async () => {

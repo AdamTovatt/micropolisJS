@@ -135,13 +135,14 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Eases each block's traffic and each tile's rail load alike: light traffic clears, and heavy traffic falls
-        /// faster than moderate.
+        /// Eases each block's traffic and each tile's rail load each way alike: light traffic clears, and heavy traffic
+        /// falls faster than moderate.
         /// </summary>
         public static void NeutraliseTrafficMap(BlockMaps blockMaps)
         {
             Neutralise(blockMaps.TrafficDensityMap);
-            Neutralise(blockMaps.RailLoadMap);
+            Neutralise(blockMaps.RailLoadFromNorthOrWestMap);
+            Neutralise(blockMaps.RailLoadFromSouthOrEastMap);
         }
 
         private static void Neutralise(BlockMap map)

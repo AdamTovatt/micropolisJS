@@ -163,6 +163,18 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
+    /// The city's step clock (<see cref="Simulation.StepClock"/>): the steps it has taken while it wasn't paused, which
+    /// the departures a ride is stamped with count on, so the client lines them up with its own clock.
+    /// </summary>
+    public sealed record ClockMessage(
+        [property: JsonPropertyName("steps")] long Steps) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "clock";
+    }
+
+    /// <summary>
     /// The city's population as the last monthly growth check counted it.
     /// </summary>
     public sealed record PopulationMessage(
@@ -271,42 +283,103 @@ namespace Micropolis.Rules
     /// </summary>
     internal sealed class TripConverter : JsonConverter<Trip>
     {
+        private const string Shape = "A trip is [x, y, steps]";
+
         public override Trip Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            Expect(reader.TokenType == JsonTokenType.StartArray);
-            int x = ReadWholeNumber(ref reader);
-            int y = ReadWholeNumber(ref reader);
-            Expect(reader.Read() && reader.TokenType == JsonTokenType.String);
-            string steps = reader.GetString()!;
-            Expect(steps.All(step => Trip.StepLetters.Contains(step)));
-            Expect(reader.Read() && reader.TokenType == JsonTokenType.EndArray);
+            Expect(reader.TokenType == JsonTokenType.StartArray, Shape);
+            Trip trip = ReadPath(ref reader, Shape);
+            Expect(reader.Read() && reader.TokenType == JsonTokenType.EndArray, Shape);
 
-            return new Trip(x, y, steps);
+            return trip;
         }
 
         public override void Write(Utf8JsonWriter writer, Trip value, JsonSerializerOptions options)
         {
             writer.WriteStartArray();
-            writer.WriteNumberValue(value.X);
-            writer.WriteNumberValue(value.Y);
-            writer.WriteStringValue(value.Steps);
+            WritePath(writer, value);
             writer.WriteEndArray();
         }
 
-        private static int ReadWholeNumber(ref Utf8JsonReader reader)
+        /// <summary>
+        /// Reads the start and the steps of a trip, or of a ride, the first entries of its array, strictly: anything
+        /// else is an error, which says the array is <paramref name="shape"/>.
+        /// </summary>
+        internal static Trip ReadPath(ref Utf8JsonReader reader, string shape)
         {
-            Expect(reader.Read() && reader.TokenType == JsonTokenType.Number);
-            Expect(reader.TryGetInt32(out int value));
+            int x = ReadWholeNumber(ref reader, shape);
+            int y = ReadWholeNumber(ref reader, shape);
+            Expect(reader.Read() && reader.TokenType == JsonTokenType.String, shape);
+            string steps = reader.GetString()!;
+            Expect(steps.All(step => Trip.StepLetters.Contains(step)), shape);
 
-            return value;
+            return new Trip(x, y, steps);
         }
 
-        private static void Expect(bool holds)
+        /// <summary>
+        /// Writes the start and the steps of a trip, or of a ride, the first entries of its array.
+        /// </summary>
+        internal static void WritePath(Utf8JsonWriter writer, Trip path)
+        {
+            writer.WriteNumberValue(path.X);
+            writer.WriteNumberValue(path.Y);
+            writer.WriteStringValue(path.Steps);
+        }
+
+        /// <summary>
+        /// Fails, saying the array is <paramref name="shape"/>, unless what the reader read <paramref name="holds"/>.
+        /// </summary>
+        internal static void Expect(bool holds, string shape)
         {
             if (!holds)
             {
-                throw new JsonException($"A trip is [x, y, steps], the steps a string of the letters {Trip.StepLetters}.");
+                throw new JsonException($"{shape}, the steps a string of the letters {Trip.StepLetters}.");
             }
+        }
+
+        private static int ReadWholeNumber(ref Utf8JsonReader reader, string shape)
+        {
+            Expect(reader.Read() && reader.TokenType == JsonTokenType.Number, shape);
+            Expect(reader.TryGetInt32(out int value), shape);
+
+            return value;
+        }
+    }
+
+    /// <summary>
+    /// A ride of a route the traffic rule found, from the station it gets on at to the one it gets off at, as the
+    /// <c>trips</c> message carries it, <c>[x, y, "NESW…", departure]</c>: its path, as a trip's, from the station it
+    /// gets on at, a letter for each step to the next tile of it, to the station it gets off at, and the step clock's
+    /// value of the departure it boards (<see cref="Timetable"/>).
+    /// </summary>
+    [JsonConverter(typeof(RideConverter))]
+    public sealed record Ride(Trip Path, long Departure);
+
+    /// <summary>
+    /// Writes a ride as <c>[x, y, "NESW…", departure]</c>, and reads one strictly: anything else, a step that isn't one
+    /// of <see cref="Trip.StepLetters"/> among it or a departure that isn't a whole number from 0, is an error.
+    /// </summary>
+    internal sealed class RideConverter : JsonConverter<Ride>
+    {
+        private const string Shape = "A ride is [x, y, steps, departure], the departure a whole number from 0";
+
+        public override Ride Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            TripConverter.Expect(reader.TokenType == JsonTokenType.StartArray, Shape);
+            Trip path = TripConverter.ReadPath(ref reader, Shape);
+            TripConverter.Expect(reader.Read() && reader.TokenType == JsonTokenType.Number, Shape);
+            TripConverter.Expect(reader.TryGetInt64(out long departure) && departure >= 0, Shape);
+            TripConverter.Expect(reader.Read() && reader.TokenType == JsonTokenType.EndArray, Shape);
+
+            return new Ride(path, departure);
+        }
+
+        public override void Write(Utf8JsonWriter writer, Ride value, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            TripConverter.WritePath(writer, value.Path);
+            writer.WriteNumberValue(value.Departure);
+            writer.WriteEndArray();
         }
     }
 
@@ -317,7 +390,7 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed record TripsMessage(
         [property: JsonPropertyName("routes")] IReadOnlyList<Trip> Routes,
-        [property: JsonPropertyName("rides")] IReadOnlyList<Trip> Rides) : StateMessage
+        [property: JsonPropertyName("rides")] IReadOnlyList<Ride> Rides) : StateMessage
     {
         [JsonPropertyName("type")]
         [JsonPropertyOrder(-1)]

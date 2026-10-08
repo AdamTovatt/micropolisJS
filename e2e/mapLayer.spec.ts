@@ -15,7 +15,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { CAR_TILES_PER_SECOND } from "../src/cars";
+import { CAR_TILES_PER_SECOND } from "../src/roadTraffic";
 import type { Trip } from "../src/protocol";
 import { DIRT } from "../src/tileValues";
 import { serverForTests } from "./gameServer";

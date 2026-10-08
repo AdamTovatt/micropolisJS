@@ -165,6 +165,15 @@ namespace Micropolis.Rules
             return AsInteger(Get(key), PathOf(key), -MaxSafeInteger, MaxSafeInteger);
         }
 
+        /// <summary>
+        /// An integer the specification gives a least value and no greatest: any from <paramref name="min"/> up that a
+        /// JavaScript number holds exactly.
+        /// </summary>
+        public long ReadSafeInteger(string key, long min)
+        {
+            return AsInteger(Get(key), PathOf(key), min, MaxSafeInteger);
+        }
+
         public long? ReadNullableSafeInteger(string key)
         {
             JsonNode? node = Get(key);

@@ -14,7 +14,8 @@
 
 import { readFileSync } from "fs";
 
-import { CAR_COLOURS, CAR_DIRECTIONS } from "../src/cars";
+import { CAR_COLOURS } from "../src/cars";
+import { CAR_DIRECTIONS } from "../src/routeTiles";
 import {
     FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, RenderManifest, SPRITE_SHEET, WHITE, carKey, checkAtlasSizes,
     checkRectsInAtlases,

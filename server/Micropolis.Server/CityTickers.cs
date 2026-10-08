@@ -12,6 +12,8 @@
  *
  */
 
+using Micropolis.Rules;
+
 namespace Micropolis.Server
 {
     /// <summary>
@@ -33,7 +35,7 @@ namespace Micropolis.Server
         /// <summary>
         /// How long a turn waits after the one before: a frame at the rate the city steps.
         /// </summary>
-        public static readonly TimeSpan FrameInterval = TimeSpan.FromSeconds(1.0 / StepDriver.StepsPerSecond);
+        public static readonly TimeSpan FrameInterval = TimeSpan.FromSeconds(1.0 / Simulation.StepsPerSecond);
 
         private readonly TimeProvider _time;
         private readonly long _started;

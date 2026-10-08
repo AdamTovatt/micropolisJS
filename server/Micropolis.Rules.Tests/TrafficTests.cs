@@ -82,14 +82,122 @@ namespace Micropolis.Rules.Tests
             int[] column = Enumerable.Range(StartY - 5, 6).Reverse().ToArray();
             CollectionAssert.AreEqual(new[] { Traffic.TripTraffic, Traffic.TripTraffic, Traffic.TripTraffic, 0, 0, 0 },
                                       column.Select(y => blockMaps.TrafficDensityMap.WorldGet(RoadX, y)).ToArray());
+            // The ride goes north, entering each tile by its south end, so its riders are the load from the south or east
             CollectionAssert.AreEqual(new[] { 0, 0, Traffic.RideLoad, Traffic.RideLoad, Traffic.RideLoad, Traffic.RideLoad },
-                                      column.Select(y => blockMaps.RailLoadMap.WorldGet(RoadX, y)).ToArray());
-            CollectionAssert.AreEqual(new[] { 0, 0, 0, 0 },
-                                      new[] { blockMaps.TrafficDensityMap.WorldGet(RoadX + 1, StartY - 5), blockMaps.TrafficDensityMap.WorldGet(RoadX + 2, StartY - 5),
-                                              blockMaps.RailLoadMap.WorldGet(RoadX + 1, StartY - 5), blockMaps.RailLoadMap.WorldGet(RoadX + 2, StartY - 5) });
+                                      column.Select(y => blockMaps.RailLoadFromSouthOrEastMap.WorldGet(RoadX, y)).ToArray());
+            // The four tiles of rail it rides, and none other
+            Assert.AreEqual((0, 4), (blockMaps.RailLoadFromNorthOrWestMap.CopyValues().Count(riders => riders != 0),
+                                     blockMaps.RailLoadFromSouthOrEastMap.CopyValues().Count(riders => riders != 0)));
+            CollectionAssert.AreEqual(new[] { 0, 0 },
+                                      new[] { blockMaps.TrafficDensityMap.WorldGet(RoadX + 1, StartY - 5), blockMaps.TrafficDensityMap.WorldGet(RoadX + 2, StartY - 5) });
         }
 
-        // Each ride adds its riders to a tile up to the full load, and no further
+        // The same line the other way: from the south perimeter by road over (9, 12) and a level crossing at (9, 13),
+        // riding south from a station at (9, 14) through a level crossing at (9, 16) to a station at (9, 17), then
+        // walking east to beside a destination centred at (13, 17). Its riders are the load of each tile from the north
+        // or west, so trains each way along a line go on tracks of their own.
+        [TestMethod]
+        public void MakeTraffic_RideSouth_AddsToTheLoadFromTheNorthOrWest()
+        {
+            GameMap map = new GameMap(120, 100);
+            map.SetTile(RoadX, ZoneY + 2, ROADS, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, ZoneY + 3, HRAILROAD, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, ZoneY + 4, VRAILSTATION, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, ZoneY + 5, LVRAIL, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, ZoneY + 6, VRAILROAD, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, ZoneY + 7, VRAILSTATION, TileFlags.BLBNBIT);
+            map.PutZone(RoadX + 4, ZoneY + 7, COMCLR, 3);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+
+            Assert.AreEqual(TrafficResult.RouteFound, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
+
+            CollectionAssert.AreEqual(new[] { Traffic.RideLoad, Traffic.RideLoad, Traffic.RideLoad, Traffic.RideLoad },
+                                      Enumerable.Range(ZoneY + 4, 4).Select(y => blockMaps.RailLoadFromNorthOrWestMap.WorldGet(RoadX, y)).ToArray());
+            // The four tiles of rail it rides, and none other
+            Assert.AreEqual((4, 0), (blockMaps.RailLoadFromNorthOrWestMap.CopyValues().Count(riders => riders != 0),
+                                     blockMaps.RailLoadFromSouthOrEastMap.CopyValues().Count(riders => riders != 0)));
+        }
+
+        // Riding straight through the cross at (10, 6) east, from a station at (9, 6) to one at (12, 6), or west, from
+        // the station at (9, 6) to one at (6, 6), each to beside a destination centred two tiles north of where it gets
+        // off: east the riders are the cross's load from the north or west, west its load from the south or east
+        [TestMethod]
+        [DataRow(1, true)]
+        [DataRow(-1, false)]
+        public void MakeTraffic_RideStraightThroughTheCross_AddsToTheLoadTheWayItGoes(int way, bool fromNorthOrWest)
+        {
+            GameMap map = new GameMap(120, 100);
+            map.SetTile(RoadX, StartY, ROADS, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, StartY - 1, ROADS, TileFlags.BLBNBIT);
+            map.SetTile(RoadX, StartY - 2, HRAILSTATION, TileFlags.BLBNBIT);
+            map.SetTile(RoadX + way, StartY - 2, LVRAIL10, TileFlags.BLBNBIT);
+            map.SetTile(RoadX + 2 * way, StartY - 2, LHRAIL, TileFlags.BLBNBIT);
+            map.SetTile(RoadX + 3 * way, StartY - 2, HRAILSTATION, TileFlags.BLBNBIT);
+            map.PutZone(RoadX + 3 * way, StartY - 4, COMCLR, 3);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+
+            Assert.AreNotEqual(TrafficResult.NoRouteFound, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
+
+            Assert.AreEqual((Traffic.RideLoad, 0), (blockMaps.RailLoad(fromNorthOrWest).WorldGet(RoadX + way, StartY - 2),
+                                                    blockMaps.RailLoad(!fromNorthOrWest).WorldGet(RoadX + way, StartY - 2)));
+        }
+
+        // A line from a station at (9, 16) north to one at (9, 13). Trips from a zone centred at (10, 20) ride it north,
+        // by road to the first, to beside a destination centred at (13, 13); a trip from one centred at (9, 10) rides it
+        // south, by road at (9, 12) to the second, to beside a destination centred at (6, 16), built once the line is
+        // full north. The router refuses the trips north once the traffic rule has filled the line's load that way, ride
+        // by ride, and still sends the trip south down it: the load the rule adds to is the load the router reads.
+        [TestMethod]
+        public void MakeTraffic_LineFullOneWay_RefusesRidesThatWayAndStillRidesTheOther()
+        {
+            GameMap map = new GameMap(120, 100);
+            map.SetTile(9, 18, ROADS, TileFlags.BLBNBIT);
+            map.SetTile(9, 17, ROADS, TileFlags.BLBNBIT);
+            map.SetTile(9, 16, VRAILSTATION, TileFlags.BLBNBIT);
+            map.SetTile(9, 15, LVRAIL, TileFlags.BLBNBIT);
+            map.SetTile(9, 14, LVRAIL, TileFlags.BLBNBIT);
+            map.SetTile(9, 13, VRAILSTATION, TileFlags.BLBNBIT);
+            map.SetTile(9, 12, ROADS, TileFlags.BLBNBIT);
+            map.PutZone(13, 13, COMCLR, 3);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            Traffic traffic = new Traffic(map, RandomStream.FromSeed(0), new Trips(() => 0));
+
+            int ridden = 0;
+            while (ridden <= Traffic.MaxRailLoad / Traffic.RideLoad &&
+                   traffic.MakeTraffic(10, 20, blockMaps, TrafficDestination.Commercial) != TrafficResult.NoRouteFound)
+            {
+                ridden++;
+            }
+
+            Assert.AreEqual(Traffic.MaxRailLoad / Traffic.RideLoad, ridden);
+            Assert.AreEqual((Traffic.MaxRailLoad, 0), (blockMaps.RailLoadFromSouthOrEastMap.WorldGet(9, 14),
+                                                       blockMaps.RailLoadFromNorthOrWestMap.WorldGet(9, 14)));
+
+            // The trip south's destination only now, as the trips north, which pick among the destinations they find,
+            // would go to it too
+            map.PutZone(6, 16, COMCLR, 3);
+            Assert.AreNotEqual(TrafficResult.NoRouteFound, traffic.MakeTraffic(9, 10, blockMaps, TrafficDestination.Commercial));
+            Assert.AreEqual(Traffic.RideLoad, blockMaps.RailLoadFromNorthOrWestMap.WorldGet(9, 14));
+        }
+
+        // The overlay's load of a tile is its load the busier way, whichever way that is
+        [TestMethod]
+        public void BusierRailLoadMap_LoadsEachWay_IsEachTilesGreater()
+        {
+            BlockMaps blockMaps = new BlockMaps(120, 100);
+            blockMaps.RailLoadFromNorthOrWestMap.WorldSet(20, 30, 200);
+            blockMaps.RailLoadFromSouthOrEastMap.WorldSet(20, 30, 12);
+            blockMaps.RailLoadFromNorthOrWestMap.WorldSet(21, 30, 8);
+            blockMaps.RailLoadFromSouthOrEastMap.WorldSet(21, 30, 150);
+            blockMaps.RailLoadFromSouthOrEastMap.WorldSet(22, 30, 40);
+
+            BlockMap busier = Traffic.BusierRailLoadMap(blockMaps);
+
+            CollectionAssert.AreEqual(new[] { 200, 150, 40 }, Enumerable.Range(20, 3).Select(x => busier.WorldGet(x, 30)).ToArray());
+            Assert.AreEqual(3, busier.CopyValues().Count(riders => riders != 0));
+        }
+
+        // Each ride adds its riders to a tile up to the full load the way it goes, and no further
         [TestMethod]
         public void MakeTraffic_RideOntoATileNearlyFull_FillsItNoFurther()
         {
@@ -99,12 +207,13 @@ namespace Micropolis.Rules.Tests
             map.SetTile(RoadX, StartY - 2, VRAILSTATION, TileFlags.BLBNBIT);
             map.PutZone(RoadX, StartY - 4, COMCLR, 3);
             BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
-            blockMaps.RailLoadMap.WorldSet(RoadX, StartY - 2, Traffic.MaxRailLoad - 1);
+            blockMaps.RailLoadFromSouthOrEastMap.WorldSet(RoadX, StartY - 2, Traffic.MaxRailLoad - 1);
 
-            Assert.AreEqual(TrafficResult.RouteFound, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
+            // A ride of one tile costs more than the two tiles to it are worth, for getting on: found, but slow
+            Assert.AreEqual(TrafficResult.SlowRoute, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
 
             Assert.AreEqual((Traffic.RideLoad, Traffic.MaxRailLoad),
-                            (blockMaps.RailLoadMap.WorldGet(RoadX, StartY - 1), blockMaps.RailLoadMap.WorldGet(RoadX, StartY - 2)));
+                            (blockMaps.RailLoadFromSouthOrEastMap.WorldGet(RoadX, StartY - 1), blockMaps.RailLoadFromSouthOrEastMap.WorldGet(RoadX, StartY - 2)));
         }
 
         // A route of two road tiles, whose straight run is one tile: it is slow once its one step costs more than
@@ -128,7 +237,7 @@ namespace Micropolis.Rules.Tests
         public void MakeTraffic_RouteFound_OffersTheRouteAsATrip()
         {
             GameMap map = TwoTileRoadToCommerce();
-            Trips trips = new Trips();
+            Trips trips = new Trips(() => 0);
             List<Trip> offered = new List<Trip>();
             trips.RunOffered += offered.Add;
 
@@ -201,7 +310,7 @@ namespace Micropolis.Rules.Tests
 
         private static TrafficResult MakeTraffic(GameMap map, BlockMaps blockMaps, RandomStream random)
         {
-            return new Traffic(map, random, new Trips())
+            return new Traffic(map, random, new Trips(() => 0))
                 .MakeTraffic(ZoneX, ZoneY, blockMaps, TrafficDestination.Commercial);
         }
     }

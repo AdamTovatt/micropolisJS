@@ -72,9 +72,9 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         [DataRow("an older version", "4", "The save's version is 4, older than version 5")]
         [DataRow("the first version", "1", "The save's version is 1, older than version 5")]
-        [DataRow("a newer version", "15", "The save's version is 15, newer than version 14")]
+        [DataRow("a newer version", "16", "The save's version is 16, newer than version 15")]
         [DataRow("a negative version", "-3", "The save's version is -3, older than version 5")]
-        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 14")]
+        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 15")]
         [DataRow("a version that is not whole", "5.5", "The save's version must be a whole number, not 5.5")]
         [DataRow("a version that is text", "\"5\"", "The save's version must be a whole number, not a string.")]
         [DataRow("a version that is a list", "[5]", "The save's version must be a whole number, not a list.")]
@@ -289,9 +289,66 @@ namespace Micropolis.Rules.Tests
         {
             Simulation city = SavedGame.Load(ConformanceFile.Read("saveVersions/version13.json"), out _);
 
-            int[] load = city.BlockMaps.RailLoadMap.CopyValues();
-            Assert.HasCount(city.Map.Width * city.Map.Height, load);
-            Assert.AreEqual(0, load.Count(value => value != 0));
+            foreach (bool fromNorthOrWest in new[] { true, false })
+            {
+                int[] load = city.BlockMaps.RailLoad(fromNorthOrWest).CopyValues();
+                Assert.HasCount(city.Map.Width * city.Map.Height, load);
+                Assert.AreEqual(0, load.Count(value => value != 0));
+            }
+        }
+
+        // The step from version 14 splits each tile's rail load evenly between its two ways, an odd rider the north or
+        // west's, and starts the step clock at 0
+        [TestMethod]
+        public void Load_Version14_SplitsTheRailLoadEvenlyBetweenTheWays()
+        {
+            string text = Edited("version14.json", savedGame =>
+            {
+                JsonArray railLoad = savedGame["scannedState"]!["blockMaps"]!["railLoadMap"]!.AsArray();
+                railLoad[0] = 37;
+                railLoad[1] = 240;
+            });
+            int[] before = JsonText.Parse(text)!["scannedState"]!["blockMaps"]!["railLoadMap"]!.AsArray()
+                .Select(riders => (int)riders!.GetValue<double>()).ToArray();
+
+            Simulation city = SavedGame.Load(text, out _);
+
+            int[] fromNorthOrWest = city.BlockMaps.RailLoadFromNorthOrWestMap.CopyValues();
+            int[] fromSouthOrEast = city.BlockMaps.RailLoadFromSouthOrEastMap.CopyValues();
+            Assert.AreEqual((19, 18, 120, 120), (fromNorthOrWest[0], fromSouthOrEast[0], fromNorthOrWest[1], fromSouthOrEast[1]));
+            Assert.IsGreaterThan(10, before.Count(riders => riders > 0), "Too little rail load to check.");
+            CollectionAssert.AreEqual(before, fromNorthOrWest.Zip(fromSouthOrEast, (first, other) => first + other).ToArray());
+            Assert.IsTrue(fromNorthOrWest.Zip(fromSouthOrEast).All(pair => pair.First - pair.Second is 0 or 1));
+            Assert.AreEqual(0, city.StepClock);
+        }
+
+        // The step from version 14 copies a tile's rail load outside its range whole to both ways, and leaves a rail
+        // load that is no list where it was, for the load to refuse, naming what it refuses
+        [TestMethod]
+        [DataRow("241", "scannedState.blockMaps.railLoadFromNorthOrWestMap[3]")]
+        [DataRow("-1", "scannedState.blockMaps.railLoadFromNorthOrWestMap[3]")]
+        [DataRow("1.5", "scannedState.blockMaps.railLoadFromNorthOrWestMap[3]")]
+        public void Load_Version14RailLoadOutOfRange_IsRefusedNamingTheEntry(string riders, string path)
+        {
+            string text = Edited("version14.json",
+                                 savedGame => savedGame["scannedState"]!["blockMaps"]!["railLoadMap"]![3] = JsonText.Parse(riders));
+
+            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _));
+
+            Assert.AreEqual(path, exception.Path, exception.Message);
+            JsonNode blockMaps = SavedGame.Migrate(text)["scannedState"]!["blockMaps"]!;
+            Assert.AreEqual((riders, riders), (blockMaps["railLoadFromNorthOrWestMap"]![3]!.ToJsonString(),
+                                               blockMaps["railLoadFromSouthOrEastMap"]![3]!.ToJsonString()));
+        }
+
+        [TestMethod]
+        public void Load_Version14RailLoadNoList_IsRefusedNamingAWayOfIt()
+        {
+            string text = Edited("version14.json", savedGame => savedGame["scannedState"]!["blockMaps"]!["railLoadMap"] = 7);
+
+            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _));
+
+            Assert.AreEqual("scannedState.blockMaps.railLoadFromNorthOrWestMap", exception.Path, exception.Message);
         }
 
         // The step from version 13 leaves a map whose size its tiles don't fill with no rail load, for the load to refuse

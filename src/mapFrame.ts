@@ -204,9 +204,11 @@ function addCar(list: QuadList, art: RenderArt, car: PaintableCar, x: number, y:
     return;
   }
 
+  // A car fading out shows as much of itself as its opacity, its tint premultiplied as the renderer's colours are
+  const a = car.opacity;
   const rect = art.car(car.colour, car.direction);
   if (rect !== null) {
-    list.add(rect.atlas, x, y, side, side, rect);
+    list.add(rect.atlas, x, y, side, side, rect, a, a, a, a);
     return;
   }
 
@@ -214,9 +216,9 @@ function addCar(list: QuadList, art: RenderArt, car: PaintableCar, x: number, y:
   const across = side * CAR_BREADTH;
   const [r, g, b] = CAR_COLOURS[car.colour].flat;
   if (car.direction === "east" || car.direction === "west") {
-    list.add(WHITE, x + (side - along) / 2, y + (side - across) / 2, along, across, WHITE_PIXEL, r, g, b, 1);
+    list.add(WHITE, x + (side - along) / 2, y + (side - across) / 2, along, across, WHITE_PIXEL, r * a, g * a, b * a, a);
   } else {
-    list.add(WHITE, x + (side - across) / 2, y + (side - along) / 2, across, along, WHITE_PIXEL, r, g, b, 1);
+    list.add(WHITE, x + (side - across) / 2, y + (side - along) / 2, across, along, WHITE_PIXEL, r * a, g * a, b * a, a);
   }
 }
 

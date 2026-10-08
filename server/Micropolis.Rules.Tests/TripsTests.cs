@@ -30,7 +30,7 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void Routed_SeveralTripsByRoad_OffersEachAsItIsRoutedInOrder()
         {
-            Trips trips = new Trips();
+            Trips trips = new Trips(() => 0);
             List<Trip> offered = new List<Trip>();
             trips.RunOffered += offered.Add;
 
@@ -56,21 +56,45 @@ namespace Micropolis.Rules.Tests
                 .. By(TravelMode.Road, (19, 8)),
                 .. By(TravelMode.Walk, (20, 8)),
             ];
-            Trips trips = new Trips();
+            Trips trips = new Trips(() => 0);
             List<string> heard = new List<string>();
             trips.RunOffered += trip => heard.Add($"road {JsonSerializer.Serialize(trip)}");
             trips.RideOffered += ride => heard.Add($"ride {JsonSerializer.Serialize(ride)}");
 
             trips.Routed(route);
 
-            CollectionAssert.AreEqual(new[] { "ride [12,10,\"EEE\"]", "road [16,10,\"E\"]", "ride [18,10,\"NN\"]" }, heard);
+            CollectionAssert.AreEqual(new[]
+            {
+                $"ride [12,10,\"EEE\",{Timetable.NextDeparture(12, 10, 0)}]",
+                "road [16,10,\"E\"]",
+                $"ride [18,10,\"NN\",{Timetable.NextDeparture(18, 10, 0)}]",
+            }, heard);
+        }
+
+        // A ride routed on a step boards the next departure from its station after it: one routed on the step a train
+        // leaves boards the one after
+        [TestMethod]
+        [DataRow(0, 1)]
+        [DataRow(1, 0)]
+        [DataRow(Timetable.DepartureInterval - 1, 0)]
+        public void Routed_Ride_IsStampedWithTheStationsNextDeparture(int stepsBeforeDeparture, int intervalsLater)
+        {
+            long departure = 5 * Timetable.DepartureInterval + Timetable.Offset(12, 10);
+            Trips trips = new Trips(() => departure - stepsBeforeDeparture);
+            List<Ride> offered = new List<Ride>();
+            trips.RideOffered += offered.Add;
+
+            trips.Routed(By(TravelMode.Rail, (12, 10), (13, 10)));
+
+            Assert.AreEqual(new Ride(new Trip(12, 10, "E"), departure + intervalsLater * Timetable.DepartureInterval),
+                            offered.Single());
         }
 
         // A car on one tile would go nowhere
         [TestMethod]
         public void Routed_RouteOfOneRoadTile_OffersNothing()
         {
-            Trips trips = new Trips();
+            Trips trips = new Trips(() => 0);
             List<Trip> offered = new List<Trip>();
             trips.RunOffered += offered.Add;
 
@@ -82,7 +106,7 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void Routed_StepEachWay_WritesItsLetter()
         {
-            Trips trips = new Trips();
+            Trips trips = new Trips(() => 0);
             List<Trip> offered = new List<Trip>();
             trips.RunOffered += offered.Add;
 
@@ -99,7 +123,7 @@ namespace Micropolis.Rules.Tests
         [DataRow(6, 4)]
         public void Routed_RouteNotSteppingToATileBeside_Throws(int x, int y)
         {
-            Trips trips = new Trips();
+            Trips trips = new Trips(() => 0);
             trips.RunOffered += _ => { };
 
             Assert.ThrowsExactly<InvalidOperationException>(() => trips.Routed(By(TravelMode.Road, (5, 5), (x, y))));
@@ -123,6 +147,35 @@ namespace Micropolis.Rules.Tests
         public void Read_NotATrip_Fails(string json)
         {
             Assert.ThrowsExactly<JsonException>(() => JsonSerializer.Deserialize<Trip>(json));
+        }
+
+        [TestMethod]
+        public void Read_Ride_IsTheRideWritten()
+        {
+            Ride ride = new Ride(new Trip(40, 31, "EESW"), 1234567);
+
+            Assert.AreEqual("[40,31,\"EESW\",1234567]", JsonSerializer.Serialize(ride));
+            Assert.AreEqual(ride, JsonSerializer.Deserialize<Ride>("[40,31,\"EESW\",1234567]"));
+        }
+
+        [TestMethod]
+        [DataRow("[1,2,\"N\"]")]
+        [DataRow("[1,2,\"N\",-1]")]
+        [DataRow("[1,2,\"N\",1.5]")]
+        [DataRow("[1,2,\"N\",\"3\"]")]
+        [DataRow("[1,2,\"N\",3,4]")]
+        [DataRow("[1,2,\"NX\",3]")]
+        public void Read_NotARide_Fails(string json)
+        {
+            Assert.ThrowsExactly<JsonException>(() => JsonSerializer.Deserialize<Ride>(json));
+        }
+
+        // Trains leave a station only at its departures: every ride the commuters' run offers boards one of its station's
+        // departures, the first after the step it was routed on
+        [TestMethod]
+        public void RideOffered_CommutersRun_BoardsTheNextDepartureFromItsStation()
+        {
+            Assert.AreEqual("", string.Join(", ", Commuters.Value.Faults.Where(fault => fault.StartsWith("departure"))));
         }
 
         [TestMethod]
@@ -224,7 +277,7 @@ namespace Micropolis.Rules.Tests
         {
             Simulation city = FixtureCities.City("commuters", "run");
             List<Trip> trips = new List<Trip>();
-            List<Trip> rides = new List<Trip>();
+            List<Ride> rides = new List<Ride>();
             List<string> faults = new List<string>();
             int step = 0;
 
@@ -242,6 +295,14 @@ namespace Micropolis.Rules.Tests
                                      .Select(tile => $"ride off rail at ({tile.X}, {tile.Y}) at step {step}"));
                 faults.AddRange(new[] { tiles[0], tiles[^1] }.Where(tile => !TileUtils.IsRailStation(city.Map.GetTileValue(tile.X, tile.Y)))
                                                              .Select(tile => $"ride ending off a station at ({tile.X}, {tile.Y}) at step {step}"));
+
+                // The clock has counted this step as the scan routes it
+                long wait = ride.Departure - city.StepClock;
+                if (wait < 1 || wait > Timetable.DepartureInterval ||
+                    ride.Departure % Timetable.DepartureInterval != Timetable.Offset(ride.Path.X, ride.Path.Y))
+                {
+                    faults.Add($"departure {ride.Departure} from ({ride.Path.X}, {ride.Path.Y}) at step clock {city.StepClock}");
+                }
             };
 
             for (; step < 3000; step++)
@@ -258,6 +319,6 @@ namespace Micropolis.Rules.Tests
             return tiles.Select(tile => new RouteStep(new Position(tile.X, tile.Y), mode)).ToList();
         }
 
-        private sealed record CityRun(List<Trip> Trips, List<Trip> Rides, List<string> Faults);
+        private sealed record CityRun(List<Trip> Trips, List<Ride> Rides, List<string> Faults);
     }
 }

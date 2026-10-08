@@ -12,6 +12,8 @@
  *
  */
 
+using Micropolis.Rules;
+
 namespace Micropolis.Server.Tests
 {
     /// <summary>
@@ -20,7 +22,7 @@ namespace Micropolis.Server.Tests
     [TestClass]
     public sealed class StepDriverTests
     {
-        private const double Step = 1000.0 / StepDriver.StepsPerSecond;
+        private const double Step = 1000.0 / Simulation.StepsPerSecond;
 
         [TestMethod]
         public void StepsDue_FirstCall_OwesNothing()
@@ -36,7 +38,7 @@ namespace Micropolis.Server.Tests
 
             int steps = new double[] { 7, 30, 31, 95, 400, 1000 }.Sum(driver.StepsDue);
 
-            Assert.AreEqual(StepDriver.StepsPerSecond, steps);
+            Assert.AreEqual(Simulation.StepsPerSecond, steps);
         }
 
         [TestMethod]
@@ -48,7 +50,7 @@ namespace Micropolis.Server.Tests
             // 60 frames of 16.7 ms: just over a second
             int steps = Enumerable.Range(1, 60).Sum(frame => driver.StepsDue(frame * 16.7));
 
-            Assert.AreEqual(StepDriver.StepsPerSecond, steps);
+            Assert.AreEqual(Simulation.StepsPerSecond, steps);
         }
 
         [TestMethod]

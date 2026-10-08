@@ -32,7 +32,7 @@ interface HookedGame {
   gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits, readonly tileWidth: number,
                readonly mapCurrent: boolean};
   monsterTV: {readonly current: boolean};
-  cars: Pick<Cars, "driven" | "add">;
+  cars: Pick<Cars, "driven" | "carsHeld" | "add">;
   readonly carsPainted: readonly PaintableCar[];
   readonly frameCounts: FrameCounts;
   notificationBar: {dismiss(): void};
@@ -243,6 +243,11 @@ class TestHook {
   // How far each car driving has driven, in tiles: none, while the page's clock stands still, as the runner fixes it
   carsDriven(): number[] {
     return this.attachedGame().cars.driven();
+  }
+
+  // How many cars the page holds, those showing, those waiting to appear and those of trains, which the cap counts
+  carsHeld(): number {
+    return this.attachedGame().cars.carsHeld();
   }
 
   // How many cars the map's view was last painted with

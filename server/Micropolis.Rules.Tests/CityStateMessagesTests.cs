@@ -37,7 +37,7 @@ namespace Micropolis.Rules.Tests
             city.Map.SetTileValue(3, 4, TileValues.RUBBLE);
 
             Assert.AreEqual($$"""{"type":"tiles","changes":[{"x":3,"y":4,"value":{{city.Map.GetTile(3, 4).GetRawValue()}}}]}""",
-                            Wire(messages.NewMessages()).Single());
+                            Batch(messages, city).Single());
             Assert.IsEmpty(messages.NewMessages());
         }
 
@@ -51,7 +51,7 @@ namespace Micropolis.Rules.Tests
 
             // A helicopter is drawn 32 wide, 32 right of and 16 above its position
             Assert.AreEqual($$"""{"type":"sprites","sprites":[{"type":{{(int)SpriteType.Helicopter}},"frame":{{copter.Frame}},"x":132,"y":184,"width":32}]}""",
-                            Wire(messages.NewMessages()).Single());
+                            Batch(messages, city).Single());
         }
 
         [TestMethod]
@@ -66,7 +66,7 @@ namespace Micropolis.Rules.Tests
 
             CollectionAssert.AreEqual(
                 new[] { """{"type":"overlayUpdated","layer":"crime"}""", """{"type":"overlayUpdated","layer":"pollution"}""" },
-                Wire(messages.NewMessages()));
+                Batch(messages, city));
         }
 
         [TestMethod]
@@ -77,7 +77,7 @@ namespace Micropolis.Rules.Tests
 
             SetSpeed(city, Speed.Fast);
 
-            CollectionAssert.AreEqual(new[] { "settings", "commandResult" }, Types(messages.NewMessages()));
+            CollectionAssert.AreEqual(new[] { "settings", "commandResult", "clock" }, Types(messages.NewMessages()));
             Assert.IsEmpty(messages.NewMessages());
         }
 
@@ -94,7 +94,7 @@ namespace Micropolis.Rules.Tests
 
             List<string> sent = Wire(messages.NewMessages());
 
-            CollectionAssert.AreEqual(new[] { "tiles", "settings", "news", "commandResult", "budgetReviewDue" },
+            CollectionAssert.AreEqual(new[] { "tiles", "settings", "news", "commandResult", "budgetReviewDue", "clock" },
                                       sent.Select(text => (string)JsonNode.Parse(text)!["type"]!).ToList());
             Assert.AreEqual($$"""{"type":"news","subject":"{{Messages.NO_MONEY}}"}""", sent[2]);
             StringAssert.StartsWith(sent[3], """{"type":"commandResult","result":{"player":"ada","command":{"type":"setSpeed",""");
@@ -116,7 +116,7 @@ namespace Micropolis.Rules.Tests
         public void NewMessages_TripsAndRidesOffered_SendsThemOnceLastInTheOrderOffered()
         {
             List<Trip> offered = new List<Trip>();
-            List<Trip> ridden = new List<Trip>();
+            List<Ride> ridden = new List<Ride>();
             CityStateMessages messages = AfterSomeCycles(city =>
             {
                 city.Trips.RunOffered += offered.Add;
@@ -141,7 +141,58 @@ namespace Micropolis.Rules.Tests
 
             city.Trips.Routed([new RouteStep(new Position(25, 15), TravelMode.Rail), new RouteStep(new Position(26, 15), TravelMode.Rail)]);
 
-            Assert.AreEqual("{\"type\":\"trips\",\"routes\":[],\"rides\":[[25,15,\"E\"]]}", ProtocolJson.Serialize(messages.NewMessages()[^1]));
+            long departure = Timetable.NextDeparture(25, 15, city.StepClock);
+            Assert.AreEqual($"{{\"type\":\"trips\",\"routes\":[],\"rides\":[[25,15,\"E\",{departure}]]}}", ProtocolJson.Serialize(messages.NewMessages()[^1]));
+        }
+
+        // A batch with anything to carry ends with the step clock, as it stands, when it has no trips
+        [TestMethod]
+        public void NewMessages_ACommandApplied_EndsWithTheStepClock()
+        {
+            Simulation city = QuietCity();
+            CityStateMessages messages = new CityStateMessages(city);
+
+            SetSpeed(city, Speed.Paused);
+            List<string> sent = Wire(messages.NewMessages());
+
+            Assert.AreEqual($"{{\"type\":\"clock\",\"steps\":{city.StepClock}}}", sent[^1]);
+        }
+
+        // A step that changed nothing a player is sent makes no batch for the step clock alone, though it moved
+        [TestMethod]
+        public void NewMessages_AStepThatChangedNothingSent_SendsNothing()
+        {
+            Simulation city = QuietCity();
+            CityStateMessages messages = new CityStateMessages(city);
+            messages.NewMessages();
+            long before = city.StepClock;
+
+            city.Step();
+            IReadOnlyList<StateMessage> sent = messages.NewMessages();
+
+            Assert.AreEqual(before + 1, city.StepClock);
+            Assert.IsEmpty(sent, string.Join(", ", Wire(sent)));
+        }
+
+        // The step clock comes just before the trips, so the client lines the departures up with its own clock
+        [TestMethod]
+        public void NewMessages_RidesOffered_SendsTheStepClockJustBeforeThem()
+        {
+            Simulation city = QuietCity();
+            CityStateMessages messages = new CityStateMessages(city);
+            messages.NewMessages();
+
+            city.Trips.Routed([new RouteStep(new Position(25, 15), TravelMode.Rail), new RouteStep(new Position(26, 15), TravelMode.Rail)]);
+            List<string> sent = Wire(messages.NewMessages());
+
+            Assert.AreEqual($"{{\"type\":\"clock\",\"steps\":{city.StepClock}}}", sent[^2]);
+            StringAssert.StartsWith(sent[^1], "{\"type\":\"trips\"");
+        }
+
+        // A city without sprites, whose next step at medium speed runs no phase
+        private static Simulation QuietCity()
+        {
+            return City("suburb", "built", save => save["simulation"]!["speedCycle"] = 0);
         }
 
         // A player who joins is sent no trips offered before
@@ -170,7 +221,7 @@ namespace Micropolis.Rules.Tests
             messages.NewMessages();
 
             CollectionAssert.AreEqual(
-                new[] { "map", "sprites", "date", "population", "evaluation", "budget", "settings", "status", "demand" },
+                new[] { "map", "sprites", "date", "population", "evaluation", "budget", "settings", "status", "demand", "clock" },
                 Types(messages.FullState()));
         }
 
@@ -179,7 +230,7 @@ namespace Micropolis.Rules.Tests
         {
             CityStateMessages messages = new CityStateMessages(City("suburb", "run"));
 
-            CollectionAssert.AreEqual(new[] { "map", "sprites", "date", "population", "evaluation", "budget", "settings" },
+            CollectionAssert.AreEqual(new[] { "map", "sprites", "date", "population", "evaluation", "budget", "settings", "clock" },
                                       Types(messages.FullState()));
         }
 
@@ -221,7 +272,8 @@ namespace Micropolis.Rules.Tests
             city.ApplyCommands([new ReceivedCommand("ada", new JsonObject { ["type"] = "setSpeed", ["speed"] = (int)speed })]);
         }
 
-        // Where a message goes in a batch: the tiles, the records, the status, the demand, the events, then the trips
+        // Where a message goes in a batch: the tiles, the records, the status, the demand, the events, the step clock, then
+        // the trips
         private static int Rank(string type)
         {
             return type switch
@@ -230,9 +282,18 @@ namespace Micropolis.Rules.Tests
                 "sprites" or "date" or "population" or "evaluation" or "budget" or "settings" => 1,
                 "status" => 2,
                 "demand" => 3,
-                "trips" => 5,
+                "clock" => 5,
+                "trips" => 6,
                 _ => 4,
             };
+        }
+
+        // The new messages' wire text, each but the step clock, which ends a batch that carries any
+        private static List<string> Batch(CityStateMessages messages, Simulation city)
+        {
+            List<string> sent = Wire(messages.NewMessages());
+            Assert.AreEqual($"{{\"type\":\"clock\",\"steps\":{city.StepClock}}}", sent[^1]);
+            return sent[..^1];
         }
 
         private static List<string> Wire(IReadOnlyList<StateMessage> messages)

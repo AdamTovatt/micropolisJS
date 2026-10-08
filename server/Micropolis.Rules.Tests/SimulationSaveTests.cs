@@ -84,7 +84,8 @@ namespace Micropolis.Rules.Tests
             ("scannedState.blockMaps.policeStationEffectMap[0]", "-1", "0", "16000", "16001"),
             ("scannedState.blockMaps.pollutionDensityMap[0]", "-1", "0", "255", "256"),
             ("scannedState.blockMaps.populationDensityMap[0]", "-1", "0", "510", "511"),
-            ("scannedState.blockMaps.railLoadMap[0]", "-1", "0", "240", "241"),
+            ("scannedState.blockMaps.railLoadFromNorthOrWestMap[0]", "-1", "0", "240", "241"),
+            ("scannedState.blockMaps.railLoadFromSouthOrEastMap[0]", "-1", "0", "240", "241"),
             ("scannedState.blockMaps.rateOfGrowthMap[0]", "-201", "-200", "200", "201"),
             ("scannedState.blockMaps.terrainDensityMap[0]", "-1", "0", "240", "241"),
             ("scannedState.blockMaps.trafficDensityMap[0]", "-1", "0", "240", "241"),
@@ -108,6 +109,7 @@ namespace Micropolis.Rules.Tests
                 ["simulation.randomState[0]"] = ("12345", city => city.Random.GetState()[0]),
                 ["simulation.cityTime"] = ("20000", city => city.CityTime),
                 ["simulation.speedCycle"] = ("1000", city => city.SpeedCycle),
+                ["simulation.stepClock"] = ("123456", city => city.StepClock),
                 ["simulation.phaseCycle"] = ("9", city => city.PhaseCycle),
                 ["simulation.simCycle"] = ("146", city => city.SimCycle),
                 ["simulation.cityPopLast"] = ("30000", city => city.CityPopLast),
@@ -214,7 +216,8 @@ namespace Micropolis.Rules.Tests
                 ["scannedState.blockMaps.policeStationEffectMap[0]"] = ("57", city => city.BlockMaps.PoliceStationEffectMap.Get(0, 0)),
                 ["scannedState.blockMaps.pollutionDensityMap[0]"] = ("58", city => city.BlockMaps.PollutionDensityMap.Get(0, 0)),
                 ["scannedState.blockMaps.populationDensityMap[0]"] = ("59", city => city.BlockMaps.PopulationDensityMap.Get(0, 0)),
-                ["scannedState.blockMaps.railLoadMap[0]"] = ("63", city => city.BlockMaps.RailLoadMap.Get(0, 0)),
+                ["scannedState.blockMaps.railLoadFromNorthOrWestMap[0]"] = ("63", city => city.BlockMaps.RailLoadFromNorthOrWestMap.Get(0, 0)),
+                ["scannedState.blockMaps.railLoadFromSouthOrEastMap[0]"] = ("64", city => city.BlockMaps.RailLoadFromSouthOrEastMap.Get(0, 0)),
                 ["scannedState.blockMaps.rateOfGrowthMap[0]"] = ("60", city => city.BlockMaps.RateOfGrowthMap.Get(0, 0)),
                 ["scannedState.blockMaps.terrainDensityMap[0]"] = ("61", city => city.BlockMaps.TerrainDensityMap.Get(0, 0)),
                 ["scannedState.blockMaps.trafficDensityMap[0]"] = ("62", city => city.BlockMaps.TrafficDensityMap.Get(0, 0)),
@@ -405,6 +408,9 @@ namespace Micropolis.Rules.Tests
         [DataRow("simulation.cityTime", "\"145\"")]
         [DataRow("simulation.cityTime", "null")]
         [DataRow("simulation.cityTime", "9007199254740992")]
+        [DataRow("simulation.stepClock", "-1")]
+        [DataRow("simulation.stepClock", "1.5")]
+        [DataRow("simulation.stepClock", "9007199254740992")]
         [DataRow("simulation.initialEvaluationPending", "0")]
         [DataRow("simulation.lastPowerMessage", "true")]
         [DataRow("simulation.messageLast", "5")]

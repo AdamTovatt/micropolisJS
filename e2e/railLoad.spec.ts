@@ -22,9 +22,10 @@ import { Player, TESTER } from "./player";
 import { samplePixels } from "./png";
 import { savedBlockMapAt, tilesIn } from "./savedMap";
 
-// The Rail load overlay over a line its rides load: the sample save of version 14 is the commuters fixture after its
+// The Rail load overlay over a line its rides load: the sample save of version 15 is the commuters fixture after its
 // run, whose rides between two districts load the line along row 15, from its station at (25, 15) to the one at
-// (44, 15), and nothing else.
+// (44, 15), and nothing else. Each tile carries a track each way, whose loads the save keeps apart, and the overlay
+// shows each tile's busier way.
 
 const server = serverForTests("manual");
 
@@ -38,10 +39,11 @@ test("the Rail load overlay tints the tiles a line's rides load, and its legend 
   // The clock stands still, so animated tiles show the same frame before the overlay and with it
   await page.clock.setFixedTime(START);
   await player.open();
-  await player.loadSaveFile(join(test.info().config.rootDir, "..", "conformance", "saveVersions", "version14.json"));
+  await player.loadSaveFile(join(test.info().config.rootDir, "..", "conformance", "saveVersions", "version15.json"));
   await player.waitForGame();
   const save = await player.save();
-  const load = (tile: {x: number, y: number}) => savedBlockMapAt(save, "railLoadMap", 1, tile);
+  const load = (tile: {x: number, y: number}) => Math.max(savedBlockMapAt(save, "railLoadFromNorthOrWestMap", 1, tile),
+                                                          savedBlockMapAt(save, "railLoadFromSouthOrEastMap", 1, tile));
   const onLine = tilesIn(LINE).map(load);
   expect(onLine.every((value) => value > 0), `the line's loads ${onLine}`).toBe(true);
 

@@ -114,7 +114,7 @@ namespace Micropolis.Rules
             DisasterManager = new DisasterManager(map, SpriteManager, Random);
             MapScanner = new MapScanner(map);
             RepairManager = new RepairManager(map);
-            Trips = new Trips();
+            Trips = new Trips(() => StepClock);
             TrafficManager = new Traffic(map, Random, Trips);
             Init();
         }
@@ -160,6 +160,20 @@ namespace Micropolis.Rules
         /// The step counter, 0 to <see cref="SpeedCycles"/> − 1.
         /// </summary>
         public int SpeedCycle { get; private set; }
+
+        /// <summary>
+        /// The steps a hosted city takes in a second of real time, at every speed, which the server's step driver keeps
+        /// to: what the step clock's departures (<see cref="Timetable"/>) are tuned against, and the client times them by.
+        /// </summary>
+        public const int StepsPerSecond = 60;
+
+        /// <summary>
+        /// The steps the city has taken while it wasn't paused, at every speed, from 0 when the city started or, for a
+        /// city saved before the counter was, when it was loaded: the clock the trains' timetable keeps
+        /// (<see cref="Timetable"/>), so a train leaves at the same real-time cadence at any speed, and none while the
+        /// city is paused.
+        /// </summary>
+        public long StepClock { get; private set; }
 
         /// <summary>
         /// The phase the next simulation pass runs, 0–15.
@@ -305,6 +319,7 @@ namespace Micropolis.Rules
                 ["randomState"] = SavedList.Of(Random.GetState()),
                 ["cityTime"] = CityTime,
                 ["speedCycle"] = SpeedCycle,
+                ["stepClock"] = StepClock,
                 ["phaseCycle"] = PhaseCycle,
                 ["simCycle"] = SimCycle,
                 ["cityPopLast"] = CityPopLast,
@@ -351,8 +366,8 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// One loop of the simulation, as simLoop in the original: a phase of the city cycle when the game speed lets
-        /// one through, then one move of every sprite. A paused simulation's step does nothing, as the original's
-        /// simFrame and moveObjects do nothing at speed 0.
+        /// one through, then one move of every sprite, each counted on the step clock. A paused simulation's step does
+        /// nothing, as the original's simFrame and moveObjects do nothing at speed 0.
         /// </summary>
         public void Step()
         {
@@ -361,6 +376,7 @@ namespace Micropolis.Rules
                 return;
             }
 
+            StepClock++;
             SimFrame();
             SpriteManager.MoveObjects(ConstructSimData());
             UpdateTime();
@@ -860,6 +876,7 @@ namespace Micropolis.Rules
             Speed = simulation.ReadEnum<Speed>("speed");
             CityTime = simulation.ReadSafeInteger("cityTime");
             SpeedCycle = simulation.ReadInt("speedCycle", 0, SpeedCycles - 1);
+            StepClock = simulation.ReadSafeInteger("stepClock", 0);
             PhaseCycle = simulation.ReadInt("phaseCycle", 0, 15);
             SimCycle = simulation.ReadInt("simCycle", 0, 1023);
             CityPopLast = simulation.ReadSafeInteger("cityPopLast");

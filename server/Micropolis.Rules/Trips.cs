@@ -35,16 +35,25 @@ namespace Micropolis.Rules
         /// </summary>
         public const int ShortestRun = 2;
 
+        // The city's step clock, which a ride's departure counts on
+        private readonly Func<long> _stepClock;
+
+        /// <param name="stepClock">The city's step clock as it stands (<see cref="Simulation.StepClock"/>).</param>
+        public Trips(Func<long> stepClock)
+        {
+            _stepClock = stepClock;
+        }
+
         /// <summary>
         /// Hears each run by road offered, as it is routed.
         /// </summary>
         public event Action<Trip>? RunOffered;
 
         /// <summary>
-        /// Hears each ride offered, as it is routed: its start is the station it gets on at, and its last tile the
-        /// station it gets off at.
+        /// Hears each ride offered, as it is routed: its start is the station it gets on at, its last tile the station it
+        /// gets off at, and its departure the station's next (<see cref="Timetable.NextDeparture"/>).
         /// </summary>
-        public event Action<Trip>? RideOffered;
+        public event Action<Ride>? RideOffered;
 
         /// <summary>
         /// Offers each run of a trip's route by road at least <see cref="ShortestRun"/> tiles long, and each ride of it,
@@ -65,9 +74,10 @@ namespace Micropolis.Rules
                 {
                     RunOffered?.Invoke(TripOf(route, start, i));
                 }
-                else if (route[start].Mode == TravelMode.Rail)
+                else if (route[start].Mode == TravelMode.Rail && RideOffered is not null)
                 {
-                    RideOffered?.Invoke(TripOf(route, start, i));
+                    Trip path = TripOf(route, start, i);
+                    RideOffered(new Ride(path, Timetable.NextDeparture(path.X, path.Y, _stepClock())));
                 }
 
                 start = i;

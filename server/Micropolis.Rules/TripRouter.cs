@@ -48,15 +48,17 @@ namespace Micropolis.Rules
     /// a station, or one that has only got on there, does not arrive. A ride goes on only where the track joins, from a
     /// side its tile's track leaves by onto a tile whose track leaves by the side facing (<see cref="TileUtils.RailEnds"/>),
     /// so it follows the track round its curves and through a station along it; a route by road gets on from any side,
-    /// and one getting off goes any way.
+    /// and one getting off goes any way. Getting on costs <see cref="BoardingCost"/>, for the wait for a departure, and
+    /// every tile of rail a ride goes over, the station it gets on at included, costs what its rail load costs the way
+    /// the ride goes over it (<see cref="BlockMaps.RailLoad"/>), each tile carrying a track each way.
     /// </para>
     /// <para>
     /// The search settles routes in order of cost, and keeps only the cheapest route to each tile for each way of
-    /// going over it. A route gives way only to a cheaper one, or to one as cheap whose last step comes from a
-    /// neighbour earlier in north, east, south, west, or from the same neighbour going over it a way earlier in road,
-    /// boarding, riding, walking out, then walking in one, two and three tiles; a destination's goal is the cheapest
-    /// route beside it, and of two as cheap the one ending on the first tile row by row, then the way earlier in that
-    /// order; so ties break the same way every run. A route goes no further than its <see cref="MaxRouteTiles"/>th
+    /// going over it. A route gives way only to a cheaper one, or, unless it is a route's first tile, to one as cheap
+    /// whose last step comes from a neighbour earlier in north, east, south, west, or from the same neighbour going over
+    /// it a way earlier in road, boarding, riding, walking out, then walking in one, two and three tiles; a destination's
+    /// goal is the cheapest route beside it, and of two as cheap the one ending on the first tile row by row, then the
+    /// way earlier in that order; so ties break the same way every run. A route goes no further than its <see cref="MaxRouteTiles"/>th
     /// tile, and where the cheapest route to a tile ends there, the search goes no further from that tile, though a
     /// dearer, shorter route to it could have: it may miss a destination such a route would reach, and a route it
     /// finds is the cheapest only among those the cut leaves. So it is deterministic, but not exact over every route
@@ -81,10 +83,18 @@ namespace Micropolis.Rules
         public const int SlowCostPerTile = 6;
 
         /// <summary>
-        /// What riding onto a rail tile costs while the rail is empty, to which its rail load adds one for every
-        /// <see cref="RailLoadPerCost"/>, and which a tile at <see cref="Traffic.MaxRailLoad"/> takes no ride onto.
+        /// What riding onto a rail tile costs while the rail is empty, to which its rail load the way the ride goes adds
+        /// one for every <see cref="RailLoadPerCost"/>, and which a tile at <see cref="Traffic.MaxRailLoad"/> that way
+        /// takes no ride onto (<see cref="BlockMaps.RailLoad"/>).
         /// </summary>
         public const int RailCost = 2;
+
+        /// <summary>
+        /// What getting on a train at a station adds to the route, for the wait for its departure
+        /// (<see cref="Timetable"/>): three tiles of clear road, a fixed figure rather than the wait step for step, so a
+        /// ride is worth taking only some way.
+        /// </summary>
+        public const int BoardingCost = 3 * RoadCost;
 
         /// <summary>
         /// The rail load that adds one to the cost of riding onto a rail tile.
@@ -113,10 +123,6 @@ namespace Micropolis.Rules
         /// </summary>
         public const int MostWalkedTiles = 3;
 
-        // The step across and down to the neighbour in each direction, north, east, south and west
-        private static readonly int[] DeltaX = [0, 1, 0, -1];
-        private static readonly int[] DeltaY = [-1, 0, 1, 0];
-
         // The step of a route's first tile, which no step reached
         private const int NoStep = -1;
 
@@ -140,11 +146,14 @@ namespace Micropolis.Rules
         private const int Station = 4;
         private const int Water = 8;
 
-        // The most a tile costs to enter, and so how many costs past the one settling the search may queue a route
+        // The most a step costs, and so how many costs past the one settling the search may queue a route: entering a
+        // road tile, getting on at a station, riding onto a rail tile, which riding off the station got on at costs
+        // too, or walking
         private const int MostRoadCost = RoadCost + Traffic.MaxTrafficDensity / DensityPerCost;
-        private const int MostRailCost = RailCost + (Traffic.MaxRailLoad - 1) / RailLoadPerCost;
+        private const int MostRailCost = 2 * (RailCost + (Traffic.MaxRailLoad - 1) / RailLoadPerCost);
         private const int MostRoadOrRailCost = MostRoadCost > MostRailCost ? MostRoadCost : MostRailCost;
-        private const int MostEnterCost = MostRoadOrRailCost > WalkCost ? MostRoadOrRailCost : WalkCost;
+        private const int MostRideCost = MostRoadOrRailCost > BoardingCost ? MostRoadOrRailCost : BoardingCost;
+        private const int MostEnterCost = MostRideCost > WalkCost ? MostRideCost : WalkCost;
 
         // How many costs the ring of queues holds: one past the most a tile costs to enter, so a route queued while a
         // cost settles never joins that cost's queue, nor one holding another cost
@@ -162,7 +171,8 @@ namespace Micropolis.Rules
         private readonly int _tileMask;
 
         // The step in index to the neighbour in each direction, and by the index of a tile, a bit for each direction
-        // whose neighbour is on the map
+        // whose neighbour is on the map: each direction, a route's step, numbered as a tile's side it goes out by is
+        // (TileUtils.NorthSide)
         private readonly int[] _offset;
         private readonly byte[] _neighbours;
 
@@ -204,14 +214,15 @@ namespace Micropolis.Rules
                 _wayShift++;
             }
             _tileMask = (1 << _wayShift) - 1;
-            _offset = [-_width, 1, _width, -1];
+            _offset = Direction.CardinalDirections.Select(direction => direction.YDelta * _width + direction.XDelta).ToArray();
             _neighbours = new byte[_tiles];
 
             for (int index = 0; index < _tiles; index++)
             {
                 for (int step = 0; step < 4; step++)
                 {
-                    if (OnMap(index % _width + DeltaX[step], index / _width + DeltaY[step]))
+                    Direction direction = Direction.CardinalDirections[step];
+                    if (OnMap(index % _width + direction.XDelta, index / _width + direction.YDelta))
                     {
                         _neighbours[index] |= (byte)(1 << step);
                     }
@@ -245,7 +256,7 @@ namespace Micropolis.Rules
         /// picks among them by their centres row by row.
         /// </summary>
         /// <param name="blockMaps">The block maps, whose traffic density adds to the cost of each road tile and whose
-        /// rail load adds to the cost of each rail tile.</param>
+        /// rail load each way adds to the cost of each rail tile a ride goes over that way.</param>
         public TrafficResult Route(Position origin, TrafficDestination destination, BlockMaps blockMaps, RandomStream random,
                                    List<RouteStep> route)
         {
@@ -265,9 +276,9 @@ namespace Micropolis.Rules
 
                 _setOff |= (facts.Kind & (Road | Station)) != 0;
 
-                if ((facts.Kind & Station) != 0 && facts.RailEnter != 0)
+                if ((facts.Kind & Station) != 0 && BoardingEnter(facts) != 0)
                 {
-                    Label(At(Boarding, index), 0, 1, NoStep, Boarding);
+                    Label(At(Boarding, index), BoardingCost, 1, NoStep, Boarding);
                 }
 
                 if (walks && (facts.Kind & Water) == 0)
@@ -425,7 +436,7 @@ namespace Micropolis.Rules
 
                 if ((nextKind & Station) != 0)
                 {
-                    queued += Offer(Boarding, next, facts.RailEnter, cost, length, step, ByRoad);
+                    queued += Offer(Boarding, next, BoardingEnter(facts), cost, length, step, ByRoad);
                 }
             }
 
@@ -476,7 +487,7 @@ namespace Micropolis.Rules
                 {
                     case Boarding:
                     case Riding:
-                        queued += Offer(Riding, next, RidesOn(ends, facts.Ends, step) ? facts.RailEnter : 0, cost, length, step, way);
+                        queued += Offer(Riding, next, RidesOn(ends, facts.Ends, step) ? RideOnto(index, way, facts, step) : 0, cost, length, step, way);
 
                         if (way == Riding && (kind & Station) != 0)
                         {
@@ -488,7 +499,7 @@ namespace Micropolis.Rules
 
                     case WalkingOut:
                         _setOff |= (nextKind & Station) != 0;
-                        queued += Offer(Boarding, next, (nextKind & Station) != 0 ? facts.RailEnter : 0, cost, length, step, way);
+                        queued += Offer(Boarding, next, (nextKind & Station) != 0 ? BoardingEnter(facts) : 0, cost, length, step, way);
 
                         if (settled.Length < MostWalkedTiles)
                         {
@@ -517,6 +528,40 @@ namespace Micropolis.Rules
             return (ends & (1 << step)) != 0 && (nextEnds & (1 << Back(step))) != 0;
         }
 
+        // What riding on from the tile of a route riding or just got on, its index given, onto the tile beside costs, the
+        // step given: what the tile beside costs the way the ride goes, and from the station it got on at what the
+        // station costs that way too, which getting on there, before the way was known, didn't; or 0 where either is full
+        // that way
+        private int RideOnto(int index, int way, in Facts next, int step)
+        {
+            int enter = RideEnter(next, step);
+
+            if (way != Boarding || enter == 0)
+            {
+                return enter;
+            }
+
+            int station = RideEnter(_facts[index], step);
+            return station == 0 ? 0 : enter + station;
+        }
+
+        // What riding onto or off a rail tile costs, a ride going over it the way a step onto or off it goes: what its
+        // rail load costs that way, the load Traffic.RailLoadEntered names for the end the ride goes in by, which faces
+        // the step's way back, or 0 where that way is full
+        private static int RideEnter(in Facts facts, int step)
+        {
+            return (facts.EntriesFromNorthOrWest & (1 << Back(step))) != 0
+                ? facts.RideEnterFromNorthOrWest
+                : facts.RideEnterFromSouthOrEast;
+        }
+
+        // What getting on a train at a station costs, the wait for its departure, or 0 where it is full both ways: the
+        // station's track the way the ride goes costs as it rides on (RideOnto)
+        private static int BoardingEnter(in Facts facts)
+        {
+            return facts.RideEnterFromNorthOrWest == 0 && facts.RideEnterFromSouthOrEast == 0 ? 0 : BoardingCost;
+        }
+
         // Queues a route going on over the tile beside, the way given, which costs what entering it costs that way, or
         // 0 where it can't: where this route reaches it cheaper than any route queued to it, or as cheaply from a
         // neighbour earlier in north, east, south, west, or from the same one going over it an earlier way. Says how
@@ -538,7 +583,10 @@ namespace Micropolis.Rules
                 return 1;
             }
 
-            if (nextCost == place.Cost && (Back(step) < Back(place.Step) || (step == place.Step && from < place.From)))
+            // A route's first tile, which getting on a train there makes cost something, gives way to no route that
+            // steps onto it as cheaply
+            if (nextCost == place.Cost && place.Step != NoStep &&
+                (Back(step) < Back(place.Step) || (step == place.Step && from < place.From)))
             {
                 // As cheap, from a neighbour earlier in the order, and queued at this cost already: a route queued is
                 // settled only once every cheaper one has been
@@ -550,10 +598,10 @@ namespace Micropolis.Rules
             return 0;
         }
 
-        // The direction back from a tile to the neighbour its step came from
+        // The direction back from a tile to the neighbour its step came from: the side the step went in by
         private static int Back(int step)
         {
-            return (step + 2) % 4;
+            return TileUtils.OppositeSide(step);
         }
 
         // The zone whose footprint holds a tile beside a settled route has its goal there, if it is a destination other
@@ -617,7 +665,8 @@ namespace Micropolis.Rules
             facts.Mark = _search;
             int tileValue = _map.RawValueAt(index) & TileFlags.BIT_MASK;
             facts.RoadEnter = 0;
-            facts.RailEnter = 0;
+            facts.RideEnterFromNorthOrWest = 0;
+            facts.RideEnterFromSouthOrEast = 0;
             facts.Ends = 0;
 
             // Most tiles a search reads carry neither cars nor trains: zones and buildings, and the land between
@@ -640,8 +689,8 @@ namespace Micropolis.Rules
             if (TileUtils.CarriesTrains(tileValue))
             {
                 kind |= Rail;
-                int load = blockMaps.RailLoadMap.WorldGet(x, y);
-                facts.RailEnter = load < Traffic.MaxRailLoad ? (byte)(RailCost + load / RailLoadPerCost) : (byte)0;
+                facts.RideEnterFromNorthOrWest = RailEnterAt(blockMaps.RailLoad(fromNorthOrWest: true).WorldGet(x, y));
+                facts.RideEnterFromSouthOrEast = RailEnterAt(blockMaps.RailLoad(fromNorthOrWest: false).WorldGet(x, y));
             }
 
             if (TileUtils.IsRailStation(tileValue))
@@ -657,7 +706,14 @@ namespace Micropolis.Rules
             if ((kind & Rail) != 0)
             {
                 facts.Ends = (byte)TileUtils.RailEnds(tileValue);
+                facts.EntriesFromNorthOrWest = (byte)TileUtils.RailEntriesFromNorthOrWest(facts.Ends);
             }
+        }
+
+        // What riding onto a rail tile costs at the load given, its load the way the ride goes, or 0 where it is full
+        private static byte RailEnterAt(int load)
+        {
+            return load < Traffic.MaxRailLoad ? (byte)(RailCost + load / RailLoadPerCost) : (byte)0;
         }
 
         // The centre of the zone whose footprint holds the tile, or NoZone, read from the map as it is the first time
@@ -781,8 +837,10 @@ namespace Micropolis.Rules
         }
 
         // What a search knows of a tile, each part valid where its mark is the search's: what it is, bits of the kinds
-        // above, the sides its track leaves by (TileUtils.RailEnds), and what entering it by road and riding onto it
-        // cost, 0 where none can; and the centre of the zone whose footprint holds it
+        // above, the sides its track leaves by (TileUtils.RailEnds) and those of them a ride entering by counts as
+        // entering from the north or west (TileUtils.RailEntriesFromNorthOrWest), what entering it by road costs, and
+        // what riding onto it costs entering from the north or west and from the south or east, each 0 where none can;
+        // and the centre of the zone whose footprint holds it
         private struct Facts
         {
             public int Mark;
@@ -790,8 +848,10 @@ namespace Micropolis.Rules
             public int Owner;
             public byte Kind;
             public byte Ends;
+            public byte EntriesFromNorthOrWest;
             public byte RoadEnter;
-            public byte RailEnter;
+            public byte RideEnterFromNorthOrWest;
+            public byte RideEnterFromSouthOrEast;
         }
     }
 }

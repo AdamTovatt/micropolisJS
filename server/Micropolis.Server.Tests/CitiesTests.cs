@@ -50,7 +50,7 @@ namespace Micropolis.Server.Tests
             Assert.IsTrue(CityId.IsOne((string)started["city"]!));
             Assert.AreEqual("Town", (string)started["name"]!);
             Assert.AreEqual(2026u, (uint)started["seed"]!);
-            CollectionAssert.AreEqual(new[] { "map", "sprites", "date", "population", "evaluation", "budget", "settings" },
+            CollectionAssert.AreEqual(new[] { "map", "sprites", "date", "population", "evaluation", "budget", "settings", "clock" },
                 ada.StateMessages.Select(message => (string)message["type"]!).ToArray());
         }
 
@@ -125,7 +125,7 @@ namespace Micropolis.Server.Tests
             await grace.JoinAsync(city);
 
             CollectionAssert.AreEqual(
-                new[] { "map", "sprites", "date", "population", "evaluation", "budget", "settings", "status", "demand" },
+                new[] { "map", "sprites", "date", "population", "evaluation", "budget", "settings", "status", "demand", "clock" },
                 grace.StateMessages.Select(message => (string)message["type"]!).ToArray());
         }
 

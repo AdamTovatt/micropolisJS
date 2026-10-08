@@ -92,5 +92,81 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual((station, straight), (TileUtils.StationOn(straight), TileUtils.TrackUnder(station)));
             Assert.AreEqual(TileUtils.RailEnds(straight), TileUtils.RailEnds(station));
         }
+
+        // Entering by the north or the west end counts as from the north or west, but on the north-west curve by its
+        // north end alone and on the south-east curve by its east end: north 1, east 2, south 4 and west 8
+        [TestMethod]
+        [DataRow(LVRAIL, 1)]
+        [DataRow(LHRAIL, 8)]
+        [DataRow(VRAILROAD, 1)]
+        [DataRow(HRAILSTATION, 8)]
+        [DataRow(LVRAIL2, 1)]
+        [DataRow(LVRAIL3, 2)]
+        [DataRow(LVRAIL4, 8)]
+        [DataRow(LVRAIL5, 1)]
+        [DataRow(LVRAIL6, 1 | 8)]
+        [DataRow(LVRAIL7, 1)]
+        [DataRow(LVRAIL8, 8)]
+        [DataRow(LVRAIL9, 1 | 8)]
+        [DataRow(LVRAIL10, 1 | 8)]
+        public void RailEntriesFromNorthOrWest_EachKindOfPiece_AreItsNorthAndWestEndsButOnTwoCurves(int piece, int entries)
+        {
+            Assert.AreEqual(entries, TileUtils.RailEntriesFromNorthOrWest(TileUtils.RailEnds(piece)));
+        }
+
+        // Each way a ride goes along a piece, round a curve or straight through a junction or the cross, counts apart
+        // from the way back, so the two never share a track
+        [TestMethod]
+        public void EntersFromNorthOrWest_TheTwoWaysAlongAPiece_CountApart()
+        {
+            int[] pieces = [LHRAIL, LVRAIL, HRAILSTATION, VRAILSTATION, HRAILROAD, VRAILROAD, RAILHPOWERV, RAILVPOWERH,
+                            LVRAIL2, LVRAIL3, LVRAIL4, LVRAIL5, LVRAIL6, LVRAIL7, LVRAIL8, LVRAIL9, LVRAIL10];
+            List<string> shared = new List<string>();
+
+            foreach (int piece in pieces)
+            {
+                int ends = TileUtils.RailEnds(piece);
+                bool curve = ends is 3 or 6 or 12 or 9;
+
+                for (int side = 0; side < 4; side++)
+                {
+                    int other = curve ? ends & ~(1 << side) : 1 << TileUtils.OppositeSide(side);
+                    if ((ends & (1 << side)) == 0 || (ends & other) == 0)
+                    {
+                        continue;
+                    }
+
+                    int otherSide = System.Numerics.BitOperations.Log2((uint)other);
+                    if (TileUtils.EntersFromNorthOrWest(ends, side) == TileUtils.EntersFromNorthOrWest(ends, otherSide))
+                    {
+                        shared.Add($"{piece} entered by {side} and by {otherSide}");
+                    }
+                }
+            }
+
+            CollectionAssert.AreEqual(Array.Empty<string>(), shared);
+        }
+
+        [TestMethod]
+        [DataRow(10, 10, 10, 9, TileUtils.SouthSide)]
+        [DataRow(10, 10, 11, 10, TileUtils.WestSide)]
+        [DataRow(10, 10, 10, 11, TileUtils.NorthSide)]
+        [DataRow(10, 10, 9, 10, TileUtils.EastSide)]
+        public void SideEnteredBy_AStepEachWay_IsTheSideFacingWhereItCameFrom(int fromX, int fromY, int toX, int toY, int side)
+        {
+            Assert.AreEqual(side, TileUtils.SideEnteredBy(new Position(fromX, fromY), new Position(toX, toY)));
+        }
+
+        // A tile's sides are numbered as the cardinal directions are ordered, each the way a step out by it goes
+        [TestMethod]
+        public void Sides_AreNumberedAsTheCardinalDirections()
+        {
+            Assert.AreEqual((Direction.North, Direction.East, Direction.South, Direction.West),
+                            (Direction.CardinalDirections[TileUtils.NorthSide], Direction.CardinalDirections[TileUtils.EastSide],
+                             Direction.CardinalDirections[TileUtils.SouthSide], Direction.CardinalDirections[TileUtils.WestSide]));
+            Assert.AreEqual((TileUtils.SouthSide, TileUtils.WestSide, TileUtils.NorthSide, TileUtils.EastSide),
+                            (TileUtils.OppositeSide(TileUtils.NorthSide), TileUtils.OppositeSide(TileUtils.EastSide),
+                             TileUtils.OppositeSide(TileUtils.SouthSide), TileUtils.OppositeSide(TileUtils.WestSide)));
+        }
     }
 }
