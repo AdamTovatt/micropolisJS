@@ -32,6 +32,8 @@ interface RuleConstants {
     spriteTypes: {type: number, name: string, frames: number}[];
     // The tiles along each side of a block of the fire department's cover map
     fireCoverBlockSize: number;
+    // The map's size in tiles
+    mapSize: {width: number, height: number};
 }
 
 // Imported as a module rather than read from a path, since the recorder and the end-to-end suite run it as an ES

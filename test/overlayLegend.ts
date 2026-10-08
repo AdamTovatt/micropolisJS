@@ -18,19 +18,24 @@ import { OverlaySelection } from "../src/overlayPicker";
 import { rampColour } from "../src/overlayRenderer";
 import type { PaintableMap } from "../src/paintable";
 import type { OverlayAnswer, OverlayLayer } from "../src/protocol";
+import type { Rect } from "../src/rect";
 import { RenderArt, parseRenderManifest } from "../src/renderManifest";
 import { DIRT, RIVER, TILE_INVALID } from "../src/tileValues";
 import { FakeOverlaySource } from "./helpers/fakeOverlaySource";
+import { plainCanopy, plainGrass, plainWater } from "./helpers/grassArt";
 
 // The legend names the layer whose tint the map shows. The game canvas draws no frame while the GPU is still drawing
 // the one before, so a new overlay shows some frames after it is set: until then, the legend stays on the layer the
 // map was drawn with. The canvas paints here as in the page, over a renderer double the test makes busy, and a DOM
-// stubbed as far as the canvas reads one; the overlay picker wires the selection and the legend to it as here.
+// stubbed as far as the canvas reads one; the overlay picker wires the selection and the legend to it as here. The
+// same canvas is the one place to see how often it draws the map's layer whole, which the render benchmark asks of it.
 
 interface RendererDouble {
     busy: boolean;
     // The tint of each frame drawn: the colour of its first tint quad, as the frame gives it, or null for none
     readonly draws: (number[] | null)[];
+    // The areas of the map's layer each frame drew again, null for all of it
+    readonly layers: (readonly Rect[] | null)[];
 }
 
 const mockRenderers: RendererDouble[] = [];
@@ -44,15 +49,17 @@ jest.mock("../src/webglRenderer", () => ({
     WebGLRenderer: class {
         busy = false;
         readonly draws: (number[] | null)[] = [];
+        readonly layers: (readonly Rect[] | null)[] = [];
 
         constructor() {
             mockRenderers.push(this);
         }
 
-        draw(frame: MapFrame): void {
+        draw(frame: MapFrame, areas: readonly Rect[] | null): void {
             const run = frame.tints.runs[0];
             this.draws.push(run === undefined ? null :
                 Array.from(run.floats.slice(mockColourAt, mockColourAt + mockColourFloats)));
+            this.layers.push(areas);
         }
     },
 }));
@@ -146,7 +153,12 @@ describe("the overlay's legend", () => {
 
     beforeEach(() => {
         tileValue = DIRT;
-        const art = new RenderArt(parseRenderManifest({version: 1, atlases: {}, tiles: {}, sprites: {}, cars: {}}));
+        const art = new RenderArt(parseRenderManifest({
+            version: 1, atlases: {grass: "grass.png"}, tiles: {}, sprites: {}, cars: {},
+            grass: plainGrass({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
+            canopy: plainCanopy({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
+            water: plainWater({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
+        }));
         canvas = new GameCanvas(CONTAINER, map, {art, atlases: new Map()});
         renderer = mockRenderers[mockRenderers.length - 1];
         source = new FakeOverlaySource();
@@ -212,5 +224,21 @@ describe("the overlay's legend", () => {
         paint();
 
         expect([legend, renderer.draws.length]).toEqual([["fireCoverage"], draws + 1]);
+    });
+
+    // For the render benchmark, which times the drawing of the map itself (testHook.ts)
+    it("has the map's layer drawn whole on every paint while asked, and only where it changed after", () => {
+        paint();
+        paint();
+        const still = renderer.layers.length;
+
+        canvas.wholeLayerEachFrame = true;
+        paint();
+        paint();
+        canvas.wholeLayerEachFrame = false;
+        paint();
+
+        // The first paint draws all of the view; a still map then draws nothing until asked, and nothing once not
+        expect([still, renderer.layers]).toEqual([1, [null, null, null]]);
     });
 });

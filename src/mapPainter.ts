@@ -159,10 +159,10 @@ export class MapPainter {
     this.renderer.release();
   }
 
-  // The tiles in view, from the drawn origin, in device pixels, and a margin around them as wide as the farthest shadow
-  // reaches, whose anchors' shadows may reach into the view
+  // The tiles in view, from the drawn origin, in device pixels, and a margin around them as wide as a tile's look
+  // reaches, whose anchors' shadows may reach into the view and whose woods the canopy of a tile in view is drawn from
   private readTiles({across, down, tilePixels}: PaintedView, origin: PixelPoint, isPaused?: boolean): FrameTiles {
-    const margin = this.art.shadowReach;
+    const margin = this.art.reach;
     // The tile at the view's top-left, and how far into it the view starts
     const first = {x: Math.floor(origin.x / tilePixels), y: Math.floor(origin.y / tilePixels)};
     const offset = {x: origin.x - first.x * tilePixels, y: origin.y - first.y * tilePixels};

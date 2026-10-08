@@ -31,10 +31,11 @@ import { isRoad, tilesWhere } from "./savedMap";
 // The render benchmark, `npm run benchmark:render`: how fast the page draws the map as the cars on it grow. It plays a
 // fixture's city on a game server of its own, the driver held throughout so no tile changes, and holds a count of
 // synthetic cars on the roads in view, added through the test hook, then counts over a while the turns of the page's
-// animation loop and the frames of them the map's painter drew. It prints a table of both rates, the cars showing on
-// average, fewer than those held where they queue and wait to appear, and the machine's load average as each was
-// measured, with the machine, the build and the date beside it. Its numbers belong to the machine, so CI
-// never runs it, and nothing keeps them.
+// animation loop and the frames of them the map's painter drew. With no cars the painter draws only what changes, so
+// last at each zoom it has the painter draw the map's layer whole every frame, through the test hook, which times
+// drawing the map itself. It prints a table of both rates, the cars showing on average, fewer than those held where
+// they queue and wait to appear, and the machine's load average as each was measured, with the machine, the build and
+// the date beside it. Its numbers belong to the machine, so CI never runs it, and nothing keeps them.
 
 // The fixture saves the city is chosen from: the run saves, of which it plays the one with the most road tiles
 const RUN_SAVE = /^(.+\.run)\.json$/;
@@ -75,6 +76,9 @@ test.use({viewport: VIEWPORT, deviceScaleFactor: 1});
 interface Measured {
   zoom: number;
   cars: number;
+  // Whether every frame drew the map's layer whole, which times the drawing of the map itself, or only where it
+  // changed, as the game does
+  whole: boolean;
   animated: number;
   painted: number;
   showing: number;
@@ -245,16 +249,17 @@ function table(measured: readonly Measured[], fixture: string, buildId: string):
     `Fixture: ${fixture}, ${VIEWPORT.width}×${VIEWPORT.height}, 1 device pixel to the CSS pixel, ` +
       `${MEASURE_MS / 1000} s measured`,
     "",
-    "| Zoom | Cars held | Cars showing | Animation frames/s | Painter frames/s | Animation, of baseline | " +
+    "| Zoom | Cars held | Cars showing | Layer | Animation frames/s | Painter frames/s | Animation, of baseline | " +
       "Painter, of baseline | Load |",
-    "|-----:|----------:|-------------:|-------------------:|-----------------:|-----------------------:|" +
+    "|-----:|----------:|-------------:|:------|-------------------:|-----------------:|-----------------------:|" +
       "---------------------:|-----:|",
   ];
 
   for (const row of measured) {
-    // The baseline: the page's animation frames on the same view with no cars
-    const baseline = measured.find((other) => other.zoom === row.zoom && other.cars === 0)!.animated;
-    lines.push(`| ${row.zoom} | ${row.cars} | ${row.showing.toFixed(0)} | ${row.animated.toFixed(1)} | ${row.painted.toFixed(1)} | ` +
+    // The baseline: the page's animation frames on the same view with no cars, drawing the layer where it changed
+    const baseline = measured.find((other) => other.zoom === row.zoom && other.cars === 0 && !other.whole)!.animated;
+    lines.push(`| ${row.zoom} | ${row.cars} | ${row.showing.toFixed(0)} | ${row.whole ? "whole" : "changes"} | ` +
+               `${row.animated.toFixed(1)} | ${row.painted.toFixed(1)} | ` +
                `${percent(row.animated, baseline)} | ${percent(row.painted, baseline)} | ${row.load.toFixed(1)} |`);
   }
 
@@ -302,10 +307,16 @@ test("the map's frames a second, as the cars on it grow", async ({page}) => {
         expect(held, "the cars held").toBe(cars);
       }
 
-      measured.push({zoom, cars, ...await measure(page)});
+      measured.push({zoom, cars, whole: false, ...await measure(page)});
     }
 
     await keepCarsAt(page, trips, 0);
+    await expect.poll(() => carsHeld(page), {message: "the cars held, once they have finished their routes",
+                                             timeout: CARS_GONE_MS}).toBe(0);
+    // The map's layer drawn whole every frame, with no cars: what drawing the map itself costs
+    await page.evaluate(() => window.micropolisTestHook!.drawWholeLayerEachFrame(true));
+    measured.push({zoom, cars: 0, whole: true, ...await measure(page)});
+    await page.evaluate(() => window.micropolisTestHook!.drawWholeLayerEachFrame(false));
   }
 
   console.log(`\n${table(measured, fixture.name, await player.buildId())}\n`);

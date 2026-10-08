@@ -61,7 +61,7 @@ function gameOn(source: CitySource, state: CityState) {
         onCommandResult: (listener: () => void) => state.on("commandResult", listener),
         // Not the tile set's 16 pixels, so the view's tile width is seen to be the canvas's
         gameCanvas: {getTileOrigin: () => ({x: 3, y: 4}), getOriginLimits: () => LIMITS, tileWidth: 32,
-                     mapCurrent: false},
+                     mapCurrent: false, wholeLayerEachFrame: false},
         monsterTV: {current: false},
         carsAdded: [] as Parameters<Cars["add"]>[0][],
         cars: {driven: () => [0, 0.5], carsHeld: () => 4, add: (routes: Parameters<Cars["add"]>[0]) => {
@@ -107,7 +107,8 @@ function gameOn(source: CitySource, state: CityState) {
 const IDLE_GAME = {
     sendToolPaths: () => {},
     onCommandResult: () => {},
-    gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true},
+    gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true,
+                 wholeLayerEachFrame: false},
     monsterTV: {current: true},
     cars: {driven: () => [], carsHeld: () => 0, add: () => {}},
     carsPainted: [],

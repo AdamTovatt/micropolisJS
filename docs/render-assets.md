@@ -6,17 +6,17 @@ The map, the monster TV and the splash screen's map preview are drawn with WebGL
 
 The map is drawn in this order:
 
-1. every tile's ground;
-2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
+1. the world grass, the canopy, the sand and the water over it, then every tile's ground over them, in one pass (The world grass, The canopy and The water, below);
+2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, and the canopy's shadow (The canopy, below), merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
 3. every tile's objects;
 4. the map overlay's tint;
 5. the cars (`cars.ts`), then the sprites over them.
 
-The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as their shadows reach.
+The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as a tile's look reaches: as far as their shadows reach, and at least the two tiles round each whose canopy, canopy's shadow and water it changes (`reach` of `RenderArt` in `renderManifest.ts`).
 
 A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. Traffic is drawn as cars, so a traffic tile, light or heavy, and each frame of one, is drawn from the entry of the plain road tile of its shape (`trafficTiles.ts`), every layer of it: its shadow comes from the anchor's own value, and a traffic value's is the plain road's. The map, the monster TV and the preview alike look up a tile's art in one place, `buildMapFrame` in `mapFrame.ts`. A shadow is drawn from the anchor's own tile id, so it doesn't blink. The bolt's entry has objects as well as ground, the whole tile, opaque, which no shadow darkens: the bolt replaces the centre tile of a zone or a service building, whose own shadow lies dense under the roof the bolt replaces.
 
-The monster TV draws its view in the same passes, but for the overlay's tint. The splash screen's preview draws the whole map in the first three, with no overlay and no sprites, each tile's own id unanimated, and the shadows of none but the tiles on the map.
+The monster TV draws its view in the same passes, but for the overlay's tint, the world grass included. The splash screen's preview draws the whole map in the first three, with no overlay and no sprites, each tile's own id unanimated, and the shadows of none but the tiles on the map.
 
 ## The manifest
 
@@ -58,13 +58,27 @@ The monster TV draws its view in the same passes, but for the overlay's tint. Th
 - `version` is 1.
 - `atlases` names each atlas image, by a path relative to the manifest. A name may not start `fallback:`: the client keeps those names for its own atlases, the 16 px sheets (`fallback:tiles`, `fallback:sprites`) and the white pixel the overlay's tints are drawn from (`fallback:white`).
 - `tiles` maps a tile id, from 0 to 1023 (`tileValues.ts`), to its layers:
-  - `ground`, required: everything that lies on the ground, opaque, drawn into the tile.
+  - `ground`, required: everything that lies on the ground, drawn into the tile over the world grass. It is opaque but
+    where it lets the grass through: a single tile the paint build's join gives the bare land's painting (`art/README.md`)
+    is transparent wherever it does, tile 0, bare land, all over, so bare land and the land of every tile joined to it
+    are one grass; the woods' ground, which the atlas build makes transparent all over, lets all of it through for the
+    canopy over it (The canopy, below); and so does the water's, for the water over it (The water, below), and the
+    ground of a tile the join gives the open water's painting at least half over, such as a bridge, where it does.
+  - `grass`, optional, only where the ground lets the world grass through: `all`, where it is transparent all over, so
+    the tile draws the grass alone and never samples its ground, or `part`, where it draws its ground over the grass.
+    A tile without it draws its ground alone and never samples the grass, so no tile pays for a layer it doesn't show.
+  - `water`, optional, only `true`: the map draws the tile as water, from where the map's water lies (The water,
+    below): the water and its shores, and a tile standing over water, such as a bridge.
   - `objects`, optional: everything standing, over transparency, drawn into the tile over the shadows. A tile the game draws in place of another asset's tile has the whole tile here, opaque, so no shadow darkens it.
   - `shadow`, optional, and only on an asset's anchor: black whose alpha is the shadow's darkness, drawn over the anchor and `reach` whole tiles past it on each side.
 - `sprites` maps a sprite type, from 1 to 7, and a frame, from 1 to that type's last, to its rectangle, drawn into the sprite's square. The types are, in order: train (5 frames, 32 px square), helicopter (8, 32 px), airplane (11, 48 px), ship (8, 48 px), monster (16, 48 px), tornado (3, 48 px) and explosion (6, 48 px), the square's side measured at 16 px a tile (`SPRITE_SHEET` in `renderManifest.ts`). No simulation sprite is a train: the client draws each car of a train from the train's first frame running north or south and its second running east or west, into the car's square, a tile a side, centred on the right-hand track of the rail tile's double track, `TRACK_OFFSET` right of the railway's middle, where the rail art lays it (`TRACK` in `art/blender/tilesets.py`; `trainCar` of `RenderArt` in `renderManifest.ts`).
 - `cars` maps a car's colour, one of the client's (`CAR_COLOURS` in `cars.ts`: red, blue, yellow, white, green and orange), and a way it faces, `north`, `east`, `south` or `west`, to its rectangle, drawn into the car's square, a tile a side, centred on its place in its lane, the car and its shadow standing in the middle. A car the manifest leaves out is drawn as a rectangle in its colour's flat colour, long the way it faces, the size of the painted car (`CAR_LENGTH` and `CAR_BREADTH` in `mapFrame.ts`).
 
-A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atlas, at least 1 wide and high. It is scaled to fill where it is drawn, so an atlas may be rendered at any pixels a tile; the art is rendered at 64 px a tile (`TILE_PX` in `art/blender/tileart.py`), the closest zoom. A key the format doesn't name, a missing `ground`, a rectangle naming an atlas the manifest doesn't declare or running past its image, or a number out of its range fails the page's start with a message naming where.
+- `grass`, required: the world grass, below.
+- `canopy`, required: the canopy the woods are drawn as, below.
+- `water`, required: the water, below.
+
+A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atlas, at least 1 wide and high. It is scaled to fill where it is drawn, so an atlas may be rendered at any pixels a tile; the art is rendered at 64 px a tile (`TILE_PX` in `art/blender/tileart.py`), the closest zoom. A key the format doesn't name, a missing `ground`, `grass`, `canopy` or `water`, a rectangle naming an atlas the manifest doesn't declare or running past its image, or a number out of its range fails the page's start with a message naming where.
 
 ### Cutting an asset into tiles
 
@@ -79,12 +93,157 @@ The shadow's `reach` counts from the anchor. For a zone `tiles` wide with its an
 
 The shadow image is then `left` + 1 + `right` tiles wide and `top` + 1 + `bottom` tiles high, which is `shadow.png`'s size.
 
+### The world grass
+
+Bare land is one grass laid over the whole map by position, with no grid and no repeat: two sets of corner tiles,
+lush and straw, mixed by a soft mask that leaves straw on about 70% of the land, then tinted. `art/tools/grass.py`
+builds the sets and `src/grass.ts` computes the rest in the client, with the same arithmetic.
+
+```json
+"grass": {
+  "colours": 3,
+  "corners": {"seed": 27153},
+  "mask": {"octaves": [{"cell": 9.0, "seed": 8193, "weight": 0.75, "turn": [0.819648, 0.572867]}],
+           "gradients": [[1.0, 0.0], [0.92388, 0.382683]],
+           "centre": -0.095, "width": 0.42},
+  "tint": {"octaves": [{"cell": 7.0, "seed": 4097, "weight": 0.65}],
+           "brightness": 0.16, "warmth": 0.35, "warm": [1.1, 1.03, 0.8]},
+  "texelsPerTile": 8,
+  "sets": {
+    "lush": {"mean": [92.0, 112.0, 29.0], "tiles": [{"atlas": "grass-0", "x": 4, "y": 4, "width": 64, "height": 64}]},
+    "straw": {"mean": [103.0, 116.0, 39.0], "tiles": [{"atlas": "grass-0", "x": 76, "y": 4, "width": 64, "height": 64}]}
+  }
+}
+```
+
+- **The tile a map tile draws.** Each corner of the map's tile lattice, (x, y) for x from 0 to the map's width and y
+  likewise, takes a colour from 0 to `colours` − 1: `latticeHash(x, y, corners.seed) % colours`. Here
+  `latticeHash(x, y, seed)` is `lowbias32(x ^ lowbias32(y ^ seed))`, on whole numbers taken modulo 2³², and lowbias32
+  is Chris Wellons' hash. The map tile at (x, y), y down, draws tile number nw + ne·c + sw·c² + se·c³, where c is
+  `colours` and nw, ne, sw and se are its corners' colours. Each set has `colours`⁴ tiles, in that order, all in one
+  atlas and all squares of one size. A tile's edge depends on that edge's two corners alone, so tiles always meet, and the corners' colours come
+  from a hash, so nothing repeats on a period.
+- **The share of straw.** At a map position (x, y) in tiles, the share is gradient noise summed over `mask.octaves`
+  by weight. For each octave:
+  1. The lattice is turned by `turn`, a cosine and a sine, and spaced `cell` tiles apart.
+  2. Each lattice point's gradient is `gradients[latticeHash(point, seed) & 15]`.
+  3. The noise fades from point to point by the quintic t³(t(6t − 15) + 10).
+
+  The sum n becomes the share by smootherstep of clamp((n − `centre`) / `width` + 0.5, 0, 1).
+- **The tint.** At a position, the tint is value noise summed over `tint.octaves` by weight. Each lattice point's
+  value is its hash / (2³² − 1), blended between points by smoothstep. With the tint n, from 0 to 1, the grass is:
+  1. brightened by 1 + `brightness`·(n − 0.5);
+  2. then moved toward itself times `warm` by `warmth`·clamp(2(n − 0.45), 0, 1).
+- **The field.** The client bakes the share, the tint, the canopy's wobble and the shore's (The canopy and The water,
+  below) once, as bytes rounded half up, each wobble from −1 to 1 as 0 to 1. There are `texelsPerTile` texels a tile over the map, each the value at its texel's centre,
+  and the renderer samples them linearly. Only map positions go in, never a city's seed, so every city's grass lies the
+  same. `conformance/grass.json` holds the client's hash, tiles and noise to the art build's, the baked field included.
+- **The pass.** Each ground quad carries the map position of its tile and the rectangle of its tile in each set. Where
+  the tile's ground lets the grass through, the shader:
+  1. samples each set at one mip level for the frame, where a texel of the grass's tiles is a device pixel at its zoom,
+     or the first where they are drawn larger;
+  2. blends the two sets' texels by the share, variance-preserving, so the change between them keeps its contrast: the
+     mix of the sets' `mean`s, plus each texel's difference from its set's mean weighted by its share, over
+     √((1 − s)² + s²);
+  3. tints the result;
+  4. draws the canopy over it, where the tile has any (The canopy, below);
+  5. draws the sand and the water over that, where the tile has any (The water, below);
+  6. draws the ground over it by its alpha.
+
+  The grass is a function of map position alone, so a map drawn again in part draws it as the map drawn whole.
+
+### The canopy
+
+The woods are drawn as one canopy over the world grass, from where the map's woods lie, not from each tile's art, so
+woods and their clearings are round, never a tile's square, and their edges fade into the grass. The woods are the
+tile ids from `WOODS_LOW` to `WOODS_HIGH` (`tileValues.ts`), 21 to 39, whose entries in `tiles` let all the grass
+through; `art/tools/grass.py` builds the canopy's tiles as it builds a grass set's.
+
+```json
+"canopy": {
+  "corners": {"seed": 16385},
+  "cut": 0.5,
+  "feather": 0.12,
+  "edge": {"octaves": [{"cell": 0.9, "seed": 24577, "weight": 1.2, "turn": [0.819648, 0.572867]}]},
+  "shadow": {"offset": 0.3, "darkness": 0.5, "feather": 0.35},
+  "tiles": [{"atlas": "grass-0", "x": 4, "y": 220, "width": 64, "height": 64}]
+}
+```
+
+- **The tile a map tile draws.** As a grass set's, with the grass's `colours` and the canopy's own `corners.seed`.
+  `tiles` holds as many tiles as a grass set, in the grass's atlas and of its tiles' size, so the pass samples them at
+  the grass's mip level.
+- **The surface.** Over each tile, the woods make a surface from 0 off them to 1 within them: the quadratic Bézier
+  patch through the tile's own woods, 1 or 0, at its middle, the share of woods of the two tiles at each edge's middle,
+  and of the four at each corner, a tile past the map's edge taking the woods of the map's tile nearest it. Two tiles
+  meeting at an edge agree along it, a lone tile of woods is a round clump, and a lone tile of bare land within them a
+  round clearing.
+- **The wobble.** At a position, the wobble of the canopy's edge is gradient noise summed over `edge.octaves` by
+  weight, as the grass's share is, on the grass mask's `gradients`, held from −1 to 1 and baked into the grass's field.
+  The wobble w moves the edge: with the surface s held from 0 to 1, it becomes s + w·4s(1 − s), so the edge wanders by
+  as much as a tile's breadth of crowns where the surface is halfway, and the heart of the woods and open land, where
+  it is 1 or 0, never change: no hole in the woods, no speck on the grass.
+- **The cover.** The canopy covers the grass by clamp((surface − `cut`) / `feather` + 0.5, 0, 1): wholly well within
+  the woods, fading into the grass over `feather` of the surface about its edge. It is drawn under every ground that
+  lets the grass through, with any woods round its tile, in part or all over, so it runs on wherever the grass shows
+  and ends on no tile's edge; under a ground that lets none through it is never drawn.
+- **The shadow.** The canopy casts a shadow right and down, away from the sun the art is lit by, as the anchors'
+  shadows fall: at each point, the canopy's cover `shadow.offset` tiles up and left of it, under 1, worked out as the
+  cover is but faded over `shadow.feather`, times `shadow.darkness`, and nothing where the canopy shows at the point
+  itself, so the shadow falls on the ground about the woods, never on the crowns. The canopy shows as the ground pass
+  draws it: where it covers the grass, but for the sand and the water over it and the tile's own ground over them, so
+  a road or a shore beside the woods takes the shadow where its own pixels hide the canopy. A tile with any woods
+  within two tiles up and left of it, or one right or down, draws it in the shadow pass, merged with the anchors'
+  shadows by the darkest value, onto whatever its ground is.
+- **How far a change reaches.** A tile's canopy depends on the woods of the tiles round it, and its shadow on those up
+  to two tiles up and left of it, so a map drawn again in part draws again two tiles round each that changed
+  (`SURFACE_REACH` in `surfaces.ts`), and draws it as the map drawn whole.
+
+### The water
+
+The water is drawn as the canopy is, as one surface over the world grass, from where the map's water lies, not from
+each tile's art, so its shore is one line that runs on from tile to tile, with a band of sand along it. The water is
+the tiles whose entries in `tiles` say `water`, the river, the channel and their shores, whose ground lets all the grass
+through, and what stands over water, such as a bridge, whose ground lets it through where the open water's painting
+gave it (`art/README.md`); `art/tools/grass.py` builds the water's tiles as it builds a grass set's, from the painting
+in `art/painted/raw/water/`.
+
+```json
+"water": {
+  "corners": {"seed": 12289},
+  "cut": 0.5,
+  "feather": 0.04,
+  "edge": {"octaves": [{"cell": 1.1, "seed": 20481, "weight": 0.22, "turn": [0.819648, 0.572867]}]},
+  "sand": {"band": 0.2, "mean": [190, 164, 116], "contrast": 0.8},
+  "tiles": [{"atlas": "grass-0", "x": 1372, "y": 292, "width": 64, "height": 64}]
+}
+```
+
+- **The tile a map tile draws.** As the canopy's, with the water's own `corners.seed`.
+- **The surface.** The water's, made over each tile as the woods' is, through the tile's own water at its middle, the
+  share of the two tiles at each edge's middle and of the four at each corner. A straight shore runs along the edge
+  between its tiles, and a corner of water rounds off, so a tile of land still reads as land and a tile of water as
+  water, and a channel a tile wide stays a strip.
+- **The wobble.** As the canopy's, over `edge.octaves`, its weights small enough that the shore keeps close to the
+  tiles' edges.
+- **The water and the sand.** The water covers the land by clamp((surface − `cut`) / `feather` + 0.5, 0, 1), and the
+  sand, under it, by the same with the cut `sand.band` lower, so a band of sand runs along the shore on the land's
+  side. The sand is the straw's strokes at its tile: the straw texel's luminance about the straw's mean, times
+  `sand.contrast`, about `sand.mean`. It is drawn under every ground that lets the grass through, with any water round
+  its tile, over the canopy, and casts no shadow.
+- **How far a change reaches.** A tile's water depends on the water of the tiles round it, so a map drawn again in part
+  draws again the tiles round each that changed, within `SURFACE_REACH`, and draws it as the map drawn whole.
+
 ### Atlases
 
 - PNG, with straight (not premultiplied) alpha. The client premultiplies on upload.
+- The world grass's tiles, and the canopy's and the water's, have an atlas of their own, which the ground pass samples beside the tile's ground atlas.
 - At most 4096 pixels a side. WebGL2 guarantees only 2048, but practically every device draws 4096; an atlas past the browser's own limit fails the page's start as a broken manifest does, naming it.
 - Rendered atlases are mipmapped and filtered trilinearly, so the art scales smoothly down to 16 px a tile. A rectangle's neighbours bleed into it at the smaller mip levels unless each rectangle starts on a multiple of 4 pixels and is surrounded by a gutter of its own edge pixels repeated 4 pixels outward, which at 64 px a tile covers the two mip levels down to 16 px. The client samples no level past those two, so the art drawn smaller still, such as on a page zoomed out, is minified from the second rather than bled into. The 16 px sheets are drawn with nearest-neighbour filtering, so they stay crisp at every zoom, except on the splash screen's preview: at its 3 CSS pixels a tile, it filters them as it filters the rendered art.
 
 ## The fallback
 
-A tile id with no entry draws its 16 px tile from `images/tiles.png` as ground, with no shadow and no objects, and a sprite frame with no entry draws from `images/sprites.png`, a 48 px cell per frame, a row per type. `fallbackManifest()` generates these entries from the sheets' layout, and `test/renderManifest.ts` checks they cover every tile id and every frame of every sprite type in the sheet's layout, `SPRITE_SHEET`, which `test/vocabulary.ts` holds to the frames the rules give each type of theirs (`conformance/ruleConstants.json`), every type but the train. The station tiles, 1020 with its track east and west and 1021 north and south, which the original never had, have a plain 16 px tile on the sheet the atlas build starts from (`art/sheets/tiles-original.png`): a single track with a platform along each side, drawn by hand, which the atlas build replaces with the painted double-track station.
+A tile id with no entry draws its 16 px tile from `images/tiles.png` as ground, with no shadow and no objects, and a sprite frame with no entry draws from `images/sprites.png`, a 48 px cell per frame, a row per type. `fallbackManifest()` generates these entries from the sheets' layout, and `test/renderManifest.ts` checks they cover every tile id and every frame of every sprite type in the sheet's layout, `SPRITE_SHEET`, which `test/vocabulary.ts` holds to the frames the rules give each type of theirs (`conformance/ruleConstants.json`), every type but the train. The station tiles, 1020 with its track east and west and 1021 north and south, which the original never had, have a plain 16 px tile on the sheet the atlas build starts from (`art/sheets/tiles-original.png`): a single track with a platform along each side, drawn by hand, which the atlas build replaces with the painted double-track station. The atlas build draws the sheet's cell of
+each tile it has art for over a square of the world grass at the grass's mean colour over the map, so bare land's cell,
+and the minimap, which colours each tile by its cell's average, follow the grass; each woods tile's cell as a tile
+of the canopy, whole; and each water tile's cell from its painted tile, of the land and water a shore holds.

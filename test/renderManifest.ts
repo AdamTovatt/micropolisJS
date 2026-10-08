@@ -21,9 +21,13 @@ import {
     checkRectsInAtlases,
     fallbackManifest, fallbackSpriteRect, parseRenderManifest, spriteKey,
 } from "../src/renderManifest";
-import { repositoryPath } from "./helpers/repository";
+import type { CanopyArt } from "../src/renderManifest";
+import { SURFACE_REACH } from "../src/surfaces";
+import { committedGrass, committedSurface, plainCanopy, plainGrass, plainWater } from "./helpers/grassArt";
+import type { CanopyJson, GrassJson, WaterJson } from "./helpers/grassArt";
+import { repositoryJson, repositoryPath } from "./helpers/repository";
 import { tileImageOrigin } from "../src/tileSet";
-import { TILE_COUNT } from "../src/tileValues";
+import { LTRFBASE, TILE_COUNT } from "../src/tileValues";
 
 
 // A PNG's size, from its header: the width and height start 16 bytes in
@@ -36,12 +40,13 @@ function pngSize(path: string): {width: number, height: number} {
 const SHEET_SIZES = new Map([[FALLBACK_TILES, pngSize("images/tiles.png")],
                              [FALLBACK_SPRITES, pngSize("images/sprites.png")]]);
 
-// A manifest file's JSON, with one atlas, the tiles and sprites given and no cars
-function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
-    return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}};
-}
-
 const rect = (x: number, y: number, size = 64) => ({atlas: "zones", x, y, width: size, height: size});
+
+// A manifest file's JSON, with one atlas, the tiles and sprites given, no cars and the plainest grass and canopy
+function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
+    return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}, grass: plainGrass(rect(0, 0)),
+            canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0))};
+}
 
 describe("the render manifest", () => {
 
@@ -58,6 +63,8 @@ describe("the render manifest", () => {
                     ground: {atlas: FALLBACK_TILES, x: origin.x, y: origin.y, width: 16, height: 16},
                     shadow: null,
                     objects: null,
+                    grass: null,
+                    water: false,
                 };
                 if (JSON.stringify(art) !== JSON.stringify(expected)) {
                     wrong.push(id);
@@ -82,7 +89,15 @@ describe("the render manifest", () => {
         });
 
         it("lies wholly on the sheets", () => {
-            expect(() => checkRectsInAtlases(fallback, SHEET_SIZES)).not.toThrow();
+            // Beside the world grass and the canopy every manifest has, here on the tile sheet's first cell
+            const onSheet = {atlas: FALLBACK_TILES, x: 0, y: 0, width: 16, height: 16};
+            const plain = parseRenderManifest(manifestJson());
+            const grass = {...plain.grass, atlas: FALLBACK_TILES, lush: {mean: [0, 0, 0] as const, tiles: [onSheet]},
+                           straw: {mean: [0, 0, 0] as const, tiles: [onSheet]}};
+            const canopy = {...plain.canopy, tiles: [onSheet]};
+            const water = {...plain.water, tiles: [onSheet]};
+
+            expect(() => checkRectsInAtlases({...fallback, grass, canopy, water}, SHEET_SIZES)).not.toThrow();
         });
 
         it("has no sprite cell for a type or frame the sheet lacks", () => {
@@ -93,6 +108,19 @@ describe("the render manifest", () => {
 
     describe("reading a manifest file", () => {
 
+        it("reads a tile the map draws as water", () => {
+            const art = new RenderArt(parseRenderManifest(manifestJson({"64": {ground: rect(0, 0), water: true}})));
+
+            expect([art.tile(64).water, art.isWater(64), art.isWater(0)]).toEqual([true, true, false]);
+        });
+
+        it("draws a traffic tile as water where its plain road is", () => {
+            // The plain road of the bridge's first traffic tile is the bridge, 64
+            const art = new RenderArt(parseRenderManifest(manifestJson({"64": {ground: rect(0, 0), water: true}})));
+
+            expect(art.isWater(LTRFBASE)).toBe(true);
+        });
+
         it("reads each layer of a tile, and a sprite frame", () => {
             const shadow = {...rect(0, 64, 192), reach: {left: 1, top: 0, right: 0, bottom: 1}};
             const manifest = parseRenderManifest(manifestJson(
@@ -101,16 +129,18 @@ describe("the render manifest", () => {
             ));
 
             expect(manifest.atlases).toEqual(new Map([["zones", "zones.png"]]));
-            expect(manifest.tiles.get(249)).toEqual({ground: rect(0, 0), objects: rect(64, 0), shadow});
-            expect(manifest.tiles.get(250)).toEqual({ground: rect(128, 0), objects: null, shadow: null});
+            expect(manifest.tiles.get(249)).toEqual({ground: rect(0, 0), objects: rect(64, 0), shadow, grass: null,
+                                                     water: false});
+            expect(manifest.tiles.get(250)).toEqual({ground: rect(128, 0), objects: null, shadow: null, grass: null,
+                                                     water: false});
             expect(manifest.sprites).toEqual(new Map([[spriteKey(5, 16), rect(0, 256, 192)]]));
         });
 
-        it("reads a manifest of no art", () => {
-            const manifest = parseRenderManifest({version: 1, atlases: {}, tiles: {}, sprites: {}, cars: {}});
+        it("reads a manifest of no art but the world grass every manifest has", () => {
+            const manifest = parseRenderManifest(manifestJson());
 
             expect([manifest.atlases.size, manifest.tiles.size, manifest.sprites.size, manifest.cars.size])
-                .toEqual([0, 0, 0, 0]);
+                .toEqual([1, 0, 0, 0]);
         });
 
         it("reads a car of each colour and way it has, by colour and way", () => {
@@ -124,6 +154,10 @@ describe("the render manifest", () => {
         it.each<[string, Record<string, unknown>, string]>([
             ["another version", {...manifestJson(), version: 2}, "version is not 1"],
             ["a key it doesn't know", {...manifestJson(), extra: true}, "the manifest has unknown keys: extra"],
+            ["a ground that lets grass through by another word", manifestJson({"0": {ground: rect(0, 0), grass: "some"}}),
+             "tiles.0.grass is neither all nor part"],
+            ["a tile marked as water by anything but true", manifestJson({"2": {ground: rect(0, 0), water: false}}),
+             "tiles.2.water is not true"],
             ["no cars", {version: 1, atlases: {}, tiles: {}, sprites: {}}, "the manifest lacks cars"],
             ["a fallback sheet's name for an atlas", {...manifestJson(), atlases: {[FALLBACK_TILES]: "x.png"}},
              `atlases.${FALLBACK_TILES} takes a name starting fallback:, which the client keeps for its own`],
@@ -171,8 +205,7 @@ describe("the render manifest", () => {
 
         // The art build names the colours as the client does (CAR_COLOURS in art/tools/designs.py)
         it("has, as the art build writes it, a car of every colour facing every way", () => {
-            const manifest = parseRenderManifest(JSON.parse(readFileSync(repositoryPath("images/render/manifest.json"),
-                                                                         "utf8")));
+            const manifest = parseRenderManifest(repositoryJson("images/render/manifest.json"));
             const missing = CAR_COLOURS.flatMap(({name}) => CAR_DIRECTIONS.map((way) => carKey(name, way)))
                 .filter((key) => !manifest.cars.has(key));
 
@@ -193,6 +226,182 @@ describe("the render manifest", () => {
             expect(() => checkAtlasSizes(sizes, 4096))
                 .toThrow("Atlases are past this browser's 4096 pixels a side: wide is 4097 by 64, high is 64 by 4097");
             expect(() => checkAtlasSizes(sizes, 4097)).not.toThrow();
+        });
+
+        describe("the world grass", () => {
+
+            // The committed manifest's grass and canopy sections, each set's tile i and the canopy's moved to (64 i, 0)
+            // of the test's atlas, in a manifest that also has a second atlas; each set colours ** 4 tiles
+            const grassJson = (): GrassJson => committedGrass((_, i) => rect(64 * i, 0));
+            const canopyJson = (): CanopyJson => committedSurface("canopy", (i) => rect(64 * i, 0));
+            const waterJson = (): WaterJson => committedSurface("water", (i) => rect(64 * i, 0));
+            const tiles = grassJson().colours ** 4;
+            const withGrass = (grass: GrassJson, canopy = canopyJson(), water = waterJson()) => ({
+                ...manifestJson(), atlases: {zones: "zones.png", other: "o.png"}, grass, canopy, water,
+            });
+
+            it("reads both sets and the constants", () => {
+                const grass = parseRenderManifest(withGrass(grassJson())).grass;
+
+                expect(grass.atlas).toBe("zones");
+                expect(grass.texels).toBe(64);
+                expect([grass.lush.tiles.length, grass.straw.tiles.length]).toEqual([tiles, tiles]);
+                expect(grass.straw.tiles[2]).toEqual(rect(128, 0));
+                expect(grass.straw.mean).toEqual(grassJson().sets.straw.mean);
+                expect(grass.constants.mask.gradients).toHaveLength(16);
+            });
+
+            it("reads the plainest grass, of one colour and so one tile a set", () => {
+                const grass = parseRenderManifest(manifestJson()).grass;
+
+                expect([grass.constants.colours, grass.lush.tiles, grass.straw.tiles]).toEqual([1, [rect(0, 0)],
+                                                                                                [rect(0, 0)]]);
+            });
+
+            it("refuses a manifest with none", () => {
+                const json = manifestJson();
+                delete json.grass;
+
+                expect(() => parseRenderManifest(json)).toThrow("Render manifest: the manifest lacks grass");
+            });
+
+            it.each<[string, (json: GrassJson) => void, string]>([
+                ["a set short of a tile", (json) => json.sets.lush.tiles.pop(),
+                 `grass.sets.lush.tiles is not ${tiles} tiles`],
+                ["no colours", (json) => json.colours = 0, "grass.colours is not a whole number of at least 1"],
+                ["sets in two atlases", (json) => {
+                    json.sets.straw.tiles[0] = {...rect(0, 0), atlas: "other"};
+                }, "grass.sets are not all in one atlas"],
+                ["a tile of another size", (json) => {
+                    json.sets.lush.tiles[3] = {...rect(0, 0), width: 32};
+                }, "grass.sets are not all squares of one size"],
+                ["a tile not square", (json) => {
+                    json.sets.straw.tiles[5] = {...rect(0, 0), height: 63};
+                }, "grass.sets are not all squares of one size"],
+                ["a missing set", (json) => delete (json.sets as Partial<GrassJson["sets"]>).straw,
+                 "grass.sets lacks straw"],
+                ["a key the format doesn't name", (json) => json.noise = 1, "grass has unknown keys: noise"],
+                ["fewer than 16 gradients", (json) => json.mask.gradients.pop(), "grass.mask.gradients is not 16"],
+                ["a turn of one number", (json) => json.mask.octaves[0].turn = [1],
+                 "grass.mask.octaves[0].turn is not a list of 2 numbers"],
+                ["a seed past 32 bits", (json) => json.corners.seed = 2 ** 32, "grass.corners.seed is past"],
+                ["a cell of no size", (json) => json.tint.octaves[0].cell = 0, "grass.tint.octaves[0].cell is not more"],
+            ])("refuses %s, naming where", (_, change, message) => {
+                const json = grassJson();
+                change(json);
+                expect(() => parseRenderManifest(withGrass(json))).toThrow(`Render manifest: ${message}`);
+            });
+
+            it("refuses a grass, canopy or water tile that runs past its atlas, naming it", () => {
+                const manifest = parseRenderManifest(withGrass(grassJson()));
+
+                // The last tile of each set, of the canopy and of the water lies one tile past the atlas
+                expect(() => checkRectsInAtlases(manifest, new Map([["zones", {width: 64 * (tiles - 1), height: 64}]])))
+                    .toThrow(`lush grass ${tiles - 1} (zones), straw grass ${tiles - 1} (zones), ` +
+                             `canopy ${tiles - 1} (zones), water ${tiles - 1} (zones)`);
+            });
+
+            it("reads the water: its seed, cut, feather, edge, sand and tiles, as many as a grass set's", () => {
+                const water = parseRenderManifest(withGrass(grassJson())).water;
+
+                expect([water.corners.seed, water.cut, water.feather]).toEqual([waterJson().corners.seed,
+                                                                                waterJson().cut, waterJson().feather]);
+                expect([water.edge, water.sand]).toEqual([waterJson().edge, waterJson().sand]);
+                expect(water.tiles).toHaveLength(tiles);
+                expect(water.tiles[2]).toEqual(rect(128, 0));
+            });
+
+            it("refuses a manifest with no water", () => {
+                const json = manifestJson();
+                delete json.water;
+
+                expect(() => parseRenderManifest(json)).toThrow("Render manifest: the manifest lacks water");
+            });
+
+            it.each<[string, (json: WaterJson) => void, string]>([
+                ["water short of a tile", (json) => json.tiles.pop(),
+                 `water.tiles is not ${tiles} tiles, as many as a grass set's`],
+                ["a water tile in another atlas", (json) => json.tiles[4] = {...rect(0, 0), atlas: "other"},
+                 "water.tiles are not all in the grass's atlas"],
+                ["no feather", (json) => json.feather = 0, "water.feather is not more than 0"],
+                ["no sand", (json) => delete (json as Partial<WaterJson>).sand, "water lacks sand"],
+                ["no band of sand", (json) => json.sand.band = 0, "water.sand.band is not more than 0"],
+                ["a sand of two colours", (json) => json.sand.mean = [1, 2], "water.sand.mean is not a list of 3"],
+                ["sand keeping more than the grass's light and dark", (json) => json.sand.contrast = 2,
+                 "water.sand.contrast is not from 0 to 1"],
+                ["an edge octave without its turn", (json) => delete json.edge.octaves[0].turn,
+                 "water.edge.octaves[0] lacks turn"],
+            ])("refuses %s, naming where", (_, change, message) => {
+                const json = waterJson();
+                change(json);
+                expect(() => parseRenderManifest(withGrass(grassJson(), canopyJson(), json)))
+                    .toThrow(`Render manifest: ${message}`);
+            });
+
+            it.each([0, 1])("reads sand keeping a share of %p of the grass's light and dark, at the bound", (contrast) => {
+                const json = waterJson();
+                json.sand.contrast = contrast;
+
+                expect(parseRenderManifest(withGrass(grassJson(), canopyJson(), json)).water.sand.contrast)
+                    .toBe(contrast);
+            });
+
+            it.each<[string, (json: CanopyJson) => void, (canopy: CanopyArt) => number, number]>([
+                ["a shadow falling straight under the canopy", (json) => json.shadow.offset = 0,
+                 (canopy) => canopy.shadow.offset, 0],
+                ["a shadow as dark as black", (json) => json.shadow.darkness = 1, (canopy) => canopy.shadow.darkness, 1],
+                ["a shadow of no darkness", (json) => json.shadow.darkness = 0, (canopy) => canopy.shadow.darkness, 0],
+            ])("reads %s, at the bound", (_, change, read, value) => {
+                const json = canopyJson();
+                change(json);
+
+                expect(read(parseRenderManifest(withGrass(grassJson(), json)).canopy)).toBe(value);
+            });
+
+            it("reads the canopy: its seed, cut, feather, edge and tiles, as many as a grass set's", () => {
+                const canopy = parseRenderManifest(withGrass(grassJson())).canopy;
+
+                expect([canopy.corners.seed, canopy.cut, canopy.feather]).toEqual([canopyJson().corners.seed,
+                                                                                   canopyJson().cut, canopyJson().feather]);
+                expect(canopy.edge).toEqual(canopyJson().edge);
+                expect(canopy.shadow).toEqual(canopyJson().shadow);
+                expect(canopy.tiles).toHaveLength(tiles);
+                expect(canopy.tiles[2]).toEqual(rect(128, 0));
+            });
+
+            it("refuses a manifest with no canopy", () => {
+                const json = manifestJson();
+                delete json.canopy;
+
+                expect(() => parseRenderManifest(json)).toThrow("Render manifest: the manifest lacks canopy");
+            });
+
+            it.each<[string, (json: CanopyJson) => void, string]>([
+                ["a canopy short of a tile", (json) => json.tiles.pop(),
+                 `canopy.tiles is not ${tiles} tiles, as many as a grass set's`],
+                ["a canopy tile in another atlas", (json) => json.tiles[4] = {...rect(0, 0), atlas: "other"},
+                 "canopy.tiles are not all in the grass's atlas"],
+                ["a canopy tile of another size", (json) => json.tiles[1] = {...rect(0, 0), width: 32, height: 32},
+                 "canopy.tiles are not all squares of the grass tiles' size"],
+                ["no feather", (json) => json.feather = 0, "canopy.feather is not more than 0"],
+                ["a cut that is no number", (json) => json.cut = "half", "canopy.cut is not a number"],
+                ["no wobble to its edge", (json) => delete (json as Partial<CanopyJson>).edge, "canopy lacks edge"],
+                ["an edge octave without its turn", (json) => delete json.edge.octaves[0].turn,
+                 "canopy.edge.octaves[0] lacks turn"],
+                ["no shadow", (json) => delete (json as Partial<CanopyJson>).shadow, "canopy lacks shadow"],
+                ["a shadow falling a whole tile, past the woods a tile's shadow is cast from",
+                 (json) => json.shadow.offset = 1, "canopy.shadow.offset is not from 0 to below 1"],
+                ["a shadow falling toward the sun", (json) => json.shadow.offset = -0.1,
+                 "canopy.shadow.offset is not from 0 to below 1"],
+                ["a shadow darker than black", (json) => json.shadow.darkness = 1.5,
+                 "canopy.shadow.darkness is not from 0 to 1"],
+                ["a shadow with no feather", (json) => json.shadow.feather = 0, "canopy.shadow.feather is not more than 0"],
+                ["a key the format doesn't name", (json) => json.shade = 1, "canopy has unknown keys: shade"],
+            ])("refuses %s, naming where", (_, change, message) => {
+                const json = canopyJson();
+                change(json);
+                expect(() => parseRenderManifest(withGrass(grassJson(), json))).toThrow(`Render manifest: ${message}`);
+            });
         });
     });
 
@@ -226,9 +435,9 @@ describe("the render manifest", () => {
             expect([art.car(1, "east"), art.car(1, "west"), art.car(0, "east")]).toEqual([rect(0, 192), null, null]);
         });
 
-        it("knows the farthest any shadow reaches, on any side", () => {
-            expect(art.shadowReach).toBe(3);
-            expect(new RenderArt(parseRenderManifest(manifestJson())).shadowReach).toBe(0);
+        it("knows how far a tile's look reaches: as far as the farthest shadow, on any side, and the canopy's tile", () => {
+            expect(art.reach).toBe(3);
+            expect(new RenderArt(parseRenderManifest(manifestJson())).reach).toBe(SURFACE_REACH);
         });
     });
 });

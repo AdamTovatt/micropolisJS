@@ -18,8 +18,10 @@ import type { Tint } from "./overlayRenderer";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { PaintableMap, PaintableSprite, PaintableSquare } from "./paintable";
 import type { Rect } from "./rect";
+import { OWN_SURROUNDS, around, isWoods } from "./surfaces";
+import { grassTile } from "./grass";
 import { WHITE } from "./renderManifest";
-import type { AtlasRect, RenderArt } from "./renderManifest";
+import type { AtlasRect, GrassThrough, RenderArt, SurfaceDraw } from "./renderManifest";
 import { BIT_MASK } from "./tileFlags";
 import { TILE_INVALID } from "./tileValues";
 import { plainRoad } from "./trafficTiles";
@@ -33,28 +35,53 @@ import type { PixelPoint } from "./viewPosition";
 // (r, g, b, a)
 export const QUAD_FLOATS = 12;
 
+// The floats of a ground quad: a quad's, then the rectangles of its map tile's tile in the world grass's lush and straw
+// sets, in their atlas's pixels (x, y, width, height each), its map tile's position (x, y), what it draws (one of the
+// three below) and the woods round it (around in surfaces.ts), then the rectangle of its tile of the canopy, the
+// rectangle of its tile of the water, and the water round it, then three floats unused, from which the world grass
+// under it, and the canopy and the water over the grass, are drawn (docs/render-assets.md); all zeros for a ground
+// that lets no grass through, and the woods, the water and their tiles' rectangles zeros for one that draws neither
+export const GROUND_QUAD_FLOATS = 36;
+
+// What a ground quad draws, so no tile pays for the grass or its ground unless it shows them: its ground alone, opaque;
+// the world grass alone, where its ground lets all of it through; or its ground over the grass
+export const GROUND_ONLY = 0;
+export const GROUND_GRASS_ONLY = 1;
+export const GROUND_OVER_GRASS = 2;
+
 // The white atlas's one pixel, which the tints are drawn from
 const WHITE_PIXEL: Rect = {x: 0, y: 0, width: 1, height: 1};
 
-// The quads drawn from one atlas, in the order they were added
-export class QuadRun {
-  data = new Float32Array(QUAD_FLOATS * 64);
+// The quads drawn from one atlas, in the order they were added, each floatsPerQuad floats
+export abstract class Run {
+  data: Float32Array;
   count = 0;
 
-  constructor(public atlas: string) {}
+  constructor(public atlas: string, readonly floatsPerQuad: number) {
+    this.data = new Float32Array(floatsPerQuad * 64);
+  }
 
-  // A quad landing at (x, y), width by height device pixels, from the source in the atlas's pixels, its texels
-  // multiplied by the colour
-  add(x: number, y: number, width: number, height: number, source: Rect, r: number, g: number, b: number,
-      a: number): void {
-    if ((this.count + 1) * QUAD_FLOATS > this.data.length) {
+  // The floats of the quads added
+  get floats(): Float32Array {
+    return this.data.subarray(0, this.count * this.floatsPerQuad);
+  }
+
+  // Where a new quad's floats start, the buffer grown to hold them
+  protected next(): number {
+    if ((this.count + 1) * this.floatsPerQuad > this.data.length) {
       const grown = new Float32Array(this.data.length * 2);
       grown.set(this.data);
       this.data = grown;
     }
 
+    return this.count++ * this.floatsPerQuad;
+  }
+
+  // A quad's floats from at: landing at (x, y), width by height device pixels, from the source in the atlas's pixels,
+  // its texels multiplied by the colour
+  protected place(at: number, x: number, y: number, width: number, height: number, source: Rect, r: number,
+                  g: number, b: number, a: number): void {
     const data = this.data;
-    const at = this.count * QUAD_FLOATS;
     data[at] = x;
     data[at + 1] = y;
     data[at + 2] = width;
@@ -67,27 +94,148 @@ export class QuadRun {
     data[at + 9] = g;
     data[at + 10] = b;
     data[at + 11] = a;
-    this.count++;
+  }
+}
+
+// A run of quads, QUAD_FLOATS each
+export class QuadRun extends Run {
+  constructor(atlas: string) {
+    super(atlas, QUAD_FLOATS);
   }
 
-  // The floats of the quads added
-  get floats(): Float32Array {
-    return this.data.subarray(0, this.count * QUAD_FLOATS);
+  // A quad landing at (x, y), width by height device pixels, from the source in the atlas's pixels, its texels
+  // multiplied by the colour
+  add(x: number, y: number, width: number, height: number, source: Rect, r: number, g: number, b: number,
+      a: number): void {
+    this.place(this.next(), x, y, width, height, source, r, g, b, a);
   }
+}
+
+// A run of ground quads, GROUND_QUAD_FLOATS each
+export class GroundRun extends Run {
+  constructor(atlas: string) {
+    super(atlas, GROUND_QUAD_FLOATS);
+  }
+
+  // A ground quad landing at (x, y), width by height device pixels, from the source in the atlas's pixels, over the
+  // world grass of the map tile at (mapX, mapY), whose tiles in the lush and straw sets are the rectangles given, as
+  // much as its ground lets through, or opaque over none for null
+  addGround(x: number, y: number, width: number, height: number, source: Rect, grass: GroundSurfaces | null): void {
+    const start = this.next();
+    this.place(start, x, y, width, height, source, 1, 1, 1, 1);
+    const data = this.data;
+    const at = start + QUAD_FLOATS;
+    if (grass === null) {
+      data.fill(0, at, at + GROUND_QUAD_FLOATS - QUAD_FLOATS);
+      return;
+    }
+
+    const {lush, straw, mapX, mapY, canopy, water} = grass;
+    data[at] = lush.x;
+    data[at + 1] = lush.y;
+    data[at + 2] = lush.width;
+    data[at + 3] = lush.height;
+    data[at + 4] = straw.x;
+    data[at + 5] = straw.y;
+    data[at + 6] = straw.width;
+    data[at + 7] = straw.height;
+    data[at + 8] = mapX;
+    data[at + 9] = mapY;
+    data[at + 10] = drawn(grass);
+    data[at + 11] = canopy?.woods ?? 0;
+    rectangle(data, at + 12, canopy?.tile ?? null);
+    rectangle(data, at + 16, water?.tile ?? null);
+    data[at + 20] = water?.water ?? 0;
+    data.fill(0, at + 21, at + GROUND_QUAD_FLOATS - QUAD_FLOATS);
+  }
+}
+
+// A rectangle's floats from at, x, y, width and height, or zeros for none
+function rectangle(data: Float32Array, at: number, rect: Rect | null): void {
+  data[at] = rect?.x ?? 0;
+  data[at + 1] = rect?.y ?? 0;
+  data[at + 2] = rect?.width ?? 0;
+  data[at + 3] = rect?.height ?? 0;
+}
+
+// The floats of a canopy shadow's quad: where it lands, in device pixels, and the rectangle of its map tile's ground in
+// its atlas, as a quad's; then the map tile's position, the woods round it (around in surfaces.ts) and what its ground
+// draws (as a ground quad does); then the water round it and three floats unused. The shadow falls on whatever shows
+// of the tile but the canopy, which the ground's own pixels and the water and the sand over the grass hide.
+export const CANOPY_SHADOW_QUAD_FLOATS = 16;
+
+// A run of canopy shadow quads over grounds from one atlas, CANOPY_SHADOW_QUAD_FLOATS each
+export class CanopyShadowRun extends Run {
+  constructor(atlas: string) {
+    super(atlas, CANOPY_SHADOW_QUAD_FLOATS);
+  }
+
+  // The shadow over the map tile at (mapX, mapY), with the woods round it, whose quad lands at (x, y), width by height
+  // device pixels, over its ground, from the source in the atlas's pixels, and the world grass, the canopy and the
+  // water under that, or null for a ground that lets no grass through
+  addShadow(x: number, y: number, width: number, height: number, source: Rect, mapX: number, mapY: number,
+            woods: number, surfaces: GroundSurfaces | null): void {
+    const at = this.next();
+    const data = this.data;
+    data[at] = x;
+    data[at + 1] = y;
+    data[at + 2] = width;
+    data[at + 3] = height;
+    rectangle(data, at + 4, source);
+    data[at + 8] = mapX;
+    data[at + 9] = mapY;
+    data[at + 10] = woods;
+    data[at + 11] = drawn(surfaces);
+    data[at + 12] = surfaces?.water?.water ?? 0;
+    data.fill(0, at + 13, at + CANOPY_SHADOW_QUAD_FLOATS);
+  }
+}
+
+// What a ground quad over the surfaces given draws: its ground alone for none
+function drawn(surfaces: GroundSurfaces | null): number {
+  if (surfaces === null) {
+    return GROUND_ONLY;
+  }
+  return surfaces.through === "all" ? GROUND_GRASS_ONLY : GROUND_OVER_GRASS;
+}
+
+// The world grass under a map tile: its tile's rectangle in each set, the map tile's position, and the canopy and the
+// water over the grass there, or null for none
+export interface GroundSurfaces {
+  lush: Rect;
+  straw: Rect;
+  through: GrassThrough;
+  mapX: number;
+  mapY: number;
+  canopy: CanopyTile | null;
+  water: WaterTile | null;
+}
+
+// The canopy over a map tile: its tile's rectangle, and the woods round the map tile it is drawn from (around in
+// surfaces.ts), never 0
+export interface CanopyTile {
+  tile: Rect;
+  woods: number;
+}
+
+// The water over a map tile: its tile's rectangle, and the water round the map tile it is drawn from, never 0
+export interface WaterTile {
+  tile: Rect;
+  water: number;
 }
 
 // A pass's quads, grouped into runs by atlas. In an ordered list, where quads overlap, each run is drawn in the order
 // its quads were added, and a new run starts each time the atlas changes. In an unordered one, whose quads never
 // overlap or merge in an order that doesn't matter, each atlas has one run, so the pass is one draw per atlas. Runs
 // are kept from frame to frame, so their buffers grow once.
-export class QuadList {
-  private readonly kept: QuadRun[] = [];
+export abstract class RunList<R extends Run> {
+  private readonly kept: R[] = [];
   private used = 0;
 
   constructor(private readonly ordered: boolean) {}
 
   // The runs added since the last clear, in the order they are drawn
-  get runs(): readonly QuadRun[] {
+  get runs(): readonly R[] {
     return this.kept.slice(0, this.used);
   }
 
@@ -107,13 +255,11 @@ export class QuadList {
     this.used = 0;
   }
 
-  // A quad from the atlas, as QuadRun's add takes it, opaque unless a colour is given
-  add(atlas: string, x: number, y: number, width: number, height: number, source: Rect, r = 1, g = 1, b = 1,
-      a = 1): void {
-    this.runFor(atlas).add(x, y, width, height, source, r, g, b, a);
-  }
+  // A new run of the atlas
+  protected abstract newRun(atlas: string): R;
 
-  private runFor(atlas: string): QuadRun {
+  // The run a quad from the atlas is added to
+  protected runFor(atlas: string): R {
     if (this.ordered) {
       const last = this.used > 0 ? this.kept[this.used - 1] : null;
       if (last !== null && last.atlas === atlas) {
@@ -129,7 +275,7 @@ export class QuadList {
 
     // A kept run, perhaps of another atlas last frame, is reused under this one's name
     if (this.used === this.kept.length) {
-      this.kept.push(new QuadRun(atlas));
+      this.kept.push(this.newRun(atlas));
     } else {
       this.kept[this.used].atlas = atlas;
     }
@@ -138,18 +284,76 @@ export class QuadList {
   }
 }
 
-// The quads of each pass: every tile's ground; every anchor's shadow, merged by the darkest; every tile's objects; the
-// overlay's tints, over the objects; then the sprites
+// A pass's quads, as RunList groups them
+export class QuadList extends RunList<QuadRun> {
+  // A quad from the atlas, as QuadRun's add takes it, opaque unless a colour is given
+  add(atlas: string, x: number, y: number, width: number, height: number, source: Rect, r = 1, g = 1, b = 1,
+      a = 1): void {
+    this.runFor(atlas).add(x, y, width, height, source, r, g, b, a);
+  }
+
+  protected newRun(atlas: string): QuadRun {
+    return new QuadRun(atlas);
+  }
+}
+
+// The ground pass's quads, unordered, as RunList groups them
+export class GroundList extends RunList<GroundRun> {
+  constructor() {
+    super(false);
+  }
+
+  // A ground quad from the atlas, as GroundRun's addGround takes it
+  addGround(atlas: string, x: number, y: number, width: number, height: number, source: Rect,
+            grass: GroundSurfaces | null): void {
+    this.runFor(atlas).addGround(x, y, width, height, source, grass);
+  }
+
+  protected newRun(atlas: string): GroundRun {
+    return new GroundRun(atlas);
+  }
+}
+
+// The canopy's shadow's quads, unordered, merged by the darkest, as RunList groups them by their grounds' atlases
+export class CanopyShadowList extends RunList<CanopyShadowRun> {
+  constructor() {
+    super(false);
+  }
+
+  // A canopy shadow's quad over a ground from the atlas, as CanopyShadowRun's addShadow takes it
+  addShadow(atlas: string, x: number, y: number, width: number, height: number, source: Rect, mapX: number,
+            mapY: number, woods: number, surfaces: GroundSurfaces | null): void {
+    this.runFor(atlas).addShadow(x, y, width, height, source, mapX, mapY, woods, surfaces);
+  }
+
+  protected newRun(atlas: string): CanopyShadowRun {
+    return new CanopyShadowRun(atlas);
+  }
+}
+
+// The quads of each pass: every tile's ground, over the world grass; every anchor's shadow, and the canopy's over each
+// tile with woods about it, merged by the darkest; every tile's objects; the overlay's tints, over the objects; then
+// the sprites. With what the world grass is drawn with, and the mip level the frame's zoom samples every grass tile
+// at, whose one size on screen it fixes; null until the frame is first built, when it has no ground either.
 export class MapFrame {
-  readonly ground = new QuadList(false);
+  readonly ground = new GroundList();
+  surfaces: SurfaceDraw | null = null;
+  grassLevel = 0;
   readonly shadows = new QuadList(false);
+  readonly canopyShadows = new CanopyShadowList();
   readonly objects = new QuadList(false);
   readonly tints = new QuadList(false);
   readonly sprites = new QuadList(true);
 
+  // Whether the frame casts any shadow
+  get hasShadows(): boolean {
+    return this.shadows.count > 0 || this.canopyShadows.count > 0;
+  }
+
   clear(): void {
     this.ground.clear();
     this.shadows.clear();
+    this.canopyShadows.clear();
     this.objects.clear();
     this.tints.clear();
     this.sprites.clear();
@@ -237,6 +441,10 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
                               sprites: readonly PaintableSprite[], areas: readonly Rect[] | null = null): void {
   frame.clear();
   const {margin, width, height, offset} = tiles;
+  const grass = art.grass;
+  frame.surfaces = art.surfaceDraw;
+  // The level whose texels are a device pixel each, or the first where the grass is drawn larger than its art
+  frame.grassLevel = Math.max(0, Math.log2(grass.texels / tilePixels));
 
   // Whether a quad landing at (x, y), width by height device pixels, reaches into an area
   const reaches = (x: number, y: number, quadWidth: number, quadHeight: number) => areas === null ||
@@ -275,7 +483,27 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
       }
 
       const tileArt = art.tile(plainRoad(tiles.frames[index]));
-      frame.ground.add(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground);
+      const mapX = tiles.x + column;
+      const mapY = tiles.y + row;
+      const woods = around(tiles, column, row, isWoods);
+      // The world grass under a ground that lets any through, and the canopy and the water over it where woods and
+      // water lie round it, so they run on under every ground that lets the grass through and end nowhere on a tile's
+      // edge
+      let under: GroundSurfaces | null = null;
+      if (tileArt.grass !== null) {
+        const picked = grassTile(mapX, mapY, grass.constants);
+        const water = around(tiles, column, row, art.isWater) & OWN_SURROUNDS;
+        under = {lush: grass.lush.tiles[picked], straw: grass.straw.tiles[picked], mapX, mapY,
+                 through: tileArt.grass,
+                 canopy: (woods & OWN_SURROUNDS) === 0 ? null : {tile: art.canopyTile(mapX, mapY), woods},
+                 water: water === 0 ? null : {tile: art.waterTile(mapX, mapY), water}};
+      }
+      frame.ground.addGround(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground, under);
+      // The canopy's shadow over the tile, cast from the canopy up and left of it, onto whatever the tile's ground is
+      if (woods !== 0) {
+        frame.canopyShadows.addShadow(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground, mapX, mapY,
+                                      woods, under);
+      }
       if (tileArt.objects !== null) {
         frame.objects.add(tileArt.objects.atlas, x, y, tilePixels, tilePixels, tileArt.objects);
       }

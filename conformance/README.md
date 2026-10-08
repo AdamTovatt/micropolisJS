@@ -3,7 +3,8 @@
 What the game rules in `server/Micropolis.Rules` are tested against, read in place rather than copied: the random
 stream's vectors, from a C reference program; the definitions the client's vocabulary and the C# rules are both held
 to; the sample saves of each save version; and the goldens the fixture tool writes from the rules, among them the
-end-to-end playthrough's log, which the game server recorded.
+end-to-end playthrough's log, which the game server recorded. Beside them, and no part of the rules, `grass.json`
+holds the client's world grass to the art build's, as the art build's Python writes it.
 
 ## random.json
 
@@ -31,6 +32,29 @@ read the file.
 - `getRandom16Signed`, `getERandom`, `getChance`: consecutive calls from the seed.
 
 Seeds and 32-bit words are hex strings, as the C reference prints them.
+
+## grass.json
+
+Reference vectors for the world grass the map draws under bare land, the woods and the water, and the wobble of the
+canopy's edge and of the shore over it (`docs/render-assets.md`), which the client computes in `src/grass.ts` and the
+art build in `art/tools/grass.py`, with the same arithmetic and the constants of the manifest's `grass`, `canopy` and
+`water` sections. `grass.py` writes the file:
+
+```bash
+python art/tools/grass.py --vectors
+```
+
+`pytest art/tools/tests` fails unless the committed file is what it writes, and `test/grass.ts` holds the client's
+hash and noise to it, with the constants of the committed manifest, so the two never drift apart. The values depend on
+map positions alone, never on a city.
+
+- `lowbias32`: the hash of whole numbers.
+- `hashes`: the hash of lattice points, negative ones included, by two seeds.
+- `tiles`: the corner tile each of some map tiles draws.
+- `noise`: the share of straw, the tint and the wobbles of the canopy's edge and the shore at map positions, each exact
+  to the last bit.
+- `field`: the size of the baked field for the 120 × 100 map, and the SHA-256 of its bytes, row by row, the share, the
+  tint, the canopy's wobble and the shore's of each texel.
 
 ## Definitions
 
@@ -254,9 +278,10 @@ The rules' numbers the client draws by or its tests count with, which the client
 `cityTimesPerYear`, `stepsPerSecond`, the steps a hosted city takes a second, and `departureInterval`, the steps of
 the step clock between a station's departures, by which the client times its trains, `toolCosts`, the
 `advisorConditions` in the order the status record lists them, and the `spriteTypes`, each numbered as the state
-messages number it, with its frames, which `test/vocabulary.ts` holds the client's sprite sheet to, and
+messages number it, with its frames, which `test/vocabulary.ts` holds the client's sprite sheet to,
 `fireCoverBlockSize`, the block size of the fire department's cover map, by which the end-to-end runner reads a save's
-cover.
+cover, and `mapSize`, the map's width and height in tiles, which the world grass's field covers: `test/vocabulary.ts`
+holds the client's `GRASS_MAP` to it, and the art build's `grass.py` reads it.
 
 ### migrated/
 

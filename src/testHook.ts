@@ -30,7 +30,7 @@ interface HookedGame {
   sendToolPaths(): void;
   onCommandResult(listener: () => void): void;
   gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits, readonly tileWidth: number,
-               readonly mapCurrent: boolean};
+               readonly mapCurrent: boolean, wholeLayerEachFrame: boolean};
   monsterTV: {readonly current: boolean};
   cars: Pick<Cars, "driven" | "carsHeld" | "add">;
   readonly carsPainted: readonly PaintableCar[];
@@ -268,6 +268,12 @@ class TestHook {
 
   frameCounts(): FrameCounts {
     return {...this.attachedGame().frameCounts};
+  }
+
+  // Has every paint of the map draw its layer whole, or only where it changed, as the game does, for the render
+  // benchmark to time the drawing of the map itself. It changes nothing a player sees.
+  drawWholeLayerEachFrame(whole: boolean): void {
+    this.attachedGame().gameCanvas.wholeLayerEachFrame = whole;
   }
 
   // Whether the map, and the monster TV while it shows, show what they last painted from, drawn to the end. A paint

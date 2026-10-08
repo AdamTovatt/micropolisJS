@@ -12,7 +12,7 @@
  *
  */
 
-import { FALLBACK_SPRITES, FALLBACK_TILES } from "../src/renderManifest";
+import { FALLBACK_SPRITES, FALLBACK_TILES, SURFACE_FIELD } from "../src/renderManifest";
 import { PREVIEW_TILE_SIZE, SplashCanvas, previewAtlases } from "../src/splashCanvas";
 import type { AtlasImage } from "../src/webglRenderer";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
@@ -35,19 +35,22 @@ describe("the splash screen's map preview", () => {
     it("filters the 16 px sheets as it filters the rendered art, and draws from the same images", () => {
         const image = (width: number) => ({width, height: width}) as AtlasImage["image"];
         const atlases = new Map<string, AtlasImage>([
-            [FALLBACK_TILES, {image: image(512), crisp: true}],
-            [FALLBACK_SPRITES, {image: image(256), crisp: true}],
-            ["zones", {image: image(4096), crisp: false}],
+            [FALLBACK_TILES, {image: image(512), filter: "crisp"}],
+            [FALLBACK_SPRITES, {image: image(256), filter: "crisp"}],
+            ["zones", {image: image(4096), filter: "mipmapped"}],
+            [SURFACE_FIELD, {image: image(960), filter: "field"}],
         ]);
 
         const filtered = previewAtlases(atlases);
 
         expect(Array.from(filtered.keys())).toEqual(Array.from(atlases.keys()));
         filtered.forEach((atlas, name) => {
-            expect(atlas.crisp).toBe(false);
             expect(atlas.image).toBe(atlases.get(name)!.image);
         });
+        // The sheets as the art is; the grass's field stays a field of values
+        expect(Array.from(filtered.values(), (atlas) => atlas.filter))
+            .toEqual(["mipmapped", "mipmapped", "mipmapped", "field"]);
         // The map's own atlases are left as they were
-        expect(atlases.get(FALLBACK_TILES)!.crisp).toBe(true);
+        expect(atlases.get(FALLBACK_TILES)!.filter).toBe("crisp");
     });
 });

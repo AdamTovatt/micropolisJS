@@ -20,8 +20,10 @@ import type { QuadList } from "../src/mapFrame";
 import { MapPainter } from "../src/mapPainter";
 import type { Rect } from "../src/rect";
 import { RenderArt, parseRenderManifest } from "../src/renderManifest";
+import { SURFACE_REACH } from "../src/surfaces";
 import { ANIMBIT, ZONEBIT } from "../src/tileFlags";
 import { FIRE, LIGHTNINGBOLT } from "../src/tileValues";
+import { plainCanopy, plainGrass, plainWater } from "./helpers/grassArt";
 
 // Tile 5 casts a shadow reaching a tile left and a tile down, so the farthest shadow reaches one tile
 const ZONE = 5;
@@ -36,6 +38,9 @@ const art = new RenderArt(parseRenderManifest({
     },
     sprites: {},
     cars: {},
+    grass: plainGrass({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
+    canopy: plainCanopy({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
+    water: plainWater({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
 }));
 
 const MAP_WIDTH = 40;
@@ -74,7 +79,8 @@ function groundOf(frame: MapFrame): Drawn["ground"] {
     return frame.ground.runs.flatMap((run) => {
         const quads = [];
         for (let i = 0; i < run.count; i++) {
-            quads.push({atlas: run.atlas, x: run.floats[i * QUAD_FLOATS + 4], y: run.floats[i * QUAD_FLOATS + 5]});
+            const at = i * run.floatsPerQuad;
+            quads.push({atlas: run.atlas, x: run.floats[at + 4], y: run.floats[at + 5]});
         }
         return quads;
     });
@@ -129,13 +135,14 @@ function carAt(column: number, row: number): PaintableCar {
 
 describe("a painter of the map", () => {
 
-    it("reads the tiles in view and a margin around them as wide as the farthest shadow reaches", () => {
+    it("reads the tiles in view and a margin around them as wide as a tile's look reaches", () => {
         const {painter, reads, drawn} = newPainter();
-        const margin = art.shadowReach;
+        const margin = art.reach;
 
         expect(painter.paint(VIEW, noTint, [], [])).toBe(true);
 
-        expect(margin).toBe(1);
+        // The surfaces' reach, which this art's shadows reach no further than, so the read is wider than the view
+        expect(margin).toBe(SURFACE_REACH);
         expect(reads.mock.calls.map((call) => call.slice(0, 4))).toEqual([[
             VIEW.origin.x - margin, VIEW.origin.y - margin, VIEW.across + 2 * margin, VIEW.down + 2 * margin,
         ]]);
@@ -147,7 +154,7 @@ describe("a painter of the map", () => {
 
     it("reads a tile more each way from an origin between tiles, whose first and last tiles show in part", () => {
         const {painter, reads, drawn} = newPainter();
-        const margin = art.shadowReach;
+        const margin = art.reach;
 
         // Map pixel (168, 84) at 16 a tile: 8 pixels into tile 10 across and 4 into tile 5 down
         painter.paint({...VIEW, origin: {x: 10.5, y: 5.25}}, noTint, [], []);

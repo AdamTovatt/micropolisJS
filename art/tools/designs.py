@@ -18,12 +18,13 @@ A design is an asset rendered into art/blender/out and painted into art/painted/
 out alike: a single tile set's tiles in <set>/<id>, the tile id in four digits; a zone in <zone>, its
 animated tiles' frames in <zone>/frame-<n>; a vehicle's frames in <vehicle>/<frame>, two digits.
 Tile ids are numbered as src/tileValues.ts numbers them. Every tile id the art fills is written in
-this file and nowhere else in art/tools/. Needs Pillow.
+this file and nowhere else in art/tools/. Needs Pillow and NumPy.
 """
 
 import json
 import os
 
+import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -47,7 +48,11 @@ ORIGINAL_SPRITES = os.path.join(ART, 'sheets', 'sprites-original.png')
 # Single tiles the tools name, as src/tileValues.ts names them
 DIRT = 0
 RIVER = 2
-WOODS = 37
+WATER_LOW, WATER_HIGH = RIVER, 20          # the water and its shores, which the game draws over the world grass from
+                                           # where they lie on the map; their painted tiles feed the join and the 16 px
+                                           # sheet alone (grass.py)
+WOODS_LOW, WOODS_HIGH = 21, 39             # the woods, which the game draws as the canopy over the world grass, from
+                                           # where they lie on the map, not as single tiles (grass.py)
 HBRIDGE, VBRIDGE, ROADS, ROADS2 = 64, 65, 66, 67
 HPOWER, VPOWER, LHPOWER, LVPOWER = 208, 209, 210, 211
 HRAIL, VRAIL, LHRAIL, LVRAIL = 224, 225, 226, 227
@@ -60,7 +65,6 @@ _ROAD_PIECES = range(HBRIDGE, 79)          # each road piece: the bridges, roads
 SINGLE_TILES = {
     'land': {'land': (DIRT,)},
     'water': {'water': range(RIVER, 21)},                  # open water and the river's shores
-    'woods': {'woods': range(21, WOODS + 1)},              # woods and their edges
     'parks': {'gardens': range(40, 44), 'fountain': (840,)},
     'rubble': {'rubble': range(44, 48), 'explosion': range(860, 868)},   # the bulldozer's small explosion
     'roads': {
@@ -249,6 +253,11 @@ def is_vehicle(asset):
 
 LAYERS = ('ground', 'shadow', 'objects')
 BUILT_LAYERS = ('ground', 'objects')       # the layers of a single tile the paint build keeps and the join writes
+LAND_MASK = 'ground-land.png'              # beside a joined single tile's layers: white where the bare land's painting
+                                           # gave its ground, which the game draws as the world grass (grass.py)
+WATER_MASK = 'ground-water.png'            # and white where the open water's painting gave it, which the game draws
+                                           # as its water on a tile that is water at least half over
+WATER_SHARE = 0.5                          # the share of a tile's ground its water mask covers that makes it water
 NO_MARGIN = {'left': 0, 'top': 0, 'right': 0, 'bottom': 0}
 
 
@@ -273,18 +282,52 @@ class Asset:
             raise FileNotFoundError(f'{directory} has no {" or ".join(f"{k}.png" for k in missing)}')
         if vehicle:
             self.layers['ground'] = Image.new('RGBA', (self.size, self.size))
+        # where the bare land's painting and the open water's gave a joined single tile's ground, as the join wrote
+        # them, or None for an asset the join never touched; the join writes both, so one without the other is a
+        # mask lost, which would quietly draw the tile as land
+        masks = {mask: os.path.join(directory, mask) for mask in (LAND_MASK, WATER_MASK)}
+        found = [mask for mask, path in masks.items() if os.path.exists(path)]
+        if len(found) == 1:
+            raise FileNotFoundError(f'{directory} has {found[0]} but no {(set(masks) - set(found)).pop()}')
+        self.land, self.water = (Image.open(masks[mask]).convert('L') if found else None
+                                 for mask in (LAND_MASK, WATER_MASK))
+
+    def is_water(self):
+        # whether the game draws the asset, a joined single tile, as water, from where the map's water lies: its ground
+        # the open water's painting at least WATER_SHARE over
+        return self.water is not None and (np.asarray(self.water) > 0).mean() >= WATER_SHARE
 
     def tile(self, layer, column, row):
         x, y = column * self.tile_px, row * self.tile_px
         return self.layers[layer].crop((x, y, x + self.tile_px, y + self.tile_px))
 
-    def composite(self):
-        # the asset as the game draws it alone: ground, its own shadow, objects, the size of its footprint
+    def ground_over_grass(self):
+        # the ground as the game draws it over the world grass: transparent where the bare land's painting gave it,
+        # and on a tile it draws as water, where the open water's did
+        return self._cleared([self.land, self.water if self.is_water() else None])
+
+    def ground_over_sheet_grass(self):
+        # the ground as the 16 px sheet draws it over its square of the grass: transparent only where the bare land's
+        # painting gave it, since the sheet draws no water of its own, so its painted water stays
+        return self._cleared([self.land])
+
+    def _cleared(self, masks):
+        # the ground, transparent wherever one of the masks given, those not None, is set
+        ground = self.layers['ground'].copy()
+        masks = [m for m in masks if m is not None]
+        if masks:
+            clear = np.logical_or.reduce([np.asarray(m) > 0 for m in masks])
+            ground.putalpha(Image.fromarray(np.where(clear, 0, 255).astype(np.uint8), 'L'))
+        return ground
+
+    def composite(self, ground=None):
+        # the asset as the game draws it alone: ground, or the ground given, its own shadow, objects, the size of its
+        # footprint
         left, top = self.margin['left'] * self.tile_px, self.margin['top'] * self.tile_px
         shadow = Image.new('RGBA', self.layers['shadow'].size, (0, 0, 0, 255))
         shadow.putalpha(self.layers['shadow'].getchannel('A'))
         image = Image.new('RGBA', shadow.size)
-        image.alpha_composite(self.layers['ground'], (left, top))
+        image.alpha_composite(self.layers['ground'] if ground is None else ground, (left, top))
         image.alpha_composite(shadow)
         image.alpha_composite(self.layers['objects'], (left, top))
         return image.crop((left, top, left + self.size, top + self.size))

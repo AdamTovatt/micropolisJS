@@ -14,11 +14,13 @@
 
 import { expect, Page, test } from "@playwright/test";
 
+import { plainCanopy, plainGrass, plainWater } from "../test/helpers/grassArt";
 import { CITY_LINK, serverForTests } from "./gameServer";
 import { blockNetwork, collectPageProblems } from "./page";
 import { Player, TESTER } from "./player";
 import { png } from "./png";
 import { SEED } from "./stages";
+import { TestManifest } from "./testArt";
 
 // The splash screen: where the page starts, and what it asks before a new game. The page signs in to the game server
 // before it shows the splash screen: what goes wrong before then is tested with no server answering, and the rest with
@@ -57,11 +59,25 @@ test("a browser without WebGL2 is told the game needs it, and the page goes no f
   expect(problems).toEqual([]);
 });
 
-// The render manifest given, and a 2 by 2 PNG for every atlas image it names
-async function serveArt(page: Page, manifest: object, atlasFails = false): Promise<void> {
-  await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: manifest}));
-  await page.route("**/images/render/*.png", (route) => atlasFails ? route.abort() :
-    route.fulfill({body: png(2, 2, new Array<number>(16).fill(255)), contentType: "image/png"}));
+// The render manifest given, with the plainest world grass every manifest has, in an atlas of its own, a 2 by 2 PNG,
+// and for every other atlas image it names the image given, or a 2 by 2 PNG, or none where it fails to load
+async function serveArt(page: Page, manifest: TestManifest, other: Buffer | "fails" = twoByTwo()): Promise<void> {
+  await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: {
+    ...manifest, atlases: {...manifest.atlases, grass: "grass.png"},
+    grass: plainGrass({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
+    canopy: plainCanopy({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
+    water: plainWater({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
+  }}));
+  await page.route("**/images/render/*.png", (route) => {
+    if (route.request().url().endsWith("/grass.png")) {
+      return route.fulfill({body: twoByTwo(), contentType: "image/png"});
+    }
+    return other === "fails" ? route.abort() : route.fulfill({body: other, contentType: "image/png"});
+  });
+}
+
+function twoByTwo(): Buffer {
+  return png(2, 2, new Array<number>(16).fill(255));
 }
 
 const ART_FAILED = "Alert: Failed to load the map's art:";
@@ -82,7 +98,7 @@ test.describe("art that fails to load is reported, naming what failed, and the p
   test("an atlas image that fails to load", async ({page}) => {
     await blockNetwork(page);
     const problems = collectPageProblems(page);
-    await serveArt(page, {version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {}, cars: {}}, true);
+    await serveArt(page, {version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {}, cars: {}}, "fails");
 
     await page.goto("/");
 
@@ -114,12 +130,8 @@ test.describe("art that fails to load is reported, naming what failed, and the p
         return name === this.MAX_TEXTURE_SIZE ? 1024 : getParameter.call(this, name);
       };
     });
-    await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: {
-      version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {}, cars: {},
-    }}));
-    await page.route("**/images/render/zones.png", (route) => route.fulfill({
-      body: png(1025, 1, new Array<number>(1025 * 4).fill(255)), contentType: "image/png",
-    }));
+    await serveArt(page, {version: 1, atlases: {zones: "zones.png"}, tiles: {}, sprites: {}, cars: {}},
+                   png(1025, 1, new Array<number>(1025 * 4).fill(255)));
 
     await page.goto("/");
 
