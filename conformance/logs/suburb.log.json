@@ -34,7 +34,7 @@
     {"step":0,"player":"local","command":{"type":"tool","tool":"police","path":[{"x":46,"y":16}],"autoBulldoze":true}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"5328b79101c514f4392f084b73f268481ff5aa856335c9513f571ef5174eac32"},
-    {"step":6912,"hash":"e4241eae551472c24fc5e42c44d49136e5c2466b92b1dafa198484e9c78c23cd"}
+    {"step":0,"hash":"5498246e6cf9bc3776a0264eac82a58ac436545e2705d10d7a43b9a665b1f9a2"},
+    {"step":6912,"hash":"611c4613607b6298e3fe30fef3b0ca9b8f1a2b90df01165a4d1ca4a6a92322dd"}
   ]
 }

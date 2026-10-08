@@ -136,6 +136,44 @@ namespace Micropolis.Rules
                     Group(Group(savedGame, "scannedState"), "blockMaps")["railLoadMap"] = SavedList.Of(new int[tiles.Count]);
                 }
             },
+
+            // From version 14: every rail tile carries a track each way, its load kept each way, and a tile's load is
+            // split evenly between them, an odd rider the north or west's; and the step clock the trains' timetable
+            // keeps starts at 0. A load that isn't a list, which the step from version 13 leaves out of a map without a
+            // whole size, is left for the load to refuse, and an entry of it outside its range is copied whole to both
+            // ways, for the load to refuse too.
+            savedGame =>
+            {
+                Group(savedGame, "simulation")["stepClock"] = 0;
+
+                JsonObject blockMaps = Group(Group(savedGame, "scannedState"), "blockMaps");
+
+                if (blockMaps["railLoadMap"] is not JsonArray railLoad)
+                {
+                    return;
+                }
+
+                JsonArray fromNorthOrWest = new JsonArray();
+                JsonArray fromSouthOrEast = new JsonArray();
+
+                foreach (JsonNode? riders in railLoad)
+                {
+                    if (Validation.TryGetWholeNumberIn(riders, 0, Traffic.MaxRailLoad, out long load))
+                    {
+                        fromNorthOrWest.Add(load - load / 2);
+                        fromSouthOrEast.Add(load / 2);
+                    }
+                    else
+                    {
+                        fromNorthOrWest.Add(riders?.DeepClone());
+                        fromSouthOrEast.Add(riders?.DeepClone());
+                    }
+                }
+
+                blockMaps.Remove("railLoadMap");
+                blockMaps["railLoadFromNorthOrWestMap"] = fromNorthOrWest;
+                blockMaps["railLoadFromSouthOrEastMap"] = fromSouthOrEast;
+            },
         ];
 
         // The type the original's train, the first of its sprites, had, which the game saved until version 14

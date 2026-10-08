@@ -305,6 +305,7 @@ namespace Micropolis.Rules.Tests
             ["tiles"] = typeof(TilesMessage),
             ["sprites"] = typeof(SpritesMessage),
             ["date"] = typeof(DateMessage),
+            ["clock"] = typeof(ClockMessage),
             ["population"] = typeof(PopulationMessage),
             ["status"] = typeof(StatusRecord),
             ["demand"] = typeof(DemandMessage),

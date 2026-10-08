@@ -105,17 +105,62 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The sides of the tile its track leaves by, a bit <c>1 &lt;&lt; d</c> for each, d being 0 north, 1 east, 2 south
-        /// and 3 west, as the rail tool draws each piece: a straight piece, a bridge, a crossing of road or a power line
-        /// and a station two opposite sides, a curve two sides that meet, a junction three and a cross all four. Not
-        /// rail, none.
+        /// A tile's north side, as the sides of a tile are numbered: each side d its way's index in
+        /// <see cref="Direction.CardinalDirections"/>, 0 north, 1 east, 2 south and 3 west, so a step the way d goes
+        /// out of a tile by its side d.
+        /// </summary>
+        public const int NorthSide = 0;
+
+        /// <summary>
+        /// A tile's east side, numbered as <see cref="NorthSide"/> says.
+        /// </summary>
+        public const int EastSide = 1;
+
+        /// <summary>
+        /// A tile's south side, numbered as <see cref="NorthSide"/> says.
+        /// </summary>
+        public const int SouthSide = 2;
+
+        /// <summary>
+        /// A tile's west side, numbered as <see cref="NorthSide"/> says.
+        /// </summary>
+        public const int WestSide = 3;
+
+        /// <summary>
+        /// The side facing the side given, numbered as <see cref="NorthSide"/> says: the side a step going out of a tile
+        /// by the one goes into the tile beside by.
+        /// </summary>
+        public static int OppositeSide(int side)
+        {
+            return (side + 2) % 4;
+        }
+
+        /// <summary>
+        /// The side of the tile <paramref name="to"/> that a step onto it from the tile beside it,
+        /// <paramref name="from"/>, goes in by, numbered as <see cref="NorthSide"/> says.
+        /// </summary>
+        public static int SideEnteredBy(Position from, Position to)
+        {
+            if (to.Y != from.Y)
+            {
+                return to.Y < from.Y ? SouthSide : NorthSide;
+            }
+
+            return to.X > from.X ? WestSide : EastSide;
+        }
+
+        /// <summary>
+        /// The sides of the tile its track leaves by, a bit <c>1 &lt;&lt; d</c> for each side d, numbered as
+        /// <see cref="NorthSide"/> says, as the rail tool draws each piece: a straight piece, a bridge, a crossing of road
+        /// or a power line and a station two opposite sides, a curve two sides that meet, a junction three and a cross
+        /// all four. Not rail, none.
         /// </summary>
         public static int RailEnds(int tileValue)
         {
-            const int north = 1;
-            const int east = 2;
-            const int south = 4;
-            const int west = 8;
+            const int north = 1 << NorthSide;
+            const int east = 1 << EastSide;
+            const int south = 1 << SouthSide;
+            const int west = 1 << WestSide;
 
             return tileValue switch
             {
@@ -133,6 +178,43 @@ namespace Micropolis.Rules
                 TileValues.HRAILSTATION or TileValues.VRAILSTATION => RailEnds(TrackUnder(tileValue)),
                 _ => 0,
             };
+        }
+
+        /// <summary>
+        /// The ends of a tile's track, given as <see cref="RailEnds"/> gives them, that a ride entering by counts as
+        /// entering from the north or west, a bit for each as <see cref="RailEnds"/> gives them; entering by any other end
+        /// counts as from the south or east. Each way has a track of its own (<see cref="BlockMaps.RailLoad"/>), so the
+        /// two ways through a tile must never count alike. Entering by the north or the west end counts as from the north
+        /// or west, so a ride going south or east as it enters keeps to one track and one going north or west to the
+        /// other, on a straight piece, a bridge, a crossing, a station, a junction and the cross alike. On the two curves
+        /// whose ends are both north and west, or both south and east, the ride's way along the north-south end decides,
+        /// since the two ends alone would count both ways alike: entering the north-west curve by its west end, a ride
+        /// goes on north, and counts as from the south or east, and entering the south-east curve by its east end goes on
+        /// south, and counts as from the north or west. A ride turning on a junction or the cross between its north and
+        /// west ends, or between its south and east, counts as the ride the other way round does, as any count by the end
+        /// entered alone must on a piece of three ends or more; the router knows only that end as it costs a tile.
+        /// </summary>
+        public static int RailEntriesFromNorthOrWest(int ends)
+        {
+            const int northAndWest = (1 << NorthSide) | (1 << WestSide);
+            const int southAndEast = (1 << SouthSide) | (1 << EastSide);
+
+            if (ends == northAndWest)
+            {
+                return 1 << NorthSide;
+            }
+
+            return ends == southAndEast ? 1 << EastSide : ends & northAndWest;
+        }
+
+        /// <summary>
+        /// Whether a ride entering a tile by the side given, numbered as <see cref="NorthSide"/> says, counts as entering
+        /// from the north or west, its track's ends given as <see cref="RailEnds"/> gives them
+        /// (<see cref="RailEntriesFromNorthOrWest"/>).
+        /// </summary>
+        public static bool EntersFromNorthOrWest(int ends, int side)
+        {
+            return (RailEntriesFromNorthOrWest(ends) & (1 << side)) != 0;
         }
 
         /// <summary>

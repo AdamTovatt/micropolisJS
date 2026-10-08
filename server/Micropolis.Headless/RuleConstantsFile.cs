@@ -21,7 +21,9 @@ namespace Micropolis.Headless
     /// <summary>
     /// <c>conformance/ruleConstants.json</c>: the rules' numbers the client draws by or its tests count with, which the
     /// client takes from here rather than copying: the steps a unit of city time takes at each running speed
-    /// (<see cref="CityTimeModel.StepsPerCityTime"/>), the units of city time in a year, what each tool costs, the
+    /// (<see cref="CityTimeModel.StepsPerCityTime"/>), the units of city time in a year, the steps a hosted city takes
+    /// a second (<see cref="Simulation.StepsPerSecond"/>) and the steps between a station's departures
+    /// (<see cref="Timetable.DepartureInterval"/>), by which the client times its trains, what each tool costs, the
     /// advisor conditions in the order the status record lists them (<see cref="CityStatus.AdvisorConditionNames"/>),
     /// and each sprite type, numbered as the state messages number it, with its frames, counting from 1
     /// (<see cref="SpriteTraits.LastFrame"/>), which the client's sprite sheet must hold, and the block size of the fire
@@ -52,6 +54,8 @@ namespace Micropolis.Headless
                 "{",
                 JsonLines.Member("stepsPerCityTime", steps, false),
                 JsonLines.Member("cityTimesPerYear", Simulation.CityTimesPerYear, false),
+                JsonLines.Member("stepsPerSecond", Simulation.StepsPerSecond, false),
+                JsonLines.Member("departureInterval", Timetable.DepartureInterval, false),
                 JsonLines.Member("toolCosts", costs, false),
                 .. JsonLines.ListMember("advisorConditions", CityStatus.AdvisorConditionNames.Select(name => (JsonNode?)name).ToList(), false),
                 .. JsonLines.ListMember("spriteTypes", Enum.GetValues<SpriteType>().Select(type => (JsonNode?)new JsonObject

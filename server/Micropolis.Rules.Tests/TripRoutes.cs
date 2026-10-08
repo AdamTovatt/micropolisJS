@@ -34,5 +34,13 @@ namespace Micropolis.Rules.Tests
 
             return tiles;
         }
+
+        /// <summary>
+        /// Every tile the ride stands on, in order: the station it gets on at, then the tile each step takes it to.
+        /// </summary>
+        public static List<TilePosition> Tiles(Ride ride)
+        {
+            return Tiles(ride.Path);
+        }
     }
 }

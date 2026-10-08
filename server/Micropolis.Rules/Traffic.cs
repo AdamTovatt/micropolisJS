@@ -101,7 +101,8 @@ namespace Micropolis.Rules
         internal const int TripTraffic = 5;
 
         /// <summary>
-        /// The most riders a tile of rail holds, at which it is full: decayed as the traffic density is, so from as high.
+        /// The most riders a tile of rail holds each way, on its track that way, at which that way is full: decayed as
+        /// the traffic density is, so from as high.
         /// </summary>
         public const int MaxRailLoad = MaxTrafficDensity;
 
@@ -168,24 +169,75 @@ namespace Micropolis.Rules
         // traffic, now and then; the helicopter chooses its traffic as it takes off (CopterSprite).
         private void AddToTrafficDensityMap(BlockMaps blockMaps)
         {
-            AddTo(blockMaps.TrafficDensityMap, TravelMode.Road, TripTraffic, MaxTrafficDensity);
-        }
-
-        // Adds the ride's riders to every tile of rail its route rides, in order
-        private void AddToRailLoadMap(BlockMaps blockMaps)
-        {
-            AddTo(blockMaps.RailLoadMap, TravelMode.Rail, RideLoad, MaxRailLoad);
-        }
-
-        private void AddTo(BlockMap map, TravelMode mode, int added, int most)
-        {
             foreach (RouteStep step in _route)
             {
-                if (step.Mode == mode)
+                if (step.Mode == TravelMode.Road)
                 {
-                    map.WorldSet(step.Tile.X, step.Tile.Y, Math.Min(map.WorldGet(step.Tile.X, step.Tile.Y) + added, most));
+                    Add(blockMaps.TrafficDensityMap, step.Tile, TripTraffic, MaxTrafficDensity);
                 }
             }
+        }
+
+        // Adds each ride's riders to every tile of rail it rides, in order, to the tile's load the way the ride goes
+        // there (RailLoadEntered): by the side its step onto the tile goes in by, or on the station it gets on at, which
+        // it enters from no tile of track, the side facing the one it leaves by
+        private void AddToRailLoadMap(BlockMaps blockMaps)
+        {
+            for (int i = 0; i < _route.Count; i++)
+            {
+                RouteStep step = _route[i];
+
+                if (step.Mode != TravelMode.Rail)
+                {
+                    continue;
+                }
+
+                // A ride has two tiles at least, so the station it gets on at has a tile after it
+                bool boards = i == 0 || _route[i - 1].Mode != TravelMode.Rail;
+                int enteredBy = boards
+                    ? TileUtils.SideEnteredBy(step.Tile, _route[i + 1].Tile)
+                    : TileUtils.SideEnteredBy(_route[i - 1].Tile, step.Tile);
+                int ends = TileUtils.RailEnds(_map.GetTileValue(step.Tile.X, step.Tile.Y));
+
+                Add(RailLoadEntered(blockMaps, ends, enteredBy), step.Tile, RideLoad, MaxRailLoad);
+            }
+        }
+
+        /// <summary>
+        /// The rail load a ride adds to on a tile, and is held back by, going in by the side given, numbered as
+        /// <see cref="TileUtils.NorthSide"/> says, of a track whose ends are those given, as
+        /// <see cref="TileUtils.RailEnds"/> gives them: the load of the riders who entered it from the north or west, or
+        /// that of those who entered it from the south or east (<see cref="TileUtils.EntersFromNorthOrWest"/>).
+        /// </summary>
+        public static BlockMap RailLoadEntered(BlockMaps blockMaps, int ends, int side)
+        {
+            return blockMaps.RailLoad(TileUtils.EntersFromNorthOrWest(ends, side));
+        }
+
+        /// <summary>
+        /// Each tile's rail load its busier way, against the capacity of one, as the Rail load overlay shows it: a new
+        /// map, which the rules never read.
+        /// </summary>
+        public static BlockMap BusierRailLoadMap(BlockMaps blockMaps)
+        {
+            BlockMap fromNorthOrWest = blockMaps.RailLoadFromNorthOrWestMap;
+            BlockMap fromSouthOrEast = blockMaps.RailLoadFromSouthOrEastMap;
+            BlockMap busier = new BlockMap(fromNorthOrWest.Width, fromNorthOrWest.Height, 1, 0, MaxRailLoad);
+
+            for (int y = 0; y < busier.Height; y++)
+            {
+                for (int x = 0; x < busier.Width; x++)
+                {
+                    busier.Set(x, y, Math.Max(fromNorthOrWest.Get(x, y), fromSouthOrEast.Get(x, y)));
+                }
+            }
+
+            return busier;
+        }
+
+        private static void Add(BlockMap map, Position tile, int added, int most)
+        {
+            map.WorldSet(tile.X, tile.Y, Math.Min(map.WorldGet(tile.X, tile.Y) + added, most));
         }
 
         /// <summary>

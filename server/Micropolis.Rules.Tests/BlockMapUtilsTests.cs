@@ -41,24 +41,26 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(200, blockMaps.CrimeRateMap.WorldGet(60, 48));
         }
 
-        // The rail load eases as the traffic does, a tile at a time: light load clears, heavy load falls faster than
-        // moderate, and the tile beside, in the same block of traffic, keeps its own
+        // The rail load each way eases as the traffic does, a tile at a time: light load clears, heavy load falls faster
+        // than moderate, and the tile beside, in the same block of traffic, and the other way keep their own
         [TestMethod]
-        [DataRow(24, 0)]
-        [DataRow(25, 1)]
-        [DataRow(200, 176)]
-        [DataRow(201, 167)]
-        [DataRow(Traffic.MaxRailLoad, Traffic.MaxRailLoad - 34)]
-        public void NeutraliseTrafficMap_RailLoad_EasesEachTileAsTheTraffic(int load, int eased)
+        [DataRow(true, 24, 0)]
+        [DataRow(true, 25, 1)]
+        [DataRow(true, 200, 176)]
+        [DataRow(false, 201, 167)]
+        [DataRow(false, Traffic.MaxRailLoad, Traffic.MaxRailLoad - 34)]
+        public void NeutraliseTrafficMap_RailLoad_EasesEachTileEachWayAsTheTraffic(bool fromNorthOrWest, int load, int eased)
         {
             BlockMaps blockMaps = new BlockMaps(120, 100);
-            blockMaps.RailLoadMap.WorldSet(60, 48, load);
+            blockMaps.RailLoad(fromNorthOrWest).WorldSet(60, 48, load);
+            blockMaps.RailLoad(!fromNorthOrWest).WorldSet(60, 48, 100);
             blockMaps.TrafficDensityMap.WorldSet(60, 48, load);
 
             BlockMapUtils.NeutraliseTrafficMap(blockMaps);
 
-            Assert.AreEqual((eased, 0, eased),
-                            (blockMaps.RailLoadMap.WorldGet(60, 48), blockMaps.RailLoadMap.WorldGet(61, 48), blockMaps.TrafficDensityMap.WorldGet(60, 48)));
+            Assert.AreEqual((eased, 0, 76, eased),
+                            (blockMaps.RailLoad(fromNorthOrWest).WorldGet(60, 48), blockMaps.RailLoad(fromNorthOrWest).WorldGet(61, 48),
+                             blockMaps.RailLoad(!fromNorthOrWest).WorldGet(60, 48), blockMaps.TrafficDensityMap.WorldGet(60, 48)));
         }
     }
 }

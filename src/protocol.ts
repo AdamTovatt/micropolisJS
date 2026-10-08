@@ -677,7 +677,8 @@ export function recordTypes(): string[] {
 // after it, and renders nothing but these messages. A source sends what changed in batches: one after each turn of its
 // loop that applied commands or took steps, however many steps that turn took, and one after each call of the
 // end-to-end runner's driver that applies commands or takes steps. The sprites, the date, the population and the
-// records go only when they differ from what it sent last.
+// records go only when they differ from what it sent last, and every batch carries the step clock, just before its
+// trips.
 
 // The whole map: width tiles across and height down, each tile's raw value, with its flags, row by row, top row first
 export interface MapMessage {
@@ -722,6 +723,13 @@ export interface DateMessage {
   type: "date";
   month: number;
   year: number;
+}
+
+// The city's step clock: the steps it has taken while it wasn't paused, at any speed, about 60 a second, on which the
+// departure a ride is stamped with counts, so the client lines departures up with its own clock
+export interface ClockMessage {
+  type: "clock";
+  steps: number;
 }
 
 // The city's population as the last monthly growth check counted it. The evaluation record's population is the yearly
@@ -799,29 +807,34 @@ export interface OverlayUpdatedMessage {
 }
 
 // A trip, a run by road, of two tiles or more, of the route the traffic rule found for a zone from a tile of the zone's
-// perimeter to the tile beside its destination, or a ride of it by rail from the station it got on at to the one it got
-// off at: the tile it starts on, then a letter for each step to the next tile, N (up the map), E, S or W
+// perimeter to the tile beside its destination: the tile it starts on, then a letter for each step to the next tile, N
+// (up the map), E, S or W
 export type Trip = [x: number, y: number, steps: string];
+
+// A ride of such a route by rail, from the station it got on at to the one it got off at, as a trip, and the step
+// clock's value of the departure from its station it boards (ClockMessage), which the train leaves at
+export type Ride = [x: number, y: number, steps: string, departure: number];
 
 // The trips the traffic rule completed that the city offered since its last batch: the runs by road, for the client to
 // draw as cars, and the rides, for it to draw as trains, each in the order they were offered
 export interface TripsMessage {
   type: "trips";
   routes: Trip[];
-  rides: Trip[];
+  rides: Ride[];
 }
 
-export type StateMessage = MapMessage | TilesMessage | SpritesMessage | DateMessage | PopulationMessage |
-  EvaluationRecord | BudgetRecord | SettingsRecord | StatusRecord | DemandMessage | NewsMessage | CommandResultMessage |
-  BudgetReviewDueMessage | OverlayUpdatedMessage | TripsMessage;
+export type StateMessage = MapMessage | TilesMessage | SpritesMessage | DateMessage | ClockMessage |
+  PopulationMessage | EvaluationRecord | BudgetRecord | SettingsRecord | StatusRecord | DemandMessage | NewsMessage |
+  CommandResultMessage | BudgetReviewDueMessage | OverlayUpdatedMessage | TripsMessage;
 
 export type StateMessageType = StateMessage["type"];
 
 // Every state message type, as the compiler checks against the union: a type added to StateMessage and not here fails
 // to compile, and the tests fail on a type with no example.
 const STATE_MESSAGE_TYPES: Record<StateMessageType, true> = {
-  map: true, tiles: true, sprites: true, date: true, population: true, evaluation: true, budget: true, settings: true,
-  status: true, demand: true, news: true, commandResult: true, budgetReviewDue: true, overlayUpdated: true, trips: true,
+  map: true, tiles: true, sprites: true, date: true, clock: true, population: true, evaluation: true, budget: true,
+  settings: true, status: true, demand: true, news: true, commandResult: true, budgetReviewDue: true,
+  overlayUpdated: true, trips: true,
 };
 
 export function stateMessageTypes(): string[] {

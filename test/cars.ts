@@ -22,7 +22,7 @@ import {
 } from "../src/cars";
 import type { CarPlace } from "../src/cars";
 import { SPRITE_PIXELS_PER_TILE } from "../src/paintable";
-import type { TilePosition, Trip, TripsMessage } from "../src/protocol";
+import type { Ride, TilePosition, Trip, TripsMessage } from "../src/protocol";
 import { repositoryPath } from "./helpers/repository";
 
 // The milliseconds a car takes to drive one tile
@@ -321,11 +321,11 @@ describe("the trains", () => {
     const RAIL_TILE_MS = 1000 / TRAIN_TILES_PER_SECOND;
 
     // A ride east along row 5 from a station at (10, 5) to one at (14, 5), and one north up column 20
-    const EAST_RIDE: Trip = [10, 5, "EEEE"];
-    const NORTH_RIDE: Trip = [20, 9, "NNN"];
+    const EAST_RIDE: Ride = [10, 5, "EEEE", 0];
+    const NORTH_RIDE: Ride = [20, 9, "NNN", 0];
 
     // Cars whose clock has been read once, at NOW, at the step given, the rides given arrived in one trips message
-    function trainsAt(share: () => CarShareStep, rides: Trip[]): Cars {
+    function trainsAt(share: () => CarShareStep, rides: Ride[]): Cars {
         const cars = new Cars(share);
         cars.advance(NOW, false);
         cars.addRides(rides);

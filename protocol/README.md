@@ -131,13 +131,13 @@ connection joins it fails the request with the connection in no city.
 
 The answer to `start`, `upload` and `join` is `{"city", "name", "seed"}`: the city's id, its name and its game seed. It
 comes after the city's whole state, sent as one `state` batch: the whole map, the sprites, the date, the population,
-the records, and the latest `status` and `demand` the city has published, if it has. A connection is in at most one
-city: starting or joining one leaves the one before. Every connection's commands go into the city's one command stream
-in the order the server receives them, apply between steps, and are logged in the city's one log with the id of the
-player who sent each; the simulation never branches on who sent one. A city steps whether or not anyone can see it,
-while any player is in it; when the last leaves, the server saves it and unloads it, and a join loads it again. A city
-whose rules throw is unloaded without saving, so it stays as it was last saved, and every connection in it is closed
-with 1011.
+the records, the latest `status` and `demand` the city has published, if it has, and the step clock. A connection is
+in at most one city: starting or joining one leaves the one before. Every connection's commands go into the city's one
+command stream in the order the server receives them, apply between steps, and are logged in the city's one log with
+the id of the player who sent each; the simulation never branches on who sent one. A city steps whether or not anyone
+can see it, while any player is in it; when the last leaves, the server saves it and unloads it, and a join loads it
+again. A city whose rules throw is unloaded without saving, so it stays as it was last saved, and every connection in
+it is closed with 1011.
 
 Readers are strict: an unknown field, a missing one, or a null or a value of the wrong kind where the protocol has
 none is an error. Fields may come in any order, `type` included, and writers put them in the protocol's order. The
@@ -175,7 +175,9 @@ each query as it receives it (`Queries` in `server/Micropolis.Rules`) and answer
   residential rule scores a zone whose trip found a route, its land value less its pollution, from -3000 to 3000:
   -3000 where the block is too polluted for a home to grow at all, and 0, which no location score is, on clean
   undeveloped land, which has no land value to score. The rail load, `railLoad`, is a block a tile, so lines side by
-  side show apart.
+  side show apart. Every rail tile carries a track each way, whose loads the simulation keeps apart, and the layer is
+  the busier of each tile's two, which it works out as it answers too, from 0 to the 240 that fills one way, so a full
+  track shows full.
 - `tileReport` names a tile by `x` and `y`, which must be on the map, and is answered with what the query tool reports
   about it, as raw values: `x` and `y`; `tile`, the tile's value without its flags; `category`, what the query tool
   calls the tile, one of the codes `src/protocol.ts` lists; `populationDensity`, `landValue`, `crime`, `pollution`
@@ -250,9 +252,11 @@ commands or takes steps. The sprites, the date, the population and the records g
 sent last. The simulation publishes `status` and `demand` each cycle, and a batch carries only the latest of each it
 published since the batch before. A batch announces each recomputed layer at most once in `overlayUpdated`, however
 often the turn recomputed it. The events, `news`, `commandResult`, `budgetReviewDue` and `overlayUpdated`, go in the
-order they came, and `trips` last. A city that starts sends the whole map, the sprites, the date, the population and
-the `evaluation`, `budget` and `settings` records (see Records), then the rest as they come; a player who joins is
-sent no trips offered before.
+order they came, then the step clock, `clock`, and `trips` last. Every batch carries the step clock, which moves every
+step, but none is sent for it alone: a turn that changed nothing else a player is sent sends no batch. A city that
+starts sends the whole map, the sprites, the date, the population and the `evaluation`, `budget` and `settings`
+records (see Records), and the step clock, then the rest as they come; a player who joins is sent no trips offered
+before.
 
 - `map` is the whole map: `width` and `height`, in tiles, and `tiles`, each tile's raw value with its flags, row by
   row, top row first.
@@ -263,6 +267,9 @@ sent no trips offered before.
   client draws from rides and no city sends; and the square it is drawn in,
   `width` map pixels a side with its top-left corner at map pixel (`x`, `y`). A map pixel is a sixteenth of a tile.
 - `date` is the city's date: `month`, from 0, and `year`.
+- `clock` is the city's step clock, in `steps`: every step it has taken while it wasn't paused, at any speed, a whole
+  number from 0, at the batch's end. A ride's departure counts on it, so the client lines departures up with its own
+  clock; after a turn of many steps, a departure in the batch may be at or before it, already gone.
 - `population` is the city's `population` as the last monthly growth check counted it. The `evaluation` record's
   population is the yearly evaluation's.
 - `status` is the conditions that limit the city's growth: `powerCapacity` and `powerLoad`, as of the
@@ -289,12 +296,15 @@ sent no trips offered before.
   by road, rides rail from a station to a station, and walks a few tiles to or from a station. A run by road is a run
   of the route by road (road, a road bridge, or road crossing rail or a power line), of two tiles or more and as long
   as the route goes by road; a ride is a run of it by rail, from the station it gets on at to the one it gets off at,
-  through any station between. Each is written `[x, y, "steps"]`: the tile it starts on, then a letter for each step to
-  the next tile of it, `N` (up the map, to `y - 1`), `E` (`x + 1`), `S` (`y + 1`) or `W` (`x - 1`), such as
-  `[9, 8, "NNE"]` for (9, 8), (9, 7), (9, 6) and (10, 6). The city offers each run and each ride of a route as one of
-  its own, in the route's order, as it routes it; where the route walks it offers nothing. A batch with none offered
-  carries no `trips`, and one with runs but no rides, or rides but no runs, carries the other list empty. Trips are a
-  picture of what the rules do: the rules never read them, and no save or log holds them.
+  through any station between. A run is written `[x, y, "steps"]`: the tile it starts on, then a letter for each step
+  to the next tile of it, `N` (up the map, to `y - 1`), `E` (`x + 1`), `S` (`y + 1`) or `W` (`x - 1`), such as
+  `[9, 8, "NNE"]` for (9, 8), (9, 7), (9, 6) and (10, 6). A ride is written `[x, y, "steps", departure]`, the station
+  it gets on at, its steps, and the step clock's value (`clock`) of the departure from that station it boards: each
+  station has a departure each way at a fixed interval of the clock, at an offset of its own from its place, and a ride
+  boards the first after the step the city routed it on, which the train leaves at. The city offers each run and each
+  ride of a route as one of its own, in the route's order, as it routes it; where the route walks it offers nothing. A
+  batch with none offered carries no `trips`, and one with runs but no rides, or rides but no runs, carries the other
+  list empty. Trips are a picture of what the rules do: the rules never read them, and no save or log holds them.
 
 ## Examples
 

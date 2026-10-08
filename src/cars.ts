@@ -14,7 +14,7 @@
 
 import type { CarShareStep } from "./carShare";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
-import type { TilePosition, Trip } from "./protocol";
+import type { Ride, TilePosition, Trip } from "./protocol";
 
 // The cars the client draws for the city's traffic: each trip a trips message brings (protocol/README.md) becomes a car
 // that drives its route once, on the right-hand side of the road, and is gone at its end, and each ride a car of a
@@ -134,7 +134,7 @@ function stepOf(direction: CarDirection): {x: number, y: number} {
 export const STEP_LETTERS: Readonly<Record<string, CarDirection>> = {N: "north", E: "east", S: "south", W: "west"};
 
 // Every tile a trip stands on, in order: its start, then the tile each of its steps takes it to
-export function tripRoute([x, y, steps]: Trip): TilePosition[] {
+export function tripRoute([x, y, steps]: Trip | Ride): TilePosition[] {
   const route = [{x, y}];
   for (const letter of steps) {
     const direction = STEP_LETTERS[letter];
@@ -279,14 +279,15 @@ export class Cars {
   // get off at, ride one train, a car each, up to MOST_TRAIN_CARS, and the rest the trains after it. The trains start
   // now, at their stations, in the order the first ride of each came, but a train that arrives while its cars would
   // take those driving past the step's cap (carCap), which is dropped.
-  addRides(rides: readonly Trip[]): void {
+  addRides(rides: readonly Ride[]): void {
     const step = this.share();
     const paths = new Map<string, {ride: Trip, count: number}>();
-    for (const ride of rides) {
+    for (const [x, y, steps] of rides) {
       const index = this.ridden++;
       if (!takesTrip(index, step)) {
         continue;
       }
+      const ride: Trip = [x, y, steps];
       const key = JSON.stringify(ride);
       const path = paths.get(key);
       if (path === undefined) {

@@ -50,7 +50,8 @@ namespace Micropolis.Rules
             PoliceStationEffectMap = Of(StationMapBlockSize, 0, MaxPoliceStationMap);
             PollutionDensityMap = Of(2, 0, 255);
             PopulationDensityMap = Of(2, 0, 510);
-            RailLoadMap = Of(1, 0, Traffic.MaxRailLoad);
+            RailLoadFromNorthOrWestMap = Of(1, 0, Traffic.MaxRailLoad);
+            RailLoadFromSouthOrEastMap = Of(1, 0, Traffic.MaxRailLoad);
             RateOfGrowthMap = Of(8, -200, 200);
             TerrainDensityMap = Of(4, 0, 240);
             TrafficDensityMap = Of(2, 0, 240);
@@ -66,7 +67,8 @@ namespace Micropolis.Rules
                 ("policeStationEffectMap", PoliceStationEffectMap),
                 ("pollutionDensityMap", PollutionDensityMap),
                 ("populationDensityMap", PopulationDensityMap),
-                ("railLoadMap", RailLoadMap),
+                ("railLoadFromNorthOrWestMap", RailLoadFromNorthOrWestMap),
+                ("railLoadFromSouthOrEastMap", RailLoadFromSouthOrEastMap),
                 ("rateOfGrowthMap", RateOfGrowthMap),
                 ("terrainDensityMap", TerrainDensityMap),
                 ("trafficDensityMap", TrafficDensityMap),
@@ -119,11 +121,30 @@ namespace Micropolis.Rules
         public BlockMap PopulationDensityMap { get; }
 
         /// <summary>
-        /// The riders on each tile of rail, a block a tile so that lines side by side keep their loads apart: what
-        /// the rides the traffic rule routes add to it, which no road's traffic does, decayed as the traffic density
-        /// is. A tile at <see cref="Traffic.MaxRailLoad"/> is full, and no ride enters it.
+        /// The riders on each tile of rail going one way, those that entered it from the north or west:
+        /// <see cref="RailLoad"/> says what it holds.
         /// </summary>
-        public BlockMap RailLoadMap { get; }
+        public BlockMap RailLoadFromNorthOrWestMap { get; }
+
+        /// <summary>
+        /// The riders on each tile of rail going the other way, those that entered it from the south or east:
+        /// <see cref="RailLoad"/> says what it holds.
+        /// </summary>
+        public BlockMap RailLoadFromSouthOrEastMap { get; }
+
+        /// <summary>
+        /// The riders on each tile of rail going one way, each tile carrying a track each way: those that entered it
+        /// from the north or west where <paramref name="fromNorthOrWest"/>, and those that entered it from the south or
+        /// east otherwise, as <see cref="TileUtils.EntersFromNorthOrWest"/> counts each end of its track. A block a tile,
+        /// so that lines side by side keep their loads apart: what the rides the traffic rule routes add to it, which no
+        /// road's traffic does, decayed as the traffic density is. A tile at <see cref="Traffic.MaxRailLoad"/> one way
+        /// is full that way, and no ride enters it going that way, so a line used both ways carries twice what one used
+        /// one way does.
+        /// </summary>
+        public BlockMap RailLoad(bool fromNorthOrWest)
+        {
+            return fromNorthOrWest ? RailLoadFromNorthOrWestMap : RailLoadFromSouthOrEastMap;
+        }
 
         /// <summary>
         /// Each block's rate of growth.

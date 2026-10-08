@@ -46,8 +46,9 @@ namespace Micropolis.Rules
             new OverlayLayer("rateOfGrowth", city => city.BlockMaps.RateOfGrowthMap, -200, 200, 10),
             // Each tile, 1 where the last power scan powered it and 0 where it didn't
             new OverlayLayer("powerGrid", city => city.PowerManager.PowerGridMap, 0, 1, 11),
-            // Each tile's riders, which the map scan adds to and phase 10 decays, as the traffic
-            new OverlayLayer("railLoad", city => city.BlockMaps.RailLoadMap, 0, Traffic.MaxRailLoad, 10),
+            // Each tile's riders its busier way, against the capacity of one, so a full track reads as full: which the map
+            // scan adds to and phase 10 decays, as the traffic
+            new OverlayLayer("railLoad", city => Traffic.BusierRailLoadMap(city.BlockMaps), 0, Traffic.MaxRailLoad, 10),
         ];
 
         // Each query's fields but its type, required or optional

@@ -44,6 +44,26 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEqual(new[] { new DateMessage(0, 1900) }, events);
         }
 
+        // The step clock counts every step the city takes at any speed, whether or not the gate lets a phase through, and
+        // stands while it is paused
+        [TestMethod]
+        [DataRow(Speed.Slow, 7)]
+        [DataRow(Speed.Medium, 7)]
+        [DataRow(Speed.Fast, 7)]
+        [DataRow(Speed.Paused, 0)]
+        public void Step_AtEachSpeed_CountsEveryStepTakenOnTheStepClock(Speed speed, int counted)
+        {
+            Simulation city = City("suburb", "built", save => save["simulation"]!["stepClock"] = 1000);
+            city.SetSpeed(speed);
+
+            for (int i = 0; i < 7; i++)
+            {
+                city.Step();
+            }
+
+            Assert.AreEqual(1000 + counted, city.StepClock);
+        }
+
         // The year one million: the city goes back to 1900, in the same month
         [TestMethod]
         public void Step_ReachingTheYearOneMillion_GoesBackTo1900InTheSameMonth()

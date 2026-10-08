@@ -74,7 +74,10 @@ version from 5 on: the oldest `SavedGame` migrates, the first that holds the com
 written by the game of its version, and they are never regenerated, since a version's format never changes:
 `version7AwaitingBudget.json` was saved while a year end waited for the player, which the step from version 7 pays.
 `version14.json` is the commuters fixture after its run, whose rides load the line along row 15 between its stations
-at (25, 15) and (44, 15), and nothing else, which `e2e/railLoad.spec.ts` draws the Rail load overlay over.
+at (25, 15) and (44, 15), and nothing else, which the step from version 14 splits between the line's two ways.
+`version15.json` is the same fixture after its run under the rules of version 15, uploaded to the server with the
+name `Sample`: its rides load the same line eastward, the way from the north or west, and nothing else, which
+`e2e/railLoad.spec.ts` draws the Rail load overlay over.
 `SavedGameTests` also upgrades each as the bare state a command log holds, and `LogReplayTests` replays the sample of
 the version before the current one from inside a log, as a log written before the last upgrade step was added.
 The fixture tool fails unless every version from 5 to the current one has a sample, so a new version adds one, written
@@ -247,10 +250,12 @@ category; and `boatDistances`, a ship's distance from tiles near and far.
 
 The rules' numbers the client draws by or its tests count with, which the client takes from here rather than copying
 (`RuleConstantsFile`, read through `test/helpers/ruleConstants.ts`): `stepsPerCityTime` at each running speed,
-`cityTimesPerYear`, `toolCosts`, the `advisorConditions` in the order the status record lists them, and the
-`spriteTypes`, each numbered as the state messages number it, with its frames, which `test/vocabulary.ts` holds the
-client's sprite sheet to, and `fireCoverBlockSize`, the block size of the fire department's cover map, by which the
-end-to-end runner reads a save's cover.
+`cityTimesPerYear`, `stepsPerSecond`, the steps a hosted city takes a second, and `departureInterval`, the steps of
+the step clock between a station's departures, by which the client times its trains, `toolCosts`, the
+`advisorConditions` in the order the status record lists them, and the `spriteTypes`, each numbered as the state
+messages number it, with its frames, which `test/vocabulary.ts` holds the client's sprite sheet to, and
+`fireCoverBlockSize`, the block size of the fire department's cover map, by which the end-to-end runner reads a save's
+cover.
 
 ### migrated/
 

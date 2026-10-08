@@ -12,23 +12,23 @@
  *
  */
 
+using Micropolis.Rules;
+
 namespace Micropolis.Server
 {
     /// <summary>
-    /// Turns real time into simulation steps at a fixed rate, <see cref="StepsPerSecond"/>. Time is owed until it adds
-    /// up to a whole step, so a slow turn is followed by several steps rather than losing time. Real time only paces
-    /// the city: what the city becomes depends on the number of steps alone.
+    /// Turns real time into simulation steps at a fixed rate, <see cref="Simulation.StepsPerSecond"/>. Time is owed until
+    /// it adds up to a whole step, so a slow turn is followed by several steps rather than losing time. Real time only
+    /// paces the city: what the city becomes depends on the number of steps alone.
     /// </summary>
     internal sealed class StepDriver
     {
-        public const int StepsPerSecond = 60;
-
         /// <summary>
         /// The most steps one call takes. A long gap, such as a machine that slept, would owe thousands of steps at
         /// once; past this many the rest of the owed time is dropped, which slows the city in real time and changes
         /// nothing else.
         /// </summary>
-        public const int MaxStepsPerCall = StepsPerSecond;
+        public const int MaxStepsPerCall = Simulation.StepsPerSecond;
 
         // Owed time is counted in thousandths of a step, so milliseconds convert by multiplying by 60 rather than
         // dividing by the 16⅔ milliseconds of a step, which would round on every turn
@@ -50,7 +50,7 @@ namespace Micropolis.Server
                 return 0;
             }
 
-            _owedUnits += (now - lastTime) * StepsPerSecond;
+            _owedUnits += (now - lastTime) * Simulation.StepsPerSecond;
             _lastTime = now;
 
             int steps = (int)Math.Floor(_owedUnits / UnitsPerStep);

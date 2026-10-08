@@ -52,7 +52,7 @@ namespace Micropolis.Rules
         private List<StateMessage> _events = new List<StateMessage>();
         // The runs by road and the rides offered since the last messages, each in the order they were offered
         private List<Trip> _runs = new List<Trip>();
-        private List<Trip> _rides = new List<Trip>();
+        private List<Ride> _rides = new List<Ride>();
 
         /// <summary>
         /// Takes the city as it stands as sent, so the first new messages are what changes from here: a player who
@@ -95,8 +95,9 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// The whole state, as a player who joins needs it: the whole map, the sprites, the date, the population and the
-        /// records, then the latest status and demand published, if any has been. It is what was last sent, as long as
-        /// the city changes only between calls of <see cref="NewMessages"/>, each of which sends what it changed.
+        /// records, then the latest status and demand published, if any has been, and the step clock. It is what was
+        /// last sent, as long as the city changes only between calls of <see cref="NewMessages"/>, each of which sends
+        /// what it changed.
         /// </summary>
         public IReadOnlyList<StateMessage> FullState()
         {
@@ -112,13 +113,14 @@ namespace Micropolis.Rules
                 messages.Add(_lastDemand);
             }
 
+            messages.Add(new ClockMessage(_city.StepClock));
             return messages;
         }
 
         /// <summary>
         /// The state messages since the last call: the tiles that changed; the sprites, date, population and records
         /// that differ from those sent last; then the status and demand published since, the events in the order they
-        /// came, and the trips offered since, if any was.
+        /// came, the step clock if the batch carries any of these or trips, and the trips offered since, if any was.
         /// </summary>
         public IReadOnlyList<StateMessage> NewMessages()
         {
@@ -154,12 +156,19 @@ namespace Micropolis.Rules
 
             messages.AddRange(_events);
             _events = new List<StateMessage>();
+            bool trips = _runs.Count > 0 || _rides.Count > 0;
 
-            if (_runs.Count > 0 || _rides.Count > 0)
+            // The step clock goes with a batch that carries anything, and makes none of its own: it moves every step
+            if (trips || messages.Count > 0)
+            {
+                messages.Add(new ClockMessage(_city.StepClock));
+            }
+
+            if (trips)
             {
                 messages.Add(new TripsMessage(_runs, _rides));
                 _runs = new List<Trip>();
-                _rides = new List<Trip>();
+                _rides = new List<Ride>();
             }
 
             return messages;

@@ -1,6 +1,8 @@
 {
   "stepsPerCityTime": {"slow":80,"medium":48,"fast":16},
   "cityTimesPerYear": 48,
+  "stepsPerSecond": 60,
+  "departureInterval": 240,
   "toolCosts": {"airport":10000,"bulldozer":10,"coal":3000,"commercial":100,"fire":500,"industrial":100,"nuclear":5000,"park":10,"police":500,"port":3000,"rail":20,"residential":100,"road":10,"stadium":5000,"station":500,"wire":5},
   "advisorConditions": [
     "Not enough power",

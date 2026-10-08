@@ -2,9 +2,9 @@
 
 How fast the C# simulation steps a city, and how many bytes of state messages each player in a city on the server receives per step, on the committed fixtures and on new cities. `npm run benchmark` writes this file, with `server/Micropolis.Benchmarks`.
 
-- Commit: 8ac800fc3e8f, with uncommitted changes
+- Commit: a2b316e8c8c1, with uncommitted changes
 - Machine: Ubuntu 24.04.4 LTS, Arm64, 16 logical processors
-- Load average over 1, 5 and 15 minutes: 26.39, 27.23, 17.31 as the timing started, 47.71, 34.63, 21.59 as it ended
+- Load average over 1, 5 and 15 minutes: 21.77, 16.69, 12.55 as the timing started, 17.92, 17.24, 13.23 as it ended
 - Runtime: .NET 10.0.11, Release build
 - Each fixture's city is its save after its golden run, at its saved speed; random disasters are on for disasters and forestFire and harbourWithDisasters. A new city is the seed's map at the easy level.
 - Steps/s and ms/step: the city is loaded, steps 4800 times to warm up, then 24000 steps are timed; the median of 5 repeats, each from a fresh load.
@@ -13,28 +13,28 @@ How fast the C# simulation steps a city, and how many bytes of state messages ea
 
 | Fixture | Speed | Steps/s | ms/step | Bytes/step |
 |---------|-------|--------:|--------:|-----------:|
-| broke | medium | 148,625 | 0.0067 | 52.8 |
-| commuters | medium | 147,066 | 0.0068 | 27.7 |
-| disasters | medium | 203,551 | 0.0049 | 24.0 |
-| forestFire | medium | 371,083 | 0.0027 | 12.0 |
-| harbour | medium | 60,887 | 0.0164 | 89.0 |
-| harbourWithDisasters | medium | 319,109 | 0.0031 | 16.2 |
-| hazyWoods | medium | 345,944 | 0.0029 | 13.2 |
-| hospitalTown | fast | 43,532 | 0.0230 | 80.8 |
-| overloaded | medium | 243,598 | 0.0041 | 12.2 |
-| roadlessTown | medium | 232,711 | 0.0043 | 18.0 |
-| smokyWoods | medium | 359,081 | 0.0028 | 13.3 |
-| suburb | medium | 149,726 | 0.0067 | 22.3 |
-| suburbBroke | medium | 215,056 | 0.0046 | 19.3 |
-| suburbFast | fast | 52,175 | 0.0192 | 65.3 |
-| suburbSlow | slow | 171,165 | 0.0058 | 15.3 |
-| suburbUnderfunded | medium | 198,007 | 0.0051 | 19.9 |
-| taxCap | medium | 223,850 | 0.0045 | 49.5 |
-| town | medium | 125,183 | 0.0080 | 60.1 |
-| twinPlants | medium | 353,247 | 0.0028 | 14.3 |
-| underfunded | medium | 107,784 | 0.0093 | 54.4 |
-| wilderness | medium | 354,866 | 0.0028 | 11.7 |
-| new city (seed 0) | slow | 232,346 | 0.0043 | 10.6 |
-| new city (seed 0) | medium | 341,125 | 0.0029 | 11.7 |
-| new city (seed 0) | fast | 50,138 | 0.0199 | 33.2 |
-| fully zoned map | fast | 154 | 6.5089 | 1,052.3 |
+| broke | medium | 160,096 | 0.0062 | 64.8 |
+| commuters | medium | 144,256 | 0.0069 | 32.3 |
+| disasters | medium | 219,009 | 0.0046 | 28.1 |
+| forestFire | medium | 333,697 | 0.0030 | 14.2 |
+| harbour | medium | 111,457 | 0.0090 | 105.2 |
+| harbourWithDisasters | medium | 292,711 | 0.0034 | 19.8 |
+| hazyWoods | medium | 323,529 | 0.0031 | 15.7 |
+| hospitalTown | fast | 54,540 | 0.0183 | 93.0 |
+| overloaded | medium | 220,170 | 0.0045 | 14.4 |
+| roadlessTown | medium | 226,148 | 0.0044 | 21.6 |
+| smokyWoods | medium | 265,706 | 0.0038 | 15.7 |
+| suburb | medium | 158,563 | 0.0063 | 25.9 |
+| suburbBroke | medium | 233,392 | 0.0043 | 22.9 |
+| suburbFast | fast | 56,873 | 0.0176 | 75.4 |
+| suburbSlow | slow | 173,100 | 0.0058 | 18.6 |
+| suburbUnderfunded | medium | 219,350 | 0.0046 | 23.5 |
+| taxCap | medium | 229,059 | 0.0044 | 61.5 |
+| town | medium | 155,652 | 0.0064 | 73.2 |
+| twinPlants | medium | 328,765 | 0.0030 | 16.8 |
+| underfunded | medium | 212,276 | 0.0047 | 66.2 |
+| wilderness | medium | 327,437 | 0.0031 | 13.9 |
+| new city (seed 0) | slow | 207,931 | 0.0048 | 13.0 |
+| new city (seed 0) | medium | 326,509 | 0.0031 | 13.9 |
+| new city (seed 0) | fast | 131,224 | 0.0076 | 38.9 |
+| fully zoned map | fast | 319 | 3.1325 | 1,072.7 |

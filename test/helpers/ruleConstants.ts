@@ -22,6 +22,9 @@ interface RuleConstants {
     // The steps a unit of city time takes at each running speed
     stepsPerCityTime: {slow: number, medium: number, fast: number};
     cityTimesPerYear: number;
+    // The steps a hosted city takes a second, and the steps of its step clock between a station's departures
+    stepsPerSecond: number;
+    departureInterval: number;
     toolCosts: Record<ToolName, number>;
     // The advisor conditions' messages, in the order the status record lists them
     advisorConditions: string[];

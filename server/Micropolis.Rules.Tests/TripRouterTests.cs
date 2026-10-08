@@ -81,14 +81,16 @@ namespace Micropolis.Rules.Tests
         }
 
         // From the east perimeter by road to a station at (24, 50), along row 50 to a station at (34, 50), and by road
-        // to (35, 50), beside the destination, costs 30 on empty rail; by road round row 47 costs 72. With every tile of
-        // the line loaded one short of full, the ride costs 74, and the trip goes by road; with one tile full, the line
-        // takes no ride at all.
+        // to (35, 50), beside the destination, costs 42 on empty rail, getting on included; by road round row 47 costs
+        // 72. With every tile of the line loaded one short of full the way the ride goes, east, entering each tile by its
+        // west end, from the north or west, the ride costs 86, and the trip goes by road; with one tile full that way,
+        // the line takes no ride at all. A line full the other way, west, is no load on the ride east, on its own track.
         [TestMethod]
-        [DataRow(0, false, false)]
-        [DataRow(Traffic.MaxRailLoad - 1, false, true)]
-        [DataRow(Traffic.MaxRailLoad, true, true)]
-        public void Route_LineLoaded_GoesByRoadOnceTheRideCostsMore(int load, bool oneTile, bool byRoad)
+        [DataRow(0, false, true, false)]
+        [DataRow(Traffic.MaxRailLoad - 1, false, true, true)]
+        [DataRow(Traffic.MaxRailLoad, true, true, true)]
+        [DataRow(Traffic.MaxRailLoad, false, false, false)]
+        public void Route_LineLoaded_GoesByRoadOnceTheRideCostsMore(int load, bool oneTile, bool theRidesWay, bool byRoad)
         {
             GameMap map = Map();
             List<Position> road = [new Position(21, 48), new Position(21, 47), .. Row(47, 22, 37), new Position(37, 48)];
@@ -100,7 +102,7 @@ namespace Micropolis.Rules.Tests
             BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
             foreach (Position tile in oneTile ? [new Position(29, 50)] : Row(50, 24, 34))
             {
-                blockMaps.RailLoadMap.WorldSet(tile.X, tile.Y, load);
+                blockMaps.RailLoad(fromNorthOrWest: theRidesWay).WorldSet(tile.X, tile.Y, load);
             }
 
             (_, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial, blockMaps);
@@ -241,14 +243,20 @@ namespace Micropolis.Rules.Tests
         }
 
         // No road at the zone: a station on the east perimeter at (22, 50), or a walk of two tiles from it at (24, 50),
-        // and track along row 50 to a station at (28, 50), beside the destination. Empty, the trip rides from it; full,
-        // it takes no ride, and the zone has a way out all the same, as a zone on a jammed road has, but nowhere to go.
+        // and track along row 50 to a station at (28, 50), beside the destination. Empty, the trip rides from it; full
+        // the way the ride goes, east, it takes no ride, and the zone has a way out all the same, as a zone on a jammed
+        // road has, but nowhere to go; full the other way, west, the ride east goes on its own track. The station at
+        // (22, 50) gets on from the perimeter at the boarding cost, as a walk from (22, 49) above it onto it does, and
+        // the route starts at the station all the same: its first tile gives way to no route as cheap.
         [TestMethod]
-        [DataRow(22, false, TrafficResult.RouteFound)]
-        [DataRow(22, true, TrafficResult.NoRouteFound)]
-        [DataRow(24, false, TrafficResult.RouteFound)]
-        [DataRow(24, true, TrafficResult.NoRouteFound)]
-        public void Route_StationFullWhereTheTripGetsOn_IsAWayOutThatTakesNoRide(int stationX, bool full, TrafficResult expected)
+        [DataRow(22, false, false, TrafficResult.RouteFound)]
+        [DataRow(22, true, true, TrafficResult.NoRouteFound)]
+        [DataRow(22, true, false, TrafficResult.RouteFound)]
+        [DataRow(24, false, false, TrafficResult.RouteFound)]
+        [DataRow(24, true, true, TrafficResult.NoRouteFound)]
+        [DataRow(24, true, false, TrafficResult.RouteFound)]
+        public void Route_StationFullWhereTheTripGetsOn_IsAWayOutThatTakesNoRide(int stationX, bool full, bool theRidesWay,
+                                                                                 TrafficResult expected)
         {
             GameMap map = Map();
             Station(map, stationX, 50);
@@ -258,15 +266,34 @@ namespace Micropolis.Rules.Tests
             BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
             if (full)
             {
-                blockMaps.RailLoadMap.WorldSet(stationX, 50, Traffic.MaxRailLoad);
+                // A ride east enters the station by its west end, from the north or west
+                blockMaps.RailLoad(fromNorthOrWest: theRidesWay).WorldSet(stationX, 50, Traffic.MaxRailLoad);
             }
 
             (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial, blockMaps);
 
             Assert.AreEqual(expected, result);
             CollectionAssert.AreEqual(
-                full ? [] : Going((TravelMode.Walk, Row(50, 22, stationX - 1)), (TravelMode.Rail, Row(50, stationX, 28))),
+                expected == TrafficResult.NoRouteFound
+                    ? []
+                    : Going((TravelMode.Walk, Row(50, 22, stationX - 1)), (TravelMode.Rail, Row(50, stationX, 28))),
                 route);
+        }
+
+        // A station full both ways at the zone's perimeter, with no road there, takes no ride at all
+        [TestMethod]
+        public void Route_StationOnThePerimeterFullBothWays_TakesNoRide()
+        {
+            GameMap map = Map();
+            Station(map, 22, 50);
+            Track(map, Row(50, 23, 27));
+            Station(map, 28, 50);
+            Zone(map, 30, 50, COMCLR);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            blockMaps.RailLoad(fromNorthOrWest: true).WorldSet(22, 50, Traffic.MaxRailLoad);
+            blockMaps.RailLoad(fromNorthOrWest: false).WorldSet(22, 50, Traffic.MaxRailLoad);
+
+            Assert.AreEqual(TrafficResult.NoRouteFound, Steps(map, TrafficDestination.Commercial, blockMaps).Result);
         }
 
         // A station at (26, 50), past a walk from the zone, whose track runs east to a station at (32, 50): a road from
