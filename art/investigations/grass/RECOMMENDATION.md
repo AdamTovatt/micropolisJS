@@ -98,6 +98,25 @@ their masks.
 
   A few days at agent speed, plus the art build changes and tests.
 
+## Masking the zones' own lawns
+
+Prototyped without Blender: `paint.py`'s `is_grass` on each render's ground masks every asset's grass, the zones'
+included, and shadows still land on the world grass under it (`shots/compare-open-16px.png`,
+`shots/compare-close-64px.png`; top to bottom: zones unmasked, masked to the mix, masked to a lawn set).
+
+- **Masked to the mix:** zones join the field with no seam, but at 64 px their lawns read as wild straw meadow.
+- **Masked to a lawn set:** every zone tile takes the lush set at its picked colour (80,107,18). The town becomes one
+  continuous lawn, meeting the field along a straight line at its edge.
+- **Halos:** none at 3× round paths, paving or roofs.
+
+Caveats:
+- **Details** are scattered on bare land only. Inside zones they'd look misplaced.
+- **The empty lots' soil** stops in straight lines at tile edges in all three shots. That's the zone's own art, not
+  the mask.
+- **The stadium pitch** is why production should use the Blender mask: `is_grass` would sweep the pitch into the
+  world grass with any lawn. A material-tagged mask leaves out the pitch and designed gardens.
+- **A striped mown lawn** needs a painting of its own. The lawn variant reuses the lush set.
+
 ## Risks and open choices
 
 - **Software WebGL:** the ground pass goes from 1 to about 5 texture samples a pixel. This needs a run of

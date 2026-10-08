@@ -87,13 +87,15 @@ def load(out):
     return found
 
 
-def scatter(img, decals, gx0, gy0, gw, gh, straw_share):
+def scatter(img, decals, gx0, gy0, gw, gh, straw_share, allowed=None):
     # Each tile carries a detail when its hash says so: the kind by the region's weights at the tile's middle, the
     # variant, a quarter turn and a mirror by further bits, and a place inside the tile, so a detail never crosses a
     # tile edge and a shader need only look at the tile's own. straw_share(wx, wy) is the region mask.
     for j in range(gh):
         for i in range(gw):
             x, y = gx0 + i, gy0 + j
+            if allowed is not None and not allowed(x, y):
+                continue
             h = int(lattice_hash(x, y, DETAIL_SEED))
             c = gradient_noise(np.array(x + 0.5), np.array(y + 0.5), CLUSTER_CELL, DETAIL_SEED + 2, 0.27)
             density = DENSITY * float(np.clip((c + 0.05) / 0.35, 0, 1))

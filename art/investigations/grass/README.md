@@ -68,9 +68,12 @@ Run from the repository root with the art tools' virtual environment (`art/READM
   through.
 - `mapcomp.py`: composites a save's map from a manifest and atlases in the renderer's passes, with an optional grass
   layer under the ground; `shootmix.py` shoots `conformance/saves/hospitalTown.run.json` with the mixed grass.
+  `shootzones.py` shoots it with the zones' own lawns masked too (an atlas from `variants.py mask` and
+  `atlas_rgba.py`), details on bare land only, and optionally a lawn set for the zone tiles.
 - `styleref.py`, `grassstats.py`: the cleaned style reference tried and dropped, and each asset's mean grass.
 
 ## Shots
 
 `shots/` holds the final mix with all three layers at the opening zoom (`mix7-open-16px.png`, the town;
-`mix7-field-16px.png`, open land) and the whole map at 4 px a tile beside its region mask (`mix7-map-4px.png`).
+`mix7-field-16px.png`, open land) and the whole map at 4 px a tile beside its region mask (`mix7-map-4px.png`). `compare-open-16px.png` and
+`compare-close-64px.png` stack the town with zones unmasked, masked to the mix and masked to a lawn set.

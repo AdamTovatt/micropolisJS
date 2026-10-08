@@ -209,9 +209,11 @@ def region_mask(wx, wy):
     return e * e * e * (e * (e * 6 - 15) + 10)
 
 
-def world_mixed(dirs, gx0, gy0, gw, gh, noise=True, show_mask=False, decals=None):
+def world_mixed(dirs, gx0, gy0, gw, gh, noise=True, show_mask=False, decals=None, decal_ok=None, lawn=None,
+                lawn_tile=None):
     # two sets blended by region_mask, variance-preserving so the change between them keeps its contrast, then
-    # layer 3's details (details.py), then layer 2's tint over both
+    # layer 3's details (details.py) on the tiles decal_ok(x, y) allows, then layer 2's tint over both. With a lawn
+    # set, the tiles lawn_tile(x, y) names, a zone's, take it instead of the mix
     a = np.asarray(world(dirs[0], gx0, gy0, gw, gh, False)).astype(np.float64)
     b = np.asarray(world(dirs[1], gx0, gy0, gw, gh, False)).astype(np.float64)
     ys, xs = np.mgrid[0:gh * PX, 0:gw * PX]
@@ -223,9 +225,15 @@ def world_mixed(dirs, gx0, gy0, gw, gh, noise=True, show_mask=False, decals=None
     mu = ma * (1 - t[..., None]) + mb * t[..., None]
     norm = np.sqrt((1 - t) ** 2 + t ** 2)[..., None]
     img = mu + ((1 - t)[..., None] * (a - ma) + t[..., None] * (b - mb)) / norm
+    if lawn is not None:
+        mown = np.asarray(world(lawn, gx0, gy0, gw, gh, False)).astype(np.float64)
+        for j in range(gh):
+            for i in range(gw):
+                if lawn_tile(gx0 + i, gy0 + j):
+                    img[j * PX:(j + 1) * PX, i * PX:(i + 1) * PX] = mown[j * PX:(j + 1) * PX, i * PX:(i + 1) * PX]
     if decals is not None:
         from details import scatter
-        img = scatter(img, decals, gx0, gy0, gw, gh, region_mask)
+        img = scatter(img, decals, gx0, gy0, gw, gh, region_mask, decal_ok)
     if noise:
         img = tint(img, wx, wy)
     return Image.fromarray(np.clip(img, 0, 255).round().astype(np.uint8))
