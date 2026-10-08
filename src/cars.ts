@@ -19,19 +19,20 @@ import { RoadTraffic, carOpacity } from "./roadTraffic";
 import type { RoadCar } from "./roadTraffic";
 import { directionOf, stepOf, tripRoute } from "./routeTiles";
 import type { CarDirection } from "./routeTiles";
-import { Trains, carsShown, tilesOf } from "./trains";
+import { Trains, carriagesShown, tilesOf } from "./trains";
 import type { TileRect } from "./viewPosition";
 
 // The cars the client draws for the city's traffic: each trip a trips message brings (protocol/README.md) becomes a car
 // that drives its route once in the right-hand lane, among the other cars (roadTraffic.ts), and is gone at its end, and
-// each ride a car of a train on the right-hand track, which leaves its station at the departure the ride boards
-// (trains.ts). Cars are the client's alone: never simulation sprites, never saved and never in a command log. They move
+// each ride a seat in a carriage of a train on the right-hand track, which leaves its station at the departure the ride
+// boards (trains.ts). Cars are the client's alone: never simulation sprites, never saved and never in a command log. They move
 // on their own drive clock, which follows the client's, the one tile animation uses, while the city runs, and which the
 // end-to-end suite fixes, so there cars stand at the starts of their routes and trains at their stations.
 
-// The most cars driving at once when every trip and ride becomes one, a share of it at a smaller share of them, a
-// train's cars counted each, and the cars waiting to appear and fading out. A car or a train's car that arrives while
-// that many drive is dropped, but for one near the main map's view (Cars.add).
+// The most cars driving at once when every trip becomes one, a share of it at a smaller share of them, a train's
+// carriages counted each, and the cars waiting to appear and fading out. A car or a carriage that arrives while that
+// many drive is dropped, but for a car near the main map's view (Cars.add), and a ride that has a seat in a carriage
+// its train has (Cars.addRides).
 export const MAX_CARS = 2000;
 
 // How far round the tiles the main map's view shows a car counts as near it, in tiles
@@ -65,6 +66,11 @@ export function takesTrip(index: number, step: CarShareStep): boolean {
   return step.every !== null && index % step.every === 0;
 }
 
+// Whether the rides board trains at the step of the Cars slider given: every one of them, at every step but Off
+export function takesRides(step: CarShareStep): boolean {
+  return step.every !== null;
+}
+
 // How far right of the middle of the road a car drives, in tiles: the middle of the road's right-hand lane, as the art
 // paints it (LANE in art/blender/tilesets.py)
 export const LANE_OFFSET = 0.1;
@@ -85,7 +91,7 @@ export interface CarPlace {
 
 // A car as a view draws it: the square it is drawn in, width map pixels a side with its top-left corner at map pixel
 // (x, y), and the way it faces; a car on the road in its colour, by its number from 0, which its route picks, as much of
-// it showing as its opacity, from 1 down to 0 as it fades out, and a car of a train in the trains' art
+// it showing as its opacity, from 1 down to 0 as it fades out, and a carriage of a train in the trains' art
 interface CarSquare {
   readonly x: number;
   readonly y: number;
@@ -167,7 +173,8 @@ export function carPlace(route: readonly TilePosition[], distance: number): CarP
   return placeOn(route, distance, LANE_OFFSET);
 }
 
-// Where a car of a train is on its path, distance tiles from its start, and the way it faces: on the right-hand track
+// Where a carriage of a train is on its path, distance tiles from its start, and the way it faces: on the right-hand
+// track
 export function trainPlace(route: readonly TilePosition[], distance: number): CarPlace {
   return placeOn(route, distance, TRACK_OFFSET);
 }
@@ -179,19 +186,18 @@ export function carColour(route: readonly TilePosition[]): number {
 }
 
 // The cars and trains: their own drive clock, which moves on with the client's while the city runs and stands while
-// it's paused, so each stands still while the city is paused and picks up again when it runs. Which trips and rides
-// become cars is the step of the Cars slider the player chose (CarSharePreference), read as each trips message
-// arrives, so a smaller share starts fewer from then on and every one already driving finishes its route, but one whose
-// place a car near the view takes (add).
+// it's paused, so each stands still while the city is paused and picks up again when it runs. Which trips become cars,
+// and whether rides board trains at all, is the step of the Cars slider the player chose (CarSharePreference), read as
+// each trips message arrives, so a smaller share starts fewer from then on and every one already driving finishes its
+// route, but one whose place a car near the view takes (add).
 export class Cars {
   private readonly road: RoadTraffic;
   private readonly trains = new Trains();
   // The drive clock, in milliseconds, and the client's clock as it was last read, or null before then
   private clock = 0;
   private lastNow: number | null = null;
-  // The trips and the rides that arrived since the page last joined the city, those that became cars or not alike
+  // The trips that arrived since the page last joined the city, those that became cars or not alike
   private arrived = 0;
-  private ridden = 0;
 
   // share is the step of the Cars slider, as the player has it now, isCrossing says whether a tile of the map is a
   // level crossing, and view is the tiles the main map's view shows now
@@ -200,10 +206,9 @@ export class Cars {
     this.road = new RoadTraffic(isCrossing);
   }
 
-  // The page joined the city, at its start or again after a reconnect: the trips and rides are counted from here
+  // The page joined the city, at its start or again after a reconnect: the trips are counted from here
   joined(): void {
     this.arrived = 0;
-    this.ridden = 0;
   }
 
   // A car for each trip a trips message brings that the step takes (takesTrip), which waits to appear at the trip's
@@ -226,16 +231,21 @@ export class Cars {
     }
   }
 
-  // A car of a train for each ride a trips message brings that the step takes, counted as trips are but on their own
-  // (takesTrip), boarding the train its departure, its station and the way it leaves make (Trains), which leaves at the
-  // departure, timed from the city's step clock as the batch that brought the rides carried it, but a car that would
-  // take those driving past the step's cap (carCap), which is dropped. A ride of no steps has nowhere to run.
+  // A seat for each ride a trips message brings, at every step but Off, which takes none (takesRides), in the train its
+  // departure, its station and the way it leaves make (Trains.board), which leaves at the departure, timed from the
+  // city's step clock as the batch that brought the rides carried it. A ride boards a carriage its train has whatever
+  // the cap, and one its train adds while fewer than the step's cap drive (carCap), a carriage counting as a car; with
+  // that many, a ride that needs a new carriage is dropped. A carriage carries up to RIDES_PER_CARRIAGE rides, so trains
+  // show about a tenth of the rides, as cars on the road at the slider's 10%. A ride of no steps has nowhere to run.
   addRides(rides: readonly Ride[], stepClock: number): void {
     const step = this.share();
+    if (!takesRides(step)) {
+      return;
+    }
+    const cap = carCap(step);
     for (const ride of rides) {
-      const index = this.ridden++;
-      if (takesTrip(index, step) && ride[2].length > 0 && this.carsHeld() + 1 <= carCap(step)) {
-        this.trains.board(ride, {drive: this.clock, steps: stepClock});
+      if (ride[2].length > 0) {
+        this.trains.board(ride, {drive: this.clock, steps: stepClock}, () => this.carsHeld() + 1 <= cap);
       }
     }
   }
@@ -259,7 +269,7 @@ export class Cars {
   // the cars showing, not those waiting to appear
   driven(): number[] {
     return [...this.road.all.filter(({state}) => state !== "waiting").map(({distance}) => distance),
-            ...this.trains.all.map((train) => carsShown(train, this.clock)[0] ?? 0)];
+            ...this.trains.all.map((train) => carriagesShown(train, this.clock)[0] ?? 0)];
   }
 
   // Each car showing, and each car of each train on its path, as a view draws it
@@ -274,7 +284,7 @@ export class Cars {
                     opacity: carOpacity(car, this.clock)});
     }
     for (const train of this.trains.all) {
-      for (const at of carsShown(train, this.clock)) {
+      for (const at of carriagesShown(train, this.clock)) {
         const {x, y, direction} = trainPlace(train.path, at);
         painted.push({kind: "rail", ...square(x, y), direction});
       }
@@ -284,7 +294,7 @@ export class Cars {
 
   // How many cars are held: on the road, waiting to appear or fading, and of trains, which the cap counts
   carsHeld(): number {
-    return this.road.count + this.trains.cars;
+    return this.road.count + this.trains.carriages;
   }
 }
 

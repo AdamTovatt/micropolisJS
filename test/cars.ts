@@ -27,7 +27,8 @@ import type { Ride, TilePosition, Trip, TripsMessage } from "../src/protocol";
 import { CAR_CROSSING_MS, CAR_TILES_PER_SECOND } from "../src/roadTraffic";
 import { sameTile, tripRoute } from "../src/routeTiles";
 import {
-    DEPARTURE_INTERVAL, STEPS_PER_SECOND, TRAIN_CAR_SPACING, TRAIN_TILES_PER_SECOND, Trains, tilesOf,
+    CARRIAGE_SPACING, DEPARTURE_INTERVAL, MOST_CARRIAGES, RIDES_PER_CARRIAGE, STEPS_PER_SECOND, TRAIN_TILES_PER_SECOND,
+    Trains, tilesOf,
 } from "../src/trains";
 import type { TileRect } from "../src/viewPosition";
 import { repositoryPath } from "./helpers/repository";
@@ -44,14 +45,14 @@ const EAST_TRIP: Trip = [10, 5, "EE"];
 // A level crossing, where the tests' trains along row 5 cross column 12
 const CROSSING: TilePosition = {x: 12, y: 5};
 
-// How wide a car of a train is drawn, in tiles: about as wide as the right-hand track it runs on
-const TRAIN_CAR_BREADTH = 2 * TRACK_OFFSET;
+// How wide a carriage of a train is drawn, in tiles: about as wide as the right-hand track it runs on
+const CARRIAGE_BREADTH = 2 * TRACK_OFFSET;
 
 // The rectangle a car is painted in, in tiles: a car on the road CAR_LENGTH of a tile long the way it faces and
-// CAR_BREADTH across, a car of a train TRAIN_CAR_SPACING long and TRAIN_CAR_BREADTH across, about the middle of its
+// CAR_BREADTH across, a carriage of a train CARRIAGE_SPACING long and CARRIAGE_BREADTH across, about the middle of its
 // square
 function body({kind, x, y, width, direction}: PaintableCar): {left: number, top: number, right: number, bottom: number} {
-    const [length, breadth] = kind === "road" ? [CAR_LENGTH, CAR_BREADTH] : [TRAIN_CAR_SPACING, TRAIN_CAR_BREADTH];
+    const [length, breadth] = kind === "road" ? [CAR_LENGTH, CAR_BREADTH] : [CARRIAGE_SPACING, CARRIAGE_BREADTH];
     const across = direction === "east" || direction === "west";
     const middle = {x: (x + width / 2) / SPRITE_PIXELS_PER_TILE, y: (y + width / 2) / SPRITE_PIXELS_PER_TILE};
     const halfX = (across ? length : breadth) / 2;
@@ -618,21 +619,28 @@ describe("the trains", () => {
     const east = (departure = DEPARTS): Ride => [10, 5, "EEEE", departure];
     const north = (departure = DEPARTS): Ride => [20, 9, "NNN", departure];
 
+    // As many rides as given, each boarding the departure given
+    const rides = (count: number, ride: Ride): Ride[] => Array.from({length: count}, () => ride);
+
+    // As many rides east along row 5 as given, ten tiles from (10, 5), five tiles on, every carriage out of the station
+    const longEast = (count: number): Ride[] => rides(count, [10, 5, "E".repeat(10), DEPARTS]);
+    const allOut = 1000 + RAIL_TILE_MS * 5;
+
     // The cars at the step given, the step clock at STEPS, the rides given arrived in one trips message
-    function trainsAt(share: () => CarShareStep, rides: Ride[]): Drive {
+    function trainsAt(share: () => CarShareStep, given: Ride[]): Drive {
         const drive = new Drive(share);
-        drive.cars.addRides(rides, STEPS);
+        drive.cars.addRides(given, STEPS);
         return drive;
     }
 
-    // The cars each train draws, front first, as the middles of their squares, in tiles
+    // The carriages each train draws, front first, as the middles of their squares, in tiles
     function middles({cars}: Drive): {x: number, y: number, direction: string}[] {
         return cars.paintable().map(({x, y, direction}) => rounded({
             x: (x + CAR_PIXELS / 2) / SPRITE_PIXELS_PER_TILE, y: (y + CAR_PIXELS / 2) / SPRITE_PIXELS_PER_TILE, direction,
         }));
     }
 
-    // A car of a train going east along row 5, at x, on the right-hand track
+    // A carriage of a train going east along row 5, at x, on the right-hand track
     const eastAt = (x: number) => ({x, y: 5.5 + TRACK_OFFSET, direction: "east"});
 
     it("stand at their stations until their departure, then run at six tiles a second on the client's clock", () => {
@@ -659,13 +667,13 @@ describe("the trains", () => {
     // leaves, it closes the tiles its front reaches by then, and its front car's reach past it
     it("close only their station's tile while they stand there, and those they reach within a car's crossing once they run", () => {
         const trains = new Trains();
-        trains.board([10, 5, "EEEEEEEE", STEPS + 4 * STEPS_PER_SECOND], {drive: 0, steps: STEPS});
+        trains.board([10, 5, "EEEEEEEE", STEPS + 4 * STEPS_PER_SECOND], {drive: 0, steps: STEPS}, () => true);
         const columnsClosed = (clock: number) => {
             const closed = new Set<number>();
             tilesOf(trains.all[0], clock, closed);
             return [...closed].map((key) => key % 65536);
         };
-        const reached = 0.5 * CAR_CROSSING_MS / 1000 * TRAIN_TILES_PER_SECOND + TRAIN_CAR_SPACING / 2;
+        const reached = 0.5 * CAR_CROSSING_MS / 1000 * TRAIN_TILES_PER_SECOND + CARRIAGE_SPACING / 2;
 
         expect(columnsClosed(4000 - CAR_CROSSING_MS - 1)).toEqual([10]);
         expect(columnsClosed(4000 - CAR_CROSSING_MS / 2)).toEqual(
@@ -688,26 +696,65 @@ describe("the trains", () => {
         expect(middles(drive)).toEqual([eastAt(10.5)]);
     });
 
-    // Five rides east and one north, boarding one departure: four of the east ones ride one train, a car each, and
-    // the fifth the next departure's, an interval of the step clock later; the north train has gone into its station
-    it("ride one train for the rides of one departure from a station the same way, four cars, the rest the next", () => {
-        const drive = trainsAt(() => ALL, [east(), north(), east(), east(), east(), east()]);
+    it.each([[1, 1], [RIDES_PER_CARRIAGE, 1], [RIDES_PER_CARRIAGE + 1, 2],
+             [MOST_CARRIAGES * RIDES_PER_CARRIAGE, MOST_CARRIAGES]])(
+        "carry %s rides of one departure in %s carriages of one train", (count, carriages) => {
+            const drive = trainsAt(() => ALL, longEast(count));
 
-        drive.run(1000 + RAIL_TILE_MS * 3.5);
+            drive.run(allOut);
 
-        expect(middles(drive)).toEqual([eastAt(14), eastAt(14 - TRAIN_CAR_SPACING), eastAt(14 - 2 * TRAIN_CAR_SPACING),
-                                        eastAt(14 - 3 * TRAIN_CAR_SPACING), eastAt(10.5)]);
-        drive.run(DEPARTURE_INTERVAL / STEPS_PER_SECOND * 1000);
-        expect(middles(drive)).toEqual([eastAt(14)]);
+            expect([drive.cars.carsHeld(), middles(drive)]).toEqual([carriages, Array.from({length: carriages},
+                (_, carriage) => eastAt(15.5 - carriage * CARRIAGE_SPACING))]);
+        });
+
+    // One ride more than six carriages seat east, and one north, boarding one departure, the north among the east: six
+    // carriages of the east ones ride one train, and the last the next departure's, an interval of the step clock
+    // later; the north train has gone into its station
+    it("carry six carriages of rides at most, the rest riding the next departure's train", () => {
+        const most = MOST_CARRIAGES * RIDES_PER_CARRIAGE;
+        const drive = trainsAt(() => ALL, [...longEast(most / 2), north(), ...longEast(most / 2 + 1)]);
+
+        drive.run(allOut);
+
+        expect([drive.cars.carsHeld(), middles(drive).length, near(drive.cars.driven())])
+            .toEqual([MOST_CARRIAGES + 1, MOST_CARRIAGES + 1, [5, 0]]);
     });
 
     it("merge the rides of one departure whichever trips message brings them", () => {
-        const drive = trainsAt(() => ALL, [east()]);
+        const drive = trainsAt(() => ALL, longEast(RIDES_PER_CARRIAGE));
 
-        drive.cars.addRides([east()], STEPS);
-        drive.run(1000 + RAIL_TILE_MS * 2);
+        drive.cars.addRides(longEast(1), STEPS);
+        drive.run(allOut);
 
         expect([drive.cars.driven().length, drive.cars.paintable().length]).toEqual([1, 2]);
+    });
+
+    // Half a carriage of rides leaves at once, and the train runs a tile on: as many more for its departure take its
+    // seats left, and the one after them, with no seat left, waits at the station for the next departure rather than
+    // add a carriage behind the train running
+    it("seat the rides for a train that has left in the seats it has left, the rest riding the next train", () => {
+        const drive = trainsAt(() => ALL, rides(RIDES_PER_CARRIAGE / 2, east(STEPS)));
+        drive.run(RAIL_TILE_MS);
+
+        drive.cars.addRides(rides(RIDES_PER_CARRIAGE / 2, east(STEPS)), STEPS);
+        const seated = drive.cars.carsHeld();
+        drive.cars.addRides([east(STEPS)], STEPS);
+
+        expect([seated, drive.cars.carsHeld(), near(drive.cars.driven())]).toEqual([1, 2, [1, 0]]);
+    });
+
+    // A train of two carriages two tiles east leaves at once, and its front carriage has reached (12, 5), the end of
+    // its path, and gone: a ride four tiles east for its departure, which would take its path past there, waits at the
+    // station for the next departure, though the train has seats left, so the front carriage never shows again
+    it("seat no ride longer than the path of a train that has left, which rides the next train", () => {
+        const drive = trainsAt(() => ALL, rides(RIDES_PER_CARRIAGE + 1, [10, 5, "EE", STEPS]));
+        drive.run(RAIL_TILE_MS * 2.5);
+        const before = middles(drive);
+
+        drive.cars.addRides([east(STEPS)], STEPS);
+        drive.frame();
+
+        expect([before, middles(drive)]).toEqual([[eastAt(12.25)], [eastAt(12.25), eastAt(10.5)]]);
     });
 
     it("run the rides of the next departure on the next train", () => {
@@ -718,13 +765,15 @@ describe("the trains", () => {
         expect(near(drive.cars.driven())).toEqual([1, 0]);
     });
 
-    // Rides two and four tiles east from one station: the train runs the longer, and drops the car of the shorter
-    // where it gets off, at (12, 5)
-    it("follow their longest ride, dropping a car where each ride gets off", () => {
-        const drive = trainsAt(() => ALL, [[10, 5, "EE", DEPARTS], east()]);
-        const shown = (front: number) => drive.runTo(1000 + front * RAIL_TILE_MS).cars.paintable().length;
+    // A carriage of rides two tiles east from one station, getting off at (12, 5), and one four tiles east: the train
+    // runs the longer with both its carriages, past where the shorter get off, until the last reaches (14, 5)
+    it("follow their longest ride, keeping every carriage to its end", () => {
+        const drive = trainsAt(() => ALL, [...rides(RIDES_PER_CARRIAGE, [10, 5, "EE", DEPARTS]),
+                                           ...rides(RIDES_PER_CARRIAGE, east())]);
+        const shown = (front: number) => middles(drive.runTo(1000 + front * RAIL_TILE_MS));
 
-        expect([shown(2.6), shown(2.9), shown(3.9)]).toEqual([2, 1, 1]);
+        expect([shown(3.5), shown(4 + CARRIAGE_SPACING - 0.1)])
+            .toEqual([[eastAt(14), eastAt(14 - CARRIAGE_SPACING)], [eastAt(14.4)]]);
         drive.run(RAIL_TILE_MS / 5);
         expect(drive.cars.driven()).toEqual([]);
     });
@@ -748,58 +797,76 @@ describe("the trains", () => {
             .toEqual({x: 5.5 + TRACK_OFFSET, y: 4 + TRACK_OFFSET / 2, direction: "north"});
     });
 
-    // At the start only the front has left the station; each car shows once it is TRAIN_CAR_SPACING behind the one
-    // ahead, and goes once it reaches the station the ride gets off at
-    it("show each car from leaving the station it got on at to reaching the one it gets off at", () => {
-        const drive = trainsAt(() => ALL, [east(STEPS), east(STEPS), east(STEPS)]);
+    // Three carriages: at the start only the front has left the station; each shows once it is CARRIAGE_SPACING
+    // behind the one ahead, and goes once it reaches the end of the path
+    it("show each carriage from leaving the station to reaching the end of the path", () => {
+        const drive = trainsAt(() => ALL, rides(2 * RIDES_PER_CARRIAGE + 1, east(STEPS)));
         const shown = (ms: number) => drive.runTo(ms).cars.paintable().length;
 
-        expect([shown(0), shown(RAIL_TILE_MS * TRAIN_CAR_SPACING + 1), shown(RAIL_TILE_MS * 2 * TRAIN_CAR_SPACING + 1),
-                shown(RAIL_TILE_MS * (4 + TRAIN_CAR_SPACING / 2)), shown(RAIL_TILE_MS * (4 + 2 * TRAIN_CAR_SPACING) - 1)])
+        expect([shown(0), shown(RAIL_TILE_MS * CARRIAGE_SPACING + 1), shown(RAIL_TILE_MS * 2 * CARRIAGE_SPACING + 1),
+                shown(RAIL_TILE_MS * (4 + CARRIAGE_SPACING / 2)), shown(RAIL_TILE_MS * (4 + 2 * CARRIAGE_SPACING) - 1)])
             .toEqual([1, 2, 3, 2, 1]);
         drive.run(2);
         expect(drive.cars.driven()).toEqual([]);
     });
 
-    it("are drawn as cars of a train, in squares centred on the track", () => {
-        const [car] = trainsAt(() => ALL, [east()]).cars.paintable();
+    it("are drawn as carriages of a train, in squares centred on the track", () => {
+        const [carriage] = trainsAt(() => ALL, [east()]).cars.paintable();
 
-        expect(car).toEqual({kind: "rail", x: 10.5 * SPRITE_PIXELS_PER_TILE - CAR_PIXELS / 2,
+        expect(carriage).toEqual({kind: "rail", x: 10.5 * SPRITE_PIXELS_PER_TILE - CAR_PIXELS / 2,
                              y: (5.5 + TRACK_OFFSET) * SPRITE_PIXELS_PER_TILE - CAR_PIXELS / 2, width: CAR_PIXELS,
                              direction: "east"});
     });
 
-    // Of a ride east and seven north, a quarter takes the first and the fifth, a train each way. Counted on from the
-    // three trips before them, it would take the second and the sixth, one train north of two cars.
-    it("take the slider's share of the rides, counted on their own, before merging them", () => {
-        const drive = carsAt(() => QUARTER, shortTrips(0, 3));
+    // A carriage of rides east and one more, and one north: every one boards, two carriages east and one north
+    it.each([TENTH, QUARTER, HALF, ALL])("take every ride at $name", (step) => {
+        const drive = trainsAt(() => step, [...rides(RIDES_PER_CARRIAGE + 1, east()), north()]);
 
-        drive.cars.addRides([east(), ...Array.from({length: 7}, () => north())], STEPS);
         drive.run(1000 + RAIL_TILE_MS * 2);
 
         expect(drive.cars.paintable().filter(({kind}) => kind === "rail").map(({direction}) => direction))
-            .toEqual(["east", "north"]);
+            .toEqual(["east", "east", "north"]);
     });
 
-    it("count their rides from the first again once the page joins the city again", () => {
-        const drive = trainsAt(() => HALF, [east()]);
-
-        drive.cars.joined();
-        drive.cars.addRides([north()], STEPS);
-
-        expect(drive.cars.driven()).toEqual([0, 0]);
-    });
-
-    // A train's cars count toward the most that drive: one short of it, a ride's car joins, the next ride's car is
-    // dropped, and so is a car on the road after them
-    it("count each car toward the most that drive, dropping a ride's car past it", () => {
+    // A train's carriages count toward the most that drive: one short of it, the first ride's carriage joins, the
+    // rides into its seats after it board, and the ride that needs a second carriage is dropped, as is a car on the
+    // road after them
+    it("count each carriage toward the most that drive, dropping a ride that needs one past it", () => {
         const drive = carsOn(...shortTrips(0, MAX_CARS - 1));
 
-        drive.cars.addRides([east(), east()], STEPS);
+        drive.cars.addRides(rides(RIDES_PER_CARRIAGE + 1, east()), STEPS);
         drive.add(EAST_TRIP);
+        const held = drive.cars.carsHeld();
+        drive.run(1000 + RAIL_TILE_MS * 2);
 
-        expect(drive.cars.driven().length).toBe(MAX_CARS);
-        expect(drive.cars.paintable().filter(({kind}) => kind === "rail").length).toBe(1);
+        expect([held, drive.cars.paintable().map(({kind}) => kind)]).toEqual([MAX_CARS, ["rail"]]);
+    });
+
+    it("start no train while the most drive", () => {
+        const drive = carsOn(...shortTrips(0, MAX_CARS));
+
+        drive.cars.addRides([east()], STEPS);
+        drive.frame();
+
+        expect([drive.cars.carsHeld(), drive.cars.paintable().filter(({kind}) => kind === "rail")])
+            .toEqual([MAX_CARS, []]);
+    });
+
+    // The first ride adds the train's carriage, the rides after it take its seats though no carriage may be added, and
+    // the one past them, needing a second carriage, is dropped; so once a carriage may be added, the next ride adds the
+    // second, its seats all taken
+    it("seat a ride in a carriage the train has whatever the most, and add a carriage only where it may", () => {
+        const trains = new Trains();
+        const ride: Ride = [10, 5, "EEEE", DEPARTS];
+        trains.board(ride, {drive: 0, steps: STEPS}, () => true);
+
+        for (let i = 0; i < RIDES_PER_CARRIAGE; i++) {
+            trains.board(ride, {drive: 0, steps: STEPS}, () => false);
+        }
+        const refused = trains.carriages;
+        trains.board(ride, {drive: 0, steps: STEPS}, () => true);
+
+        expect([refused, trains.carriages]).toEqual([1, 2]);
     });
 
     it("are gone at Off, as cars are", () => {
