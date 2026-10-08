@@ -13,6 +13,8 @@
  */
 
 import { CAR_COLOURS } from "./cars";
+import { GRASS_MAP } from "./grass";
+import type { GrassConstants, NoiseOctave, TurnedOctave } from "./grass";
 import { CAR_DIRECTIONS } from "./routeTiles";
 import type { CarDirection } from "./routeTiles";
 import type { Rect } from "./rect";
@@ -48,15 +50,53 @@ export interface TileArt {
   ground: AtlasRect;
   shadow: ShadowRect | null;
   objects: AtlasRect | null;
+  // How much of the ground lets the world grass through: all of it, so only the grass is drawn, part of it, or none,
+  // null, so only the ground is
+  grass: GrassThrough | null;
+}
+
+export type GrassThrough = "all" | "part";
+
+// One set of the world grass's corner tiles: each tile's rectangle, by the number grassTile gives it, and the set's
+// mean colour, red, green and blue from 0 to 255
+export interface GrassSet {
+  tiles: readonly AtlasRect[];
+  mean: readonly [number, number, number];
+}
+
+// The world grass bare land is drawn with: its two sets, lush and straw, all of whose tiles are in one atlas and are
+// squares texels pixels a side, and what picks a tile and mixes the sets at each map position
+export interface GrassArt {
+  constants: GrassConstants;
+  atlas: string;
+  texels: number;
+  lush: GrassSet;
+  straw: GrassSet;
 }
 
 // A manifest: each atlas's image, by name, a path relative to the manifest's own, and the art of each tile id, of each
-// sprite, by type and frame, as spriteKey names it, and of each car, by colour and direction, as carKey names it
+// sprite, by type and frame, as spriteKey names it, and of each car, by colour and direction, as carKey names it, and
+// the world grass
 export interface RenderManifest {
   atlases: ReadonlyMap<string, string>;
   tiles: ReadonlyMap<number, TileArt>;
   sprites: ReadonlyMap<string, AtlasRect>;
   cars: ReadonlyMap<string, AtlasRect>;
+  grass: GrassArt;
+}
+
+// What the renderer draws the world grass with, the same at every zoom: the atlas of its sets and the baked field, by
+// name, each set's mean colour and the tint's constants, colours from 0 to 1, and the map's size in tiles, which the
+// field covers
+export interface GrassDraw {
+  atlas: string;
+  field: string;
+  lushMean: readonly [number, number, number];
+  strawMean: readonly [number, number, number];
+  warm: readonly [number, number, number];
+  brightness: number;
+  warmth: number;
+  fieldTiles: {width: number, height: number};
 }
 
 // The key of a car's art in a manifest's cars, from its colour's name and the way it faces
@@ -70,6 +110,8 @@ const RESERVED_ATLAS_PREFIX = "fallback:";
 export const FALLBACK_TILES = `${RESERVED_ATLAS_PREFIX}tiles`;
 export const FALLBACK_SPRITES = `${RESERVED_ATLAS_PREFIX}sprites`;
 export const WHITE = `${RESERVED_ATLAS_PREFIX}white`;
+// The world grass's field of straw share and tint, which the client bakes from the manifest's grass section
+export const GRASS_FIELD = `${RESERVED_ATLAS_PREFIX}grass-field`;
 
 const FALLBACK_TILE_PIXELS = 16;
 
@@ -117,6 +159,7 @@ export function fallbackManifest(): Pick<RenderManifest, "tiles" | "sprites" | "
       ground: {atlas: FALLBACK_TILES, x: origin.x, y: origin.y, width: FALLBACK_TILE_PIXELS, height: FALLBACK_TILE_PIXELS},
       shadow: null,
       objects: null,
+      grass: null,
     });
   }
 
@@ -212,9 +255,136 @@ function plainRect(value: unknown, where: string, atlases: ReadonlyMap<string, s
   return {atlas, x, y, width, height};
 }
 
+function finiteNumber(value: unknown, where: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    fail(where, "is not a number");
+  }
+
+  return value;
+}
+
+function positiveNumber(value: unknown, where: string): number {
+  const number = finiteNumber(value, where);
+  if (number <= 0) {
+    fail(where, "is not more than 0");
+  }
+
+  return number;
+}
+
+// A list of exactly `length` numbers
+function numbers(value: unknown, where: string, length: number): number[] {
+  if (!Array.isArray(value) || value.length !== length) {
+    fail(where, `is not a list of ${length} numbers`);
+  }
+
+  return value.map((item, i) => finiteNumber(item, `${where}[${i}]`));
+}
+
+function list(value: unknown, where: string): unknown[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    fail(where, "is not a list of at least one");
+  }
+
+  return value;
+}
+
+// A hash's seed: a whole number below 2 ** 32
+function seed(value: unknown, where: string): number {
+  const number = wholeNumber(value, where, 0);
+  if (number >= 2 ** 32) {
+    fail(where, "is past 2 ** 32 - 1");
+  }
+
+  return number;
+}
+
+// How much of a tile's ground lets the world grass through
+function grassThrough(value: unknown, where: string): GrassThrough {
+  if (value !== "all" && value !== "part") {
+    fail(where, "is neither all nor part");
+  }
+
+  return value;
+}
+
+function octave(value: unknown, where: string, turned: false): NoiseOctave;
+function octave(value: unknown, where: string, turned: true): TurnedOctave;
+function octave(value: unknown, where: string, turned: boolean): NoiseOctave | TurnedOctave {
+  const json = object(value, where, ["cell", "seed", "weight", ...(turned ? ["turn"] : [])]);
+  const parsed = {cell: positiveNumber(json.cell, `${where}.cell`), seed: seed(json.seed, `${where}.seed`),
+                  weight: finiteNumber(json.weight, `${where}.weight`)};
+  if (!turned) {
+    return parsed;
+  }
+
+  const [cos, sin] = numbers(json.turn, `${where}.turn`, 2);
+  return {...parsed, turn: [cos, sin]};
+}
+
+// The grass section: its constants, and each set's tiles, colours ** 4 of them, all in one atlas
+function grassArt(value: unknown, atlases: ReadonlyMap<string, string>): GrassArt {
+  const json = object(value, "grass", ["colours", "corners", "mask", "tint", "texelsPerTile", "sets"]);
+  const colours = wholeNumber(json.colours, "grass.colours", 1);
+  const corners = object(json.corners, "grass.corners", ["seed"]);
+  const mask = object(json.mask, "grass.mask", ["octaves", "gradients", "centre", "width"]);
+  const gradients = list(mask.gradients, "grass.mask.gradients");
+  if (gradients.length !== 16) {
+    fail("grass.mask.gradients", "is not 16 directions");
+  }
+  const tint = object(json.tint, "grass.tint", ["octaves", "brightness", "warmth", "warm"]);
+  const [r, g, b] = numbers(tint.warm, "grass.tint.warm", 3);
+  const constants: GrassConstants = {
+    colours,
+    corners: {seed: seed(corners.seed, "grass.corners.seed")},
+    mask: {
+      octaves: list(mask.octaves, "grass.mask.octaves").map((o, i) => octave(o, `grass.mask.octaves[${i}]`, true)),
+      gradients: gradients.map((direction, i) => {
+        const [x, y] = numbers(direction, `grass.mask.gradients[${i}]`, 2);
+        return [x, y] as const;
+      }),
+      centre: finiteNumber(mask.centre, "grass.mask.centre"),
+      width: positiveNumber(mask.width, "grass.mask.width"),
+    },
+    tint: {
+      octaves: list(tint.octaves, "grass.tint.octaves").map((o, i) => octave(o, `grass.tint.octaves[${i}]`, false)),
+      brightness: finiteNumber(tint.brightness, "grass.tint.brightness"),
+      warmth: finiteNumber(tint.warmth, "grass.tint.warmth"),
+      warm: [r, g, b],
+    },
+    texelsPerTile: wholeNumber(json.texelsPerTile, "grass.texelsPerTile", 1),
+  };
+
+  const sets = object(json.sets, "grass.sets", ["lush", "straw"]);
+  const set = (name: string): GrassSet => {
+    const where = `grass.sets.${name}`;
+    const setJson = object(sets[name], where, ["mean", "tiles"]);
+    const tiles = list(setJson.tiles, `${where}.tiles`).map((rect, i) => plainRect(rect, `${where}.tiles[${i}]`,
+                                                                                  atlases));
+    if (tiles.length !== colours ** 4) {
+      fail(`${where}.tiles`, `is not ${colours ** 4} tiles, colours ** 4`);
+    }
+    const [red, green, blue] = numbers(setJson.mean, `${where}.mean`, 3);
+    return {tiles, mean: [red, green, blue]};
+  };
+  const lush = set("lush");
+  const straw = set("straw");
+  const atlas = lush.tiles[0].atlas;
+  if ([...lush.tiles, ...straw.tiles].some((rect) => rect.atlas !== atlas)) {
+    fail("grass.sets", "are not all in one atlas");
+  }
+  // One size, so a frame samples every grass tile at one mip level
+  const texels = lush.tiles[0].width;
+  if ([...lush.tiles, ...straw.tiles].some((rect) => rect.width !== texels || rect.height !== texels)) {
+    fail("grass.sets", "are not all squares of one size");
+  }
+
+  return {constants, atlas, texels, lush, straw};
+}
+
 // The manifest a manifest file's JSON holds, or an error naming what is wrong with it
 export function parseRenderManifest(value: unknown): RenderManifest {
-  const json = object(value, "the manifest", ["version", "atlases", "tiles", "sprites", "cars"]);
+  const json = object(value, "the manifest", ["version", "atlases", "tiles", "sprites", "cars", "grass"]);
   if (json.version !== 1) {
     fail("version", "is not 1");
   }
@@ -236,11 +406,12 @@ export function parseRenderManifest(value: unknown): RenderManifest {
   for (const [key, entry] of Object.entries(tileJson)) {
     const where = `tiles.${key}`;
     const id = numberKey(key, where, 0, TILE_COUNT);
-    const layers = object(entry, where, ["ground"], ["shadow", "objects"]);
+    const layers = object(entry, where, ["ground"], ["shadow", "objects", "grass"]);
     tiles.set(id, {
       ground: plainRect(layers.ground, `${where}.ground`, atlases),
       shadow: "shadow" in layers ? shadowRect(layers.shadow, `${where}.shadow`, atlases) : null,
       objects: "objects" in layers ? plainRect(layers.objects, `${where}.objects`, atlases) : null,
+      grass: "grass" in layers ? grassThrough(layers.grass, `${where}.grass`) : null,
     });
   }
 
@@ -266,11 +437,11 @@ export function parseRenderManifest(value: unknown): RenderManifest {
     }
   }
 
-  return {atlases, tiles, sprites, cars};
+  return {atlases, tiles, sprites, cars, grass: grassArt(json.grass, atlases)};
 }
 
 // Fails naming each rectangle that runs past its atlas, given each atlas's size in pixels
-export function checkRectsInAtlases(manifest: Pick<RenderManifest, "tiles" | "sprites" | "cars">,
+export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases">,
                                     sizes: ReadonlyMap<string, {width: number, height: number}>): void {
   const outside: string[] = [];
   const check = (rect: AtlasRect, where: string) => {
@@ -291,6 +462,8 @@ export function checkRectsInAtlases(manifest: Pick<RenderManifest, "tiles" | "sp
   });
   manifest.sprites.forEach((rect, key) => check(rect, `sprite ${key}`));
   manifest.cars.forEach((rect, key) => check(rect, `car ${key}`));
+  manifest.grass.lush.tiles.forEach((rect, i) => check(rect, `lush grass ${i}`));
+  manifest.grass.straw.tiles.forEach((rect, i) => check(rect, `straw grass ${i}`));
 
   if (outside.length > 0) {
     throw new Error(`Render manifest: rectangles run past their atlas: ${outside.join(", ")}`);
@@ -320,7 +493,16 @@ export class RenderArt {
 
   private readonly fallback = fallbackManifest();
 
+  // The world grass, and what the renderer draws it with
+  readonly grass: GrassArt;
+  readonly grassDraw: GrassDraw;
+
   constructor(private readonly rendered: RenderManifest) {
+    this.grass = rendered.grass;
+    const unit = ([r, g, b]: readonly [number, number, number]) => [r / 255, g / 255, b / 255] as const;
+    const {brightness, warmth, warm} = rendered.grass.constants.tint;
+    this.grassDraw = {atlas: rendered.grass.atlas, field: GRASS_FIELD, lushMean: unit(rendered.grass.lush.mean),
+                      strawMean: unit(rendered.grass.straw.mean), warm, brightness, warmth, fieldTiles: GRASS_MAP};
     let reach = 0;
     rendered.tiles.forEach((art) => {
       if (art.shadow !== null) {

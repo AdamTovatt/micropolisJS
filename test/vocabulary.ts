@@ -13,6 +13,7 @@
  */
 
 import * as RuleNumbers from "../e2e/ruleNumbers";
+import { GRASS_MAP } from "../src/grass";
 import * as Messages from "../src/messages";
 import { CITY_CLASSES, GROWTH_BLOCKERS, GROWTH_OUTLOOKS, SCORE_REASONS } from "../src/protocol";
 import { SPRITE_SHEET } from "../src/renderManifest";
@@ -70,5 +71,9 @@ describe("the shared vocabulary", () => {
                                           AIRPORT_COST: RULES.toolCosts.airport,
                                           TORNADO_SPRITE: spriteType("tornado"),
                                           FIRE_COVER_BLOCK_SIZE: RULES.fireCoverBlockSize});
+    });
+
+    it("bakes the world grass's field over the map the server's rules make", () => {
+        expect({...GRASS_MAP}).toEqual(RULES.mapSize);
     });
 });

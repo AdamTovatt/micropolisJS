@@ -32,7 +32,9 @@ const CANVAS_ID = "SplashCanvas";
 // a tile, nearest-neighbour would draw each tile as the few of its texels that happen to land on a pixel.
 function previewAtlases(atlases: ReadonlyMap<string, AtlasImage>): Map<string, AtlasImage> {
   const filtered = new Map<string, AtlasImage>();
-  atlases.forEach((atlas, name) => filtered.set(name, {...atlas, crisp: false}));
+  atlases.forEach((atlas, name) => {
+    filtered.set(name, atlas.filter === "crisp" ? {...atlas, filter: "mipmapped"} : atlas);
+  });
   return filtered;
 }
 

@@ -24,8 +24,14 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from designs import BUILT, BUILT_LAYERS, PAINTED, built_layers, built_tiles, is_joined, single_tile_assets
+from designs import BUILT, BUILT_LAYERS, LAND_MASK, PAINTED, built_layers, built_tiles, is_joined, single_tile_assets
 from paint import join
+
+
+def _land(root, asset):
+    # a joined single tile's land mask under `root`, as a boolean array, or None where it has none
+    path = os.path.join(root, asset, LAND_MASK)
+    return np.asarray(Image.open(path)) > 0 if os.path.exists(path) else None
 
 
 def _pixels(root, asset):
@@ -80,6 +86,19 @@ def test_the_join_from_the_built_layers_is_the_painted_layers(renders, tmp_path)
     if differ:
         pytest.fail(f'the join from art/painted/built and the renders differs from the painted single tiles: '
                     f'{", ".join(differ)}')
+    masks = [asset for asset in joined if _land(PAINTED, asset) is None
+             or not np.array_equal(_land(PAINTED, asset), _land(str(tmp_path), asset))]
+    if masks:
+        pytest.fail(f'the join writes other land masks than the committed ones: {", ".join(masks)}')
+
+
+def test_only_a_joined_tile_has_a_land_mask():
+    leaves = [asset for asset in _tiles(joined=False) if _land(PAINTED, asset) is not None]
+    assert leaves == [], 'single tiles the join leaves have land masks'
+
+
+def test_the_bare_land_is_all_land():
+    assert _land(PAINTED, 'land/0000').all()
 
 
 # The join's rules, on a row of four pixels: two ground donors whose renders agree everywhere but the third pixel,
@@ -133,6 +152,15 @@ def test_join_takes_the_first_donor_whose_render_is_within_the_tolerance(layers,
     # within 3 levels of both ground donors, the first's; 4 levels off, the tile's own; matching only the second,
     # the second's; matching neither, the tile's own
     assert ground.tolist() == [[10] * 3, [50] * 3, [20] * 3, [50] * 3]
+
+
+def test_join_marks_land_where_the_bare_land_gave_the_ground(layers, tmp_path):
+    renders, built = layers
+    join(built=built, out=str(tmp_path / 'out'), renders=renders, donors=DONORS)
+    # the land's pixel, and on from it the pixel 4 levels off the land's render, past the tolerance but within
+    # LAND_REACH; not the light pixel the water gave, nor the black one beyond it
+    assert _land(str(tmp_path / 'out'), 'roads/0066')[0].tolist() == [True, True, False, False]
+    assert _land(str(tmp_path / 'out'), 'water/0002')[0].tolist() == [True, True, False, True]
 
 
 def test_join_takes_objects_only_where_both_are_opaque_and_keeps_their_alpha(layers, tmp_path):

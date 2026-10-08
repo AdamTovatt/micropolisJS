@@ -14,11 +14,17 @@
 
 import { CAR_COLOURS } from "../src/cars";
 import type { PaintableCar } from "../src/cars";
-import { CAR_BREADTH, CAR_LENGTH, FrameTiles, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles } from "../src/mapFrame";
+import {
+    CAR_BREADTH, CAR_LENGTH, FrameTiles, GROUND_GRASS_ONLY, GROUND_ONLY, GROUND_OVER_GRASS, GROUND_QUAD_FLOATS,
+    GroundList, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles,
+} from "../src/mapFrame";
+import type { Run, RunList } from "../src/mapFrame";
 import type { Tint } from "../src/overlayRenderer";
 import type { SpriteView } from "../src/protocol";
 import type { Rect } from "../src/rect";
-import { FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, WHITE, parseRenderManifest } from "../src/renderManifest";
+import { grassTile } from "../src/grass";
+import { FALLBACK_SPRITES, FALLBACK_TILES, GRASS_FIELD, RenderArt, WHITE, parseRenderManifest } from "../src/renderManifest";
+import { committedGrass, plainGrass } from "./helpers/grassArt";
 import { tileImageOrigin } from "../src/tileSet";
 import { ANIMBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
 import { LIGHTNINGBOLT, LTRFBASE, ROADBASE, ROADS, TILE_INVALID } from "../src/tileValues";
@@ -29,7 +35,7 @@ import { LIGHTNINGBOLT, LTRFBASE, ROADBASE, ROADS, TILE_INVALID } from "../src/t
 const ZONE = 5;
 const LAWN = 6;
 const TRAFFIC = LTRFBASE + (ROADS - ROADBASE);
-const art = new RenderArt(parseRenderManifest({
+const artJson = {
     version: 1,
     atlases: {ground: "ground.png", objects: "objects.png", shadows: "shadows.png"},
     tiles: {
@@ -48,7 +54,9 @@ const art = new RenderArt(parseRenderManifest({
     },
     sprites: {},
     cars: {red: {north: {atlas: "objects", x: 256, y: 0, width: 64, height: 64}}},
-}));
+    grass: plainGrass({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
+};
+const art = new RenderArt(parseRenderManifest(artJson));
 
 // A quad as its floats: where it lands, where it comes from, and its colour
 interface Quad {
@@ -57,11 +65,12 @@ interface Quad {
     colour: number[];
 }
 
-function quads(list: QuadList): {atlas: string, quads: Quad[]}[] {
+function quads(list: RunList<Run>): {atlas: string, quads: Quad[]}[] {
     return list.runs.map((run) => {
         const found: Quad[] = [];
         for (let i = 0; i < run.count; i++) {
-            const floats = Array.from(run.data.slice(i * QUAD_FLOATS, (i + 1) * QUAD_FLOATS));
+            // a quad's floats, of a ground quad those it shares with the rest
+            const floats = Array.from(run.data.slice(i * run.floatsPerQuad, i * run.floatsPerQuad + QUAD_FLOATS));
             found.push({target: floats.slice(0, 4), source: floats.slice(4, 8), colour: floats.slice(8)});
         }
         return {atlas: run.atlas, quads: found};
@@ -389,6 +398,21 @@ describe("a frame of the map", () => {
             expect(list.runs[0].floats.length).toBe(1000 * QUAD_FLOATS);
             expect(list.runs[0].floats[999 * QUAD_FLOATS]).toBe(999);
         });
+
+        it("grows a ground list's buffers to hold every ground quad, each its grass floats after the quad's", () => {
+            const list = new GroundList();
+            const grass = {lush: box, straw: box, through: "part" as const, mapX: 7, mapY: 3};
+            for (let i = 0; i < 1000; i++) {
+                list.addGround("a", i, 0, 1, 1, box, i === 999 ? grass : null);
+            }
+
+            const floats = list.runs[0].floats;
+            expect(floats.length).toBe(1000 * GROUND_QUAD_FLOATS);
+            expect(Array.from(floats.slice(999 * GROUND_QUAD_FLOATS, 1000 * GROUND_QUAD_FLOATS)))
+                .toEqual([999, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 7, 3, GROUND_OVER_GRASS, 0]);
+            expect(Array.from(floats.slice(998 * GROUND_QUAD_FLOATS + QUAD_FLOATS, 999 * GROUND_QUAD_FLOATS)))
+                .toEqual(new Array(12).fill(0));
+        });
     });
 
     describe("the whole map", () => {
@@ -423,6 +447,74 @@ describe("a frame of the map", () => {
 
             // Both zone tiles are in the first column, and cast their shadow a tile left and down
             expect(frame.shadows.count).toBe(2);
+        });
+    });
+
+    describe("the world grass", () => {
+
+        // The art above with the committed manifest's world grass, each set's tile i at (64 i, 0) in its own atlas, lush
+        // in the first row and straw in the second, and grounds that let it through: bare land's all over, the lawn's in
+        // part, the zone's none
+        const grassJson = committedGrass((set, i) => ({atlas: "grass", x: 64 * i, y: set === "lush" ? 0 : 64,
+                                                      width: 64, height: 64}));
+        const grassy = new RenderArt(parseRenderManifest({
+            ...artJson,
+            atlases: {...artJson.atlases, grass: "grass.png"},
+            tiles: {...artJson.tiles, 0: {ground: {atlas: "ground", x: 256, y: 0, width: 64, height: 64}, grass: "all"},
+                    [LAWN]: {...artJson.tiles[LAWN], grass: "part"}},
+            grass: grassJson,
+        }));
+
+        // Each ground quad's grass floats: its tile's rectangle in each set, and its map tile
+        function grassOf(frame: MapFrame): number[][] {
+            return frame.ground.runs.flatMap((run) => Array.from({length: run.count}, (_, i) =>
+                Array.from(run.data.slice(i * run.floatsPerQuad + QUAD_FLOATS, (i + 1) * run.floatsPerQuad))));
+        }
+
+        it("draws each ground that lets the grass through over the tile its map tile's corners pick in each set", () => {
+            const frame = new MapFrame();
+            buildMapFrame(frame, grassy, tilesWith(5, LAWN), 16, noTint, [], []);
+            const constants = grassy.grass!.constants;
+
+            // The two tiles in view, map tiles (11, 21), the lawn, ground over grass, and (12, 21), bare land, grass alone
+            expect(grassOf(frame)).toEqual([[11, 21, GROUND_OVER_GRASS], [12, 21, GROUND_GRASS_ONLY]]
+                .map(([x, y, draws]) => {
+                    const picked = grassTile(x, y, constants);
+                    return [64 * picked, 0, 64, 64, 64 * picked, 64, 64, 64, x, y, draws, 0];
+                }));
+        });
+
+        it("draws a ground that lets no grass through alone", () => {
+            const frame = new MapFrame();
+            buildMapFrame(frame, grassy, tilesWith(6, ZONE), 16, noTint, [], []);
+
+            // Bare land, then the zone
+            expect(grassOf(frame).map((floats) => floats[10])).toEqual([GROUND_GRASS_ONLY, GROUND_ONLY]);
+            expect(grassOf(frame)[1]).toEqual(new Array(12).fill(0));
+        });
+
+        it("names the grass's atlas, field and colours for the renderer", () => {
+            const frame = new MapFrame();
+            buildMapFrame(frame, grassy, tilesWith(5, LAWN), 16, noTint, [], []);
+
+            expect(frame.grass).toEqual(expect.objectContaining({atlas: "grass", field: GRASS_FIELD,
+                                                                 fieldTiles: {width: 120, height: 100}}));
+            expect(frame.grass!.strawMean.map((c) => Math.round(c * 255)))
+                .toEqual(grassy.grass!.straw.mean.map(Math.round));
+        });
+
+        it.each([[16, 2], [32, 1], [48, Math.log2(64 / 48)], [64, 0], [128, 0]])(
+            "samples the grass's 64 px tiles drawn %p px a side at mip level %p", (tilePixels, level) => {
+                const frame = new MapFrame();
+                buildMapFrame(frame, grassy, tilesWith(5, LAWN), tilePixels, noTint, [], []);
+
+                expect(frame.grassLevel).toBeCloseTo(level, 12);
+            });
+
+        it("draws every ground alone where no tile's ground lets the grass through", () => {
+            const frame = build(tilesWith(5, LAWN));
+
+            expect(grassOf(frame)).toEqual([new Array(12).fill(0), new Array(12).fill(0)]);
         });
     });
 });

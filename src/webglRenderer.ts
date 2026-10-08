@@ -12,9 +12,11 @@
  *
  */
 
-import { MapFrame, QUAD_FLOATS, QuadList, QuadRun } from "./mapFrame";
+import { GROUND_ONLY, GROUND_OVER_GRASS, GROUND_QUAD_FLOATS, MapFrame, QUAD_FLOATS, QuadRun } from "./mapFrame";
+import type { Run, RunList } from "./mapFrame";
 import type { Rect } from "./rect";
 import { WHITE } from "./renderManifest";
+import type { GrassDraw } from "./renderManifest";
 
 // Draws a map frame with WebGL2. The map is drawn into a layer of its own, a framebuffer the size of the canvas's
 // drawing buffer, in three passes: every tile's ground; every shadow, merged by the darkest value into a shadow buffer
@@ -23,11 +25,12 @@ import { WHITE } from "./renderManifest";
 // canvas: the layer copied over the areas the painter names, or over all of it, then the cars and the sprites over
 // that, in one pass. Colours are premultiplied throughout.
 
-// An atlas the renderer draws from: its image, and whether it is a 16 px sheet, scaled up crisp, or rendered art,
-// mipmapped and filtered trilinearly
+// An atlas the renderer draws from: its image, and how it is filtered: crisp, a 16 px sheet scaled up; mipmapped,
+// rendered art filtered trilinearly; or field, a field of values, the world grass's, filtered linearly and never
+// premultiplied, since its channels are numbers, not a colour
 export interface AtlasImage {
   image: TexImageSource & {width: number, height: number};
-  crisp: boolean;
+  filter: "crisp" | "mipmapped" | "field";
 }
 
 interface Texture {
@@ -46,8 +49,10 @@ interface Target {
 // The quad's corners, as a triangle strip over the unit square
 const CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 
-// The bytes of a quad in the instance buffer
-const QUAD_BYTES = QUAD_FLOATS * Float32Array.BYTES_PER_ELEMENT;
+// The attributes a quad's floats fill, four each, from attribute 1: a quad's target, source and colour, and a ground
+// quad's tile in each grass set and its map tile's position
+const QUAD_ATTRIBUTES = QUAD_FLOATS / 4;
+const GROUND_ATTRIBUTES = GROUND_QUAD_FLOATS / 4;
 
 // The composite reads the shadow buffer by its pixels, so its quad comes from no source
 const NO_SOURCE: Rect = {x: 0, y: 0, width: 0, height: 0};
@@ -83,6 +88,86 @@ void main() {
   colour = texture(atlas, uv) * tint;
 }`;
 
+// The ground pass's vertex shader: the textured one's, and from the quad's floats past the colour, the rectangles of
+// its tile in each grass set, its map tile's position and what it draws, for the world grass under the ground
+const GROUND_VERTEX_SHADER = `#version 300 es
+layout(location = 0) in vec2 corner;
+layout(location = 1) in vec4 target;
+layout(location = 2) in vec4 source;
+layout(location = 4) in vec4 lush;
+layout(location = 5) in vec4 straw;
+layout(location = 6) in vec4 tile;
+uniform vec2 targetSize;
+uniform vec2 atlasSize;
+uniform vec2 grassSize;
+uniform vec2 fieldTiles;
+out vec2 uv;
+out vec2 lushUv;
+out vec2 strawUv;
+out vec2 fieldUv;
+flat out int draws;
+
+void main() {
+  vec2 position = (target.xy + corner * target.zw) / targetSize * 2.0 - 1.0;
+  gl_Position = vec4(position.x, -position.y, 0.0, 1.0);
+  uv = (source.xy + corner * source.zw) / atlasSize;
+  lushUv = (lush.xy + corner * lush.zw) / grassSize;
+  strawUv = (straw.xy + corner * straw.zw) / grassSize;
+  fieldUv = (tile.xy + corner) / fieldTiles;
+  draws = int(tile.z + 0.5);
+}`;
+
+// Each tile's ground, over the world grass where it lets the grass through (docs/render-assets.md): the two sets'
+// texels blended by the share of straw, keeping their contrast, then tinted. What a quad draws is one value over all of
+// it, so no tile samples what it doesn't show: an opaque ground only itself, bare land only the grass. Every grass tile
+// is one size on screen, so the grass is sampled at the frame's one mip level, which needs no derivatives in the branch
+// on the share of straw, whose sides the pixels of a quad may split between.
+const GROUND_SHADER = `#version 300 es
+precision highp float;
+uniform sampler2D atlas;
+uniform sampler2D grass;
+uniform sampler2D field;
+uniform vec3 lushMean;
+uniform vec3 strawMean;
+uniform vec3 warm;
+uniform float brightness;
+uniform float warmth;
+uniform float level;
+in vec2 uv;
+in vec2 lushUv;
+in vec2 strawUv;
+in vec2 fieldUv;
+flat in int draws;
+out vec4 colour;
+
+void main() {
+  if (draws == ${GROUND_ONLY}) {
+    colour = texture(atlas, uv);
+    return;
+  }
+
+  // Over the grass: the ground where it shows any, or none where it lets all the grass through
+  vec4 ground = draws == ${GROUND_OVER_GRASS} ? texture(atlas, uv) : vec4(0.0);
+  vec2 mixed = textureLod(field, fieldUv, 0.0).rg;
+  float share = mixed.r;
+  float tint = mixed.g;
+  // Most land is all straw or all lush, where the other set weighs nothing and isn't sampled
+  vec3 green;
+  if (share >= 1.0) {
+    green = textureLod(grass, strawUv, level).rgb;
+  } else if (share <= 0.0) {
+    green = textureLod(grass, lushUv, level).rgb;
+  } else {
+    vec3 lushTexel = textureLod(grass, lushUv, level).rgb - lushMean;
+    vec3 strawTexel = textureLod(grass, strawUv, level).rgb - strawMean;
+    green = mix(lushMean, strawMean, share) +
+      ((1.0 - share) * lushTexel + share * strawTexel) / sqrt((1.0 - share) * (1.0 - share) + share * share);
+  }
+  green *= 1.0 + brightness * (tint - 0.5);
+  green = mix(green, green * warm, warmth * clamp((tint - 0.45) * 2.0, 0.0, 1.0));
+  colour = vec4(ground.rgb + clamp(green, 0.0, 1.0) * (1.0 - ground.a), 1.0);
+}`;
+
 // A shadow's darkness is its alpha, written to the shadow buffer's one channel
 const SHADOW_SHADER = `#version 300 es
 precision highp float;
@@ -114,6 +199,18 @@ interface Program {
   atlasSize: WebGLUniformLocation | null;
 }
 
+// The ground pass's program, and the further uniforms it draws the world grass with
+interface GroundProgram extends Program {
+  grassSize: WebGLUniformLocation | null;
+  fieldTiles: WebGLUniformLocation | null;
+  lushMean: WebGLUniformLocation | null;
+  strawMean: WebGLUniformLocation | null;
+  warm: WebGLUniformLocation | null;
+  brightness: WebGLUniformLocation | null;
+  warmth: WebGLUniformLocation | null;
+  level: WebGLUniformLocation | null;
+}
+
 // A texture drawn into through a framebuffer, width by height device pixels
 interface Drawable {
   framebuffer: WebGLFramebuffer;
@@ -124,6 +221,7 @@ interface Drawable {
 
 // What the context holds, built again when a lost context is restored
 interface Resources {
+  ground: GroundProgram;
   textured: Program;
   shadow: Program;
   composite: Program;
@@ -213,7 +311,7 @@ export class WebGLRenderer {
     const resources = this.resources;
     this.resources = null;
     if (resources !== null) {
-      for (const program of [resources.textured, resources.shadow, resources.composite]) {
+      for (const program of [resources.ground, resources.textured, resources.shadow, resources.composite]) {
         gl.deleteProgram(program.program);
       }
       gl.deleteVertexArray(resources.vertexArray);
@@ -342,7 +440,7 @@ export class WebGLRenderer {
   // in the instance buffer. Every pass of the map is drawn within one area after another: areas that share pixels draw
   // them whole each time, the later over the earlier, as each starts by clearing its own.
   private drawMap(resources: Resources, frame: MapFrame, target: Target, areas: readonly Rect[] | null,
-                  firsts: ReadonlyMap<QuadRun, number>): void {
+                  firsts: ReadonlyMap<Run, number>): void {
     const gl = this.gl;
     if (areas === null) {
       this.drawMapPasses(resources, frame, target, firsts);
@@ -394,8 +492,9 @@ export class WebGLRenderer {
   }
 
   // Uploads every run of the frame's quads, and the composite's over the target if the frame has shadows, into the
-  // instance buffer, and returns the quad each run starts at in it
-  private upload(resources: Resources, frame: MapFrame, target: Target): Map<QuadRun, number> {
+  // instance buffer, one after another, and returns the float each run starts at in it: a ground run's quads are longer
+  // than the rest's
+  private upload(resources: Resources, frame: MapFrame, target: Target): Map<Run, number> {
     const gl = this.gl;
     const composite = this.compositeQuad;
     composite.count = 0;
@@ -403,29 +502,29 @@ export class WebGLRenderer {
       composite.add(0, 0, target.width, target.height, NO_SOURCE, 1, 1, 1, 1);
     }
 
-    const runs = [frame.ground, frame.shadows, frame.objects, frame.tints, frame.sprites]
-      .flatMap((list) => list.runs).concat(composite.count > 0 ? [composite] : []);
-    const firsts = new Map<QuadRun, number>();
-    let quads = 0;
+    const runs: Run[] = [...frame.ground.runs, ...[frame.shadows, frame.objects, frame.tints, frame.sprites]
+      .flatMap((list) => list.runs), ...(composite.count > 0 ? [composite] : [])];
+    const firsts = new Map<Run, number>();
+    let floats = 0;
     for (const run of runs) {
-      firsts.set(run, quads);
-      quads += run.count;
+      firsts.set(run, floats);
+      floats += run.count * run.floatsPerQuad;
     }
 
-    if (this.staged.length < quads * QUAD_FLOATS) {
-      this.staged = new Float32Array(quads * QUAD_FLOATS * 2);
+    if (this.staged.length < floats) {
+      this.staged = new Float32Array(floats * 2);
     }
     for (const run of runs) {
-      this.staged.set(run.floats, firsts.get(run)! * QUAD_FLOATS);
+      this.staged.set(run.floats, firsts.get(run)!);
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, resources.instances);
-    gl.bufferData(gl.ARRAY_BUFFER, this.staged.subarray(0, quads * QUAD_FLOATS), gl.STREAM_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.staged.subarray(0, floats), gl.STREAM_DRAW);
     return firsts;
   }
 
   private drawMapPasses(resources: Resources, frame: MapFrame, target: Target,
-                        firsts: ReadonlyMap<QuadRun, number>): void {
+                        firsts: ReadonlyMap<Run, number>): void {
     const gl = this.gl;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
@@ -434,9 +533,10 @@ export class WebGLRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.bindVertexArray(resources.vertexArray);
 
-    // The ground is opaque, so it is written without blending, which software WebGL pays for at every pixel
+    // The ground is opaque over the world grass, so it is written without blending, which software WebGL pays for at
+    // every pixel
     gl.disable(gl.BLEND);
-    this.drawList(resources, resources.textured, frame.ground, target, firsts);
+    this.drawGround(resources, frame, target, firsts);
     gl.enable(gl.BLEND);
     gl.blendEquation(gl.FUNC_ADD);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -467,7 +567,7 @@ export class WebGLRenderer {
 
   // Draws the frame's cars and sprites over what the target shows
   private drawSprites(resources: Resources, frame: MapFrame, target: Target,
-                      firsts: ReadonlyMap<QuadRun, number>): void {
+                      firsts: ReadonlyMap<Run, number>): void {
     const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.framebuffer);
     gl.viewport(0, 0, target.width, target.height);
@@ -478,8 +578,57 @@ export class WebGLRenderer {
     this.drawList(resources, resources.textured, frame.sprites, target, firsts);
   }
 
-  private drawList(resources: Resources, program: Program, list: QuadList, target: Target,
-                   firsts: ReadonlyMap<QuadRun, number>): void {
+  // Draws every tile's ground, each over the world grass where it lets the grass through
+  private drawGround(resources: Resources, frame: MapFrame, target: Target,
+                     firsts: ReadonlyMap<Run, number>): void {
+    if (frame.grass === null) {
+      // A frame never built, which has no ground
+      return;
+    }
+
+    const gl = this.gl;
+    const program = resources.ground;
+    gl.useProgram(program.program);
+    this.bindGrass(resources, program, frame.grass, frame.grassLevel);
+
+    for (let attribute = QUAD_ATTRIBUTES + 1; attribute <= GROUND_ATTRIBUTES; attribute++) {
+      gl.enableVertexAttribArray(attribute);
+    }
+    try {
+      this.drawList(resources, program, frame.ground, target, firsts);
+    } finally {
+      for (let attribute = QUAD_ATTRIBUTES + 1; attribute <= GROUND_ATTRIBUTES; attribute++) {
+        gl.disableVertexAttribArray(attribute);
+      }
+    }
+  }
+
+  // Binds the world grass's atlas to texture unit 1 and its baked field to unit 2, and sets the ground program's
+  // uniforms from it and the mip level its tiles are sampled at
+  private bindGrass(resources: Resources, program: GroundProgram, grass: GrassDraw, level: number): void {
+    const gl = this.gl;
+    const atlas = resources.textures.get(grass.atlas);
+    const field = resources.textures.get(grass.field);
+    if (atlas === undefined || field === undefined) {
+      throw new Error(`No ${atlas === undefined ? `atlas ${grass.atlas}` : "baked field"} to draw the grass from`);
+    }
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, atlas.texture);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, field.texture);
+    gl.uniform2f(program.grassSize, atlas.width, atlas.height);
+    gl.uniform2f(program.fieldTiles, grass.fieldTiles.width, grass.fieldTiles.height);
+    gl.uniform3f(program.lushMean, ...grass.lushMean);
+    gl.uniform3f(program.strawMean, ...grass.strawMean);
+    gl.uniform3f(program.warm, ...grass.warm);
+    gl.uniform1f(program.brightness, grass.brightness);
+    gl.uniform1f(program.warmth, grass.warmth);
+    gl.uniform1f(program.level, level);
+  }
+
+  private drawList(resources: Resources, program: Program, list: RunList<Run>, target: Target,
+                   firsts: ReadonlyMap<Run, number>): void {
     const gl = this.gl;
     gl.useProgram(program.program);
     gl.uniform2f(program.targetSize, target.width, target.height);
@@ -498,22 +647,24 @@ export class WebGLRenderer {
   }
 
   // Draws the run's quads from where upload put them in the instance buffer
-  private drawInstances(run: QuadRun, firsts: ReadonlyMap<QuadRun, number>): void {
+  private drawInstances(run: Run, firsts: ReadonlyMap<Run, number>): void {
     const first = firsts.get(run);
     if (first === undefined) {
       throw new Error(`The quads from ${run.atlas} were not uploaded`);
     }
 
-    this.pointInstances(first);
+    this.pointInstances(first, run.floatsPerQuad);
     this.gl.drawArraysInstanced(this.gl.TRIANGLE_STRIP, 0, 4, run.count);
   }
 
-  // Points the quad's attributes, read once per instance, at the instance buffer from its quad first. The vertex array
-  // and the instance buffer must be bound.
-  private pointInstances(first: number): void {
+  // Points the quad's attributes, read once per instance, four floats each from attribute 1, at the instance buffer
+  // from the float first, a quad every floatsPerQuad floats. The vertex array and the instance buffer must be bound.
+  private pointInstances(first: number, floatsPerQuad: number): void {
     const gl = this.gl;
-    for (let attribute = 1; attribute <= 3; attribute++) {
-      gl.vertexAttribPointer(attribute, 4, gl.FLOAT, false, QUAD_BYTES, first * QUAD_BYTES + (attribute - 1) * 16);
+    const bytes = Float32Array.BYTES_PER_ELEMENT;
+    for (let attribute = 1; attribute <= floatsPerQuad / 4; attribute++) {
+      gl.vertexAttribPointer(attribute, 4, gl.FLOAT, false, floatsPerQuad * bytes,
+                             (first + (attribute - 1) * 4) * bytes);
     }
   }
 
@@ -531,11 +682,15 @@ export class WebGLRenderer {
 
     const instances = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, instances);
-    for (let attribute = 1; attribute <= 3; attribute++) {
-      gl.enableVertexAttribArray(attribute);
+    // Every quad's attributes, read once per instance; a ground quad's further ones are enabled only while the ground
+    // is drawn, the one pass whose quads hold them
+    for (let attribute = 1; attribute <= GROUND_ATTRIBUTES; attribute++) {
+      if (attribute <= QUAD_ATTRIBUTES) {
+        gl.enableVertexAttribArray(attribute);
+      }
       gl.vertexAttribDivisor(attribute, 1);
     }
-    this.pointInstances(0);
+    this.pointInstances(0, QUAD_FLOATS);
     gl.bindVertexArray(null);
 
     const textures = new Map<string, Texture>();
@@ -543,6 +698,7 @@ export class WebGLRenderer {
     textures.set(WHITE, this.uploadWhite());
 
     return {
+      ground: this.createGroundProgram(),
       textured: this.createProgram(TEXTURED_SHADER),
       shadow: this.createProgram(SHADOW_SHADER),
       composite: this.createProgram(COMPOSITE_SHADER),
@@ -555,16 +711,19 @@ export class WebGLRenderer {
     };
   }
 
-  private uploadAtlas({image, crisp}: AtlasImage): Texture {
+  private uploadAtlas({image, filter}: AtlasImage): Texture {
     const gl = this.gl;
     const texture = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, filter !== "field");
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    if (crisp) {
+    if (filter === "field") {
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    } else if (filter === "crisp") {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     } else {
@@ -611,10 +770,31 @@ export class WebGLRenderer {
     return framebuffer;
   }
 
-  private createProgram(fragmentSource: string): Program {
+  private createGroundProgram(): GroundProgram {
+    const gl = this.gl;
+    const created = this.createProgram(GROUND_SHADER, GROUND_VERTEX_SHADER);
+    const program = created.program;
+    // The grass's atlas on unit 1, its field on unit 2, beside the ground's atlas on 0
+    gl.uniform1i(gl.getUniformLocation(program, "grass"), 1);
+    gl.uniform1i(gl.getUniformLocation(program, "field"), 2);
+    const location = (name: string) => gl.getUniformLocation(program, name);
+    return {
+      ...created,
+      grassSize: location("grassSize"),
+      fieldTiles: location("fieldTiles"),
+      lushMean: location("lushMean"),
+      strawMean: location("strawMean"),
+      warm: location("warm"),
+      brightness: location("brightness"),
+      warmth: location("warmth"),
+      level: location("level"),
+    };
+  }
+
+  private createProgram(fragmentSource: string, vertexSource = VERTEX_SHADER): Program {
     const gl = this.gl;
     const program = gl.createProgram()!;
-    gl.attachShader(program, this.compile(gl.VERTEX_SHADER, VERTEX_SHADER));
+    gl.attachShader(program, this.compile(gl.VERTEX_SHADER, vertexSource));
     gl.attachShader(program, this.compile(gl.FRAGMENT_SHADER, fragmentSource));
     gl.linkProgram(program);
     if (!(gl.getProgramParameter(program, gl.LINK_STATUS) as boolean) && !gl.isContextLost()) {

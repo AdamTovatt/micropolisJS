@@ -15,14 +15,36 @@
 import { Page } from "@playwright/test";
 
 import { TILE_COUNT } from "../src/tileValues";
+import { plainGrass } from "../test/helpers/grassArt";
 import { png } from "./png";
 
 // Rendered art made for a test, served in place of images/render/, so what the map draws is known pixel for pixel
 
-// Serves the render manifest, and each atlas image under its path, relative to the manifest
-export async function serveTestArt(page: Page, manifest: object, atlases: Record<string, Buffer>): Promise<void> {
-  await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: manifest}));
-  for (const [path, image] of Object.entries(atlases)) {
+// The atlas of the world grass a test's manifest is served with when it gives none of its own
+const PLAIN_GRASS_ATLAS = "plainGrass";
+const PLAIN_GRASS_PATH = "plain-grass.png";
+
+// A render manifest's JSON (docs/render-assets.md), its world grass left out where the test has no use for it
+export interface TestManifest {
+  version: number;
+  atlases: Record<string, string>;
+  tiles: Record<string, object>;
+  sprites: Record<string, object>;
+  cars: Record<string, object>;
+  grass?: object;
+}
+
+// Serves the render manifest, and each atlas image under its path, relative to the manifest. A manifest without the
+// world grass every manifest has is served with the plainest, of one green, in an atlas of its own, which no tile shows
+// unless the manifest has a tile let the grass through.
+export async function serveTestArt(page: Page, manifest: TestManifest, atlases: Record<string, Buffer>): Promise<void> {
+  const served = manifest.grass !== undefined ? {manifest, atlases} : {
+    manifest: {...manifest, atlases: {...manifest.atlases, [PLAIN_GRASS_ATLAS]: PLAIN_GRASS_PATH},
+               grass: plainGrass({atlas: PLAIN_GRASS_ATLAS, x: 0, y: 0, width: 16, height: 16}, [0, 128, 0])},
+    atlases: {...atlases, [PLAIN_GRASS_PATH]: solidAtlas([0, 128, 0, 255])},
+  };
+  await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: served.manifest}));
+  for (const [path, image] of Object.entries(served.atlases)) {
     await page.route(`**/images/render/${path}`, (route) => route.fulfill({body: image, contentType: "image/png"}));
   }
 }

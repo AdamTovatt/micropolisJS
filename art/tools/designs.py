@@ -249,6 +249,8 @@ def is_vehicle(asset):
 
 LAYERS = ('ground', 'shadow', 'objects')
 BUILT_LAYERS = ('ground', 'objects')       # the layers of a single tile the paint build keeps and the join writes
+LAND_MASK = 'ground-land.png'              # beside a joined single tile's layers: white where the bare land's painting
+                                           # gave its ground, which the game draws as the world grass (grass.py)
 NO_MARGIN = {'left': 0, 'top': 0, 'right': 0, 'bottom': 0}
 
 
@@ -273,18 +275,29 @@ class Asset:
             raise FileNotFoundError(f'{directory} has no {" or ".join(f"{k}.png" for k in missing)}')
         if vehicle:
             self.layers['ground'] = Image.new('RGBA', (self.size, self.size))
+        # where the bare land's painting gave a joined single tile's ground, as the join wrote it, or None
+        land = os.path.join(directory, LAND_MASK)
+        self.land = Image.open(land).convert('L') if os.path.exists(land) else None
 
     def tile(self, layer, column, row):
         x, y = column * self.tile_px, row * self.tile_px
         return self.layers[layer].crop((x, y, x + self.tile_px, y + self.tile_px))
 
-    def composite(self):
-        # the asset as the game draws it alone: ground, its own shadow, objects, the size of its footprint
+    def ground_over_grass(self):
+        # the ground as the game draws it over the world grass: transparent where the bare land's painting gave it
+        ground = self.layers['ground'].copy()
+        if self.land is not None:
+            ground.putalpha(Image.eval(self.land, lambda v: 255 - v))
+        return ground
+
+    def composite(self, ground=None):
+        # the asset as the game draws it alone: ground, or the ground given, its own shadow, objects, the size of its
+        # footprint
         left, top = self.margin['left'] * self.tile_px, self.margin['top'] * self.tile_px
         shadow = Image.new('RGBA', self.layers['shadow'].size, (0, 0, 0, 255))
         shadow.putalpha(self.layers['shadow'].getchannel('A'))
         image = Image.new('RGBA', shadow.size)
-        image.alpha_composite(self.layers['ground'], (left, top))
+        image.alpha_composite(self.layers['ground'] if ground is None else ground, (left, top))
         image.alpha_composite(shadow)
         image.alpha_composite(self.layers['objects'], (left, top))
         return image.crop((left, top, left + self.size, top + self.size))

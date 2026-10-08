@@ -21,7 +21,9 @@ import {
     checkRectsInAtlases,
     fallbackManifest, fallbackSpriteRect, parseRenderManifest, spriteKey,
 } from "../src/renderManifest";
-import { repositoryPath } from "./helpers/repository";
+import { committedGrass, plainGrass } from "./helpers/grassArt";
+import type { GrassJson } from "./helpers/grassArt";
+import { repositoryJson, repositoryPath } from "./helpers/repository";
 import { tileImageOrigin } from "../src/tileSet";
 import { TILE_COUNT } from "../src/tileValues";
 
@@ -36,12 +38,12 @@ function pngSize(path: string): {width: number, height: number} {
 const SHEET_SIZES = new Map([[FALLBACK_TILES, pngSize("images/tiles.png")],
                              [FALLBACK_SPRITES, pngSize("images/sprites.png")]]);
 
-// A manifest file's JSON, with one atlas, the tiles and sprites given and no cars
-function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
-    return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}};
-}
-
 const rect = (x: number, y: number, size = 64) => ({atlas: "zones", x, y, width: size, height: size});
+
+// A manifest file's JSON, with one atlas, the tiles and sprites given, no cars and the plainest grass
+function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
+    return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}, grass: plainGrass(rect(0, 0))};
+}
 
 describe("the render manifest", () => {
 
@@ -58,6 +60,7 @@ describe("the render manifest", () => {
                     ground: {atlas: FALLBACK_TILES, x: origin.x, y: origin.y, width: 16, height: 16},
                     shadow: null,
                     objects: null,
+                    grass: null,
                 };
                 if (JSON.stringify(art) !== JSON.stringify(expected)) {
                     wrong.push(id);
@@ -82,7 +85,13 @@ describe("the render manifest", () => {
         });
 
         it("lies wholly on the sheets", () => {
-            expect(() => checkRectsInAtlases(fallback, SHEET_SIZES)).not.toThrow();
+            // Beside the world grass every manifest has, here on the tile sheet's first cell
+            const onSheet = {atlas: FALLBACK_TILES, x: 0, y: 0, width: 16, height: 16};
+            const grass = {...parseRenderManifest(manifestJson()).grass, atlas: FALLBACK_TILES,
+                           lush: {mean: [0, 0, 0] as const, tiles: [onSheet]},
+                           straw: {mean: [0, 0, 0] as const, tiles: [onSheet]}};
+
+            expect(() => checkRectsInAtlases({...fallback, grass}, SHEET_SIZES)).not.toThrow();
         });
 
         it("has no sprite cell for a type or frame the sheet lacks", () => {
@@ -101,16 +110,16 @@ describe("the render manifest", () => {
             ));
 
             expect(manifest.atlases).toEqual(new Map([["zones", "zones.png"]]));
-            expect(manifest.tiles.get(249)).toEqual({ground: rect(0, 0), objects: rect(64, 0), shadow});
-            expect(manifest.tiles.get(250)).toEqual({ground: rect(128, 0), objects: null, shadow: null});
+            expect(manifest.tiles.get(249)).toEqual({ground: rect(0, 0), objects: rect(64, 0), shadow, grass: null});
+            expect(manifest.tiles.get(250)).toEqual({ground: rect(128, 0), objects: null, shadow: null, grass: null});
             expect(manifest.sprites).toEqual(new Map([[spriteKey(5, 16), rect(0, 256, 192)]]));
         });
 
-        it("reads a manifest of no art", () => {
-            const manifest = parseRenderManifest({version: 1, atlases: {}, tiles: {}, sprites: {}, cars: {}});
+        it("reads a manifest of no art but the world grass every manifest has", () => {
+            const manifest = parseRenderManifest(manifestJson());
 
             expect([manifest.atlases.size, manifest.tiles.size, manifest.sprites.size, manifest.cars.size])
-                .toEqual([0, 0, 0, 0]);
+                .toEqual([1, 0, 0, 0]);
         });
 
         it("reads a car of each colour and way it has, by colour and way", () => {
@@ -124,6 +133,8 @@ describe("the render manifest", () => {
         it.each<[string, Record<string, unknown>, string]>([
             ["another version", {...manifestJson(), version: 2}, "version is not 1"],
             ["a key it doesn't know", {...manifestJson(), extra: true}, "the manifest has unknown keys: extra"],
+            ["a ground that lets grass through by another word", manifestJson({"0": {ground: rect(0, 0), grass: "some"}}),
+             "tiles.0.grass is neither all nor part"],
             ["no cars", {version: 1, atlases: {}, tiles: {}, sprites: {}}, "the manifest lacks cars"],
             ["a fallback sheet's name for an atlas", {...manifestJson(), atlases: {[FALLBACK_TILES]: "x.png"}},
              `atlases.${FALLBACK_TILES} takes a name starting fallback:, which the client keeps for its own`],
@@ -171,8 +182,7 @@ describe("the render manifest", () => {
 
         // The art build names the colours as the client does (CAR_COLOURS in art/tools/designs.py)
         it("has, as the art build writes it, a car of every colour facing every way", () => {
-            const manifest = parseRenderManifest(JSON.parse(readFileSync(repositoryPath("images/render/manifest.json"),
-                                                                         "utf8")));
+            const manifest = parseRenderManifest(repositoryJson("images/render/manifest.json"));
             const missing = CAR_COLOURS.flatMap(({name}) => CAR_DIRECTIONS.map((way) => carKey(name, way)))
                 .filter((key) => !manifest.cars.has(key));
 
@@ -193,6 +203,76 @@ describe("the render manifest", () => {
             expect(() => checkAtlasSizes(sizes, 4096))
                 .toThrow("Atlases are past this browser's 4096 pixels a side: wide is 4097 by 64, high is 64 by 4097");
             expect(() => checkAtlasSizes(sizes, 4097)).not.toThrow();
+        });
+
+        describe("the world grass", () => {
+
+            // The committed manifest's grass section, each set's tile i moved to (64 i, 0) of the test's atlas, in a
+            // manifest that also has a second atlas; each set colours ** 4 tiles
+            const grassJson = (): GrassJson => committedGrass((_, i) => rect(64 * i, 0));
+            const tiles = grassJson().colours ** 4;
+            const withGrass = (grass: GrassJson) => ({...manifestJson(), atlases: {zones: "zones.png", other: "o.png"},
+                                                      grass});
+
+            it("reads both sets and the constants", () => {
+                const grass = parseRenderManifest(withGrass(grassJson())).grass;
+
+                expect(grass.atlas).toBe("zones");
+                expect(grass.texels).toBe(64);
+                expect([grass.lush.tiles.length, grass.straw.tiles.length]).toEqual([tiles, tiles]);
+                expect(grass.straw.tiles[2]).toEqual(rect(128, 0));
+                expect(grass.straw.mean).toEqual(grassJson().sets.straw.mean);
+                expect(grass.constants.mask.gradients).toHaveLength(16);
+            });
+
+            it("reads the plainest grass, of one colour and so one tile a set", () => {
+                const grass = parseRenderManifest(manifestJson()).grass;
+
+                expect([grass.constants.colours, grass.lush.tiles, grass.straw.tiles]).toEqual([1, [rect(0, 0)],
+                                                                                                [rect(0, 0)]]);
+            });
+
+            it("refuses a manifest with none", () => {
+                const json = manifestJson();
+                delete json.grass;
+
+                expect(() => parseRenderManifest(json)).toThrow("Render manifest: the manifest lacks grass");
+            });
+
+            it.each<[string, (json: GrassJson) => void, string]>([
+                ["a set short of a tile", (json) => json.sets.lush.tiles.pop(),
+                 `grass.sets.lush.tiles is not ${tiles} tiles`],
+                ["no colours", (json) => json.colours = 0, "grass.colours is not a whole number of at least 1"],
+                ["sets in two atlases", (json) => {
+                    json.sets.straw.tiles[0] = {...rect(0, 0), atlas: "other"};
+                }, "grass.sets are not all in one atlas"],
+                ["a tile of another size", (json) => {
+                    json.sets.lush.tiles[3] = {...rect(0, 0), width: 32};
+                }, "grass.sets are not all squares of one size"],
+                ["a tile not square", (json) => {
+                    json.sets.straw.tiles[5] = {...rect(0, 0), height: 63};
+                }, "grass.sets are not all squares of one size"],
+                ["a missing set", (json) => delete (json.sets as Partial<GrassJson["sets"]>).straw,
+                 "grass.sets lacks straw"],
+                ["a key the format doesn't name", (json) => json.noise = 1, "grass has unknown keys: noise"],
+                ["fewer than 16 gradients", (json) => json.mask.gradients.pop(), "grass.mask.gradients is not 16"],
+                ["a turn of one number", (json) => json.mask.octaves[0].turn = [1],
+                 "grass.mask.octaves[0].turn is not a list of 2 numbers"],
+                ["a seed past 32 bits", (json) => json.corners.seed = 2 ** 32, "grass.corners.seed is past"],
+                ["a cell of no size", (json) => json.tint.octaves[0].cell = 0, "grass.tint.octaves[0].cell is not more"],
+            ])("refuses %s, naming where", (_, change, message) => {
+                const json = grassJson();
+                change(json);
+                expect(() => parseRenderManifest(withGrass(json))).toThrow(`Render manifest: ${message}`);
+            });
+
+            it("refuses a grass tile that runs past its atlas, naming it", () => {
+                const manifest = parseRenderManifest(withGrass(grassJson()));
+
+                // The last tile of each set lies one tile past the atlas
+                expect(() => checkRectsInAtlases(manifest, new Map([["zones", {width: 64 * (tiles - 1), height: 64}]])))
+                    .toThrow(`lush grass ${tiles - 1} (zones), straw grass ${tiles - 1} (zones)`);
+            });
         });
     });
 

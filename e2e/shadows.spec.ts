@@ -23,6 +23,7 @@ import { png, samplePixels } from "./png";
 import { inBounds, tileAt, tilesIn } from "./savedMap";
 import { SEED, SITE } from "./stages";
 import { everyTile, serveTestArt } from "./testArt";
+import type { TestManifest } from "./testArt";
 
 // Shadows merge by their darkest value. A test atlas gives every tile id white ground, and dirt, tile 0, a shadow of
 // half darkness reaching a tile past it on every side. Where shadows overlap, the map shows the darkness of one, not
@@ -44,7 +45,7 @@ function atlas(): Buffer {
   return png(32, 16, pixels);
 }
 
-function manifest(): object {
+function manifest(): TestManifest {
   const ground = {atlas: "test", x: 0, y: 0, width: 16, height: 16};
   const tiles = everyTile({ground});
   tiles[0] = {ground, shadow: {atlas: "test", x: 16, y: 0, width: 16, height: 16,
@@ -99,7 +100,7 @@ test("overlapping shadows show the darker value, not their sum", async ({page}) 
 });
 
 // The same atlas, but every tile id except dirt's casts the shadow, and dirt none
-function shadowsButDirt(): object {
+function shadowsButDirt(): TestManifest {
   const ground = {atlas: "test", x: 0, y: 0, width: 16, height: 16};
   const tiles = everyTile({ground, shadow: {atlas: "test", x: 16, y: 0, width: 16, height: 16,
                                             reach: {left: 1, top: 1, right: 1, bottom: 1}}});

@@ -22,6 +22,7 @@ import type { Rect } from "../src/rect";
 import { RenderArt, parseRenderManifest } from "../src/renderManifest";
 import { ANIMBIT, ZONEBIT } from "../src/tileFlags";
 import { FIRE, LIGHTNINGBOLT } from "../src/tileValues";
+import { plainGrass } from "./helpers/grassArt";
 
 // Tile 5 casts a shadow reaching a tile left and a tile down, so the farthest shadow reaches one tile
 const ZONE = 5;
@@ -36,6 +37,7 @@ const art = new RenderArt(parseRenderManifest({
     },
     sprites: {},
     cars: {},
+    grass: plainGrass({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
 }));
 
 const MAP_WIDTH = 40;
@@ -74,7 +76,8 @@ function groundOf(frame: MapFrame): Drawn["ground"] {
     return frame.ground.runs.flatMap((run) => {
         const quads = [];
         for (let i = 0; i < run.count; i++) {
-            quads.push({atlas: run.atlas, x: run.floats[i * QUAD_FLOATS + 4], y: run.floats[i * QUAD_FLOATS + 5]});
+            const at = i * run.floatsPerQuad;
+            quads.push({atlas: run.atlas, x: run.floats[at + 4], y: run.floats[at + 5]});
         }
         return quads;
     });

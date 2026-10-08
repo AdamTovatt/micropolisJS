@@ -34,5 +34,6 @@
     {"type":6,"name":"tornado","frames":3},
     {"type":7,"name":"explosion","frames":6}
   ],
-  "fireCoverBlockSize": 8
+  "fireCoverBlockSize": 8,
+  "mapSize": {"width":120,"height":100}
 }

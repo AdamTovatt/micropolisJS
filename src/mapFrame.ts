@@ -18,8 +18,9 @@ import type { Tint } from "./overlayRenderer";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { PaintableMap, PaintableSprite, PaintableSquare } from "./paintable";
 import type { Rect } from "./rect";
+import { grassTile } from "./grass";
 import { WHITE } from "./renderManifest";
-import type { AtlasRect, RenderArt } from "./renderManifest";
+import type { AtlasRect, GrassDraw, GrassThrough, RenderArt } from "./renderManifest";
 import { BIT_MASK } from "./tileFlags";
 import { TILE_INVALID } from "./tileValues";
 import { plainRoad } from "./trafficTiles";
@@ -33,28 +34,51 @@ import type { PixelPoint } from "./viewPosition";
 // (r, g, b, a)
 export const QUAD_FLOATS = 12;
 
+// The floats of a ground quad: a quad's, then the rectangles of its map tile's tile in the world grass's lush and straw
+// sets, in their atlas's pixels (x, y, width, height each), its map tile's position (x, y), what it draws (one of the
+// three below) and one unused, from which the world grass under it is drawn (docs/render-assets.md); all zeros for a
+// ground that lets no grass through
+export const GROUND_QUAD_FLOATS = 24;
+
+// What a ground quad draws, so no tile pays for the grass or its ground unless it shows them: its ground alone, opaque;
+// the world grass alone, where its ground lets all of it through; or its ground over the grass
+export const GROUND_ONLY = 0;
+export const GROUND_GRASS_ONLY = 1;
+export const GROUND_OVER_GRASS = 2;
+
 // The white atlas's one pixel, which the tints are drawn from
 const WHITE_PIXEL: Rect = {x: 0, y: 0, width: 1, height: 1};
 
-// The quads drawn from one atlas, in the order they were added
-export class QuadRun {
-  data = new Float32Array(QUAD_FLOATS * 64);
+// The quads drawn from one atlas, in the order they were added, each floatsPerQuad floats
+export abstract class Run {
+  data: Float32Array;
   count = 0;
 
-  constructor(public atlas: string) {}
+  constructor(public atlas: string, readonly floatsPerQuad: number) {
+    this.data = new Float32Array(floatsPerQuad * 64);
+  }
 
-  // A quad landing at (x, y), width by height device pixels, from the source in the atlas's pixels, its texels
-  // multiplied by the colour
-  add(x: number, y: number, width: number, height: number, source: Rect, r: number, g: number, b: number,
-      a: number): void {
-    if ((this.count + 1) * QUAD_FLOATS > this.data.length) {
+  // The floats of the quads added
+  get floats(): Float32Array {
+    return this.data.subarray(0, this.count * this.floatsPerQuad);
+  }
+
+  // Where a new quad's floats start, the buffer grown to hold them
+  protected next(): number {
+    if ((this.count + 1) * this.floatsPerQuad > this.data.length) {
       const grown = new Float32Array(this.data.length * 2);
       grown.set(this.data);
       this.data = grown;
     }
 
+    return this.count++ * this.floatsPerQuad;
+  }
+
+  // A quad's floats from at: landing at (x, y), width by height device pixels, from the source in the atlas's pixels,
+  // its texels multiplied by the colour
+  protected place(at: number, x: number, y: number, width: number, height: number, source: Rect, r: number,
+                  g: number, b: number, a: number): void {
     const data = this.data;
-    const at = this.count * QUAD_FLOATS;
     data[at] = x;
     data[at + 1] = y;
     data[at + 2] = width;
@@ -67,27 +91,79 @@ export class QuadRun {
     data[at + 9] = g;
     data[at + 10] = b;
     data[at + 11] = a;
-    this.count++;
+  }
+}
+
+// A run of quads, QUAD_FLOATS each
+export class QuadRun extends Run {
+  constructor(atlas: string) {
+    super(atlas, QUAD_FLOATS);
   }
 
-  // The floats of the quads added
-  get floats(): Float32Array {
-    return this.data.subarray(0, this.count * QUAD_FLOATS);
+  // A quad landing at (x, y), width by height device pixels, from the source in the atlas's pixels, its texels
+  // multiplied by the colour
+  add(x: number, y: number, width: number, height: number, source: Rect, r: number, g: number, b: number,
+      a: number): void {
+    this.place(this.next(), x, y, width, height, source, r, g, b, a);
   }
+}
+
+// A run of ground quads, GROUND_QUAD_FLOATS each
+export class GroundRun extends Run {
+  constructor(atlas: string) {
+    super(atlas, GROUND_QUAD_FLOATS);
+  }
+
+  // A ground quad landing at (x, y), width by height device pixels, from the source in the atlas's pixels, over the
+  // world grass of the map tile at (mapX, mapY), whose tiles in the lush and straw sets are the rectangles given, as
+  // much as its ground lets through, or opaque over none for null
+  addGround(x: number, y: number, width: number, height: number, source: Rect, grass: GrassTiles | null): void {
+    const start = this.next();
+    this.place(start, x, y, width, height, source, 1, 1, 1, 1);
+    const data = this.data;
+    const at = start + QUAD_FLOATS;
+    if (grass === null) {
+      data.fill(0, at, at + GROUND_QUAD_FLOATS - QUAD_FLOATS);
+      return;
+    }
+
+    const {lush, straw, mapX, mapY, through} = grass;
+    data[at] = lush.x;
+    data[at + 1] = lush.y;
+    data[at + 2] = lush.width;
+    data[at + 3] = lush.height;
+    data[at + 4] = straw.x;
+    data[at + 5] = straw.y;
+    data[at + 6] = straw.width;
+    data[at + 7] = straw.height;
+    data[at + 8] = mapX;
+    data[at + 9] = mapY;
+    data[at + 10] = through === "all" ? GROUND_GRASS_ONLY : GROUND_OVER_GRASS;
+    data[at + 11] = 0;
+  }
+}
+
+// The world grass under a map tile: its tile's rectangle in each set, and the map tile's position
+export interface GrassTiles {
+  lush: Rect;
+  straw: Rect;
+  through: GrassThrough;
+  mapX: number;
+  mapY: number;
 }
 
 // A pass's quads, grouped into runs by atlas. In an ordered list, where quads overlap, each run is drawn in the order
 // its quads were added, and a new run starts each time the atlas changes. In an unordered one, whose quads never
 // overlap or merge in an order that doesn't matter, each atlas has one run, so the pass is one draw per atlas. Runs
 // are kept from frame to frame, so their buffers grow once.
-export class QuadList {
-  private readonly kept: QuadRun[] = [];
+export abstract class RunList<R extends Run> {
+  private readonly kept: R[] = [];
   private used = 0;
 
   constructor(private readonly ordered: boolean) {}
 
   // The runs added since the last clear, in the order they are drawn
-  get runs(): readonly QuadRun[] {
+  get runs(): readonly R[] {
     return this.kept.slice(0, this.used);
   }
 
@@ -107,13 +183,11 @@ export class QuadList {
     this.used = 0;
   }
 
-  // A quad from the atlas, as QuadRun's add takes it, opaque unless a colour is given
-  add(atlas: string, x: number, y: number, width: number, height: number, source: Rect, r = 1, g = 1, b = 1,
-      a = 1): void {
-    this.runFor(atlas).add(x, y, width, height, source, r, g, b, a);
-  }
+  // A new run of the atlas
+  protected abstract newRun(atlas: string): R;
 
-  private runFor(atlas: string): QuadRun {
+  // The run a quad from the atlas is added to
+  protected runFor(atlas: string): R {
     if (this.ordered) {
       const last = this.used > 0 ? this.kept[this.used - 1] : null;
       if (last !== null && last.atlas === atlas) {
@@ -129,7 +203,7 @@ export class QuadList {
 
     // A kept run, perhaps of another atlas last frame, is reused under this one's name
     if (this.used === this.kept.length) {
-      this.kept.push(new QuadRun(atlas));
+      this.kept.push(this.newRun(atlas));
     } else {
       this.kept[this.used].atlas = atlas;
     }
@@ -138,10 +212,44 @@ export class QuadList {
   }
 }
 
-// The quads of each pass: every tile's ground; every anchor's shadow, merged by the darkest; every tile's objects; the
-// overlay's tints, over the objects; then the sprites
+// A pass's quads, as RunList groups them
+export class QuadList extends RunList<QuadRun> {
+  // A quad from the atlas, as QuadRun's add takes it, opaque unless a colour is given
+  add(atlas: string, x: number, y: number, width: number, height: number, source: Rect, r = 1, g = 1, b = 1,
+      a = 1): void {
+    this.runFor(atlas).add(x, y, width, height, source, r, g, b, a);
+  }
+
+  protected newRun(atlas: string): QuadRun {
+    return new QuadRun(atlas);
+  }
+}
+
+// The ground pass's quads, unordered, as RunList groups them
+export class GroundList extends RunList<GroundRun> {
+  constructor() {
+    super(false);
+  }
+
+  // A ground quad from the atlas, as GroundRun's addGround takes it
+  addGround(atlas: string, x: number, y: number, width: number, height: number, source: Rect,
+            grass: GrassTiles | null): void {
+    this.runFor(atlas).addGround(x, y, width, height, source, grass);
+  }
+
+  protected newRun(atlas: string): GroundRun {
+    return new GroundRun(atlas);
+  }
+}
+
+// The quads of each pass: every tile's ground, over the world grass; every anchor's shadow, merged by the darkest;
+// every tile's objects; the overlay's tints, over the objects; then the sprites. With what the world grass is drawn
+// with, and the mip level the frame's zoom samples every grass tile at, whose one size on screen it fixes; null until
+// the frame is first built, when it has no ground either.
 export class MapFrame {
-  readonly ground = new QuadList(false);
+  readonly ground = new GroundList();
+  grass: GrassDraw | null = null;
+  grassLevel = 0;
   readonly shadows = new QuadList(false);
   readonly objects = new QuadList(false);
   readonly tints = new QuadList(false);
@@ -237,6 +345,10 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
                               sprites: readonly PaintableSprite[], areas: readonly Rect[] | null = null): void {
   frame.clear();
   const {margin, width, height, offset} = tiles;
+  const grass = art.grass;
+  frame.grass = art.grassDraw;
+  // The level whose texels are a device pixel each, or the first where the grass is drawn larger than its art
+  frame.grassLevel = Math.max(0, Math.log2(grass.texels / tilePixels));
 
   // Whether a quad landing at (x, y), width by height device pixels, reaches into an area
   const reaches = (x: number, y: number, quadWidth: number, quadHeight: number) => areas === null ||
@@ -275,7 +387,16 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
       }
 
       const tileArt = art.tile(plainRoad(tiles.frames[index]));
-      frame.ground.add(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground);
+      // The world grass under a ground that lets any through
+      let under: GrassTiles | null = null;
+      if (tileArt.grass !== null) {
+        const mapX = tiles.x + column;
+        const mapY = tiles.y + row;
+        const picked = grassTile(mapX, mapY, grass.constants);
+        under = {lush: grass.lush.tiles[picked], straw: grass.straw.tiles[picked], mapX, mapY,
+                 through: tileArt.grass};
+      }
+      frame.ground.addGround(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground, under);
       if (tileArt.objects !== null) {
         frame.objects.add(tileArt.objects.atlas, x, y, tilePixels, tilePixels, tileArt.objects);
       }

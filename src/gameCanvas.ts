@@ -108,6 +108,9 @@ class GameCanvas {
   private marksDrawn = "";
   // The frames the painter has drawn
   private painted = 0;
+  // Whether each paint draws the map's layer whole, as if everything in view had changed, for the render benchmark to
+  // time the drawing of the map itself (testHook.ts)
+  wholeLayerEachFrame = false;
 
   // The CSS pixels a tile is drawn
   private zoom = ZOOM_STEPS[0];
@@ -279,6 +282,10 @@ class GameCanvas {
       // Sizing a canvas clears it, at the same size too
       this.painter.invalidate();
       this.marksDrawn = "";
+    }
+
+    if (this.wholeLayerEachFrame) {
+      this.painter.invalidate();
     }
 
     const origin = this.position.origin;
