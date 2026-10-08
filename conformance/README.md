@@ -35,9 +35,10 @@ Seeds and 32-bit words are hex strings, as the C reference prints them.
 
 ## grass.json
 
-Reference vectors for the world grass the map draws under bare land and the woods, and the wobble of the canopy's edge
-over it (`docs/render-assets.md`), which the client computes in `src/grass.ts` and the art build in
-`art/tools/grass.py`, with the same arithmetic and the constants of the manifest's `grass` and `canopy` sections. `grass.py` writes the file:
+Reference vectors for the world grass the map draws under bare land, the woods and the water, and the wobble of the
+canopy's edge and of the shore over it (`docs/render-assets.md`), which the client computes in `src/grass.ts` and the
+art build in `art/tools/grass.py`, with the same arithmetic and the constants of the manifest's `grass`, `canopy` and
+`water` sections. `grass.py` writes the file:
 
 ```bash
 python art/tools/grass.py --vectors
@@ -50,10 +51,10 @@ map positions alone, never on a city.
 - `lowbias32`: the hash of whole numbers.
 - `hashes`: the hash of lattice points, negative ones included, by two seeds.
 - `tiles`: the corner tile each of some map tiles draws.
-- `noise`: the share of straw, the tint and the wobble of the canopy's edge at map positions, each exact to the last
-  bit.
+- `noise`: the share of straw, the tint and the wobbles of the canopy's edge and the shore at map positions, each exact
+  to the last bit.
 - `field`: the size of the baked field for the 120 × 100 map, and the SHA-256 of its bytes, row by row, the share, the
-  tint and the wobble of each texel.
+  tint, the canopy's wobble and the shore's of each texel.
 
 ## Definitions
 

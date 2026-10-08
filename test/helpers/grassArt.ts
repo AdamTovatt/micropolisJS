@@ -42,6 +42,7 @@ export interface CanopyJson {
   cut: unknown;
   feather: unknown;
   edge: {octaves: Record<string, unknown>[], [key: string]: unknown};
+  shadow: Record<string, unknown>;
   tiles: Record<string, unknown>[];
   [key: string]: unknown;
 }
@@ -54,11 +55,34 @@ export function committedGrass(place: (set: "lush" | "straw", i: number) => Rect
   return json;
 }
 
-// The committed manifest's canopy section, its tile i moved to the rectangle place gives it
-export function committedCanopy(place: (i: number) => RectJson): CanopyJson {
-  const json = structuredClone(repositoryJson<{canopy: CanopyJson}>("images/render/manifest.json").canopy);
+// A water section as JSON, loosely enough for a test to break it
+export interface WaterJson {
+  corners: Record<string, unknown>;
+  cut: unknown;
+  feather: unknown;
+  edge: {octaves: Record<string, unknown>[], [key: string]: unknown};
+  sand: Record<string, unknown>;
+  tiles: Record<string, unknown>[];
+  [key: string]: unknown;
+}
+
+// The committed manifest's canopy or water section, its tile i moved to the rectangle place gives it
+export function committedSurface<S extends "canopy" | "water">(
+  surface: S, place: (i: number) => RectJson): {canopy: CanopyJson, water: WaterJson}[S] {
+  const json = structuredClone(
+    repositoryJson<{canopy: CanopyJson, water: WaterJson}>("images/render/manifest.json")[surface]);
   json.tiles = json.tiles.map((_, i) => ({...place(i)}));
   return json;
+}
+
+// The plainest water section, for the plainest grass: the one tile, the rectangle given, in the grass's atlas and of its
+// tile's size, cut halfway up the water's surface and feathered over a twentieth of it, its shore unwobbled, and its sand
+// a tenth of the surface under the cut, of the colour given, none of the grass's light and dark in it
+export function plainWater(rect: RectJson, sand: [number, number, number] = [0, 0, 0]): WaterJson {
+  return {corners: {seed: 0}, cut: 0.5, feather: 0.05,
+          edge: {octaves: [{cell: 1, seed: 0x5001, weight: 0, turn: [1, 0]}]},
+          sand: {band: 0.1, mean: sand, contrast: 0},
+          tiles: [{...rect}]};
 }
 
 // The plainest grass section: one colour, so each set is the one tile, the rectangle given, of the mean colour given,
@@ -82,9 +106,11 @@ export function plainGrass(rect: RectJson, mean: [number, number, number] = [0, 
 
 // The plainest canopy section, for the plainest grass: the one tile, the rectangle given, in the grass's atlas and of
 // its tile's size, cut halfway up the woods' surface and feathered over a tenth of it, its edge wobbled by noise of the
-// weight given, none by default
-export function plainCanopy(rect: RectJson, wobble = 0): CanopyJson {
+// weight given, none by default, and its shadow, half a tile right and down, so each point of a tile's corner is shaded
+// from the middle of the tile up and left of the corner, as dark as given, none by default
+export function plainCanopy(rect: RectJson, wobble = 0, shadow = 0): CanopyJson {
   return {corners: {seed: 0}, cut: 0.5, feather: 0.1,
           edge: {octaves: [{cell: 0.9, seed: 0x6001, weight: wobble, turn: [0.819648, 0.572867]}]},
+          shadow: {offset: 0.5, darkness: shadow, feather: 0.1},
           tiles: [{...rect}]};
 }

@@ -14,9 +14,10 @@
 
 // The world grass the map draws under bare land (docs/render-assets.md): which of a grass set's corner tiles a map tile
 // draws, from an integer hash of its corners' positions, and the share of straw and the tint at each position, from
-// noise, and the wobble of the canopy's edge where the woods meet the grass, baked once into a field the renderer
-// samples. The art build computes the same in art/tools/grass.py, with the same arithmetic, + - * / and floor, so both give the same numbers to the last bit; conformance/grass.json holds them
-// to it. Only map positions go in, never a city's seed, so every city's grass lies the same.
+// noise, and the wobble of the canopy's edge where the woods meet the grass and of the shore where the water does,
+// baked once into a field the renderer samples. The art build computes the same in art/tools/grass.py, with the same
+// arithmetic, + - * / and floor, so both give the same numbers to the last bit; conformance/grass.json holds them to
+// it. Only map positions go in, never a city's seed, so every city's grass lies the same.
 
 // The map's size in tiles, which the baked field covers: every city's map is this size, the rules' (test/vocabulary.ts
 // holds it to conformance/ruleConstants.json)
@@ -50,9 +51,10 @@ export interface GrassConstants {
   texelsPerTile: number;
 }
 
-// The wobble of the canopy's edge, as the manifest's canopy section gives it: gradient noise over the octaves, on the
-// grass mask's gradients, in the units of the surface the edge cuts, baked into the grass's field from -1 to 1
-export interface CanopyEdge {
+// The wobble of an edge the map draws from where its woods or water lie, the canopy's or the shore's, as the
+// manifest's canopy and water sections give it: gradient noise over the octaves, on the grass mask's gradients, in the
+// units of the surface the edge cuts, baked into the grass's field from -1 to 1
+export interface EdgeNoise {
   octaves: readonly TurnedOctave[];
 }
 
@@ -173,8 +175,8 @@ function shareOn(x: number, y: number, mask: GrassConstants["mask"], lattices: r
   return e * e * e * (e * (e * 6 - 15) + 10);
 }
 
-// The canopy's wobble at (x, y), from the edge's octaves on their lattices, on the mask's gradients
-function edgeOn(x: number, y: number, edge: CanopyEdge, gradients: GrassConstants["mask"]["gradients"],
+// An edge's wobble at (x, y), from its octaves on their lattices, on the mask's gradients
+function edgeOn(x: number, y: number, edge: EdgeNoise, gradients: GrassConstants["mask"]["gradients"],
                 lattices: readonly Lattice[]): number {
   let sum = 0;
   for (let i = 0; i < edge.octaves.length; i++) {
@@ -183,7 +185,7 @@ function edgeOn(x: number, y: number, edge: CanopyEdge, gradients: GrassConstant
   return sum;
 }
 
-// The canopy's wobble as the field bakes it, from 0 to 1 for -1 to 1, held there
+// An edge's wobble as the field bakes it, from 0 to 1 for -1 to 1, held there
 function edgeByte(wobble: number): number {
   return Math.floor((Math.min(Math.max(wobble, -1), 1) + 1) / 2 * 255 + 0.5);
 }
@@ -207,40 +209,33 @@ export function grassTint(x: number, y: number, constants: Pick<GrassConstants, 
   return tintOn(x, y, constants.tint, constants.tint.octaves.map((octave) => lattice(octave, x, y, x, y)));
 }
 
-// The canopy's wobble at (x, y), in tiles, unbaked, on the grass mask's gradients
-export function edgeWobble(x: number, y: number, edge: CanopyEdge, constants: Pick<GrassConstants, "mask">): number {
+// An edge's wobble at (x, y), in tiles, unbaked, on the grass mask's gradients
+export function edgeWobble(x: number, y: number, edge: EdgeNoise, constants: Pick<GrassConstants, "mask">): number {
   return edgeOn(x, y, edge, constants.mask.gradients, edge.octaves.map((octave) => lattice(octave, x, y, x, y)));
 }
 
-// The bytes a texel of the baked field: the share of straw, the tint and the canopy's wobble
-export const FIELD_BYTES = 3;
+// The bytes a texel of the baked field: the share of straw, the tint, the canopy's wobble and the shore's
+export const FIELD_BYTES = 4;
 
 // The baked field as the RGBA pixels of the texture the renderer samples: the share of straw in red, the tint in green,
-// the canopy's wobble in blue and alpha opaque, which the ground shader reads back as its .r, .g and .b
+// the canopy's wobble in blue and the shore's in alpha, which the shaders read back as its .r, .g, .b and .a
 export function grassFieldPixels(field: Uint8Array): Uint8ClampedArray<ArrayBuffer> {
-  const texels = field.length / FIELD_BYTES;
-  const pixels = new Uint8ClampedArray(texels * 4);
-  for (let texel = 0; texel < texels; texel++) {
-    pixels[texel * 4] = field[texel * FIELD_BYTES];
-    pixels[texel * 4 + 1] = field[texel * FIELD_BYTES + 1];
-    pixels[texel * 4 + 2] = field[texel * FIELD_BYTES + 2];
-    pixels[texel * 4 + 3] = 255;
-  }
-  return pixels;
+  return new Uint8ClampedArray(field);
 }
 
-// The field of straw share, tint and the canopy's wobble over a map width by height tiles, texelsPerTile texels a tile,
-// each its texel centre's, as bytes rounded half up: row by row, FIELD_BYTES a texel, the share, the tint, then the
-// wobble, held from -1 to 1, as 0 to 255. Each lattice point over the map is hashed once, not once for each texel it
-// reaches.
-export function bakeGrassField(constants: GrassConstants, edge: CanopyEdge, width: number,
+// The field of straw share, tint and the canopy's and the shore's wobble over a map width by height tiles,
+// texelsPerTile texels a tile, each its texel centre's, as bytes rounded half up: row by row, FIELD_BYTES a texel, the
+// share, the tint, then each wobble, held from -1 to 1, as 0 to 255. Each lattice point over the map is hashed once,
+// not once for each texel it reaches.
+export function bakeGrassField(constants: GrassConstants, canopy: EdgeNoise, shore: EdgeNoise, width: number,
                                height: number): Uint8Array {
   const k = constants.texelsPerTile;
   const columns = width * k;
   const rows = height * k;
   const shares = constants.mask.octaves.map((octave) => lattice(octave, 0, 0, width, height));
   const tints = constants.tint.octaves.map((octave) => lattice(octave, 0, 0, width, height));
-  const edges = edge.octaves.map((octave) => lattice(octave, 0, 0, width, height));
+  const canopyEdges = canopy.octaves.map((octave) => lattice(octave, 0, 0, width, height));
+  const shoreEdges = shore.octaves.map((octave) => lattice(octave, 0, 0, width, height));
   const field = new Uint8Array(columns * rows * FIELD_BYTES);
   for (let row = 0; row < rows; row++) {
     const y = (row + 0.5) / k;
@@ -249,7 +244,8 @@ export function bakeGrassField(constants: GrassConstants, edge: CanopyEdge, widt
       const at = (row * columns + column) * FIELD_BYTES;
       field[at] = Math.floor(shareOn(x, y, constants.mask, shares) * 255 + 0.5);
       field[at + 1] = Math.floor(tintOn(x, y, constants.tint, tints) * 255 + 0.5);
-      field[at + 2] = edgeByte(edgeOn(x, y, edge, constants.mask.gradients, edges));
+      field[at + 2] = edgeByte(edgeOn(x, y, canopy, constants.mask.gradients, canopyEdges));
+      field[at + 3] = edgeByte(edgeOn(x, y, shore, constants.mask.gradients, shoreEdges));
     }
   }
   return field;

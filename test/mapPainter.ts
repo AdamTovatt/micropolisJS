@@ -20,9 +20,10 @@ import type { QuadList } from "../src/mapFrame";
 import { MapPainter } from "../src/mapPainter";
 import type { Rect } from "../src/rect";
 import { RenderArt, parseRenderManifest } from "../src/renderManifest";
+import { SURFACE_REACH } from "../src/surfaces";
 import { ANIMBIT, ZONEBIT } from "../src/tileFlags";
 import { FIRE, LIGHTNINGBOLT } from "../src/tileValues";
-import { plainCanopy, plainGrass } from "./helpers/grassArt";
+import { plainCanopy, plainGrass, plainWater } from "./helpers/grassArt";
 
 // Tile 5 casts a shadow reaching a tile left and a tile down, so the farthest shadow reaches one tile
 const ZONE = 5;
@@ -39,6 +40,7 @@ const art = new RenderArt(parseRenderManifest({
     cars: {},
     grass: plainGrass({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     canopy: plainCanopy({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
+    water: plainWater({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
 }));
 
 const MAP_WIDTH = 40;
@@ -139,7 +141,8 @@ describe("a painter of the map", () => {
 
         expect(painter.paint(VIEW, noTint, [], [])).toBe(true);
 
-        expect(margin).toBe(1);
+        // The surfaces' reach, which this art's shadows reach no further than, so the read is wider than the view
+        expect(margin).toBe(SURFACE_REACH);
         expect(reads.mock.calls.map((call) => call.slice(0, 4))).toEqual([[
             VIEW.origin.x - margin, VIEW.origin.y - margin, VIEW.across + 2 * margin, VIEW.down + 2 * margin,
         ]]);

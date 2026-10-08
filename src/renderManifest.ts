@@ -12,15 +12,16 @@
  *
  */
 
-import { CANOPY_REACH } from "./canopy";
+import { SURFACE_REACH } from "./surfaces";
 import { CAR_COLOURS } from "./cars";
 import { GRASS_MAP, grassTile } from "./grass";
-import type { CanopyEdge, GrassConstants, NoiseOctave, TurnedOctave } from "./grass";
+import type { EdgeNoise, GrassConstants, NoiseOctave, TurnedOctave } from "./grass";
 import { CAR_DIRECTIONS } from "./routeTiles";
 import type { CarDirection } from "./routeTiles";
 import type { Rect } from "./rect";
 import { tileImageOrigin } from "./tileSet";
 import { TILE_COUNT } from "./tileValues";
+import { plainRoad } from "./trafficTiles";
 
 // The art the map is drawn with: which rectangle of which atlas each tile id draws in each layer, and each sprite type
 // and frame. docs/render-assets.md specifies the manifest's file, which the rendered art comes in; a tile id or sprite
@@ -54,6 +55,9 @@ export interface TileArt {
   // How much of the ground lets the world grass through: all of it, so only the grass is drawn, part of it, or none,
   // null, so only the ground is
   grass: GrassThrough | null;
+  // Whether the map draws the tile as water, from where the map's water lies: the water and its shores, and what
+  // stands over water, such as a bridge
+  water: boolean;
 }
 
 export type GrassThrough = "all" | "part";
@@ -78,18 +82,49 @@ export interface GrassArt {
 // The canopy, which the map draws over the world grass from where its woods lie, not from each tile's art: a set of
 // corner tiles, by the number grassTile gives each with the canopy's own seed, in the grass's atlas and of its tiles'
 // size; where its edge falls on the surface its woods make, cut, and how far across that surface it fades into the
-// grass, feather; and the wobble of that edge, which the client bakes into the grass's field (docs/render-assets.md)
+// grass, feather; the wobble of that edge, which the client bakes into the grass's field; and the shadow it casts
+// (docs/render-assets.md)
 export interface CanopyArt {
   corners: {seed: number};
   cut: number;
   feather: number;
-  edge: CanopyEdge;
+  edge: EdgeNoise;
+  shadow: CanopyShadow;
   tiles: readonly AtlasRect[];
+}
+
+// The canopy's shadow: how far it falls from the canopy, right and down, away from the sun, in tiles, under one; how
+// dark it is where the canopy casts it whole, from 0 to 1; and over how much of the surface the woods make it fades
+export interface CanopyShadow {
+  offset: number;
+  darkness: number;
+  feather: number;
+}
+
+// The water, which the map draws over the world grass from where its water lies, not from each tile's art: a set of
+// corner tiles, by the number grassTile gives each with the water's own seed, in the grass's atlas and of its tiles'
+// size; where the shore falls on the surface the water makes, cut, and over how much of that surface it fades into the
+// sand, feather; the wobble of the shore, which the client bakes into the grass's field; and the sand along it: how far
+// under the cut on that surface it reaches, its mean colour, red, green and blue from 0 to 255, and how much of the
+// straw's light and dark it keeps, from 0 to 1 (docs/render-assets.md)
+export interface WaterArt {
+  corners: {seed: number};
+  cut: number;
+  feather: number;
+  edge: EdgeNoise;
+  sand: Sand;
+  tiles: readonly AtlasRect[];
+}
+
+export interface Sand {
+  band: number;
+  mean: readonly [number, number, number];
+  contrast: number;
 }
 
 // A manifest: each atlas's image, by name, a path relative to the manifest's own, and the art of each tile id, of each
 // sprite, by type and frame, as spriteKey names it, and of each car, by colour and direction, as carKey names it, the
-// world grass and the canopy
+// world grass, the canopy and the water
 export interface RenderManifest {
   atlases: ReadonlyMap<string, string>;
   tiles: ReadonlyMap<number, TileArt>;
@@ -97,12 +132,14 @@ export interface RenderManifest {
   cars: ReadonlyMap<string, AtlasRect>;
   grass: GrassArt;
   canopy: CanopyArt;
+  water: WaterArt;
 }
 
-// What the renderer draws the world grass with, the same at every zoom: the atlas of its sets and the canopy's, and the
-// baked field, by name, each set's mean colour and the tint's constants, colours from 0 to 1, the map's size in tiles,
-// which the field covers, and the canopy's cut and feather
-export interface GrassDraw {
+// What the renderer draws the surfaces over the map with, the world grass, the canopy and the water, the same at every
+// zoom: the atlas of the grass's sets, the canopy's and the water's, and the baked field, by name, each set's mean
+// colour and the tint's constants, colours from 0 to 1, the map's size in tiles, which the field covers, the canopy's
+// cut, feather and shadow, and the water's cut, feather and sand, its colour from 0 to 1
+export interface SurfaceDraw {
   atlas: string;
   field: string;
   lushMean: readonly [number, number, number];
@@ -113,6 +150,10 @@ export interface GrassDraw {
   fieldTiles: {width: number, height: number};
   canopyCut: number;
   canopyFeather: number;
+  canopyShadow: CanopyShadow;
+  waterCut: number;
+  waterFeather: number;
+  sand: Sand;
 }
 
 // The key of a car's art in a manifest's cars, from its colour's name and the way it faces
@@ -126,9 +167,9 @@ const RESERVED_ATLAS_PREFIX = "fallback:";
 export const FALLBACK_TILES = `${RESERVED_ATLAS_PREFIX}tiles`;
 export const FALLBACK_SPRITES = `${RESERVED_ATLAS_PREFIX}sprites`;
 export const WHITE = `${RESERVED_ATLAS_PREFIX}white`;
-// The world grass's field of straw share, tint and the canopy's wobble, which the client bakes from the manifest's
-// grass and canopy sections
-export const GRASS_FIELD = `${RESERVED_ATLAS_PREFIX}grass-field`;
+// The field of the surfaces over the map, the world grass's straw share and tint and the canopy's and the shore's
+// wobble, which the client bakes from the manifest's grass, canopy and water sections
+export const SURFACE_FIELD = `${RESERVED_ATLAS_PREFIX}surface-field`;
 
 const FALLBACK_TILE_PIXELS = 16;
 
@@ -177,6 +218,7 @@ export function fallbackManifest(): Pick<RenderManifest, "tiles" | "sprites" | "
       shadow: null,
       objects: null,
       grass: null,
+      water: false,
     });
   }
 
@@ -284,6 +326,26 @@ function positiveNumber(value: unknown, where: string): number {
   const number = finiteNumber(value, where);
   if (number <= 0) {
     fail(where, "is not more than 0");
+  }
+
+  return number;
+}
+
+// A number from 0 to 1, both included
+function fraction(value: unknown, where: string): number {
+  const number = finiteNumber(value, where);
+  if (number < 0 || number > 1) {
+    fail(where, "is not from 0 to 1");
+  }
+
+  return number;
+}
+
+// A number from 0 to below 1
+function belowOne(value: unknown, where: string): number {
+  const number = finiteNumber(value, where);
+  if (number < 0 || number >= 1) {
+    fail(where, "is not from 0 to below 1");
   }
 
   return number;
@@ -399,37 +461,71 @@ function grassArt(value: unknown, atlases: ReadonlyMap<string, string>): GrassAr
   return {constants, atlas, texels, lush, straw};
 }
 
-// The canopy section: its seed, cut, feather and edge, and its tiles, as many as a grass set's, in the grass's atlas and
-// of its tiles' size, so the ground pass samples them as it samples the grass
+// The canopy section: its seed, cut, feather, edge and shadow, its shadow falling less than a tile, so a tile's is cast
+// from the canopy of the tiles up and left of it alone (around in surfaces.ts), and its tiles, as many as a grass set's,
+// in the grass's atlas and of its tiles' size, so the ground pass samples them as it samples the grass
 function canopyArt(value: unknown, atlases: ReadonlyMap<string, string>, grass: GrassArt): CanopyArt {
-  const json = object(value, "canopy", ["corners", "cut", "feather", "edge", "tiles"]);
+  const json = object(value, "canopy", ["corners", "cut", "feather", "edge", "shadow", "tiles"]);
   const corners = object(json.corners, "canopy.corners", ["seed"]);
-  const edge = object(json.edge, "canopy.edge", ["octaves"]);
-  const tiles = list(json.tiles, "canopy.tiles").map((rect, i) => plainRect(rect, `canopy.tiles[${i}]`, atlases));
-  if (tiles.length !== grass.lush.tiles.length) {
-    fail("canopy.tiles", `is not ${grass.lush.tiles.length} tiles, as many as a grass set's`);
-  }
-  if (tiles.some((rect) => rect.atlas !== grass.atlas)) {
-    fail("canopy.tiles", "are not all in the grass's atlas");
-  }
-  if (tiles.some((rect) => rect.width !== grass.texels || rect.height !== grass.texels)) {
-    fail("canopy.tiles", "are not all squares of the grass tiles' size");
-  }
-
+  const shadow = object(json.shadow, "canopy.shadow", ["offset", "darkness", "feather"]);
   return {
     corners: {seed: seed(corners.seed, "canopy.corners.seed")},
     cut: finiteNumber(json.cut, "canopy.cut"),
     feather: positiveNumber(json.feather, "canopy.feather"),
-    edge: {
-      octaves: list(edge.octaves, "canopy.edge.octaves").map((o, i) => octave(o, `canopy.edge.octaves[${i}]`, true)),
+    edge: edgeNoise(json.edge, "canopy.edge"),
+    shadow: {
+      offset: belowOne(shadow.offset, "canopy.shadow.offset"),
+      darkness: fraction(shadow.darkness, "canopy.shadow.darkness"),
+      feather: positiveNumber(shadow.feather, "canopy.shadow.feather"),
     },
-    tiles,
+    tiles: surfaceTiles(json.tiles, "canopy.tiles", atlases, grass),
   };
+}
+
+// The water section: its seed, cut, feather, edge and sand, and its tiles, as the canopy's
+function waterArt(value: unknown, atlases: ReadonlyMap<string, string>, grass: GrassArt): WaterArt {
+  const json = object(value, "water", ["corners", "cut", "feather", "edge", "sand", "tiles"]);
+  const corners = object(json.corners, "water.corners", ["seed"]);
+  const sand = object(json.sand, "water.sand", ["band", "mean", "contrast"]);
+  const [r, g, b] = numbers(sand.mean, "water.sand.mean", 3);
+  return {
+    corners: {seed: seed(corners.seed, "water.corners.seed")},
+    cut: finiteNumber(json.cut, "water.cut"),
+    feather: positiveNumber(json.feather, "water.feather"),
+    edge: edgeNoise(json.edge, "water.edge"),
+    sand: {band: positiveNumber(sand.band, "water.sand.band"), mean: [r, g, b],
+           contrast: fraction(sand.contrast, "water.sand.contrast")},
+    tiles: surfaceTiles(json.tiles, "water.tiles", atlases, grass),
+  };
+}
+
+// An edge's wobble: its turned octaves
+function edgeNoise(value: unknown, where: string): EdgeNoise {
+  const json = object(value, where, ["octaves"]);
+  return {octaves: list(json.octaves, `${where}.octaves`).map((o, i) => octave(o, `${where}.octaves[${i}]`, true))};
+}
+
+// The corner tiles of a surface the map draws over the grass, as many as a grass set's, in the grass's atlas and of its
+// tiles' size, so the ground pass samples them as it samples the grass
+function surfaceTiles(value: unknown, where: string, atlases: ReadonlyMap<string, string>,
+                      grass: GrassArt): AtlasRect[] {
+  const tiles = list(value, where).map((rect, i) => plainRect(rect, `${where}[${i}]`, atlases));
+  if (tiles.length !== grass.lush.tiles.length) {
+    fail(where, `is not ${grass.lush.tiles.length} tiles, as many as a grass set's`);
+  }
+  if (tiles.some((rect) => rect.atlas !== grass.atlas)) {
+    fail(where, "are not all in the grass's atlas");
+  }
+  if (tiles.some((rect) => rect.width !== grass.texels || rect.height !== grass.texels)) {
+    fail(where, "are not all squares of the grass tiles' size");
+  }
+  return tiles;
 }
 
 // The manifest a manifest file's JSON holds, or an error naming what is wrong with it
 export function parseRenderManifest(value: unknown): RenderManifest {
-  const json = object(value, "the manifest", ["version", "atlases", "tiles", "sprites", "cars", "grass", "canopy"]);
+  const json = object(value, "the manifest",
+                      ["version", "atlases", "tiles", "sprites", "cars", "grass", "canopy", "water"]);
   if (json.version !== 1) {
     fail("version", "is not 1");
   }
@@ -451,12 +547,16 @@ export function parseRenderManifest(value: unknown): RenderManifest {
   for (const [key, entry] of Object.entries(tileJson)) {
     const where = `tiles.${key}`;
     const id = numberKey(key, where, 0, TILE_COUNT);
-    const layers = object(entry, where, ["ground"], ["shadow", "objects", "grass"]);
+    const layers = object(entry, where, ["ground"], ["shadow", "objects", "grass", "water"]);
+    if ("water" in layers && layers.water !== true) {
+      fail(`${where}.water`, "is not true");
+    }
     tiles.set(id, {
       ground: plainRect(layers.ground, `${where}.ground`, atlases),
       shadow: "shadow" in layers ? shadowRect(layers.shadow, `${where}.shadow`, atlases) : null,
       objects: "objects" in layers ? plainRect(layers.objects, `${where}.objects`, atlases) : null,
       grass: "grass" in layers ? grassThrough(layers.grass, `${where}.grass`) : null,
+      water: "water" in layers,
     });
   }
 
@@ -483,7 +583,8 @@ export function parseRenderManifest(value: unknown): RenderManifest {
   }
 
   const grass = grassArt(json.grass, atlases);
-  return {atlases, tiles, sprites, cars, grass, canopy: canopyArt(json.canopy, atlases, grass)};
+  return {atlases, tiles, sprites, cars, grass, canopy: canopyArt(json.canopy, atlases, grass),
+          water: waterArt(json.water, atlases, grass)};
 }
 
 // Fails naming each rectangle that runs past its atlas, given each atlas's size in pixels
@@ -511,6 +612,7 @@ export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases">,
   manifest.grass.lush.tiles.forEach((rect, i) => check(rect, `lush grass ${i}`));
   manifest.grass.straw.tiles.forEach((rect, i) => check(rect, `straw grass ${i}`));
   manifest.canopy.tiles.forEach((rect, i) => check(rect, `canopy ${i}`));
+  manifest.water.tiles.forEach((rect, i) => check(rect, `water ${i}`));
 
   if (outside.length > 0) {
     throw new Error(`Render manifest: rectangles run past their atlas: ${outside.join(", ")}`);
@@ -535,28 +637,39 @@ export function checkAtlasSizes(sizes: ReadonlyMap<string, {width: number, heigh
 // out
 export class RenderArt {
   // The farthest a tile's look reaches past it, on any side: the farthest any shadow reaches past its anchor, and at
-  // least the one tile the canopy reaches, which each tile draws from its neighbours' woods. The tiles around the view
-  // whose shadows may show in it, and those a changed tile may change the look of.
+  // least the tiles whose woods and water each tile draws its canopy, the canopy's shadow and its water from,
+  // SURFACE_REACH. The tiles around the view whose shadows may show in it, and those a changed tile may change the look
+  // of.
   readonly reach: number;
 
   private readonly fallback = fallbackManifest();
 
-  // The world grass, and what the renderer draws it and the canopy with
+  // The world grass, and what the renderer draws it, the canopy and the water with
   readonly grass: GrassArt;
-  readonly grassDraw: GrassDraw;
+  readonly surfaceDraw: SurfaceDraw;
 
-  // What picks the canopy's tile at a map position: the grass's colours, by the canopy's own seed
+  // What picks the canopy's and the water's tile at a map position: the grass's colours, by each one's own seed
   private readonly canopyCorners: Pick<GrassConstants, "colours" | "corners">;
+  private readonly waterCorners: Pick<GrassConstants, "colours" | "corners">;
+  // 1 for each tile id the map draws as water, by id
+  private readonly waterIds = new Uint8Array(TILE_COUNT);
 
   constructor(private readonly rendered: RenderManifest) {
     this.grass = rendered.grass;
     this.canopyCorners = {colours: rendered.grass.constants.colours, corners: rendered.canopy.corners};
+    this.waterCorners = {colours: rendered.grass.constants.colours, corners: rendered.water.corners};
     const unit = ([r, g, b]: readonly [number, number, number]) => [r / 255, g / 255, b / 255] as const;
     const {brightness, warmth, warm} = rendered.grass.constants.tint;
-    this.grassDraw = {atlas: rendered.grass.atlas, field: GRASS_FIELD, lushMean: unit(rendered.grass.lush.mean),
+    const {sand} = rendered.water;
+    this.surfaceDraw = {atlas: rendered.grass.atlas, field: SURFACE_FIELD, lushMean: unit(rendered.grass.lush.mean),
                       strawMean: unit(rendered.grass.straw.mean), warm, brightness, warmth, fieldTiles: GRASS_MAP,
-                      canopyCut: rendered.canopy.cut, canopyFeather: rendered.canopy.feather};
-    let reach = CANOPY_REACH;
+                      canopyCut: rendered.canopy.cut, canopyFeather: rendered.canopy.feather,
+                      canopyShadow: rendered.canopy.shadow, waterCut: rendered.water.cut,
+                      waterFeather: rendered.water.feather, sand: {...sand, mean: unit(sand.mean)}};
+    for (let id = 0; id < TILE_COUNT; id++) {
+      this.waterIds[id] = this.tile(plainRoad(id)).water ? 1 : 0;
+    }
+    let reach = SURFACE_REACH;
     rendered.tiles.forEach((art) => {
       if (art.shadow !== null) {
         const {left, top, right, bottom} = art.shadow.reach;
@@ -574,6 +687,15 @@ export class RenderArt {
   // The canopy's tile at the map position (x, y)
   canopyTile(x: number, y: number): AtlasRect {
     return this.rendered.canopy.tiles[grassTile(x, y, this.canopyCorners)];
+  }
+
+  // Whether the map draws a tile id as water, from where the map's water lies, a traffic tile as the plain road it
+  // runs on
+  readonly isWater = (id: number): boolean => this.waterIds[id] === 1;
+
+  // The water's tile at the map position (x, y)
+  waterTile(x: number, y: number): AtlasRect {
+    return this.rendered.water.tiles[grassTile(x, y, this.waterCorners)];
   }
 
   // The art of a sprite's type and frame, or null for one no sheet draws

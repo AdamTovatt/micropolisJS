@@ -18,12 +18,13 @@ A design is an asset rendered into art/blender/out and painted into art/painted/
 out alike: a single tile set's tiles in <set>/<id>, the tile id in four digits; a zone in <zone>, its
 animated tiles' frames in <zone>/frame-<n>; a vehicle's frames in <vehicle>/<frame>, two digits.
 Tile ids are numbered as src/tileValues.ts numbers them. Every tile id the art fills is written in
-this file and nowhere else in art/tools/. Needs Pillow.
+this file and nowhere else in art/tools/. Needs Pillow and NumPy.
 """
 
 import json
 import os
 
+import numpy as np
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -47,6 +48,9 @@ ORIGINAL_SPRITES = os.path.join(ART, 'sheets', 'sprites-original.png')
 # Single tiles the tools name, as src/tileValues.ts names them
 DIRT = 0
 RIVER = 2
+WATER_LOW, WATER_HIGH = RIVER, 20          # the water and its shores, which the game draws over the world grass from
+                                           # where they lie on the map; their painted tiles feed the join and the 16 px
+                                           # sheet alone (grass.py)
 WOODS_LOW, WOODS_HIGH = 21, 39             # the woods, which the game draws as the canopy over the world grass, from
                                            # where they lie on the map, not as single tiles (grass.py)
 HBRIDGE, VBRIDGE, ROADS, ROADS2 = 64, 65, 66, 67
@@ -251,6 +255,9 @@ LAYERS = ('ground', 'shadow', 'objects')
 BUILT_LAYERS = ('ground', 'objects')       # the layers of a single tile the paint build keeps and the join writes
 LAND_MASK = 'ground-land.png'              # beside a joined single tile's layers: white where the bare land's painting
                                            # gave its ground, which the game draws as the world grass (grass.py)
+WATER_MASK = 'ground-water.png'            # and white where the open water's painting gave it, which the game draws
+                                           # as its water on a tile that is water at least half over
+WATER_SHARE = 0.5                          # the share of a tile's ground its water mask covers that makes it water
 NO_MARGIN = {'left': 0, 'top': 0, 'right': 0, 'bottom': 0}
 
 
@@ -275,19 +282,42 @@ class Asset:
             raise FileNotFoundError(f'{directory} has no {" or ".join(f"{k}.png" for k in missing)}')
         if vehicle:
             self.layers['ground'] = Image.new('RGBA', (self.size, self.size))
-        # where the bare land's painting gave a joined single tile's ground, as the join wrote it, or None
-        land = os.path.join(directory, LAND_MASK)
-        self.land = Image.open(land).convert('L') if os.path.exists(land) else None
+        # where the bare land's painting and the open water's gave a joined single tile's ground, as the join wrote
+        # them, or None for an asset the join never touched; the join writes both, so one without the other is a
+        # mask lost, which would quietly draw the tile as land
+        masks = {mask: os.path.join(directory, mask) for mask in (LAND_MASK, WATER_MASK)}
+        found = [mask for mask, path in masks.items() if os.path.exists(path)]
+        if len(found) == 1:
+            raise FileNotFoundError(f'{directory} has {found[0]} but no {(set(masks) - set(found)).pop()}')
+        self.land, self.water = (Image.open(masks[mask]).convert('L') if found else None
+                                 for mask in (LAND_MASK, WATER_MASK))
+
+    def is_water(self):
+        # whether the game draws the asset, a joined single tile, as water, from where the map's water lies: its ground
+        # the open water's painting at least WATER_SHARE over
+        return self.water is not None and (np.asarray(self.water) > 0).mean() >= WATER_SHARE
 
     def tile(self, layer, column, row):
         x, y = column * self.tile_px, row * self.tile_px
         return self.layers[layer].crop((x, y, x + self.tile_px, y + self.tile_px))
 
     def ground_over_grass(self):
-        # the ground as the game draws it over the world grass: transparent where the bare land's painting gave it
+        # the ground as the game draws it over the world grass: transparent where the bare land's painting gave it,
+        # and on a tile it draws as water, where the open water's did
+        return self._cleared([self.land, self.water if self.is_water() else None])
+
+    def ground_over_sheet_grass(self):
+        # the ground as the 16 px sheet draws it over its square of the grass: transparent only where the bare land's
+        # painting gave it, since the sheet draws no water of its own, so its painted water stays
+        return self._cleared([self.land])
+
+    def _cleared(self, masks):
+        # the ground, transparent wherever one of the masks given, those not None, is set
         ground = self.layers['ground'].copy()
-        if self.land is not None:
-            ground.putalpha(Image.eval(self.land, lambda v: 255 - v))
+        masks = [m for m in masks if m is not None]
+        if masks:
+            clear = np.logical_or.reduce([np.asarray(m) > 0 for m in masks])
+            ground.putalpha(Image.fromarray(np.where(clear, 0, 255).astype(np.uint8), 'L'))
         return ground
 
     def composite(self, ground=None):

@@ -22,7 +22,7 @@ import type { Rect } from "../src/rect";
 import { RenderArt, parseRenderManifest } from "../src/renderManifest";
 import { DIRT, RIVER, TILE_INVALID } from "../src/tileValues";
 import { FakeOverlaySource } from "./helpers/fakeOverlaySource";
-import { plainCanopy, plainGrass } from "./helpers/grassArt";
+import { plainCanopy, plainGrass, plainWater } from "./helpers/grassArt";
 
 // The legend names the layer whose tint the map shows. The game canvas draws no frame while the GPU is still drawing
 // the one before, so a new overlay shows some frames after it is set: until then, the legend stays on the layer the
@@ -157,6 +157,7 @@ describe("the overlay's legend", () => {
             version: 1, atlases: {grass: "grass.png"}, tiles: {}, sprites: {}, cars: {},
             grass: plainGrass({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
             canopy: plainCanopy({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
+            water: plainWater({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
         }));
         canvas = new GameCanvas(CONTAINER, map, {art, atlases: new Map()});
         renderer = mockRenderers[mockRenderers.length - 1];

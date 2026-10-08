@@ -11,14 +11,17 @@
 # city simulation game and its source code (the project or "licensee(s)") as a courtesy of the owner.
 #
 
-"""The world grass the game draws under bare land (docs/render-assets.md): two sets of corner Wang tiles cut from the
-paintings in art/painted/raw/grass, and the hash and noise that pick a tile and mix the sets by map position.
+"""The world grass the game draws under bare land, and the surfaces it draws over the grass from the map, the canopy and
+the water (docs/render-assets.md): two sets of corner Wang tiles cut from the paintings in art/painted/raw/grass, a set
+for each surface cut from its own painting, and the hash and noise that pick a tile, mix the grass's sets and wobble
+the surfaces' edges by map position. The grass is the base the others are drawn over and share their machinery with,
+which is why one module holds them all.
 
     python art/tools/grass.py --vectors
 
 writes conformance/grass.json, the vectors the client's hash and noise are held to. The atlas build (atlas.py) builds
-the sets and writes them, with CONSTANTS, into the manifest's grass section, and the canopy's set, with CANOPY, into its
-canopy section.
+the sets and writes them, with CONSTANTS, into the manifest's grass section, the canopy's set, with CANOPY, into its
+canopy section, and the water's, with WATER, into its water section.
 
 A set is colours ** 4 tiles. Each corner of the map's tile lattice takes a colour from an integer hash of its position,
 and a map tile draws the tile of its four corners' colours: edges always meet, since only an edge's two corners reach
@@ -100,7 +103,9 @@ CANOPY_SET = {'painting': os.path.join(RAW, 'woods', 'canopy.png'), 'tiles': 8, 
 # What the client draws the canopy with, written into the manifest's canopy section as they are: its corners' seed;
 # where its edge falls on the surface the woods make, from 0 off the woods to 1 within them, and over how much of that
 # surface it fades into the grass; and the wobble of its edge, two octaves of gradient noise on the grass mask's
-# gradients, summed by weight, in the units of that surface, baked into the grass's field from -1 to 1
+# gradients, summed by weight, in the units of that surface, baked into the grass's field from -1 to 1; and the shadow
+# it casts right and down, away from the sun the renders are lit by, as the zones' shadows fall: how far, in tiles,
+# how dark where the canopy casts it whole, and over how much of the surface it fades
 CANOPY = {
     'corners': {'seed': 0x4001},
     'cut': 0.5,
@@ -109,6 +114,27 @@ CANOPY = {
         'octaves': [{'cell': 0.9, 'seed': 0x6001, 'weight': 1.2, 'turn': [0.819648, 0.572867]},
                     {'cell': 0.35, 'seed': 0x6002, 'weight': 0.8, 'turn': [0.572867, 0.819648]}],
     },
+    'shadow': {'offset': 0.3, 'darkness': 0.5, 'feather': 0.35},
+}
+# The water, which the game draws over the grass from where the map's water lies: a set built as the grass's are, from
+# the painting in art/painted/raw/water, its ripples running one way, so turned only half round, and its broad light
+# and dark taken out, so open water reads as one surface
+WATER_SET = {'painting': os.path.join(RAW, 'water', 'water.png'), 'tiles': 8, 'mean': (54, 107, 143),
+             'turns': 'half', 'flatten': True, 'seed': 7}
+# What the client draws the water with, written into the manifest's water section as they are: its corners' seed;
+# where the shore falls on the surface the water makes, from 0 off the water to 1 within it, and over how much of that
+# surface it fades into the sand; the wobble of the shore, as the canopy's edge's, small enough that the shore keeps
+# close to the tiles' edges, so land still reads as land and water as water; and the sand along the shore: how far
+# under the cut on that surface it reaches, its colour, and how much of the straw's light and dark it keeps
+WATER = {
+    'corners': {'seed': 0x3001},
+    'cut': 0.5,
+    'feather': 0.04,
+    'edge': {
+        'octaves': [{'cell': 1.1, 'seed': 0x5001, 'weight': 0.22, 'turn': [0.819648, 0.572867]},
+                    {'cell': 0.45, 'seed': 0x5002, 'weight': 0.12, 'turn': [0.572867, 0.819648]}],
+    },
+    'sand': {'band': 0.2, 'mean': [190, 164, 116], 'contrast': 0.8},
 }
 BAND = 14                      # pixels in from a tile's edge over which its centre patch takes over from its corners
 
@@ -197,21 +223,24 @@ def tint(x, y, constants=CONSTANTS):
     return octaves(value_noise, x, y, constants['tint'])
 
 
-def edge(x, y, constants=CONSTANTS, canopy=CANOPY):
-    # the wobble of the canopy's edge at map positions, in tiles
-    return octaves(gradient_noise, x, y, canopy['edge'], constants['mask']['gradients'])
+def edge(x, y, constants=CONSTANTS, surface=CANOPY):
+    # the wobble of the edge of a surface the map draws, the canopy's or the water's, at map positions, in tiles
+    return octaves(gradient_noise, x, y, surface['edge'], constants['mask']['gradients'])
 
 
-def field(constants=CONSTANTS, canopy=CANOPY, width=MAP_WIDTH, height=MAP_HEIGHT):
-    # The baked field the client samples: texelsPerTile texels a tile, each the straw share, the tint and the canopy's
-    # wobble at its centre, the wobble from -1 to 1 as 0 to 1 and held there, as bytes rounded half up, an array of rows
-    # of (share, tint, wobble)
+def field(constants=CONSTANTS, canopy=CANOPY, water=WATER, width=MAP_WIDTH, height=MAP_HEIGHT):
+    # The baked field the client samples: texelsPerTile texels a tile, each the straw share, the tint, the canopy's
+    # wobble and the shore's at its centre, each wobble from -1 to 1 as 0 to 1 and held there, as bytes rounded half up,
+    # an array of rows of (share, tint, canopy's wobble, shore's)
     k = constants['texelsPerTile']
     ys, xs = np.mgrid[0:height * k, 0:width * k].astype(np.float64)
     x, y = (xs + 0.5) / k, (ys + 0.5) / k
+
+    def wobble(surface):
+        return np.floor((np.clip(edge(x, y, constants, surface), -1.0, 1.0) + 1.0) / 2.0 * 255.0 + 0.5)
     return np.stack([np.floor(straw_share(x, y, constants) * 255.0 + 0.5),
                      np.floor(tint(x, y, constants) * 255.0 + 0.5),
-                     np.floor((np.clip(edge(x, y, constants, canopy), -1.0, 1.0) + 1.0) / 2.0 * 255.0 + 0.5)],
+                     wobble(canopy), wobble(water)],
                     axis=-1).astype(np.uint8)
 
 
@@ -324,7 +353,7 @@ def sample(sets, means, side=4, constants=CONSTANTS):
 
 def vectors():
     # The vectors conformance/grass.json holds: the hash, the tile picked and the noise at map positions, and the
-    # SHA-256 of the baked field's bytes, row by row, share, tint and wobble
+    # SHA-256 of the baked field's bytes, row by row, share, tint and the two wobbles
     positions = [(0, 0), (1, 0), (0, 1), (7, 3), (119, 99), (120, 100), (-1, -1), (-37, 54), (65535, 2), (12345, 67890)]
     hashes = [{'x': x, 'y': y, 'seed': s, 'hash': int(lattice_hash(x, y, s))}
               for x, y in positions for s in (0, CONSTANTS['corners']['seed'])]
@@ -332,7 +361,8 @@ def vectors():
     points = [(0.0, 0.0), (0.0625, 0.0625), (3.5, 7.25), (59.9375, 49.0625), (119.9375, 99.9375), (-4.5, 2.25),
               (200.5, 300.125)]
     noise = [{'x': x, 'y': y, 'straw': float(straw_share(np.float64(x), np.float64(y))),
-              'tint': float(tint(np.float64(x), np.float64(y))), 'edge': float(edge(np.float64(x), np.float64(y)))}
+              'tint': float(tint(np.float64(x), np.float64(y))), 'edge': float(edge(np.float64(x), np.float64(y))),
+              'shore': float(edge(np.float64(x), np.float64(y), surface=WATER))}
              for x, y in points]
     baked = field()
     return {'lowbias32': [{'in': v, 'out': int(lowbias32(v))} for v in (0, 1, 0x6A11, 0xDEADBEEF, 0xFFFFFFFF)],

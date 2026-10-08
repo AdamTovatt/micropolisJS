@@ -25,11 +25,12 @@ def read(render):
 
 def rectangles(manifest):
     # every rectangle the manifest names, with what it draws: 'tile <id> <layer>',
-    # 'sprite <type> frame <frame>', 'car <colour> <way>', 'grass <set> tile <n>' or 'canopy tile <n>'
+    # 'sprite <type> frame <frame>', 'car <colour> <way>', 'grass <set> tile <n>', 'canopy tile <n>' or
+    # 'water tile <n>'
     for tile, layers in manifest['tiles'].items():
         for layer, rect in layers.items():
-            # beside its layers, a tile names how much of the world grass it lets through
-            if layer != 'grass':
+            # beside its layers, a tile names how much of the world grass it lets through and whether it is water
+            if layer not in ('grass', 'water'):
                 yield f'tile {tile} {layer}', rect
     for sprite_type, frames in manifest['sprites'].items():
         for frame, rect in frames.items():
@@ -42,3 +43,5 @@ def rectangles(manifest):
             yield f'grass {name} tile {n}', rect
     for n, rect in enumerate(manifest['canopy']['tiles']):
         yield f'canopy tile {n}', rect
+    for n, rect in enumerate(manifest['water']['tiles']):
+        yield f'water tile {n}', rect

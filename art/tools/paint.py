@@ -43,7 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from designs import (ART, BUILT, BUILT_LAYERS, DIRT, HBRIDGE, HPOWER, HRAIL, LAND_MASK, LHPOWER, LHRAIL,  # noqa: E402
                      LVPOWER, LVRAIL, PAINTED, RENDERS, RIVER, ROADS, ROADS2, SINGLE_TILES, VBRIDGE, VEHICLES,
-                     VPOWER, VRAIL, built_layers, built_tiles, is_joined, load, single_tile,
+                     VPOWER, VRAIL, WATER_MASK, built_layers, built_tiles, is_joined, load, single_tile,
                      single_tile_assets, single_tile_ids, sprite_frame, tile_asset, zone_frame, zone_frames)
 from generate import MODEL  # noqa: E402
 
@@ -121,8 +121,9 @@ DONORS = ([(single_tile(t), axes, layers) for t, axes, layers in (
           + [(single_tile(t), '', ('ground',)) for t in SINGLE_TILES['roads']['pieces']])
 WRAP_BAND = 12                 # pixels from a donor's edge over which it fades into its half-shifted copy
 FLATTEN = 2                    # pixels: the blur that finds a surface donor's broad patches (flattened())
-LAND_REACH = 12                # levels: how far a joined tile's render may be from the bare land's for its land mask to
-                               # reach on through it from where the land gave the ground (join())
+MASK_REACH = 12                # levels: how far a joined tile's render may be from the bare land's for its land mask to
+                               # reach on through it from where the land gave the ground (join()), and from the open
+                               # water's for its water mask to
 
 # what each asset is, by the start of its name, for the prompts
 SUBJECTS = [
@@ -622,11 +623,13 @@ def join(tolerance=3, built=BUILT, out=PAINTED, renders=RENDERS, donors=DONORS):
     # every tile; this makes the painted surfaces one painting in the same way, so painted tiles
     # join where their renders do. Works from the layers build() keeps in `built`, so it can run
     # again, and writes each joined tile's BUILT_LAYERS into `out`, and beside them LAND_MASK, white
-    # wherever the bare land's painting gave the ground, where the game draws its world grass instead.
-    land = single_tile(DIRT)
+    # wherever the bare land's painting gave the ground, where the game draws its world grass instead,
+    # and WATER_MASK, white wherever the open water's did, where the game draws its water instead on a
+    # tile it draws as water.
+    surfaces = {single_tile(DIRT): LAND_MASK, single_tile(RIVER): WATER_MASK}
     given = [(asset, layer, np.asarray(load(renders, asset).layers[layer]).astype(int), painted)
              for asset, layer, painted in donor_paintings(built, donors)]
-    land_render = next((blender for asset, layer, blender, _ in given if asset == land and layer == 'ground'), None)
+    renders_of = {asset: blender for asset, layer, blender, _ in given if asset in surfaces and layer == 'ground'}
     for asset in built_tiles(built):
         if not is_joined(asset):
             continue
@@ -638,7 +641,7 @@ def join(tolerance=3, built=BUILT, out=PAINTED, renders=RENDERS, donors=DONORS):
             mine = np.asarray(rendered.layers[layer]).astype(int)
             result = np.asarray(kept[layer]).copy()
             free = np.ones(mine.shape[:2], bool)
-            from_land = np.zeros(mine.shape[:2], bool)
+            from_surface = {surface: np.zeros(mine.shape[:2], bool) for surface in surfaces}
             for donor, donor_layer, blender, painted in given:
                 if donor_layer != layer:
                     continue
@@ -648,20 +651,22 @@ def join(tolerance=3, built=BUILT, out=PAINTED, renders=RENDERS, donors=DONORS):
                 take = same & free
                 result[take, :3] = painted[take, :3]
                 free &= ~take
-                if donor == land:
-                    from_land |= take
+                if donor in from_surface:
+                    from_surface[donor] |= take
             shares.append(float((~free).mean()))
             image = Image.fromarray(result, 'RGBA')
             (image.convert('RGB') if layer == 'ground' else image).save(os.path.join(out, asset, f'{layer}.png'))
             if layer == 'ground':
-                # The world grass replaces the land's painting and the tile's own where both are land: the mask
-                # reaches on from what the land gave, through pixels whose render is within LAND_REACH of the bare
-                # land's, such as a tile's outermost rows, which the render's filter darkens past the join's tolerance
-                # and would otherwise show as a line of the tile's own painting through the grass
-                if land_render is not None:
-                    near_land = np.abs(mine[..., :3] - land_render[..., :3]).max(axis=-1) <= LAND_REACH
-                    from_land = ndimage.binary_propagation(from_land, mask=near_land | from_land)
-                Image.fromarray(from_land.astype(np.uint8) * 255, 'L').save(os.path.join(out, asset, LAND_MASK))
+                # The world grass, or the water, replaces the surface's painting and the tile's own where both are
+                # that surface: each mask reaches on from what its surface gave, through pixels whose render is within
+                # MASK_REACH of the surface's, such as a tile's outermost rows, which the render's filter darkens past
+                # the join's tolerance and would otherwise show as a line of the tile's own painting through it
+                for surface, mask in surfaces.items():
+                    taken = from_surface[surface]
+                    if surface in renders_of:
+                        near = np.abs(mine[..., :3] - renders_of[surface][..., :3]).max(axis=-1) <= MASK_REACH
+                        taken = ndimage.binary_propagation(taken, mask=near | taken)
+                    Image.fromarray(taken.astype(np.uint8) * 255, 'L').save(os.path.join(out, asset, mask))
         print(f'{asset}: {shares[0]:.0%} of the ground and {shares[1]:.0%} of the objects from donors')
 
 

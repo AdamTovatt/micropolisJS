@@ -12,7 +12,7 @@
  *
  */
 
-import { FALLBACK_SPRITES, FALLBACK_TILES, GRASS_FIELD } from "../src/renderManifest";
+import { FALLBACK_SPRITES, FALLBACK_TILES, SURFACE_FIELD } from "../src/renderManifest";
 import { PREVIEW_TILE_SIZE, SplashCanvas, previewAtlases } from "../src/splashCanvas";
 import type { AtlasImage } from "../src/webglRenderer";
 import { expectPlayedThrough, playback } from "./helpers/fakeCitySource";
@@ -38,7 +38,7 @@ describe("the splash screen's map preview", () => {
             [FALLBACK_TILES, {image: image(512), filter: "crisp"}],
             [FALLBACK_SPRITES, {image: image(256), filter: "crisp"}],
             ["zones", {image: image(4096), filter: "mipmapped"}],
-            [GRASS_FIELD, {image: image(960), filter: "field"}],
+            [SURFACE_FIELD, {image: image(960), filter: "field"}],
         ]);
 
         const filtered = previewAtlases(atlases);

@@ -95,7 +95,7 @@ A tile id is the same image wherever it lies, so bare land and open water repeat
 
 An open drawbridge's water paints no ground, since a donor gives it all of it, and a job paints no objects where nothing stands and no shadow where nothing casts one (`canvas.json`'s `paint`).
 
-Preview a set among its neighbours on a small map that holds every kind of join, such as a river crossed by a road and a rail bridge, with a crossing, parks and power lines over land and water, beside the same map from the renders. The woods are no painted tiles: the game draws them as a canopy over the world grass (`docs/render-assets.md`), whose painting lives in `art/painted/raw/woods/`.
+Preview a set among its neighbours on a small map that holds every kind of join, such as a river crossed by a road and a rail bridge, with a crossing, parks and power lines over land and water, beside the same map from the renders. The woods are no painted tiles: the game draws them as a canopy over the world grass (`docs/render-assets.md`), whose painting lives in `art/painted/raw/woods/`, and the open water as water drawn from where the map's water lies, from `art/painted/raw/water/`; the join's land and water masks let both through a joined tile's ground.
 
 ## Animated tiles and vehicles
 

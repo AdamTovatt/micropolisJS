@@ -43,7 +43,7 @@ def test_tiles_that_share_an_edges_corners_agree_on_it(edge):
     assert np.allclose(weights[kept[0]] + weights[kept[1]], 1)
 
 
-SETS = {**grass.SETS, 'canopy': grass.CANOPY_SET}
+SETS = {**grass.SETS, 'canopy': grass.CANOPY_SET, 'water': grass.WATER_SET}
 
 
 def lines(tiles):
