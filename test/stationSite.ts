@@ -48,7 +48,7 @@ function saveWith(tiles: [Tile, number][], plant: Tile = PLANT): GameSave {
     values[tile.x + tile.y * WIDTH] = value;
   }
 
-  return {map: {width: WIDTH, height: HEIGHT, tiles: values},
+  return {map: {width: WIDTH, height: HEIGHT, tiles: values, walkways: []},
           budget: {totalFunds: 0, cityTax: 0, policePercent: 1, fireEffect: FULL_FUNDING}};
 }
 

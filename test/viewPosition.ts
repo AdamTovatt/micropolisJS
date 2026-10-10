@@ -290,6 +290,18 @@ describe("the view", () => {
             expect(tileUnderPoint(12, 8, origin, TILE_WIDTH, 1.5)).toEqual({x: 21, y: 23});
         });
 
+        it("finds the ninth of a tile under a point, three across and down each tile, from an origin between tiles", () => {
+            // At 1.5 device pixels to the CSS pixel the view starts 486 and 540 device pixels in, ninths 60.75 and 67.5
+            // of 8 device pixels each: ninth 62 starts 10 device pixels, 6.67 CSS pixels, across, and 68 4, 2.67, down
+            const origin = {x: 20.25, y: 22.5};
+
+            expect(tileUnderPoint(0, 0, origin, TILE_WIDTH, 1.5, 3)).toEqual({x: 60, y: 67});
+            expect(tileUnderPoint(6.6, 2.6, origin, TILE_WIDTH, 1.5, 3)).toEqual({x: 61, y: 67});
+            expect(tileUnderPoint(6.7, 2.7, origin, TILE_WIDTH, 1.5, 3)).toEqual({x: 62, y: 68});
+            expect(tileOnCanvasUnderPoint(6.7, 2.7, origin, TILE_WIDTH, 1.5, 1280, 900, 3)).toEqual({x: 62, y: 68});
+            expect(tileOnCanvasUnderPoint(1280, 2.7, origin, TILE_WIDTH, 1.5, 1280, 900, 3)).toBeNull();
+        });
+
         it("finds the tile drawn under a point, the origin snapped to whole device pixels as the map is drawn", () => {
             // 20.97 tiles are 335.52 pixels at 16 a tile, which the map is drawn from as 336, tile 21's left edge
             expect(drawnOrigin({x: 20.97, y: 22}, TILE_WIDTH)).toEqual({x: 336, y: 352});

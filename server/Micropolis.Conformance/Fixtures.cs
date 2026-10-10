@@ -158,6 +158,25 @@ namespace Micropolis.Conformance
             LineOf(ToolName.Wire, HomesLeft - 1, DistrictsTop + 1, HomesLeft - 1, LineY + 2),
         ];
 
+        // The walkers' town: the zoned town's two rows of ten zones and its plant, with a walkway in place of its north
+        // road, and no road at all. Across each tile of the walkway's row a path runs east and west along the middle
+        // of the tile, and one north and south through it, so the path has a ninth along each zone's edge.
+        private const int WalkersLeft = 14;
+        private const int WalkersTop = 12;
+        private const int WalkersRight = WalkersLeft + 3 * 10;
+        private const int WalkwayY = WalkersTop + 3;
+
+        private static readonly IReadOnlyList<Command> Walking =
+        [
+            BuildingAt(ToolName.Coal, WalkersLeft - 3, WalkersTop + 1),
+            .. ZoneRow("RRCRRCRRCR", WalkersLeft, WalkersTop),
+            .. ZoneRow("IIIRRCRRII", WalkersLeft, WalkwayY + 1),
+            LineOf(ToolName.Wire, WalkersLeft - 1, WalkwayY + 1, WalkersLeft - 1, WalkwayY + 1),
+            PathOf(Walkways.Side * WalkersLeft, Walkways.Side * WalkwayY + 1, Walkways.Side * WalkersRight - 1, Walkways.Side * WalkwayY + 1),
+            .. Enumerable.Range(WalkersLeft, WalkersRight - WalkersLeft).Select(x =>
+                PathOf(Walkways.Side * x + 1, Walkways.Side * WalkwayY, Walkways.Side * x + 1, Walkways.Side * WalkwayY + Walkways.Side - 1)),
+        ];
+
         private static readonly Fixture Suburb = Built(
             "suburb", "The town without its airport and railway, with a fire and a police station", [.. ZonedTown, .. Stations]);
 
@@ -252,6 +271,7 @@ namespace Micropolis.Conformance
                   [BuildingAt(ToolName.Coal, PlantLeft + 1, PlantTop + 1), BuildingAt(ToolName.Coal, PlantLeft + 5, PlantTop + 1)]),
             Built("underfunded", "The town with a fire and a police station, its services funded below their need with auto-budget off",
                   [.. Town, .. Stations, new SetAutoBudgetCommand(false), new SetBudgetCommand(60, 40, 75, 7)]),
+            Built("walkers", "Two rows of ten zones either side of a walkway, with no road", Walking),
             Built("wilderness", "Seed 8's map with nothing built", []),
         };
 

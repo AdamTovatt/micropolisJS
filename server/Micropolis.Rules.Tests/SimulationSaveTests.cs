@@ -25,8 +25,10 @@ namespace Micropolis.Rules.Tests
     [TestClass]
     public sealed class SimulationSaveTests
     {
-        // A save with sprites, a non-null announcement and a power source waiting: the underfunded town after its run
-        private static readonly string RunText = FixtureSaves.At("underfunded", FixtureSaves.Run).ReadCommitted();
+        // A save with sprites, a non-null announcement, a power source waiting and a walkway: the underfunded town after
+        // its run, with a path laid over the top two rows of ninths of a tile of open land east of it, as no fixture's run
+        // save holds with the rest
+        private static readonly string RunText = WithWalkway(FixtureSaves.At("underfunded", FixtureSaves.Run).ReadCommitted());
 
         // Read only: a test that changes the save parses its own copy of RunText
         private static readonly JsonNode Run = JsonNode.Parse(RunText)!;
@@ -70,6 +72,9 @@ namespace Micropolis.Rules.Tests
             ("map.cityCentreY", "-1", "0", "99", "100"),
             ("map.pollutionMaxX", "-1", "0", "119", "120"),
             ("map.pollutionMaxY", "-1", "0", "99", "100"),
+            ("map.walkways[0].x", "-1", "0", "119", "120"),
+            ("map.walkways[0].y", "-1", "0", "99", "100"),
+            ("map.walkways[0].ninths", "0", "1", $"{Walkways.MostValue}", $"{Walkways.MostValue + 1}"),
             ("evaluation.problemVotes[0].index", "-1", "0", "6", "7"),
             ("evaluation.problemVotes[0].voteCount", "-1", "0", "100", "101"),
             ("sprites.list[0].type", "1", "2", "7", "8"),
@@ -79,6 +84,7 @@ namespace Micropolis.Rules.Tests
             ("scannedState.blockMaps.crimeRateMap[0]", "-1", "0", "250", "251"),
             ("scannedState.blockMaps.fireStationMap[0]", "-1", "0", "16000", "16001"),
             ("scannedState.blockMaps.fireStationEffectMap[0]", "-1", "0", "16000", "16001"),
+            ("scannedState.blockMaps.footLoadMap[0]", "-1", "0", "240", "241"),
             ("scannedState.blockMaps.landValueMap[0]", "-1", "0", "250", "251"),
             ("scannedState.blockMaps.policeStationMap[0]", "-1", "0", "16000", "16001"),
             ("scannedState.blockMaps.policeStationEffectMap[0]", "-1", "0", "16000", "16001"),
@@ -123,6 +129,9 @@ namespace Micropolis.Rules.Tests
                 ["map.cityCentreY"] = ("41", city => city.Map.CityCentreY),
                 ["map.pollutionMaxX"] = ("42", city => city.Map.PollutionMaxX),
                 ["map.pollutionMaxY"] = ("43", city => city.Map.PollutionMaxY),
+                ["map.walkways[0].x"] = ("61", city => FirstWalkway(city).Position.X),
+                ["map.walkways[0].y"] = ("31", city => FirstWalkway(city).Position.Y),
+                ["map.walkways[0].ninths"] = ("21", city => FirstWalkway(city).Walkway),
                 ["evaluation.cityClass"] = ("\"CITY\"", city => SavedName.Of(city.Evaluation.CityClass)),
                 ["evaluation.cityScore"] = ("500", city => city.Evaluation.CityScore),
                 ["evaluation.cityYes"] = ("55", city => city.Evaluation.CityYes),
@@ -211,6 +220,7 @@ namespace Micropolis.Rules.Tests
                 ["scannedState.blockMaps.crimeRateMap[0]"] = ("52", city => city.BlockMaps.CrimeRateMap.Get(0, 0)),
                 ["scannedState.blockMaps.fireStationMap[0]"] = ("53", city => city.BlockMaps.FireStationMap.Get(0, 0)),
                 ["scannedState.blockMaps.fireStationEffectMap[0]"] = ("54", city => city.BlockMaps.FireStationEffectMap.Get(0, 0)),
+                ["scannedState.blockMaps.footLoadMap[0]"] = ("65", city => city.BlockMaps.FootLoadMap.Get(0, 0)),
                 ["scannedState.blockMaps.landValueMap[0]"] = ("55", city => city.BlockMaps.LandValueMap.Get(0, 0)),
                 ["scannedState.blockMaps.policeStationMap[0]"] = ("56", city => city.BlockMaps.PoliceStationMap.Get(0, 0)),
                 ["scannedState.blockMaps.policeStationEffectMap[0]"] = ("57", city => city.BlockMaps.PoliceStationEffectMap.Get(0, 0)),
@@ -607,6 +617,41 @@ namespace Micropolis.Rules.Tests
             }
 
             Assert.AreEqual(message, Assert.Throws<SaveFormatException>(() => Simulation.FromSave(save.ToJsonString())).Message);
+        }
+
+        // A value past the bits of a tile's nine ninths is refused, naming it, and tiles listed out of order or twice,
+        // naming the list; every kind of walkway there is fills two bits a ninth, so no ninth holds a kind there isn't
+        [TestMethod]
+        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":262144}]", "map.walkways[0].ninths")]
+        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":1365},{\"x\":59,\"y\":30,\"ninths\":1}]", "map.walkways")]
+        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":1365},{\"x\":60,\"y\":30,\"ninths\":1}]", "map.walkways")]
+        public void FromSave_WalkwaysPastTheirBitsOrOutOfOrder_AreRefused(string walkways, string path)
+        {
+            JsonNode save = JsonNode.Parse(RunText)!;
+            ObjectAt(save, "map")["walkways"] = JsonNode.Parse(walkways);
+
+            AssertRejected(save, path);
+        }
+
+        // The run save's path over the top two rows of ninths of one tile counts six ninths, for the upkeep, once loaded
+        [TestMethod]
+        public void FromSave_Walkway_CountsItsNinths()
+        {
+            Assert.AreEqual(2 * Walkways.Side, Simulation.FromSave(RunText).Map.WalkwayUpkeep);
+        }
+
+        // The map's walkway, which the run save holds on one tile
+        private static (Position Position, int Walkway) FirstWalkway(Simulation city)
+        {
+            return city.Map.WalkwayTiles().First();
+        }
+
+        // The save with a path over the top two rows of ninths of the tile at (60, 30)
+        private static string WithWalkway(string saveText)
+        {
+            JsonNode save = JsonNode.Parse(saveText)!;
+            save["map"]!["walkways"] = JsonNode.Parse("[{\"x\":60,\"y\":30,\"ninths\":1365}]");
+            return CanonicalJson.Write(save);
         }
 
         private static JsonObject Resave(string text)

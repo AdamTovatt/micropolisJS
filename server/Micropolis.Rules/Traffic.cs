@@ -20,7 +20,11 @@ namespace Micropolis.Rules
     /// </summary>
     public enum TrafficResult
     {
-        NoRoadFound = -1,
+        /// <summary>
+        /// No way out of the zone: no road, station or walkway at its edge, none within a walk across open land of it,
+        /// and no destination that walk reaches; the original's trip found no road.
+        /// </summary>
+        NoWayOut = -1,
         NoRouteFound = 0,
         RouteFound = 1,
 
@@ -88,10 +92,12 @@ namespace Micropolis.Rules
         private static readonly int[] PerimX = [-1, 0, 1, 2, 2, 2, 1, 0, -1, -2, -2, -2];
         private static readonly int[] PerimY = [-2, -2, -2, -1, 0, 1, 2, 2, 2, 1, 0, -1];
 
-        /// <summary>
-        /// The farthest a tile of a zone's perimeter (<see cref="Perimeter"/>) lies from its centre, across or down.
-        /// </summary>
-        internal static readonly int PerimeterReach = Math.Max(PerimX.Max(Math.Abs), PerimY.Max(Math.Abs));
+        // The side of each tile of the perimeter that faces the zone, numbered as TileUtils.NorthSide says
+        private static readonly int[] PerimFacing =
+        [
+            TileUtils.SouthSide, TileUtils.SouthSide, TileUtils.SouthSide, TileUtils.WestSide, TileUtils.WestSide, TileUtils.WestSide,
+            TileUtils.NorthSide, TileUtils.NorthSide, TileUtils.NorthSide, TileUtils.EastSide, TileUtils.EastSide, TileUtils.EastSide,
+        ];
 
         // The heaviest traffic a block holds, and the traffic one trip adds to the block of each road tile it takes. A
         // change from the original, whose drive added 50 to every other tile it took: a routed trip runs longer and
@@ -115,6 +121,17 @@ namespace Micropolis.Rules
         public const int RideLoad = 4;
 
         /// <summary>
+        /// The most walkers a crossing's tile holds (<see cref="BlockMaps.FootLoadMap"/>): decayed as the traffic
+        /// density is, so from as high.
+        /// </summary>
+        public const int MaxFootLoad = MaxTrafficDensity;
+
+        /// <summary>
+        /// The walkers one walk adds to the tile of each crossing it walks over, as a ride adds its riders to the rail.
+        /// </summary>
+        public const int WalkLoad = RideLoad;
+
+        /// <summary>
         /// What a slow route takes from its zone's growth score, which the original, with no slow trips, never took.
         /// </summary>
         public const int SlowTripPenalty = 300;
@@ -124,8 +141,11 @@ namespace Micropolis.Rules
         private readonly Trips _trips;
         private readonly TripRouter _router;
 
-        // Every tile of the trip's route, in order, from the perimeter tile it started on, with how it went over each
-        private readonly List<RouteStep> _route = new List<RouteStep>();
+        // The trip's route: every tile of it, in order, from the perimeter tile it started on, with how it went over each
+        private readonly TripRoute _route = new TripRoute();
+
+        // The ninths a walk of the route goes through, kept from walk to walk
+        private readonly List<Position> _walked = new List<Position>();
 
         /// <param name="trips">Takes the route of each trip found, which nothing in the rules reads.</param>
         public Traffic(GameMap map, RandomStream random, Trips trips)
@@ -138,8 +158,8 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Routes a trip from the zone centred at (<paramref name="x"/>, <paramref name="y"/>) to a destination of the
-        /// kind given, and if it finds one, counts it in the traffic density map where it goes by road and in the rail
-        /// load where it rides. Where it walks it adds to neither.
+        /// kind given, and if it finds one, counts it in the traffic density map where it goes by road, in the rail load
+        /// where it rides, and in the foot load where it walks over a crossing.
         /// </summary>
         public TrafficResult MakeTraffic(int x, int y, BlockMaps blockMaps, TrafficDestination destination)
         {
@@ -150,6 +170,7 @@ namespace Micropolis.Rules
                 _trips.Routed(_route);
                 AddToTrafficDensityMap(blockMaps);
                 AddToRailLoadMap(blockMaps);
+                AddToFootLoadMap(blockMaps);
             }
 
             return result;
@@ -169,7 +190,7 @@ namespace Micropolis.Rules
         // traffic, now and then; the helicopter chooses its traffic as it takes off (CopterSprite).
         private void AddToTrafficDensityMap(BlockMaps blockMaps)
         {
-            foreach (RouteStep step in _route)
+            foreach (RouteStep step in _route.Steps)
             {
                 if (step.Mode == TravelMode.Road)
                 {
@@ -183,9 +204,11 @@ namespace Micropolis.Rules
         // it enters from no tile of track, the side facing the one it leaves by
         private void AddToRailLoadMap(BlockMaps blockMaps)
         {
-            for (int i = 0; i < _route.Count; i++)
+            List<RouteStep> route = _route.Steps;
+
+            for (int i = 0; i < route.Count; i++)
             {
-                RouteStep step = _route[i];
+                RouteStep step = route[i];
 
                 if (step.Mode != TravelMode.Rail)
                 {
@@ -193,13 +216,69 @@ namespace Micropolis.Rules
                 }
 
                 // A ride has two tiles at least, so the station it gets on at has a tile after it
-                bool boards = i == 0 || _route[i - 1].Mode != TravelMode.Rail;
+                bool boards = i == 0 || route[i - 1].Mode != TravelMode.Rail;
                 int enteredBy = boards
-                    ? TileUtils.SideEnteredBy(step.Tile, _route[i + 1].Tile)
-                    : TileUtils.SideEnteredBy(_route[i - 1].Tile, step.Tile);
+                    ? TileUtils.SideEnteredBy(step.Tile, route[i + 1].Tile)
+                    : TileUtils.SideEnteredBy(route[i - 1].Tile, step.Tile);
                 int ends = TileUtils.RailEnds(_map.GetTileValue(step.Tile.X, step.Tile.Y));
 
                 Add(RailLoadEntered(blockMaps, ends, enteredBy), step.Tile, RideLoad, MaxRailLoad);
+            }
+        }
+
+        // Adds each walk's walkers to the tile of each crossing it walks over, once a tile: going over the ninths the
+        // client draws its walker through (WalkPaths), so a walk along a sidewalk beside a crossing, on the same piece of
+        // walkway, crosses nothing. Only a walk with a tile a car drives on is worked out.
+        private void AddToFootLoadMap(BlockMaps blockMaps)
+        {
+            List<RouteStep> route = _route.Steps;
+            int start = 0;
+
+            for (int i = 1; i <= route.Count; i++)
+            {
+                if (i < route.Count && route[i].Mode == route[start].Mode)
+                {
+                    continue;
+                }
+
+                if (route[start].Mode == TravelMode.Walk && CrossesRoad(route, start, i))
+                {
+                    WalkPaths.Fill(_route, start, i, _walked);
+                    AddCrossings(blockMaps);
+                }
+
+                start = i;
+            }
+        }
+
+        // Whether a car drives on any tile of the route from start up to end
+        private bool CrossesRoad(List<RouteStep> route, int start, int end)
+        {
+            for (int i = start; i < end; i++)
+            {
+                if (TileUtils.CarriesCars(_map.GetTileValue(route[i].Tile.X, route[i].Tile.Y)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Adds a walk's walkers, through the ninths walked, to the tile of each crossing among them, once a tile
+        private void AddCrossings(BlockMaps blockMaps)
+        {
+            Position counted = new Position(-1, -1);
+
+            foreach (Position ninth in _walked)
+            {
+                (int x, int y, int n) = Walkways.Locate(ninth.X, ninth.Y);
+                Position tile = new Position(x, y);
+                if (tile != counted && (Walkways.Crossings(_map.GetWalkway(x, y), _map.GetTileValue(x, y)) & (1 << n)) != 0)
+                {
+                    Add(blockMaps.FootLoadMap, tile, WalkLoad, MaxFootLoad);
+                    counted = tile;
+                }
             }
         }
 
@@ -264,12 +343,54 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// Whether the zone centred at <paramref name="position"/> has a way out at its edge: a road or rail on its
+        /// perimeter (<see cref="FindPerimeterRoad"/>), or a walkway on a ninth of a tile of its perimeter along the side
+        /// facing the zone, which gives the zone access as a road there does.
+        /// </summary>
+        public bool HasWayAtEdge(Position position)
+        {
+            if (FindPerimeterRoad(position) is not null)
+            {
+                return true;
+            }
+
+            foreach ((Position tile, int facing) in PerimeterFacing(_map, position))
+            {
+                if (LeadsOut(Walkways.UsableMask(_map.GetWalkway(tile.X, tile.Y), _map.GetTileValue(tile.X, tile.Y)), facing))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Whether ninths of walkway on a tile of a zone's perimeter, the walker's to use, lead out of the zone: one of them
+        /// lies along the tile's side facing it, numbered as <see cref="TileUtils.NorthSide"/> says.
+        /// </summary>
+        internal static bool LeadsOut(int ninths, int facing)
+        {
+            return Walkways.Edge(ninths, facing) != 0;
+        }
+
+        /// <summary>
         /// The tiles on the perimeter of the zone centred at <paramref name="position"/> that are on the map, in the
         /// order <see cref="FindPerimeterRoad"/> searches them for a road.
         /// </summary>
         public static IReadOnlyList<Position> Perimeter(GameMap map, Position position)
         {
-            List<Position> perimeter = new List<Position>();
+            return PerimeterFacing(map, position).Select(tile => tile.Tile).ToList();
+        }
+
+        /// <summary>
+        /// The tiles on the perimeter of the zone centred at <paramref name="position"/> that are on the map, in the
+        /// order <see cref="Perimeter"/> gives them, each with its side that faces the zone, numbered as
+        /// <see cref="TileUtils.NorthSide"/> says.
+        /// </summary>
+        public static IReadOnlyList<(Position Tile, int Facing)> PerimeterFacing(GameMap map, Position position)
+        {
+            List<(Position Tile, int Facing)> perimeter = new List<(Position Tile, int Facing)>();
 
             for (int i = 0; i < PerimX.Length; i++)
             {
@@ -278,7 +399,7 @@ namespace Micropolis.Rules
 
                 if (map.TestBounds(xx, yy))
                 {
-                    perimeter.Add(new Position(xx, yy));
+                    perimeter.Add((new Position(xx, yy), PerimFacing[i]));
                 }
             }
 

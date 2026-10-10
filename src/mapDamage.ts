@@ -144,10 +144,12 @@ export class FrameRecord {
   private view: FrameView | null = null;
   private values: number[] = [];
   private frames: number[] = [];
+  private walkways: number[] = [];
 
   // The part of the view a layer drawn of the view and the tiles would draw differently from the last one recorded, or
   // null for none; the layer is recorded as the last. A tile whose value changed may have changed its shadow, which
-  // reaches no farther than the tiles' margin.
+  // reaches no farther than the tiles' margin; one whose walkway changed, the paths of the tiles beside it, which its
+  // ninths join theirs to.
   damage(view: FrameView, tiles: FrameTiles): Damage | null {
     const count = tiles.width * tiles.height;
     const {margin} = tiles;
@@ -161,6 +163,8 @@ export class FrameRecord {
         const row = Math.floor(i / tiles.width) - margin;
         if (tiles.values[i] !== this.values[i]) {
           blocks.mark(column - margin, row - margin, column + margin, row + margin);
+        } else if (tiles.walkways[i] !== this.walkways[i]) {
+          blocks.mark(column - 1, row - 1, column + 1, row + 1);
         } else if (tiles.frames[i] !== this.frames[i]) {
           blocks.mark(column, row, column, row);
         }
@@ -176,6 +180,7 @@ export class FrameRecord {
     this.view = {...view};
     this.values = tiles.values.slice(0, count);
     this.frames = tiles.frames.slice(0, count);
+    this.walkways = tiles.walkways.slice(0, count);
     return damage;
   }
 

@@ -21,11 +21,12 @@ namespace Micropolis.Rules
     public static class CursorBounds
     {
         /// <summary>
-        /// The side in tiles of the box a tool shows: what the tool puts down, and one tile for the query tool.
+        /// The side in tiles of the box a tool shows: what the tool puts down, and one tile for the query tool and the
+        /// walkway, whose box the other players see round the tile holding the ninth it lays.
         /// </summary>
         public static int SizeOf(CursorTool tool)
         {
-            return tool == CursorTool.Query ? 1 : CityTools.Sizes[ToolOf(tool)];
+            return tool is CursorTool.Query or CursorTool.Walkway ? 1 : CityTools.Sizes[ToolOf(tool)];
         }
 
         /// <summary>

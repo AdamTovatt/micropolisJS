@@ -31,6 +31,11 @@ export function rawTileAt(save: GameSave, tile: Tile): number {
   return save.map.tiles[tile.x + tile.y * save.map.width];
 }
 
+// The tile's walkway value, as walkwayOf in test/helpers/walkways.ts writes one, or 0 where it holds none
+export function walkwayAt(save: GameSave, tile: Tile): number {
+  return save.map.walkways.find((walkway) => walkway.x === tile.x && walkway.y === tile.y)?.ninths ?? 0;
+}
+
 // The tile value, without its flags
 export function tileAt(save: GameSave, tile: Tile): number {
   return rawTileAt(save, tile) & BIT_MASK;

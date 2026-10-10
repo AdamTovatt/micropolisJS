@@ -15,21 +15,16 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// A tool that changes the city: <see cref="DoTool"/> stages its edits at a tile and sets <see cref="Result"/>, and
-    /// <see cref="ModifyIfEnoughFunding"/> applies them if the budget can pay.
+    /// A tool that changes the city's tiles: <see cref="Apply"/> stages its edits at a tile and sets
+    /// <see cref="StagedTool.Result"/>, and <see cref="StagedTool.ModifyIfEnoughFunding"/> applies them if the budget can
+    /// pay.
     /// </summary>
-    internal abstract class CityTool
+    internal abstract class CityTool : StagedTool
     {
-        // What dozing one tile costs, wherever a tool dozes it
-        protected const long BulldozerCost = 1;
-
-        private long _applicationCost;
-
         protected CityTool(long toolCost, GameMap map)
+            : base(map)
         {
             ToolCost = toolCost;
-            Map = map;
-            WorldEffects = new WorldEffects(map);
         }
 
         /// <summary>
@@ -38,58 +33,52 @@ namespace Micropolis.Rules
         public long ToolCost { get; }
 
         /// <summary>
-        /// What came of the tool at the last tile it was applied at, as a tool command's outcome names it, which
-        /// <see cref="ModifyIfEnoughFunding"/> may turn into <see cref="Outcome.NoMoney"/>. A tool never comes to
-        /// <see cref="Outcome.Rejected"/>, which only a command's validation gives.
+        /// Stages the tool's edits at tile (x, y), as <see cref="DoTool"/> does, and then, as a zone or building placed
+        /// over rubble clears it under auto-bulldoze: where a tile it stages holds walkway of a kind it takes no longer
+        /// (<see cref="Walkways.Usable"/>), auto-bulldoze clears those ninths for <see cref="StagedTool.BulldozerCost"/> a
+        /// tile, and without it the tool needs the bulldozer, so a tool never leaves walkway dormant. A road or rail laid
+        /// over walkway keeps the ninths it takes.
         /// </summary>
-        public Outcome Result { get; protected set; }
+        public void Apply(int x, int y, RandomStream random, bool autoBulldoze)
+        {
+            DoTool(x, y, random, autoBulldoze);
 
-        protected GameMap Map { get; }
+            if (Result != Outcome.Ok)
+            {
+                return;
+            }
 
-        protected WorldEffects WorldEffects { get; }
+            List<Position> cleared = WorldEffects.StagedTiles
+                .Where(tile => Walkways.Usable(WorldEffects.GetWalkway(tile.X, tile.Y), WorldEffects.GetTileValue(tile.X, tile.Y)) !=
+                               WorldEffects.GetWalkway(tile.X, tile.Y))
+                .ToList();
+
+            if (cleared.Count > 0 && !autoBulldoze)
+            {
+                Result = Outcome.NeedsBulldoze;
+                return;
+            }
+
+            foreach (Position tile in cleared)
+            {
+                WorldEffects.SetWalkway(tile.X, tile.Y, Walkways.Usable(WorldEffects.GetWalkway(tile.X, tile.Y),
+                                                                        WorldEffects.GetTileValue(tile.X, tile.Y)));
+                AddCost(BulldozerCost);
+            }
+        }
 
         /// <summary>
-        /// Stages the tool's edits at tile (x, y) and sets <see cref="Result"/>. <paramref name="random"/> is the
-        /// simulation's stream, which the tools that make a random choice draw from, and
+        /// Stages the tool's edits at tile (x, y) and sets <see cref="StagedTool.Result"/>. <paramref name="random"/> is
+        /// the simulation's stream, which the tools that make a random choice draw from, and
         /// <paramref name="autoBulldoze"/> is the sending player's setting, which the building, road, rail and wire
         /// tools read.
         /// </summary>
-        public abstract void DoTool(int x, int y, RandomStream random, bool autoBulldoze);
-
-        /// <summary>
-        /// Applies the edits staged and charges the budget for them, if the tool succeeded and the city can pay;
-        /// otherwise drops them, and a tool the city can't pay for fails with <see cref="Outcome.NoMoney"/>.
-        /// </summary>
-        public bool ModifyIfEnoughFunding(Budget budget)
-        {
-            if (Result != Outcome.Ok)
-            {
-                Clear();
-                return false;
-            }
-
-            if (budget.TotalFunds < _applicationCost)
-            {
-                Result = Outcome.NoMoney;
-                Clear();
-                return false;
-            }
-
-            WorldEffects.Apply();
-            budget.Spend(_applicationCost);
-            Clear();
-            return true;
-        }
-
-        protected void AddCost(long cost)
-        {
-            _applicationCost += cost;
-        }
+        protected abstract void DoTool(int x, int y, RandomStream random, bool autoBulldoze);
 
         /// <summary>
         /// Clears the tile for the road, rail and wire tools, as the original's <c>connectTile</c> auto-bulldozes: a
         /// bulldozable tile that is a small explosion, or below the bridges and not dirt, becomes dirt for
-        /// <see cref="BulldozerCost"/>.
+        /// <see cref="StagedTool.BulldozerCost"/>.
         /// </summary>
         protected void DoAutoBulldoze(int x, int y)
         {
@@ -108,10 +97,28 @@ namespace Micropolis.Rules
             }
         }
 
-        private void Clear()
+        /// <summary>
+        /// Blows up a zone or building of <paramref name="size"/> by <paramref name="size"/> tiles whose top left tile
+        /// is (left, top), as the bulldozer does: each tile of the square on the map that is neither radioactive nor
+        /// dirt becomes a small explosion, its frame drawn from the stream, column by column.
+        /// </summary>
+        protected void PutRubble(int left, int top, int size, RandomStream random)
         {
-            _applicationCost = 0;
-            WorldEffects.Clear();
+            for (int x = left; x < left + size; x++)
+            {
+                for (int y = top; y < top + size; y++)
+                {
+                    if (Map.TestBounds(x, y))
+                    {
+                        int tile = WorldEffects.GetTileValue(x, y);
+
+                        if (tile != TileValues.RADTILE && tile != TileValues.DIRT)
+                        {
+                            WorldEffects.SetTile(x, y, TileValues.TINYEXP + random.GetRandom(2), TileFlags.ANIMBIT | TileFlags.BULLBIT);
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -31,24 +31,23 @@
     {"step":8064,"player":"player 1","command":{"type":"tool","tool":"rail","path":[{"x":55,"y":32},{"x":56,"y":32},{"x":57,"y":32},{"x":58,"y":32},{"x":59,"y":32},{"x":60,"y":32},{"x":61,"y":32},{"x":62,"y":32},{"x":63,"y":32},{"x":64,"y":32},{"x":65,"y":32},{"x":66,"y":32},{"x":67,"y":32},{"x":68,"y":32},{"x":69,"y":32},{"x":70,"y":32},{"x":71,"y":32},{"x":72,"y":32},{"x":73,"y":32},{"x":74,"y":32}],"autoBulldoze":true}},
     {"step":8064,"player":"player 1","command":{"type":"tool","tool":"station","path":[{"x":55,"y":32}],"autoBulldoze":true}},
     {"step":8064,"player":"player 1","command":{"type":"tool","tool":"station","path":[{"x":74,"y":32}],"autoBulldoze":true}},
-    {"step":9168,"player":"player 1","command":{"type":"triggerDisaster","kind":"fire"}},
-    {"step":9168,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":71,"y":70}],"autoBulldoze":true}},
-    {"step":9168,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":70,"y":68}],"autoBulldoze":true}},
-    {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":69,"y":69},{"x":69,"y":68}],"autoBulldoze":true}},
-    {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":68,"y":68},{"x":68,"y":67}],"autoBulldoze":true}},
-    {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":67,"y":67},{"x":67,"y":66},{"x":67,"y":65},{"x":67,"y":64},{"x":67,"y":63},{"x":67,"y":62},{"x":67,"y":61}],"autoBulldoze":true}},
-    {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":66,"y":61},{"x":65,"y":61}],"autoBulldoze":true}},
-    {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":65,"y":60},{"x":65,"y":59}],"autoBulldoze":true}},
-    {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":59},{"x":64,"y":58},{"x":64,"y":57},{"x":64,"y":56},{"x":64,"y":55},{"x":64,"y":54},{"x":64,"y":53},{"x":64,"y":52},{"x":64,"y":51},{"x":64,"y":50},{"x":64,"y":49},{"x":64,"y":48}],"autoBulldoze":true}},
-    {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":47},{"x":64,"y":46},{"x":64,"y":45},{"x":64,"y":44},{"x":64,"y":43},{"x":64,"y":42},{"x":64,"y":41},{"x":64,"y":40}],"autoBulldoze":true}},
-    {"step":12528,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
+    {"step":8208,"player":"player 1","command":{"type":"triggerDisaster","kind":"fire"}},
+    {"step":8208,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":91,"y":40}],"autoBulldoze":true}},
+    {"step":8208,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":90,"y":38}],"autoBulldoze":true}},
+    {"step":8208,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":89,"y":40},{"x":88,"y":40},{"x":87,"y":40},{"x":86,"y":40},{"x":85,"y":40},{"x":84,"y":40},{"x":83,"y":40},{"x":82,"y":40},{"x":81,"y":40},{"x":80,"y":40},{"x":79,"y":40},{"x":78,"y":40}],"autoBulldoze":true}},
+    {"step":8208,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":77,"y":40},{"x":76,"y":40},{"x":75,"y":40}],"autoBulldoze":true}},
+    {"step":8208,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":75,"y":39},{"x":75,"y":38},{"x":75,"y":37},{"x":75,"y":36}],"autoBulldoze":true}},
+    {"step":12144,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}},
+    {"step":12144,"player":"player 1","command":{"type":"walkway","kind":"path","path":[{"x":180,"y":93},{"x":181,"y":93},{"x":182,"y":93},{"x":183,"y":93},{"x":184,"y":93},{"x":185,"y":93},{"x":186,"y":93},{"x":187,"y":93},{"x":188,"y":93},{"x":189,"y":93},{"x":190,"y":93},{"x":191,"y":93},{"x":192,"y":93},{"x":193,"y":93},{"x":194,"y":93}]}},
+    {"step":12144,"player":"player 1","command":{"type":"eraseWalkway","path":[{"x":186,"y":93},{"x":187,"y":93},{"x":188,"y":93}]}},
+    {"step":12144,"player":"player 1","command":{"type":"erase","tool":"road","path":[{"x":69,"y":31}]}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"79c02c3dfdcef4f047b321fc994f213133df73ced8875cc93342f9d5ddc11eb3"},
-    {"step":3600,"hash":"39d483910963051e502a087a3814c15abee1fe1247198ad0030eddd5a14612cc"},
-    {"step":7200,"hash":"86889b8e7f66d5700ac0ef1875d7bbb30707620ecf719746c32e7330434aae7e"},
-    {"step":10800,"hash":"eb97fa028f441ca535e1e9065ff314ea601b64a2cb7636ce0d8461a2e3502b97"},
-    {"step":11376,"hash":"06aec385a29610cb878a7053e127069bacced5a895ca9c1e3797dbbcf806d284"},
-    {"step":12528,"hash":"5667acc3aee71069e159678354827a949de737ab5814684930e5f3c891d4a82e"}
+    {"step":0,"hash":"3643356368d44dba18b9601a5326d3ef972524cfa7403bdecc9aa9d50a2bd22c"},
+    {"step":3600,"hash":"8cdbb3d8d2ae064c5ff3e7243371f62eeceb280e50f27a0c4d76b145f2525fc8"},
+    {"step":7200,"hash":"6fb9499139449e2071fa430bc3e83093c2edd5f671c65cba2fbd1c50373a41b8"},
+    {"step":10800,"hash":"2d53ef8ff5b3493db93193b1df613ddd62e3e069507e4c6b804e635ef7a44908"},
+    {"step":10992,"hash":"b6224c5f7a2217fe0fce26eed8c711545b57b3f3319b14c5a0cae7a2a3802d04"},
+    {"step":12144,"hash":"7d32e13e501ee068faf7d821caff45bf6a7b879fbec073eb8d77e282665bb64c"}
   ]
 }

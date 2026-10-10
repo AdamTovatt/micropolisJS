@@ -18,26 +18,49 @@ namespace Micropolis.Rules
     /// A tool that puts down a zone or a building of <c>size</c> by <c>size</c> tiles centred on the tile clicked, as
     /// the original's <c>buildBuilding</c> does.
     /// </summary>
-    internal sealed class BuildingTool : ConnectingTool
+    internal sealed class BuildingTool : ConnectingTool, IErasable
     {
         private readonly int _centreTile;
         private readonly int _size;
         private readonly bool _animated;
+        private readonly Func<int, bool> _builds;
 
         /// <param name="cost">What the building costs.</param>
         /// <param name="centreTile">The building's centre tile, which the others count up to and on from.</param>
         /// <param name="map">The map it builds on.</param>
         /// <param name="size">The building's width and height in tiles.</param>
         /// <param name="animated">Whether the tile below the centre is animated, as a nuclear plant's is.</param>
-        public BuildingTool(long cost, int centreTile, GameMap map, int size, bool animated)
+        /// <param name="builds">Whether a zone or building whose centre holds a value is of the kind the tool puts down,
+        /// grown or changed since: <see cref="Builds"/>.</param>
+        public BuildingTool(long cost, int centreTile, GameMap map, int size, bool animated, Func<int, bool> builds)
             : base(cost, map)
         {
             _centreTile = centreTile;
             _size = size;
             _animated = animated;
+            _builds = builds;
         }
 
-        public override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
+        /// <summary>
+        /// The width and height in tiles of what the tool puts down.
+        /// </summary>
+        public int Size => _size;
+
+        /// <summary>
+        /// Whether a zone or building whose centre tile holds this value, without its flags, is of the kind the tool puts
+        /// down, such as a residential zone whose homes have grown.
+        /// </summary>
+        public bool Builds(int centreValue)
+        {
+            return _builds(centreValue);
+        }
+
+        public CityTool Eraser(GameMap map)
+        {
+            return new BuildingEraser(map, this);
+        }
+
+        protected override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
         {
             Result = BuildBuilding(x, y, autoBulldoze);
         }

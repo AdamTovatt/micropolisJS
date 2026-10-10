@@ -98,10 +98,10 @@ namespace Micropolis.Rules
         }
 
         // The location score of the zone centred at (x, y), whose trip came to the traffic: its block's score for nearness
-        // to the city centre, or with no road ZoneUtils.NoRoadLocationScore
+        // to the city centre, or with no way out ZoneUtils.NoWayOutLocationScore
         private static int LocationScore(BlockMaps blockMaps, int x, int y, TrafficResult traffic)
         {
-            return traffic == TrafficResult.NoRoadFound ? ZoneUtils.NoRoadLocationScore : blockMaps.CityCentreDistScoreMap.WorldGet(x, y);
+            return traffic == TrafficResult.NoWayOut ? ZoneUtils.NoWayOutLocationScore : blockMaps.CityCentreDistScoreMap.WorldGet(x, y);
         }
 
         /// <summary>
@@ -154,7 +154,7 @@ namespace Micropolis.Rules
                 trafficOK = simData.TrafficManager.MakeTraffic(x, y, simData.BlockMaps, TrafficDestination.Industrial);
 
                 // Trigger outward migration if not connected to road network
-                if (trafficOK == TrafficResult.NoRoadFound)
+                if (trafficOK == TrafficResult.NoWayOut)
                 {
                     // An index of the land value and pollution in the range 0-3, which picks the zone's variant
                     int lpValue = ZoneUtils.GetLandPollutionValue(simData.BlockMaps, x, y);

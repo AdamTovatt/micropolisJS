@@ -176,22 +176,28 @@
               <div id="notifications" class="hudPanel initialHidden"></div>
               <button id="lastEvent" class="hudPanel hudButton" title="Centre the view on the last news that happened somewhere">Last event</button>
             </div>
+            <div id="walkwayKinds" class="hudPanel hidden" role="group" aria-label="Kind of walkway the Walkway tool lays">
+              <button data-kind="path" class="hudButton" type="button" aria-pressed="true" title="A path on bare land, in parks, and on roads and rail, where a path across a road is a crossing cars give way at."><span class="walkwayKindName">Path</span> <span class="toolCost">$2 a ninth</span></button>
+              <button data-kind="footbridge" class="hudButton" type="button" aria-pressed="false" title="A bridge for walkers over a road, rail or water, which stops no car or train."><span class="walkwayKindName">Footbridge</span> <span class="toolCost">$40 a tile</span></button>
+              <button data-kind="underpass" class="hudButton" type="button" aria-pressed="false" title="A tunnel for walkers under a road or rail, which stops no car or train."><span class="walkwayKindName">Underpass</span> <span class="toolCost">$80 a tile</span></button>
+            </div>
             <div id="controls" data-panel="tools" class="hudPanel initialHidden">
               <div class="foldStrip">
                 <span id="toolInfo" class="foldTitle">Tools</span>
                 <button class="foldButton hudButton" aria-controls="buttons" title="Hide or show the tools">Hide</button>
               </div>
-              <div id="buttons" class="foldBody">
-                <button id="residentialButton" data-size="3" data-tool="residential" class="toolButton hudButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block."><span class="toolName">Residential</span><span class="toolCost">$100</span></button>
-                <button id="commercialButton" data-size="3" data-tool="commercial" class="toolButton hudButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block."><span class="toolName">Commercial</span><span class="toolCost">$100</span></button>
-                <button id="industrialButton" data-size="3" data-tool="industrial" class="toolButton hudButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block."><span class="toolName">Industrial</span><span class="toolCost">$100</span></button>
+              <div id="buttons" class="foldBody" title="Hold Shift with any tool but the bulldozer and the query tool to erase what it puts down.">
+                <button id="residentialButton" data-size="3" data-tool="residential" class="toolButton hudButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block. Hold Shift to erase a residential zone."><span class="toolName">Residential</span><span class="toolCost">$100</span></button>
+                <button id="commercialButton" data-size="3" data-tool="commercial" class="toolButton hudButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block. Hold Shift to erase a commercial zone."><span class="toolName">Commercial</span><span class="toolCost">$100</span></button>
+                <button id="industrialButton" data-size="3" data-tool="industrial" class="toolButton hudButton unselected" title="Zones need power. Zones touching side by side pass it on, so one power line can power a whole block. Hold Shift to erase an industrial zone."><span class="toolName">Industrial</span><span class="toolCost">$100</span></button>
                 <button id="roadButton" data-size="1" data-tool="road" class="toolButton hudButton unselected"><span class="toolName">Road</span><span class="toolCost">$10</span></button>
                 <button id="railButton" data-size="1" data-tool="rail" class="toolButton hudButton unselected"><span class="toolName">Rail</span><span class="toolCost">$20</span></button>
-                <button id="stationButton" data-size="1" data-tool="station" class="toolButton hudButton unselected" title="Goes on a straight piece of rail. Trips get on and off trains only at stations, and walk up to three tiles to or from one."><span class="toolName">Station</span><span class="toolCost">$500</span></button>
-                <button id="wireButton" data-size="1" data-tool="wire" class="toolButton hudButton unselected" title="Carries power from a power plant to zones. It can cross a straight road or rail at a right angle. Roads and rails carry no power."><span class="toolName">Wire</span><span class="toolCost">$5</span></button>
-                <button id="bulldozerButton" data-size="1" data-tool="bulldozer" class="toolButton hudButton unselected" title="Clears a tile. Aim at the middle of a building to demolish the whole building."><span class="toolName">Bulldozer</span><span class="toolCost">$1</span></button>
+                <button id="stationButton" data-size="1" data-tool="station" class="toolButton hudButton unselected" title="Goes on a straight piece of rail. Trips get on and off trains only at stations, and walk to and from one along paths, or up to five tiles across open land. Hold Shift to erase a station, leaving its track."><span class="toolName">Station</span><span class="toolCost">$500</span></button>
+                <button id="wireButton" data-size="1" data-tool="wire" class="toolButton hudButton unselected" title="Carries power from a power plant to zones. It can cross a straight road or rail at a right angle. Roads and rails carry no power. Hold Shift to erase a power line, leaving any road or rail it crossed."><span class="toolName">Wire</span><span class="toolCost">$5</span></button>
+                <button id="bulldozerButton" data-size="1" data-tool="bulldozer" class="toolButton hudButton unselected" title="Clears a tile, and first any path on it. Aim at the middle of a building to demolish the whole building."><span class="toolName">Bulldozer</span><span class="toolCost">$1</span></button>
                 <button id="queryButton" data-size="1" data-tool="query" class="toolButton hudButton unselected"><span class="toolName">Query</span><span class="toolCost">Free</span></button>
                 <button id="parkButton" data-size="1" data-tool="park" class="toolButton hudButton unselected"><span class="toolName">Park</span><span class="toolCost">$10</span></button>
+                <button id="walkwayButton" data-size="1" data-tool="walkway" class="toolButton hudButton unselected" title="Drag to lay a path on the ninths of a tile under the pointer, on bare land, parks, roads and rail. People walk along paths, and a path at a zone's edge serves it as a road does. Hold Shift to erase paths ninth by ninth."><span class="toolName">Walkway</span><span class="toolCost">$2</span></button>
                 <button id="policeButton" data-size="3" data-tool="police" class="toolButton hudButton unselected"><span class="toolName">Police</span><span class="toolCost">$500</span></button>
                 <button id="fireButton" data-size="3" data-tool="fire" class="toolButton hudButton unselected"><span class="toolName">Fire</span><span class="toolCost">$500</span></button>
                 <button id="coalButton" data-size="4" data-tool="coal" class="toolButton hudButton unselected"><span class="toolName">Coal</span><span class="toolCost">$3,000</span></button>
@@ -381,7 +387,7 @@
             <dd class="queryBlockersRow"><ul id="queryBlockers"></ul></dd>
           </dl>
           <div id="queryGrowthNotes" class="queryGrowthPart">
-            <p id="queryNoRoad" class="queryNote"></p>
+            <p id="queryNoWayOut" class="queryNote"></p>
             <p id="queryNowAndThen" class="queryNote"></p>
           </div>
           <div id="queryDebugList" class="queryDebug hidden">

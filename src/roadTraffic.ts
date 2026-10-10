@@ -23,9 +23,10 @@ import type { CarDirection } from "./routeTiles";
 // A car holds each tile its body is on, and holds a tile before it drives into it: a car may take a tile only where
 // its path through the tile crosses no path of a car holding it, but a car that came in the same way, in the same lane,
 // which it follows instead, and no path of a car that has waited longer to take it (pathQuadrants). It takes no tile a
-// train is on. Along its lane it keeps CAR_GAP behind the car ahead, braking as it closes on it or on a tile it can't
-// take. So cars queue behind each other, wait their turn at junctions in the order they came, and wait at a level
-// crossing while a train is on it or about to be. A car takes a level crossing only with room to drive off it: with
+// train is on, nor one a walker is on a crossing of, or about to step onto, which a walker never waits to give a car.
+// Along its lane it keeps CAR_GAP behind the car ahead, braking as it closes on it or on a tile it can't take. So cars
+// queue behind each other, wait their turn at junctions in the order they came, give way at a crossing while a walker
+// is on it, and wait at a level crossing while a train is on it or about to be. A car takes a level crossing only with room to drive off it: with
 // the tile past it, and the car ahead in its lane far enough on that its back clears the crossing, so it never stands
 // on one, and a train, which never waits for a car, closes the crossing for as long as a car takes to drive over it
 // (CAR_CROSSING_MS). A car that stands still for CAR_WAIT_MS fades out over CAR_FADE_MS and is gone, so
@@ -181,12 +182,12 @@ export class RoadTraffic {
 
   // Moves the cars on by the clock's step, elapsed milliseconds to the clock now, in the order they were added: each
   // appears where its first tile is free, drives as far as the car ahead and the tiles it may take let it, and fades out
-  // or is gone at the end of its route. A train is on each of the tiles trainTiles holds by key.
-  update(clock: number, elapsed: number, trainTiles: ReadonlySet<number>): void {
+  // or is gone at the end of its route. A train, or a walker on a crossing, is on each of the tiles closed holds by key.
+  update(clock: number, elapsed: number, closed: ReadonlySet<number>): void {
     const step = Math.min(Math.max(0, elapsed), LONGEST_DRIVE_MS);
     let kept = 0;
     for (const car of this.cars) {
-      if (this.move(car, clock, step, trainTiles)) {
+      if (this.move(car, clock, step, closed)) {
         this.cars[kept++] = car;
       } else {
         this.forget(car);
@@ -196,13 +197,13 @@ export class RoadTraffic {
   }
 
   // Moves a car on, and says whether it is still on the road
-  private move(car: RoadCar, clock: number, step: number, trainTiles: ReadonlySet<number>): boolean {
+  private move(car: RoadCar, clock: number, step: number, closed: ReadonlySet<number>): boolean {
     if (car.state === "fading") {
       return clock - car.fadeStart < CAR_FADE_MS;
     }
 
     if (car.state === "waiting") {
-      if (this.take(car, 0, clock, trainTiles)) {
+      if (this.take(car, 0, clock, closed)) {
         car.state = "driving";
         car.stood = 0;
         return true;
@@ -217,7 +218,7 @@ export class RoadTraffic {
     if (next <= end) {
       const edge = next - 0.5;
       if (car.distance + BODY_REACH + TAKES_AHEAD >= edge) {
-        this.take(car, next, clock, trainTiles);
+        this.take(car, next, clock, closed);
       }
       // A car's front never goes onto a tile it doesn't hold
       if (car.lastHeld + 1 <= end) {
@@ -281,7 +282,7 @@ export class RoadTraffic {
   // Takes the tile at the index given on a car's route if it may, and says whether it did, or else waits for it. A
   // level crossing it takes with the crossings in a row after it and the tile past them, all at once, and only with room
   // ahead in its lane for its back to clear the last crossing, so it never stands on one.
-  private take(car: RoadCar, index: number, clock: number, trainTiles: ReadonlySet<number>): boolean {
+  private take(car: RoadCar, index: number, clock: number, closed: ReadonlySet<number>): boolean {
     const route = car.route;
     const end = route.length - 1;
     let last = index;
@@ -299,7 +300,7 @@ export class RoadTraffic {
     }
 
     for (let taken = index; taken <= last; taken++) {
-      if (!this.mayTake(car, taken, clock, trainTiles)) {
+      if (!this.mayTake(car, taken, clock, closed)) {
         this.wait(car, index, clock);
         return false;
       }
@@ -311,13 +312,13 @@ export class RoadTraffic {
     return true;
   }
 
-  // Whether a car may take the tile at the index given on its route: no train is on it, and its path through the tile
-  // crosses neither the path of any car holding it but one that came in the same way, nor that of a car that started
-  // waiting for it sooner. A car appearing at its route's start follows no one: any car holding its lane there takes
-  // its place.
-  private mayTake(car: RoadCar, index: number, clock: number, trainTiles: ReadonlySet<number>): boolean {
+  // Whether a car may take the tile at the index given on its route: no train is on it, nor a walker on a crossing of
+  // it, and its path through the tile crosses neither the path of any car holding it but one that came in the same
+  // way, nor that of a car that started waiting for it sooner. A car appearing at its route's start follows no one:
+  // any car holding its lane there takes its place.
+  private mayTake(car: RoadCar, index: number, clock: number, closed: ReadonlySet<number>): boolean {
     const key = tileKey(car.route[index]);
-    if (trainTiles.has(key)) {
+    if (closed.has(key)) {
       return false;
     }
 

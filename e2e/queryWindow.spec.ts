@@ -28,7 +28,7 @@ const server = serverForTests("manual");
 
 // A zone's growth that nothing holds back and no note applies to, and a report of one of the zone's tiles
 const GROWTH: ZoneGrowthReport = {
-  zone: "COMMERCIAL", x: 50, y: 32, score: 400, outlook: "LIKELY_TO_GROW", assessedNowAndThen: false, roadAtEdge: true,
+  zone: "COMMERCIAL", x: 50, y: 32, score: 400, outlook: "LIKELY_TO_GROW", assessedNowAndThen: false, wayAtEdge: true,
   blockers: [],
 };
 const REPORT: TileReportAnswer = {
@@ -45,10 +45,10 @@ async function showReport(page: Page, report: TileReportAnswer): Promise<void> {
 
 // Checks which of the growth's parts show, by an element of each that has text whenever it shows, so a part left
 // showing empty fails too: the outlook's and the blockers' labels, and each note
-async function expectShown(page: Page, shown: {outlook: boolean, blockers: boolean, noRoad: boolean,
+async function expectShown(page: Page, shown: {outlook: boolean, blockers: boolean, noWayOut: boolean,
                                                nowAndThen: boolean}): Promise<void> {
   for (const [part, selector] of [
-    ["outlook", "#queryFigures dt.queryGrowthPart"], ["blockers", "dt.queryBlockersRow"], ["noRoad", "#queryNoRoad"],
+    ["outlook", "#queryFigures dt.queryGrowthPart"], ["blockers", "dt.queryBlockersRow"], ["noWayOut", "#queryNoWayOut"],
     ["nowAndThen", "#queryNowAndThen"],
   ] as const) {
     const element = page.locator(selector);
@@ -67,26 +67,26 @@ test("the query window leaves out each part of a zone's growth the report doesn'
   await player.clickTile(clear);
   await expect(page.locator("#queryWindow")).toBeVisible();
   await expect(page.locator("#queryTile")).toHaveText(`${clear.x}, ${clear.y}`);
-  await expectShown(page, {outlook: false, blockers: false, noRoad: false, nowAndThen: false});
+  await expectShown(page, {outlook: false, blockers: false, noWayOut: false, nowAndThen: false});
   for (const selector of ["#queryGrowthNotes", "#queryDebugList dt.queryGrowthPart"]) {
     await expect(page.locator(selector).first(), selector).toHaveCSS("display", "none");
   }
 
   // A zone nothing holds back, with no note: where it stands alone
   await showReport(page, REPORT);
-  await expectShown(page, {outlook: true, blockers: false, noRoad: false, nowAndThen: false});
+  await expectShown(page, {outlook: true, blockers: false, noWayOut: false, nowAndThen: false});
   await expect(page.locator("#queryZoneScoreRaw")).toHaveText(`${GROWTH.score}`);
 
   // Each note alone, then something holding it back
-  await showReport(page, {...REPORT, growth: {...GROWTH, roadAtEdge: false}});
-  await expectShown(page, {outlook: true, blockers: false, noRoad: true, nowAndThen: false});
+  await showReport(page, {...REPORT, growth: {...GROWTH, wayAtEdge: false}});
+  await expectShown(page, {outlook: true, blockers: false, noWayOut: true, nowAndThen: false});
   await showReport(page, {...REPORT, growth: {...GROWTH, assessedNowAndThen: true}});
-  await expectShown(page, {outlook: true, blockers: false, noRoad: false, nowAndThen: true});
+  await expectShown(page, {outlook: true, blockers: false, noWayOut: false, nowAndThen: true});
   await showReport(page, {...REPORT, growth: {...GROWTH, blockers: ["LOW_DEMAND"]}});
-  await expectShown(page, {outlook: true, blockers: true, noRoad: false, nowAndThen: false});
+  await expectShown(page, {outlook: true, blockers: true, noWayOut: false, nowAndThen: false});
 
   // And a tile of no zone that grows again, after one
   await showReport(page, {...REPORT, growth: null});
-  await expectShown(page, {outlook: false, blockers: false, noRoad: false, nowAndThen: false});
+  await expectShown(page, {outlook: false, blockers: false, noWayOut: false, nowAndThen: false});
   expect(problems).toEqual([]);
 });

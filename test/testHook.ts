@@ -12,7 +12,7 @@
  *
  */
 
-import type { Cars, PaintableCar } from "../src/cars";
+import type { Cars, PaintableMover } from "../src/cars";
 import type { CityDriver, CitySource } from "../src/citySource";
 import { CityState } from "../src/cityState";
 import { AdvanceResult, BudgetForecastAnswer, Command, EvaluationRecord, FireStationReach, SPEEDS, StatusRecord,
@@ -49,7 +49,7 @@ const REPORT: TileReportAnswer = {
     zoneCentre: true, fireStationMap: 0, fireCoverage: 0, policeStationMap: 0, policeCoverage: 0, terrainDensity: 0,
     trafficDensity: 0, cityCentreScore: 0,
     growth: {zone: "RESIDENTIAL", x: 4, y: 5, score: -320, outlook: "LIKELY_TO_GROW", assessedNowAndThen: false,
-             roadAtEdge: true, blockers: ["LOW_LAND_VALUE"]},
+             wayAtEdge: true, blockers: ["LOW_LAND_VALUE"]},
 };
 
 function gameOn(source: CitySource, state: CityState) {
@@ -64,14 +64,18 @@ function gameOn(source: CitySource, state: CityState) {
                      mapCurrent: false, wholeLayerEachFrame: false},
         monsterTV: {current: false},
         carsAdded: [] as Parameters<Cars["add"]>[0][],
-        cars: {driven: () => [0, 0.5], carsHeld: () => 4, add: (routes: Parameters<Cars["add"]>[0]) => {
+        walksAdded: [] as Parameters<Cars["addWalks"]>[0][],
+        cars: {driven: () => [0, 0.5], moversHeld: () => 4, add: (routes: Parameters<Cars["add"]>[0]) => {
             game.carsAdded.push(routes);
+        }, addWalks: (walks: Parameters<Cars["addWalks"]>[0]) => {
+            game.walksAdded.push(walks);
         }},
-        carsPainted: [
+        moversPainted: [
             {kind: "rail", x: 0, y: 0, width: 16, direction: "east"},
             {kind: "road", x: 16, y: 0, width: 16, direction: "east", colour: 0, opacity: 1},
             {kind: "rail", x: 32, y: 0, width: 16, direction: "east"},
-        ] as PaintableCar[],
+            {kind: "walker", x: 48, y: 5, width: 6, colour: 1, dab: 0},
+        ] as PaintableMover[],
         frameCounts: {animated: 30, painted: 12},
         dismissals: 0,
         notificationBar: {dismiss: () => {
@@ -110,8 +114,8 @@ const IDLE_GAME = {
     gameCanvas: {getTileOrigin: () => ({x: 0, y: 0}), getOriginLimits: () => LIMITS, tileWidth: 16, mapCurrent: true,
                  wholeLayerEachFrame: false},
     monsterTV: {current: true},
-    cars: {driven: () => [], carsHeld: () => 0, add: () => {}},
-    carsPainted: [],
+    cars: {driven: () => [], moversHeld: () => 0, add: () => {}, addWalks: () => {}},
+    moversPainted: [],
     frameCounts: {animated: 0, painted: 0},
     notificationBar: {dismiss: () => {}},
     toolToast: {dismiss: () => {}},
@@ -465,20 +469,22 @@ describe("the test hook", () => {
         expect([shown, hook.hoverTile()]).toEqual([{x: 7, y: 9}, null]);
     });
 
-    it("tells how far each car driving has driven, how many the page holds, and how many the map's view shows, and of them of trains", async () => {
+    it("tells how far each car driving has driven, how many the page holds, and how many the map's view shows, of them of trains, and walkers", async () => {
         const {hook} = await holdingGame("nothing");
 
-        expect([hook.carsDriven(), hook.carsHeld(), hook.carsInView(), hook.trainCarsInView()])
-            .toEqual([[0, 0.5], 4, 3, 2]);
+        expect([hook.carsDriven(), hook.moversHeld(), hook.carsInView(), hook.trainCarsInView(), hook.walkersInView()])
+            .toEqual([[0, 0.5], 4, 3, 2, 1]);
     });
 
-    it("adds the cars the runner asks for to those driving", async () => {
+    it("adds the cars and the walkers the runner asks for to those driving and walking", async () => {
         const {hook, game} = await holdingGame("nothing");
         const trip: Trip = [1, 1, "EES"];
+        const walk: Trip = [4, 4, "NNE"];
 
         hook.addCars([trip]);
+        hook.addWalks([walk]);
 
-        expect(game.carsAdded).toEqual([[trip]]);
+        expect([game.carsAdded, game.walksAdded]).toEqual([[[trip]], [[walk]]]);
     });
 
     it("tells the turns of the animation loop and the frames the map's painter drew", async () => {

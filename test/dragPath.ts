@@ -12,7 +12,7 @@
  *
  */
 
-import { dragPath, ToolPaths } from "../src/dragPath";
+import { dragPath, pathCommand, ToolPaths } from "../src/dragPath";
 
 const xy = (path: {x: number, y: number}[]) => path.map(({x, y}) => [x, y]);
 
@@ -84,45 +84,90 @@ describe("the tool paths a player's input makes", () => {
 
     it("are each click's tile, in the order clicked", () => {
         const paths = new ToolPaths();
-        paths.reached("park", tile(3, 3), true);
-        paths.reached("park", tile(9, 9), true);
+        paths.reached("park", false, tile(3, 3), true);
+        paths.reached("park", false, tile(9, 9), true);
 
-        expect(paths.take()).toEqual([{tool: "park", path: [tile(3, 3)]}, {tool: "park", path: [tile(9, 9)]}]);
+        expect(paths.take()).toEqual([{tool: "park", erase: false, path: [tile(3, 3)]},
+                                      {tool: "park", erase: false, path: [tile(9, 9)]}]);
     });
 
     it("are a drag's tiles, with those a fast mouse skipped filled in", () => {
         const paths = new ToolPaths();
-        paths.reached("road", tile(2, 2), true);
-        paths.reached("road", tile(5, 2), false);
+        paths.reached("road", false, tile(2, 2), true);
+        paths.reached("road", false, tile(5, 2), false);
 
-        expect(paths.take()).toEqual([{tool: "road", path: [tile(2, 2), tile(3, 2), tile(4, 2), tile(5, 2)]}]);
+        expect(paths.take()).toEqual([{tool: "road", erase: false, path: [tile(2, 2), tile(3, 2), tile(4, 2), tile(5, 2)]}]);
+    });
+
+    // The walkway's places are ninths on the map's grid of them, which a drag fills in as it does tiles
+    it("are a drag's ninths for the walkway, erasing or not", () => {
+        const paths = new ToolPaths();
+        paths.reached("walkway", true, tile(30, 31), true);
+        paths.reached("walkway", true, tile(30, 33), false);
+
+        expect(paths.take()).toEqual([{tool: "walkway", erase: true, path: [tile(30, 31), tile(30, 32), tile(30, 33)]}]);
     });
 
     // Each tick sends what the drag reached since the last
     it("go on with a drag still under way in a new path, from the tile it last reached", () => {
         const paths = new ToolPaths();
-        paths.reached("wire", tile(2, 2), true);
+        paths.reached("wire", false, tile(2, 2), true);
         paths.take();
-        paths.reached("wire", tile(2, 4), false);
+        paths.reached("wire", false, tile(2, 4), false);
 
-        expect(paths.take()).toEqual([{tool: "wire", path: [tile(2, 3), tile(2, 4)]}]);
+        expect(paths.take()).toEqual([{tool: "wire", erase: false, path: [tile(2, 3), tile(2, 4)]}]);
         expect(paths.take()).toEqual([]);
+    });
+
+    it("go on erasing with an erasing drag still under way in its new path", () => {
+        const paths = new ToolPaths();
+        paths.reached("wire", true, tile(2, 2), true);
+        paths.take();
+        paths.reached("wire", true, tile(2, 4), false);
+
+        expect(paths.take()).toEqual([{tool: "wire", erase: true, path: [tile(2, 3), tile(2, 4)]}]);
     });
 
     it("start afresh where a drag comes back onto the map", () => {
         const paths = new ToolPaths();
-        paths.reached("road", tile(0, 5), true);
+        paths.reached("road", false, tile(0, 5), true);
         paths.lost();
-        paths.reached("road", tile(0, 9), false);
+        paths.reached("road", false, tile(0, 9), false);
 
-        expect(paths.take()).toEqual([{tool: "road", path: [tile(0, 5)]}, {tool: "road", path: [tile(0, 9)]}]);
+        expect(paths.take()).toEqual([{tool: "road", erase: false, path: [tile(0, 5)]},
+                                      {tool: "road", erase: false, path: [tile(0, 9)]}]);
     });
 
-    it("start afresh when the tool changes", () => {
-        const paths = new ToolPaths();
-        paths.reached("road", tile(1, 1), true);
-        paths.reached("rail", tile(2, 1), false);
+    it.each([["the tool", "rail", false], ["whether it erases", "road", true]] as const)(
+        "start afresh when %s changes", (_, tool, erase) => {
+            const paths = new ToolPaths();
+            paths.reached("road", false, tile(1, 1), true);
+            paths.reached(tool, erase, tile(2, 1), false);
 
-        expect(paths.take()).toEqual([{tool: "road", path: [tile(1, 1)]}, {tool: "rail", path: [tile(2, 1)]}]);
+            expect(paths.take()).toEqual([{tool: "road", erase: false, path: [tile(1, 1)]},
+                                          {tool, erase, path: [tile(2, 1)]}]);
+        });
+});
+
+describe("the command a tool path makes", () => {
+
+    const path = [{x: 4, y: 5}, {x: 5, y: 5}];
+
+    // Whatever kind the Walkway tool lays, which only its own command carries
+    it.each([
+        [{tool: "road", erase: false}, "path", {type: "tool", tool: "road", path, autoBulldoze: true}],
+        [{tool: "road", erase: true}, "underpass", {type: "erase", tool: "road", path}],
+        [{tool: "residential", erase: true}, "footbridge", {type: "erase", tool: "residential", path}],
+        [{tool: "walkway", erase: false}, "path", {type: "walkway", kind: "path", path}],
+        [{tool: "walkway", erase: false}, "footbridge", {type: "walkway", kind: "footbridge", path}],
+        [{tool: "walkway", erase: false}, "underpass", {type: "walkway", kind: "underpass", path}],
+        [{tool: "walkway", erase: true}, "footbridge", {type: "eraseWalkway", path}],
+    ] as const)("is, for %j with the Walkway tool laying %s, %j", (made, kind, command) => {
+        expect(pathCommand({...made, path}, true, kind)).toEqual(command);
+    });
+
+    it("is none for a bulldozer's path that erases, the bulldozer having no eraser", () => {
+        expect(() => pathCommand({tool: "bulldozer", erase: true, path}, true, "path"))
+            .toThrow("The bulldozer has no eraser");
     });
 });

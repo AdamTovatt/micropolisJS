@@ -60,6 +60,24 @@ namespace Micropolis.Conformance
         }
 
         /// <summary>
+        /// A straight horizontal or vertical line of path on the grid of ninths (<see cref="NinthPosition"/>), both ends
+        /// included, dragged as one command.
+        /// </summary>
+        public static Command PathOf(int x1, int y1, int x2, int y2)
+        {
+            if (x1 != x2 && y1 != y2)
+            {
+                throw new ArgumentException($"A path must be horizontal or vertical, got ({x1}, {y1}) to ({x2}, {y2})");
+            }
+
+            int stepX = Math.Sign(x2 - x1);
+            int stepY = Math.Sign(y2 - y1);
+            int steps = Math.Abs(x2 - x1) + Math.Abs(y2 - y1);
+            return new WalkwayCommand(WalkwayKind.Path,
+                Enumerable.Range(0, steps + 1).Select(step => new NinthPosition(x1 + step * stepX, y1 + step * stepY)).ToList());
+        }
+
+        /// <summary>
         /// The tiles a drag passes over from one tile to the next, as <c>dragPath</c> in <c>src/dragPath.ts</c> finds
         /// them: the tiles after <paramref name="from"/>, up to and including <paramref name="to"/>, each one step
         /// along a row or a column from the one before. They follow the line between the two tiles' centres; where it

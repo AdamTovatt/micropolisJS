@@ -36,7 +36,7 @@
     {"step":0,"player":"local","command":{"type":"tool","tool":"port","path":[{"x":77,"y":14}],"autoBulldoze":true}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"b0c593c3e69d99249efd3ef10daacc15b6bc9119870ed5e9cb5070c657072d83"},
-    {"step":6912,"hash":"679d3da189bfffde569a9ca3e482577596993c9b921a1c916b6b63b32a916626"}
+    {"step":0,"hash":"5dcbcc3d255a63a01f35d52750c9f6a3e906cb670e1637ba1124275b094605d1"},
+    {"step":6912,"hash":"3ef11d6b2d26c885ad3b0fbc8a986305b59f69ecc707f1e770b1978f450d8df3"}
   ]
 }

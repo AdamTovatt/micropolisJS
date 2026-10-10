@@ -15,15 +15,28 @@
 import { requiredElement, takesTyping } from "./domElements";
 import { Emitter } from "./emitter";
 import { GameCanvas } from "./gameCanvas";
-import { CURSOR_TOOLS, type CursorTool, isCursorTool } from "./protocol";
+import { CURSOR_TOOLS, type CursorTool, isCursorTool, NINTHS_PER_SIDE, type WalkwayKind } from "./protocol";
 import * as UiMessages from "./uiMessages";
 import type { PixelPoint, TilePoint } from "./viewPosition";
+import { WalkwayKindChoice } from "./walkwayKinds";
 
 // The player's input as the game reads it each tick: the keys held, where the pointer is over the canvas and the tool
 // chosen. A click or a drag with the tool, and a press of a control button, are events.
 
 // The tools that lay a line as the mouse drags; every other tool acts on a click
-const DRAGGABLE_TOOLS: readonly CursorTool[] = ["rail", "road", "wire"];
+const DRAGGABLE_TOOLS: readonly CursorTool[] = ["rail", "road", "wire", "walkway"];
+
+// The cells across and down each tile on whose grid a tool's clicks land: the walkway's ninths, and every other tool's
+// tiles
+export function cellsPerTile(tool: CursorTool): number {
+  return tool === "walkway" ? NINTHS_PER_SIDE : 1;
+}
+
+// Whether Shift turns the tool into its own eraser: every tool that puts something down, the walkway's included, but
+// not the bulldozer or the query tool, with which Shift applies nothing
+export function erasesWithShift(tool: CursorTool): boolean {
+  return tool !== "bulldozer" && tool !== "query";
+}
 
 // The keys the game follows: the arrow keys and WASD scroll the map, and Escape closes a window or clears the tool
 export type HeldKey = "up" | "down" | "left" | "right" | "escape";
@@ -229,10 +242,44 @@ export interface ZoomRequest {
   point: PixelPoint | null;
 }
 
-// Whether a mouse press is the primary button's alone, without a modifier key, which is the only press a tool takes
-export function isToolPress(e: {button: number, shiftKey: boolean, altKey: boolean, ctrlKey: boolean,
-                                metaKey: boolean}): boolean {
-  return e.button === 0 && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
+// What a mouse press does with the tool held: the primary button's alone puts down what the tool does, and with Shift
+// erases it, for a tool Shift turns into its eraser (erasesWithShift); any other press, with another button or with
+// Ctrl, Alt or Meta, applies nothing
+export type ToolPress = "place" | "erase";
+
+export function toolPress(e: {button: number, shiftKey: boolean, altKey: boolean, ctrlKey: boolean, metaKey: boolean},
+                          tool: CursorTool): ToolPress | null {
+  if (e.button !== 0 || e.altKey || e.ctrlKey || e.metaKey) {
+    return null;
+  }
+
+  if (!e.shiftKey) {
+    return "place";
+  }
+
+  return erasesWithShift(tool) ? "erase" : null;
+}
+
+// Whether Shift is held, which turns the tool held into its eraser, so the hover box shows what a press would do. Each
+// key and mouse event says whether Shift is down, which a page that gets the keyboard back with Shift already held
+// learns only that way, since it hears no keydown for it; a page that loses the keyboard hears no keyup.
+export class ShiftKey {
+  private held = false;
+
+  // A key or mouse event, with its own word on whether Shift is down
+  follow(e: {shiftKey: boolean}): void {
+    this.held = e.shiftKey;
+  }
+
+  // The page lost the keyboard
+  release(): void {
+    this.held = false;
+  }
+
+  // Whether a press with the tool, or with none, would erase now
+  erases(tool: CursorTool | null): boolean {
+    return this.held && tool !== null && erasesWithShift(tool);
+  }
 }
 
 const CURSOR_CLASSES = ["pointer", "helpPointer", "grab", "grabbing"];
@@ -347,11 +394,13 @@ function deselectToolButtons(): void {
 }
 
 // Where the tool was used, in pixels from the canvas's top-left corner: start is true for a click or the start of a
-// drag, false for each tile a drag reaches after
+// drag, false for each tile, or ninth for the walkway, a drag reaches after; and erase whether the press held Shift,
+// which turns the tool into its eraser, as the whole drag erases that began with it
 export interface ToolClick {
   x: number;
   y: number;
   start: boolean;
+  erase: boolean;
 }
 
 // The events the input announces, by name, with the value each carries: a press of a control button carries none
@@ -414,11 +463,12 @@ export function toolColours(buttons: readonly {tool: CursorTool, colour: string}
 }
 
 // The map's view as the input reads and moves it: the CSS pixels a tile is drawn, at the zoom it is at; the map tile
-// drawn under a point of the canvas; and a pan, which takes hold of the map at a point of the canvas, keeps that point
-// of the map under the pointer as it moves, and lets go
+// drawn under a point of the canvas, or the cell of a grid of cellsPerTile cells across and down each tile; and a pan,
+// which takes hold of the map at a point of the canvas, keeps that point of the map under the pointer as it moves, and
+// lets go
 export interface InputView {
   readonly tileWidth: number;
-  tileUnder(x: number, y: number): TilePoint;
+  tileUnder(x: number, y: number, cellsPerTile: number): TilePoint;
   grab(point: PixelPoint): void;
   panTo(point: PixelPoint): void;
   release(): void;
@@ -433,6 +483,9 @@ export class InputStatus extends Emitter<InputEvents> {
   // The tool chosen, or null for none
   private chosen: ChosenTool | null = null;
 
+  // The kind of walkway the Walkway tool lays, on the strip over the tools that shows while it is held
+  private readonly walkwayKinds: WalkwayKindChoice;
+
   // Each tool's outline colour (toolColours)
   private readonly toolColours: Record<CursorTool, string>;
 
@@ -440,10 +493,14 @@ export class InputStatus extends Emitter<InputEvents> {
   private readonly pauseButton: HTMLElement;
   private readonly pauseLabel: HTMLElement;
 
-  // Mouse drags: the map tile a drag last reported
+  // Mouse drags: the map tile, or ninth for the walkway, a drag last reported, and whether the drag erases
   private dragging = false;
   private lastDragX = -1;
   private lastDragY = -1;
+  private dragErases = false;
+
+  // Shift, which turns the tool held into its eraser
+  private readonly shiftKey = new ShiftKey();
 
   // Space and the primary button, as a pan follows them
   private readonly spacePan = new SpacePan();
@@ -470,6 +527,7 @@ export class InputStatus extends Emitter<InputEvents> {
       throw new Error("The pause button has no label");
     }
     this.pauseLabel = pauseLabel;
+    this.walkwayKinds = new WalkwayKindChoice(requiredElement("walkwayKinds"));
 
     // Add the listeners
     document.addEventListener("keydown", (e) => this.onKeyDown(e));
@@ -478,6 +536,7 @@ export class InputStatus extends Emitter<InputEvents> {
     window.addEventListener("blur", () => {
       this.scrollKeys.releaseAll(performance.now());
       this.followPan(this.spacePan.releaseAll());
+      this.shiftKey.release();
     });
     // The primary button comes up wherever the pointer is, a pan's included
     window.addEventListener("mouseup", (e) => {
@@ -493,6 +552,7 @@ export class InputStatus extends Emitter<InputEvents> {
     // Before the tool's own listeners, which are added later, as the pointer enters the canvas with a tool chosen
     this.canvas.addEventListener("mousemove", (e) => {
       this.pointerAt = this.relativeCoordinates(e);
+      this.shiftKey.follow(e);
     });
     this.canvas.addEventListener("mousedown", (e) => this.onCanvasPress(e));
 
@@ -530,6 +590,11 @@ export class InputStatus extends Emitter<InputEvents> {
     return this.pointerAt;
   }
 
+  // Whether Shift held turns the tool chosen into its eraser now (erasesWithShift), so a press would erase
+  get erasing(): boolean {
+    return this.shiftKey.erases(this.chosen?.name ?? null);
+  }
+
   // The pause button offers whatever the simulation isn't doing, in its label and its icon, which the stylesheet picks
   showPaused(paused: boolean): void {
     this.pauseLabel.textContent = paused ? "Play" : "Pause";
@@ -539,7 +604,13 @@ export class InputStatus extends Emitter<InputEvents> {
   clearTool(): void {
     this.chosen = null;
     deselectToolButtons();
+    this.walkwayKinds.showFor(null);
     this.showCursor();
+  }
+
+  // The kind of walkway the Walkway tool lays (WalkwayKindChoice)
+  get walkwayKind(): WalkwayKind {
+    return this.walkwayKinds.kind;
   }
 
   // Where the map is in a pan (SpacePan)
@@ -575,6 +646,8 @@ export class InputStatus extends Emitter<InputEvents> {
   // A window holding the keyboard keeps every key but Escape, which closes it: its sliders, selects and radio groups
   // take the arrow keys, and its inputs any key
   private onKeyDown(e: KeyboardEvent): void {
+    this.shiftKey.follow(e);
+
     const key = heldKey(e.keyCode);
     if (key === "escape") {
       if (!e.repeat) {
@@ -632,6 +705,8 @@ export class InputStatus extends Emitter<InputEvents> {
   }
 
   private onKeyUp(e: KeyboardEvent): void {
+    this.shiftKey.follow(e);
+
     // A key held as a window opened comes up while it holds the keyboard
     const key = heldKey(e.keyCode);
     if (key !== null && key !== "escape") {
@@ -649,6 +724,7 @@ export class InputStatus extends Emitter<InputEvents> {
   // does, which the tool's listeners prevent for a drag: the field would keep Space as typing. While a pan is ready it
   // takes hold of the map, and nothing else: the tool's listeners leave alone a press that begins a pan.
   private onCanvasPress(e: MouseEvent): void {
+    this.shiftKey.follow(e);
     if (e.button !== 0) {
       return;
     }
@@ -696,7 +772,9 @@ export class InputStatus extends Emitter<InputEvents> {
   }
 
   private onMouseDown(e: MouseEvent): void {
-    if (!isToolPress(e) || this.spacePan.pressPans) {
+    const tool = this.chosen;
+    const press = tool === null ? null : toolPress(e, tool.name);
+    if (tool === null || press === null || this.spacePan.pressPans) {
       return;
     }
 
@@ -704,11 +782,12 @@ export class InputStatus extends Emitter<InputEvents> {
     this.pointerAt = at;
 
     this.dragging = true;
-    this.emit(UiMessages.TOOL_CLICKED, {x: at.x, y: at.y, start: true});
+    this.dragErases = press === "erase";
+    this.emit(UiMessages.TOOL_CLICKED, {x: at.x, y: at.y, start: true, erase: this.dragErases});
 
-    const tile = this.view.tileUnder(at.x, at.y);
-    this.lastDragX = tile.x;
-    this.lastDragY = tile.y;
+    const cell = this.view.tileUnder(at.x, at.y, cellsPerTile(tool.name));
+    this.lastDragX = cell.x;
+    this.lastDragY = cell.y;
 
     this.canvas.addEventListener("mouseup", this.mouseUpHandler);
     e.preventDefault();
@@ -741,16 +820,16 @@ export class InputStatus extends Emitter<InputEvents> {
     this.pointerAt = null;
   }
 
-  // A drag continues from the map tile last reported: the game fills in the tiles a fast move skips
+  // A drag continues from the map tile, or ninth, last reported: the game fills in the places a fast move skips
   private onMouseMove(e: MouseEvent): void {
-    if (!this.dragging) {
+    if (!this.dragging || this.chosen === null) {
       return;
     }
 
     const at = this.relativeCoordinates(e);
-    const {x, y} = this.view.tileUnder(at.x, at.y);
+    const {x, y} = this.view.tileUnder(at.x, at.y, cellsPerTile(this.chosen.name));
     if (x !== this.lastDragX || y !== this.lastDragY) {
-      this.emit(UiMessages.TOOL_CLICKED, {x: at.x, y: at.y, start: false});
+      this.emit(UiMessages.TOOL_CLICKED, {x: at.x, y: at.y, start: false, erase: this.dragErases});
       this.lastDragX = x;
       this.lastDragY = y;
     }
@@ -759,11 +838,12 @@ export class InputStatus extends Emitter<InputEvents> {
   // The click that ends a press which began a pan applies no tool
   private onCanvasClick(e: MouseEvent): void {
     const at = this.pointerAt;
-    if (!isToolPress(e) || at === null || this.dragging || this.spacePan.pressPans) {
+    const press = this.chosen === null ? null : toolPress(e, this.chosen.name);
+    if (press === null || at === null || this.dragging || this.spacePan.pressPans) {
       return;
     }
 
-    this.emit(UiMessages.TOOL_CLICKED, {x: at.x, y: at.y, start: true});
+    this.emit(UiMessages.TOOL_CLICKED, {x: at.x, y: at.y, start: true, erase: press === "erase"});
     e.preventDefault();
   }
 
@@ -780,6 +860,7 @@ export class InputStatus extends Emitter<InputEvents> {
     button.classList.add("selected");
 
     this.chosen = tool;
+    this.walkwayKinds.showFor(tool.name);
 
     this.showCursor();
 

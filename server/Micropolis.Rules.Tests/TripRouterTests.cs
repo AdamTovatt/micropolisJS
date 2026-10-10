@@ -24,7 +24,7 @@ namespace Micropolis.Rules.Tests
     /// each destination's route ends at a tile beside it no other's does.
     /// </summary>
     [TestClass]
-    public sealed class TripRouterTests
+    public sealed partial class TripRouterTests
     {
         private static readonly Position Origin = new Position(20, 50);
         private static readonly Position East = new Position(22, 50);
@@ -44,6 +44,53 @@ namespace Micropolis.Rules.Tests
 
             Assert.AreEqual(TrafficResult.RouteFound, result);
             CollectionAssert.AreEqual(direct, route);
+        }
+
+        // Two roads east from the zone's perimeter as long as each other, along rows 49 and 51, to beside a destination
+        // centred at (30, 50): the trip takes the first, along row 49, unless the crossing of a path down it at (25, 49)
+        // is busy, which makes its tile dearer to drive, and then the other
+        [TestMethod]
+        [DataRow(0, 49)]
+        [DataRow(TripRouter.FootLoadPerCost - 1, 49)]
+        [DataRow(TripRouter.FootLoadPerCost, 51)]
+        [DataRow(Traffic.MaxFootLoad, 51)]
+        public void Route_BusyCrossingOnOneOfTwoRoads_TakesTheOther(int footLoad, int row)
+        {
+            GameMap map = Map();
+            Roads(map, Row(49, 22, 28), Row(51, 22, 28));
+            Ground.Path(map, [new Position(25, 49)], Ground.DownTheMiddle);
+            Zone(map, 30, 50, COMCLR);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            blockMaps.FootLoadMap.WorldSet(25, 49, footLoad);
+
+            (TrafficResult result, List<Position> route) = Route(map, TrafficDestination.Commercial, blockMaps);
+
+            Assert.AreEqual(TrafficResult.RouteFound, result);
+            CollectionAssert.AreEqual(Row(row, 22, 28), route);
+        }
+
+        // The same two roads with the crossing's path gone and its load left, as the load decays slower than a path is
+        // bulldozed: no crossing makes the first road's tile dearer, so the trip takes it, whether walkway lies elsewhere
+        // in the city or none does, and the search reads none at all
+        [TestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public void Route_LoadLeftWhereNoCrossingIs_TakesTheFirstRoad(bool walkwayElsewhere)
+        {
+            GameMap map = Map();
+            Roads(map, Row(49, 22, 28), Row(51, 22, 28));
+            if (walkwayElsewhere)
+            {
+                map.SetWalkway(25, 40, Ground.Walkway(4));
+            }
+            Zone(map, 30, 50, COMCLR);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            blockMaps.FootLoadMap.WorldSet(25, 49, Traffic.MaxFootLoad);
+
+            (TrafficResult result, List<Position> route) = Route(map, TrafficDestination.Commercial, blockMaps);
+
+            Assert.AreEqual((TrafficResult.RouteFound, walkwayElsewhere), (result, map.HasWalkway));
+            CollectionAssert.AreEqual(Row(49, 22, 28), route);
         }
 
         // A road from the east perimeter to (23, 50), then track along row 50 to (28, 50), beside the destination: with
@@ -71,13 +118,13 @@ namespace Micropolis.Rules.Tests
 
         // Track on the perimeter with no road and no station is no way out of the zone
         [TestMethod]
-        public void Route_OnlyTrackOnThePerimeter_FindsNoRoad()
+        public void Route_OnlyTrackOnThePerimeter_FindsNoWayOut()
         {
             GameMap map = Map();
             Track(map, Row(50, 22, 28));
             Zone(map, 30, 50, COMCLR);
 
-            Assert.AreEqual(TrafficResult.NoRoadFound, Route(map, TrafficDestination.Commercial).Result);
+            Assert.AreEqual(TrafficResult.NoWayOut, Route(map, TrafficDestination.Commercial).Result);
         }
 
         // From the east perimeter by road to a station at (24, 50), along row 50 to a station at (34, 50), and by road
@@ -114,12 +161,12 @@ namespace Micropolis.Rules.Tests
                 route);
         }
 
-        // No road at the zone: from the east perimeter a walk along row 50 reaches a station at (25, 50) on its fourth
-        // tile, the three before it walked, but one at (26, 50) only after a fourth walked tile
+        // No road at the zone: from the east perimeter a walk across open land along row 50 reaches a station at (27, 50)
+        // on its sixth tile, the five before it walked, but one at (28, 50) only after a sixth walked tile
         [TestMethod]
-        [DataRow(25, TrafficResult.RouteFound)]
-        [DataRow(26, TrafficResult.NoRoadFound)]
-        public void Route_StationAWalkFromTheZone_WalkedToWithinThreeTiles(int stationX, TrafficResult expected)
+        [DataRow(27, TrafficResult.RouteFound)]
+        [DataRow(28, TrafficResult.NoWayOut)]
+        public void Route_StationAWalkFromTheZone_WalkedToWithinFiveTiles(int stationX, TrafficResult expected)
         {
             GameMap map = Map();
             Station(map, stationX, 50);
@@ -133,17 +180,18 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(expected, result);
             CollectionAssert.AreEqual(
                 expected == TrafficResult.RouteFound
-                    ? Going((TravelMode.Walk, Row(50, 22, 24)), (TravelMode.Rail, Row(50, 25, 34)), (TravelMode.Road, [new Position(35, 50)]))
+                    ? Going((TravelMode.Walk, Row(50, 22, 26)), (TravelMode.Rail, Row(50, 27, 34)), (TravelMode.Road, [new Position(35, 50)]))
                     : [],
                 route);
         }
 
-        // A ride from (24, 50) gets off at (30, 50) and walks along row 50 to beside the destination: three tiles to one
-        // centred at (35, 50), but four to one at (36, 50)
+        // A ride from (24, 50) gets off at (30, 50) and walks across open land along row 50 to beside the destination: five
+        // tiles to one centred at (37, 50), but six to one at (38, 50). Five tiles of open land cost more than the route's
+        // straight run allows, so the route found is slow.
         [TestMethod]
-        [DataRow(35, TrafficResult.RouteFound)]
-        [DataRow(36, TrafficResult.NoRouteFound)]
-        public void Route_DestinationAWalkFromAStation_WalkedToWithinThreeTiles(int destinationX, TrafficResult expected)
+        [DataRow(37, TrafficResult.SlowRoute)]
+        [DataRow(38, TrafficResult.NoRouteFound)]
+        public void Route_DestinationAWalkFromAStation_WalkedToWithinFiveTiles(int destinationX, TrafficResult expected)
         {
             GameMap map = Map();
             Roads(map, Row(50, 22, 23));
@@ -156,8 +204,8 @@ namespace Micropolis.Rules.Tests
 
             Assert.AreEqual(expected, result);
             CollectionAssert.AreEqual(
-                expected == TrafficResult.RouteFound
-                    ? Going((TravelMode.Road, Row(50, 22, 23)), (TravelMode.Rail, Row(50, 24, 30)), (TravelMode.Walk, Row(50, 31, 33)))
+                expected == TrafficResult.SlowRoute
+                    ? Going((TravelMode.Road, Row(50, 22, 23)), (TravelMode.Rail, Row(50, 24, 30)), (TravelMode.Walk, Row(50, 31, 35)))
                     : [],
                 route);
         }
@@ -165,7 +213,7 @@ namespace Micropolis.Rules.Tests
         // A station two tiles east of the perimeter: a river down column 23 leaves no walk to it
         [TestMethod]
         [DataRow(false, TrafficResult.RouteFound)]
-        [DataRow(true, TrafficResult.NoRoadFound)]
+        [DataRow(true, TrafficResult.NoWayOut)]
         public void Route_WaterBetweenTheZoneAndAStation_WalkedOverNot(bool river, TrafficResult expected)
         {
             GameMap map = Map();
@@ -296,13 +344,14 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(TrafficResult.NoRouteFound, Steps(map, TrafficDestination.Commercial, blockMaps).Result);
         }
 
-        // A station at (26, 50), past a walk from the zone, whose track runs east to a station at (32, 50): a road from
-        // the north perimeter along row 48 comes down into its north side, and from the north side of the other a road
-        // goes on down column 32 to beside the destination. A route gets on and off at a station's side.
+        // A station at (26, 50), with no open land to walk to it across, whose track runs east to a station at (32, 50):
+        // a road from the north perimeter along row 48 comes down into its north side, and from the north side of the
+        // other a road goes on down column 32 to beside the destination. A route gets on and off at a station's side.
         [TestMethod]
         public void Route_RoadsAtTheStationsSides_GetsOnAndOffThere()
         {
             GameMap map = Map();
+            Ground.NoOpenLand(map);
             List<Position> toStation = [.. Row(48, 21, 26), new Position(26, 49)];
             List<Position> fromStation = Column(32, 51, 52);
             Roads(map, toStation, fromStation);
@@ -447,10 +496,11 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEqual(jammed ? new List<Position>() : row, route);
         }
 
-        // Along row 50 from the perimeter, three destinations: one centred at (25, 52) whose route is 3 tiles, to
-        // (24, 50), weighing 58, one at (40, 48) at 18 tiles, to (39, 50), weighing 43, and one at (55, 48) at 33
-        // tiles, to (54, 50), weighing 28. Row by row the two above the road come first, so a draw from 0 to 42 picks
-        // (40, 48), from 43 to 70 (55, 48), and from 71 to 128 (25, 52): each its weight's share of the 129 draws.
+        // Along row 50 from the perimeter, with no open land to walk across, three destinations: one centred at (25, 52)
+        // whose route is 3 tiles, to (24, 50), weighing 58, one at (40, 48) at 18 tiles, to (39, 50), weighing 43, and
+        // one at (55, 48) at 33 tiles, to (54, 50), weighing 28. Row by row the two above the road come first, so a draw
+        // from 0 to 42 picks (40, 48), from 43 to 70 (55, 48), and from 71 to 128 (25, 52): each its weight's share of
+        // the 129 draws.
         [TestMethod]
         [DataRow(0, 39)]
         [DataRow(42, 39)]
@@ -461,6 +511,7 @@ namespace Micropolis.Rules.Tests
         public void Route_DrawAtEachEndOfADestinationsShare_PicksThatDestination(int draw, int arrivalX)
         {
             GameMap map = Map();
+            Ground.NoOpenLand(map);
             Roads(map, Row(50, 22, 60));
             Zone(map, 25, 52, COMCLR);
             Zone(map, 40, 48, COMCLR);
@@ -608,7 +659,7 @@ namespace Micropolis.Rules.Tests
 
         // A road beside the zone that misses its perimeter, which leaves out the corners, is no road of the zone's
         [TestMethod]
-        public void Route_NoRoadOnThePerimeter_FindsNoRoad()
+        public void Route_NoRoadOnThePerimeter_FindsNoWayOut()
         {
             GameMap map = Map();
             Roads(map, [new Position(22, 48)], Row(50, 23, 28));
@@ -616,7 +667,7 @@ namespace Micropolis.Rules.Tests
 
             (TrafficResult result, List<Position> route) = Route(map, TrafficDestination.Commercial);
 
-            Assert.AreEqual(TrafficResult.NoRoadFound, result);
+            Assert.AreEqual(TrafficResult.NoWayOut, result);
             Assert.IsEmpty(route);
         }
 
@@ -694,10 +745,19 @@ namespace Micropolis.Rules.Tests
             map.SetTile(x, y, across ? HRAILSTATION : VRAILSTATION, TileFlags.BLBNBIT);
         }
 
-        // The tiles each way in turn, every one of them the way given
+        // The tiles each way in turn, every one of them the way given: by road or rail on no ninths, and on foot across
+        // open land, on every ninth
         private static List<RouteStep> Going(params (TravelMode Mode, List<Position> Tiles)[] legs)
         {
-            return legs.SelectMany(leg => leg.Tiles.Select(tile => new RouteStep(tile, leg.Mode))).ToList();
+            return legs.SelectMany(leg => leg.Tiles.Select(tile => new RouteStep(tile, leg.Mode, leg.Mode == TravelMode.Walk ? Walkways.AllNinths : 0)))
+                       .ToList();
+        }
+
+        // The tiles walked in turn, each along the ninths given of it
+        private static List<RouteStep> Walking(params (List<Position> Tiles, int[] Ninths)[] legs)
+        {
+            return legs.SelectMany(leg => leg.Tiles.Select(tile => new RouteStep(tile, TravelMode.Walk, TripRoutes.Mask(leg.Ninths))))
+                       .ToList();
         }
 
         private static (TrafficResult Result, List<Position> Route) Route(GameMap map, TrafficDestination destination,
@@ -713,7 +773,16 @@ namespace Micropolis.Rules.Tests
                                                                            BlockMaps? blockMaps = null, uint seed = 0,
                                                                            TripRouter? router = null)
         {
-            List<RouteStep> route = new List<RouteStep>();
+            (TrafficResult result, TripRoute route) = Routed(map, destination, blockMaps, seed, router);
+
+            return (result, route.Steps);
+        }
+
+        private static (TrafficResult Result, TripRoute Route) Routed(GameMap map, TrafficDestination destination,
+                                                                      BlockMaps? blockMaps = null, uint seed = 0,
+                                                                      TripRouter? router = null)
+        {
+            TripRoute route = new TripRoute();
             TrafficResult result = (router ?? new TripRouter(map)).Route(
                 Origin, destination, blockMaps ?? new BlockMaps(map.Width, map.Height), RandomStream.FromSeed(seed), route);
 

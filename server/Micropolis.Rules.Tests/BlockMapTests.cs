@@ -28,6 +28,35 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(entries, map.Width * map.Height);
         }
 
+        // A block's side is a power of two, which a tile's coordinates shift by to find its block
+        [TestMethod]
+        [DataRow(0)]
+        [DataRow(3)]
+        [DataRow(6)]
+        public void Constructor_BlockSideNoPowerOfTwo_Fails(int blockSize)
+        {
+            Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new BlockMap(120, 100, blockSize, 0, 1));
+        }
+
+        // On a map of blocks of four tiles, each its own index, a tile reads what its block holds, as the world
+        // coordinates' reading does, at a block's corners and on the map's last tile
+        [TestMethod]
+        [DataRow(0, 0)]
+        [DataRow(3, 3)]
+        [DataRow(4, 3)]
+        [DataRow(7, 8)]
+        [DataRow(11, 9)]
+        public void TileGet_TileInABlock_ReadsWhatWorldGetDoes(int x, int y)
+        {
+            BlockMap map = new BlockMap(12, 10, 4, 0, 255);
+            for (int i = 0; i < map.Width * map.Height; i++)
+            {
+                map.Set(i % map.Width, i / map.Width, i);
+            }
+
+            Assert.AreEqual(map.WorldGet(x, y), map.TileGet(x, y));
+        }
+
         [TestMethod]
         public void Get_LoadedEntries_ReadsThemRowByRow()
         {

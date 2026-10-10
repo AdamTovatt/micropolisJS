@@ -20,6 +20,15 @@ namespace Micropolis.Rules
     /// </summary>
     internal sealed class RoadTool : LayingTool
     {
+        /// <summary>
+        /// The straight road, across as the tool lays it on dirt and down as the connections turn it.
+        /// </summary>
+        public static readonly IReadOnlyList<Piece> Straight =
+        [
+            new Piece(TileValues.ROADS, TileFlags.BLBNBIT),
+            new Piece(TileValues.ROADS2, TileFlags.BLBNBIT),
+        ];
+
         public RoadTool(GameMap map)
             : base(10, map)
         {
@@ -33,13 +42,34 @@ namespace Micropolis.Rules
         {
             return tileValue switch
             {
-                TileValues.DIRT => new Piece(TileValues.ROADS, TileFlags.BLBNBIT),
+                TileValues.DIRT => Straight[0],
                 TileValues.LHPOWER => new Piece(TileValues.VROADPOWER, TileFlags.BLBNCNBIT),
                 TileValues.LVPOWER => new Piece(TileValues.HROADPOWER, TileFlags.BLBNCNBIT),
                 TileValues.LHRAIL => new Piece(TileValues.HRAILROAD, TileFlags.BLBNBIT),
                 TileValues.LVRAIL => new Piece(TileValues.VRAILROAD, TileFlags.BLBNBIT),
                 _ => null,
             };
+        }
+
+        protected override bool IsLine(int tileValue)
+        {
+            return tileValue >= TileValues.ROADS && tileValue <= TileValues.INTERSECTION;
+        }
+
+        protected override bool IsLineOverWater(int tileValue)
+        {
+            return OverWater(tileValue);
+        }
+
+        /// <summary>
+        /// Whether a tile of the value, with any road it carries taken out, is road crossing water: a bridge, or the
+        /// drawbridge's pieces, open or closed.
+        /// </summary>
+        public static bool OverWater(int tileValue)
+        {
+            return tileValue is TileValues.HBRIDGE or TileValues.VBRIDGE or TileValues.BRWH or TileValues.BRWV ||
+                   (tileValue >= TileValues.HBRDG0 && tileValue <= TileValues.HBRDG3) ||
+                   (tileValue >= TileValues.VBRDG0 && tileValue <= TileValues.VBRDG3);
         }
 
         // A bridge, when a road leads onto the water from the right, the left, below or above, in that order of

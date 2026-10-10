@@ -85,6 +85,40 @@ export function plainWater(rect: RectJson, sand: [number, number, number] = [0, 
           tiles: [{...rect}]};
 }
 
+// A walkway section as JSON, loosely enough for a test to break it
+export interface WalkwayJson {
+  cut: unknown;
+  feather: unknown;
+  edge: unknown;
+  gravel: Record<string, unknown>;
+  paving: Record<string, unknown>;
+  crossing: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+// The committed manifest's walkway section
+export function committedWalkway(): WalkwayJson {
+  return structuredClone(repositoryJson<{walkway: WalkwayJson}>("images/render/manifest.json").walkway);
+}
+
+// The plainest walkers section: one dab, the rectangle given, which the walkers' colours tint
+export function plainWalkers(rect: RectJson): {dabs: RectJson[]} {
+  return {dabs: [rect]};
+}
+
+// The plainest walkway section: its edge cut so a path fills its ninths but for their rounded ends and sides, unwobbled,
+// its gravel, paving and crossing each one flat colour, as given, none of the grass's light and dark in them, and two
+// stripes to a ninth; a footbridge's deck, a tile across, and an underpass's stairs the rectangles of the grass's
+// atlas given, the stairs the deck's unless given, and the deck the whole of its ninths across, with no rails and no
+// shadow
+export function plainWalkway(deck: RectJson, gravel: [number, number, number] = [0, 0, 0],
+                             paving: [number, number, number] = [0, 0, 0], crossing: [number, number, number] = [0, 0, 0],
+                             stairs: RectJson = deck): WalkwayJson {
+  return {cut: 0.6, feather: 0.2, edge: 0, gravel: {mean: gravel, contrast: 0}, paving: {mean: paving, contrast: 0},
+          crossing: {colour: crossing, stripes: 2}, deck: {...deck, tiles: 1},
+          footbridge: {span: 1, rail: {width: 0, darkness: 0}, shadow: {offset: 0, darkness: 0, feather: 1}}, stairs};
+}
+
 // The plainest grass section: one colour, so each set is the one tile, the rectangle given, of the mean colour given,
 // half of each set everywhere and no tint, so where the rectangle is that colour all over, the grass is too. Its mask
 // weighs nothing, but its gradients are the sixteen ways round, which a canopy's wobble is drawn on.

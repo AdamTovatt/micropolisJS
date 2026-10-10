@@ -23,8 +23,9 @@ import {
 } from "../src/renderManifest";
 import type { CanopyArt } from "../src/renderManifest";
 import { SURFACE_REACH } from "../src/surfaces";
-import { committedGrass, committedSurface, plainCanopy, plainGrass, plainWater } from "./helpers/grassArt";
-import type { CanopyJson, GrassJson, WaterJson } from "./helpers/grassArt";
+import { committedGrass, committedSurface, committedWalkway, plainCanopy, plainGrass, plainWalkers, plainWalkway,
+    plainWater } from "./helpers/grassArt";
+import type { CanopyJson, GrassJson, WalkwayJson, WaterJson } from "./helpers/grassArt";
 import { repositoryJson, repositoryPath } from "./helpers/repository";
 import { tileImageOrigin } from "../src/tileSet";
 import { LTRFBASE, TILE_COUNT } from "../src/tileValues";
@@ -45,7 +46,8 @@ const rect = (x: number, y: number, size = 64) => ({atlas: "zones", x, y, width:
 // A manifest file's JSON, with one atlas, the tiles and sprites given, no cars and the plainest grass and canopy
 function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
     return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}, grass: plainGrass(rect(0, 0)),
-            canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0))};
+            canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0)), walkway: plainWalkway(rect(0, 0)),
+            walkers: plainWalkers(rect(0, 0, 32))};
 }
 
 describe("the render manifest", () => {
@@ -97,7 +99,11 @@ describe("the render manifest", () => {
             const canopy = {...plain.canopy, tiles: [onSheet]};
             const water = {...plain.water, tiles: [onSheet]};
 
-            expect(() => checkRectsInAtlases({...fallback, grass, canopy, water}, SHEET_SIZES)).not.toThrow();
+            const walkers = {dabs: [onSheet]};
+            const walkway = {...plain.walkway, deck: {...onSheet, tiles: 3}, stairs: onSheet};
+
+            expect(() => checkRectsInAtlases({...fallback, walkers, grass, canopy, water, walkway}, SHEET_SIZES))
+                .not.toThrow();
         });
 
         it("has no sprite cell for a type or frame the sheet lacks", () => {
@@ -401,6 +407,106 @@ describe("the render manifest", () => {
                 const json = canopyJson();
                 change(json);
                 expect(() => parseRenderManifest(withGrass(grassJson(), json))).toThrow(`Render manifest: ${message}`);
+            });
+        });
+
+        describe("the walkers", () => {
+
+            it("reads the committed manifest's dabs, each a rectangle", () => {
+                const committed = repositoryJson<{atlases: object, walkers: {dabs: object[]}}>(
+                    "images/render/manifest.json");
+                const plain = manifestJson();
+                const json = {...plain, atlases: {...plain.atlases as object, ...committed.atlases},
+                              walkers: committed.walkers};
+
+                expect(parseRenderManifest(json).walkers.dabs).toEqual(committed.walkers.dabs);
+                expect(committed.walkers.dabs.length).toBeGreaterThan(0);
+            });
+
+            it("draws a walker as the dab its number picks, of those it has, round and round", () => {
+                const json = {...manifestJson(), walkers: {dabs: [rect(0, 0, 32), rect(32, 0, 32)]}};
+                const art = new RenderArt(parseRenderManifest(json));
+
+                expect([art.walkerDab(0), art.walkerDab(1), art.walkerDab(7)])
+                    .toEqual([rect(0, 0, 32), rect(32, 0, 32), rect(32, 0, 32)]);
+            });
+
+            it.each<[string, unknown, string]>([
+                ["none", undefined, "the manifest lacks walkers"],
+                ["no dab", {dabs: []}, "walkers.dabs is not a list of at least one"],
+                ["a dab in an atlas the manifest doesn't declare", {dabs: [{...rect(0, 0), atlas: "people"}]},
+                 "walkers.dabs[0]"],
+                ["a key the format doesn't name", {dabs: [rect(0, 0)], people: 1}, "walkers has unknown keys: people"],
+            ])("refuses %s, naming where", (_, walkers, message) => {
+                const json = manifestJson();
+                if (walkers === undefined) {
+                    delete json.walkers;
+                } else {
+                    json.walkers = walkers;
+                }
+
+                expect(() => parseRenderManifest(json)).toThrow(`Render manifest: ${message}`);
+            });
+        });
+
+        describe("the walkways", () => {
+
+            const withWalkway = (walkway: WalkwayJson) => ({...manifestJson(), walkway});
+
+            // The committed manifest's, its deck and stairs moved into the test manifest's one atlas, its grass's
+            const committed = (): WalkwayJson => {
+                const json = committedWalkway();
+                return {...json, deck: {...(json.deck as object), atlas: "zones"},
+                        stairs: {...(json.stairs as object), atlas: "zones"}};
+            };
+
+            it("reads the committed manifest's", () => {
+                const json = committed();
+                const walkway = parseRenderManifest(withWalkway(json)).walkway;
+
+                expect(walkway).toEqual({cut: json.cut, feather: json.feather, edge: json.edge, gravel: json.gravel,
+                                         paving: json.paving, crossing: json.crossing, deck: json.deck,
+                                         footbridge: json.footbridge, stairs: json.stairs});
+            });
+
+            it("refuses a manifest with none", () => {
+                const json = manifestJson();
+                delete json.walkway;
+
+                expect(() => parseRenderManifest(json)).toThrow("Render manifest: the manifest lacks walkway");
+            });
+
+            it.each<[string, (json: WalkwayJson) => void, string]>([
+                ["no feather", (json) => json.feather = 0, "walkway.feather is not more than 0"],
+                ["a feather reaching past half way between ninths", (json) => [json.cut, json.feather] = [0.6, 0.25],
+                 "walkway has a cut less half its feather under 0.5, so its paths spill out of their ninths"],
+                ["a cut past the surface", (json) => json.cut = 1.2, "walkway.cut is not from 0 to 1"],
+                ["an edge eaten past the surface", (json) => json.edge = -0.1, "walkway.edge is not from 0 to 1"],
+                ["a colour of two numbers", (json) => json.paving.mean = [1, 2],
+                 "walkway.paving.mean is not a list of 3 numbers"],
+                ["more than all of the straw's light and dark", (json) => json.gravel.contrast = 2,
+                 "walkway.gravel.contrast is not from 0 to 1"],
+                ["a crossing of no stripes", (json) => json.crossing.stripes = 0,
+                 "walkway.crossing.stripes is not more than 0"],
+                ["no paving", (json) => delete (json as Partial<WalkwayJson>).paving, "walkway lacks paving"],
+                ["a key the format doesn't name", (json) => json.kerb = 1, "walkway has unknown keys: kerb"],
+                ["a deck outside the grass's atlas", (json) => json.deck = {...(json.deck as object), atlas: "other"},
+                 "walkway.deck.atlas names no atlas of the manifest's"],
+                ["a deck spanning no tiles", (json) => json.deck = {...(json.deck as object), tiles: 0},
+                 "walkway.deck.tiles is not more than 0"],
+                ["rails past black", (json) => (json.footbridge as {rail: object}).rail = {width: 0.1, darkness: 2},
+                 "walkway.footbridge.rail.darkness is not from 0 to 1"],
+                ["rails wider than half the deck",
+                 (json) => (json.footbridge as {rail: object}).rail = {width: 0.5, darkness: 0.5},
+                 "walkway.footbridge has rails wider than half its deck"],
+                ["a deck's shadow falling a whole ninth",
+                 (json) => (json.footbridge as {shadow: {offset: number}}).shadow.offset = 1,
+                 "walkway.footbridge.shadow.offset is not from 0 to below 1"],
+                ["no stairs", (json) => delete json.stairs, "walkway lacks stairs"],
+            ])("refuses %s, naming where", (_, change, message) => {
+                const json = committed();
+                change(json);
+                expect(() => parseRenderManifest(withWalkway(json))).toThrow(`Render manifest: ${message}`);
             });
         });
     });

@@ -545,7 +545,7 @@ namespace Micropolis.Rules
 
                     if (CityTime % TaxFrequency == 0)
                     {
-                        Budget.CollectTax(GameLevel, Census);
+                        Budget.CollectTax(GameLevel, Census, Map.WalkwayUpkeep);
                         Evaluation.CityEvaluation(simData);
                     }
 

@@ -13,7 +13,7 @@
  */
 
 import RULE_CONSTANTS from "../../conformance/ruleConstants.json";
-import type { ToolName } from "../../src/protocol";
+import type { ToolName, WalkwayKind } from "../../src/protocol";
 
 // The rules' numbers the client's tests count with, as the fixture tool writes them from the C# rules to
 // conformance/ruleConstants.json (conformance/README.md), so no test copies one that could drift from the rules
@@ -26,12 +26,18 @@ interface RuleConstants {
     stepsPerSecond: number;
     departureInterval: number;
     toolCosts: Record<ToolName, number>;
+    // What each kind of walkway costs: a path a ninth, and a footbridge or an underpass a tile
+    walkwayCosts: Record<WalkwayKind, number>;
     // The advisor conditions' messages, in the order the status record lists them
     advisorConditions: string[];
     // Each sprite type, as the state messages number it, with its frames, counting from 1
     spriteTypes: {type: number, name: string, frames: number}[];
     // The tiles along each side of a block of the fire department's cover map
     fireCoverBlockSize: number;
+    // The ninths of each tile's carriageway, a bit for each, by the tile's value, for the tiles that have one
+    carriageways: Record<string, number>;
+    // The ninths of each tile's rail track, a bit for each, by the tile's value, for the tiles that have one
+    tracks: Record<string, number>;
     // The map's size in tiles
     mapSize: {width: number, height: number};
 }

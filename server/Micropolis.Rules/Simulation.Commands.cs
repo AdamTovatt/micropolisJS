@@ -39,9 +39,13 @@ namespace Micropolis.Rules
         private const long AddedFunds = 20000;
 
         private IReadOnlyDictionary<ToolName, CityTool>? _tools;
+        private IReadOnlyDictionary<ToolName, CityTool>? _erasers;
+        private WalkwayTool? _walkwayTool;
 
-        // The tools that change the city, each staging its edits over this city's map
+        // The tools that change the city, each staging its edits over this city's map, and their erasers
         private IReadOnlyDictionary<ToolName, CityTool> Tools => _tools ??= CityTools.Create(Map);
+        private IReadOnlyDictionary<ToolName, CityTool> Erasers => _erasers ??= CityTools.Erasers(Map, Tools);
+        private WalkwayTool WalkwayTool => _walkwayTool ??= new WalkwayTool(Map);
 
         /// <summary>
         /// Applies the commands received since the last call, in the order they arrived. They apply between steps,
@@ -77,6 +81,17 @@ namespace Micropolis.Rules
                 case ToolCommand tool:
                     return ApplyTool(tool);
 
+                case WalkwayCommand walkway:
+                    return ApplyPath(walkway.Path, ninth => WalkwayTool.Lay(ninth.X, ninth.Y, walkway.Kind), WalkwayTool);
+
+                // An eraser clears where the tile it leaves takes no walkway, as auto-bulldoze does, at the bulldozer's
+                // cost (CityTool.Apply)
+                case EraseCommand erase:
+                    return ApplyPath(erase.Path, tile => Erasers[erase.Tool].Apply(tile.X, tile.Y, Random, autoBulldoze: true), Erasers[erase.Tool]);
+
+                case EraseWalkwayCommand eraseWalkway:
+                    return ApplyPath(eraseWalkway.Path, ninth => WalkwayTool.Erase(ninth.X, ninth.Y), WalkwayTool);
+
                 case SetBudgetCommand budget:
                     // A service left out keeps its funding
                     Budget.SetFunding(budget.Road, budget.Fire, budget.Police);
@@ -110,17 +125,22 @@ namespace Micropolis.Rules
             return Outcome.Ok;
         }
 
-        // The tool at each tile of the path in turn, as one click each: the tool draws from the stream, then edits the
-        // map and charges the budget if the city can pay. A tile that fails doesn't stop the rest. The outcome is ok
-        // when every tile succeeded, and otherwise the first failed tile's.
         private Outcome ApplyTool(ToolCommand command)
         {
             CityTool tool = Tools[command.Tool];
+            return ApplyPath(command.Path, tile => tool.Apply(tile.X, tile.Y, Random, command.AutoBulldoze), tool);
+        }
+
+        // The tool at each place of the path in turn, as one click each, which stages the tool's edits, drawing from the
+        // stream as it goes; then the tool edits the map and charges the budget if the city can pay. A place that fails
+        // doesn't stop the rest. The outcome is ok when every place succeeded, and otherwise the first failed place's.
+        private Outcome ApplyPath<TPlace>(IReadOnlyList<TPlace> path, Action<TPlace> click, StagedTool tool)
+        {
             Outcome outcome = Outcome.Ok;
 
-            foreach (TilePosition tile in command.Path)
+            foreach (TPlace place in path)
             {
-                tool.DoTool(tile.X, tile.Y, Random, command.AutoBulldoze);
+                click(place);
                 tool.ModifyIfEnoughFunding(Budget);
 
                 if (outcome == Outcome.Ok)

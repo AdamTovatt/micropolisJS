@@ -40,6 +40,8 @@ namespace Micropolis.Rules
         private readonly Simulation _city;
         // The map's raw values as last sent, row by row
         private int[] _tiles;
+        // Each tile's usable walkway as last sent, row by row
+        private int[] _walkways;
         // The messages sent only when they change, as last sent, as their wire text, by type
         private readonly Dictionary<string, string> _sent = new Dictionary<string, string>(StringComparer.Ordinal);
         // The latest status and demand since the last messages, which replace any before them
@@ -50,9 +52,10 @@ namespace Micropolis.Rules
         private DemandMessage? _lastDemand;
         // The events since the last messages, in the order the simulation sent them: one overlay message per layer
         private List<StateMessage> _events = new List<StateMessage>();
-        // The runs by road and the rides offered since the last messages, each in the order they were offered
+        // The runs by road, the rides and the walks offered since the last messages, each in the order they were offered
         private List<Trip> _runs = new List<Trip>();
         private List<Ride> _rides = new List<Ride>();
+        private List<Trip> _walks = new List<Trip>();
 
         /// <summary>
         /// Takes the city as it stands as sent, so the first new messages are what changes from here: a player who
@@ -77,15 +80,17 @@ namespace Micropolis.Rules
             });
             events.AddEventListener(RulesEvents.CityStatusUpdated, status => _status = _lastStatus = status);
             events.AddEventListener(RulesEvents.ValvesUpdated, demand => _demand = _lastDemand = demand);
-            // The trips the client draws as cars and trains, which no player who joins is sent
+            // The trips the client draws as cars, trains and walkers, which no player who joins is sent
             city.Trips.RunOffered += run => _runs.Add(run);
             city.Trips.RideOffered += ride => _rides.Add(ride);
+            city.Trips.WalkOffered += walk => _walks.Add(walk);
         }
 
-        [MemberNotNull(nameof(_tiles))]
+        [MemberNotNull(nameof(_tiles), nameof(_walkways))]
         private void MarkSent()
         {
             _tiles = _city.Map.RawValues();
+            _walkways = _city.Map.UsableWalkwayValues();
 
             foreach (StateMessage message in Changing())
             {
@@ -94,14 +99,21 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The whole state, as a player who joins needs it: the whole map, the sprites, the date, the population and the
-        /// records, then the latest status and demand published, if any has been, and the step clock. It is what was
-        /// last sent, as long as the city changes only between calls of <see cref="NewMessages"/>, each of which sends
-        /// what it changed.
+        /// The whole state, as a player who joins needs it: the whole map, the walkway of every tile that holds any, if
+        /// one does, the sprites, the date, the population and the records, then the latest status and demand published,
+        /// if any has been, and the step clock. It is what was last sent, as long as the city changes only between calls
+        /// of <see cref="NewMessages"/>, each of which sends what it changed.
         /// </summary>
         public IReadOnlyList<StateMessage> FullState()
         {
-            List<StateMessage> messages = [new MapMessage(_city.Map.Width, _city.Map.Height, _city.Map.RawValues()), .. Changing()];
+            GameMap map = _city.Map;
+            List<StateMessage> messages = [new MapMessage(map.Width, map.Height, map.RawValues())];
+            if (WalkwaysMessage(new int[map.Width * map.Height]) is WalkwaysMessage walkways)
+            {
+                messages.Add(walkways);
+            }
+
+            messages.AddRange(Changing());
 
             if (_lastStatus is not null)
             {
@@ -118,9 +130,10 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The state messages since the last call: the tiles that changed; the sprites, date, population and records
-        /// that differ from those sent last; then the status and demand published since, the events in the order they
-        /// came, the step clock if the batch carries any of these or trips, and the trips offered since, if any was.
+        /// The state messages since the last call: the tiles that changed, and the tiles whose walkway changed; the
+        /// sprites, date, population and records that differ from those sent last; then the status and demand published
+        /// since, the events in the order they came, the step clock if the batch carries any of these or trips, and the
+        /// trips offered since, if any was.
         /// </summary>
         public IReadOnlyList<StateMessage> NewMessages()
         {
@@ -129,6 +142,12 @@ namespace Micropolis.Rules
             if (TilesMessage() is TilesMessage tiles)
             {
                 messages.Add(tiles);
+            }
+
+            if (WalkwaysMessage(_walkways) is WalkwaysMessage walkways)
+            {
+                _walkways = _city.Map.UsableWalkwayValues();
+                messages.Add(walkways);
             }
 
             foreach (StateMessage message in Changing())
@@ -156,7 +175,7 @@ namespace Micropolis.Rules
 
             messages.AddRange(_events);
             _events = new List<StateMessage>();
-            bool trips = _runs.Count > 0 || _rides.Count > 0;
+            bool trips = _runs.Count > 0 || _rides.Count > 0 || _walks.Count > 0;
 
             // The step clock goes with a batch that carries anything, and makes none of its own: it moves every step
             if (trips || messages.Count > 0)
@@ -166,9 +185,10 @@ namespace Micropolis.Rules
 
             if (trips)
             {
-                messages.Add(new TripsMessage(_runs, _rides));
+                messages.Add(new TripsMessage(_runs, _rides, _walks));
                 _runs = new List<Trip>();
                 _rides = new List<Ride>();
+                _walks = new List<Trip>();
             }
 
             return messages;
@@ -204,6 +224,26 @@ namespace Micropolis.Rules
 
             _tiles = values;
             return changes.Count == 0 ? null : new TilesMessage(changes);
+        }
+
+        // The tiles whose usable walkway (Walkways.Usable) differs from what the values given hold for each, row by row,
+        // with its usable walkway now, or null for none: a walkway an opening drawbridge leaves dormant is sent as none,
+        // and again as the bridge closes
+        private WalkwaysMessage? WalkwaysMessage(int[] before)
+        {
+            int[] values = _city.Map.UsableWalkwayValues();
+            int width = _city.Map.Width;
+            List<WalkwayChange> changes = new List<WalkwayChange>();
+
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (values[i] != before[i])
+                {
+                    changes.Add(new WalkwayChange(i % width, i / width, values[i]));
+                }
+            }
+
+            return changes.Count == 0 ? null : new WalkwaysMessage(changes);
         }
 
         // A sprite as the client draws it: its position plus its type's drawing offset

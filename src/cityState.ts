@@ -13,7 +13,7 @@
  */
 
 import type { CitySource } from "./citySource";
-import type { MapMessage, SpriteView, StateMessage, StateMessageType, TileChange } from "./protocol";
+import type { MapMessage, SpriteView, StateMessage, StateMessageType, TileChange, WalkwayChange } from "./protocol";
 import { BIT_MASK } from "./tileFlags";
 import { TILE_INVALID } from "./tileValues";
 
@@ -25,28 +25,46 @@ export type MessageOf<T extends StateMessageType> = Extract<StateMessage, {type:
 
 type MapTiles = Pick<MapMessage, "width" | "height" | "tiles">;
 
-// The client's copy of the map: each tile's raw value, with its flags, as the last map and tiles messages left it
+// The client's copy of the map: each tile's raw value, with its flags, as the last map and tiles messages left it,
+// and each tile's walkway value (WalkwayChange), as the walkways messages since the last map message left them
 export class ClientMap {
   width = 0;
   height = 0;
   private tiles: number[] = [];
+  private walkways: number[] = [];
 
   // From a map message, or a map preview, which holds a map the same way
   constructor(message: MapTiles) {
     this.replace(message);
   }
 
-  // The whole map again, as a city starts
+  // The whole map again, as a city starts, with no walkways
   replace(message: MapTiles): void {
     this.width = message.width;
     this.height = message.height;
     this.tiles = [...message.tiles];
+    this.walkways = new Array<number>(message.tiles.length).fill(0);
   }
 
   change(changes: TileChange[]): void {
     changes.forEach(({x, y, value}) => {
       this.tiles[y * this.width + x] = value;
     });
+  }
+
+  changeWalkways(changes: WalkwayChange[]): void {
+    changes.forEach(({x, y, ninths}) => {
+      this.walkways[y * this.width + x] = ninths;
+    });
+  }
+
+  // The tile's walkway value (WalkwayChange)
+  getWalkway(x: number, y: number): number {
+    if (!this.testBounds(x, y)) {
+      throw new Error(`Tile (${x}, ${y}) is off the map`);
+    }
+
+    return this.walkways[y * this.width + x];
   }
 
   testBounds(x: number, y: number): boolean {
@@ -69,6 +87,19 @@ export class ClientMap {
         const mapX = x + column;
         const mapY = y + row;
         result[row * w + column] = this.testBounds(mapX, mapY) ? this.tiles[mapY * this.width + mapX] : TILE_INVALID;
+      }
+    }
+
+    return result;
+  }
+
+  // Fills result, row by row, with the walkway values of the w by h tiles from (x, y), 0 off the map
+  getWalkwaysForPainting(x: number, y: number, w: number, h: number, result: number[]): number[] {
+    for (let row = 0; row < h; row++) {
+      for (let column = 0; column < w; column++) {
+        const mapX = x + column;
+        const mapY = y + row;
+        result[row * w + column] = this.testBounds(mapX, mapY) ? this.walkways[mapY * this.width + mapX] : 0;
       }
     }
 
@@ -135,6 +166,8 @@ export class CityState {
       }
     } else if (message.type === "tiles") {
       this.map.change(message.changes);
+    } else if (message.type === "walkways") {
+      this.map.changeWalkways(message.changes);
     }
 
     (this.latestMessages as Record<string, StateMessage>)[message.type] = message;

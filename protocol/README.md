@@ -58,9 +58,11 @@ A player's browser sends these, each a request carrying an `id`, a whole number 
 but `command` and `cursor`:
 
 - `cursor`, with `cursor`: the player's hover box, `{"tool", "x", "y", "size"}`, or null once when it goes. The box
-  holds the tool the player holds, one of the tools a tool command names or `query`; the map tile under their
-  pointer, where a click applies the tool; and the box's side in tiles. The browser sends it as the box moves, at most
-  5 times a second, and again every 2 seconds while it holds still. The server doesn't answer it: it passes each on
+  holds the tool the player holds, one of the tools a tool command names, `query` or `walkway`, or `bulldozer` while
+  Shift turns the tool held into its eraser; the map tile under their pointer, where a click applies the tool, the
+  tile holding the ninth for the walkway; and the box's side in tiles, one for the walkway and for an eraser. The
+  browser sends it as the box moves, at most 5 times a second, and again every 2 seconds while it holds still. The
+  server doesn't answer it: it passes each on
   to the city's other players as a `cursor` message from the sender's player, and to nothing else, so the simulation
   never sees it and no log keeps it. It drops a box whose tile is off the city's map or whose size isn't its tool's
   (the side of what a building tool puts down, and 1 for the rest), passes on at most 20 of the others in any second
@@ -195,10 +197,11 @@ each query as it receives it (`Queries` in `server/Micropolis.Rules`) and answer
   assess it by; `outlook`, where it stands by what its handler can do with it, `LIKELY_TO_GROW` where it can grow and
   never declines, `MAY_GROW_OR_DECLINE` where it can do both, `HOLDS_STEADY` where it can do neither and
   `LIKELY_TO_DECLINE` where it can decline and never grows; `assessedNowAndThen`, whether its handler assesses it only
-  now and then, rather than each time the map scan finds it, as it does an empty home zone; `roadAtEdge`, whether a
-  road or rail lies on its perimeter, without which the next trip its people make declines it, though a zone with no
-  people makes none; and `blockers`, what holds back its growth, codes `src/protocol.ts` lists, with what each means,
-  in the order an answer gives them. The answer carries no display text: the client sorts the values into the bands
+  now and then, rather than each time the map scan finds it, as it does an empty home zone; `wayAtEdge`, whether a
+  road or rail lies on its perimeter, or a walkway on a ninth of a perimeter tile along the side facing the zone,
+  without which the next trip its people make declines it, unless a walk across open land reaches a station, a
+  walkway or its destination, though a zone with no people makes none; and `blockers`, what holds back its growth,
+  codes `src/protocol.ts` lists, with what each means, in the order an answer gives them. The answer carries no display text: the client sorts the values into the bands
   it shows, and the codes are the client's to word.
 - `budgetForecast` may name `road`, `fire` and `police`, each a whole percent from 0 to 100 of what that service
   needs, and `tax`, a whole percent from 0 to 20, as `setBudget` does, and is answered with `budget`, the budget now
@@ -245,7 +248,8 @@ codes it uses.
 
 A state message is what the city sends the client about itself: a JSON object whose `type` field names it. The client
 shows the city from these and nothing else, through its city source (`src/citySource.ts`). It keeps its own copy of
-the map, built from the full map the city sends when it starts, and kept up to date by the tile changes after it. The
+the map and its walkways, built from the full map and walkways the city sends when it starts, and kept up to date by
+the tile and walkway changes after it. The
 city sends what changed in batches, after the steps: one after each turn of its loop that applied commands or took
 steps, however many steps the turn took, and one after each call of the end-to-end runner's driver that applies
 commands or takes steps. The sprites, the date, the population and the records go only when they differ from what it
@@ -254,14 +258,23 @@ published since the batch before. A batch announces each recomputed layer at mos
 often the turn recomputed it. The events, `news`, `commandResult`, `budgetReviewDue` and `overlayUpdated`, go in the
 order they came, then the step clock, `clock`, and `trips` last. Every batch carries the step clock, which moves every
 step, but none is sent for it alone: a turn that changed nothing else a player is sent sends no batch. A city that
-starts sends the whole map, the sprites, the date, the population and the `evaluation`, `budget` and `settings`
-records (see Records), and the step clock, then the rest as they come; a player who joins is sent no trips offered
-before.
+starts sends the whole map, the walkways if it has any, the sprites, the date, the population and the `evaluation`,
+`budget` and `settings` records (see Records), and the step clock, then the rest as they come; a player who joins is
+sent no trips offered before. A batch's `tiles` and `walkways` come first, in that order.
 
 - `map` is the whole map: `width` and `height`, in tiles, and `tiles`, each tile's raw value with its flags, row by
-  row, top row first.
+  row, top row first. The map it starts holds no walkways.
 - `tiles` lists the tiles whose raw value changed since the last `map` or `tiles` message, in `changes`, each
   `{"x", "y", "value"}`.
+- `walkways` lists the tiles whose usable walkway changed since the last `map` or `walkways` message, in `changes`,
+  each `{"x", "y", "ninths"}`, row by row; after a `map`, every tile that holds any. A tile is a grid of three by three
+  ninths, numbered row by row from its north-west corner, and `ninths` holds each ninth's kind of walkway in two bits,
+  ninth `n`'s at bit `2n`: 1 a path, 2 a footbridge, 3 an underpass, and 0 none (`WALKWAY_KINDS` in `src/protocol.ts`,
+  numbered from 1). A path is laid on bare land, a park, road and rail, bridges and crossings among them, but no
+  station and not the wild woods; a footbridge on road, rail or water; and an underpass on road or rail but no bridge.
+  A ninth is usable while its tile takes its kind (`Walkways.Usable`), and the message holds only the usable ninths:
+  a walkway on a tile that has become one that takes its kind no longer, which the map scan clears, or that an open
+  drawbridge leaves dormant until it closes, is sent as none, and again as the bridge closes.
 - `sprites` lists every sprite on the map, in `sprites`, each `{"type", "frame", "x", "y", "width"}`: its type, which
   is its row of the sprite sheet, and its frame, its column, both counted from 1, the first row the trains', which the
   client draws from rides and no city sends; and the square it is drawn in,
@@ -291,20 +304,29 @@ before.
   or couldn't cover the services. The city steps on: nothing waits for the review.
 - `overlayUpdated` names a `layer` the simulation has recomputed, which an overlay showing it asks for again.
 - `trips` lists the trips the city offered since the batch before: in `routes`, the runs by road, for the client to
-  draw as cars, and in `rides`, the rides by rail, for it to draw as trains, each in the order it offered them. The
-  traffic rule finds a zone a route, from a tile of the zone's perimeter to the tile beside its destination, which goes
-  by road, rides rail from a station to a station, and walks a few tiles to or from a station. A run by road is a run
-  of the route by road (road, a road bridge, or road crossing rail or a power line), of two tiles or more and as long
-  as the route goes by road; a ride is a run of it by rail, from the station it gets on at to the one it gets off at,
-  through any station between. A run is written `[x, y, "steps"]`: the tile it starts on, then a letter for each step
-  to the next tile of it, `N` (up the map, to `y - 1`), `E` (`x + 1`), `S` (`y + 1`) or `W` (`x - 1`), such as
-  `[9, 8, "NNE"]` for (9, 8), (9, 7), (9, 6) and (10, 6). A ride is written `[x, y, "steps", departure]`, the station
-  it gets on at, its steps, and the step clock's value (`clock`) of the departure from that station it boards: each
-  station has a departure each way at a fixed interval of the clock, at an offset of its own from its place, and a ride
-  boards the first after the step the city routed it on, which the train leaves at. The city offers each run and each
-  ride of a route as one of its own, in the route's order, as it routes it; where the route walks it offers nothing. A
-  batch with none offered carries no `trips`, and one with runs but no rides, or rides but no runs, carries the other
-  list empty. Trips are a picture of what the rules do: the rules never read them, and no save or log holds them.
+  draw as cars, in `rides`, the rides by rail, for it to draw as trains, and in `walks`, the walks, for it to draw as
+  walkers, each in the order it offered them. The traffic rule finds a zone a route, from a tile of the zone's
+  perimeter to the tile beside its destination, which goes by road, rides rail from a station to a station, and walks
+  along walkways and a few tiles across open land at each end. A run by road is a run of the route by road (road, a
+  road bridge, or road crossing rail or a power line), of two tiles or more and as long as the route goes by road; a
+  ride is a run of it by rail, from the station it gets on at to the one it gets off at, through any station between.
+  A run is written `[x, y, "steps"]`: the tile it starts on, then a letter for each step to the next tile of it, `N`
+  (up the map, to `y - 1`), `E` (`x + 1`), `S` (`y + 1`) or `W` (`x - 1`), such as `[9, 8, "NNE"]` for (9, 8),
+  (9, 7), (9, 6) and (10, 6). A ride is written `[x, y, "steps", departure]`, the station it gets on at, its steps, and
+  the step clock's value (`clock`) of the departure from that station it boards: each station has a departure each way
+  at a fixed interval of the clock, at an offset of its own from its place, and a ride boards the first after the step
+  the city routed it on, which the train leaves at. A walk is a run of the route on foot, along walkways and across
+  open land, written as a run is but on the map's grid of ninths, three across and down each tile, ninth `(x, y)` lying
+  in tile `(floor(x / 3), floor(y / 3))`: the ninth it starts on, then a letter for each step to the next ninth, through
+  two ninths or more. On each tile it keeps to the ninths the route walks there, those of the piece of walkway the
+  route took, or across open land all of them, and goes the shortest way over them, from the ninth across from the one
+  it left the tile before by to the nearest ninth along the side facing the next tile that touches one of the next
+  tile's, so the walk stays joined from tile to tile. Where it starts, it comes in by the ninth along the side facing
+  the zone or the station it comes from nearest that side's middle, and where it ends, it goes to the nearest along the
+  side facing the zone or the station it goes to. The city offers each run, each ride and each walk of a route as one
+  of its own, in the route's order, as it routes it. A batch with none offered carries no `trips`, and one with some
+  carries the lists it has none for empty. Trips are a picture of what the rules do: the rules never read them, and no
+  save or log holds them.
 
 ## Examples
 

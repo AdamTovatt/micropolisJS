@@ -14,8 +14,8 @@
 
 import * as Messages from "./messages";
 import {
-  CITY_PROBLEMS, CityClass, DisasterKind, GameLevel, GrowthBlocker, GrowthOutlook, GrowthZone, OverlayLayer,
-  ScoreReason, ServiceAmounts, SPEEDS, ToolName, ZoneCategory,
+  CITY_PROBLEMS, CityClass, DisasterKind, ErasedTool, GameLevel, GrowthBlocker, GrowthOutlook, GrowthZone,
+  OverlayLayer, ScoreReason, ServiceAmounts, SPEEDS, ToolName, WalkwayKind, ZoneCategory,
 } from "./protocol";
 import type { ToastedFailure } from "./toolToast";
 import * as UiMessages from "./uiMessages";
@@ -68,9 +68,9 @@ const growth = {
     RESIDENTIAL: "Homes are assessed now and then", COMMERCIAL: "Commerce is assessed now and then",
     INDUSTRIAL: "Industry is assessed now and then",
   } satisfies Record<GrowthZone, string>,
-  noRoad: {
-    RESIDENTIAL: "No road at its edge: its people will move out", COMMERCIAL: "No road at its edge: it will decline",
-    INDUSTRIAL: "No road at its edge: it will decline",
+  noWayOut: {
+    RESIDENTIAL: "No road or path at its edge: its people may move out",
+    COMMERCIAL: "No road or path at its edge: it may decline", INDUSTRIAL: "No road or path at its edge: it may decline",
   } satisfies Record<GrowthZone, string>,
 };
 
@@ -265,6 +265,16 @@ const playerActions = {
     port: "built a seaport", rail: "laid rail", residential: "zoned residential land", road: "built a road",
     stadium: "built a stadium", station: "built a rail station", wire: "laid power lines",
   } satisfies Record<ToolName, string>,
+  walkways: {path: "laid a path", footbridge: "built a footbridge", underpass: "dug an underpass"} satisfies
+    Record<WalkwayKind, string>,
+  erased: {
+    airport: "removed an airport", coal: "removed a coal power plant", commercial: "removed commercial land",
+    fire: "removed a fire station", industrial: "removed industrial land", nuclear: "removed a nuclear power plant",
+    park: "removed a park", police: "removed a police station", port: "removed a seaport", rail: "removed rail",
+    residential: "removed residential land", road: "removed a road", stadium: "removed a stadium",
+    station: "removed a rail station", wire: "removed power lines",
+  } satisfies Record<ErasedTool, string>,
+  erasedWalkway: "removed a path",
   taxes: (tax: number) => `set taxes to ${tax}%`,
   funding: {road: "road funding", fire: "fire funding", police: "police funding"} satisfies Record<keyof ServiceAmounts, string>,
   fundingTo: (service: string, percent: number) => `${service} to ${percent}%`,

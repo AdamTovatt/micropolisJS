@@ -22,7 +22,8 @@ sprites.png, and dirtbg.png into images/, or the directory --out names. The 16 p
 original ones in art/sheets/ with every tile id and sprite frame it has art for drawn into its
 cell, so the build reads nothing it wrote. Which design fills which tile ids is in designs.py: the
 single-tile sets by SINGLE_TILES, the zones by ZONES, their animations by FRAMES, the vehicles by
-SPRITES, the cars by CAR. Needs Pillow and NumPy.
+SPRITES, the cars by CAR; the walkers' dabs are cut by walkers.py, and the footbridge's deck and the
+underpass's stair mouth by bridges.py. Needs Pillow, NumPy and SciPy.
 """
 
 import argparse
@@ -33,7 +34,9 @@ import re
 import numpy as np
 from PIL import Image
 
+import bridges
 import grass
+import walkers
 from designs import (CAR, CAR_COLOURS, CAR_WAYS, FRAMES, IMAGES, ORIGINAL_SPRITES, ORIGINAL_TILES, SHEET_COLUMNS,
                      SHEET_PX, OVER_SHADOWS, SINGLE_TILES, SPRITE_CELL, SPRITES, TILE_PX, WATER_HIGH, WATER_LOW,
                      WOODS_HIGH, WOODS_LOW, ZONES, load, single_tile_ids, sprite_frame, tile_asset, zone_frame)
@@ -222,6 +225,8 @@ def build(source, out=IMAGES):
     for k in range(CAR['frames']):
         image = vehicle_image(load(source, sprite_frame('car', k)))
         cars[(CAR_COLOURS[k // len(CAR_WAYS)], CAR_WAYS[k % len(CAR_WAYS)])] = image
+    # the walkers' dabs of paint, packed with the cars, which the game draws in the same pass, tinting each
+    dabs = {('dab', k): dab for k, dab in enumerate(walkers.build_dabs())}
 
     os.makedirs(render, exist_ok=True)
     for old in os.listdir(render):
@@ -232,8 +237,12 @@ def build(source, out=IMAGES):
     grass_images = {(name, k): Image.fromarray(t)
                     for name, tiles in {**grass_sets, 'canopy': canopy, 'water': water}.items()
                     for k, t in enumerate(tiles)}
+    # the footbridge's deck and the underpass's stair mouth, packed with the grass, which the ground pass draws them
+    # beside
+    surfaces = bridges.build()
+    grass_images.update({(name, 0): image for name, image in surfaces.items()})
     for kind, mode, images in (('ground', 'RGBA', ground), ('objects', 'RGBA', objects),
-                               ('shadow', 'RGBA', shadows), ('sprites', 'RGBA', {**sprites, **cars}),
+                               ('shadow', 'RGBA', shadows), ('sprites', 'RGBA', {**sprites, **cars, **dabs}),
                                ('grass', 'RGB', grass_images)):
         pages = Atlases(kind, mode)
         packed[kind] = pages.pack(images)
@@ -261,8 +270,11 @@ def build(source, out=IMAGES):
                             for name, tiles_of_set in grass_sets.items()}}
     canopy_entry = {**grass.CANOPY, 'tiles': [packed['grass'][('canopy', k)] for k in range(len(canopy))]}
     water_entry = {**grass.WATER, 'tiles': [packed['grass'][('water', k)] for k in range(len(water))]}
+    walker_entry = {'dabs': [packed['sprites'][('dab', k)] for k in range(len(dabs))]}
     manifest = {'version': 1, 'atlases': atlases, 'tiles': tiles, 'sprites': sprite_entries, 'cars': car_entries,
-                'grass': grass_entry, 'canopy': canopy_entry, 'water': water_entry}
+                'walkers': walker_entry, 'grass': grass_entry, 'canopy': canopy_entry, 'water': water_entry,
+                'walkway': {**grass.WALKWAY, 'deck': {**packed['grass'][('deck', 0)], 'tiles': bridges.DECK_TILES},
+                            'stairs': packed['grass'][('stairs', 0)]}}
     with open(os.path.join(render, 'manifest.json'), 'w') as f:
         json.dump(manifest, f, indent=1)
         f.write('\n')
@@ -286,7 +298,8 @@ def build(source, out=IMAGES):
     # the page's background: a square of the world grass, which wraps
     grass_square.save(os.path.join(out, 'dirtbg.png'), optimize=True)
 
-    print(f'{len(tiles)} tile ids, {len(shadows)} shadows, {len(sprites)} sprite frames, {len(cars)} cars and '
+    print(f'{len(tiles)} tile ids, {len(shadows)} shadows, {len(sprites)} sprite frames, {len(cars)} cars, '
+          f'{len(dabs)} dabs and '
           f'{len(grass_images)} grass, canopy and water tiles from '
           f'{source}, in '
           f'{len(atlases)} atlases: ' + ', '.join(f'{n} {Image.open(os.path.join(render, p)).size}'

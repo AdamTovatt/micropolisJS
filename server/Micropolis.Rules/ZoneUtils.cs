@@ -124,9 +124,9 @@ namespace Micropolis.Rules
         public const long UnpoweredZoneScore = -500;
 
         /// <summary>
-        /// The location score of a home or commercial zone whose trip found no road.
+        /// The location score of a home or commercial zone whose trip found no way out.
         /// </summary>
-        public const int NoRoadLocationScore = -3000;
+        public const int NoWayOutLocationScore = -3000;
 
         // A zone's centre is its footprint's second tile across and down, so the centre of a zone holding a tile lies
         // one down and right of it at most, and up and left at most the largest zone's side less two

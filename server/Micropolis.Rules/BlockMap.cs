@@ -24,12 +24,21 @@ namespace Micropolis.Rules
     {
         private int[] _data;
 
+        // The power of two a block's side is, by which a tile's coordinates shift to its block's
+        private readonly int _shift;
+
         /// <summary>
         /// A map of zeros over a game map of the given size in tiles, whose entries the simulation keeps from
         /// <paramref name="min"/> to <paramref name="max"/>.
         /// </summary>
         public BlockMap(int gameMapWidth, int gameMapHeight, int blockSize, int min, int max)
         {
+            _shift = System.Numerics.BitOperations.Log2((uint)blockSize);
+            if (blockSize <= 0 || 1 << _shift != blockSize)
+            {
+                throw new ArgumentOutOfRangeException(nameof(blockSize), blockSize, "A block's side must be a power of two.");
+            }
+
             BlockSize = blockSize;
             Min = min;
             Max = max;
@@ -68,6 +77,17 @@ namespace Micropolis.Rules
         public void Set(int blockX, int blockY, int value)
         {
             _data[Width * blockY + blockX] = value;
+        }
+
+        /// <summary>
+        /// The entry of the block holding the tile at (<paramref name="tileX"/>, <paramref name="tileY"/>) of the map,
+        /// as <see cref="WorldGet"/> gives it, for a tile on the map, whose coordinates are never negative: its block
+        /// found by a shift, a block's side being a power of two, with none of the flooring of a negative coordinate
+        /// <see cref="WorldGet"/> does. The trip router reads the blocks of the tiles it searches by it.
+        /// </summary>
+        public int TileGet(int tileX, int tileY)
+        {
+            return _data[Width * (tileY >> _shift) + (tileX >> _shift)];
         }
 
         /// <summary>

@@ -21,8 +21,8 @@ namespace Micropolis.Rules
     public static class Residential
     {
         /// <summary>
-        /// The least location score, of a zone whose pollution is at least its land value, or with no road
-        /// (<see cref="ZoneUtils.NoRoadLocationScore"/>), and so the least of the housing appeal.
+        /// The least location score, of a zone whose pollution is at least its land value, or with no way out
+        /// (<see cref="ZoneUtils.NoWayOutLocationScore"/>), and so the least of the housing appeal.
         /// </summary>
         public const int LeastLocationScore = -3000;
 
@@ -306,12 +306,12 @@ namespace Micropolis.Rules
         }
 
         // The location score of the zone centred at (x, y), whose trip came to the traffic, as evalRes in the original:
-        // its land value less its pollution, or with no road ZoneUtils.NoRoadLocationScore
+        // its land value less its pollution, or with no way out ZoneUtils.NoWayOutLocationScore
         private static int LocationScore(BlockMaps blockMaps, int x, int y, TrafficResult traffic)
         {
-            if (traffic == TrafficResult.NoRoadFound)
+            if (traffic == TrafficResult.NoWayOut)
             {
-                return ZoneUtils.NoRoadLocationScore;
+                return ZoneUtils.NoWayOutLocationScore;
             }
 
             return LandScore(blockMaps.LandValueMap.WorldGet(x, y), blockMaps.PollutionDensityMap.WorldGet(x, y));
@@ -452,7 +452,7 @@ namespace Micropolis.Rules
                 trafficOK = simData.TrafficManager.MakeTraffic(x, y, simData.BlockMaps, TrafficDestination.Commercial);
 
                 // If we're not connected to the road network, then going shopping will be a pain. Move out.
-                if (trafficOK == TrafficResult.NoRoadFound)
+                if (trafficOK == TrafficResult.NoWayOut)
                 {
                     // An index in the range 0-3 of the land value and pollution scores (higher is better), which picks
                     // the variant to build

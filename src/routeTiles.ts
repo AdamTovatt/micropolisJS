@@ -63,6 +63,13 @@ export function tripRoute([x, y, steps]: Trip | Ride): TilePosition[] {
   return route;
 }
 
+// A number from 0 up to count a route's start picks: the same for every route from there, and spread over neighbouring
+// starts, so the cars and the walkers of a town come in their colours mixed
+export function pickedByStart(route: readonly TilePosition[], count: number): number {
+  const {x, y} = route[0];
+  return (x * 7 + y * 13) % count;
+}
+
 // Whether two tiles are the same tile
 export function sameTile(a: TilePosition, b: TilePosition): boolean {
   return a.x === b.x && a.y === b.y;

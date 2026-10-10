@@ -20,14 +20,23 @@ namespace Micropolis.Rules
     /// crossing of road or a power line, or a bridge, and needing no power. The bulldozer takes it back to the rail it
     /// stood on.
     /// </summary>
-    internal sealed class StationTool : ConnectingTool
+    internal sealed class StationTool : ConnectingTool, IErasedTile
     {
         public StationTool(GameMap map)
             : base(500, map)
         {
         }
 
-        public override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
+        /// <summary>
+        /// The track a station stood on, which erasing the station leaves, as the bulldozer does; or null for any other
+        /// tile.
+        /// </summary>
+        public Piece? PieceLeft(int tileValue)
+        {
+            return TileUtils.IsRailStation(tileValue) ? new Piece(TileUtils.TrackUnder(tileValue), TileFlags.BLBNBIT) : null;
+        }
+
+        protected override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
         {
             if (!Map.TestBounds(x, y))
             {

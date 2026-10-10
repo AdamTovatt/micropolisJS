@@ -104,13 +104,13 @@ export interface QueryView {
 
 // How a zone grows, in words: where it stands; each thing holding it back, none for a zone nothing holds back; that the
 // rules assess it only now and then, or null where they assess it whenever the map scan finds it; what its next trip
-// does with no road at its edge, or null with one; and, for the debug rows, its zone score and its centre, which the
-// report is on, wherever the tile clicked lies in it
+// may do with no road or path at its edge, or null with one; and, for the debug rows, its zone score and its centre,
+// which the report is on, wherever the tile clicked lies in it
 export interface GrowthView {
   outlook: string;
   blockers: string[];
   nowAndThen: string | null;
-  noRoad: string | null;
+  noWayOut: string | null;
   score: string;
   centre: string;
 }
@@ -125,7 +125,7 @@ const GROWTH_IDS: Record<keyof GrowthView, string> = {
   outlook: "queryOutlook",
   blockers: "queryBlockers",
   nowAndThen: "queryNowAndThen",
-  noRoad: "queryNoRoad",
+  noWayOut: "queryNoWayOut",
   score: "queryZoneScoreRaw",
   centre: "queryZoneCentreRaw",
 };
@@ -192,7 +192,7 @@ function growthView(growth: ZoneGrowthReport | null): GrowthView | null {
     outlook: words.outlooks[growth.outlook],
     blockers: growth.blockers.map((blocker) => blockerText(blocker, growth.zone)),
     nowAndThen: growth.assessedNowAndThen ? words.nowAndThen[growth.zone] : null,
-    noRoad: growth.roadAtEdge ? null : words.noRoad[growth.zone],
+    noWayOut: growth.wayAtEdge ? null : words.noWayOut[growth.zone],
     score: `${growth.score}`,
     centre: `${growth.x}, ${growth.y}`,
   };
@@ -269,7 +269,7 @@ function renderGrowth(growth: GrowthView | null): void {
     requiredElement(GROWTH_IDS[field]).textContent = growth?.[field] ?? "";
   }
 
-  for (const field of ["nowAndThen", "noRoad"] as const) {
+  for (const field of ["nowAndThen", "noWayOut"] as const) {
     const note = requiredElement(GROWTH_IDS[field]);
     note.textContent = growth?.[field] ?? null;
     setShown(note, (growth?.[field] ?? null) !== null);

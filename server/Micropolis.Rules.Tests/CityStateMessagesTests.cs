@@ -41,6 +41,32 @@ namespace Micropolis.Rules.Tests
             Assert.IsEmpty(messages.NewMessages());
         }
 
+        // A walkway laid sends the tile's walkway once, after the tiles, and a player who joins is sent it after the map
+        [TestMethod]
+        public void NewMessages_WalkwayChanged_SendsItOnceAfterTheTilesAndInTheWholeState()
+        {
+            Simulation city = City("suburb", "run");
+            CityStateMessages messages = new CityStateMessages(city);
+
+            city.Map.SetTileValue(3, 4, TileValues.RUBBLE);
+            city.Map.SetWalkway(5, 6, 21);
+
+            List<string> batch = Batch(messages, city);
+            Assert.HasCount(2, batch);
+            Assert.AreEqual("""{"type":"walkways","changes":[{"x":5,"y":6,"ninths":21}]}""", batch[1]);
+            Assert.IsEmpty(messages.NewMessages());
+            CollectionAssert.AreEqual(new[] { "map", "walkways" }, messages.FullState().Take(2).Select(message => message.Type).ToArray());
+        }
+
+        // A city without walkways sends a player who joins none
+        [TestMethod]
+        public void FullState_NoWalkways_SendsNoWalkwaysMessage()
+        {
+            CityStateMessages messages = new CityStateMessages(City("suburb", "run"));
+
+            Assert.IsFalse(messages.FullState().Any(message => message is WalkwaysMessage));
+        }
+
         [TestMethod]
         public void NewMessages_Sprite_SendsItWhereTheClientDrawsIt()
         {
@@ -112,37 +138,45 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEqual(ranks.Order().ToList(), ranks);
         }
 
+        // The commuters drive and ride, and the walkers walk
         [TestMethod]
-        public void NewMessages_TripsAndRidesOffered_SendsThemOnceLastInTheOrderOffered()
+        [DataRow("commuters", 2, 2, 0)]
+        [DataRow("walkers", 0, 0, 2)]
+        public void NewMessages_TripsRidesAndWalksOffered_SendsThemOnceLastInTheOrderOffered(string fixture, int fewestTrips,
+                                                                                              int fewestRides, int fewestWalks)
         {
             List<Trip> offered = new List<Trip>();
             List<Ride> ridden = new List<Ride>();
+            List<Trip> walked = new List<Trip>();
             CityStateMessages messages = AfterSomeCycles(city =>
             {
                 city.Trips.RunOffered += offered.Add;
                 city.Trips.RideOffered += ridden.Add;
-            }, "commuters");
+                city.Trips.WalkOffered += walked.Add;
+            }, fixture);
 
             IReadOnlyList<StateMessage> sent = messages.NewMessages();
 
-            Assert.IsGreaterThan(1, offered.Count, "Too few trips offered to check.");
-            Assert.IsGreaterThan(1, ridden.Count, "Too few rides offered to check.");
-            Assert.AreEqual(ProtocolJson.Serialize(new TripsMessage(offered, ridden)), ProtocolJson.Serialize(sent[^1]));
+            Assert.IsGreaterThanOrEqualTo(fewestTrips, offered.Count, "Too few trips offered to check.");
+            Assert.IsGreaterThanOrEqualTo(fewestRides, ridden.Count, "Too few rides offered to check.");
+            Assert.IsGreaterThanOrEqualTo(fewestWalks, walked.Count, "Too few walks offered to check.");
+            Assert.AreEqual(ProtocolJson.Serialize(new TripsMessage(offered, ridden, walked)),
+                            ProtocolJson.Serialize(sent[^1]));
             Assert.AreEqual(1, Types(sent).Count(type => type == "trips"));
             CollectionAssert.DoesNotContain(Types(messages.NewMessages()), "trips");
         }
 
-        // A batch whose trips are rides alone sends its runs by road as an empty list
+        // A batch whose trips are rides alone sends its runs by road and its walks as empty lists
         [TestMethod]
-        public void NewMessages_RidesAloneOffered_SendsNoRoutes()
+        public void NewMessages_RidesAloneOffered_SendsNoRoutesOrWalks()
         {
             Simulation city = City("town", "built");
             CityStateMessages messages = new CityStateMessages(city);
 
-            city.Trips.Routed([new RouteStep(new Position(25, 15), TravelMode.Rail), new RouteStep(new Position(26, 15), TravelMode.Rail)]);
+            city.Trips.Routed(TripRoutes.Route(TileUtils.WestSide, TileUtils.EastSide, TripRoutes.By(TravelMode.Rail, (25, 15), (26, 15))));
 
             long departure = Timetable.NextDeparture(25, 15, city.StepClock);
-            Assert.AreEqual($"{{\"type\":\"trips\",\"routes\":[],\"rides\":[[25,15,\"E\",{departure}]]}}", ProtocolJson.Serialize(messages.NewMessages()[^1]));
+            Assert.AreEqual($"{{\"type\":\"trips\",\"routes\":[],\"rides\":[[25,15,\"E\",{departure}]],\"walks\":[]}}", ProtocolJson.Serialize(messages.NewMessages()[^1]));
         }
 
         // A batch with anything to carry ends with the step clock, as it stands, when it has no trips
@@ -182,7 +216,7 @@ namespace Micropolis.Rules.Tests
             CityStateMessages messages = new CityStateMessages(city);
             messages.NewMessages();
 
-            city.Trips.Routed([new RouteStep(new Position(25, 15), TravelMode.Rail), new RouteStep(new Position(26, 15), TravelMode.Rail)]);
+            city.Trips.Routed(TripRoutes.Route(TileUtils.WestSide, TileUtils.EastSide, TripRoutes.By(TravelMode.Rail, (25, 15), (26, 15))));
             List<string> sent = Wire(messages.NewMessages());
 
             Assert.AreEqual($"{{\"type\":\"clock\",\"steps\":{city.StepClock}}}", sent[^2]);

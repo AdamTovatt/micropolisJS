@@ -96,8 +96,9 @@ namespace Micropolis.Rules
     /// <param name="Score">The zone score the handler would assess it by.</param>
     /// <param name="Outlook">Where it stands: what its handler can do with it at that score and as it is.</param>
     /// <param name="AssessedNowAndThen">Whether the handler assesses it only now and then.</param>
-    /// <param name="RoadAtEdge">Whether a road or rail lies on its perimeter, without which the next trip its people make
-    /// declines it, though a zone with no people makes none.</param>
+    /// <param name="WayAtEdge">Whether a road or rail lies on its perimeter, or a walkway along its edge
+    /// (<see cref="Traffic.HasWayAtEdge"/>), without which the next trip its people make declines it, unless a walk
+    /// across open land reaches a station, a walkway or its destination, though a zone with no people makes none.</param>
     /// <param name="Blockers">What holds back its growth, in the order of <see cref="GrowthBlocker"/>.</param>
     public sealed record ZoneGrowthReport(
         [property: JsonPropertyName("zone")] string Zone,
@@ -106,7 +107,7 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("score")] long Score,
         [property: JsonPropertyName("outlook")] GrowthOutlook Outlook,
         [property: JsonPropertyName("assessedNowAndThen")] bool AssessedNowAndThen,
-        [property: JsonPropertyName("roadAtEdge")] bool RoadAtEdge,
+        [property: JsonPropertyName("wayAtEdge")] bool WayAtEdge,
         [property: JsonPropertyName("blockers")] IReadOnlyList<GrowthBlocker> Blockers);
 
     /// <summary>

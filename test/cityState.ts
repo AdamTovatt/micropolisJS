@@ -38,6 +38,15 @@ describe("the client's copy of the map", () => {
                                 TILE_INVALID, TILE_INVALID, TILE_INVALID, TILE_INVALID, TILE_INVALID]);
     });
 
+    it("paints each tile's walkway, row by row, and none off the map", () => {
+        const map = new ClientMap(MAP);
+        map.changeWalkways([{x: 1, y: 1, ninths: 21}, {x: 2, y: 0, ninths: 5}]);
+
+        expect(map.getWalkwaysForPainting(1, -1, 3, 3, [])).toEqual([0, 0, 0,
+                                                                     0, 5, 0,
+                                                                     21, 0, 0]);
+    });
+
     it("changes the tiles a tiles message names", () => {
         const map = new ClientMap(MAP);
 
@@ -68,6 +77,18 @@ describe("the client's copy of the city", () => {
 
         expect(state.latest("demand")).toBeNull();
         expect(state.map.width).toBe(1);
+    });
+
+    it("keeps each tile's walkway from the walkways messages, and none once a new city's map comes", () => {
+        const {state, deliver} = copyOf();
+        deliver(MAP);
+
+        deliver({type: "walkways", changes: [{x: 2, y: 1, ninths: 21}, {x: 0, y: 0, ninths: 1}]});
+        deliver({type: "walkways", changes: [{x: 0, y: 0, ninths: 0}]});
+
+        expect([state.map.getWalkway(2, 1), state.map.getWalkway(0, 0), state.map.getWalkway(1, 0)]).toEqual([21, 0, 0]);
+        deliver(MAP);
+        expect(state.map.getWalkway(2, 1)).toBe(0);
     });
 
     // So a listener can read the copy, as the game reads the latest records when a message comes

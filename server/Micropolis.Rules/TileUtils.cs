@@ -227,6 +227,26 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// Whether the tile is a bridge: a road bridge, closed with any traffic on it or an open drawbridge's middle
+        /// tile, which the roads' decay turns back into water, or rail laid over water.
+        /// </summary>
+        public static bool IsBridge(int tileValue)
+        {
+            int shape = (tileValue - TileValues.ROADBASE) % RoadShapes;
+            return (IsRoadway(tileValue) && (shape < 2 || shape == RoadShapes - 1)) ||
+                tileValue is TileValues.HRAIL or TileValues.VRAIL;
+        }
+
+        /// <summary>
+        /// Whether the tile is one of an open drawbridge's raised ends, which it writes over the bridge's road, or the
+        /// water beside it, as it opens, and back as it closes.
+        /// </summary>
+        public static bool IsRaisedBridgeEnd(int tileValue)
+        {
+            return tileValue is >= TileValues.HBRDG0 and <= TileValues.HBRDG3 or >= TileValues.VBRDG0 and <= TileValues.VBRDG3;
+        }
+
+        /// <summary>
         /// Whether a car drives on the tile: road, a road bridge, or road crossing rail or a power line. A trip the
         /// traffic rule routes may also ride rail (<see cref="CarriesTrains(int)"/>), which no car does.
         /// </summary>
@@ -234,6 +254,55 @@ namespace Micropolis.Rules
         {
             return IsRoadway(tileValue) || tileValue == TileValues.HRAILROAD || tileValue == TileValues.VRAILROAD;
         }
+
+        /// <summary>
+        /// The sides of the tile its road leaves by, a bit <c>1 &lt;&lt; d</c> for each side d, numbered as
+        /// <see cref="NorthSide"/> says, as the road tool joins roads: of the tiles a car drives on
+        /// (<see cref="CarriesCars"/>), its traffic's by the plain road of its shape. Not road, none.
+        /// </summary>
+        public static int RoadEnds(int tileValue)
+        {
+            const int north = 1 << NorthSide;
+            const int east = 1 << EastSide;
+            const int south = 1 << SouthSide;
+            const int west = 1 << WestSide;
+
+            if (tileValue == TileValues.HRAILROAD)
+            {
+                return north | south;
+            }
+
+            if (tileValue == TileValues.VRAILROAD)
+            {
+                return east | west;
+            }
+
+            if (!IsRoadway(tileValue))
+            {
+                return 0;
+            }
+
+            // Each level of traffic and each frame of it repeats the sixteen shapes from the plain road's, but for the
+            // sixteenth, the horizontal drawbridge in the plain road's place and the vertical one's frames in the rest
+            return ((tileValue - TileValues.ROADBASE) % RoadShapes) switch
+            {
+                0 or 2 or 13 => east | west,
+                1 or 3 or 14 => north | south,
+                4 => north | east,
+                5 => east | south,
+                6 => south | west,
+                7 => north | west,
+                8 => north | east | west,
+                9 => north | east | south,
+                10 => east | south | west,
+                11 => north | south | west,
+                12 => north | east | south | west,
+                _ => tileValue == TileValues.BRWH ? east | west : north | south,
+            };
+        }
+
+        // The shapes of road from ROADBASE, which each level of traffic and each frame of it repeats
+        private const int RoadShapes = 16;
 
         // Road, its bridges, its traffic and its crossings of power lines: the road tiles a trip runs on
         private static bool IsRoadway(int tileValue)
@@ -311,6 +380,15 @@ namespace Micropolis.Rules
         public static bool IsRail(Tile tile)
         {
             return IsRail(tile.GetValue());
+        }
+
+        /// <summary>
+        /// Whether a tile of the value is a park, as the park tool lays one: its trees or its fountain. The wild woods
+        /// are not.
+        /// </summary>
+        public static bool IsPark(int tileValue)
+        {
+            return (tileValue >= TileValues.WOODS2 && tileValue <= TileValues.WOODS5) || tileValue == TileValues.FOUNTAIN;
         }
 
         public static bool IsResidential(int tileValue)

@@ -12,16 +12,17 @@
 #
 
 """The world grass the game draws under bare land, and the surfaces it draws over the grass from the map, the canopy and
-the water (docs/render-assets.md): two sets of corner Wang tiles cut from the paintings in art/painted/raw/grass, a set
-for each surface cut from its own painting, and the hash and noise that pick a tile, mix the grass's sets and wobble
-the surfaces' edges by map position. The grass is the base the others are drawn over and share their machinery with,
-which is why one module holds them all.
+the water, and the walkways over the ground (docs/render-assets.md): two sets of corner Wang tiles cut from the
+paintings in art/painted/raw/grass, a set for each surface cut from its own painting, the hash and noise that pick a
+tile, mix the grass's sets and wobble the surfaces' edges by map position, and the walkways' looks, drawn in the
+straw's strokes. The grass is the base the others are drawn over and share their machinery with, which is why one
+module holds them all.
 
     python art/tools/grass.py --vectors
 
 writes conformance/grass.json, the vectors the client's hash and noise are held to. The atlas build (atlas.py) builds
 the sets and writes them, with CONSTANTS, into the manifest's grass section, the canopy's set, with CANOPY, into its
-canopy section, and the water's, with WATER, into its water section.
+canopy section, and the water's, with WATER, into its water section, and writes WALKWAY into its walkway section.
 
 A set is colours ** 4 tiles. Each corner of the map's tile lattice takes a colour from an integer hash of its position,
 and a map tile draws the tile of its four corners' colours: edges always meet, since only an edge's two corners reach
@@ -135,6 +136,27 @@ WATER = {
                     {'cell': 0.45, 'seed': 0x5002, 'weight': 0.12, 'turn': [0.572867, 0.819648]}],
     },
     'sand': {'band': 0.2, 'mean': [190, 164, 116], 'contrast': 0.8},
+}
+# What the client draws the walkways with, written into the manifest's walkway section as they are: where a path's edge
+# falls on the surface its ninths make, from 0 off them to 1 within them, and over how much of that surface it fades,
+# the two together keeping a path within its own ninths; how far the water's wobble eats into its edge, so it never
+# runs straight; the gravel of paths on open land and in parks, a warm sand in the straw's brushwork as the sand along
+# the shore is, and the grey paving of sidewalks and of paths on road and rail, each a colour and how much of the
+# straw's light and dark it keeps; a crossing's stripes over a road, their colour and how many of each to a ninth; and
+# a footbridge's deck, the share of a ninth it spans across, its rails along its edges, the share of a ninth they take
+# and how much they darken the deck, and its shadow. The atlas build writes the deck and the stair mouth (bridges.py)
+# beside them.
+WALKWAY = {
+    'cut': 0.62,
+    'feather': 0.2,
+    'edge': 0.35,
+    'gravel': {'mean': [196, 168, 118], 'contrast': 0.9},
+    'paving': {'mean': [152, 150, 144], 'contrast': 0.45},
+    'crossing': {'colour': [236, 234, 224], 'stripes': 3},
+    # a footbridge's deck: how much of a ninth it spans across, its dark rails along its edges, a share of a ninth
+    # wide, and its shadow, which falls right and down, away from the sun, as the canopy's does, in ninths
+    'footbridge': {'span': 0.82, 'rail': {'width': 0.09, 'darkness': 0.6},
+                   'shadow': {'offset': 0.3, 'darkness': 0.45, 'feather': 0.12}},
 }
 BAND = 14                      # pixels in from a tile's edge over which its centre patch takes over from its corners
 

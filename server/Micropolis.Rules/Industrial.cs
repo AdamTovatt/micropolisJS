@@ -48,9 +48,9 @@ namespace Micropolis.Rules
         // The population level of the densest zone
         private const int MostPopulation = 4;
 
-        // What a zone whose trip found no road loses from its zone score, though the handler declines such a zone before
+        // What a zone whose trip found no way out loses from its zone score, though the handler declines such a zone before
         // it assesses it
-        private const int NoRoadPenalty = 1000;
+        private const int NoWayOutPenalty = 1000;
 
         private static void GrowZone(GameMap map, int x, int y, BlockMaps blockMaps, int population, int valueCategory,
                                      bool zonePower)
@@ -110,10 +110,10 @@ namespace Micropolis.Rules
         }
 
         // The location score of a zone whose trip came to the traffic: industry scores nothing for where it stands, but
-        // loses NoRoadPenalty with no road
+        // loses NoWayOutPenalty with no way out
         private static int LocationScore(TrafficResult traffic)
         {
-            return traffic == TrafficResult.NoRoadFound ? -NoRoadPenalty : 0;
+            return traffic == TrafficResult.NoWayOut ? -NoWayOutPenalty : 0;
         }
 
         // Whether a decline has people to take from the zone of the population level: an empty zone has nowhere lower to
@@ -169,7 +169,7 @@ namespace Micropolis.Rules
                 trafficOK = simData.TrafficManager.MakeTraffic(x, y, simData.BlockMaps, TrafficDestination.Residential);
 
                 // Trigger outward migration if not connected to road network
-                if (trafficOK == TrafficResult.NoRoadFound)
+                if (trafficOK == TrafficResult.NoWayOut)
                 {
                     int newValue = simData.Random.GetRandom16() & 1;
                     DegradeZone(map, x, y, simData.BlockMaps, population, newValue, zonePower);

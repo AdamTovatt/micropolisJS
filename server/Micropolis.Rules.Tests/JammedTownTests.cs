@@ -21,10 +21,12 @@ namespace Micropolis.Rules.Tests
     /// zones on the east, each side powered by a coal plant of its own and served by a road down its inner edge, the two
     /// roads joined across a gap of 40 tiles: by one road in the middle, which every trip between the sides takes, or by
     /// one at each zone's row. Either way a trip runs nearly straight, so what makes it slow is the one road's traffic:
-    /// the one road jams, its trips are slow, and their zones lose the slow trip's penalty from their growth scores.
-    /// Over five years from twenty seeds, the town on one road grows slower than the town on a road at each row by more
-    /// than twice the standard error of the difference; with no penalty it does not. <see cref="SlowTripTests"/> holds
-    /// each zone to the penalty a slow trip takes; this holds a whole town to the growth it costs.
+    /// the one road jams, its trips are slow, and their zones lose the slow trip's penalty from their growth scores, and
+    /// its traffic pollutes the land about it. Rubble, which no one walks across, keeps every trip on the roads. Over ten
+    /// years from twenty seeds, the town on one road grows slower than the town on a road at each row by more than twice
+    /// the standard error of the difference. The slow trip's penalty is only part of what a jam costs, so the town on one
+    /// road grows slower with no penalty too: <see cref="SlowTripTests"/> holds each zone to the penalty a slow trip
+    /// takes; this holds a whole town to the growth a jam costs.
     /// </summary>
     [TestClass]
     public sealed class JammedTownTests
@@ -35,8 +37,9 @@ namespace Micropolis.Rules.Tests
         private const int EastRoad = WestRoad + 41;
         private const int Seeds = 20;
 
-        // Five years at fast speed
-        private const int Steps = 5 * 768;
+        // Ten years at fast speed: long enough for the one road to jam, five years being too short to tell the towns apart
+        // from twenty seeds
+        private const int Steps = 10 * 768;
 
         [TestMethod]
         public void Step_TownFedByOneRoad_GrowsSlowerThanOnARoadAtEachRow()
@@ -92,10 +95,18 @@ namespace Micropolis.Rules.Tests
                 map.PutZone(WestRoad - 5, Top - 3, POWERPLANT, 4);
                 map.PutZone(EastRoad + 3, Top - 3, POWERPLANT, 4);
 
+                // Rubble, which no one walks across, along each side's outer edge and on the first zones' edges beside
+                // the plants, so no trip walks to a zone beside its own or to a plant, and every trip drives
+                map.SetTile(WestRoad - 2, Top - 1, RUBBLE, TileFlags.BULLBIT);
+                map.SetTile(WestRoad - 1, Top - 1, RUBBLE, TileFlags.BULLBIT);
+                map.SetTile(EastRoad + 1, Top - 1, RUBBLE, TileFlags.BULLBIT);
+
                 for (int y = Top; y < Top + 3 * Rows; y++)
                 {
                     map.SetTile(WestRoad, y, ROADS, TileFlags.BULLBIT);
                     map.SetTile(EastRoad, y, ROADS, TileFlags.BULLBIT);
+                    map.SetTile(WestRoad - 4, y, RUBBLE, TileFlags.BULLBIT);
+                    map.SetTile(EastRoad + 4, y, RUBBLE, TileFlags.BULLBIT);
                 }
 
                 foreach (int y in rows)

@@ -14,7 +14,7 @@
 
 import { expect, Page, test } from "@playwright/test";
 
-import { plainCanopy, plainGrass, plainWater } from "../test/helpers/grassArt";
+import { plainCanopy, plainGrass, plainWalkers, plainWalkway, plainWater } from "../test/helpers/grassArt";
 import { CITY_LINK, serverForTests } from "./gameServer";
 import { blockNetwork, collectPageProblems } from "./page";
 import { Player, TESTER } from "./player";
@@ -67,6 +67,8 @@ async function serveArt(page: Page, manifest: TestManifest, other: Buffer | "fai
     grass: plainGrass({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
     canopy: plainCanopy({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
     water: plainWater({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
+    walkway: plainWalkway({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
+    walkers: plainWalkers({atlas: "grass", x: 0, y: 0, width: 2, height: 2}),
   }}));
   await page.route("**/images/render/*.png", (route) => {
     if (route.request().url().endsWith("/grass.png")) {

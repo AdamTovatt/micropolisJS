@@ -42,6 +42,7 @@ namespace Micropolis.Rules.Tests
 
         [TestMethod]
         [DataRow(CursorTool.Query, 0, 0, 1, DisplayName = "the query tool at the map's first tile")]
+        [DataRow(CursorTool.Walkway, 30, 30, 1, DisplayName = "the walkway, round the tile holding its ninth")]
         [DataRow(CursorTool.Airport, Width - 1, Height - 1, 6, DisplayName = "the airport at the map's last tile")]
         [DataRow(CursorTool.Residential, 30, 30, 3, DisplayName = "a zone")]
         public void Fits_BoxItsToolMakesOnTheMap_Fits(CursorTool tool, int x, int y, int size)

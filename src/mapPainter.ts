@@ -13,7 +13,7 @@
  */
 
 import { AnimationManager } from "./animationManager";
-import type { PaintableCar } from "./cars";
+import type { PaintableMover } from "./cars";
 import { CompositeRecord, FrameRecord, damagedPixels } from "./mapDamage";
 import type { DrawnSquare } from "./mapDamage";
 import { MapFrame, buildMapFrame, buildWholeMapFrame, squareOnView } from "./mapFrame";
@@ -51,11 +51,11 @@ interface Target {
   readonly height: number;
 }
 
-// A car or a sprite, drawn over the map's layer
-type OverLayer = {kind: "car", square: PaintableCar} | {kind: "sprite", square: PaintableSprite};
+// What moves over the map, a car, a carriage or a walker, or a sprite, drawn over the map's layer
+type OverLayer = {kind: "mover", square: PaintableMover} | {kind: "sprite", square: PaintableSprite};
 
-// A car's or a sprite's square on the view, as the frame draws it (squareOnView), rounded out to whole device pixels,
-// with what it draws as text, its kind first, so a car and a sprite never share it
+// A mover's or a sprite's square on the view, as the frame draws it (squareOnView), rounded out to whole device pixels,
+// with what it draws as text, its kind first, so a mover and a sprite never share it
 function drawnSquare(drawing: OverLayer, tiles: FrameTiles, tilePixels: number): DrawnSquare<OverLayer> {
   const {x, y, side} = squareOnView(drawing.square, tiles, tilePixels);
   return {drawing, key: `${drawing.kind}${JSON.stringify(drawing.square)}`, left: Math.floor(x), top: Math.floor(y),
@@ -65,7 +65,7 @@ function drawnSquare(drawing: OverLayer, tiles: FrameTiles, tilePixels: number):
 // Draws views of the map from the map's art: the map's own view and the monster TV's. The renderer keeps the map in a
 // layer of its own, which each paint draws again only where its picture would differ from the layer drawn last; a
 // paint then composites the target where its picture would differ from the last composited (CompositeRecord): the
-// layer copied over it, and the cars and the sprites there over that. It draws nothing while the GPU is still drawing
+// layer copied over it, and the movers and the sprites there over that. It draws nothing while the GPU is still drawing
 // the frame before.
 export class MapPainter {
   private readonly frame = new MapFrame();
@@ -78,9 +78,10 @@ export class MapPainter {
   // Whether the last paint left the target as it was, the GPU still drawing the frame before
   private behind = false;
 
-  // The raw values of the tiles a paint reads, and the tile ids it draws, kept from paint to paint
+  // The raw values of the tiles a paint reads, the tile ids it draws and their walkways, kept from paint to paint
   private readonly values: number[] = [];
   private readonly frames: number[] = [];
+  private readonly walkways: number[] = [];
 
   // Draws on the target with the renderer, which keeps the map's layer from paint to paint
   constructor(private readonly target: Target, private readonly map: PaintableMap, private readonly art: RenderArt,
@@ -103,9 +104,10 @@ export class MapPainter {
     return !this.behind && !this.renderer.busy;
   }
 
-  // Draws the view, its tiles animated unless the city is paused, each tinted as tint gives it, and the cars and then
-  // the sprites over them, unless it would draw the frame drawn last. Returns whether it drew a frame.
-  paint(view: PaintedView, tint: (x: number, y: number) => Tint | null, cars: readonly PaintableCar[],
+  // Draws the view, its tiles animated unless the city is paused, each tinted as tint gives it, and the cars, carriages
+  // and walkers and then the sprites over them, unless it would draw the frame drawn last. Returns whether it drew a
+  // frame.
+  paint(view: PaintedView, tint: (x: number, y: number) => Tint | null, movers: readonly PaintableMover[],
         sprites: readonly PaintableSprite[], isPaused?: boolean): boolean {
     this.behind = this.renderer.busy;
     if (this.behind) {
@@ -122,17 +124,17 @@ export class MapPainter {
     }
     const damage = this.drawn.damage(drawnView, tiles);
     const areas = damage === null ? [] : damage === "all" ? null : damagedPixels(damage, tilePixels, tiles.offset);
-    const squares = [...cars.map((square) => drawnSquare({kind: "car", square}, tiles, tilePixels)),
+    const squares = [...movers.map((square) => drawnSquare({kind: "mover", square}, tiles, tilePixels)),
                      ...sprites.map((square) => drawnSquare({kind: "sprite", square}, tiles, tilePixels))];
     const composite = this.composited.composite(this.target.width, this.target.height, areas, squares);
     if (composite === null) {
       return false;
     }
 
-    // The cars and the sprites the composite draws, each in its order
-    const drawnCars = composite.drawn.flatMap((drawing) => drawing.kind === "car" ? [drawing.square] : []);
+    // The movers and the sprites the composite draws, each in its order
+    const drawnMovers = composite.drawn.flatMap((drawing) => drawing.kind === "mover" ? [drawing.square] : []);
     const drawnSprites = composite.drawn.flatMap((drawing) => drawing.kind === "sprite" ? [drawing.square] : []);
-    buildMapFrame(this.frame, this.art, tiles, tilePixels, tint, drawnCars, drawnSprites, areas);
+    buildMapFrame(this.frame, this.art, tiles, tilePixels, tint, drawnMovers, drawnSprites, areas);
     this.renderer.draw(this.frame, areas, composite.areas);
     return true;
   }
@@ -178,6 +180,7 @@ export class MapPainter {
     }
     this.animationManager.getTiles(frames, x, y, width, height, isPaused);
 
-    return {x, y, width, height, margin, offset, values, frames};
+    const walkways = this.map.getWalkwaysForPainting(x, y, width, height, this.walkways);
+    return {x, y, width, height, margin, offset, values, frames, walkways};
   }
 }

@@ -35,7 +35,7 @@
     {"step":0,"player":"local","command":{"type":"tool","tool":"wire","path":[{"x":9,"y":13},{"x":9,"y":14},{"x":9,"y":15},{"x":9,"y":16},{"x":9,"y":17}],"autoBulldoze":true}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"d790cc5fd1b68a89afaf7514a5a8086d8293d1e70ac78fe000b58fc8b742128a"},
-    {"step":6912,"hash":"144f6a730df99ee4ef722f8e99bc2bd3a19102464cd9929fe7c0577c658a625f"}
+    {"step":0,"hash":"6fabac1d0afdcabbfda76dd108a140a38dd7e8a3d3f0a1e90cdfdfa84f1854c9"},
+    {"step":6912,"hash":"dedfd96a69b173879e3622104defd04f0e2eab5825ea4ce9bf6b32ee812523d5"}
   ]
 }

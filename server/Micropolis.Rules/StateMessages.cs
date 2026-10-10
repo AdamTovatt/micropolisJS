@@ -128,6 +128,25 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
+    /// A tile whose walkway changed, and its walkway now, a kind for each of its ninths (<see cref="Walkways"/>).
+    /// </summary>
+    public sealed record WalkwayChange(
+        [property: JsonPropertyName("x")] int X,
+        [property: JsonPropertyName("y")] int Y,
+        [property: JsonPropertyName("ninths")] int Ninths);
+
+    /// <summary>
+    /// The tiles whose walkway changed since the last walkways message: in the whole state, every tile that holds any.
+    /// </summary>
+    public sealed record WalkwaysMessage(
+        [property: JsonPropertyName("changes")] IReadOnlyList<WalkwayChange> Changes) : StateMessage
+    {
+        [JsonPropertyName("type")]
+        [JsonPropertyOrder(-1)]
+        public override string Type => "walkways";
+    }
+
+    /// <summary>
     /// A sprite as the client draws it: its type, its row of the sprite sheet, and its frame, its column, both counted
     /// from 1; and the square it is drawn in, <paramref name="Width"/> map pixels a side with its top-left corner at map
     /// pixel (<paramref name="X"/>, <paramref name="Y"/>).
@@ -384,13 +403,14 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// The trips <see cref="Trips"/> offered since the last messages: the runs of routes by road, in the order they were
-    /// offered, and the rides, each from the station it gets on at to the one it gets off at, in the order they were
-    /// offered.
+    /// The trips <see cref="Trips"/> offered since the last messages: the runs of routes by road, the rides, each from
+    /// the station it gets on at to the one it gets off at, and the walks, each on the map's grid of ninths, each in the
+    /// order they were offered.
     /// </summary>
     public sealed record TripsMessage(
         [property: JsonPropertyName("routes")] IReadOnlyList<Trip> Routes,
-        [property: JsonPropertyName("rides")] IReadOnlyList<Ride> Rides) : StateMessage
+        [property: JsonPropertyName("rides")] IReadOnlyList<Ride> Rides,
+        [property: JsonPropertyName("walks")] IReadOnlyList<Trip> Walks) : StateMessage
     {
         [JsonPropertyName("type")]
         [JsonPropertyOrder(-1)]

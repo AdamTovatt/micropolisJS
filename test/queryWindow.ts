@@ -78,7 +78,7 @@ describe("the query window's view", () => {
 // A zone's growth made up for the view, a home that every note applies to
 const GROWTH: ZoneGrowthReport = {
     zone: "RESIDENTIAL", x: 28, y: 14, score: -2400, outlook: "HOLDS_STEADY", assessedNowAndThen: true,
-    roadAtEdge: false, blockers: ["NO_POWER", "LOW_DEMAND", "TOO_POLLUTED"],
+    wayAtEdge: false, blockers: ["NO_POWER", "LOW_DEMAND", "TOO_POLLUTED"],
 };
 
 describe("the query window's growth", () => {
@@ -89,16 +89,16 @@ describe("the query window's growth", () => {
             outlook: "Holding steady",
             blockers: ["No power", "Low demand for housing", "Too polluted for anyone to move in"],
             nowAndThen: "Homes are assessed now and then",
-            noRoad: "No road at its edge: its people will move out",
+            noWayOut: "No road or path at its edge: its people may move out",
             score: "-2400",
             centre: "28, 14",
         });
     });
 
-    it("leaves out the notes on a zone assessed whenever the scan finds it, with a road at its edge", () => {
-        const growth = queryView({...REPORT, growth: {...GROWTH, assessedNowAndThen: false, roadAtEdge: true}}).growth;
+    it("leaves out the notes on a zone assessed whenever the scan finds it, with a way out at its edge", () => {
+        const growth = queryView({...REPORT, growth: {...GROWTH, assessedNowAndThen: false, wayAtEdge: true}}).growth;
 
-        expect([growth?.nowAndThen, growth?.noRoad]).toEqual([null, null]);
+        expect([growth?.nowAndThen, growth?.noWayOut]).toEqual([null, null]);
     });
 
     it("words each outlook apart", () => {
@@ -118,9 +118,9 @@ describe("the query window's growth", () => {
 
     it.each(GROWTH_ZONES)("words both notes on a %s zone, apart", (zone) => {
         const growth = queryView({
-            ...REPORT, growth: {...GROWTH, zone, assessedNowAndThen: true, roadAtEdge: false},
+            ...REPORT, growth: {...GROWTH, zone, assessedNowAndThen: true, wayAtEdge: false},
         }).growth;
-        const notes = [growth?.nowAndThen, growth?.noRoad];
+        const notes = [growth?.nowAndThen, growth?.noWayOut];
 
         expect(notes.every((note) => typeof note === "string" && note !== "")).toBe(true);
         expect(new Set(notes).size).toBe(notes.length);

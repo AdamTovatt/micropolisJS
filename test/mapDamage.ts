@@ -37,7 +37,8 @@ describe("the record of the map's layer drawn last", () => {
             values[(row + 1) * width + column + 1] = value;
             frames[(row + 1) * width + column + 1] = frame ?? value;
         }
-        return {x: 10, y: 20, width, height: VIEW_HEIGHT + 2, margin: 1, offset: {x: 0, y: 0}, values, frames};
+        return {x: 10, y: 20, width, height: VIEW_HEIGHT + 2, margin: 1, offset: {x: 0, y: 0}, values, frames,
+                walkways: values.map(() => 0)};
     }
 
     // A record of a frame of the view and the dirt
@@ -73,6 +74,21 @@ describe("the record of the map's layer drawn last", () => {
     it("draws again a block a changed tile's shadow may reach into, the row's blocks that touch as one", () => {
         expect(recorded().damage(view, area({column: 8, row: 3, value: ZONE, frame: 0})))
             .toEqual([{x: 0, y: 0, width: 16, height: 8}]);
+    });
+
+    it("draws again the blocks of a tile whose walkway alone changed and of the tiles beside it, whose paths it joins",
+       () => {
+        const changed = area();
+        (changed.walkways as number[])[(3 + 1) * (VIEW_WIDTH + 2) + 8 + 1] = 1 << 8;
+
+        expect(recorded().damage(view, changed)).toEqual([{x: 0, y: 0, width: 16, height: 8}]);
+    });
+
+    it("draws again only the block of a tile whose walkway changed, when the tiles beside it lie in it too", () => {
+        const changed = area();
+        (changed.walkways as number[])[(3 + 1) * (VIEW_WIDTH + 2) + 10 + 1] = 1 << 8;
+
+        expect(recorded().damage(view, changed)).toEqual([{x: 8, y: 0, width: 8, height: 8}]);
     });
 
     it("draws again only the block of a tile whose frame alone changed, which changes no shadow", () => {

@@ -15,7 +15,7 @@
 import { expect, Page } from "@playwright/test";
 import { readFileSync } from "fs";
 
-import type { FireStationReach } from "../src/protocol";
+import { type CursorTool, type FireStationReach, NINTHS_PER_SIDE, type WalkwayKind } from "../src/protocol";
 import type { Advanced, View } from "../src/testHook";
 import { steppedZoom } from "../src/viewPosition";
 import type { TilePoint } from "../src/viewPosition";
@@ -34,7 +34,7 @@ export interface Tile {
 // A save, as the object the game's save file holds, in the parts the runner reads. The map's tiles are raw tile values, row
 // by row.
 export interface GameSave {
-  map: {width: number, height: number, tiles: number[]};
+  map: {width: number, height: number, tiles: number[], walkways: {x: number, y: number, ninths: number}[]};
   budget: {totalFunds: number, cityTax: number, policePercent: number, fireEffect: number};
   [key: string]: unknown;
 }
@@ -45,8 +45,8 @@ export interface DownloadedFile {
   text: string;
 }
 
-export type Tool ="residential" | "commercial" | "industrial" | "coal" | "nuclear" | "police" | "fire" | "road" |
-  "rail" | "station" | "wire" | "port" | "stadium" | "airport" | "park" | "bulldozer" | "query";
+// A tool the player can hold, as its button's data-tool names it
+export type Tool = CursorTool;
 
 export type Difficulty = "Easy" | "Med" | "Hard";
 
@@ -265,12 +265,51 @@ export class Player {
     await this.page.click(`#${tool}Button`);
   }
 
-  // Clicks a tile with the selected tool. A building's tile is the one in from its top-left corner, where the
-  // game's outline puts the pointer.
-  async clickTile(tile: Tile): Promise<void> {
+  // Chooses the kind of walkway the Walkway tool lays, on the strip over the tools that shows while it is held
+  async selectWalkwayKind(kind: WalkwayKind): Promise<void> {
+    await this.page.click(`#walkwayKinds [data-kind="${kind}"]`);
+  }
+
+  // Clicks a tile with the selected tool, with Shift held where erase says, which turns the tool into its eraser. A
+  // building's tile is the one in from its top-left corner, where the game's outline puts the pointer.
+  async clickTile(tile: Tile, erase = false): Promise<void> {
     const point = await this.tilePoint(tile);
-    await this.page.mouse.click(point.x, point.y);
+    await this.withShift(erase, () => this.page.mouse.click(point.x, point.y));
     await this.applyInput();
+  }
+
+  // Drags the walkway from one ninth to another, on the map's grid of ninths, along a row or column of it, the pointer
+  // seen on every ninth on the way, with Shift held where erase says, which erases ninth by ninth
+  async dragNinths(from: Tile, to: Tile, erase = false): Promise<void> {
+    if (from.x !== to.x && from.y !== to.y) {
+      throw new Error("A drag runs along a row or a column");
+    }
+
+    const start = await this.ninthPoint(from);
+    const end = await this.ninthPoint(to);
+    const ninths = Math.abs(to.x - from.x) + Math.abs(to.y - from.y);
+
+    await this.withShift(erase, async () => {
+      await this.page.mouse.move(start.x, start.y);
+      await this.page.mouse.down();
+      await this.page.mouse.move(end.x, end.y, {steps: Math.max(ninths, 1)});
+      await this.page.mouse.up();
+    });
+    await this.applyInput();
+  }
+
+  // Does what is given with Shift held down, where held says, and up again after
+  private async withShift(held: boolean, act: () => Promise<void>): Promise<void> {
+    if (held) {
+      await this.page.keyboard.down("Shift");
+    }
+    try {
+      await act();
+    } finally {
+      if (held) {
+        await this.page.keyboard.up("Shift");
+      }
+    }
   }
 
   // Drags the selected tool from one tile to another along a row or column. The pointer is seen on every tile on the
@@ -637,6 +676,13 @@ export class Player {
     return await this.page.evaluate(() => window.micropolisTestHook!.view());
   }
 
+  // The tile at the canvas's top-left, as the map is drawn, which may show only a sliver of its square where the
+  // origin lies between tiles, and from which the map counts the blocks it is drawn again in (DAMAGE_BLOCK)
+  async firstTileInView(): Promise<Tile> {
+    const drawn = await this.drawnView();
+    return {x: Math.floor(drawn.originX / drawn.tilePixels), y: Math.floor(drawn.originY / drawn.tilePixels)};
+  }
+
   // Each tile whose whole square is on the canvas, with its top-left corner on the canvas, in CSS pixels from the
   // canvas's
   async wholeTilesInView(): Promise<{tile: Tile, x: number, y: number}[]> {
@@ -701,13 +747,14 @@ export class Player {
             y: canvas.y + (tile.y * drawn.tilePixels - drawn.originY) / drawn.pixelRatio};
   }
 
-  // The centre of a tile on the screen, or null when the tile is out of view or under a panel
-  private async onCanvas(tile: Tile): Promise<{x: number, y: number} | null> {
+  // The centre of a tile on the screen, or the point the fractions of its width across and down give, or null when the
+  // tile is out of view or under a panel
+  private async onCanvas(tile: Tile, within = {x: 0.5, y: 0.5}): Promise<{x: number, y: number} | null> {
     const {tileWidth} = await this.view();
     const corner = await this.tileCorner(tile);
 
-    const x = corner.x + tileWidth / 2;
-    const y = corner.y + tileWidth / 2;
+    const x = corner.x + tileWidth * within.x;
+    const y = corner.y + tileWidth * within.y;
 
     const shown = await this.page.evaluate(({px, py, id}) => document.elementFromPoint(px, py)?.id === id,
                                            {px: x, py: y, id: CANVAS_ID});
@@ -718,6 +765,18 @@ export class Player {
     const point = await this.onCanvas(tile);
     if (point === null) {
       throw new Error(`Tile (${tile.x}, ${tile.y}) is out of view or under a panel`);
+    }
+
+    return point;
+  }
+
+  // The centre of a ninth of the map's grid of them on the screen
+  private async ninthPoint(ninth: Tile): Promise<{x: number, y: number}> {
+    const tile = {x: Math.floor(ninth.x / NINTHS_PER_SIDE), y: Math.floor(ninth.y / NINTHS_PER_SIDE)};
+    const point = await this.onCanvas(tile, {x: (ninth.x % NINTHS_PER_SIDE + 0.5) / NINTHS_PER_SIDE,
+                                             y: (ninth.y % NINTHS_PER_SIDE + 0.5) / NINTHS_PER_SIDE});
+    if (point === null) {
+      throw new Error(`Ninth (${ninth.x}, ${ninth.y}) is out of view or under a panel`);
     }
 
     return point;

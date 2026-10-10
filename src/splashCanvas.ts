@@ -21,7 +21,7 @@ import { WebGLRenderer } from "./webglRenderer";
 import type { AtlasImage } from "./webglRenderer";
 
 // What the preview reads of the map
-type PreviewMap = Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting">;
+type PreviewMap = Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting" | "getWalkwaysForPainting">;
 
 // Each tile is drawn this many CSS pixels square
 const PREVIEW_TILE_SIZE = 3;

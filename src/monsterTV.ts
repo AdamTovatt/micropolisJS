@@ -12,7 +12,7 @@
  *
  */
 
-import type { PaintableCar } from "./cars";
+import type { PaintableMover } from "./cars";
 import { placeNewCanvas, requiredElement, screenPixelRatio, sizeCanvas } from "./domElements";
 import { MapPainter, paintedView } from "./mapPainter";
 import { SPRITE_PIXELS_PER_TILE, spriteTile } from "./paintable";
@@ -195,13 +195,14 @@ class TVCanvas {
     this.painter = null;
   }
 
-  // Draws what the map's own view would draw of the tiles in view, the cars and the sprites, unless the TV is closed
-  paint(cars: readonly PaintableCar[], sprites: readonly PaintableSprite[], isPaused: boolean): void {
+  // Draws what the map's own view would draw of the tiles in view, what moves over them and the sprites, unless the TV
+  // is closed
+  paint(movers: readonly PaintableMover[], sprites: readonly PaintableSprite[], isPaused: boolean): void {
     if (this.painter === null) {
       return;
     }
 
-    this.painter.paint(paintedView(this.position, SPRITE_PIXELS_PER_TILE * this.pixelRatio), () => null, cars,
+    this.painter.paint(paintedView(this.position, SPRITE_PIXELS_PER_TILE * this.pixelRatio), () => null, movers,
                        sprites, isPaused);
   }
 }
@@ -243,8 +244,8 @@ class MonsterTV {
     return this.canvas.current;
   }
 
-  paint(cars: readonly PaintableCar[], sprites: readonly PaintableSprite[], isPaused: boolean): void {
-    this.canvas.paint(cars, sprites, isPaused);
+  paint(movers: readonly PaintableMover[], sprites: readonly PaintableSprite[], isPaused: boolean): void {
+    this.canvas.paint(movers, sprites, isPaused);
   }
 
   // Shows the sprite of the type, at map tile (x, y), under the title, and follows it until it is gone

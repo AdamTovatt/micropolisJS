@@ -5,7 +5,7 @@
   "level": 0,
   "entries": [],
   "checkpoints": [
-    {"step":0,"hash":"af6b6e27027737d6f62756a2d6ce68395001367b1b3873f613956a6427a9e9e0"},
-    {"step":6912,"hash":"e4e24ed0d2e8f9d1f73a116e0916321df70b9d88293a7a0ff2b4335470499d9b"}
+    {"step":0,"hash":"b7d7c5265918bcc2c3c7e72fb355b1a059bf2bb47ad16c5c1be0ec6920a3dc88"},
+    {"step":6912,"hash":"3013615223dad71d44154fe5082434fb6689ee6d4c03cecb2c0cb8e20d96db3d"}
   ]
 }

@@ -20,12 +20,14 @@ import {
     CAR_PIXELS, Cars, LANE_OFFSET, MAX_CARS, TRACK_OFFSET, VIEW_MARGIN, carCap, carColour, carPlace, distanceFrom,
     nearView, trainPlace,
 } from "../src/cars";
-import type { CarPlace, PaintableCar } from "../src/cars";
+import { WALKER_PIXELS, WALK_SPEED, Walkers } from "../src/walkers";
+import type { CarPlace, PaintableCar, PaintableMover } from "../src/cars";
 import { CAR_BREADTH, CAR_LENGTH } from "../src/mapFrame";
 import { SPRITE_PIXELS_PER_TILE } from "../src/paintable";
+import { NINTHS_PER_SIDE } from "../src/protocol";
 import type { Ride, TilePosition, Trip, TripsMessage } from "../src/protocol";
 import { CAR_CROSSING_MS, CAR_TILES_PER_SECOND } from "../src/roadTraffic";
-import { sameTile, tripRoute } from "../src/routeTiles";
+import { sameTile, tileKey, tripRoute } from "../src/routeTiles";
 import {
     CARRIAGE_SPACING, DEPARTURE_INTERVAL, MOST_CARRIAGES, RIDES_PER_CARRIAGE, STEPS_PER_SECOND, TRAIN_TILES_PER_SECOND,
     Trains, tilesOf,
@@ -45,13 +47,22 @@ const EAST_TRIP: Trip = [10, 5, "EE"];
 // A level crossing, where the tests' trains along row 5 cross column 12
 const CROSSING: TilePosition = {x: 12, y: 5};
 
+// Every ninth of a tile, a bit for each
+const ALL_NINTHS = (1 << (NINTHS_PER_SIDE * NINTHS_PER_SIDE)) - 1;
+
 // How wide a carriage of a train is drawn, in tiles: about as wide as the right-hand track it runs on
 const CARRIAGE_BREADTH = 2 * TRACK_OFFSET;
+
+// The cars on the road and the carriages of trains among what moves over the map, the walkers left out
+function vehicles(painted: readonly PaintableMover[]): PaintableCar[] {
+    return painted.filter((mover): mover is PaintableCar => mover.kind !== "walker");
+}
 
 // The rectangle a car is painted in, in tiles: a car on the road CAR_LENGTH of a tile long the way it faces and
 // CAR_BREADTH across, a carriage of a train CARRIAGE_SPACING long and CARRIAGE_BREADTH across, about the middle of its
 // square
-function body({kind, x, y, width, direction}: PaintableCar): {left: number, top: number, right: number, bottom: number} {
+function body({kind, x, y, width, direction}: PaintableCar): {left: number, top: number, right: number,
+                                                             bottom: number} {
     const [length, breadth] = kind === "road" ? [CAR_LENGTH, CAR_BREADTH] : [CARRIAGE_SPACING, CARRIAGE_BREADTH];
     const across = direction === "east" || direction === "west";
     const middle = {x: (x + width / 2) / SPRITE_PIXELS_PER_TILE, y: (y + width / 2) / SPRITE_PIXELS_PER_TILE};
@@ -86,14 +97,17 @@ const [OFF, TENTH, QUARTER, HALF, ALL] = CAR_SHARE_STEPS;
 const EVERY_TILE: TileRect = {left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity};
 
 // The cars, and the client's clock they were last moved to, which runs on an animation frame at a time, on a map whose
-// level crossings are the tiles given, the main map's view showing the tiles view has
+// level crossings are the tiles given, and whose crossings of paths over its roads are the ninths footCrossings gives
+// of each tile, the main map's view showing the tiles view has
 class Drive {
     now = NOW;
     view = EVERY_TILE;
     readonly cars: Cars;
 
-    constructor(share: () => CarShareStep, crossings: readonly TilePosition[] = []) {
-        this.cars = new Cars(share, (tile) => crossings.some((crossing) => sameTile(crossing, tile)), () => this.view);
+    constructor(share: () => CarShareStep, crossings: readonly TilePosition[] = [],
+                footCrossings: (tile: TilePosition) => number = () => 0) {
+        this.cars = new Cars(share, (tile) => crossings.some((crossing) => sameTile(crossing, tile)), footCrossings,
+                             () => this.view);
         this.cars.advance(NOW, false);
     }
 
@@ -170,15 +184,17 @@ describe("a trip's route", () => {
         expect(() => tripRoute([0, 0, "NX"])).toThrow(`A trip's step "X" is none of NESW`);
     });
 
-    it("decodes the protocol's example trips and rides to their tiles", () => {
-        const {routes, rides} = JSON.parse(readFileSync(repositoryPath("protocol/examples/state/trips.json"), "utf8")) as
-            TripsMessage;
+    it("decodes the protocol's example trips, rides and walks to their tiles, the walks' on the grid of ninths", () => {
+        const {routes, rides, walks} = JSON.parse(readFileSync(repositoryPath("protocol/examples/state/trips.json"),
+                                                               "utf8")) as TripsMessage;
 
         expect(routes.map(tripRoute)).toEqual([
             [{x: 9, y: 8}, {x: 9, y: 7}, {x: 9, y: 6}],
             [{x: 40, y: 31}, {x: 41, y: 31}, {x: 42, y: 31}, {x: 42, y: 32}],
         ]);
         expect(rides.map(tripRoute)).toEqual([Array.from({length: 20}, (_, i) => ({x: 25 + i, y: 15}))]);
+        expect(walks.map(tripRoute)).toEqual([[{x: 31, y: 31}, {x: 32, y: 31}, {x: 33, y: 31}, {x: 34, y: 31},
+                                               {x: 34, y: 32}]]);
     });
 });
 
@@ -306,7 +322,7 @@ describe("the cars", () => {
 
         drive.add(shortTrip(0));
 
-        expect([rows(drive), drive.cars.carsHeld()]).toEqual([[5], MAX_CARS]);
+        expect([rows(drive), drive.cars.moversHeld()]).toEqual([[5], MAX_CARS]);
     });
 
     it("take a car again once one of the most has gone", () => {
@@ -358,6 +374,31 @@ describe("the cars", () => {
         expect(drive.cars.driven()).toEqual([]);
     });
 
+    // A car drives east along row 5 from (10, 5) over (11, 5), as a walker steps to and fro on that tile's top row, its
+    // ninths 0 and 1, for two seconds, then walks on north off it: where that tile's crossings hold the walker's ninths,
+    // the car's front, a quarter of a tile ahead of its middle, stays short of the tile, on the road, while the walker is
+    // on it, and it drives on once the walker has gone; where they hold none, or only the bottom row's middle, which the
+    // walker never steps on, the car never waits, and is at its route's end, gone, by then
+    it.each([[ALL_NINTHS, true], [(1 << 0) | (1 << 1), true], [1 << 7, false], [0, false]])(
+        "give way to a walker on a crossing of ninths %p: %p", (ninths, waits) => {
+            const crossing = {x: 11, y: 5};
+            const drive = new Drive(() => ALL, [], (tile) => sameTile(tile, crossing) ? ninths : 0);
+            drive.cars.addWalks([[33, 15, "EWEWEWN"]]);
+            drive.add(EAST_TRIP);
+            let furthest = 0;
+            let gone = false;
+
+            while (drive.now < NOW + 2000) {
+                const [place] = drive.run(FRAME).cars.driven();
+                gone ||= place === undefined;
+                furthest = Math.max(furthest, place ?? 0);
+            }
+            drive.run(2000);
+
+            expect({gone, short: furthest <= 0.25}).toEqual({gone: !waits, short: waits});
+            expect(drive.cars.driven()).toEqual([]);
+        });
+
     // A train runs east along row 5 through the level crossing at (12, 5), leaving its station at (10, 5) a second
     // from now, and a car comes south down column 12 over it, starting a little later each time, from well before the
     // train to well after it, so that it comes to the crossing before the train, as it does, and after: a frame at a
@@ -369,8 +410,8 @@ describe("the cars", () => {
             drive.cars.addRides([[10, 5, "EEEEEE", 6000 + STEPS_PER_SECOND]], 6000);
             drive.run(delay).add([12, 1, "SSSSSSS"]);
             drive.run(4000, false, () => {
-                const road = drive.cars.paintable().filter(({kind}) => kind === "road");
-                const rail = drive.cars.paintable().filter(({kind}) => kind === "rail");
+                const road = vehicles(drive.cars.paintable()).filter(({kind}) => kind === "road");
+                const rail = vehicles(drive.cars.paintable()).filter(({kind}) => kind === "rail");
                 if (road.some((car) => rail.some((train) => overlap(body(car), body(train))))) {
                     faults.push(`the car starting at ${delay} ms, the train at 1000, at ${drive.now - NOW} ms`);
                 }
@@ -505,7 +546,7 @@ describe("the cars near the view, while the most drive", () => {
 
         drive.add(EAST_TRIP);
 
-        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, ["200,10", "10,5"]]);
+        expect([drive.cars.moversHeld(), others(drive)]).toEqual([MAX_CARS, ["200,10", "10,5"]]);
     });
 
     it("are dropped while every car on the road is near it", () => {
@@ -513,7 +554,7 @@ describe("the cars near the view, while the most drive", () => {
 
         drive.add(EAST_TRIP);
 
-        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, []]);
+        expect([drive.cars.moversHeld(), others(drive)]).toEqual([MAX_CARS, []]);
     });
 
     it("are the only ones that take a far car's place: a car far from it is dropped", () => {
@@ -521,7 +562,7 @@ describe("the cars near the view, while the most drive", () => {
 
         drive.add(from(200, 20));
 
-        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, ["300,10"]]);
+        expect([drive.cars.moversHeld(), others(drive)]).toEqual([MAX_CARS, ["300,10"]]);
     });
 
     // A car starting at column 400 drives west to column 100, inside the view's margin: it is farther than the car
@@ -544,7 +585,7 @@ describe("the cars near the view, while the most drive", () => {
 
         drive.add(EAST_TRIP);
 
-        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, ["10,5"]]);
+        expect([drive.cars.moversHeld(), others(drive)]).toEqual([MAX_CARS, ["10,5"]]);
     });
 
     // The cars from (200, 30) and (200, 10) are as far from the view, the one from row 30 added first
@@ -563,7 +604,7 @@ describe("the cars near the view, while the most drive", () => {
 
         drive.add(EAST_TRIP, [20, 5, "E"], [30, 5, "E"]);
 
-        expect([drive.cars.carsHeld(), others(drive)]).toEqual([MAX_CARS, ["10,5", "20,5"]]);
+        expect([drive.cars.moversHeld(), others(drive)]).toEqual([MAX_CARS, ["10,5", "20,5"]]);
     });
 
     // Two cars from (300, 10) go east, the first on east, the second, which waits to appear behind it on its first
@@ -576,7 +617,8 @@ describe("the cars near the view, while the most drive", () => {
         const after = others(drive);
         drive.run(TILE_MS * 1.5);
 
-        expect([before, after, drive.cars.paintable().filter(({kind}) => kind === "road").map(({direction}) => direction)])
+        expect([before, after, vehicles(drive.cars.paintable()).filter(({kind}) => kind === "road")
+            .map(({direction}) => direction)])
             .toEqual([["300,10"], ["300,10", "10,5"], ["south", "east"]]);
     });
 
@@ -591,7 +633,7 @@ describe("the cars near the view, while the most drive", () => {
         step = TENTH;
         drive.add(EAST_TRIP);
 
-        expect([drive.cars.carsHeld(), others(drive)]).toEqual([300, ["300,10"]]);
+        expect([drive.cars.moversHeld(), others(drive)]).toEqual([300, ["300,10"]]);
     });
 
     // The cars on the road are near the view, at column 0, and a train's car far from it, from (10, 5): a car near it
@@ -604,7 +646,7 @@ describe("the cars near the view, while the most drive", () => {
 
         drive.add([5, 5, "E"]);
 
-        expect([drive.cars.carsHeld(), drive.cars.paintable().filter(({kind}) => kind === "road").length])
+        expect([drive.cars.moversHeld(), drive.cars.paintable().filter(({kind}) => kind === "road").length])
             .toEqual([MAX_CARS, MAX_CARS - 1]);
     });
 });
@@ -635,7 +677,7 @@ describe("the trains", () => {
 
     // The carriages each train draws, front first, as the middles of their squares, in tiles
     function middles({cars}: Drive): {x: number, y: number, direction: string}[] {
-        return cars.paintable().map(({x, y, direction}) => rounded({
+        return vehicles(cars.paintable()).map(({x, y, direction}) => rounded({
             x: (x + CAR_PIXELS / 2) / SPRITE_PIXELS_PER_TILE, y: (y + CAR_PIXELS / 2) / SPRITE_PIXELS_PER_TILE, direction,
         }));
     }
@@ -703,7 +745,7 @@ describe("the trains", () => {
 
             drive.run(allOut);
 
-            expect([drive.cars.carsHeld(), middles(drive)]).toEqual([carriages, Array.from({length: carriages},
+            expect([drive.cars.moversHeld(), middles(drive)]).toEqual([carriages, Array.from({length: carriages},
                 (_, carriage) => eastAt(15.5 - carriage * CARRIAGE_SPACING))]);
         });
 
@@ -716,7 +758,7 @@ describe("the trains", () => {
 
         drive.run(allOut);
 
-        expect([drive.cars.carsHeld(), middles(drive).length, near(drive.cars.driven())])
+        expect([drive.cars.moversHeld(), middles(drive).length, near(drive.cars.driven())])
             .toEqual([MOST_CARRIAGES + 1, MOST_CARRIAGES + 1, [5, 0]]);
     });
 
@@ -737,10 +779,10 @@ describe("the trains", () => {
         drive.run(RAIL_TILE_MS);
 
         drive.cars.addRides(rides(RIDES_PER_CARRIAGE / 2, east(STEPS)), STEPS);
-        const seated = drive.cars.carsHeld();
+        const seated = drive.cars.moversHeld();
         drive.cars.addRides([east(STEPS)], STEPS);
 
-        expect([seated, drive.cars.carsHeld(), near(drive.cars.driven())]).toEqual([1, 2, [1, 0]]);
+        expect([seated, drive.cars.moversHeld(), near(drive.cars.driven())]).toEqual([1, 2, [1, 0]]);
     });
 
     // A train of two carriages two tiles east leaves at once, and its front carriage has reached (12, 5), the end of
@@ -824,7 +866,7 @@ describe("the trains", () => {
 
         drive.run(1000 + RAIL_TILE_MS * 2);
 
-        expect(drive.cars.paintable().filter(({kind}) => kind === "rail").map(({direction}) => direction))
+        expect(vehicles(drive.cars.paintable()).filter(({kind}) => kind === "rail").map(({direction}) => direction))
             .toEqual(["east", "east", "north"]);
     });
 
@@ -836,7 +878,7 @@ describe("the trains", () => {
 
         drive.cars.addRides(rides(RIDES_PER_CARRIAGE + 1, east()), STEPS);
         drive.add(EAST_TRIP);
-        const held = drive.cars.carsHeld();
+        const held = drive.cars.moversHeld();
         drive.run(1000 + RAIL_TILE_MS * 2);
 
         expect([held, drive.cars.paintable().map(({kind}) => kind)]).toEqual([MAX_CARS, ["rail"]]);
@@ -848,7 +890,7 @@ describe("the trains", () => {
         drive.cars.addRides([east()], STEPS);
         drive.frame();
 
-        expect([drive.cars.carsHeld(), drive.cars.paintable().filter(({kind}) => kind === "rail")])
+        expect([drive.cars.moversHeld(), drive.cars.paintable().filter(({kind}) => kind === "rail")])
             .toEqual([MAX_CARS, []]);
     });
 
@@ -871,5 +913,145 @@ describe("the trains", () => {
 
     it("are gone at Off, as cars are", () => {
         expect(trainsAt(() => OFF, [east()]).cars.driven()).toEqual([]);
+    });
+});
+
+describe("the walkers", () => {
+
+    // A walk east along the middle row of ninths of row 5, through the ninths of tiles 10 and 11
+    const EAST_WALK: Trip = [30, 16, "EEEEE"];
+
+    // A point of the map, in ninths of a tile, in tiles, rounded so sums of fractions compare
+    function inNinths(x: number, y: number): {x: number, y: number} {
+        return {x: Math.round(x / NINTHS_PER_SIDE * 1000) / 1000, y: Math.round(y / NINTHS_PER_SIDE * 1000) / 1000};
+    }
+
+    // The middle of each walker's square, in tiles, rounded as inNinths rounds
+    function walkers({cars}: Drive): {x: number, y: number}[] {
+        return cars.paintable().filter((mover) => mover.kind === "walker")
+            .map(({x, y, width}) => inNinths((x + width / 2) / SPRITE_PIXELS_PER_TILE * NINTHS_PER_SIDE,
+                                             (y + width / 2) / SPRITE_PIXELS_PER_TILE * NINTHS_PER_SIDE));
+    }
+
+    // The column of ninths each walker is in
+    function columns(drive: Drive): number[] {
+        return walkers(drive).map(({x}) => Math.floor(x * NINTHS_PER_SIDE));
+    }
+
+    // A short walk down column n of ninths
+    function walkDown(n: number): Trip {
+        return [n, 0, "SS"];
+    }
+
+    function walking(share: () => CarShareStep, walks: Trip[]): Drive {
+        const drive = new Drive(share);
+        drive.cars.addWalks(walks);
+        return drive.frame();
+    }
+
+    // A walker half a ninth past its walk's second ninth, (31, 16), on to its third, (32, 16): tile (10, 5)'s ninths 4
+    // and 5. The tile counts among those a walker is on or about to step onto where its crossings hold either, but not
+    // where they hold only the ninth behind, 3, or none it is between
+    it.each([[1 << 4, true], [1 << 5, true], [1 << 3, false], [ALL_NINTHS & ~((1 << 4) | (1 << 5)), false]])(
+        "counts the tile a walker is on or steps onto next only where its crossings of ninths %p hold its ninth: %p",
+        (ninths, counted) => {
+            const walkers = new Walkers();
+            walkers.add(tripRoute(EAST_WALK), NOW);
+            const tiles = new Set<number>();
+
+            walkers.crossingTiles(NOW + 1.5 * 1000 / WALK_SPEED, (tile) => sameTile(tile, {x: 10, y: 5}) ? ninths : 0, tiles);
+
+            expect([...tiles]).toEqual(counted ? [tileKey({x: 10, y: 5})] : []);
+        });
+
+    it("walks a walker from the middle of its walk's first ninth to the middle of each next, a tile a second", () => {
+        const drive = walking(() => ALL, [EAST_WALK]);
+        const start = walkers(drive);
+        drive.run(1000 / WALK_SPEED / 2);
+        const halfANinthOn = walkers(drive);
+        drive.run(1000 / WALK_SPEED / 2 + 1000 / WALK_SPEED);
+
+        expect([start, halfANinthOn, walkers(drive)])
+            .toEqual([[inNinths(30.5, 16.5)], [inNinths(31, 16.5)], [inNinths(32.5, 16.5)]]);
+        expect(WALK_SPEED).toBe(3);
+    });
+
+    // The colour (x * 7 + y * 13) % 5 and the dab x * 11 + y * 5 of the walks' starts, (30, 16) and (31, 16)
+    it("draws each walker's dab in a square of its own size, tinted by a colour its walk's start picks", () => {
+        const drive = walking(() => ALL, [EAST_WALK, [31, 16, "EEEE"]]);
+        const painted = drive.cars.paintable();
+
+        expect(painted.map((mover) => mover.kind === "walker" ? [mover.width, mover.colour, mover.dab] : null))
+            .toEqual([[WALKER_PIXELS, 3, 410], [WALKER_PIXELS, 0, 421]]);
+    });
+
+    // A walk round a corner of a path: down, then east, then down again. Every corner of the dab's square lies on one
+    // of the walk's ninths, at every frame of the walk
+    it("keeps each walker's dab on the ninths of its walk all the way", () => {
+        const walk: Trip = [30, 15, "SSEES"];
+        const ninths = new Set(tripRoute(walk).map(({x, y}) => `${x},${y}`));
+        const drive = walking(() => ALL, [walk]);
+        const off: string[] = [];
+
+        drive.run(5 * 1000 / WALK_SPEED, false, () => {
+            for (const mover of drive.cars.paintable()) {
+                const ninthsPerPixel = NINTHS_PER_SIDE / SPRITE_PIXELS_PER_TILE;
+                for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+                    // Just inside the square's far edges, which touch the next ninth's
+                    const x = Math.floor((mover.x + dx * (mover.width - 0.01)) * ninthsPerPixel);
+                    const y = Math.floor((mover.y + dy * (mover.width - 0.01)) * ninthsPerPixel);
+                    if (!ninths.has(`${x},${y}`)) {
+                        off.push(`(${x}, ${y}) at ${drive.now - NOW} ms`);
+                    }
+                }
+            }
+        });
+
+        expect(off).toEqual([]);
+    });
+
+    it("lets each walker go once it has walked its walk", () => {
+        const drive = walking(() => ALL, [EAST_WALK]);
+
+        drive.run(5 * 1000 / WALK_SPEED - 1);
+        const before = drive.cars.moversHeld();
+        drive.run(2);
+
+        expect([before, drive.cars.moversHeld(), walkers(drive)]).toEqual([1, 0, []]);
+    });
+
+    it("stands still while the city is paused", () => {
+        const drive = walking(() => ALL, [EAST_WALK]);
+
+        drive.run(1000, true);
+
+        expect(walkers(drive)).toEqual([inNinths(30.5, 16.5)]);
+    });
+
+    it.each([[OFF, []], [TENTH, [0, 10]], [QUARTER, [0, 4, 8, 12]], [ALL, Array.from({length: 16}, (_, i) => i)]])(
+        "at %p, of 16 walks, takes every k-th from the first, counted apart from the trips", (step, taken) => {
+            const drive = new Drive(() => step);
+            drive.add(...shortTrips(0, 3));
+            drive.cars.addWalks(Array.from({length: 16}, (_, i) => walkDown(i)));
+
+            expect(columns(drive.frame())).toEqual(taken);
+        });
+
+    it("counts the walks from the first again once the page joins the city again", () => {
+        const drive = walking(() => QUARTER, [walkDown(0), walkDown(1), walkDown(2)]);
+
+        drive.cars.joined();
+        drive.cars.addWalks([walkDown(3), walkDown(4), walkDown(5), walkDown(6), walkDown(7)]);
+
+        expect(columns(drive.frame())).toEqual([0, 3, 7]);
+    });
+
+    // Walkers count with the cars and the carriages against the share's most
+    it("drops a walker that would take the cars, trains and walkers past the share's most", () => {
+        const drive = carsAt(() => TENTH, shortTrips(0, 10 * (carCap(TENTH) - 1)));
+
+        drive.cars.addWalks(Array.from({length: 30}, (_, i) => walkDown(i)));
+
+        expect([drive.cars.moversHeld(), walkers(drive.frame()).length]).toEqual([carCap(TENTH), 1]);
     });
 });
