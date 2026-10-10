@@ -23,8 +23,9 @@ import {
 } from "../src/renderManifest";
 import type { CanopyArt } from "../src/renderManifest";
 import { SURFACE_REACH } from "../src/surfaces";
-import { committedGrass, committedSurface, plainCanopy, plainGrass, plainWater } from "./helpers/grassArt";
-import type { CanopyJson, GrassJson, WaterJson } from "./helpers/grassArt";
+import { committedGrass, committedSurface, committedWalkway, plainCanopy, plainGrass, plainWalkway,
+    plainWater } from "./helpers/grassArt";
+import type { CanopyJson, GrassJson, WalkwayJson, WaterJson } from "./helpers/grassArt";
 import { repositoryJson, repositoryPath } from "./helpers/repository";
 import { tileImageOrigin } from "../src/tileSet";
 import { LTRFBASE, TILE_COUNT } from "../src/tileValues";
@@ -45,7 +46,7 @@ const rect = (x: number, y: number, size = 64) => ({atlas: "zones", x, y, width:
 // A manifest file's JSON, with one atlas, the tiles and sprites given, no cars and the plainest grass and canopy
 function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
     return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}, grass: plainGrass(rect(0, 0)),
-            canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0))};
+            canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0)), walkway: plainWalkway()};
 }
 
 describe("the render manifest", () => {
@@ -401,6 +402,46 @@ describe("the render manifest", () => {
                 const json = canopyJson();
                 change(json);
                 expect(() => parseRenderManifest(withGrass(grassJson(), json))).toThrow(`Render manifest: ${message}`);
+            });
+        });
+
+        describe("the walkways", () => {
+
+            const withWalkway = (walkway: WalkwayJson) => ({...manifestJson(), walkway});
+
+            it("reads the committed manifest's", () => {
+                const json = committedWalkway();
+                const walkway = parseRenderManifest(withWalkway(json)).walkway;
+
+                expect(walkway).toEqual({cut: json.cut, feather: json.feather, edge: json.edge, gravel: json.gravel,
+                                         paving: json.paving, crossing: json.crossing});
+            });
+
+            it("refuses a manifest with none", () => {
+                const json = manifestJson();
+                delete json.walkway;
+
+                expect(() => parseRenderManifest(json)).toThrow("Render manifest: the manifest lacks walkway");
+            });
+
+            it.each<[string, (json: WalkwayJson) => void, string]>([
+                ["no feather", (json) => json.feather = 0, "walkway.feather is not more than 0"],
+                ["a feather reaching past half way between ninths", (json) => [json.cut, json.feather] = [0.6, 0.25],
+                 "walkway has a cut less half its feather under 0.5, so its paths spill out of their ninths"],
+                ["a cut past the surface", (json) => json.cut = 1.2, "walkway.cut is not from 0 to 1"],
+                ["an edge eaten past the surface", (json) => json.edge = -0.1, "walkway.edge is not from 0 to 1"],
+                ["a colour of two numbers", (json) => json.paving.mean = [1, 2],
+                 "walkway.paving.mean is not a list of 3 numbers"],
+                ["more than all of the straw's light and dark", (json) => json.gravel.contrast = 2,
+                 "walkway.gravel.contrast is not from 0 to 1"],
+                ["a crossing of no stripes", (json) => json.crossing.stripes = 0,
+                 "walkway.crossing.stripes is not more than 0"],
+                ["no paving", (json) => delete (json as Partial<WalkwayJson>).paving, "walkway lacks paving"],
+                ["a key the format doesn't name", (json) => json.kerb = 1, "walkway has unknown keys: kerb"],
+            ])("refuses %s, naming where", (_, change, message) => {
+                const json = committedWalkway();
+                change(json);
+                expect(() => parseRenderManifest(withWalkway(json))).toThrow(`Render manifest: ${message}`);
             });
         });
     });

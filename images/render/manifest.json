@@ -16569,5 +16569,34 @@
     "height": 64
    }
   ]
+ },
+ "walkway": {
+  "cut": 0.62,
+  "feather": 0.2,
+  "edge": 0.35,
+  "gravel": {
+   "mean": [
+    196,
+    168,
+    118
+   ],
+   "contrast": 0.9
+  },
+  "paving": {
+   "mean": [
+    152,
+    150,
+    144
+   ],
+   "contrast": 0.45
+  },
+  "crossing": {
+   "colour": [
+    236,
+    234,
+    224
+   ],
+   "stripes": 3
+  }
  }
 }

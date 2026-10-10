@@ -25,6 +25,8 @@ export interface PaintableMap {
   getTileValue(x: number, y: number): number;
   // Fills result, row by row, with the raw values of the w by h tiles from (x, y), TILE_INVALID off the map
   getTileValuesForPainting(x: number, y: number, w: number, h: number, result: number[]): number[];
+  // Fills result, row by row, with the walkway values of the w by h tiles from (x, y), 0 off the map
+  getWalkwaysForPainting(x: number, y: number, w: number, h: number, result: number[]): number[];
 }
 
 // What a view reads of a sprite: the square it is drawn in, width map pixels a side from map pixel (x, y), and its

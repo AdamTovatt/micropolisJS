@@ -6,13 +6,13 @@ The map, the monster TV and the splash screen's map preview are drawn with WebGL
 
 The map is drawn in this order:
 
-1. the world grass, the canopy, the sand and the water over it, then every tile's ground over them, in one pass (The world grass, The canopy and The water, below);
+1. the world grass, the canopy, the sand and the water over it, then every tile's ground over them, and the walkways over that, in one pass (The world grass, The canopy, The water and The walkways, below);
 2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, and the canopy's shadow (The canopy, below), merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
 3. every tile's objects;
 4. the map overlay's tint;
 5. the cars (`cars.ts`), then the sprites over them.
 
-The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as a tile's look reaches: as far as their shadows reach, and at least the two tiles round each whose canopy, canopy's shadow and water it changes (`reach` of `RenderArt` in `renderManifest.ts`).
+The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as a tile's look reaches: as far as their shadows reach, and at least the two tiles round each whose canopy, canopy's shadow and water it changes (`reach` of `RenderArt` in `renderManifest.ts`); and around each tile whose walkway changed, the tiles beside it, whose paths it joins (The walkways, below).
 
 A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. Traffic is drawn as cars, so a traffic tile, light or heavy, and each frame of one, is drawn from the entry of the plain road tile of its shape (`trafficTiles.ts`), every layer of it: its shadow comes from the anchor's own value, and a traffic value's is the plain road's. The map, the monster TV and the preview alike look up a tile's art in one place, `buildMapFrame` in `mapFrame.ts`. A shadow is drawn from the anchor's own tile id, so it doesn't blink. The bolt's entry has objects as well as ground, the whole tile, opaque, which no shadow darkens: the bolt replaces the centre tile of a zone or a service building, whose own shadow lies dense under the roof the bolt replaces.
 
@@ -77,8 +77,9 @@ The monster TV draws its view in the same passes, but for the overlay's tint, th
 - `grass`, required: the world grass, below.
 - `canopy`, required: the canopy the woods are drawn as, below.
 - `water`, required: the water, below.
+- `walkway`, required: the walkways, below.
 
-A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atlas, at least 1 wide and high. It is scaled to fill where it is drawn, so an atlas may be rendered at any pixels a tile; the art is rendered at 64 px a tile (`TILE_PX` in `art/blender/tileart.py`), the closest zoom. A key the format doesn't name, a missing `ground`, `grass`, `canopy` or `water`, a rectangle naming an atlas the manifest doesn't declare or running past its image, or a number out of its range fails the page's start with a message naming where.
+A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atlas, at least 1 wide and high. It is scaled to fill where it is drawn, so an atlas may be rendered at any pixels a tile; the art is rendered at 64 px a tile (`TILE_PX` in `art/blender/tileart.py`), the closest zoom. A key the format doesn't name, a missing `ground`, `grass`, `canopy`, `water` or `walkway`, a rectangle naming an atlas the manifest doesn't declare or running past its image, or a number out of its range fails the page's start with a message naming where.
 
 ### Cutting an asset into tiles
 
@@ -233,6 +234,50 @@ in `art/painted/raw/water/`.
   its tile, over the canopy, and casts no shadow.
 - **How far a change reaches.** A tile's water depends on the water of the tiles round it, so a map drawn again in part
   draws again the tiles round each that changed, within `SURFACE_REACH`, and draws it as the map drawn whole.
+
+### The walkways
+
+The walkways are drawn over each tile's ground from the ninths that hold walkway (`GameMap`'s walkway layer, which the
+client keeps beside the tiles), not from any tile's art, so a path runs on from ninth to ninth and from tile to tile
+with no seam, its ends and corners rounded. `art/tools/grass.py` holds the section's constants, `WALKWAY`, which the
+atlas build (`art/tools/atlas.py`) writes into the manifest as they are.
+
+```json
+"walkway": {
+  "cut": 0.62,
+  "feather": 0.2,
+  "edge": 0.35,
+  "gravel": {"mean": [196, 168, 118], "contrast": 0.9},
+  "paving": {"mean": [152, 150, 144], "contrast": 0.45},
+  "crossing": {"colour": [236, 234, 224], "stripes": 3}
+}
+```
+
+- **The surface.** Over each ninth of a tile, the walkways make a surface as the woods do over each tile (The canopy,
+  above), from the ninth's own walkway, 1 or 0, at its middle, the share of the two ninths at each edge's middle and of
+  the four at each corner: the ninths round it, across the tile's edge too, the tile's own three by three and the ring
+  of ninths about them (`walkwaysAround` in `walkwayDraw.ts`). A walkway of any kind counts.
+- **The cover.** The path covers the ground by clamp((surface − `edge`·w·4s(1 − s) − `cut`) / `feather` + 0.5, 0, 1),
+  s the surface held from 0 to 1 and w the shore's wobble from the grass's field, from 0 to 1 here, so the wobble only
+  eats into the path's edge and never grows it. `cut` less half of `feather` is at least 0.5, the surface along the edge
+  between a ninth of walkway and one of none, which the manifest's reader checks, so a path keeps within its own
+  ninths but for the inside of a turn, where three of the four ninths about a corner hold walkway and the surface at
+  the corner is 0.75, and the path rounds into the fourth. Each tile draws the paths of the walkway in and round it, so
+  a tile with none of its own draws that rounding where a turn's corner is its own, and one with none in or round it
+  draws none.
+- **The look.** A path on a tile of road or rail, a bridge or a tunnel, is `paving`; anywhere else, open land or a park,
+  `gravel`. Each is the straw's strokes at the tile, as the shore's sand is: the straw texel's luminance about the
+  straw's mean, times `contrast`, about `mean`. On a road's carriageway, the middle ninth of a road tile and the middle
+  of each side the road leaves by, a path is a crossing instead: `stripes` stripes of `colour` to a ninth, one after
+  another the way the path crosses the road, down where it runs on north or south of the ninth and otherwise across,
+  with the road between them.
+- **The pass.** Each tile in view with walkway in or round it draws its paths over its ground in the ground pass, in
+  the same draw as its ground, before the shadows, so a shadow falls across a path as across the ground, and a map of
+  paths costs no pass of its own. Its window of ninths takes 25 bits, which its ground's quad carries in two floats,
+  three rows and two, each held exactly; a ground that lets no grass through carries the straw tile and the map tile
+  its paths are drawn from too.
+- **How far a change reaches.** A tile's paths depend on the walkways of the tiles beside it, so a map drawn again in
+  part draws again the tile whose walkway changed and those beside it, and draws it as the map drawn whole.
 
 ### Atlases
 

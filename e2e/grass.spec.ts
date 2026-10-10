@@ -19,7 +19,7 @@ import { DAMAGE_BLOCK } from "../src/mapDamage";
 import { isWoods } from "../src/surfaces";
 import { BULLBIT } from "../src/tileFlags";
 import { TILE_COUNT, WATER_HIGH, WATER_LOW, WOODS_HIGH, WOODS_LOW } from "../src/tileValues";
-import { plainCanopy, plainGrass, plainWater } from "../test/helpers/grassArt";
+import { plainCanopy, plainGrass, plainWalkway, plainWater } from "../test/helpers/grassArt";
 import { serverForTests } from "./gameServer";
 import { collectPageProblems, contextLoss } from "./page";
 import { startGame } from "./player";
@@ -106,7 +106,7 @@ function manifest({canopy = "green", wobble = 0, shadow = 0, water = false}: Dra
   return {version: 1, atlases: {test: ATLAS_PATH, grass: GRASS_PATH}, tiles, sprites: {}, cars: {},
           grass: plainGrass(rect(8), GREEN),
           canopy: plainCanopy(rect(canopy === "green" ? 8 : 40), wobble, shadow),
-          water: water ? plainWater(rect(72), SAND) : plainWater(rect(8), GREEN)};
+          water: water ? plainWater(rect(72), SAND) : plainWater(rect(8), GREEN), walkway: plainWalkway()};
 }
 
 // How dark the canopy's shadow is where it is drawn, and the grass in it

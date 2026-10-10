@@ -25,6 +25,7 @@ import type { AtlasRect, GrassThrough, RenderArt, SurfaceDraw } from "./renderMa
 import { BIT_MASK } from "./tileFlags";
 import { TILE_INVALID } from "./tileValues";
 import { plainRoad } from "./trafficTiles";
+import { carriageway, isPaved, walkwaysAround } from "./walkwayDraw";
 import type { PixelPoint } from "./viewPosition";
 
 // What one frame of the map draws, as lists of quads the WebGL renderer draws pass by pass. Building them is pure, so
@@ -38,10 +39,18 @@ export const QUAD_FLOATS = 12;
 // The floats of a ground quad: a quad's, then the rectangles of its map tile's tile in the world grass's lush and straw
 // sets, in their atlas's pixels (x, y, width, height each), its map tile's position (x, y), what it draws (one of the
 // three below) and the woods round it (around in surfaces.ts), then the rectangle of its tile of the canopy, the
-// rectangle of its tile of the water, and the water round it, then three floats unused, from which the world grass
-// under it, and the canopy and the water over the grass, are drawn (docs/render-assets.md); all zeros for a ground
-// that lets no grass through, and the woods, the water and their tiles' rectangles zeros for one that draws neither
+// rectangle of its tile of the water, and the water round it, from which the world grass under it, and the canopy and
+// the water over the grass, are drawn (docs/render-assets.md); then the walkway round it (walkwaysAround in
+// walkwayDraw.ts), its first three rows of the window's bits and then the last two, so each float holds its bits
+// exactly, and its paths' looks, whether they are paving, bit 0, or gravel, and its ninths that are a road's
+// carriageway (carriageway in walkwayDraw.ts) from bit 1, from which its paths are drawn over all that. All zeros past
+// the quad's for a ground that lets no grass through with no walkway round it, the woods, the water and their tiles'
+// rectangles zeros for one that draws neither, and the walkway and its looks zeros for one with none round it; a ground
+// with paths that lets no grass through has the straw tile and the map tile its paths are drawn from, and no lush tile.
 export const GROUND_QUAD_FLOATS = 36;
+
+// The window's bits a ground quad's first float of them holds, three rows of five
+export const WALKWAY_LOW_BITS = 15;
 
 // What a ground quad draws, so no tile pays for the grass or its ground unless it shows them: its ground alone, opaque;
 // the world grass alone, where its ground lets all of it through; or its ground over the grass
@@ -118,35 +127,35 @@ export class GroundRun extends Run {
   }
 
   // A ground quad landing at (x, y), width by height device pixels, from the source in the atlas's pixels, over the
-  // world grass of the map tile at (mapX, mapY), whose tiles in the lush and straw sets are the rectangles given, as
-  // much as its ground lets through, or opaque over none for null
-  addGround(x: number, y: number, width: number, height: number, source: Rect, grass: GroundSurfaces | null): void {
+  // world grass and under the paths of the layers given, or opaque with neither for null
+  addGround(x: number, y: number, width: number, height: number, source: Rect, layers: GroundLayers | null): void {
     const start = this.next();
     this.place(start, x, y, width, height, source, 1, 1, 1, 1);
     const data = this.data;
     const at = start + QUAD_FLOATS;
-    if (grass === null) {
-      data.fill(0, at, at + GROUND_QUAD_FLOATS - QUAD_FLOATS);
+    data.fill(0, at, at + GROUND_QUAD_FLOATS - QUAD_FLOATS);
+    if (layers === null) {
       return;
     }
 
-    const {lush, straw, mapX, mapY, canopy, water} = grass;
-    data[at] = lush.x;
-    data[at + 1] = lush.y;
-    data[at + 2] = lush.width;
-    data[at + 3] = lush.height;
-    data[at + 4] = straw.x;
-    data[at + 5] = straw.y;
-    data[at + 6] = straw.width;
-    data[at + 7] = straw.height;
+    const {straw, mapX, mapY, grass, paths} = layers;
+    rectangle(data, at + 4, straw);
     data[at + 8] = mapX;
     data[at + 9] = mapY;
-    data[at + 10] = drawn(grass);
-    data[at + 11] = canopy?.woods ?? 0;
-    rectangle(data, at + 12, canopy?.tile ?? null);
-    rectangle(data, at + 16, water?.tile ?? null);
-    data[at + 20] = water?.water ?? 0;
-    data.fill(0, at + 21, at + GROUND_QUAD_FLOATS - QUAD_FLOATS);
+    if (grass !== null) {
+      const {lush, canopy, water} = grass;
+      rectangle(data, at, lush);
+      data[at + 10] = drawn(grass);
+      data[at + 11] = canopy?.woods ?? 0;
+      rectangle(data, at + 12, canopy?.tile ?? null);
+      rectangle(data, at + 16, water?.tile ?? null);
+      data[at + 20] = water?.water ?? 0;
+    }
+    if (paths !== null) {
+      data[at + 21] = paths.around & ((1 << WALKWAY_LOW_BITS) - 1);
+      data[at + 22] = paths.around >> WALKWAY_LOW_BITS;
+      data[at + 23] = (paths.paved ? 1 : 0) | (paths.carriageway << 1);
+    }
   }
 }
 
@@ -199,16 +208,32 @@ function drawn(surfaces: GroundSurfaces | null): number {
   return surfaces.through === "all" ? GROUND_GRASS_ONLY : GROUND_OVER_GRASS;
 }
 
-// The world grass under a map tile: its tile's rectangle in each set, the map tile's position, and the canopy and the
-// water over the grass there, or null for none
-export interface GroundSurfaces {
-  lush: Rect;
+// What a ground quad draws besides its ground, at the map tile at (mapX, mapY): the world grass under the ground, or
+// null for none, and the paths over it, or null for none, both drawn in the strokes of the map tile's tile in the world
+// grass's straw set, the rectangle given
+export interface GroundLayers {
   straw: Rect;
-  through: GrassThrough;
   mapX: number;
   mapY: number;
+  grass: GroundSurfaces | null;
+  paths: GroundPaths | null;
+}
+
+// The world grass under a map tile: its tile's rectangle in the lush set, how much of it the ground lets through, and
+// the canopy and the water over the grass there, or null for none
+export interface GroundSurfaces {
+  lush: Rect;
+  through: GrassThrough;
   canopy: CanopyTile | null;
   water: WaterTile | null;
+}
+
+// The paths over a map tile: the walkway round it (walkwaysAround in walkwayDraw.ts), never 0, whether they are
+// paving, and its ninths that are a road's carriageway
+export interface GroundPaths {
+  around: number;
+  paved: boolean;
+  carriageway: number;
 }
 
 // The canopy over a map tile: its tile's rectangle, and the woods round the map tile it is drawn from (around in
@@ -305,8 +330,8 @@ export class GroundList extends RunList<GroundRun> {
 
   // A ground quad from the atlas, as GroundRun's addGround takes it
   addGround(atlas: string, x: number, y: number, width: number, height: number, source: Rect,
-            grass: GroundSurfaces | null): void {
-    this.runFor(atlas).addGround(x, y, width, height, source, grass);
+            layers: GroundLayers | null): void {
+    this.runFor(atlas).addGround(x, y, width, height, source, layers);
   }
 
   protected newRun(atlas: string): GroundRun {
@@ -331,10 +356,11 @@ export class CanopyShadowList extends RunList<CanopyShadowRun> {
   }
 }
 
-// The quads of each pass: every tile's ground, over the world grass; every anchor's shadow, and the canopy's over each
-// tile with woods about it, merged by the darkest; every tile's objects; the overlay's tints, over the objects; then
-// the sprites. With what the world grass is drawn with, and the mip level the frame's zoom samples every grass tile
-// at, whose one size on screen it fixes; null until the frame is first built, when it has no ground either.
+// The quads of each pass: every tile's ground, over the world grass and under its paths; every anchor's
+// shadow, and the canopy's over each tile with woods about it, merged by the darkest; every tile's objects; the
+// overlay's tints, over the objects; then the sprites. With what the world grass is drawn with, and the mip level the
+// frame's zoom samples every grass tile at, whose one size on screen it fixes; null until the frame is first built,
+// when it has no ground either.
 export class MapFrame {
   readonly ground = new GroundList();
   surfaces: SurfaceDraw | null = null;
@@ -363,8 +389,8 @@ export class MapFrame {
 // The tiles a frame reads: an area of the map margin tiles wider on every side than the view, from map tile (x, y),
 // width by height tiles, row by row. offset is how far, in device pixels, the view's top-left lies right of and below
 // the top-left of the first tile in view, margin tiles in from the area's: the view's origin may lie between tiles.
-// values are the tiles' raw values, TILE_INVALID off the map, and frames are the tile ids to draw, as the animation
-// manager chose them from the values.
+// values are the tiles' raw values, TILE_INVALID off the map, frames are the tile ids to draw, as the animation
+// manager chose them from the values, and walkways are the tiles' walkway values, 0 off the map.
 export interface FrameTiles {
   x: number;
   y: number;
@@ -374,22 +400,25 @@ export interface FrameTiles {
   offset: PixelPoint;
   values: readonly number[];
   frames: readonly number[];
+  walkways: readonly number[];
 }
+
+// What a frame reads of the whole map
+export type WholeMap = Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting" | "getWalkwaysForPainting">;
 
 // The whole map as a frame reads it, with no margin, since no tile lies past the map's edges: each tile's own value,
 // unanimated
-export function wholeMapTiles(map: Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting">): FrameTiles {
+export function wholeMapTiles(map: WholeMap): FrameTiles {
   const {width, height} = map;
   const values = map.getTileValuesForPainting(0, 0, width, height, []);
   return {x: 0, y: 0, width, height, margin: 0, offset: {x: 0, y: 0}, values,
-          frames: values.map((value) => value & BIT_MASK)};
+          frames: values.map((value) => value & BIT_MASK),
+          walkways: map.getWalkwaysForPainting(0, 0, width, height, [])};
 }
 
 // Fills the frame with the quads that draw the whole map, tilePixels device pixels a tile, each tile's own value
 // unanimated, with no tints, cars or sprites
-export function buildWholeMapFrame(frame: MapFrame, art: RenderArt,
-                                   map: Pick<PaintableMap, "width" | "height" | "getTileValuesForPainting">,
-                                   tilePixels: number): void {
+export function buildWholeMapFrame(frame: MapFrame, art: RenderArt, map: WholeMap, tilePixels: number): void {
   buildMapFrame(frame, art, wholeMapTiles(map), tilePixels, () => null, [], []);
 }
 
@@ -489,16 +518,26 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
       // The world grass under a ground that lets any through, and the canopy and the water over it where woods and
       // water lie round it, so they run on under every ground that lets the grass through and end nowhere on a tile's
       // edge
+      const picked = grassTile(mapX, mapY, grass.constants);
       let under: GroundSurfaces | null = null;
       if (tileArt.grass !== null) {
-        const picked = grassTile(mapX, mapY, grass.constants);
         const water = around(tiles, column, row, art.isWater) & OWN_SURROUNDS;
-        under = {lush: grass.lush.tiles[picked], straw: grass.straw.tiles[picked], mapX, mapY,
-                 through: tileArt.grass,
+        under = {lush: grass.lush.tiles[picked], through: tileArt.grass,
                  canopy: (woods & OWN_SURROUNDS) === 0 ? null : {tile: art.canopyTile(mapX, mapY), woods},
                  water: water === 0 ? null : {tile: art.waterTile(mapX, mapY), water}};
       }
-      frame.ground.addGround(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground, under);
+      // The paths over the ground, in the same draw, where walkway lies in or round the tile, drawn in the straw's
+      // strokes: each keeps within its own ninths, which those round it join it to, but for rounding into the inside of
+      // a turn, which at a tile's corner lies in a tile with none of its own
+      const walkways = walkwaysAround(tiles, column, row);
+      let paths: GroundPaths | null = null;
+      if (walkways !== 0) {
+        const id = plainRoad(tiles.values[index] & BIT_MASK);
+        paths = {around: walkways, paved: isPaved(id), carriageway: carriageway(id)};
+      }
+      const layers = under === null && paths === null ? null
+        : {straw: grass.straw.tiles[picked], mapX, mapY, grass: under, paths};
+      frame.ground.addGround(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground, layers);
       // The canopy's shadow over the tile, cast from the canopy up and left of it, onto whatever the tile's ground is
       if (woods !== 0) {
         frame.canopyShadows.addShadow(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground, mapX, mapY,

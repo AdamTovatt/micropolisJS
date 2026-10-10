@@ -92,6 +92,19 @@ export class ClientMap {
 
     return result;
   }
+
+  // Fills result, row by row, with the walkway values of the w by h tiles from (x, y), 0 off the map
+  getWalkwaysForPainting(x: number, y: number, w: number, h: number, result: number[]): number[] {
+    for (let row = 0; row < h; row++) {
+      for (let column = 0; column < w; column++) {
+        const mapX = x + column;
+        const mapY = y + row;
+        result[row * w + column] = this.testBounds(mapX, mapY) ? this.walkways[mapY * this.width + mapX] : 0;
+      }
+    }
+
+    return result;
+  }
 }
 
 type Listeners = {[T in StateMessageType]?: ((message: MessageOf<T>) => void)[]};

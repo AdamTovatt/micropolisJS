@@ -15,7 +15,7 @@
 import { Page } from "@playwright/test";
 
 import { TILE_COUNT } from "../src/tileValues";
-import { plainCanopy, plainGrass, plainWater } from "../test/helpers/grassArt";
+import { plainCanopy, plainGrass, plainWalkway, plainWater } from "../test/helpers/grassArt";
 import { png } from "./png";
 
 // Rendered art made for a test, served in place of images/render/, so what the map draws is known pixel for pixel
@@ -24,25 +24,26 @@ import { png } from "./png";
 const PLAIN_GRASS_ATLAS = "plainGrass";
 const PLAIN_GRASS_PATH = "plain-grass.png";
 
-// A render manifest's JSON (docs/render-assets.md), its world grass, canopy and water left out together where the test
-// has no use for them
+// A render manifest's JSON (docs/render-assets.md), its world grass, canopy, water and walkways left out together where
+// the test has no use for them
 export type TestManifest = {
   version: number;
   atlases: Record<string, string>;
   tiles: Record<string, object>;
   sprites: Record<string, object>;
   cars: Record<string, object>;
-} & ({grass: object, canopy: object, water: object} | {grass?: never, canopy?: never, water?: never});
+} & ({grass: object, canopy: object, water: object, walkway: object} |
+     {grass?: never, canopy?: never, water?: never, walkway?: never});
 
 // Serves the render manifest, and each atlas image under its path, relative to the manifest. A manifest without the
-// world grass, canopy and water every manifest has is served with the plainest, of one green, in an atlas of their
-// own, which no tile shows unless the manifest has a tile let the grass through.
+// world grass, canopy, water and walkways every manifest has is served with the plainest, of one green, in an atlas of
+// their own, which no tile shows unless the manifest has a tile let the grass through, and walkways of black.
 export async function serveTestArt(page: Page, manifest: TestManifest, atlases: Record<string, Buffer>): Promise<void> {
   const plain = {atlas: PLAIN_GRASS_ATLAS, x: 0, y: 0, width: 16, height: 16};
   const served = manifest.grass !== undefined ? {manifest, atlases} : {
     manifest: {...manifest, atlases: {...manifest.atlases, [PLAIN_GRASS_ATLAS]: PLAIN_GRASS_PATH},
                grass: plainGrass(plain, [0, 128, 0]), canopy: plainCanopy(plain),
-               water: plainWater(plain, [0, 128, 0])},
+               water: plainWater(plain, [0, 128, 0]), walkway: plainWalkway()},
     atlases: {...atlases, [PLAIN_GRASS_PATH]: solidAtlas([0, 128, 0, 255])},
   };
   await page.route("**/images/render/manifest.json", (route) => route.fulfill({json: served.manifest}));

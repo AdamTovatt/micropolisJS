@@ -31,15 +31,9 @@ export function rawTileAt(save: GameSave, tile: Tile): number {
   return save.map.tiles[tile.x + tile.y * save.map.width];
 }
 
-// The tile's walkway value, each ninth's kind in two bits, ninth n's at bit 2n, or 0 where it holds none
+// The tile's walkway value, as walkwayOf in test/helpers/walkways.ts writes one, or 0 where it holds none
 export function walkwayAt(save: GameSave, tile: Tile): number {
   return save.map.walkways.find((walkway) => walkway.x === tile.x && walkway.y === tile.y)?.ninths ?? 0;
-}
-
-// The walkway value of a path on the ninths of a tile given, numbered row by row from its north-west corner, as
-// walkwayAt reads it: each ninth's kind in two bits, a path 1
-export function walkwayOf(ninths: number[]): number {
-  return ninths.reduce((walkway, ninth) => walkway | (1 << (2 * ninth)), 0);
 }
 
 // The tile value, without its flags

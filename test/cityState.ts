@@ -38,6 +38,15 @@ describe("the client's copy of the map", () => {
                                 TILE_INVALID, TILE_INVALID, TILE_INVALID, TILE_INVALID, TILE_INVALID]);
     });
 
+    it("paints each tile's walkway, row by row, and none off the map", () => {
+        const map = new ClientMap(MAP);
+        map.changeWalkways([{x: 1, y: 1, ninths: 21}, {x: 2, y: 0, ninths: 5}]);
+
+        expect(map.getWalkwaysForPainting(1, -1, 3, 3, [])).toEqual([0, 0, 0,
+                                                                     0, 5, 0,
+                                                                     21, 0, 0]);
+    });
+
     it("changes the tiles a tiles message names", () => {
         const map = new ClientMap(MAP);
 

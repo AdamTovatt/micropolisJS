@@ -122,9 +122,29 @@ export interface Sand {
   contrast: number;
 }
 
+// The walkways, which the map draws over each tile's ground from the ninths that hold them, not from each tile's art:
+// where a path's edge falls on the surface its ninths make, cut, and over how much of that surface it fades, feather,
+// which together keep a path within its ninths; how far the water's wobble eats into its edge, from 0 to 1; the gravel
+// of paths on open land and the paving of sidewalks and of paths on road and rail, each a mean colour, red, green and
+// blue from 0 to 255, and how much of the straw's light and dark it keeps, from 0 to 1; and a crossing's stripes over a
+// road, their colour and how many to a ninth (docs/render-assets.md)
+export interface WalkwayArt {
+  cut: number;
+  feather: number;
+  edge: number;
+  gravel: PathLook;
+  paving: PathLook;
+  crossing: {colour: readonly [number, number, number], stripes: number};
+}
+
+export interface PathLook {
+  mean: readonly [number, number, number];
+  contrast: number;
+}
+
 // A manifest: each atlas's image, by name, a path relative to the manifest's own, and the art of each tile id, of each
 // sprite, by type and frame, as spriteKey names it, and of each car, by colour and direction, as carKey names it, the
-// world grass, the canopy and the water
+// world grass, the canopy, the water and the walkways
 export interface RenderManifest {
   atlases: ReadonlyMap<string, string>;
   tiles: ReadonlyMap<number, TileArt>;
@@ -133,12 +153,13 @@ export interface RenderManifest {
   grass: GrassArt;
   canopy: CanopyArt;
   water: WaterArt;
+  walkway: WalkwayArt;
 }
 
-// What the renderer draws the surfaces over the map with, the world grass, the canopy and the water, the same at every
-// zoom: the atlas of the grass's sets, the canopy's and the water's, and the baked field, by name, each set's mean
-// colour and the tint's constants, colours from 0 to 1, the map's size in tiles, which the field covers, the canopy's
-// cut, feather and shadow, and the water's cut, feather and sand, its colour from 0 to 1
+// What the renderer draws the surfaces over the map with, the world grass, the canopy, the water and the walkways, the
+// same at every zoom: the atlas of the grass's sets, the canopy's and the water's, and the baked field, by name, each
+// set's mean colour and the tint's constants, colours from 0 to 1, the map's size in tiles, which the field covers, the
+// canopy's cut, feather and shadow, the water's cut, feather and sand, and the walkways', every colour from 0 to 1
 export interface SurfaceDraw {
   atlas: string;
   field: string;
@@ -154,6 +175,7 @@ export interface SurfaceDraw {
   waterCut: number;
   waterFeather: number;
   sand: Sand;
+  walkway: WalkwayArt;
 }
 
 // The key of a car's art in a manifest's cars, from its colour's name and the way it faces
@@ -499,6 +521,34 @@ function waterArt(value: unknown, atlases: ReadonlyMap<string, string>, grass: G
   };
 }
 
+// The walkway section: its cut, feather and edge, its two looks and its crossing
+function walkwayArt(value: unknown): WalkwayArt {
+  const json = object(value, "walkway", ["cut", "feather", "edge", "gravel", "paving", "crossing"]);
+  const look = (name: "gravel" | "paving"): PathLook => {
+    const where = `walkway.${name}`;
+    const lookJson = object(json[name], where, ["mean", "contrast"]);
+    const [r, g, b] = numbers(lookJson.mean, `${where}.mean`, 3);
+    return {mean: [r, g, b], contrast: fraction(lookJson.contrast, `${where}.contrast`)};
+  };
+  const crossing = object(json.crossing, "walkway.crossing", ["colour", "stripes"]);
+  const [r, g, b] = numbers(crossing.colour, "walkway.crossing.colour", 3);
+  const cut = fraction(json.cut, "walkway.cut");
+  const feather = positiveNumber(json.feather, "walkway.feather");
+  // Half way between a ninth of walkway and one of none the surface is 0.5, where a path that keeps within its ninths
+  // shows none of itself
+  if (cut - feather / 2 < 0.5) {
+    fail("walkway", "has a cut less half its feather under 0.5, so its paths spill out of their ninths");
+  }
+  return {
+    cut,
+    feather,
+    edge: fraction(json.edge, "walkway.edge"),
+    gravel: look("gravel"),
+    paving: look("paving"),
+    crossing: {colour: [r, g, b], stripes: positiveNumber(crossing.stripes, "walkway.crossing.stripes")},
+  };
+}
+
 // An edge's wobble: its turned octaves
 function edgeNoise(value: unknown, where: string): EdgeNoise {
   const json = object(value, where, ["octaves"]);
@@ -525,7 +575,7 @@ function surfaceTiles(value: unknown, where: string, atlases: ReadonlyMap<string
 // The manifest a manifest file's JSON holds, or an error naming what is wrong with it
 export function parseRenderManifest(value: unknown): RenderManifest {
   const json = object(value, "the manifest",
-                      ["version", "atlases", "tiles", "sprites", "cars", "grass", "canopy", "water"]);
+                      ["version", "atlases", "tiles", "sprites", "cars", "grass", "canopy", "water", "walkway"]);
   if (json.version !== 1) {
     fail("version", "is not 1");
   }
@@ -584,11 +634,11 @@ export function parseRenderManifest(value: unknown): RenderManifest {
 
   const grass = grassArt(json.grass, atlases);
   return {atlases, tiles, sprites, cars, grass, canopy: canopyArt(json.canopy, atlases, grass),
-          water: waterArt(json.water, atlases, grass)};
+          water: waterArt(json.water, atlases, grass), walkway: walkwayArt(json.walkway)};
 }
 
 // Fails naming each rectangle that runs past its atlas, given each atlas's size in pixels
-export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases">,
+export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases" | "walkway">,
                                     sizes: ReadonlyMap<string, {width: number, height: number}>): void {
   const outside: string[] = [];
   const check = (rect: AtlasRect, where: string) => {
@@ -661,11 +711,15 @@ export class RenderArt {
     const unit = ([r, g, b]: readonly [number, number, number]) => [r / 255, g / 255, b / 255] as const;
     const {brightness, warmth, warm} = rendered.grass.constants.tint;
     const {sand} = rendered.water;
+    const {walkway} = rendered;
     this.surfaceDraw = {atlas: rendered.grass.atlas, field: SURFACE_FIELD, lushMean: unit(rendered.grass.lush.mean),
                       strawMean: unit(rendered.grass.straw.mean), warm, brightness, warmth, fieldTiles: GRASS_MAP,
                       canopyCut: rendered.canopy.cut, canopyFeather: rendered.canopy.feather,
                       canopyShadow: rendered.canopy.shadow, waterCut: rendered.water.cut,
-                      waterFeather: rendered.water.feather, sand: {...sand, mean: unit(sand.mean)}};
+                      waterFeather: rendered.water.feather, sand: {...sand, mean: unit(sand.mean)},
+                      walkway: {...walkway, gravel: {...walkway.gravel, mean: unit(walkway.gravel.mean)},
+                                paving: {...walkway.paving, mean: unit(walkway.paving.mean)},
+                                crossing: {...walkway.crossing, colour: unit(walkway.crossing.colour)}}};
     for (let id = 0; id < TILE_COUNT; id++) {
       this.waterIds[id] = this.tile(plainRoad(id)).water ? 1 : 0;
     }

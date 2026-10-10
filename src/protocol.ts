@@ -341,6 +341,10 @@ export type WalkwayKind = typeof WALKWAY_KINDS[number];
 // (floor(x / 3), floor(y / 3))
 export const NINTHS_PER_SIDE = 3;
 
+// The bits a tile's walkway value gives each ninth, its kind, ninth n's from bit n times this, as Walkways.BitsPerNinth
+// in the C# rules
+export const BITS_PER_NINTH = 2;
+
 // A ninth of a tile, on the map's grid of ninths
 export interface NinthPosition {
   x: number;

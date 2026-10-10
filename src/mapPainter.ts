@@ -78,9 +78,10 @@ export class MapPainter {
   // Whether the last paint left the target as it was, the GPU still drawing the frame before
   private behind = false;
 
-  // The raw values of the tiles a paint reads, and the tile ids it draws, kept from paint to paint
+  // The raw values of the tiles a paint reads, the tile ids it draws and their walkways, kept from paint to paint
   private readonly values: number[] = [];
   private readonly frames: number[] = [];
+  private readonly walkways: number[] = [];
 
   // Draws on the target with the renderer, which keeps the map's layer from paint to paint
   constructor(private readonly target: Target, private readonly map: PaintableMap, private readonly art: RenderArt,
@@ -178,6 +179,7 @@ export class MapPainter {
     }
     this.animationManager.getTiles(frames, x, y, width, height, isPaused);
 
-    return {x, y, width, height, margin, offset, values, frames};
+    const walkways = this.map.getWalkwaysForPainting(x, y, width, height, this.walkways);
+    return {x, y, width, height, margin, offset, values, frames, walkways};
   }
 }

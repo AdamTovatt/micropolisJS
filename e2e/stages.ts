@@ -22,8 +22,9 @@ import {
 } from "../src/tileValues";
 import { GameSave, Player, Tile } from "./player";
 import { AIRPORT_COST, CITY_TIMES_PER_YEAR, STEPS_PER_CITY_TIME } from "./ruleNumbers";
-import { isFire, isRoad, Rect, rawTileAt, tileAt, tilesIn, tilesWhere, walkwayAt, walkwayOf } from "./savedMap";
+import { isFire, isRoad, Rect, rawTileAt, tileAt, tilesIn, tilesWhere, walkwayAt } from "./savedMap";
 import { buildStation, planStation, savedFireCover, STRONGEST_COVER } from "./stationSite";
+import { walkwayOf } from "../test/helpers/walkways";
 
 // The playthrough: one city played from a fixed seed through stages in order, each building on the last. A stage is
 // a named block of player actions, and the runner takes a checkpoint after each one. Adding a stage is the normal way

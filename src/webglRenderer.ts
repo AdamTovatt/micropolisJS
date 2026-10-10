@@ -14,18 +14,21 @@
 
 import {
   CANOPY_SHADOW_QUAD_FLOATS, GROUND_ONLY, GROUND_OVER_GRASS, GROUND_QUAD_FLOATS, MapFrame, QUAD_FLOATS, QuadRun,
+  WALKWAY_LOW_BITS,
 } from "./mapFrame";
 import type { Run, RunList } from "./mapFrame";
+import { NINTHS_PER_SIDE } from "./protocol";
 import type { Rect } from "./rect";
 import { WHITE } from "./renderManifest";
 import type { SurfaceDraw } from "./renderManifest";
+import { WINDOW } from "./walkwayDraw";
 
 // Draws a map frame with WebGL2. The map is drawn into a layer of its own, a framebuffer the size of the canvas's
-// drawing buffer, in three passes: every tile's ground; every shadow, the canopy's with the anchors', merged by the
-// darkest value into a shadow buffer with blendEquation(MAX), which then darkens the ground once; every tile's objects;
-// then the overlay's tints. The layer is kept from frame to frame, so a frame draws it again only where the map
-// changed. Each frame then composites the canvas: the layer copied over the areas the painter names, or over all of it,
-// then the cars and the sprites over that, in one pass. Colours are premultiplied throughout.
+// drawing buffer, in three passes: every tile's ground, with its paths over it; every shadow, the canopy's with the
+// anchors', merged by the darkest value into a shadow buffer with blendEquation(MAX), which then darkens the ground
+// once; every tile's objects; then the overlay's tints. The layer is kept from frame to frame, so a frame draws it again
+// only where the map changed. Each frame then composites the canvas: the layer copied over the areas the painter names,
+// or over all of it, then the cars and the sprites over that, in one pass. Colours are premultiplied throughout.
 
 // An atlas the renderer draws from: its image, and how it is filtered: crisp, a 16 px sheet scaled up; mipmapped,
 // rendered art filtered trilinearly; or field, a field of values, the world grass's, filtered linearly and never
@@ -53,8 +56,8 @@ const CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 
 // The attributes a quad's floats fill, four each, from attribute 1: a quad's target, source and colour, a ground
 // quad's tile in each grass set, its map tile's position and the woods round it, its canopy tile, its water tile and
-// the water round it, and a canopy shadow's quad's target, ground, map tile and water round it, the last of which is
-// the one attribute past a quad's
+// the water and the walkway round it with its paths' looks, and a canopy shadow's quad's target, ground, map tile and
+// water round it, the last of which is the one attribute past a quad's
 const QUAD_ATTRIBUTES = QUAD_FLOATS / 4;
 const GROUND_ATTRIBUTES = GROUND_QUAD_FLOATS / 4;
 const CANOPY_SHADOW_ATTRIBUTES = CANOPY_SHADOW_QUAD_FLOATS / 4;
@@ -102,35 +105,55 @@ void main() {
 // each edge's middle and of the four at each corner, so two tiles meeting at an edge agree along it, a lone tile of
 // woods is a round clump and a clearing a round hole, and a straight shore runs along the tiles' edge. Its control
 // points are the patch's values with the middle row and column moved so the patch passes through them.
-const SURFACE_PATCH = `
-// The tile dx across and dy down's surface, 1 or 0, from the bits around sets (surfaces.ts), dx and dy from -2 to 1
-float surfaceAt(int bits, int dx, int dy) {
-  return float((bits >> ((dy + 2) * 4 + dx + 2)) & 1);
-}
-
-// A row of the patch's values, its middle moved so the row's curve passes through it
-vec3 throughMiddle(vec3 row) {
-  return vec3(row.x, 2.0 * row.y - (row.x + row.z) / 2.0, row.z);
-}
-
-// The control points of the patch over the tile ux across and uy down from the quad's, row by row from its top, from
-// the surface round the quad's tile; ux and uy from -1 to 0, so the tiles it reads are around's
-void patchOf(int bits, int ux, int uy, out vec3 top, out vec3 middle, out vec3 bottom) {
-  float self = surfaceAt(bits, ux, uy);
-  float north = surfaceAt(bits, ux, uy - 1);
-  float south = surfaceAt(bits, ux, uy + 1);
-  float west = surfaceAt(bits, ux - 1, uy);
-  float east = surfaceAt(bits, ux + 1, uy);
-  vec3 values = vec3((surfaceAt(bits, ux - 1, uy - 1) + north + west + self) / 4.0, (north + self) / 2.0,
-                     (north + surfaceAt(bits, ux + 1, uy - 1) + self + east) / 4.0);
+// The patch over a cell of a grid, a tile or a ninth, from the cells about it, each 1 or 0, which the function named at
+// reads from bits: the function named name gives its control points, row by row from its top, for the cell ux across
+// and uy down, as at numbers the cells
+function patchFunction(name: string, at: string): string {
+  return `
+void ${name}(int bits, int ux, int uy, out vec3 top, out vec3 middle, out vec3 bottom) {
+  float self = ${at}(bits, ux, uy);
+  float north = ${at}(bits, ux, uy - 1);
+  float south = ${at}(bits, ux, uy + 1);
+  float west = ${at}(bits, ux - 1, uy);
+  float east = ${at}(bits, ux + 1, uy);
+  vec3 values = vec3((${at}(bits, ux - 1, uy - 1) + north + west + self) / 4.0, (north + self) / 2.0,
+                     (north + ${at}(bits, ux + 1, uy - 1) + self + east) / 4.0);
   vec3 sides = vec3((west + self) / 2.0, self, (self + east) / 2.0);
-  vec3 under = vec3((west + self + surfaceAt(bits, ux - 1, uy + 1) + south) / 4.0, (self + south) / 2.0,
-                    (self + east + south + surfaceAt(bits, ux + 1, uy + 1)) / 4.0);
+  vec3 under = vec3((west + self + ${at}(bits, ux - 1, uy + 1) + south) / 4.0, (self + south) / 2.0,
+                    (self + east + south + ${at}(bits, ux + 1, uy + 1)) / 4.0);
   top = throughMiddle(values);
   middle = throughMiddle(2.0 * sides - (values + under) / 2.0);
   bottom = throughMiddle(under);
 }
 `;
+}
+
+// A row of a patch's values, its middle moved so the row's curve passes through it: once in a shader that draws any
+// patch, before the patches
+const THROUGH_MIDDLE = `
+vec3 throughMiddle(vec3 row) {
+  return vec3(row.x, 2.0 * row.y - (row.x + row.z) / 2.0, row.z);
+}
+`;
+
+// patchOf gives the patch over the tile ux across and uy down from the quad's, ux and uy from -1 to 0, so the tiles it
+// reads are around's; after THROUGH_MIDDLE
+const SURFACE_PATCH = `
+// The tile dx across and dy down's surface, 1 or 0, from the bits around sets (surfaces.ts), dx and dy from -2 to 1
+float surfaceAt(int bits, int dx, int dy) {
+  return float((bits >> ((dy + 2) * 4 + dx + 2)) & 1);
+}
+${patchFunction("patchOf", "surfaceAt")}`;
+
+// The surface a tile's walkway ninths make, as the woods' over tiles, but over the ninths of the window round the tile
+// (walkwaysAround in walkwayDraw.ts): walkwayPatch gives the patch over the window's ninth wx across and wy down, wx
+// and wy from 1 to 3, the tile's own ninths, so the ninths it reads are the window's; after THROUGH_MIDDLE
+const WALKWAY_PATCH = `
+// The window's ninth wx across and wy down: 1 where it holds walkway, or 0
+float walkwayAt(int bits, int wx, int wy) {
+  return float((bits >> (wy * ${WINDOW} + wx)) & 1);
+}
+${patchFunction("walkwayPatch", "walkwayAt")}`;
 
 // The surface a patch's control points make at a point of its tile, from 0 to 1 across, and the cover over the grass
 // there once the field's wobble, from -1 to 1, moves its edge: most where the surface is halfway and none where it is 0
@@ -154,8 +177,8 @@ float coverOf(float surface, float wobble, float cut, float feather) {
 
 // The ground pass's vertex shader: the textured one's, and from the quad's floats past the colour, the rectangles of
 // its tile in each grass set, its map tile's position, what it draws, the woods round it, its canopy tile's rectangle,
-// its water tile's rectangle and the water round it, for the world grass under the ground and the canopy and the water
-// over the grass, and the patches over its tile
+// its water tile's rectangle, and the water and the walkway round it and its paths' looks, for the world grass under
+// the ground, the canopy and the water over the grass and the paths over the ground, and the patches over its tile
 const GROUND_VERTEX_SHADER = `#version 300 es
 layout(location = 0) in vec2 corner;
 layout(location = 1) in vec4 target;
@@ -165,7 +188,8 @@ layout(location = 5) in vec4 straw;
 layout(location = 6) in vec4 tile;
 layout(location = 7) in vec4 canopy;
 layout(location = 8) in vec4 waterTile;
-layout(location = 9) in vec4 waterRound;
+// The water round it, the walkway round it in two floats, and its paths' looks (GroundRun in mapFrame.ts)
+layout(location = 9) in vec4 aroundAndLooks;
 uniform vec2 targetSize;
 uniform vec2 atlasSize;
 uniform vec2 grassSize;
@@ -180,6 +204,9 @@ out vec2 inTile;
 flat out int draws;
 flat out int woods;
 flat out int water;
+flat out int walkway;
+flat out int paved;
+flat out int carriageway;
 // The patches' control points, row by row from the tile's top
 flat out vec3 controlTop;
 flat out vec3 controlMiddle;
@@ -187,7 +214,7 @@ flat out vec3 controlBottom;
 flat out vec3 waterTop;
 flat out vec3 waterMiddle;
 flat out vec3 waterBottom;
-${SURFACE_PATCH}
+${THROUGH_MIDDLE}${SURFACE_PATCH}
 void main() {
   vec2 position = (target.xy + corner * target.zw) / targetSize * 2.0 - 1.0;
   gl_Position = vec4(position.x, -position.y, 0.0, 1.0);
@@ -200,7 +227,11 @@ void main() {
   inTile = corner;
   draws = int(tile.z + 0.5);
   woods = int(tile.w + 0.5);
-  water = int(waterRound.x + 0.5);
+  water = int(aroundAndLooks.x + 0.5);
+  walkway = int(aroundAndLooks.y + 0.5) | (int(aroundAndLooks.z + 0.5) << ${WALKWAY_LOW_BITS});
+  int looks = int(aroundAndLooks.w + 0.5);
+  paved = looks & 1;
+  carriageway = looks >> 1;
   patchOf(woods, 0, 0, controlTop, controlMiddle, controlBottom);
   patchOf(water, 0, 0, waterTop, waterMiddle, waterBottom);
 }`;
@@ -212,9 +243,16 @@ void main() {
 // on the share of straw, whose sides the pixels of a quad may split between. Over the grass and under the ground, the
 // canopy covers the grass where the woods' surface, wobbled by the field's noise, stands above the cut, fading in over
 // the feather; then the sand, the straw's strokes in the sand's colour, and the water over that, where the water's
-// surface stands above the sand's cut and the water's. Where one covers all, nothing under it is sampled.
+// surface stands above the sand's cut and the water's. Where one covers all, nothing under it is sampled. Over the
+// ground, a tile's paths: where the surface its walkway ninths make, which the field's wobble eats into at the edge but
+// never grows, stands above the cut, fading in over the feather, which keeps each path within its own ninths, a tile's
+// paths meeting its neighbours' along their edges. A path is the straw's strokes, as much of their light and dark as the
+// look keeps, about the look's colour, gravel or paving; on a road's carriageway, a crossing, stripes across the way the
+// path runs, with the road between them.
 const GROUND_SHADER = `#version 300 es
 precision highp float;
+// highp: the woods round a tile take 16 bits and the walkway round it 25, past mediump's guarantee
+precision highp int;
 uniform sampler2D atlas;
 uniform sampler2D grass;
 uniform sampler2D field;
@@ -231,6 +269,15 @@ uniform float waterFeather;
 uniform float sandBand;
 uniform vec3 sandMean;
 uniform float sandContrast;
+uniform float pathCut;
+uniform float pathFeather;
+uniform float pathEdge;
+uniform vec3 gravelMean;
+uniform float gravelContrast;
+uniform vec3 pavingMean;
+uniform float pavingContrast;
+uniform vec3 crossingColour;
+uniform float stripes;
 in vec2 uv;
 in vec2 lushUv;
 in vec2 strawUv;
@@ -241,6 +288,9 @@ in vec2 inTile;
 flat in int draws;
 flat in int woods;
 flat in int water;
+flat in int walkway;
+flat in int paved;
+flat in int carriageway;
 flat in vec3 controlTop;
 flat in vec3 controlMiddle;
 flat in vec3 controlBottom;
@@ -248,7 +298,7 @@ flat in vec3 waterTop;
 flat in vec3 waterMiddle;
 flat in vec3 waterBottom;
 out vec4 colour;
-${SURFACE_COVER}
+${SURFACE_COVER}${THROUGH_MIDDLE}${WALKWAY_PATCH}
 // The grass at the pixel, the two sets mixed by the share of straw and tinted, under as much of the canopy as covers it
 vec3 grassAt(vec4 mixed) {
   float share = mixed.r;
@@ -283,16 +333,52 @@ vec3 grassAt(vec4 mixed) {
   return green;
 }
 
-// The sand at the pixel: the straw's light and dark, as much as the sand keeps of it, about the sand's colour
-vec3 sandAt() {
+// The straw's strokes at the pixel in another look, the sand's, the gravel's or the paving's: the straw's light and
+// dark, as much as the look keeps of it by its contrast, about the look's colour
+vec3 strawLook(vec3 mean, float contrast) {
   const vec3 luminance = vec3(0.299, 0.587, 0.114);
   float light = dot(textureLod(grass, strawUv, level).rgb - strawMean, luminance);
-  return clamp(sandMean + vec3(light * sandContrast), 0.0, 1.0);
+  return clamp(mean + vec3(light * contrast), 0.0, 1.0);
+}
+
+// The sand at the pixel
+vec3 sandAt() {
+  return strawLook(sandMean, sandContrast);
+}
+
+// The tile's paths at the pixel over the colour under them, the field's wobble there from 0 to 1
+vec3 pathsOver(vec3 under, float wobble) {
+  vec2 at = inTile * ${NINTHS_PER_SIDE}.0;
+  ivec2 ninth = clamp(ivec2(floor(at)), 0, ${NINTHS_PER_SIDE - 1});
+  vec3 top;
+  vec3 middle;
+  vec3 bottom;
+  walkwayPatch(walkway, ninth.x + 1, ninth.y + 1, top, middle, bottom);
+  float surface = patchAt(top, middle, bottom, at - vec2(ninth));
+  float held = clamp(surface, 0.0, 1.0);
+  float eaten = surface - pathEdge * wobble * 4.0 * held * (1.0 - held);
+  float cover = clamp((eaten - pathCut) / pathFeather + 0.5, 0.0, 1.0);
+  if (cover <= 0.0) {
+    return under;
+  }
+
+  vec3 look;
+  if (((carriageway >> (ninth.y * ${NINTHS_PER_SIDE} + ninth.x)) & 1) != 0) {
+    // Stripes along the road, one after another the way the path crosses it: down, where the path runs on north or
+    // south of the ninth, and otherwise across
+    bool down = walkwayAt(walkway, ninth.x + 1, ninth.y) + walkwayAt(walkway, ninth.x + 1, ninth.y + 2) > 0.0;
+    cover *= step(0.5, fract((down ? at.y : at.x) * stripes));
+    look = crossingColour;
+  } else {
+    look = paved != 0 ? strawLook(pavingMean, pavingContrast) : strawLook(gravelMean, gravelContrast);
+  }
+  return mix(under, look, cover);
 }
 
 void main() {
   if (draws == ${GROUND_ONLY}) {
-    colour = texture(atlas, uv);
+    vec4 ground = texture(atlas, uv);
+    colour = walkway == 0 ? ground : vec4(pathsOver(ground.rgb, textureLod(field, fieldUv, 0.0).a), ground.a);
     return;
   }
 
@@ -320,7 +406,8 @@ void main() {
     }
   }
   vec3 surface = wet > 0.0 ? mix(land, textureLod(grass, waterUv, level).rgb, wet) : land;
-  colour = vec4(ground.rgb + surface * (1.0 - ground.a), 1.0);
+  vec3 drawn = ground.rgb + surface * (1.0 - ground.a);
+  colour = vec4(walkway == 0 ? drawn : pathsOver(drawn, mixed.a), 1.0);
 }`;
 
 // A shadow's darkness is its alpha, written to the shadow buffer's one channel
@@ -371,6 +458,8 @@ void main() {
 // from lies in the tile or in those up and left of it, whose patches the woods round the tile hold.
 const CANOPY_SHADOW_SHADER = `#version 300 es
 precision highp float;
+// highp: the woods round a tile take 16 bits, past mediump's guarantee
+precision highp int;
 uniform sampler2D atlas;
 uniform sampler2D field;
 uniform vec2 fieldTiles;
@@ -389,7 +478,7 @@ flat in int woods;
 flat in int draws;
 flat in int water;
 out vec4 darkness;
-${SURFACE_PATCH}${SURFACE_COVER}
+${THROUGH_MIDDLE}${SURFACE_PATCH}${SURFACE_COVER}
 // The canopy's cover at the point at, in tiles from the tile's top-left, faded over the feather given
 float coverAt(vec2 at, float feather) {
   ivec2 over = clamp(ivec2(floor(at)), -1, 0);
@@ -466,6 +555,15 @@ interface GroundProgram extends Program {
   brightness: WebGLUniformLocation | null;
   warmth: WebGLUniformLocation | null;
   level: WebGLUniformLocation | null;
+  pathCut: WebGLUniformLocation | null;
+  pathFeather: WebGLUniformLocation | null;
+  pathEdge: WebGLUniformLocation | null;
+  gravelMean: WebGLUniformLocation | null;
+  gravelContrast: WebGLUniformLocation | null;
+  pavingMean: WebGLUniformLocation | null;
+  pavingContrast: WebGLUniformLocation | null;
+  crossingColour: WebGLUniformLocation | null;
+  stripes: WebGLUniformLocation | null;
 }
 
 // The canopy's shadow's program, and the uniforms it draws the shadow with
@@ -904,6 +1002,16 @@ export class WebGLRenderer {
     gl.uniform3f(program.sandMean, ...surfaces.sand.mean);
     gl.uniform1f(program.sandContrast, surfaces.sand.contrast);
     gl.uniform1f(program.level, level);
+    const {walkway} = surfaces;
+    gl.uniform1f(program.pathCut, walkway.cut);
+    gl.uniform1f(program.pathFeather, walkway.feather);
+    gl.uniform1f(program.pathEdge, walkway.edge);
+    gl.uniform3f(program.gravelMean, ...walkway.gravel.mean);
+    gl.uniform1f(program.gravelContrast, walkway.gravel.contrast);
+    gl.uniform3f(program.pavingMean, ...walkway.paving.mean);
+    gl.uniform1f(program.pavingContrast, walkway.paving.contrast);
+    gl.uniform3f(program.crossingColour, ...walkway.crossing.colour);
+    gl.uniform1f(program.stripes, walkway.crossing.stripes);
   }
 
   // Binds the surfaces' baked field to FIELD_UNIT
@@ -1117,6 +1225,15 @@ export class WebGLRenderer {
       brightness: location("brightness"),
       warmth: location("warmth"),
       level: location("level"),
+      pathCut: location("pathCut"),
+      pathFeather: location("pathFeather"),
+      pathEdge: location("pathEdge"),
+      gravelMean: location("gravelMean"),
+      gravelContrast: location("gravelContrast"),
+      pavingMean: location("pavingMean"),
+      pavingContrast: location("pavingContrast"),
+      crossingColour: location("crossingColour"),
+      stripes: location("stripes"),
     };
   }
 

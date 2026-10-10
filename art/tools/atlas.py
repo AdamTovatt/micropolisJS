@@ -262,7 +262,7 @@ def build(source, out=IMAGES):
     canopy_entry = {**grass.CANOPY, 'tiles': [packed['grass'][('canopy', k)] for k in range(len(canopy))]}
     water_entry = {**grass.WATER, 'tiles': [packed['grass'][('water', k)] for k in range(len(water))]}
     manifest = {'version': 1, 'atlases': atlases, 'tiles': tiles, 'sprites': sprite_entries, 'cars': car_entries,
-                'grass': grass_entry, 'canopy': canopy_entry, 'water': water_entry}
+                'grass': grass_entry, 'canopy': canopy_entry, 'water': water_entry, 'walkway': grass.WALKWAY}
     with open(os.path.join(render, 'manifest.json'), 'w') as f:
         json.dump(manifest, f, indent=1)
         f.write('\n')
