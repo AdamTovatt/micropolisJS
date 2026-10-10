@@ -333,7 +333,7 @@ export interface TilePosition {
 
 // The kinds of walkway a ninth of a tile holds, as WalkwayKind in the C# rules names them, numbered from 1 in a
 // tile's walkway value (WalkwayChange)
-export const WALKWAY_KINDS = ["path"] as const;
+export const WALKWAY_KINDS = ["path", "footbridge", "underpass"] as const;
 
 export type WalkwayKind = typeof WALKWAY_KINDS[number];
 

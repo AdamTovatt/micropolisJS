@@ -15,8 +15,9 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The way a walk of a route goes over the ninths of its tiles, for the client to draw walkers along: a picture of
-    /// what the rules do, which the rules never read. On each tile the walk keeps to the ninths the route may walk there
+    /// The way a walk of a route goes over the ninths of its tiles: what the client draws its walker along, and so the
+    /// crossings the traffic rule adds the walk's walkers to (<see cref="BlockMaps.FootLoadMap"/>), those the client's
+    /// cars give way to it on. On each tile the walk keeps to the ninths the route may walk there
     /// (<see cref="RouteStep.Ninths"/>), a piece of walkway's or, across open land, all of them. It goes in by the ninth
     /// across from the one it left the tile before by, or where it starts, by the ninth along the side facing the zone
     /// or the station it comes from nearest that side's middle, and leaves by the nearest ninth along the side facing

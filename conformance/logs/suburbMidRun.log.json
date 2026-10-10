@@ -40,10 +40,10 @@
     {"step":1200,"player":"local","command":{"type":"setSpeed","speed":3}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"ad3bda9b6105bff698e5cc82137e14456cf7e88c15cf5726ba3d4b8bccf1d99b"},
-    {"step":100,"hash":"33315ae6ac40f66ac59e3e6ad2881ab786b0bf403d0746e300900e611cfd3509"},
-    {"step":700,"hash":"30503314f1b08c45484537af56f4f3193c51b4fef8a144e824687353cea23f51"},
-    {"step":1200,"hash":"fd2a769f15936d8a6360e591d23e7ce55dcf7d2facefad41c422b4372132c237"},
-    {"step":2000,"hash":"f4bc16de73f0b95bcbb8a5e814e06f373b30e5ce60762f38aa3aa25bb508e91c"}
+    {"step":0,"hash":"52861d435f7690f57e811eec1a649467020b986adefb8708162a5a39a5c210e5"},
+    {"step":100,"hash":"c3dc1f54df71892b2ba904f2efc06ae38f3ffb1140a41692464e0a58ded479aa"},
+    {"step":700,"hash":"b1b8a543f27100dde5b936b2220a058991202f76d198c369316cf4a2e4419c4d"},
+    {"step":1200,"hash":"2346da8cfcb7f4139ba8600596714f9da27cb448d7ff3b81ae3b7a605ae84f82"},
+    {"step":2000,"hash":"4b67e008f5845b5fd02f5172fa0b59d1b540b369f5773f1e2d13a2d72be6b6b6"}
   ]
 }

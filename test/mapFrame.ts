@@ -17,7 +17,7 @@ import { WALKER_COLOURS } from "../src/walkers";
 import type { PaintableMover } from "../src/cars";
 import {
     CAR_BREADTH, CAR_LENGTH, FrameTiles, GROUND_GRASS_ONLY, GROUND_ONLY, GROUND_OVER_GRASS, GROUND_QUAD_FLOATS,
-    GroundList, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles,
+    GroundList, MapFrame, PATH_QUAD_FLOATS, PathList, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles,
 } from "../src/mapFrame";
 import { around, isWoods } from "../src/surfaces";
 import type { Run, RunList } from "../src/mapFrame";
@@ -32,7 +32,7 @@ import { committedGrass, committedSurface, plainCanopy, plainGrass, plainWalkway
 import { walkwayOf } from "./helpers/walkways";
 import { tileImageOrigin } from "../src/tileSet";
 import { ANIMBIT, BURNBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
-import { LIGHTNINGBOLT, LTRFBASE, ROADBASE, ROADS, TILE_INVALID, WATER_LOW, WOODS_LOW } from "../src/tileValues";
+import { LIGHTNINGBOLT, LTRFBASE, ROADBASE, ROADS, TILE_INVALID, VRAIL, WATER_LOW, WOODS_LOW } from "../src/tileValues";
 
 // Tile 5 is rendered: ground, objects, and a shadow reaching a tile left and a tile down. Tile 6 has rendered ground
 // only. Light traffic on a plain road has the art of its own the painted traffic had, its cars' shadow among it, and the
@@ -63,7 +63,7 @@ const artJson = {
     grass: plainGrass({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     canopy: plainCanopy({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     water: plainWater({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
-    walkway: plainWalkway(),
+    walkway: plainWalkway({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     walkers: {dabs: [{atlas: "objects", x: 320, y: 0, width: 32, height: 32}]},
 };
 const art = new RenderArt(parseRenderManifest(artJson));
@@ -333,23 +333,34 @@ describe("a frame of the map", () => {
 
         const path = (...ninths: number[]) => walkwayOf(ninths);
 
-        // Each ground quad's floats past a quad's, in the order the tiles were added
-        function groundFloats(frame: MapFrame): number[][] {
-            return frame.ground.runs.flatMap((run) => Array.from({length: run.count}, (_, i) =>
-                Array.from(run.data.slice(i * run.floatsPerQuad + QUAD_FLOATS, (i + 1) * run.floatsPerQuad))));
+        // Each paths quad's floats past where it lands, in the order the tiles were added
+        function pathFloats(frame: MapFrame): number[][] {
+            return frame.paths.runs.flatMap((run) => Array.from({length: run.count}, (_, i) =>
+                Array.from(run.data.slice(i * run.floatsPerQuad + 4, (i + 1) * run.floatsPerQuad))));
         }
 
-        // A ground quad's floats past a quad's for a ground that lets no grass through, under paths drawn from the
-        // straw tile at the map tile given, with the walkway round it in its two floats and its looks
-        function underPaths(mapX: number, mapY: number, low: number, high: number, looks: number): number[] {
-            return [0, 0, 0, 0, 0, 0, 64, 64, mapX, mapY, GROUND_ONLY, ...new Array<number>(10).fill(0),
-                    low, high, looks];
+        // A paths quad's floats past where it lands, its paths drawn from the straw tile at the map tile given, with the
+        // walkway round it in its two floats, its looks and the part of the tile it draws
+        function onTile(mapX: number, mapY: number, low: number, high: number, looks: number, part: number): number[] {
+            return [0, 0, 64, 64, mapX, mapY, low, high, looks, part, 0, 0];
+        }
+
+        // A part of a tile, x and y ninths from its top-left, width by height ninths, as pathParts packs it
+        function part(x: number, y: number, width: number, height: number): number {
+            return x | (y << 2) | (width << 4) | (height << 6);
         }
 
         it("draws a tile's path over its ground in the straw's strokes, gravel off a road, from the window round it", () => {
-            // The first tile in view, (11, 21), its middle ninth: the window's (2, 2), bit 12
-            expect(groundFloats(build(withWalkways({5: path(4)}))))
-                .toEqual([underPaths(11, 21, 1 << 12, 0, 0), NO_GRASS]);
+            // The first tile in view, (11, 21), its middle ninth: the window's (2, 2), bit 12, over its ground, which
+            // carries none of it, drawn over that ninth alone
+            const frame = build(withWalkways({5: path(4)}));
+            expect(pathFloats(frame)).toEqual([onTile(11, 21, 1 << 12, 0, 0, part(1, 1, 1, 1))]);
+            expect(frame.ground.runs.flatMap((run) => Array.from(run.floats)).filter((float, i) =>
+                i % GROUND_QUAD_FLOATS >= QUAD_FLOATS && float !== 0)).toEqual([]);
+        });
+
+        it("draws the paths from the grass's atlas, whose straw, deck and stairs they are drawn in", () => {
+            expect(build(withWalkways({5: path(4)})).paths.runs.map((run) => run.atlas)).toEqual([art.grass.atlas]);
         });
 
         it("draws a sidewalk on a road as paving, with the road's carriageway, and the path it joins beside it", () => {
@@ -359,34 +370,71 @@ describe("a frame of the map", () => {
             values[6] = ROADS;
             const frame = build(withWalkways({5: path(2), 6: path(0, 1, 2)}, values), 32);
 
-            // The road's ground is from its atlas's run, after the dirt's
-            expect(groundFloats(frame)[1]).toEqual(underPaths(12, 21, 0b1_1110_0000, 0,
-                                                              1 | (((1 << 3) | (1 << 4) | (1 << 5)) << 1)));
+            // None of the road's ninths go under it
+            const carriageway = (1 << 3) | (1 << 4) | (1 << 5);
+            expect(pathFloats(frame)).toEqual([
+                onTile(11, 21, (1 << 8) | (1 << 9), 0, 0, part(2, 0, 1, 1)),
+                onTile(12, 21, 0b1_1110_0000, 0, 1 | (carriageway << 1), part(0, 0, 3, 1)),
+            ]);
         });
 
-        it("draws the paths of a tile with none of its own that a path beside it touches, and none in the margin", () => {
-            // The first tile in view has none, the second's west ninths touch it: its window's (4, 1) to (4, 3), bits 9,
-            // 14 and 19, the last the second float's bit 4; the second's own are its window's (1, 1) to (1, 3), bits 6,
-            // 11 and 16. The margin's (10, 21) has its own, which touches neither.
-            const floats = groundFloats(build(withWalkways({6: path(0, 3, 6), 4: path(4)})));
+        it("draws a footbridge and an underpass from their own ninths of the tile, the underpass under its road", () => {
+            // The second tile in view a road across, a footbridge down its west column of ninths and an underpass down
+            // its middle: the window's (1, 1) to (2, 3), bits 6, 7, 11, 12, 16 and 17, the last two the second float's
+            // bits 1 and 2. The underpass goes under the carriageway's middle ninth alone, which no quad draws: the
+            // tile's top two ninths, its west column's other two and its bottom middle ninth are drawn.
+            const values = new Array<number>(12).fill(0);
+            values[6] = ROADS;
+            const walkway = walkwayOf([0, 3, 6], "footbridge") | walkwayOf([1, 4, 7], "underpass");
+            const frame = build(withWalkways({6: walkway}, values));
 
-            expect(floats).toEqual([underPaths(11, 21, (1 << 9) | (1 << 14), 1 << 4, 0),
-                                    underPaths(12, 21, (1 << 6) | (1 << 11), 1 << 1, 0)]);
+            const carriageway = (1 << 3) | (1 << 4) | (1 << 5);
+            const footbridge = (1 << 0) | (1 << 3) | (1 << 6);
+            const tile = (drawn: number) => onTile(
+                12, 21, (1 << 6) | (1 << 7) | (1 << 11) | (1 << 12) | (footbridge << 15),
+                (1 << 1) | (1 << 2), 1 | (carriageway << 1) | ((1 << 4) << 10), drawn);
+            expect(pathFloats(frame)).toEqual([tile(part(0, 0, 2, 1)), tile(part(0, 1, 1, 2)), tile(part(1, 2, 1, 1))]);
+        });
+
+        it("draws an underpass under the whole of a rail tile, its stairs on the ninth beside it in the next tile", () => {
+            // A path across the first tile in view's middle row of ninths, the window's (1, 2) to (3, 2), bits 11 to 13,
+            // on into an underpass across the second's, a rail down, the first's window's (4, 2), bit 14, which goes
+            // under: its east side's ring ninth 1, the second float's bit 10 + 3 + 1. The second's own ninths go under
+            // its track, so it draws nothing, and the first's middle row is the path the stairs go down from.
+            const values = new Array<number>(12).fill(0);
+            values[6] = VRAIL;
+            const frame = build(withWalkways({5: path(3, 4, 5), 6: walkwayOf([3, 4, 5], "underpass")}, values));
+
+            expect(pathFloats(frame)).toEqual([
+                onTile(11, 21, (1 << 11) | (1 << 12) | (1 << 13) | (1 << 14), 1 << (10 + 4), 0, part(0, 1, 3, 1)),
+            ]);
+        });
+
+        it("draws no paths over a tile with none of its own that a straight path beside it touches, nor in the margin", () => {
+            // The first tile in view has none, the second's west ninths touch it, a straight path that shows nowhere on
+            // it; the second's own are its window's (1, 1) to (1, 3), bits 6, 11 and 16, and its window's (0, 1) to
+            // (0, 3) none. The margin's (10, 21) has its own, which touches neither.
+            const floats = pathFloats(build(withWalkways({6: path(0, 3, 6), 4: path(4)})));
+
+            expect(floats).toEqual([onTile(12, 21, (1 << 6) | (1 << 11), 1 << 1, 0, part(0, 0, 1, 3))]);
         });
 
         // A path turning at the tile's corner rounds into the inside of the turn, which lies in the tile
-        it("draws the paths of a tile with none of its own that a path beside it touches only at its corner", () => {
-            // The tile down and right of the first in view, in the margin, its north-west ninth: the first's window's
-            // (4, 4), bit 24, the second float's bit 9
-            expect(groundFloats(build(withWalkways({10: path(0)})))[0]).toEqual(underPaths(11, 21, 0, 1 << 9, 0));
+        it("draws the paths of a tile with none of its own where a path turns round its corner", () => {
+            // The turn's three ninths, the second tile in view's south-west one and those of the tiles below the two
+            // in view that meet it, in the margin: the first's window's (4, 3), (3, 4) and (4, 4), bits 19, 23 and
+            // 24, the second float's bits 4, 8 and 9, round its south-east ninth, which it draws
+            const floats = pathFloats(build(withWalkways({6: path(6), 9: path(2), 10: path(0)})));
+
+            expect(floats[0]).toEqual(onTile(11, 21, 0, (1 << 4) | (1 << 8) | (1 << 9), 0, part(2, 2, 1, 1)));
         });
 
         it("puts the window's last two rows in a float of their own, so each float holds its bits exactly", () => {
             // The tile's ninth 7, the window's (2, 3), bit 17, and the top row of the tile south of it, (1, 4) to
             // (3, 4), bits 21 to 23: bits 2 and 6 to 8 of the second float, the first holding none
-            const floats = groundFloats(build(withWalkways({5: path(7), 9: path(0, 1, 2)})));
+            const floats = pathFloats(build(withWalkways({5: path(7), 9: path(0, 1, 2)})));
 
-            expect(floats[0].slice(21, 23)).toEqual([0, (1 << 2) | (1 << 6) | (1 << 7) | (1 << 8)]);
+            expect(floats[0].slice(6, 8)).toEqual([0, (1 << 2) | (1 << 6) | (1 << 7) | (1 << 8)]);
         });
     });
 
@@ -490,43 +538,48 @@ describe("a frame of the map", () => {
 
         it("grows a ground list's buffers to hold every ground quad, each its grass floats after the quad's", () => {
             const list = new GroundList();
-            const grass = {lush: box, through: "part" as const, canopy: null, water: null};
-            const layers = {straw: box, mapX: 7, mapY: 3, grass, paths: null};
+            const grass = {lush: box, straw: box, through: "part" as const, mapX: 7, mapY: 3, canopy: null, water: null};
             // Woods and water round the tile as around gives them, any bits but none
             const WOODS_ROUND = 0b1_0000;
             const WATER_ROUND = 0b10_0000;
             const canopy = {tile: {x: 64, y: 128, width: 64, height: 64}, woods: WOODS_ROUND};
             const water = {tile: {x: 128, y: 192, width: 64, height: 64}, water: WATER_ROUND};
-            const wooded = {...layers, grass: {...grass, canopy, water}};
-            // Paths with the walkway round them across both its floats, paving, with a carriageway of ninths 1 and 4,
-            // drawn from their own straw tile
-            const paths = {around: (1 << 20) | 1, paved: true, carriageway: 0b1_0010};
-            const straw = {x: 32, y: 48, width: 64, height: 64};
             for (let i = 0; i < 1000; i++) {
-                const layersAt = i === 999 ? layers : i === 997 ? wooded :
-                    i === 996 ? {straw, mapX: 5, mapY: 6, grass: null, paths} : null;
-                list.addGround("a", i, 0, 1, 1, box, layersAt);
+                list.addGround("a", i, 0, 1, 1, box, i === 999 ? grass : i === 997 ? {...grass, canopy, water} : null);
             }
-            list.addGround("a", 1000, 0, 1, 1, box, {...wooded, paths});
 
             const floats = list.runs[0].floats;
             const quad = (i: number) => Array.from(floats.slice(i * GROUND_QUAD_FLOATS, (i + 1) * GROUND_QUAD_FLOATS));
-            expect(floats.length).toBe(1001 * GROUND_QUAD_FLOATS);
+            // The floats past a ground quad's grass tiles, map tile and what it draws, through the water round it
+            const UNUSED = GROUND_QUAD_FLOATS - QUAD_FLOATS - 21;
+            expect(floats.length).toBe(1000 * GROUND_QUAD_FLOATS);
             expect(quad(999)).toEqual([999, 0, 1, 1, ...[0, 0, 1, 1], ...OPAQUE, ...[0, 0, 1, 1], ...[0, 0, 1, 1], 7, 3,
                                        GROUND_OVER_GRASS, ...new Array<number>(GROUND_QUAD_FLOATS - QUAD_FLOATS - 11)
                                            .fill(0)]);
             expect(quad(998).slice(QUAD_FLOATS)).toEqual(NO_GRASS);
-            const noPaths = [0, 0, 0];
             expect(quad(997).slice(QUAD_FLOATS + 10)).toEqual([GROUND_OVER_GRASS, WOODS_ROUND, 64, 128, 64, 64,
-                                                               128, 192, 64, 64, WATER_ROUND, ...noPaths]);
-            // Under paths, a ground that lets no grass through has the straw tile and the map tile they are drawn from
-            const pathFloats = [1, 1 << 5, 1 | (0b1_0010 << 1)];
-            expect(quad(996).slice(QUAD_FLOATS)).toEqual([0, 0, 0, 0, 32, 48, 64, 64, 5, 6, GROUND_ONLY,
-                                                          ...new Array<number>(10).fill(0), ...pathFloats]);
-            // and one that lets the grass through the grass's floats too
-            expect(quad(1000).slice(QUAD_FLOATS)).toEqual([0, 0, 1, 1, 0, 0, 1, 1, 7, 3, GROUND_OVER_GRASS, WOODS_ROUND,
-                                                           64, 128, 64, 64, 128, 192, 64, 64, WATER_ROUND,
-                                                           ...pathFloats]);
+                                                               128, 192, 64, 64, WATER_ROUND,
+                                                               ...new Array<number>(UNUSED).fill(0)]);
+        });
+
+        it("grows a paths list's buffers to hold every paths quad, each its straw tile, map tile and bits", () => {
+            const list = new PathList();
+            // Paths with the walkway round them across both its floats, paving, with a carriageway of ninths 1 and 4,
+            // a footbridge on ninth 8, ninths 0 and 8 going under, and every ninth beside its edges in the tiles beside
+            // it, drawn from their straw tile, over the part of the tile two ninths wide and three high from ninth 1
+            const part = 1 | (2 << 4) | (3 << 6);
+            const paths = {around: (1 << 20) | 1, paved: true, carriageway: 0b1_0010, footbridge: 1 << 8,
+                           under: 0b1_0000_0001, underRing: 0b1111_1111_1111};
+            const straw = {x: 32, y: 48, width: 64, height: 64};
+            for (let i = 0; i < 1000; i++) {
+                list.addPaths("grass", i, 0, 1, 1, straw, i, 6, paths, part);
+            }
+
+            const floats = list.runs[0].floats;
+            expect(floats.length).toBe(1000 * PATH_QUAD_FLOATS);
+            expect(Array.from(floats.slice(999 * PATH_QUAD_FLOATS))).toEqual([
+                999, 0, 1, 1, 32, 48, 64, 64, 999, 6, 1 | (1 << 23), (1 << 5) | (0b1111_1111_1111 << 10),
+                1 | (0b1_0010 << 1) | (0b1_0000_0001 << 10), part, 0, 0]);
         });
     });
 
@@ -590,6 +643,7 @@ describe("a frame of the map", () => {
             grass: grassJson,
             canopy: canopyJson,
             water: waterJson,
+            walkway: plainWalkway({atlas: "grass", x: 0, y: 256, width: 64, height: 64}),
         }));
 
         // Each ground quad's grass floats: its tile's rectangle in each set, and its map tile
@@ -660,6 +714,7 @@ describe("a frame of the map", () => {
             grass: grassJson,
             canopy: canopyJson,
             water: waterJson,
+            walkway: plainWalkway({atlas: "grass", x: 0, y: 256, width: 64, height: 64}),
         }));
 
         // The bit of around for the tile dx across and dy down, and those of the four across dy down
@@ -751,13 +806,13 @@ describe("a frame of the map", () => {
             });
         });
 
-        describe("the canopy's shadow", () => {
+        describe("the canopy's and the decks' shadows", () => {
 
-            // Each canopy shadow quad's floats, by its ground's atlas
+            // Each surface shadow quad's floats, by its ground's atlas
             function shadowsOf(area: FrameTiles): [string, number[]][] {
                 const frame = new MapFrame();
                 buildMapFrame(frame, wooded, area, 16, noTint, [], []);
-                return frame.canopyShadows.runs.flatMap((run) => Array.from({length: run.count}, (_, i):
+                return frame.surfaceShadows.runs.flatMap((run) => Array.from({length: run.count}, (_, i):
                     [string, number[]] => [run.atlas, Array.from(run.data.slice(i * run.floatsPerQuad,
                                                                                 (i + 1) * run.floatsPerQuad))]));
             }
@@ -794,11 +849,31 @@ describe("a frame of the map", () => {
                 ]);
             });
 
-            it("casts none over a tile with no woods round it, so the frame has no shadows", () => {
-                const frame = new MapFrame();
-                buildMapFrame(frame, wooded, tilesWith(5, LAWN), 16, noTint, [], []);
+            it("casts the decks' over each tile in view with a footbridge in it or up or left of it, with which run down",
+               () => {
+                // A footbridge across the first tile in view's middle row of ninths and down its middle column: its
+                // ninths 1, 3, 4, 5 and 7, its window's bits 6, 9, 10, 11 and 14, of which 1, 4 and 7 run down, having
+                // walkway north or south of them, and 3 and 5 across; the second has the first's ninth 5, which runs
+                // across, in its window's (0, 2), bit 8
+                const walkways = new Array<number>(12).fill(0);
+                walkways[5] = walkwayOf([1, 3, 4, 5, 7], "footbridge");
+                const down = (1 << 6) | (1 << 10) | (1 << 14);
 
-                expect([frame.canopyShadows.count, frame.hasShadows]).toEqual([0, false]);
+                expect(shadowsOf(tiles(new Array<number>(12).fill(0), undefined, walkways))).toEqual([
+                    ["ground", [0, 0, 16, 16, ...CLEAR_GROUND, 11, 21, 0, GROUND_GRASS_ONLY, 0,
+                                down | (1 << 9) | (1 << 11), down, 0]],
+                    ["ground", [16, 0, 16, 16, ...CLEAR_GROUND, 12, 21, 0, GROUND_GRASS_ONLY, 0, 1 << 8, 0, 0]],
+                ]);
+            });
+
+            it("casts none over a tile with no woods or decks round it, so the frame has no shadows", () => {
+                const walkways = new Array<number>(12).fill(0);
+                walkways[5] = walkwayOf([0, 1, 2], "underpass");
+                const frame = new MapFrame();
+                buildMapFrame(frame, wooded, tiles(tilesWith(5, LAWN).values.slice(), undefined, walkways), 16, noTint,
+                              [], []);
+
+                expect([frame.surfaceShadows.count, frame.hasShadows]).toEqual([0, false]);
             });
         });
 

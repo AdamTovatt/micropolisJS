@@ -501,6 +501,28 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   margin-top: auto;
 }
 
+/* The Walkway tool's kinds, a strip over the tools while the tool is held (walkwayKinds.ts), which takes the tools'
+   place at the column's foot and leaves them right under it */
+#walkwayKinds {
+  display: flex;
+  gap: 4px;
+  margin-top: auto;
+  padding: 4px;
+}
+
+/* Outranking the strip's own display, as the page's .hidden alone doesn't */
+#walkwayKinds.hidden {
+  display: none;
+}
+
+#walkwayKinds:not(.hidden) + #controls {
+  margin-top: 0;
+}
+
+.walkwayKindName {
+  font-weight: 600;
+}
+
 /* The panel: a see-through surface with a title strip, the title and the button that folds and unfolds it
    (panelFolding.ts), over the panel's body, which a folded panel hides. A folded panel keeps its place in its region,
    and is its strip alone. */
@@ -912,7 +934,9 @@ footer a, footer a:link, footer a:visited, footer a:hover {
   white-space: nowrap;
 }
 
-.toolButton.selected {
+/* The tool chosen, and the Walkway tool's kind chosen, marked the same */
+.toolButton.selected,
+#walkwayKinds .hudButton[aria-pressed="true"] {
   border-color: var(--hud-accent-fill);
   box-shadow: 0 0 0 1px var(--hud-accent-fill);
   background-color: var(--hud-selected-background);

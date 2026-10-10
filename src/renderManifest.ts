@@ -89,15 +89,19 @@ export interface CanopyArt {
   cut: number;
   feather: number;
   edge: EdgeNoise;
-  shadow: CanopyShadow;
+  shadow: SurfaceShadow;
   tiles: readonly AtlasRect[];
 }
 
-// The canopy's shadow: how far it falls from the canopy, right and down, away from the sun, in tiles, under one; how
-// dark it is where the canopy casts it whole, from 0 to 1; and over how much of the surface the woods make it fades
-export interface CanopyShadow {
+// A surface's shadow, the canopy's or a footbridge's deck's, each read in the measures of the surface that casts it
+export interface SurfaceShadow {
+  // How far it falls from what casts it, right and down, away from the sun, under one: in tiles for the canopy, whose
+  // surface is drawn over tiles, and in ninths for a deck, which lies on ninths
   offset: number;
+  // How dark it is where it is cast whole, from 0 to 1
   darkness: number;
+  // Over how much it fades: of the surface's own value for the canopy, as the canopy's own edge fades, and in ninths
+  // each side of the deck's edge for a deck, whose edge is sharp
   feather: number;
 }
 
@@ -127,7 +131,10 @@ export interface Sand {
 // which together keep a path within its ninths; how far the water's wobble eats into its edge, from 0 to 1; the gravel
 // of paths on open land and the paving of sidewalks and of paths on road and rail, each a mean colour, red, green and
 // blue from 0 to 255, and how much of the straw's light and dark it keeps, from 0 to 1; and a crossing's stripes over a
-// road, their colour and how many to a ninth (docs/render-assets.md)
+// road, their colour and how many to a ninth; a footbridge's deck, a painting of planks in the grass's atlas that one
+// repeat of spans tiles tiles, and the footbridge, how much of a ninth its deck spans across, its rails, how much of a
+// ninth they take along the deck's edges and how dark they are, from 0 to 1, and the deck's shadow; and an underpass's
+// stair mouth, a painting of steps going down, in the grass's atlas (docs/render-assets.md)
 export interface WalkwayArt {
   cut: number;
   feather: number;
@@ -135,6 +142,9 @@ export interface WalkwayArt {
   gravel: PathLook;
   paving: PathLook;
   crossing: {colour: readonly [number, number, number], stripes: number};
+  deck: AtlasRect & {tiles: number};
+  footbridge: {span: number, rail: {width: number, darkness: number}, shadow: SurfaceShadow};
+  stairs: AtlasRect;
 }
 
 export interface PathLook {
@@ -178,7 +188,7 @@ export interface SurfaceDraw {
   fieldTiles: {width: number, height: number};
   canopyCut: number;
   canopyFeather: number;
-  canopyShadow: CanopyShadow;
+  canopyShadow: SurfaceShadow;
   waterCut: number;
   waterFeather: number;
   sand: Sand;
@@ -528,9 +538,27 @@ function waterArt(value: unknown, atlases: ReadonlyMap<string, string>, grass: G
   };
 }
 
-// The walkway section: its cut, feather and edge, its two looks and its crossing
-function walkwayArt(value: unknown): WalkwayArt {
-  const json = object(value, "walkway", ["cut", "feather", "edge", "gravel", "paving", "crossing"]);
+// The walkway section: its cut, feather and edge, its two looks and its crossing, a footbridge's deck, rails and
+// shadow, and an underpass's stair mouth, the deck and the stairs each a painting in the grass's atlas, which the
+// ground pass samples beside the grass
+function walkwayArt(value: unknown, atlases: ReadonlyMap<string, string>, grass: GrassArt): WalkwayArt {
+  const json = object(value, "walkway",
+                      ["cut", "feather", "edge", "gravel", "paving", "crossing", "deck", "footbridge", "stairs"]);
+  const deckJson = object(json.deck, "walkway.deck", ["atlas", "x", "y", "width", "height", "tiles"]);
+  const {tiles: deckTiles, ...deckRect} = deckJson;
+  const deck = plainRect(deckRect, "walkway.deck", atlases);
+  const stairs = plainRect(json.stairs, "walkway.stairs", atlases);
+  if (deck.atlas !== grass.atlas || stairs.atlas !== grass.atlas) {
+    fail("walkway", "has its deck or its stairs outside the grass's atlas");
+  }
+  const footbridge = object(json.footbridge, "walkway.footbridge", ["span", "rail", "shadow"]);
+  const rail = object(footbridge.rail, "walkway.footbridge.rail", ["width", "darkness"]);
+  const shadow = object(footbridge.shadow, "walkway.footbridge.shadow", ["offset", "darkness", "feather"]);
+  const span = fraction(footbridge.span, "walkway.footbridge.span");
+  const railWidth = fraction(rail.width, "walkway.footbridge.rail.width");
+  if (railWidth > span / 2) {
+    fail("walkway.footbridge", "has rails wider than half its deck");
+  }
   const look = (name: "gravel" | "paving"): PathLook => {
     const where = `walkway.${name}`;
     const lookJson = object(json[name], where, ["mean", "contrast"]);
@@ -553,6 +581,18 @@ function walkwayArt(value: unknown): WalkwayArt {
     gravel: look("gravel"),
     paving: look("paving"),
     crossing: {colour: [r, g, b], stripes: positiveNumber(crossing.stripes, "walkway.crossing.stripes")},
+    deck: {...deck, tiles: positiveNumber(deckTiles, "walkway.deck.tiles")},
+    footbridge: {
+      span,
+      rail: {width: railWidth, darkness: fraction(rail.darkness, "walkway.footbridge.rail.darkness")},
+      // The shadow falls less than a ninth, so it is cast from no further than the ninths up and left of a tile's
+      shadow: {
+        offset: belowOne(shadow.offset, "walkway.footbridge.shadow.offset"),
+        darkness: fraction(shadow.darkness, "walkway.footbridge.shadow.darkness"),
+        feather: positiveNumber(shadow.feather, "walkway.footbridge.shadow.feather"),
+      },
+    },
+    stairs,
   };
 }
 
@@ -646,11 +686,11 @@ export function parseRenderManifest(value: unknown): RenderManifest {
 
   const grass = grassArt(json.grass, atlases);
   return {atlases, tiles, sprites, cars, walkers, grass, canopy: canopyArt(json.canopy, atlases, grass),
-          water: waterArt(json.water, atlases, grass), walkway: walkwayArt(json.walkway)};
+          water: waterArt(json.water, atlases, grass), walkway: walkwayArt(json.walkway, atlases, grass)};
 }
 
 // Fails naming each rectangle that runs past its atlas, given each atlas's size in pixels
-export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases" | "walkway">,
+export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases">,
                                     sizes: ReadonlyMap<string, {width: number, height: number}>): void {
   const outside: string[] = [];
   const check = (rect: AtlasRect, where: string) => {
@@ -676,6 +716,8 @@ export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases" | "
   manifest.grass.straw.tiles.forEach((rect, i) => check(rect, `straw grass ${i}`));
   manifest.canopy.tiles.forEach((rect, i) => check(rect, `canopy ${i}`));
   manifest.water.tiles.forEach((rect, i) => check(rect, `water ${i}`));
+  check(manifest.walkway.deck, "footbridge deck");
+  check(manifest.walkway.stairs, "underpass stairs");
 
   if (outside.length > 0) {
     throw new Error(`Render manifest: rectangles run past their atlas: ${outside.join(", ")}`);

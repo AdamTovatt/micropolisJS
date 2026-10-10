@@ -107,6 +107,16 @@ namespace Micropolis.Headless
                 Walkway("\"path\"", Path(Ninth(237, 42), Ninth(238, 42), Ninth(239, 42), Ninth(240, 42), Ninth(241, 42), Ninth(242, 42),
                                          Ninth(243, 42), Ninth(244, 42), Ninth(245, 42), Ninth(246, 42), Ninth(247, 42), Ninth(248, 42))))),
 
+            new CommandCase("Footbridge and underpass commands: over road and water, paid a tile at a time", "suburb", null, Local(
+                // Down a tile of the town's road, each its every ninth down the middle, which each pays for once a tile
+                Walkway("\"footbridge\"", Path(Ninth(61, 45), Ninth(61, 46), Ninth(61, 47))),
+                Walkway("\"underpass\"", Path(Ninth(64, 45), Ninth(64, 46), Ninth(64, 47))),
+                // Off the shore onto the river east of the open land, which a footbridge goes over and an underpass not
+                Walkway("\"footbridge\"", Path(Ninth(244, 42), Ninth(245, 42), Ninth(246, 42), Ninth(247, 42), Ninth(248, 42))),
+                Walkway("\"underpass\"", Path(Ninth(244, 42), Ninth(245, 42), Ninth(246, 42), Ninth(247, 42), Ninth(248, 42))),
+                // On bare land, which takes a path but neither
+                Walkway("\"footbridge\"", Path(Ninth(156, 93))), Walkway("\"underpass\"", Path(Ninth(156, 93))))),
+
             new CommandCase("Erase commands rejected for their tool or their path", "suburb", null, Local(
                 J("""{"type":"erase","tool":"road"}"""), J("""{"type":"erase","tool":"road","path":[{"x":1,"y":1}],"autoBulldoze":true}"""),
                 J("""{"type":"eraseWalkway"}"""), J("""{"type":"eraseWalkway","kind":"path","path":[{"x":1,"y":1}]}"""),

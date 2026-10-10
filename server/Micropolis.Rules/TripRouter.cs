@@ -154,8 +154,14 @@ namespace Micropolis.Rules
         public const int RailLoadPerCost = 48;
 
         /// <summary>
+        /// The foot load on a road tile's crossings that adds one to the cost of entering it by road
+        /// (<see cref="BlockMaps.FootLoadMap"/>), so drivers keep off a busy crossing, as its cars give way there.
+        /// </summary>
+        public const int FootLoadPerCost = 48;
+
+        /// <summary>
         /// What entering a road tile costs on a clear road, to which its block's traffic density adds one for every
-        /// <see cref="DensityPerCost"/>.
+        /// <see cref="DensityPerCost"/>, and the foot load on its crossings one for every <see cref="FootLoadPerCost"/>.
         /// </summary>
         public const int RoadCost = 4;
 
@@ -218,7 +224,8 @@ namespace Micropolis.Rules
         // The most a step costs, and so how many costs past the one settling the search may queue a route: entering a
         // road tile, which starting to drive off a train adds to, getting on at a station, riding onto a rail tile,
         // which riding off the station got on at costs too, or walking
-        private const int MostRoadCost = DriveStartCost + RoadCost + Traffic.MaxTrafficDensity / DensityPerCost;
+        private const int MostRoadCost = DriveStartCost + RoadCost + Traffic.MaxTrafficDensity / DensityPerCost +
+                                         Traffic.MaxFootLoad / FootLoadPerCost;
         private const int MostRailCost = 2 * (RailCost + (Traffic.MaxRailLoad - 1) / RailLoadPerCost);
         private const int MostRoadOrRailCost = MostRoadCost > MostRailCost ? MostRoadCost : MostRailCost;
         private const int MostRideCost = MostRoadOrRailCost > BoardingCost ? MostRoadOrRailCost : BoardingCost;
@@ -272,6 +279,9 @@ namespace Micropolis.Rules
         // within a walk of it, full or not: a zone with one has a way out though its rail be too loaded to take the
         // trip, as one with a jammed road has
         private bool _setOff;
+
+        // Whether the map holds any walkway, as the search starts: without, no road tile has a crossing to load
+        private bool _walkways;
 
         public TripRouter(GameMap map)
         {
@@ -829,14 +839,18 @@ namespace Micropolis.Rules
             if (TileUtils.CarriesCars(tileValue))
             {
                 kind |= Road;
-                facts.RoadEnter = (byte)(RoadCost + blockMaps.TrafficDensityMap.WorldGet(x, y) / DensityPerCost);
+                // Only a tile with walkway on it has a crossing to load, which no tile has in a city with none, where the
+                // search reads no walkway at all (Start)
+                int footLoad = _walkways && _map.WalkwayAt(index) != 0 ? blockMaps.FootLoadMap.TileGet(x, y) : 0;
+                facts.RoadEnter = (byte)(RoadCost + blockMaps.TrafficDensityMap.TileGet(x, y) / DensityPerCost +
+                                         footLoad / FootLoadPerCost);
             }
 
             if (TileUtils.CarriesTrains(tileValue))
             {
                 kind |= Rail;
-                facts.RideEnterFromNorthOrWest = RailEnterAt(blockMaps.RailLoad(fromNorthOrWest: true).WorldGet(x, y));
-                facts.RideEnterFromSouthOrEast = RailEnterAt(blockMaps.RailLoad(fromNorthOrWest: false).WorldGet(x, y));
+                facts.RideEnterFromNorthOrWest = RailEnterAt(blockMaps.RailLoad(fromNorthOrWest: true).TileGet(x, y));
+                facts.RideEnterFromSouthOrEast = RailEnterAt(blockMaps.RailLoad(fromNorthOrWest: false).TileGet(x, y));
             }
 
             if (TileUtils.IsRailStation(tileValue))
@@ -988,6 +1002,7 @@ namespace Micropolis.Rules
 
             _search++;
             _setOff = false;
+            _walkways = _map.HasWalkway;
             _found.Clear();
             Array.Clear(_bucketCount);
         }

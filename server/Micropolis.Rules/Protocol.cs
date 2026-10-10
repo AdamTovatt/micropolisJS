@@ -295,6 +295,12 @@ namespace Micropolis.Rules
     {
         /// <summary>A path: gravel in parks and on open land, paving on road and rail.</summary>
         [JsonStringEnumMemberName("path")] Path = 1,
+
+        /// <summary>A footbridge, carrying walkers over a road, rail or water, which stops no car.</summary>
+        [JsonStringEnumMemberName("footbridge")] Footbridge = 2,
+
+        /// <summary>An underpass, carrying walkers under a road or rail, which stops no car.</summary>
+        [JsonStringEnumMemberName("underpass")] Underpass = 3,
     }
 
     /// <summary>

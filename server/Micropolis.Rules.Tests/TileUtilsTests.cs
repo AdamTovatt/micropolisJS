@@ -83,6 +83,64 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(sides, TileUtils.RailEnds(map.GetTileValue(50, 50)), $"Tile {map.GetTileValue(50, 50)}");
         }
 
+        // The road tool's piece with neighbours on the sides given leaves by them, and so does each level of traffic and
+        // each frame of it on that piece: north 1, east 2, south 4 and west 8
+        [TestMethod]
+        [DataRow(0b0011)]
+        [DataRow(0b0101)]
+        [DataRow(0b0110)]
+        [DataRow(0b0111)]
+        [DataRow(0b1001)]
+        [DataRow(0b1010)]
+        [DataRow(0b1011)]
+        [DataRow(0b1100)]
+        [DataRow(0b1101)]
+        [DataRow(0b1110)]
+        [DataRow(0b1111)]
+        public void RoadEnds_PieceTheRoadToolDraws_LeavesBySidesItJoins(int sides)
+        {
+            int[] deltaX = [0, 1, 0, -1];
+            int[] deltaY = [-1, 0, 1, 0];
+            GameMap map = new GameMap(120, 100);
+            CityTool road = CityTools.Create(map)[ToolName.Road];
+            for (int side = 0; side < 4; side++)
+            {
+                if ((sides & (1 << side)) != 0)
+                {
+                    Assert.AreEqual(Outcome.Ok, ToolUse.Apply(road, 50 + deltaX[side], 50 + deltaY[side]));
+                }
+            }
+
+            Assert.AreEqual(Outcome.Ok, ToolUse.Apply(road, 50, 50));
+
+            int piece = map.GetTileValue(50, 50);
+            for (int traffic = piece; traffic <= LASTROAD; traffic += 16)
+            {
+                Assert.AreEqual(sides, TileUtils.RoadEnds(traffic), $"Tile {traffic}");
+            }
+        }
+
+        // A bridge, a road over a power line or over rail, and a drawbridge leave by the sides the road runs along, and
+        // no tile a car drives on by none
+        [TestMethod]
+        [DataRow(HBRIDGE, 0b1010)]
+        [DataRow(VBRIDGE, 0b0101)]
+        [DataRow(HROADPOWER, 0b1010)]
+        [DataRow(VROADPOWER, 0b0101)]
+        [DataRow(HRAILROAD, 0b0101)]
+        [DataRow(VRAILROAD, 0b1010)]
+        [DataRow(BRWH, 0b1010)]
+        [DataRow(BRWV, 0b0101)]
+        [DataRow(BRWV + 16, 0b0101)]
+        [DataRow(LHRAIL, 0)]
+        [DataRow(DIRT, 0)]
+        [DataRow(HBRDG0, 0)]
+        public void RoadEnds_EveryOtherTile_IsTheSidesItsRoadRunsAlong(int tile, int sides)
+        {
+            Assert.AreEqual(sides, TileUtils.RoadEnds(tile));
+            Assert.AreEqual(sides != 0, TileUtils.CarriesCars(tile));
+        }
+
         // A station leaves by the sides of the straight rail it stands on
         [TestMethod]
         [DataRow(HRAILSTATION, LHRAIL)]

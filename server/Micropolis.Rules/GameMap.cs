@@ -24,9 +24,9 @@ namespace Micropolis.Rules
     {
         private readonly Tile[] _data;
 
-        // Each tile's walkway, row by row (Walkways), and how many ninths of them hold walkway
+        // Each tile's walkway, row by row (Walkways), and what they cost a year, in ninths of path (Walkways.Upkeep)
         private readonly int[] _walkways;
-        private long _walkwayNinths;
+        private long _walkwayUpkeep;
 
         /// <summary>
         /// A map of dirt.
@@ -92,17 +92,15 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// How many ninths of the map's tiles hold walkway.
+        /// What the map's walkways cost a year, in ninths of path (<see cref="Walkways.Upkeep"/>): a ninth of path one,
+        /// and a tile holding a footbridge or an underpass what its upkeep comes to.
         /// </summary>
-        public long WalkwayNinths => _walkwayNinths;
+        public long WalkwayUpkeep => _walkwayUpkeep;
 
         /// <summary>
-        /// Each tile's walkway value (<see cref="Walkways"/>), row by row, top row first.
+        /// Whether any tile holds walkway, every walkway costing some upkeep (<see cref="WalkwayUpkeep"/>).
         /// </summary>
-        public int[] WalkwayValues()
-        {
-            return (int[])_walkways.Clone();
-        }
+        public bool HasWalkway => _walkwayUpkeep > 0;
 
         /// <summary>
         /// The walkway value of the tile at (x, y) (<see cref="Walkways"/>).
@@ -132,8 +130,37 @@ namespace Micropolis.Rules
                 throw new ArgumentOutOfRangeException(nameof(walkway), walkway, $"{nameof(SetWalkway)} called with no walkway value.");
             }
 
-            _walkwayNinths += Walkways.Count(walkway) - Walkways.Count(_walkways[index]);
+            _walkwayUpkeep += Walkways.Upkeep(walkway) - Walkways.Upkeep(_walkways[index]);
             _walkways[index] = walkway;
+        }
+
+        /// <summary>
+        /// Clears the walkway on the tile at (x, y) that its tile doesn't take, keeping only the usable
+        /// (<see cref="Walkways.Usable"/>): for a rule that makes a bridge water for good, where the map scan would leave
+        /// it dormant (<see cref="Walkways.Cleared"/>).
+        /// </summary>
+        public void ClearUnusableWalkway(int x, int y)
+        {
+            int walkway = GetWalkway(x, y);
+            if (walkway != 0)
+            {
+                SetWalkway(x, y, Walkways.Usable(walkway, GetTileValue(x, y)));
+            }
+        }
+
+        /// <summary>
+        /// Each tile's usable walkway value (<see cref="Walkways.Usable"/>), row by row, top row first: what the client
+        /// is sent and draws.
+        /// </summary>
+        public int[] UsableWalkwayValues()
+        {
+            int[] usable = new int[_walkways.Length];
+            for (int i = 0; i < _walkways.Length; i++)
+            {
+                usable[i] = _walkways[i] == 0 ? 0 : Walkways.Usable(_walkways[i], _data[i].GetValue());
+            }
+
+            return usable;
         }
 
         /// <summary>
@@ -208,7 +235,8 @@ namespace Micropolis.Rules
                     map._data[i].SetRawValue(tiles[i]);
                 }
 
-                // Row by row, so no tile is listed twice, each holding a walkway, of kinds there are
+                // Row by row, so no tile is listed twice, each holding a walkway, of kinds there are, which every value
+                // up to the greatest holds
                 int last = -1;
 
                 foreach ((Position tile, int walkway) in saved.ReadObjectList("walkways",
@@ -219,11 +247,6 @@ namespace Micropolis.Rules
                     if (index <= last)
                     {
                         throw saved.Invalid("walkways", "lists its tiles out of order, row by row");
-                    }
-
-                    if (!Walkways.IsValid(walkway))
-                    {
-                        throw saved.Invalid("walkways", $"holds a ninth of no kind at ({tile.X}, {tile.Y})");
                     }
 
                     map.SetWalkway(tile.X, tile.Y, walkway);

@@ -32,19 +32,20 @@ import { SEED, SITE, STAGES } from "./stages";
 // notification bar among them, every text reads at WCAG AA's 4.5:1 against what it is drawn on, over the darkest and the
 // lightest map, and every text is drawn in Inter. Each panel is at the fullest the game shows: the disaster view open,
 // news with "Go there", the Budget button marking a review due, three players online, the other two's activity at its
-// most lines, the invite link's field open, a tool's toast, and the status with every demand cap and more conditions
-// than its list shows at once.
+// most lines, the invite link's field open, a tool's toast, the Walkway held with its choice of kind showing, and the
+// status with every demand cap and more conditions than its list shows at once.
 
 const server = serverForTests("manual");
 
 // The parts of the HUD that show at its fullest, open and folded alike, by id
 const SHOWN = ["infobar", "onlineList", "miscButtons", "RCIContainer", "monstertv", "notifications", "lastEvent",
-               "controls", "overlayPanel", "statusPanel", "activityList", "minimap"];
+               "walkwayKinds", "controls", "overlayPanel", "statusPanel", "activityList", "minimap"];
 
-// Each kind of button, and each state of one, under the pointer: a tool's, the tool chosen, a menu item, the Budget
-// button marking a review due, the danger item, a panel's fold button, the primary button, Last event and the disaster
-// view's Close
-const HOVERED = ["#roadButton", "#residentialButton", "#evalRequest", "#budgetRequest", "#disasterRequest",
+// Each kind of button, and each state of one, under the pointer: a tool's, the tool chosen, a kind of walkway, the
+// kind chosen, a menu item, the Budget button marking a review due, the danger item, a panel's fold button, the
+// primary button, Last event and the disaster view's Close
+const HOVERED = ["#roadButton", "#walkwayButton", "#walkwayKinds [data-kind=footbridge]",
+                 "#walkwayKinds [data-kind=path]", "#evalRequest", "#budgetRequest", "#disasterRequest",
                  "#onlineList .foldButton", "#inviteCopy", "#lastEvent", "#monsterTVForm .hudButton"];
 
 // The status at its fullest: power over capacity, every demand cap, and more of the advisor's conditions, the longest
@@ -199,6 +200,9 @@ test("every panel of the HUD fits the screen and its box at its fullest, open, h
       await expect(page.locator("#toolToast")).toBeVisible();
       await page.click("#inviteCopy");
       await expect(page.locator("#inviteLink")).toBeVisible();
+      // and the Walkway held, which shows its choice of kind over the tools
+      await player.selectTool("walkway");
+      await expect(page.locator("#walkwayKinds")).toBeVisible();
 
       const name = `${size.width}x${size.height}`;
       const open = await checkLayout(page, HUD_PANELS);

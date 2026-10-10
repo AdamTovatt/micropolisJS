@@ -7,7 +7,7 @@
     {"step":0,"player":"local","command":{"type":"setDisasters","on":true}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"ad66f719278f341a2f67d7352c29b92eca9a631b4b3dd2fbb6a43f4a0b349eaf"},
-    {"step":6912,"hash":"7a4f9d30f2e7432f736fab5927066b0efce022509277ffe6a6b887e54eff0f90"}
+    {"step":0,"hash":"fcf6c38cb887f62cfa2a9d6eb2b68f3924a38a4c983d65cae1d5c2682c879733"},
+    {"step":6912,"hash":"9d17daf4c1c8366d09ba171a56c10978ee60b62b666cdd0a71eba9d235929e45"}
   ]
 }

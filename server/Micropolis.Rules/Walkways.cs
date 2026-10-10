@@ -19,8 +19,9 @@ namespace Micropolis.Rules
     /// of. A tile is a grid of <see cref="Side"/> by <see cref="Side"/> ninths, numbered row by row from the north-west
     /// corner, so ninth <c>n</c> lies in row <c>n / 3</c> and column <c>n % 3</c>; a tile's value holds each ninth's
     /// <see cref="WalkwayKind"/> in two bits, ninth <c>n</c>'s at bit <c>2n</c>, and 0 where it holds none. A walkway is
-    /// laid on a tile that <see cref="Takes"/> one, and the map scan clears it from a tile that no longer does, which
-    /// the router reads none on (<see cref="TripRouter"/>), so the two never disagree.
+    /// laid on a tile that <see cref="Takes"/> one. On a tile that no longer does it is no longer usable
+    /// (<see cref="Usable"/>): the router walks none of it (<see cref="TripRouter"/>) and the client draws none, and
+    /// the map scan clears it (<see cref="Cleared"/>), but where an opening drawbridge leaves it dormant.
     /// </summary>
     /// <remarks>
     /// The ninths of a tile that share a side form its pieces, each a place of its own to someone walking: two pieces of
@@ -59,7 +60,7 @@ namespace Micropolis.Rules
         /// <summary>
         /// The highest kind a ninth holds.
         /// </summary>
-        public const int MostKind = (int)WalkwayKind.Path;
+        public const int MostKind = (int)WalkwayKind.Underpass;
 
         /// <summary>
         /// The greatest walkway value a tile holds: every ninth of the highest kind.
@@ -78,14 +79,60 @@ namespace Micropolis.Rules
         private static readonly byte[] EdgeTable = BuildEdges();
 
         /// <summary>
-        /// Whether a tile of the value takes walkway: open land (<see cref="IsOpenLand"/>), a road, its bridges and
-        /// crossings, or rail, its bridges and crossings, but no station. Zones and every other building take none, nor
-        /// the wild woods, water, rubble, fire or a power line on its own.
+        /// Whether a tile of the value takes walkway of the kind given: a path open land (<see cref="IsOpenLand"/>), a
+        /// road, its bridges and crossings, or rail, its bridges and crossings, but no station; a footbridge a road or
+        /// rail as a path does, or water, which it carries walkers over as ships pass under it; and an underpass a road
+        /// or rail as a path does but for a bridge (<see cref="TileUtils.IsBridge"/>), since it goes under the way, never
+        /// under water. Zones and every other building take none, nor the wild woods, rubble, fire or a power line on its
+        /// own.
         /// </summary>
-        public static bool Takes(int tileValue)
+        public static bool Takes(int tileValue, WalkwayKind kind)
         {
-            return IsOpenLand(tileValue) || TileUtils.CarriesCars(tileValue) ||
-                   (TileUtils.CarriesTrains(tileValue) && !TileUtils.IsRailStation(tileValue));
+            bool way = TileUtils.CarriesCars(tileValue) ||
+                       (TileUtils.CarriesTrains(tileValue) && !TileUtils.IsRailStation(tileValue));
+
+            return kind switch
+            {
+                WalkwayKind.Path => way || IsOpenLand(tileValue),
+                WalkwayKind.Footbridge => way || TileUtils.IsWater(tileValue),
+                _ => way && !TileUtils.IsBridge(tileValue),
+            };
+        }
+
+        /// <summary>
+        /// The usable ninths of a tile's walkway value, those whose kind a tile of the value given takes
+        /// (<see cref="Takes"/>), the others cleared: what the router walks, what the client is sent and draws, and what a
+        /// tool laying the tile keeps. A ninth that isn't usable lies dormant until the map scan clears it
+        /// (<see cref="Cleared"/>), or its tile takes its kind again.
+        /// </summary>
+        public static int Usable(int walkway, int tileValue)
+        {
+            int usable = walkway;
+            for (int ninth = 0; ninth < Ninths && usable != 0; ninth++)
+            {
+                int kind = KindAt(walkway, ninth);
+                if (kind != 0 && !Takes(tileValue, (WalkwayKind)kind))
+                {
+                    usable = With(usable, ninth, 0);
+                }
+            }
+
+            return usable;
+        }
+
+        /// <summary>
+        /// A tile's walkway value as the map scan leaves it: cleared of every ninth that isn't usable (<see cref="Usable"/>)
+        /// once the tile under it has burnt, flooded or been wrecked, but whole on water or a drawbridge's raised end
+        /// (<see cref="TileUtils.IsRaisedBridgeEnd"/>), the tiles an opening drawbridge writes over its road, where its
+        /// walkway lies dormant until the bridge closes. A rule that makes a bridge water for good, its decay or a
+        /// monster's or a tornado's wrecking, clears its walkway itself (<see cref="GameMap.ClearUnusableWalkway"/>), as a
+        /// tool laying a tile keeps only what is usable.
+        /// </summary>
+        public static int Cleared(int walkway, int tileValue)
+        {
+            return TileUtils.IsWater(tileValue) || TileUtils.IsRaisedBridgeEnd(tileValue)
+                ? walkway
+                : Usable(walkway, tileValue);
         }
 
         /// <summary>
@@ -142,41 +189,117 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The ninths of a tile's walkway value a walker may use, as <see cref="Mask"/> gives them: none on a tile of a
-        /// value that takes no walkway (<see cref="Takes"/>), whose walkway the map scan clears.
+        /// The ninths of a tile's walkway value that hold the kind given, a bit <c>1 &lt;&lt; n</c> for each ninth
+        /// <c>n</c>.
         /// </summary>
-        public static int UsableMask(int walkway, int tileValue)
+        public static int NinthsOf(int walkway, WalkwayKind kind)
         {
-            return walkway != 0 && Takes(tileValue) ? Mask(walkway) : 0;
-        }
-
-        /// <summary>
-        /// How many ninths of a tile's walkway value hold walkway.
-        /// </summary>
-        public static int Count(int walkway)
-        {
-            return System.Numerics.BitOperations.PopCount((uint)Mask(walkway));
-        }
-
-        /// <summary>
-        /// Whether every ninth of a tile's walkway value holds a kind there is, or none.
-        /// </summary>
-        public static bool IsValid(int walkway)
-        {
-            if (walkway < 0 || walkway >= 1 << (BitsPerNinth * Ninths))
-            {
-                return false;
-            }
+            int ninths = 0;
 
             for (int ninth = 0; ninth < Ninths; ninth++)
             {
-                if (KindAt(walkway, ninth) > MostKind)
+                if (KindAt(walkway, ninth) == (int)kind)
                 {
-                    return false;
+                    ninths |= 1 << ninth;
                 }
             }
 
-            return true;
+            return ninths;
+        }
+
+        /// <summary>
+        /// The ninths of a tile of the value that are a road's carriageway, a bit for each, where a path is a crossing:
+        /// the middle ninth and the middle of each side the road leaves by (<see cref="TileUtils.RoadEnds"/>), or none
+        /// where no car drives.
+        /// </summary>
+        public static int Carriageway(int tileValue)
+        {
+            return MiddleAndSides(TileUtils.RoadEnds(tileValue));
+        }
+
+        /// <summary>
+        /// The ninths of a tile of the value its rail's track takes, a bit for each, as a road's carriageway does: the
+        /// middle ninth and the middle of each side the track leaves by (<see cref="TileUtils.RailEnds"/>), or none off
+        /// rail.
+        /// </summary>
+        public static int Track(int tileValue)
+        {
+            return MiddleAndSides(TileUtils.RailEnds(tileValue));
+        }
+
+        /// <summary>
+        /// The middle ninth and the middle ninth of each side given, a bit <c>1 &lt;&lt; d</c> for each side d, numbered
+        /// as <see cref="TileUtils.NorthSide"/> says: the ninths a road or a track leaving a tile by those sides takes, or
+        /// none for no side.
+        /// </summary>
+        public static int MiddleAndSides(int sides)
+        {
+            if (sides == 0)
+            {
+                return 0;
+            }
+
+            int ninths = 1 << (Ninths / 2);
+            for (int side = 0; side < 4; side++)
+            {
+                if ((sides & (1 << side)) != 0)
+                {
+                    ninths |= 1 << NinthAlong(side, Side / 2);
+                }
+            }
+
+            return ninths;
+        }
+
+        /// <summary>
+        /// The crossings of a tile of the value with the walkway value given: the ninths of its carriageway
+        /// (<see cref="Carriageway"/>) holding a path, which a car gives way to a walker on. A footbridge or an underpass
+        /// on the carriageway is none, and stops no car.
+        /// </summary>
+        public static int Crossings(int walkway, int tileValue)
+        {
+            return Carriageway(tileValue) & NinthsOf(walkway, WalkwayKind.Path);
+        }
+
+        /// <summary>
+        /// The ninths of a tile's walkway value a walker may use, as <see cref="Mask"/> gives them: its usable ninths
+        /// (<see cref="Usable"/>).
+        /// </summary>
+        public static int UsableMask(int walkway, int tileValue)
+        {
+            return walkway != 0 ? Mask(Usable(walkway, tileValue)) : 0;
+        }
+
+        /// <summary>
+        /// What a tile's walkway value costs a year, in ninths of path, <see cref="Budget.WalkwayNinthsPerRoad"/> of which
+        /// cost what a tile of road does: a ninth of path one, and a tile holding a footbridge
+        /// <see cref="FootbridgeUpkeep"/> and one holding an underpass <see cref="UnderpassUpkeep"/>, however many of its
+        /// ninths each takes, as each is built a tile at a time (<see cref="WalkwayTool"/>).
+        /// </summary>
+        public static int Upkeep(int walkway)
+        {
+            return int.PopCount(NinthsOf(walkway, WalkwayKind.Path)) +
+                (NinthsOf(walkway, WalkwayKind.Footbridge) != 0 ? FootbridgeUpkeep : 0) +
+                (NinthsOf(walkway, WalkwayKind.Underpass) != 0 ? UnderpassUpkeep : 0);
+        }
+
+        /// <summary>
+        /// What a tile holding a footbridge costs a year, in ninths of path: two tiles of road.
+        /// </summary>
+        public const int FootbridgeUpkeep = 2 * Side;
+
+        /// <summary>
+        /// What a tile holding an underpass costs a year, in ninths of path: three tiles of road, dearer than a
+        /// footbridge as it costs more to build.
+        /// </summary>
+        public const int UnderpassUpkeep = 3 * Side;
+
+        /// <summary>
+        /// Whether a tile's walkway value is one: a kind or none on each ninth, which its two bits a ninth always hold.
+        /// </summary>
+        public static bool IsValid(int walkway)
+        {
+            return walkway >= 0 && walkway <= MostValue;
         }
 
         /// <summary>

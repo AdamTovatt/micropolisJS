@@ -15,7 +15,7 @@
 import { expect, Page } from "@playwright/test";
 import { readFileSync } from "fs";
 
-import { type CursorTool, type FireStationReach, NINTHS_PER_SIDE } from "../src/protocol";
+import { type CursorTool, type FireStationReach, NINTHS_PER_SIDE, type WalkwayKind } from "../src/protocol";
 import type { Advanced, View } from "../src/testHook";
 import { steppedZoom } from "../src/viewPosition";
 import type { TilePoint } from "../src/viewPosition";
@@ -263,6 +263,11 @@ export class Player {
 
   async selectTool(tool: Tool): Promise<void> {
     await this.page.click(`#${tool}Button`);
+  }
+
+  // Chooses the kind of walkway the Walkway tool lays, on the strip over the tools that shows while it is held
+  async selectWalkwayKind(kind: WalkwayKind): Promise<void> {
+    await this.page.click(`#walkwayKinds [data-kind="${kind}"]`);
   }
 
   // Clicks a tile with the selected tool, with Shift held where erase says, which turns the tool into its eraser. A
@@ -669,6 +674,13 @@ export class Player {
   // The view's origin and tile width, in CSS pixels, as the hook reports them
   async view(): Promise<View> {
     return await this.page.evaluate(() => window.micropolisTestHook!.view());
+  }
+
+  // The tile at the canvas's top-left, as the map is drawn, which may show only a sliver of its square where the
+  // origin lies between tiles, and from which the map counts the blocks it is drawn again in (DAMAGE_BLOCK)
+  async firstTileInView(): Promise<Tile> {
+    const drawn = await this.drawnView();
+    return {x: Math.floor(drawn.originX / drawn.tilePixels), y: Math.floor(drawn.originY / drawn.tilePixels)};
   }
 
   // Each tile whose whole square is on the canvas, with its top-left corner on the canvas, in CSS pixels from the

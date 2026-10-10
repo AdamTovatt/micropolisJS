@@ -162,7 +162,7 @@ describe("the overlay's legend", () => {
             grass: plainGrass({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
             canopy: plainCanopy({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
             water: plainWater({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
-            walkway: plainWalkway(),
+            walkway: plainWalkway({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
             walkers: plainWalkers({atlas: "grass", x: 0, y: 0, width: 16, height: 16}),
         }));
         canvas = new GameCanvas(CONTAINER, map, {art, atlases: new Map()});

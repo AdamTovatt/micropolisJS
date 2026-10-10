@@ -153,17 +153,21 @@ describe("the command a tool path makes", () => {
 
     const path = [{x: 4, y: 5}, {x: 5, y: 5}];
 
+    // Whatever kind the Walkway tool lays, which only its own command carries
     it.each([
-        [{tool: "road", erase: false}, {type: "tool", tool: "road", path, autoBulldoze: true}],
-        [{tool: "road", erase: true}, {type: "erase", tool: "road", path}],
-        [{tool: "residential", erase: true}, {type: "erase", tool: "residential", path}],
-        [{tool: "walkway", erase: false}, {type: "walkway", kind: "path", path}],
-        [{tool: "walkway", erase: true}, {type: "eraseWalkway", path}],
-    ] as const)("is, for %j, %j", (made, command) => {
-        expect(pathCommand({...made, path}, true)).toEqual(command);
+        [{tool: "road", erase: false}, "path", {type: "tool", tool: "road", path, autoBulldoze: true}],
+        [{tool: "road", erase: true}, "underpass", {type: "erase", tool: "road", path}],
+        [{tool: "residential", erase: true}, "footbridge", {type: "erase", tool: "residential", path}],
+        [{tool: "walkway", erase: false}, "path", {type: "walkway", kind: "path", path}],
+        [{tool: "walkway", erase: false}, "footbridge", {type: "walkway", kind: "footbridge", path}],
+        [{tool: "walkway", erase: false}, "underpass", {type: "walkway", kind: "underpass", path}],
+        [{tool: "walkway", erase: true}, "footbridge", {type: "eraseWalkway", path}],
+    ] as const)("is, for %j with the Walkway tool laying %s, %j", (made, kind, command) => {
+        expect(pathCommand({...made, path}, true, kind)).toEqual(command);
     });
 
     it("is none for a bulldozer's path that erases, the bulldozer having no eraser", () => {
-        expect(() => pathCommand({tool: "bulldozer", erase: true, path}, true)).toThrow("The bulldozer has no eraser");
+        expect(() => pathCommand({tool: "bulldozer", erase: true, path}, true, "path"))
+            .toThrow("The bulldozer has no eraser");
     });
 });

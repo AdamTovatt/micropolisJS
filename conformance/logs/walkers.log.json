@@ -59,7 +59,7 @@
     {"step":0,"player":"local","command":{"type":"walkway","kind":"path","path":[{"x":130,"y":45},{"x":130,"y":46},{"x":130,"y":47}]}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"3f75503f1f38faa96167a2030c1e211429224fd721873715f58db9f7445175a0"},
-    {"step":6912,"hash":"e5fe133eb7dfd6941e69aede3667455bf988582f1ab9d9c415f1bdf68fa8458c"}
+    {"step":0,"hash":"2a6eab90afe11fbcb8c04a7bd2b22c4ecb331759bc999269190fcd739a025e95"},
+    {"step":6912,"hash":"69559a6dde986eef3fd8dc29be66975b62cb133f03803775f3f91d6dc7d3e8c4"}
   ]
 }

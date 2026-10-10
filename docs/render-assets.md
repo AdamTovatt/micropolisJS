@@ -6,8 +6,8 @@ The map, the monster TV and the splash screen's map preview are drawn with WebGL
 
 The map is drawn in this order:
 
-1. the world grass, the canopy, the sand and the water over it, then every tile's ground over them, and the walkways over that, in one pass (The world grass, The canopy, The water and The walkways, below);
-2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, and the canopy's shadow (The canopy, below), merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
+1. the world grass, the canopy, the sand and the water over it, then every tile's ground over them, in one pass (The world grass, The canopy and The water, below), and the walkways over that, in a draw of their own over only the parts of the tiles they can show on (The walkways, below);
+2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, the canopy's shadow (The canopy, below) and each footbridge's deck's (The walkways, below), merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass and the walkways' draw drew, once;
 3. every tile's objects;
 4. the map overlay's tint;
 5. the cars, the carriages of trains and the walkers (`cars.ts`), then the sprites over them.
@@ -253,7 +253,11 @@ atlas build (`art/tools/atlas.py`) writes into the manifest as they are.
   "edge": 0.35,
   "gravel": {"mean": [196, 168, 118], "contrast": 0.9},
   "paving": {"mean": [152, 150, 144], "contrast": 0.45},
-  "crossing": {"colour": [236, 234, 224], "stripes": 3}
+  "crossing": {"colour": [236, 234, 224], "stripes": 3},
+  "footbridge": {"span": 0.82, "rail": {"width": 0.09, "darkness": 0.6},
+                 "shadow": {"offset": 0.3, "darkness": 0.45, "feather": 0.12}},
+  "deck": {"atlas": "grass-0", "x": 4, "y": 4, "width": 192, "height": 192, "tiles": 3},
+  "stairs": {"atlas": "grass-0", "x": 3748, "y": 276, "width": 64, "height": 64}
 }
 ```
 
@@ -263,10 +267,13 @@ atlas build (`art/tools/atlas.py`) writes into the manifest as they are.
   of ninths about them (`walkwaysAround` in `walkwayDraw.ts`). A walkway of any kind counts.
 - **The cover.** The path covers the ground by clamp((surface − `edge`·w·4s(1 − s) − `cut`) / `feather` + 0.5, 0, 1),
   s the surface held from 0 to 1 and w the shore's wobble from the grass's field, from 0 to 1 here, so the wobble only
-  eats into the path's edge and never grows it. `cut` less half of `feather` is at least 0.5, the surface along the edge
-  between a ninth of walkway and one of none, which the manifest's reader checks, so a path keeps within its own
-  ninths but for the inside of a turn, where three of the four ninths about a corner hold walkway and the surface at
-  the corner is 0.75, and the path rounds into the fourth. Each tile draws the paths of the walkway in and round it, so
+  eats into the path's edge and never grows it. `cut` less half of `feather` is at least 0.5, the surface at the middle
+  of the edge between a ninth of walkway and one of none, and all along it beside a straight path, which the manifest's
+  reader checks, so a path's straight edges fade out within its own ninths. Where a path ends or turns, the surface
+  along such an edge rises toward a corner, to 17/32 at most, which the pass, drawing a ninth of none only at the inside
+  of a turn (The pass, below), cuts off at that edge, at a cover of (17/32 − `cut`) / `feather` + 0.5 at most. A path keeps within its own ninths but for the
+  inside of a turn, where three of the four ninths about a corner hold walkway and the surface at the corner is 0.75,
+  and the path rounds into the fourth. Each tile draws the paths of the walkway in and round it, so
   a tile with none of its own draws that rounding where a turn's corner is its own, and one with none in or round it
   draws none.
 - **The look.** A path on a tile of road or rail, a bridge or a tunnel, is `paving`; anywhere else, open land or a park,
@@ -274,12 +281,42 @@ atlas build (`art/tools/atlas.py`) writes into the manifest as they are.
   straw's mean, times `contrast`, about `mean`. On a road's carriageway, the middle ninth of a road tile and the middle
   of each side the road leaves by, a path is a crossing instead: `stripes` stripes of `colour` to a ninth, one after
   another the way the path crosses the road, down where it runs on north or south of the ninth and otherwise across,
-  with the road between them.
-- **The pass.** Each tile in view with walkway in or round it draws its paths over its ground in the ground pass, in
-  the same draw as its ground, before the shadows, so a shadow falls across a path as across the ground, and a map of
-  paths costs no pass of its own. Its window of ninths takes 25 bits, which its ground's quad carries in two floats,
-  three rows and two, each held exactly; a ground that lets no grass through carries the straw tile and the map tile
-  its paths are drawn from too.
+  with the road between them. Those are a path's looks. A ninth holding a footbridge is a deck instead: a straight band
+  through the ninth's middle, `span` of the ninth across, down where the ninth north or south of it holds walkway and
+  otherwise across, cut sharp at its edges, of the `deck`, a painting of planks in the grass's atlas, one repeat of
+  which spans `tiles` tiles of the map, sampled by the point's place on the map, so its planks lie across the way the
+  footbridge runs and run on over every ninth's and tile's edge, and darker by `darkness` within the share `width` of a
+  ninth of its edges, its rails; beside the band, the ninth shows nothing of the walkway, but what the footbridge
+  crosses, the road, its verges as its carriageway, the rail or the water, as the shadow falls on it. A footbridge
+  makes no crossing. Its deck casts a `shadow`
+  (below). A ninth holding an underpass shows nothing where the underpass goes under, on a road its carriageway, the
+  middle ninth and the middle of each side the road leaves by, and on rail every ninth of the tile, whose double track
+  fills it, so the road or the rail shows over it. A ninth of walkway of any kind beside one that goes under, along an
+  edge, in the tile or across its edge, is the `stairs`, a painting of steps going down, in the grass's atlas, turned so
+  they go down toward it: on a road the verge's ninth of the underpass, and on rail the ninth outside the rail tile, so
+  the stairs never cover the track. `art/tools/bridges.py` cuts the deck and the stairs from the paintings in
+  `art/painted/raw/walkways/`, and the atlas build packs them with the grass. Both rectangles must be in the grass's
+  atlas, which the walkways' draw samples them from (The pass, below).
+- **The deck's shadow.** A deck casts a shadow right and down, away from the sun, as the canopy does: at each point, the
+  deck `offset` ninths up and left of it, under one ninth, casts it, as dark as `darkness` where the deck covers that
+  point, faded over `feather` ninths each side of the deck's edge, but nowhere a deck lies at the point itself, so it
+  falls on what the footbridge crosses and never on the deck. The surfaces' shadow pass draws it, in the canopy's draw,
+  over each tile in view with a footbridge in its ninths or in those up and left of them, merged by the darkest with the
+  other shadows.
+- **The pass.** Each tile in view with walkway in or round it draws its paths over its ground in a pass of their own,
+  right after the ground and before the shadows, so a shadow falls across a path as across the ground, blended by how
+  much of the tile they cover. They are no part of the ground's draw: software WebGL pays for every line a shader holds
+  at every pixel it draws, whatever branch the pixel takes, so paths in the ground's shader would slow every tile of
+  the map, and in a pass of their own they cost only the tiles that have them. Nor does a tile draw them over all of
+  itself: only over its ninths the paths can show on, those holding walkway but not going under and those holding none
+  where three of the four ninths about a corner of theirs hold walkway, the inside of a turn, gathered into as few
+  rectangles as a walk along their rows finds (`pathParts` in `walkwayDraw.ts`), a quad for each. A paths quad
+  carries the straw tile and the map tile its paths are drawn from, the tile's window of ninths, 25 bits, in two
+  floats, three rows and two, each held exactly, the first with its own ninths holding a footbridge and the second the
+  twelve ninths beside its edges that go under the road or rail, its looks a third, whether it is paving, its
+  carriageway and its own ninths that go under, and the rectangle of ninths it draws a fourth. A surface shadow's quad
+  carries the footbridges in its ninths and those up and left of them, four by four, and which of those run down, in
+  two floats.
 - **How far a change reaches.** A tile's paths depend on the walkways of the tiles beside it, so a map drawn again in
   part draws again the tile whose walkway changed and those beside it, and draws it as the map drawn whole.
 

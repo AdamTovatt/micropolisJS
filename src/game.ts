@@ -60,6 +60,7 @@ import { placeToolToast, PlacedToast, toastedFailure } from "./toolToast";
 import { TouchWarnWindow } from "./touchWarnWindow";
 import * as UiMessages from "./uiMessages";
 import type { TilePoint } from "./viewPosition";
+import { crossings } from "./walkwayValues";
 import { toolOutcome } from "./windowCommands";
 import { WindowManager } from "./windowManager";
 
@@ -175,6 +176,7 @@ export class Game {
     // Note: must init canvas before inputStatus
     this.gameCanvas = new GameCanvas("canvasContainer", state.map, mapArt);
     this.cars = new Cars(() => carShare.step(), ({x, y}) => isLevelCrossing(state.map.getTileValue(x, y)),
+                         ({x, y}) => crossings(state.map.getWalkway(x, y), state.map.getTileValue(x, y)),
                          () => this.gameCanvas.tilesShown);
     const windows = new WindowManager();
     const inputStatus = new InputStatus(this.gameCanvas, () => windows.holdsInput());

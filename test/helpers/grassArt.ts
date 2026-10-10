@@ -108,11 +108,15 @@ export function plainWalkers(rect: RectJson): {dabs: RectJson[]} {
 
 // The plainest walkway section: its edge cut so a path fills its ninths but for their rounded ends and sides, unwobbled,
 // its gravel, paving and crossing each one flat colour, as given, none of the grass's light and dark in them, and two
-// stripes to a ninth
-export function plainWalkway(gravel: [number, number, number] = [0, 0, 0], paving: [number, number, number] = [0, 0, 0],
-                             crossing: [number, number, number] = [0, 0, 0]): WalkwayJson {
+// stripes to a ninth; a footbridge's deck, a tile across, and an underpass's stairs the rectangles of the grass's
+// atlas given, the stairs the deck's unless given, and the deck the whole of its ninths across, with no rails and no
+// shadow
+export function plainWalkway(deck: RectJson, gravel: [number, number, number] = [0, 0, 0],
+                             paving: [number, number, number] = [0, 0, 0], crossing: [number, number, number] = [0, 0, 0],
+                             stairs: RectJson = deck): WalkwayJson {
   return {cut: 0.6, feather: 0.2, edge: 0, gravel: {mean: gravel, contrast: 0}, paving: {mean: paving, contrast: 0},
-          crossing: {colour: crossing, stripes: 2}};
+          crossing: {colour: crossing, stripes: 2}, deck: {...deck, tiles: 1},
+          footbridge: {span: 1, rail: {width: 0, darkness: 0}, shadow: {offset: 0, darkness: 0, feather: 1}}, stairs};
 }
 
 // The plainest grass section: one colour, so each set is the one tile, the rectangle given, of the mean colour given,

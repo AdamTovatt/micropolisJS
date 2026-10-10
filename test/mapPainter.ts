@@ -41,7 +41,7 @@ const art = new RenderArt(parseRenderManifest({
     grass: plainGrass({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     canopy: plainCanopy({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     water: plainWater({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
-    walkway: plainWalkway(),
+    walkway: plainWalkway({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     walkers: plainWalkers({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
 }));
 

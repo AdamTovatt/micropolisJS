@@ -266,12 +266,15 @@ sent no trips offered before. A batch's `tiles` and `walkways` come first, in th
   row, top row first. The map it starts holds no walkways.
 - `tiles` lists the tiles whose raw value changed since the last `map` or `tiles` message, in `changes`, each
   `{"x", "y", "value"}`.
-- `walkways` lists the tiles whose walkway changed since the last `map` or `walkways` message, in `changes`, each
-  `{"x", "y", "ninths"}`, row by row; after a `map`, every tile that holds any. A tile is a grid of three by three
+- `walkways` lists the tiles whose usable walkway changed since the last `map` or `walkways` message, in `changes`,
+  each `{"x", "y", "ninths"}`, row by row; after a `map`, every tile that holds any. A tile is a grid of three by three
   ninths, numbered row by row from its north-west corner, and `ninths` holds each ninth's kind of walkway in two bits,
-  ninth `n`'s at bit `2n`: 1 a path, and 0 none (`WALKWAY_KINDS` in `src/protocol.ts`, numbered from 1). Walkway is
-  laid on bare land, a park, road and rail, bridges and crossings among them, but no station and not the wild woods,
-  and the map scan clears it from a tile that has become one that takes none, until which a walker never uses it.
+  ninth `n`'s at bit `2n`: 1 a path, 2 a footbridge, 3 an underpass, and 0 none (`WALKWAY_KINDS` in `src/protocol.ts`,
+  numbered from 1). A path is laid on bare land, a park, road and rail, bridges and crossings among them, but no
+  station and not the wild woods; a footbridge on road, rail or water; and an underpass on road or rail but no bridge.
+  A ninth is usable while its tile takes its kind (`Walkways.Usable`), and the message holds only the usable ninths:
+  a walkway on a tile that has become one that takes its kind no longer, which the map scan clears, or that an open
+  drawbridge leaves dormant until it closes, is sent as none, and again as the bridge closes.
 - `sprites` lists every sprite on the map, in `sprites`, each `{"type", "frame", "x", "y", "width"}`: its type, which
   is its row of the sprite sheet, and its frame, its column, both counted from 1, the first row the trains', which the
   client draws from rides and no city sends; and the square it is drawn in,

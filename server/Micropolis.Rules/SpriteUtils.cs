@@ -121,6 +121,7 @@ namespace Micropolis.Rules
                 if (tileValue >= TileValues.ROADBASE && tileValue <= TileValues.LASTROAD)
                 {
                     map.SetTile(x, y, TileValues.RIVER, TileFlags.NOFLAGS);
+                    map.ClearUnusableWalkway(x, y);
                 }
 
                 return;
@@ -139,6 +140,7 @@ namespace Micropolis.Rules
             if (Waterways.IsBuiltOverWater(tileValue))
             {
                 map.SetTile(x, y, TileValues.RIVER, TileFlags.NOFLAGS);
+                map.ClearUnusableWalkway(x, y);
             }
             else
             {

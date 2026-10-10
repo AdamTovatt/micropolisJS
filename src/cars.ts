@@ -219,9 +219,10 @@ export class Cars {
   private walksArrived = 0;
 
   // share is the step of the Cars slider, as the player has it now, isCrossing says whether a tile of the map is a
-  // level crossing, and view is the tiles the main map's view shows now
+  // level crossing, crossingsAt gives the ninths of a tile of the map that are crossings of a path over its road
+  // (walkwayDraw.crossings), and view is the tiles the main map's view shows now
   constructor(private readonly share: () => CarShareStep, isCrossing: (tile: TilePosition) => boolean,
-              private readonly view: () => TileRect) {
+              private readonly crossingsAt: (tile: TilePosition) => number, private readonly view: () => TileRect) {
     this.road = new RoadTraffic(isCrossing);
   }
 
@@ -285,8 +286,8 @@ export class Cars {
     }
   }
 
-  // Moves the drive clock on to the client's clock now, in milliseconds, unless the city is paused, then the trains,
-  // the cars about them, and the walkers
+  // Moves the drive clock on to the client's clock now, in milliseconds, unless the city is paused, then the walkers,
+  // the trains, and the cars about them, which give way to both
   advance(now: number, paused: boolean): void {
     const elapsed = this.lastNow !== null && !paused ? Math.max(0, now - this.lastNow) : 0;
     this.lastNow = now;
@@ -294,11 +295,12 @@ export class Cars {
 
     this.walkers.update(this.clock);
     this.trains.update(this.clock);
-    const trainTiles = new Set<number>();
+    const closed = new Set<number>();
     for (const train of this.trains.all) {
-      tilesOf(train, this.clock, trainTiles);
+      tilesOf(train, this.clock, closed);
     }
-    this.road.update(this.clock, elapsed, trainTiles);
+    this.walkers.crossingTiles(this.clock, this.crossingsAt, closed);
+    this.road.update(this.clock, elapsed, closed);
   }
 
   // How far each car on the road and the front of each train has gone, in tiles, as the drive clock last moved it:

@@ -15,9 +15,10 @@
 import { requiredElement, takesTyping } from "./domElements";
 import { Emitter } from "./emitter";
 import { GameCanvas } from "./gameCanvas";
-import { CURSOR_TOOLS, type CursorTool, isCursorTool, NINTHS_PER_SIDE } from "./protocol";
+import { CURSOR_TOOLS, type CursorTool, isCursorTool, NINTHS_PER_SIDE, type WalkwayKind } from "./protocol";
 import * as UiMessages from "./uiMessages";
 import type { PixelPoint, TilePoint } from "./viewPosition";
+import { WalkwayKindChoice } from "./walkwayKinds";
 
 // The player's input as the game reads it each tick: the keys held, where the pointer is over the canvas and the tool
 // chosen. A click or a drag with the tool, and a press of a control button, are events.
@@ -482,6 +483,9 @@ export class InputStatus extends Emitter<InputEvents> {
   // The tool chosen, or null for none
   private chosen: ChosenTool | null = null;
 
+  // The kind of walkway the Walkway tool lays, on the strip over the tools that shows while it is held
+  private readonly walkwayKinds: WalkwayKindChoice;
+
   // Each tool's outline colour (toolColours)
   private readonly toolColours: Record<CursorTool, string>;
 
@@ -523,6 +527,7 @@ export class InputStatus extends Emitter<InputEvents> {
       throw new Error("The pause button has no label");
     }
     this.pauseLabel = pauseLabel;
+    this.walkwayKinds = new WalkwayKindChoice(requiredElement("walkwayKinds"));
 
     // Add the listeners
     document.addEventListener("keydown", (e) => this.onKeyDown(e));
@@ -599,7 +604,13 @@ export class InputStatus extends Emitter<InputEvents> {
   clearTool(): void {
     this.chosen = null;
     deselectToolButtons();
+    this.walkwayKinds.showFor(null);
     this.showCursor();
+  }
+
+  // The kind of walkway the Walkway tool lays (WalkwayKindChoice)
+  get walkwayKind(): WalkwayKind {
+    return this.walkwayKinds.kind;
   }
 
   // Where the map is in a pan (SpacePan)
@@ -849,6 +860,7 @@ export class InputStatus extends Emitter<InputEvents> {
     button.classList.add("selected");
 
     this.chosen = tool;
+    this.walkwayKinds.showFor(tool.name);
 
     this.showCursor();
 

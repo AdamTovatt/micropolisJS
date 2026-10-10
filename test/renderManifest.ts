@@ -46,7 +46,7 @@ const rect = (x: number, y: number, size = 64) => ({atlas: "zones", x, y, width:
 // A manifest file's JSON, with one atlas, the tiles and sprites given, no cars and the plainest grass and canopy
 function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
     return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}, grass: plainGrass(rect(0, 0)),
-            canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0)), walkway: plainWalkway(),
+            canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0)), walkway: plainWalkway(rect(0, 0)),
             walkers: plainWalkers(rect(0, 0, 32))};
 }
 
@@ -100,8 +100,10 @@ describe("the render manifest", () => {
             const water = {...plain.water, tiles: [onSheet]};
 
             const walkers = {dabs: [onSheet]};
+            const walkway = {...plain.walkway, deck: {...onSheet, tiles: 3}, stairs: onSheet};
 
-            expect(() => checkRectsInAtlases({...fallback, walkers, grass, canopy, water}, SHEET_SIZES)).not.toThrow();
+            expect(() => checkRectsInAtlases({...fallback, walkers, grass, canopy, water, walkway}, SHEET_SIZES))
+                .not.toThrow();
         });
 
         it("has no sprite cell for a type or frame the sheet lacks", () => {
@@ -451,12 +453,20 @@ describe("the render manifest", () => {
 
             const withWalkway = (walkway: WalkwayJson) => ({...manifestJson(), walkway});
 
-            it("reads the committed manifest's", () => {
+            // The committed manifest's, its deck and stairs moved into the test manifest's one atlas, its grass's
+            const committed = (): WalkwayJson => {
                 const json = committedWalkway();
+                return {...json, deck: {...(json.deck as object), atlas: "zones"},
+                        stairs: {...(json.stairs as object), atlas: "zones"}};
+            };
+
+            it("reads the committed manifest's", () => {
+                const json = committed();
                 const walkway = parseRenderManifest(withWalkway(json)).walkway;
 
                 expect(walkway).toEqual({cut: json.cut, feather: json.feather, edge: json.edge, gravel: json.gravel,
-                                         paving: json.paving, crossing: json.crossing});
+                                         paving: json.paving, crossing: json.crossing, deck: json.deck,
+                                         footbridge: json.footbridge, stairs: json.stairs});
             });
 
             it("refuses a manifest with none", () => {
@@ -480,8 +490,21 @@ describe("the render manifest", () => {
                  "walkway.crossing.stripes is not more than 0"],
                 ["no paving", (json) => delete (json as Partial<WalkwayJson>).paving, "walkway lacks paving"],
                 ["a key the format doesn't name", (json) => json.kerb = 1, "walkway has unknown keys: kerb"],
+                ["a deck outside the grass's atlas", (json) => json.deck = {...(json.deck as object), atlas: "other"},
+                 "walkway.deck.atlas names no atlas of the manifest's"],
+                ["a deck spanning no tiles", (json) => json.deck = {...(json.deck as object), tiles: 0},
+                 "walkway.deck.tiles is not more than 0"],
+                ["rails past black", (json) => (json.footbridge as {rail: object}).rail = {width: 0.1, darkness: 2},
+                 "walkway.footbridge.rail.darkness is not from 0 to 1"],
+                ["rails wider than half the deck",
+                 (json) => (json.footbridge as {rail: object}).rail = {width: 0.5, darkness: 0.5},
+                 "walkway.footbridge has rails wider than half its deck"],
+                ["a deck's shadow falling a whole ninth",
+                 (json) => (json.footbridge as {shadow: {offset: number}}).shadow.offset = 1,
+                 "walkway.footbridge.shadow.offset is not from 0 to below 1"],
+                ["no stairs", (json) => delete json.stairs, "walkway lacks stairs"],
             ])("refuses %s, naming where", (_, change, message) => {
-                const json = committedWalkway();
+                const json = committed();
                 change(json);
                 expect(() => parseRenderManifest(withWalkway(json))).toThrow(`Render manifest: ${message}`);
             });

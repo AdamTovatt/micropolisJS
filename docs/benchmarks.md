@@ -2,9 +2,9 @@
 
 How fast the C# simulation steps a city, and how many bytes of state messages each player in a city on the server receives per step, on the committed fixtures and on new cities. `npm run benchmark` writes this file, with `server/Micropolis.Benchmarks`.
 
-- Commit: 2ce7157b781d, with uncommitted changes
+- Commit: 04fefdf12fee, with uncommitted changes
 - Machine: Ubuntu 24.04.4 LTS, Arm64, 16 logical processors
-- Load average over 1, 5 and 15 minutes: 10.02, 13.31, 17.47 as the timing started, 4.57, 10.24, 15.82 as it ended
+- Load average over 1, 5 and 15 minutes: 1.32, 2.67, 4.83 as the timing started, 1.43, 2.18, 4.34 as it ended
 - Runtime: .NET 10.0.11, Release build
 - Each fixture's city is its save after its golden run, at its saved speed; random disasters are on for disasters and forestFire and harbourWithDisasters. A new city is the seed's map at the easy level.
 - Steps/s and ms/step: the city is loaded, steps 4800 times to warm up, then 24000 steps are timed; the median of 5 repeats, each from a fresh load.
@@ -13,29 +13,29 @@ How fast the C# simulation steps a city, and how many bytes of state messages ea
 
 | Fixture | Speed | Steps/s | ms/step | Bytes/step |
 |---------|-------|--------:|--------:|-----------:|
-| broke | medium | 167,074 | 0.0060 | 72.8 |
-| commuters | medium | 129,866 | 0.0077 | 32.3 |
-| disasters | medium | 213,766 | 0.0047 | 22.2 |
-| forestFire | medium | 304,817 | 0.0033 | 14.2 |
-| harbour | medium | 99,117 | 0.0101 | 100.5 |
-| harbourWithDisasters | medium | 258,780 | 0.0039 | 20.7 |
-| hazyWoods | medium | 297,214 | 0.0034 | 15.7 |
-| hospitalTown | fast | 50,900 | 0.0196 | 91.2 |
-| overloaded | medium | 212,439 | 0.0047 | 14.4 |
-| roadlessTown | medium | 190,849 | 0.0052 | 21.4 |
-| smokyWoods | medium | 295,707 | 0.0034 | 15.7 |
-| suburb | medium | 139,827 | 0.0072 | 24.8 |
-| suburbBroke | medium | 173,869 | 0.0058 | 21.0 |
-| suburbFast | fast | 47,238 | 0.0212 | 75.0 |
-| suburbSlow | slow | 161,126 | 0.0062 | 18.7 |
-| suburbUnderfunded | medium | 179,367 | 0.0056 | 22.9 |
-| taxCap | medium | 245,736 | 0.0041 | 61.5 |
-| town | medium | 130,172 | 0.0077 | 79.1 |
-| twinPlants | medium | 299,891 | 0.0033 | 16.8 |
-| underfunded | medium | 176,787 | 0.0057 | 67.3 |
-| walkers | medium | 171,066 | 0.0058 | 18.1 |
-| wilderness | medium | 309,604 | 0.0032 | 13.9 |
-| new city (seed 0) | slow | 217,501 | 0.0046 | 13.0 |
-| new city (seed 0) | medium | 306,183 | 0.0033 | 13.9 |
-| new city (seed 0) | fast | 123,518 | 0.0081 | 38.9 |
-| fully zoned map | fast | 307 | 3.2602 | 1,072.7 |
+| broke | medium | 149,088 | 0.0067 | 74.6 |
+| commuters | medium | 122,062 | 0.0082 | 33.4 |
+| disasters | medium | 199,167 | 0.0050 | 23.4 |
+| forestFire | medium | 270,074 | 0.0037 | 14.2 |
+| harbour | medium | 96,106 | 0.0104 | 101.1 |
+| harbourWithDisasters | medium | 239,156 | 0.0042 | 20.7 |
+| hazyWoods | medium | 264,529 | 0.0038 | 15.7 |
+| hospitalTown | fast | 47,694 | 0.0210 | 93.3 |
+| overloaded | medium | 195,774 | 0.0051 | 14.4 |
+| roadlessTown | medium | 178,840 | 0.0056 | 22.2 |
+| smokyWoods | medium | 269,352 | 0.0037 | 15.7 |
+| suburb | medium | 134,812 | 0.0074 | 25.4 |
+| suburbBroke | medium | 165,463 | 0.0060 | 24.0 |
+| suburbFast | fast | 45,673 | 0.0219 | 76.7 |
+| suburbSlow | slow | 155,924 | 0.0064 | 19.0 |
+| suburbUnderfunded | medium | 163,733 | 0.0061 | 24.1 |
+| taxCap | medium | 226,571 | 0.0044 | 61.6 |
+| town | medium | 125,564 | 0.0080 | 79.7 |
+| twinPlants | medium | 274,944 | 0.0036 | 16.8 |
+| underfunded | medium | 166,573 | 0.0060 | 68.6 |
+| walkers | medium | 158,791 | 0.0063 | 25.2 |
+| wilderness | medium | 281,239 | 0.0036 | 13.9 |
+| new city (seed 0) | slow | 208,554 | 0.0048 | 13.0 |
+| new city (seed 0) | medium | 278,388 | 0.0036 | 13.9 |
+| new city (seed 0) | fast | 109,023 | 0.0092 | 38.9 |
+| fully zoned map | fast | 309 | 3.2367 | 1,078.2 |

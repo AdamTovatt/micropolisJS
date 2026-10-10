@@ -84,6 +84,7 @@ namespace Micropolis.Rules.Tests
             ("scannedState.blockMaps.crimeRateMap[0]", "-1", "0", "250", "251"),
             ("scannedState.blockMaps.fireStationMap[0]", "-1", "0", "16000", "16001"),
             ("scannedState.blockMaps.fireStationEffectMap[0]", "-1", "0", "16000", "16001"),
+            ("scannedState.blockMaps.footLoadMap[0]", "-1", "0", "240", "241"),
             ("scannedState.blockMaps.landValueMap[0]", "-1", "0", "250", "251"),
             ("scannedState.blockMaps.policeStationMap[0]", "-1", "0", "16000", "16001"),
             ("scannedState.blockMaps.policeStationEffectMap[0]", "-1", "0", "16000", "16001"),
@@ -219,6 +220,7 @@ namespace Micropolis.Rules.Tests
                 ["scannedState.blockMaps.crimeRateMap[0]"] = ("52", city => city.BlockMaps.CrimeRateMap.Get(0, 0)),
                 ["scannedState.blockMaps.fireStationMap[0]"] = ("53", city => city.BlockMaps.FireStationMap.Get(0, 0)),
                 ["scannedState.blockMaps.fireStationEffectMap[0]"] = ("54", city => city.BlockMaps.FireStationEffectMap.Get(0, 0)),
+                ["scannedState.blockMaps.footLoadMap[0]"] = ("65", city => city.BlockMaps.FootLoadMap.Get(0, 0)),
                 ["scannedState.blockMaps.landValueMap[0]"] = ("55", city => city.BlockMaps.LandValueMap.Get(0, 0)),
                 ["scannedState.blockMaps.policeStationMap[0]"] = ("56", city => city.BlockMaps.PoliceStationMap.Get(0, 0)),
                 ["scannedState.blockMaps.policeStationEffectMap[0]"] = ("57", city => city.BlockMaps.PoliceStationEffectMap.Get(0, 0)),
@@ -617,25 +619,25 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(message, Assert.Throws<SaveFormatException>(() => Simulation.FromSave(save.ToJsonString())).Message);
         }
 
-        // A walkway of a kind there is on each ninth, one ninth of no kind, and tiles listed out of order or twice are
-        // refused, naming the list
+        // A value past the bits of a tile's nine ninths is refused, naming it, and tiles listed out of order or twice,
+        // naming the list; every kind of walkway there is fills two bits a ninth, so no ninth holds a kind there isn't
         [TestMethod]
-        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":2}]")]
-        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":1365},{\"x\":59,\"y\":30,\"ninths\":1}]")]
-        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":1365},{\"x\":60,\"y\":30,\"ninths\":1}]")]
-        public void FromSave_WalkwaysOfNoKindOrOutOfOrder_AreRefused(string walkways)
+        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":262144}]", "map.walkways[0].ninths")]
+        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":1365},{\"x\":59,\"y\":30,\"ninths\":1}]", "map.walkways")]
+        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":1365},{\"x\":60,\"y\":30,\"ninths\":1}]", "map.walkways")]
+        public void FromSave_WalkwaysPastTheirBitsOrOutOfOrder_AreRefused(string walkways, string path)
         {
             JsonNode save = JsonNode.Parse(RunText)!;
             ObjectAt(save, "map")["walkways"] = JsonNode.Parse(walkways);
 
-            AssertRejected(save, "map.walkways");
+            AssertRejected(save, path);
         }
 
         // The run save's path over the top two rows of ninths of one tile counts six ninths, for the upkeep, once loaded
         [TestMethod]
         public void FromSave_Walkway_CountsItsNinths()
         {
-            Assert.AreEqual(2 * Walkways.Side, Simulation.FromSave(RunText).Map.WalkwayNinths);
+            Assert.AreEqual(2 * Walkways.Side, Simulation.FromSave(RunText).Map.WalkwayUpkeep);
         }
 
         // The map's walkway, which the run save holds on one tile

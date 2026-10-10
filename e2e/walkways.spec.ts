@@ -45,6 +45,8 @@ const GREEN: [number, number, number] = [0, 160, 0];
 const GRAVEL: [number, number, number] = [200, 170, 110];
 const PAVING: [number, number, number] = [150, 150, 150];
 const STRIPES: [number, number, number] = [250, 250, 250];
+const DECK: [number, number, number] = [150, 90, 40];
+const STAIRS: [number, number, number] = [40, 30, 70];
 
 const server = serverForTests("manual");
 
@@ -59,10 +61,16 @@ function atlas(): Buffer {
   return png(48, 16, pixels);
 }
 
-// The grass's atlas, the green, its 16 pixel square 8 pixels in from the edges, so sampled linearly at the square's
-// edge it takes nothing else
+// The grass's atlas: the green, the footbridge's deck and the underpass's stairs, each 32 pixels wide, its 16 pixel
+// square 8 pixels in from its edges, so sampled linearly at the square's edge it takes nothing else
 function grassAtlas(): Buffer {
-  return png(32, 16, Array.from({length: 32 * 16}, () => [...GREEN, 255]).flat());
+  const pixels: number[] = [];
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 96; x++) {
+      pixels.push(...(x < 32 ? GREEN : x < 64 ? DECK : STAIRS), 255);
+    }
+  }
+  return png(96, 16, pixels);
 }
 
 // The test art, its paths' edges eaten into by the wobble as much as the edge given
@@ -73,8 +81,13 @@ function manifest(edge: number): TestManifest {
   return {version: 1, atlases: {test: ATLAS_PATH, grass: GRASS_PATH}, tiles, sprites: {}, cars: {},
           walkers: plainWalkers({atlas: "test", x: 32, y: 0, width: 16, height: 16}),
           grass: plainGrass(rect, GREEN), canopy: plainCanopy(rect), water: plainWater(rect, GREEN),
-          walkway: {...plainWalkway(GRAVEL, PAVING, STRIPES), edge}};
+          walkway: {...plainWalkway({...rect, x: 40}, GRAVEL, PAVING, STRIPES, {...rect, x: 72}), edge,
+                    footbridge: DECK_FOOTBRIDGE}};
 }
+
+// The footbridge: its deck nine tenths of its ninths across, with no rails, casting its shadow, half black, a quarter
+// of a ninth right and down, cut sharp
+const DECK_FOOTBRIDGE = {span: 0.6, rail: {width: 0, darkness: 0}, shadow: {offset: 0.25, darkness: 0.5, feather: 0.01}};
 
 // Whether a pixel is the colour, to within the rounding of the shader's arithmetic
 function near(pixel: number[], colour: number[]): boolean {
@@ -87,7 +100,8 @@ async function startOnTestArt(page: Page, name: string, shown: Tile[], edge = 0)
   await serveTestArt(page, manifest(edge), {[ATLAS_PATH]: atlas(), [GRASS_PATH]: grassAtlas()});
   const player = await startGame(server(), page, SEED, name);
   await player.showTiles(tilesIn(SITE[0]));
-  await player.zoomWithWheel(shown[0], 2);
+  // With the keys, not the wheel, whose notch Chromium shrinks by the device pixels to the CSS pixel
+  await player.zoomWithKeys(2);
   await player.showTiles(shown);
   return player;
 }
@@ -155,18 +169,92 @@ test("a path shows gravel on bare land, paving on a road's verges and a crossing
   expect(problems).toEqual([]);
 });
 
-test("the paths drawn again in part, round a walkway that joins a path across a block's edge, show what the map " +
-     "drawn whole does", async ({page}) => {
+test("a footbridge shows its deck over a road, casting its shadow onto it, and an underpass the road or rail over it " +
+     "with the stairs going down beside it", async ({page}) => {
   const problems = collectPageProblems(page);
-  // A path along the middle row of ninths of the last tile of a block of those the map is drawn again in, then one
+  // A road along row 34 from (50, 34) to (56, 34) and a rail along row 36, a path down the middle column of ninths of
+  // column 52 from row 33 to row 35 with a footbridge where it crosses the road, and one down column 55 to row 37
+  // with an underpass where it crosses the road and the rail
+  const road = {left: 50, top: 34, right: 56, bottom: 34};
+  const rail = {...road, top: 36, bottom: 36};
+  const bridged = {x: 52, y: 34};
+  const tunnelled = {x: 55, y: 34};
+  const underRail = {x: 55, y: 36};
+  const player = await startOnTestArt(page, "Bridges", tilesIn({left: road.left, top: 33, right: road.right, bottom: 37}));
+  await player.selectTool("road");
+  await player.dragTiles({x: road.left, y: road.top}, {x: road.right, y: road.bottom});
+  await player.selectTool("rail");
+  await player.dragTiles({x: rail.left, y: rail.top}, {x: rail.right, y: rail.bottom});
+  await player.selectTool("walkway");
+  for (const [crossing, kind] of [[bridged, "footbridge"], [tunnelled, "underpass"]] as const) {
+    await player.selectWalkwayKind("path");
+    await player.dragNinths(ninthOf({x: crossing.x, y: 33}, 1), ninthOf({x: crossing.x, y: 33}, 7));
+    await player.dragNinths(ninthOf({x: crossing.x, y: 35}, 1), ninthOf({x: crossing.x, y: 35}, 7));
+    await player.selectWalkwayKind(kind);
+    await player.dragNinths(ninthOf(crossing, 1), ninthOf(crossing, 7));
+  }
+  await player.selectWalkwayKind("path");
+  await player.dragNinths(ninthOf({x: underRail.x, y: 37}, 1), ninthOf({x: underRail.x, y: 37}, 7));
+  await player.selectWalkwayKind("underpass");
+  await player.dragNinths(ninthOf(underRail, 1), ninthOf(underRail, 7));
+  await player.selectTool("query");
+  const save = await player.save();
+  expect([walkwayAt(save, bridged), walkwayAt(save, tunnelled), walkwayAt(save, underRail)],
+         "the footbridge and the underpasses")
+    .toEqual([walkwayOf([1, 4, 7], "footbridge"), walkwayOf([1, 4, 7], "underpass"),
+              walkwayOf([1, 4, 7], "underpass")]);
+
+  // The deck lies on its ninths from 0.2 to 0.8 across, its shadow a quarter of a ninth right and down: on the road
+  // beside it to its east, and nowhere on the deck. Beside the deck, its ninths show what it crosses, the road, its
+  // verges as its carriageway, with no paving
+  const acrossNinth = (share: number) => (1 + share) / 3;
+  const shaded = BLUE.map((channel) => channel / 2);
+  const ratio = await page.evaluate(() => window.devicePixelRatio);
+  const {tileWidth} = await player.view();
+  const expected: {what: string, tile: Tile, at: {x: number, y: number}, colour: number[]}[] = [
+    {what: "the footbridge over the road's carriageway", tile: bridged, at: {x: 0.5, y: 0.5}, colour: DECK},
+    {what: "the footbridge over the road's north verge", tile: bridged, at: {x: 0.5, y: 1 / 6}, colour: DECK},
+    {what: "the footbridge where its shadow falls nowhere", tile: bridged, at: {x: acrossNinth(0.3), y: 0.5},
+     colour: DECK},
+    {what: "the road beside the deck in the footbridge's shadow", tile: bridged, at: {x: acrossNinth(0.9), y: 0.5},
+     colour: shaded},
+    {what: "the road's verge beside the deck, out of its shadow", tile: bridged, at: {x: acrossNinth(0.1), y: 1 / 6},
+     colour: BLUE},
+    {what: "the road west of the footbridge, out of its shadow", tile: bridged, at: {x: 1 / 6, y: 0.5}, colour: BLUE},
+    {what: "the road over the underpass", tile: tunnelled, at: {x: 0.5, y: 0.5}, colour: BLUE},
+    {what: "the stairs north of the road", tile: tunnelled, at: {x: 0.5, y: 1 / 6}, colour: STAIRS},
+    {what: "the stairs south of the road", tile: tunnelled, at: {x: 0.5, y: 5 / 6}, colour: STAIRS},
+    {what: "the path the underpass joins", tile: {x: tunnelled.x, y: 33}, at: {x: 0.5, y: 0.5}, colour: GRAVEL},
+    {what: "the rail over the underpass's north ninth", tile: underRail, at: {x: 0.5, y: 1 / 6}, colour: BLUE},
+    {what: "the rail over the underpass's south ninth", tile: underRail, at: {x: 0.5, y: 5 / 6}, colour: BLUE},
+    {what: "the stairs north of the rail", tile: {x: underRail.x, y: 35}, at: {x: 0.5, y: 5 / 6}, colour: STAIRS},
+    {what: "the stairs south of the rail", tile: {x: underRail.x, y: 37}, at: {x: 0.5, y: 1 / 6}, colour: STAIRS},
+  ];
+  const points = await Promise.all(expected.map(async ({tile, at}) => {
+    const corner = await player.tileCorner(tile);
+    return {x: Math.floor((corner.x + at.x * tileWidth) * ratio), y: Math.floor((corner.y + at.y * tileWidth) * ratio)};
+  }));
+  const shown = await samplePixels(page, await player.mapScreenshot(), points);
+  const wrong = expected.flatMap(({what, colour}, i) => near(shown.pixels[i], colour) ? [] :
+    [`${what} is ${shown.pixels[i].slice(0, 3).join(", ")}`]);
+
+  expect(wrong).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
+const REDRAWN = "the paths drawn again in part, round a walkway that joins a path across a block's edge, show what the " +
+  "map drawn whole does";
+
+async function redrawnInPart(page: Page): Promise<void> {
+  const problems = collectPageProblems(page);  // A path along the middle row of ninths of the last tile of a block of those the map is drawn again in, then one
   // ninth more, the first of the next block's first tile, which the first path's east end now joins
   const row = SITE[0].top + 4;
   const player = await startOnTestArt(page, "Walkways redrawn",
                                       tilesIn({left: SITE[0].left + 2, top: row, right: SITE[0].left + 14, bottom: row}));
-  const {originX} = await player.view();
+  const first = await player.firstTileInView();
   const inView = (await player.wholeTilesInView()).map(({tile}) => tile);
   const last = inView.find(({x, y}) => y === row && x > SITE[0].left && x < SITE[0].right &&
-                                       (x + 1 - originX) % DAMAGE_BLOCK === 0);
+                                       (x + 1 - first.x) % DAMAGE_BLOCK === 0);
   expect(last, "the last tile of a block in view, on the building site").toBeDefined();
   await player.selectTool("walkway");
   await player.dragNinths(ninthOf(last!, 3), ninthOf(last!, 5));
@@ -196,6 +284,15 @@ test("the paths drawn again in part, round a walkway that joins a path across a 
     .not.toEqual(is.pixels);
   expect(inPart.equals(whole), "the map drawn in part, as drawn whole").toBe(true);
   expect(problems).toEqual([]);
+}
+
+test(REDRAWN, async ({page}) => redrawnInPart(page));
+
+// Where a tile's and a ninth's edges fall between device pixels, as at a browser zoom of 110%
+test.describe("on a screen of 1.1 device pixels to the CSS pixel", () => {
+  test.use({deviceScaleFactor: 1.1});
+
+  test(REDRAWN, async ({page}) => redrawnInPart(page));
 });
 
 test("the wobble eats into a path's edge, but never grows it nor reaches its middle", async ({page}) => {

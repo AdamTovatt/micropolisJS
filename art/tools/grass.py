@@ -142,7 +142,10 @@ WATER = {
 # the two together keeping a path within its own ninths; how far the water's wobble eats into its edge, so it never
 # runs straight; the gravel of paths on open land and in parks, a warm sand in the straw's brushwork as the sand along
 # the shore is, and the grey paving of sidewalks and of paths on road and rail, each a colour and how much of the
-# straw's light and dark it keeps; and a crossing's stripes over a road, their colour and how many of each to a ninth
+# straw's light and dark it keeps; a crossing's stripes over a road, their colour and how many of each to a ninth; and
+# a footbridge's deck, the share of a ninth it spans across, its rails along its edges, the share of a ninth they take
+# and how much they darken the deck, and its shadow. The atlas build writes the deck and the stair mouth (bridges.py)
+# beside them.
 WALKWAY = {
     'cut': 0.62,
     'feather': 0.2,
@@ -150,6 +153,10 @@ WALKWAY = {
     'gravel': {'mean': [196, 168, 118], 'contrast': 0.9},
     'paving': {'mean': [152, 150, 144], 'contrast': 0.45},
     'crossing': {'colour': [236, 234, 224], 'stripes': 3},
+    # a footbridge's deck: how much of a ninth it spans across, its dark rails along its edges, a share of a ninth
+    # wide, and its shadow, which falls right and down, away from the sun, as the canopy's does, in ninths
+    'footbridge': {'span': 0.82, 'rail': {'width': 0.09, 'darkness': 0.6},
+                   'shadow': {'offset': 0.3, 'darkness': 0.45, 'feather': 0.12}},
 }
 BAND = 14                      # pixels in from a tile's edge over which its centre patch takes over from its corners
 

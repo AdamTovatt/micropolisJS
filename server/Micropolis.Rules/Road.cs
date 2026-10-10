@@ -73,10 +73,12 @@ namespace Micropolis.Rules
                     {
                         if (simData.Budget.RoadEffect < (simData.Random.GetRandom16() & 31))
                         {
-                            // Replace bridge tiles with water, otherwise rubble
-                            if ((tileValue & 15) < 2 || (tileValue & 15) == 15)
+                            // Replace bridge tiles with water, for good, so with what walkway water doesn't take,
+                            // otherwise rubble
+                            if (TileUtils.IsBridge(tileValue))
                             {
                                 map.SetTile(x, y, RIVER, NOFLAGS);
+                                map.ClearUnusableWalkway(x, y);
                             }
                             else
                             {

@@ -73,7 +73,7 @@ namespace Micropolis.Rules.Tests
             new SavedFieldsCase("the map", City.Map, ["map"], [], new Dictionary<string, string>
             {
                 ["_data"] = "saved as tiles, each tile as its raw value", ["Bounds"] = "derived from the width and height",
-                ["_walkwayNinths"] = "counted from the walkways as each is set, a load's included",
+                ["_walkwayUpkeep"] = "counted from the walkways as each is set, a load's included",
             }),
             new SavedFieldsCase("the block maps", City.BlockMaps, ["scannedState.blockMaps"], [], new Dictionary<string, string>
             {
@@ -85,7 +85,7 @@ namespace Micropolis.Rules.Tests
             {
                 ["_data"] = "saved as the list under the map's key",
                 ["BlockSize"] = BlockMapShape, ["Min"] = BlockMapShape, ["Max"] = BlockMapShape,
-                ["Width"] = BlockMapShape, ["Height"] = BlockMapShape,
+                ["Width"] = BlockMapShape, ["Height"] = BlockMapShape, ["_shift"] = BlockMapShape,
             }),
             // Saved as the list randomState, so like a block map's, the case catches only a field added to the type
             new SavedFieldsCase("the random stream", City.Random, [], [], new Dictionary<string, string>

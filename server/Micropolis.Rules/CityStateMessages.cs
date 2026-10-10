@@ -40,7 +40,7 @@ namespace Micropolis.Rules
         private readonly Simulation _city;
         // The map's raw values as last sent, row by row
         private int[] _tiles;
-        // Each tile's walkway as last sent, row by row
+        // Each tile's usable walkway as last sent, row by row
         private int[] _walkways;
         // The messages sent only when they change, as last sent, as their wire text, by type
         private readonly Dictionary<string, string> _sent = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -90,7 +90,7 @@ namespace Micropolis.Rules
         private void MarkSent()
         {
             _tiles = _city.Map.RawValues();
-            _walkways = _city.Map.WalkwayValues();
+            _walkways = _city.Map.UsableWalkwayValues();
 
             foreach (StateMessage message in Changing())
             {
@@ -146,7 +146,7 @@ namespace Micropolis.Rules
 
             if (WalkwaysMessage(_walkways) is WalkwaysMessage walkways)
             {
-                _walkways = _city.Map.WalkwayValues();
+                _walkways = _city.Map.UsableWalkwayValues();
                 messages.Add(walkways);
             }
 
@@ -226,11 +226,12 @@ namespace Micropolis.Rules
             return changes.Count == 0 ? null : new TilesMessage(changes);
         }
 
-        // The tiles whose walkway differs from what the values given hold for each, row by row, with its walkway now, or
-        // null for none
+        // The tiles whose usable walkway (Walkways.Usable) differs from what the values given hold for each, row by row,
+        // with its usable walkway now, or null for none: a walkway an opening drawbridge leaves dormant is sent as none,
+        // and again as the bridge closes
         private WalkwaysMessage? WalkwaysMessage(int[] before)
         {
-            int[] values = _city.Map.WalkwayValues();
+            int[] values = _city.Map.UsableWalkwayValues();
             int width = _city.Map.Width;
             List<WalkwayChange> changes = new List<WalkwayChange>();
 

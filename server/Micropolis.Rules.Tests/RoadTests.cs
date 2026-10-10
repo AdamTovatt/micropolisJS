@@ -18,7 +18,8 @@ using static Micropolis.Rules.TileValues;
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The drawbridge as doBridge in the original's simulate.cpp opens and closes it, with no ship near but where a test
+    /// The drawbridge as doBridge in the original's simulate.cpp opens and closes it, and the walkway across it, which
+    /// an opening leaves dormant and a bridge decaying to water clears, with no ship near but where a test
     /// places one, and as a ship opens it, with roads funded in full, on a stream whose first draw is the one chance in 8
     /// that opens a bridge or in 4 that closes one.
     /// </summary>
@@ -201,6 +202,69 @@ namespace Micropolis.Rules.Tests
             Scan(city);
 
             Assert.AreEqual(BRWH, city.Map.GetTileValue(X, Y));
+        }
+
+        // A path across a bridge a ship opened lies dormant on the water and the raised ends the opening wrote over the
+        // bridge's road: the map scan clears none of it, though none of it is usable there, so the city sends none and
+        // the router walks none, but on the open bridge's middle, which is road; once the bridge closes, it is whole
+        [TestMethod]
+        public void MapScan_PathOverABridgeAShipOpened_LiesDormantUntilTheBridgeCloses()
+        {
+            Simulation city = CityWith(OverTheRiver);
+            int path = Ground.Walkway(3, 4, 5);
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                city.Map.SetWalkway(X + dx, Y, path);
+            }
+
+            Road.OpenForShip(city.Map, X, Y);
+            // Every tile of the bridge but its middle, whose scan would close it
+            city.MapScanner.MapScan(X - 2, X, city.ConstructSimData());
+            city.MapScanner.MapScan(X + 1, X + 3, city.ConstructSimData());
+
+            CollectionAssert.AreEqual(new[] { path, path, path, path, path }, OnBridge(city.Map.GetWalkway));
+            CollectionAssert.AreEqual(new[] { 0, 0, path, 0, 0 }, OnBridge(UsableWalkway(city)));
+
+            Scan(city);
+
+            Assert.AreEqual(HBRIDGE, city.Map.GetTileValue(X, Y));
+            CollectionAssert.AreEqual(new[] { path, path, path, path, path }, OnBridge(UsableWalkway(city)));
+        }
+
+        // A bridge the roads' decay turns into water is water for good, so the decay clears what walkway water doesn't
+        // take, the path, and keeps the footbridge, which water does
+        [TestMethod]
+        public void RoadFound_BridgeDecayingWithAPathAndAFootbridge_KeepsOnlyTheFootbridge()
+        {
+            Simulation city = CityWith(OverTheRiver);
+            city.Budget.RoadEffect = 0;
+            // A stream whose first draw is the one chance in 512 that wears a road, and whose second wears it at no
+            // funding
+            uint decaying = Enumerable.Range(0, 100_000).Select(seed => (uint)seed).First(seed =>
+            {
+                RandomStream stream = RandomStream.SimulationStream(seed);
+                return stream.GetChance(511) && (stream.GetRandom16() & 31) > 0;
+            });
+            city.Random.SetState(RandomStream.SimulationStream(decaying).GetState());
+            int footbridge = Walkways.With(0, 4, (int)WalkwayKind.Footbridge);
+            city.Map.SetWalkway(X, Y, Ground.Walkway(3) | footbridge);
+
+            Scan(city);
+
+            Assert.AreEqual((RIVER, footbridge), (city.Map.GetTileValue(X, Y), city.Map.GetWalkway(X, Y)));
+        }
+
+        // The usable walkway of each tile, as the city sends it, by its position
+        private static Func<int, int, int> UsableWalkway(Simulation city)
+        {
+            int[] usable = city.Map.UsableWalkwayValues();
+            return (x, y) => usable[x + y * city.Map.Width];
+        }
+
+        // The walkway the function given reads on each of the bridge's five tiles, west to east
+        private static int[] OnBridge(Func<int, int, int> walkwayAt)
+        {
+            return Enumerable.Range(-2, 5).Select(dx => walkwayAt(X + dx, Y)).ToArray();
         }
 
         private static Simulation CityWith((int Dx, int Dy, int Raw)[] tiles)

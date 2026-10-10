@@ -14,11 +14,13 @@
 
 import { NINTHS_PER_SIDE } from "./protocol";
 import type { TilePosition } from "./protocol";
-import { pickedByStart } from "./routeTiles";
+import { pickedByStart, tileKey } from "./routeTiles";
+import { locateNinth } from "./walkwayValues";
 
 // The walkers the client draws for the walks a trips message brings (protocol/README.md): each a dab of paint, standing
 // for several people, that walks its walk once along the ninths of the tiles it goes over, from the middle of each
-// ninth to the next, and is gone at its end. Paths never crowd, so walkers pass through each other.
+// ninth to the next, and is gone at its end. Paths never crowd, so walkers pass through each other, and a walker
+// never waits: the cars give way to it on a crossing (crossingTiles).
 
 // How fast a walker walks, in ninths of a tile a second: a tile a second
 export const WALK_SPEED = NINTHS_PER_SIDE;
@@ -94,6 +96,23 @@ export class Walkers {
   // A walker on the walk given, through two ninths or more, setting out at the drive clock's time given
   add(route: readonly TilePosition[], clock: number): void {
     this.walking.push({route, ...walkerLook(route), start: clock});
+  }
+
+  // Adds to tiles, by key, the tile of each crossing a walker is on at the drive clock's time given, or steps onto next:
+  // of the ninths it is between, those crossingsAt gives of their tile, a bit for each ninth, as crossings in
+  // walkwayValues.ts finds them
+  crossingTiles(clock: number, crossingsAt: (tile: TilePosition) => number, tiles: Set<number>): void {
+    for (const walker of this.walking) {
+      const walked = Math.max(0, clock - walker.start) / 1000 * WALK_SPEED;
+      const ninth = Math.floor(walked);
+      const last = Math.min(ninth + 1, walker.route.length - 1);
+      for (let index = ninth; index <= last; index++) {
+        const {tile, n} = locateNinth(walker.route[index].x, walker.route[index].y);
+        if ((crossingsAt(tile) & (1 << n)) !== 0) {
+          tiles.add(tileKey(tile));
+        }
+      }
+    }
   }
 
   // Lets go of each walker that has walked its walk by the drive clock's time given

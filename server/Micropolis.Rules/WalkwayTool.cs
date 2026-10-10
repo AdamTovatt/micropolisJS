@@ -15,10 +15,12 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The walkway tool, which the original never had: it lays walkway on a ninth of a tile that takes one
-    /// (<see cref="Walkways.Takes"/>), a path for <see cref="PathCost"/>. A ninth already holding the kind laid costs
-    /// nothing, so a drag over walkway pays only for what it adds. Water takes none, nor does a zone or any other
-    /// building, rubble or a power line on its own, which need the bulldozer first. It erases a ninth's walkway too.
+    /// The walkway tool, which the original never had: it lays walkway of a kind on a ninth of a tile that takes it
+    /// (<see cref="Walkways.Takes"/>), a path for <see cref="PathCost"/> a ninth, and a footbridge or an underpass for
+    /// <see cref="FootbridgeCost"/> or <see cref="UnderpassCost"/> a tile, paid as its first ninth goes on a tile
+    /// holding none of it. A ninth already holding the kind laid costs nothing, so a drag over walkway pays only for what
+    /// it adds. Water takes only a footbridge, a bridge no underpass, and a zone or any other building, rubble or a power
+    /// line on its own none, which need the bulldozer first. It erases a ninth's walkway too.
     /// </summary>
     internal sealed class WalkwayTool : StagedTool
     {
@@ -26,6 +28,16 @@ namespace Micropolis.Rules
         /// What a ninth of path costs.
         /// </summary>
         public const long PathCost = 2;
+
+        /// <summary>
+        /// What a footbridge costs a tile, however many of its ninths it takes.
+        /// </summary>
+        public const long FootbridgeCost = 40;
+
+        /// <summary>
+        /// What an underpass costs a tile, however many of its ninths it takes: dearer than a footbridge.
+        /// </summary>
+        public const long UnderpassCost = 80;
 
         public WalkwayTool(GameMap map)
             : base(map)
@@ -41,9 +53,10 @@ namespace Micropolis.Rules
             (int x, int y, int ninth) = Walkways.Locate(ninthX, ninthY);
             int tileValue = WorldEffects.GetTileValue(x, y);
 
-            if (!Walkways.Takes(tileValue))
+            if (!Walkways.Takes(tileValue, kind))
             {
-                Result = TileUtils.IsWater(tileValue) ? Outcome.OnWater : Outcome.NeedsBulldoze;
+                // Water, or an underpass on a bridge, which would go under the water
+                Result = TileUtils.IsWater(tileValue) || TileUtils.IsBridge(tileValue) ? Outcome.OnWater : Outcome.NeedsBulldoze;
                 return;
             }
 
@@ -52,10 +65,23 @@ namespace Micropolis.Rules
             if (Walkways.KindAt(walkway, ninth) != (int)kind)
             {
                 WorldEffects.SetWalkway(x, y, Walkways.With(walkway, ninth, (int)kind));
-                AddCost(PathCost);
+                AddCost(kind == WalkwayKind.Path || Walkways.NinthsOf(walkway, kind) == 0 ? CostOf(kind) : 0);
             }
 
             Result = Outcome.Ok;
+        }
+
+        /// <summary>
+        /// What laying the kind given costs, as the tool charges it: a path a ninth, a footbridge or an underpass a tile.
+        /// </summary>
+        public static long CostOf(WalkwayKind kind)
+        {
+            return kind switch
+            {
+                WalkwayKind.Path => PathCost,
+                WalkwayKind.Footbridge => FootbridgeCost,
+                _ => UnderpassCost,
+            };
         }
 
         /// <summary>

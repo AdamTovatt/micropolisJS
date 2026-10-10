@@ -12,7 +12,7 @@
  *
  */
 
-import { Command, TilePosition, ToolName } from "./protocol";
+import { Command, TilePosition, ToolName, WalkwayKind } from "./protocol";
 
 // The tiles a drag passes over on its way from one tile to the next the mouse was seen on, so that a fast mouse skips
 // none: the tiles after from, up to and including to, each one step along a row or a column from the one before, as a
@@ -55,11 +55,12 @@ export interface ToolPath {
   path: TilePosition[];
 }
 
-// The command a tool path makes: the walkway's path laid, or erased ninth by ninth; or the tool's at each tile, or its
-// eraser's, which every tool but the bulldozer has, so a path of the bulldozer that erases is a fault of the input's
-export function pathCommand({tool, erase, path}: ToolPath, autoBulldoze: boolean): Command {
+// The command a tool path makes: the walkway's path laid, of the kind given, or erased ninth by ninth; or the tool's at
+// each tile, or its eraser's, which every tool but the bulldozer has, so a path of the bulldozer that erases is a fault
+// of the input's
+export function pathCommand({tool, erase, path}: ToolPath, autoBulldoze: boolean, walkwayKind: WalkwayKind): Command {
   if (tool === "walkway") {
-    return erase ? {type: "eraseWalkway", path} : {type: "walkway", kind: "path", path};
+    return erase ? {type: "eraseWalkway", path} : {type: "walkway", kind: walkwayKind, path};
   }
 
   if (!erase) {

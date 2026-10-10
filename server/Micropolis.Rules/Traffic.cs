@@ -121,6 +121,17 @@ namespace Micropolis.Rules
         public const int RideLoad = 4;
 
         /// <summary>
+        /// The most walkers a crossing's tile holds (<see cref="BlockMaps.FootLoadMap"/>): decayed as the traffic
+        /// density is, so from as high.
+        /// </summary>
+        public const int MaxFootLoad = MaxTrafficDensity;
+
+        /// <summary>
+        /// The walkers one walk adds to the tile of each crossing it walks over, as a ride adds its riders to the rail.
+        /// </summary>
+        public const int WalkLoad = RideLoad;
+
+        /// <summary>
         /// What a slow route takes from its zone's growth score, which the original, with no slow trips, never took.
         /// </summary>
         public const int SlowTripPenalty = 300;
@@ -133,6 +144,9 @@ namespace Micropolis.Rules
         // The trip's route: every tile of it, in order, from the perimeter tile it started on, with how it went over each
         private readonly TripRoute _route = new TripRoute();
 
+        // The ninths a walk of the route goes through, kept from walk to walk
+        private readonly List<Position> _walked = new List<Position>();
+
         /// <param name="trips">Takes the route of each trip found, which nothing in the rules reads.</param>
         public Traffic(GameMap map, RandomStream random, Trips trips)
         {
@@ -144,8 +158,8 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Routes a trip from the zone centred at (<paramref name="x"/>, <paramref name="y"/>) to a destination of the
-        /// kind given, and if it finds one, counts it in the traffic density map where it goes by road and in the rail
-        /// load where it rides. Where it walks it adds to neither.
+        /// kind given, and if it finds one, counts it in the traffic density map where it goes by road, in the rail load
+        /// where it rides, and in the foot load where it walks over a crossing.
         /// </summary>
         public TrafficResult MakeTraffic(int x, int y, BlockMaps blockMaps, TrafficDestination destination)
         {
@@ -156,6 +170,7 @@ namespace Micropolis.Rules
                 _trips.Routed(_route);
                 AddToTrafficDensityMap(blockMaps);
                 AddToRailLoadMap(blockMaps);
+                AddToFootLoadMap(blockMaps);
             }
 
             return result;
@@ -208,6 +223,62 @@ namespace Micropolis.Rules
                 int ends = TileUtils.RailEnds(_map.GetTileValue(step.Tile.X, step.Tile.Y));
 
                 Add(RailLoadEntered(blockMaps, ends, enteredBy), step.Tile, RideLoad, MaxRailLoad);
+            }
+        }
+
+        // Adds each walk's walkers to the tile of each crossing it walks over, once a tile: going over the ninths the
+        // client draws its walker through (WalkPaths), so a walk along a sidewalk beside a crossing, on the same piece of
+        // walkway, crosses nothing. Only a walk with a tile a car drives on is worked out.
+        private void AddToFootLoadMap(BlockMaps blockMaps)
+        {
+            List<RouteStep> route = _route.Steps;
+            int start = 0;
+
+            for (int i = 1; i <= route.Count; i++)
+            {
+                if (i < route.Count && route[i].Mode == route[start].Mode)
+                {
+                    continue;
+                }
+
+                if (route[start].Mode == TravelMode.Walk && CrossesRoad(route, start, i))
+                {
+                    WalkPaths.Fill(_route, start, i, _walked);
+                    AddCrossings(blockMaps);
+                }
+
+                start = i;
+            }
+        }
+
+        // Whether a car drives on any tile of the route from start up to end
+        private bool CrossesRoad(List<RouteStep> route, int start, int end)
+        {
+            for (int i = start; i < end; i++)
+            {
+                if (TileUtils.CarriesCars(_map.GetTileValue(route[i].Tile.X, route[i].Tile.Y)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Adds a walk's walkers, through the ninths walked, to the tile of each crossing among them, once a tile
+        private void AddCrossings(BlockMaps blockMaps)
+        {
+            Position counted = new Position(-1, -1);
+
+            foreach (Position ninth in _walked)
+            {
+                (int x, int y, int n) = Walkways.Locate(ninth.X, ninth.Y);
+                Position tile = new Position(x, y);
+                if (tile != counted && (Walkways.Crossings(_map.GetWalkway(x, y), _map.GetTileValue(x, y)) & (1 << n)) != 0)
+                {
+                    Add(blockMaps.FootLoadMap, tile, WalkLoad, MaxFootLoad);
+                    counted = tile;
+                }
             }
         }
 

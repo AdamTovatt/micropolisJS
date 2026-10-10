@@ -43,11 +43,11 @@
     {"step":12144,"player":"player 1","command":{"type":"erase","tool":"road","path":[{"x":69,"y":31}]}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"5eba98b9d1d402a5504241d3ad52e4f651398bf83afaf52ed69ceeb554a303af"},
-    {"step":3600,"hash":"75e84cf45650ee80b98aab7cfec476011f2a28c5835c5852a0ec3e8e15f2fcae"},
-    {"step":7200,"hash":"6ce433ea45803037e4ad0ea6fa352a87f50540f568b83fe2d5a1510bd224b1ed"},
-    {"step":10800,"hash":"929b3523bd3418ebab498145f241b25e5d6c5f8f56833dfeaef314ba57747f0e"},
-    {"step":10992,"hash":"1444f741718e6e447b543beaea5d47e3800b6863537eeca883addb04a026b61a"},
-    {"step":12144,"hash":"14565304f1d24578f365ac2ca87600d7955f3458ecb2d3645c7793ed21e02d6b"}
+    {"step":0,"hash":"3643356368d44dba18b9601a5326d3ef972524cfa7403bdecc9aa9d50a2bd22c"},
+    {"step":3600,"hash":"8cdbb3d8d2ae064c5ff3e7243371f62eeceb280e50f27a0c4d76b145f2525fc8"},
+    {"step":7200,"hash":"6fb9499139449e2071fa430bc3e83093c2edd5f671c65cba2fbd1c50373a41b8"},
+    {"step":10800,"hash":"2d53ef8ff5b3493db93193b1df613ddd62e3e069507e4c6b804e635ef7a44908"},
+    {"step":10992,"hash":"b6224c5f7a2217fe0fce26eed8c711545b57b3f3319b14c5a0cae7a2a3802d04"},
+    {"step":12144,"hash":"7d32e13e501ee068faf7d821caff45bf6a7b879fbec073eb8d77e282665bb64c"}
   ]
 }

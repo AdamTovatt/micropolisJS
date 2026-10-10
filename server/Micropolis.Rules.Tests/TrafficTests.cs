@@ -192,6 +192,54 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(Traffic.RideLoad, blockMaps.RailLoadFromNorthOrWestMap.WorldGet(9, 14));
         }
 
+        // A walk east along row 10 from the zone's east perimeter over open land, a road at (13, 10) and open land again
+        // to beside a destination centred at (16, 10), on the path given on the road and beside it: across a road down
+        // the column, it walks over the crossing in the middle and adds its walkers to the road's tile; along a road's
+        // north sidewalk, joined to a crossing down the middle, it walks over no crossing and adds none
+        [TestMethod]
+        [DataRow(ROADS2, new[] { 3, 4, 5 }, new[] { 3, 4, 5 }, Traffic.WalkLoad)]
+        [DataRow(ROADS, new[] { 0, 1, 2, 4, 7 }, new[] { 0, 1, 2 }, 0)]
+        public void MakeTraffic_WalkOverARoad_AddsToItsFootLoadOnlyOverACrossing(int road, int[] pathOnRoad, int[] pathBeside,
+                                                                                  int load)
+        {
+            GameMap map = new GameMap(120, 100);
+            Ground.NoOpenLand(map);
+            List<Position> beside = [new Position(12, 10), new Position(14, 10)];
+            Ground.OpenLand(map, beside);
+            Ground.Path(map, beside, pathBeside);
+            map.SetTile(13, 10, road, TileFlags.BULLBIT);
+            Ground.Path(map, [new Position(13, 10)], pathOnRoad);
+            map.PutZone(16, 10, COMCLR, 3);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+
+            Assert.AreEqual(TrafficResult.RouteFound, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
+            Assert.AreEqual((load, 0, 0), (blockMaps.FootLoadMap.WorldGet(13, 10), blockMaps.FootLoadMap.WorldGet(12, 10),
+                                           blockMaps.TrafficDensityMap.WorldGet(13, 10)));
+        }
+
+        // The same walk over a footbridge or an underpass across the road down the column or the rail, or a footbridge
+        // across the river: it walks over it as over a path, and adds no walkers, since neither is a crossing
+        [TestMethod]
+        [DataRow(ROADS2, WalkwayKind.Footbridge)]
+        [DataRow(ROADS2, WalkwayKind.Underpass)]
+        [DataRow(LVRAIL, WalkwayKind.Underpass)]
+        [DataRow(RIVER, WalkwayKind.Footbridge)]
+        public void MakeTraffic_WalkOverAFootbridgeOrAnUnderpass_AddsNoFootLoad(int tile, WalkwayKind kind)
+        {
+            GameMap map = new GameMap(120, 100);
+            Ground.NoOpenLand(map);
+            List<Position> beside = [new Position(12, 10), new Position(14, 10)];
+            Ground.OpenLand(map, beside);
+            Ground.Path(map, beside, [3, 4, 5]);
+            map.SetTile(13, 10, tile, tile == RIVER ? TileFlags.NOFLAGS : TileFlags.BULLBIT);
+            map.SetWalkway(13, 10, new[] { 3, 4, 5 }.Aggregate(0, (bits, ninth) => Walkways.With(bits, ninth, (int)kind)));
+            map.PutZone(16, 10, COMCLR, 3);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+
+            Assert.AreEqual(TrafficResult.RouteFound, MakeTraffic(map, blockMaps, RandomStream.FromSeed(0)));
+            Assert.AreEqual((0, 0), (blockMaps.FootLoadMap.WorldGet(13, 10), blockMaps.TrafficDensityMap.WorldGet(13, 10)));
+        }
+
         // The overlay's load of a tile is its load the busier way, whichever way that is
         [TestMethod]
         public void BusierRailLoadMap_LoadsEachWay_IsEachTilesGreater()

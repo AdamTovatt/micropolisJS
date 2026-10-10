@@ -23,7 +23,7 @@ import { errorMessage } from "./errorMessage";
 import type { MouseOutline } from "./gameCanvas";
 import { type ChosenTool, cellsPerTile, type InputEvents, type PanState, type ToolClick } from "./inputStatus";
 import type {
-  BudgetRecord, CursorTool, DisasterKind, EvaluationRecord, SettingsRecord, TileReportAnswer,
+  BudgetRecord, CursorTool, DisasterKind, EvaluationRecord, SettingsRecord, TileReportAnswer, WalkwayKind,
 } from "./protocol";
 import { QueryTool } from "./queryTool";
 import type { ScreenshotArea } from "./screenshotWindow";
@@ -41,6 +41,8 @@ import type { WindowManager } from "./windowManager";
 // The player's input as the controls read it each tick, and the events it announces (InputStatus)
 export interface ControlInput extends Pick<Emitter<InputEvents>, "addEventListener"> {
   readonly tool: ChosenTool | null;
+  // The kind of walkway the Walkway tool lays
+  readonly walkwayKind: WalkwayKind;
   readonly erasing: boolean;
   readonly pointer: PixelPoint | null;
   readonly pan: PanState;
@@ -234,7 +236,7 @@ export class GameControls {
   // Sends each path gathered since the last tick as one command: a click, or a drag's latest tiles or ninths
   sendToolPaths(): void {
     this.toolPaths.take().forEach((toolPath) => {
-      this.source.send(pathCommand(toolPath, this.autoBulldoze.isOn()));
+      this.source.send(pathCommand(toolPath, this.autoBulldoze.isOn(), this.input.walkwayKind));
     });
   }
 

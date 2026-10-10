@@ -24,6 +24,7 @@ import type { ChosenTool, InputEvents, PanState } from "../src/inputStatus";
 import {
   type BudgetRecord, type Command, type CursorTool, type DisasterKind, type EvaluationRecord, type Query,
   type QueryAnswer, type SessionLog, type SettingsRecord, SPEEDS, type StateMessageType, type TileReportAnswer,
+  type WalkwayKind,
 } from "../src/protocol";
 import type { ScreenshotArea } from "../src/screenshotWindow";
 import type { ClientSettings, SettingsChoice } from "../src/settingsWindow";
@@ -55,6 +56,7 @@ const NINTH = TILE / 3;
 // controls hear
 class FakeInput extends Emitter<InputEvents> {
     tool: ChosenTool | null = null;
+    walkwayKind: WalkwayKind = "path";
     erasing = false;
     pointer: PixelPoint | null = null;
     pan: PanState = "free";
@@ -479,16 +481,19 @@ describe("the game's controls", () => {
                 .toEqual([[{x: first, y: 0}], [{x: last, y: 0}]]);
         });
 
-        it("sends the ninths a walkway's drag reached as one walkway command, on the map's grid of ninths", () => {
-            const {controls, input, source} = setUp();
-            input.tool = WALKWAY;
+        it.each(["path", "underpass"] as const)(
+            "sends the ninths a walkway's drag reached as one walkway command of the kind chosen, %s, on the map's grid of ninths",
+            (kind) => {
+                const {controls, input, source} = setUp();
+                input.tool = WALKWAY;
+                input.walkwayKind = kind;
 
-            input.announce(UiMessages.TOOL_CLICKED, {x: 4.5 * NINTH, y: 7.5 * NINTH, start: true, erase: false});
-            input.announce(UiMessages.TOOL_CLICKED, {x: 6.5 * NINTH, y: 7.5 * NINTH, start: false, erase: false});
-            controls.tick(0);
+                input.announce(UiMessages.TOOL_CLICKED, {x: 4.5 * NINTH, y: 7.5 * NINTH, start: true, erase: false});
+                input.announce(UiMessages.TOOL_CLICKED, {x: 6.5 * NINTH, y: 7.5 * NINTH, start: false, erase: false});
+                controls.tick(0);
 
-            expect(source.sent).toEqual([{type: "walkway", kind: "path", path: [{x: 4, y: 7}, {x: 5, y: 7}, {x: 6, y: 7}]}]);
-        });
+                expect(source.sent).toEqual([{type: "walkway", kind, path: [{x: 4, y: 7}, {x: 5, y: 7}, {x: 6, y: 7}]}]);
+            });
 
         it.each([
             [ROAD, {type: "erase", tool: "road", path: [{x: 2, y: 3}]}],

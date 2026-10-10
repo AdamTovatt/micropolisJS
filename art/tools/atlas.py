@@ -22,7 +22,8 @@ sprites.png, and dirtbg.png into images/, or the directory --out names. The 16 p
 original ones in art/sheets/ with every tile id and sprite frame it has art for drawn into its
 cell, so the build reads nothing it wrote. Which design fills which tile ids is in designs.py: the
 single-tile sets by SINGLE_TILES, the zones by ZONES, their animations by FRAMES, the vehicles by
-SPRITES, the cars by CAR; the walkers' dabs are cut by walkers.py. Needs Pillow, NumPy and SciPy.
+SPRITES, the cars by CAR; the walkers' dabs are cut by walkers.py, and the footbridge's deck and the
+underpass's stair mouth by bridges.py. Needs Pillow, NumPy and SciPy.
 """
 
 import argparse
@@ -33,6 +34,7 @@ import re
 import numpy as np
 from PIL import Image
 
+import bridges
 import grass
 import walkers
 from designs import (CAR, CAR_COLOURS, CAR_WAYS, FRAMES, IMAGES, ORIGINAL_SPRITES, ORIGINAL_TILES, SHEET_COLUMNS,
@@ -235,6 +237,10 @@ def build(source, out=IMAGES):
     grass_images = {(name, k): Image.fromarray(t)
                     for name, tiles in {**grass_sets, 'canopy': canopy, 'water': water}.items()
                     for k, t in enumerate(tiles)}
+    # the footbridge's deck and the underpass's stair mouth, packed with the grass, which the ground pass draws them
+    # beside
+    surfaces = bridges.build()
+    grass_images.update({(name, 0): image for name, image in surfaces.items()})
     for kind, mode, images in (('ground', 'RGBA', ground), ('objects', 'RGBA', objects),
                                ('shadow', 'RGBA', shadows), ('sprites', 'RGBA', {**sprites, **cars, **dabs}),
                                ('grass', 'RGB', grass_images)):
@@ -267,7 +273,8 @@ def build(source, out=IMAGES):
     walker_entry = {'dabs': [packed['sprites'][('dab', k)] for k in range(len(dabs))]}
     manifest = {'version': 1, 'atlases': atlases, 'tiles': tiles, 'sprites': sprite_entries, 'cars': car_entries,
                 'walkers': walker_entry, 'grass': grass_entry, 'canopy': canopy_entry, 'water': water_entry,
-                'walkway': grass.WALKWAY}
+                'walkway': {**grass.WALKWAY, 'deck': {**packed['grass'][('deck', 0)], 'tiles': bridges.DECK_TILES},
+                            'stairs': packed['grass'][('stairs', 0)]}}
     with open(os.path.join(render, 'manifest.json'), 'w') as f:
         json.dump(manifest, f, indent=1)
         f.write('\n')

@@ -46,6 +46,53 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEqual(direct, route);
         }
 
+        // Two roads east from the zone's perimeter as long as each other, along rows 49 and 51, to beside a destination
+        // centred at (30, 50): the trip takes the first, along row 49, unless the crossing of a path down it at (25, 49)
+        // is busy, which makes its tile dearer to drive, and then the other
+        [TestMethod]
+        [DataRow(0, 49)]
+        [DataRow(TripRouter.FootLoadPerCost - 1, 49)]
+        [DataRow(TripRouter.FootLoadPerCost, 51)]
+        [DataRow(Traffic.MaxFootLoad, 51)]
+        public void Route_BusyCrossingOnOneOfTwoRoads_TakesTheOther(int footLoad, int row)
+        {
+            GameMap map = Map();
+            Roads(map, Row(49, 22, 28), Row(51, 22, 28));
+            Ground.Path(map, [new Position(25, 49)], Ground.DownTheMiddle);
+            Zone(map, 30, 50, COMCLR);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            blockMaps.FootLoadMap.WorldSet(25, 49, footLoad);
+
+            (TrafficResult result, List<Position> route) = Route(map, TrafficDestination.Commercial, blockMaps);
+
+            Assert.AreEqual(TrafficResult.RouteFound, result);
+            CollectionAssert.AreEqual(Row(row, 22, 28), route);
+        }
+
+        // The same two roads with the crossing's path gone and its load left, as the load decays slower than a path is
+        // bulldozed: no crossing makes the first road's tile dearer, so the trip takes it, whether walkway lies elsewhere
+        // in the city or none does, and the search reads none at all
+        [TestMethod]
+        [DataRow(true)]
+        [DataRow(false)]
+        public void Route_LoadLeftWhereNoCrossingIs_TakesTheFirstRoad(bool walkwayElsewhere)
+        {
+            GameMap map = Map();
+            Roads(map, Row(49, 22, 28), Row(51, 22, 28));
+            if (walkwayElsewhere)
+            {
+                map.SetWalkway(25, 40, Ground.Walkway(4));
+            }
+            Zone(map, 30, 50, COMCLR);
+            BlockMaps blockMaps = new BlockMaps(map.Width, map.Height);
+            blockMaps.FootLoadMap.WorldSet(25, 49, Traffic.MaxFootLoad);
+
+            (TrafficResult result, List<Position> route) = Route(map, TrafficDestination.Commercial, blockMaps);
+
+            Assert.AreEqual((TrafficResult.RouteFound, walkwayElsewhere), (result, map.HasWalkway));
+            CollectionAssert.AreEqual(Row(49, 22, 28), route);
+        }
+
         // A road from the east perimeter to (23, 50), then track along row 50 to (28, 50), beside the destination: with
         // no stations no one rides it; with one at each end, the trip rides from the first to the last
         [TestMethod]

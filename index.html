@@ -176,6 +176,11 @@
               <div id="notifications" class="hudPanel initialHidden"></div>
               <button id="lastEvent" class="hudPanel hudButton" title="Centre the view on the last news that happened somewhere">Last event</button>
             </div>
+            <div id="walkwayKinds" class="hudPanel hidden" role="group" aria-label="Kind of walkway the Walkway tool lays">
+              <button data-kind="path" class="hudButton" type="button" aria-pressed="true" title="A path on bare land, in parks, and on roads and rail, where a path across a road is a crossing cars give way at."><span class="walkwayKindName">Path</span> <span class="toolCost">$2 a ninth</span></button>
+              <button data-kind="footbridge" class="hudButton" type="button" aria-pressed="false" title="A bridge for walkers over a road, rail or water, which stops no car or train."><span class="walkwayKindName">Footbridge</span> <span class="toolCost">$40 a tile</span></button>
+              <button data-kind="underpass" class="hudButton" type="button" aria-pressed="false" title="A tunnel for walkers under a road or rail, which stops no car or train."><span class="walkwayKindName">Underpass</span> <span class="toolCost">$80 a tile</span></button>
+            </div>
             <div id="controls" data-panel="tools" class="hudPanel initialHidden">
               <div class="foldStrip">
                 <span id="toolInfo" class="foldTitle">Tools</span>

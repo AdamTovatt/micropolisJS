@@ -13,10 +13,11 @@
  */
 
 import {
-    DIRT, FOUNTAIN, HBRDG0, HRAILROAD, HTRFBASE, INTERSECTION, LHRAIL, LVRAIL10, ROADS, ROADS2, ROADS3, VRAILROAD,
-    WOODS2,
+    DIRT, FOUNTAIN, HBRDG0, HRAILROAD, HTRFBASE, LHRAIL, LVRAIL, LVRAIL10, ROADS, ROADS2, WOODS2,
 } from "../src/tileValues";
-import { WINDOW, carriageway, isPaved, walkwaysAround } from "../src/walkwayDraw";
+import {
+    PART_BITS, WINDOW, decksAround, isPaved, pathParts, underAround, underWay, walkwaysAround,
+} from "../src/walkwayDraw";
 import { walkwayOf } from "./helpers/walkways";
 
 const path = (...ninths: number[]) => walkwayOf(ninths);
@@ -55,6 +56,38 @@ describe("the walkway a tile's paths are drawn from", () => {
     });
 });
 
+describe("the parts of a tile its paths are drawn over", () => {
+
+    // A part of a tile, x and y ninths from its top-left, width by height ninths, as pathParts packs it
+    function part(x: number, y: number, width: number, height: number): number {
+        return x | (y << PART_BITS) | (width << 2 * PART_BITS) | (height << 3 * PART_BITS);
+    }
+
+    it("draws over the ninths holding walkway alone", () => {
+        expect(pathParts(bits([2, 2]), 0)).toEqual([part(1, 1, 1, 1)]);
+    });
+
+    it("draws over none where a straight path beside the tile touches it", () => {
+        expect(pathParts(bits([4, 1], [4, 2], [4, 3]), 0)).toEqual([]);
+    });
+
+    it("draws over none of the ninths that go under", () => {
+        expect(pathParts(bits([1, 2], [2, 2], [3, 2]), ninthsOf(4))).toEqual([part(0, 1, 1, 1), part(2, 1, 1, 1)]);
+    });
+
+    it("draws over a ninth of none at the inside of a turn, in as few rectangles as a walk along its rows finds", () => {
+        // Along the top row and down the east column: the middle ninth is the inside of the turn at its north-east
+        // corner, the west column's other two and the south middle ninth no turn's
+        expect(pathParts(bits([1, 1], [2, 1], [3, 1], [3, 2], [3, 3]), 0))
+            .toEqual([part(0, 0, 3, 1), part(1, 1, 2, 1), part(2, 2, 1, 1)]);
+    });
+
+    it("draws over the whole of a tile a cross of paths runs through, each corner the inside of a turn", () => {
+        expect(pathParts(bits([2, 0], [2, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [2, 3], [2, 4]), 0))
+            .toEqual([part(0, 0, 3, 3)]);
+    });
+});
+
 describe("a path's look", () => {
 
     it.each([[ROADS, true], [HTRFBASE + 2, true], [LHRAIL, true], [LVRAIL10, true], [HBRDG0, true],
@@ -63,19 +96,47 @@ describe("a path's look", () => {
     });
 });
 
-describe("a road's carriageway", () => {
+describe("what an underpass goes under", () => {
 
-    it.each([
-        ["a road across", ROADS, ninthsOf(3, 4, 5)],
-        ["a road down", ROADS2, ninthsOf(1, 4, 7)],
-        ["traffic across, as the road it runs on", HTRFBASE + 2, ninthsOf(3, 4, 5)],
-        ["a bend north and east", ROADS3, ninthsOf(1, 4, 5)],
-        ["a crossroads", INTERSECTION, ninthsOf(1, 3, 4, 5, 7)],
-        ["a road down across rail", HRAILROAD, ninthsOf(1, 4, 7)],
-        ["a road across over rail", VRAILROAD, ninthsOf(3, 4, 5)],
-        ["rail alone", LHRAIL, 0],
-        ["bare land", DIRT, 0],
-    ])("is %s's middle and the sides it leaves by", (_, id, ninths) => {
-        expect(carriageway(id)).toBe(ninths);
+    it("is a road's carriageway, and every ninth of a tile of rail", () => {
+        const all = ninthsOf(0, 1, 2, 3, 4, 5, 6, 7, 8);
+        expect([underWay(LHRAIL), underWay(HRAILROAD), underWay(ROADS2), underWay(DIRT)])
+            .toEqual([all, all, ninthsOf(1, 4, 7), 0]);
+    });
+
+    describe("round a tile", () => {
+
+        // A row of three tiles, the middle a rail down, with the walkway values given
+        const row = (walkways: number[]) => ({width: 3, height: 1, walkways});
+        const rowIds = [DIRT, LVRAIL, DIRT];
+        const idAt = (index: number) => rowIds[index];
+
+        it("goes under the whole rail tile where an underpass lies on it, and beside it across each tile's edge", () => {
+            // A path across the row's middle ninths, an underpass across the rail's
+            const walkways = [path(3, 4, 5), walkwayOf([3, 4, 5], "underpass"), path(3, 4, 5)];
+            // Beside the west tile's east edge, its ring's east side, its second ninth, and the east tile's west side's
+            expect([underAround(row(walkways), idAt, 0, 0), underAround(row(walkways), idAt, 1, 0),
+                    underAround(row(walkways), idAt, 2, 0)])
+                .toEqual([{own: 0, ring: 1 << (3 + 1)}, {own: ninthsOf(3, 4, 5), ring: 0},
+                          {own: 0, ring: 1 << (9 + 1)}]);
+        });
+
+        it("goes under nowhere a path lies on the rail, nor off the map", () => {
+            expect(underAround(row([0, path(3, 4, 5), 0]), idAt, 1, 0)).toEqual({own: 0, ring: 0});
+            expect(underAround(row([0, 0, 0]), idAt, 0, 0)).toEqual({own: 0, ring: 0});
+        });
+
+        it("holds the decks in the tile and up and left of it, and which of them run down", () => {
+            // A footbridge down the west tile's east column, and across the middle tile's top row, which joins it
+            // nowhere north or south
+            const walkways = [walkwayOf([2, 5, 8], "footbridge"), walkwayOf([0, 1, 2], "footbridge"), 0];
+            // The middle tile's window: the west's east column, (0, 1) to (0, 3), bits 4, 8 and 12, running down, and
+            // its own top row, (1, 1) to (3, 1), bits 5 to 7, across
+            const west = (1 << 4) | (1 << 8) | (1 << 12);
+            expect(decksAround(row(walkways), 1, 0)).toEqual({decks: west | (1 << 5) | (1 << 6) | (1 << 7),
+                                                             runsDown: west});
+            // The east tile's: the middle's ninth 2 in its (0, 1), bit 4
+            expect(decksAround(row(walkways), 2, 0)).toEqual({decks: 1 << 4, runsDown: 0});
+        });
     });
 });

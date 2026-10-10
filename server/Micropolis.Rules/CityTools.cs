@@ -22,6 +22,13 @@ namespace Micropolis.Rules
     {
         public static IReadOnlyDictionary<ToolName, long> All =>
             CityTools.Create(new GameMap(1, 1)).ToDictionary(tool => tool.Key, tool => tool.Value.ToolCost);
+
+        /// <summary>
+        /// What the walkway tool charges for each kind of walkway: a path a ninth, and a footbridge or an underpass a
+        /// tile (<see cref="WalkwayTool"/>).
+        /// </summary>
+        public static IReadOnlyDictionary<WalkwayKind, long> WalkwayCosts =>
+            Enum.GetValues<WalkwayKind>().ToDictionary(kind => kind, WalkwayTool.CostOf);
     }
 
     /// <summary>

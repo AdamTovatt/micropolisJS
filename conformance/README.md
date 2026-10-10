@@ -105,6 +105,10 @@ name `Sample`: its rides load the same line eastward, the way from the north or 
 `version16.json` is the walkers fixture's commands on seed 8's map, started on the server with the name `Sample` and
 run 6,912 steps: its zones reach each other on foot along the walkway between their rows, which its `map.walkways`
 holds, and no road.
+`version17.json` is the same zones and commands with a road along the row between them, a sidewalk on each side of
+it, and every tile of it crossed down the middle by a path, or every fifth tile by a footbridge and the next by an
+underpass, started on the server with the name `Sample` and run 6,912 steps: its `footLoadMap` holds the walkers on a
+crossing of the road.
 `SavedGameTests` also upgrades each as the bare state a command log holds, and `LogReplayTests` replays the sample of
 the version before the current one from inside a log, as a log written before the last upgrade step was added.
 The fixture tool fails unless every version from 5 to the current one has a sample, so a new version adds one, written

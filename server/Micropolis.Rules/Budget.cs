@@ -98,8 +98,8 @@ namespace Micropolis.Rules
         private const long RailMaintenanceCost = 2;
 
         /// <summary>
-        /// The ninths of walkway that cost a year what a tile of road does: a path straight across a tile. Walkways
-        /// never wear away, however little the transport funding pays.
+        /// The ninths of path that cost a year what a tile of road does: a path straight across a tile. Walkways never
+        /// wear away, however little the transport funding pays.
         /// </summary>
         public const long WalkwayNinthsPerRoad = Walkways.Side;
 
@@ -110,10 +110,11 @@ namespace Micropolis.Rules
         /// <summary>
         /// The year's tax and upkeep, as <c>collectTax</c>, and the year-end budget when anyone lives in the city: one
         /// with nobody in it keeps its services at full effect. The transport upkeep is the original's for the roads and
-        /// rail the census counted, and the walkways' beside it, <see cref="WalkwayNinthsPerRoad"/> ninths of walkway
-        /// costing what a tile of road does, of the <paramref name="walkwayNinths"/> the map holds.
+        /// rail the census counted, and the walkways' beside it, <see cref="WalkwayNinthsPerRoad"/> ninths of path costing
+        /// what a tile of road does, of the <paramref name="walkwayUpkeep"/>, in ninths of path, the map's walkways come to
+        /// (<see cref="GameMap.WalkwayUpkeep"/>).
         /// </summary>
-        public void CollectTax(Level gameLevel, Census census, long walkwayNinths)
+        public void CollectTax(Level gameLevel, Census census, long walkwayUpkeep)
         {
             CashFlow = 0;
 
@@ -123,7 +124,7 @@ namespace Micropolis.Rules
 
             long roadCost = census.RoadTotal * RoadMaintenanceCost;
             long railCost = census.RailTotal * RailMaintenanceCost;
-            long walkwayCost = walkwayNinths * RoadMaintenanceCost / WalkwayNinthsPerRoad;
+            long walkwayCost = walkwayUpkeep * RoadMaintenanceCost / WalkwayNinthsPerRoad;
             RoadMaintenanceBudget = (long)Math.Floor(Fround(Fround(roadCost + railCost + walkwayCost) * RLevels[(int)gameLevel]));
 
             TaxFund = TaxAt(gameLevel, census, CityTax);

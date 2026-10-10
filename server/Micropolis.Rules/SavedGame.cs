@@ -177,6 +177,20 @@ namespace Micropolis.Rules
 
             // From version 15: walkways on ninths of a tile, of which a city saved before holds none
             savedGame => Group(savedGame, "map")["walkways"] = new JsonArray(),
+
+            // From version 16: the foot load on the crossings starts empty on every tile, a value a tile, as the step from
+            // version 13 starts the rail load, and as it does, leaves it out of a map without a whole size for the load
+            // to refuse
+            savedGame =>
+            {
+                JsonObject map = Group(savedGame, "map");
+
+                if (map["tiles"] is JsonArray tiles && Validation.TryGetWholeNumber(map["width"], out double width) &&
+                    Validation.TryGetWholeNumber(map["height"], out double height) && width * height == tiles.Count)
+                {
+                    Group(Group(savedGame, "scannedState"), "blockMaps")["footLoadMap"] = SavedList.Of(new int[tiles.Count]);
+                }
+            },
         ];
 
         // The type the original's train, the first of its sprites, had, which the game saved until version 14

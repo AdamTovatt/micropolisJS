@@ -13,10 +13,12 @@
  */
 
 import { BITS_PER_NINTH, WALKWAY_KINDS } from "../../src/protocol";
+import type { WalkwayKind } from "../../src/protocol";
 
-// The walkway value of a path on the ninths of a tile given, numbered row by row from its north-west corner: each
-// ninth's kind in BITS_PER_NINTH bits, ninth n's from bit n times that, a path's the first kind
-export function walkwayOf(ninths: readonly number[]): number {
-  const path = WALKWAY_KINDS.indexOf("path") + 1;
-  return ninths.reduce((walkway, ninth) => walkway | (path << (BITS_PER_NINTH * ninth)), 0);
+// The walkway value of walkway of the kind given, a path unless another is given, on the ninths of a tile given,
+// numbered row by row from its north-west corner: each ninth's kind in BITS_PER_NINTH bits, ninth n's from bit n times
+// that, numbered from 1 as WALKWAY_KINDS lists them
+export function walkwayOf(ninths: readonly number[], kind: WalkwayKind = "path"): number {
+  const number = WALKWAY_KINDS.indexOf(kind) + 1;
+  return ninths.reduce((walkway, ninth) => walkway | (number << (BITS_PER_NINTH * ninth)), 0);
 }

@@ -45,6 +45,7 @@ namespace Micropolis.Rules
             CrimeRateMap = Of(2, 0, 250);
             FireStationMap = Of(StationMapBlockSize, 0, MaxFireStationMap);
             FireStationEffectMap = Of(StationMapBlockSize, 0, MaxFireStationMap);
+            FootLoadMap = Of(1, 0, Traffic.MaxFootLoad);
             LandValueMap = Of(2, 0, 250);
             PoliceStationMap = Of(StationMapBlockSize, 0, MaxPoliceStationMap);
             PoliceStationEffectMap = Of(StationMapBlockSize, 0, MaxPoliceStationMap);
@@ -62,6 +63,7 @@ namespace Micropolis.Rules
                 ("crimeRateMap", CrimeRateMap),
                 ("fireStationMap", FireStationMap),
                 ("fireStationEffectMap", FireStationEffectMap),
+                ("footLoadMap", FootLoadMap),
                 ("landValueMap", LandValueMap),
                 ("policeStationMap", PoliceStationMap),
                 ("policeStationEffectMap", PoliceStationEffectMap),
@@ -94,6 +96,13 @@ namespace Micropolis.Rules
         /// The fire cover of each block.
         /// </summary>
         public BlockMap FireStationEffectMap { get; }
+
+        /// <summary>
+        /// The walkers on each crossing, a block a tile: what the walks the traffic rule routes over a crossing
+        /// (<see cref="Walkways.Crossings"/>) add to its tile, decayed as the traffic density is. A busy crossing makes
+        /// its road dearer to drive (<see cref="TripRouter.FootLoadPerCost"/>), as a car gives way to the walkers on it.
+        /// </summary>
+        public BlockMap FootLoadMap { get; }
 
         /// <summary>
         /// Each block's land value.

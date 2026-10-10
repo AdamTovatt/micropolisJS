@@ -50,14 +50,14 @@
     {"step":1300,"player":"local","command":{"type":"triggerDisaster","kind":"earthquake"}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"17ed9f1d9eafce2a511269d474260a06c4a739bd191bc8edfdf8ade21008c153"},
-    {"step":100,"hash":"fdd95f0cf1c88d8296916248aefd8fb7129ebc8a9ddf54154f320c8311e746c0"},
-    {"step":300,"hash":"77f709f0ec90145175a82dcd10db83a83f29bf10227577d878dc33cb84b40549"},
-    {"step":500,"hash":"86fc34d376b6fb289578411a47e63fe3d566c6ce9d273b7b82561a446b1c3a1b"},
-    {"step":700,"hash":"eb592c87b84990f876ecb370e20b7cf163d9ab6f611b66785a2a12b43ab12e1f"},
-    {"step":900,"hash":"baa0259ff1308a93b25f42c3bdafe023382e8929e3c8bb5b11e0ede3e3481f8f"},
-    {"step":1100,"hash":"621ab4a8b25b566e1f61893baba597a8f5f6a38d6c27eebb27f8efb9d78a5d6f"},
-    {"step":1300,"hash":"dff54db805ebc7e0611ad869e9e9d691b843c435e22dc694e43ce869c0e6c169"},
-    {"step":3000,"hash":"72cd9cf64ba7563abd55f1d669d96b3652485a6daef3f9d4dae63a80754e333a"}
+    {"step":0,"hash":"75cc8fca3e96aa669c674900d2474e937675626d1ea3135192eeecd87ffb6c7a"},
+    {"step":100,"hash":"5490a6c1944e5dc611b0a4003d3d3c8a7b9acfe3ac8b90dc92d30e72a986d341"},
+    {"step":300,"hash":"61fff92e5d6ea5e61def0ec6fdff573870c8f0f60a9eb83fe499301c23ad5bd7"},
+    {"step":500,"hash":"7931af3c9e6d4359de415b2f0bfdf7ab48b1dcca2e3ac1f72849a7de7b85b0f4"},
+    {"step":700,"hash":"95e6364985080904ec1411580e509c48c1054cde6c8ab32447fd09c326a00917"},
+    {"step":900,"hash":"95d9ddb2919f8e08d79456f20434cdc577a235f290d934a56635e7d5e43bfd92"},
+    {"step":1100,"hash":"2ba625662b0336acbe58de288cbe1dad1c73b27d58f329f4856c6e43edd8aa7e"},
+    {"step":1300,"hash":"ae99531d3cffd8a02e3b35a1921b66d985ed3feba5a656734c5d120d06abcf24"},
+    {"step":3000,"hash":"852e84ee0a6a2d365de8fa9a7b22dcdaeec5c2d2481b5a8e308d38adbfce8017"}
   ]
 }

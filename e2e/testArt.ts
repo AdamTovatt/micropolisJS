@@ -44,7 +44,7 @@ export async function serveTestArt(page: Page, manifest: TestManifest, atlases: 
   const plain = {atlas: PLAIN_GRASS_ATLAS, x: 0, y: 0, width: 16, height: 16};
   const surfaces = manifest.grass !== undefined ? {} : {
     grass: plainGrass(plain, [0, 128, 0]), canopy: plainCanopy(plain), water: plainWater(plain, [0, 128, 0]),
-    walkway: plainWalkway(),
+    walkway: plainWalkway(plain),
   };
   const served = {
     manifest: {...manifest, ...surfaces, walkers: manifest.walkers ?? plainWalkers(plain),

@@ -106,7 +106,7 @@ function manifest({canopy = "green", wobble = 0, shadow = 0, water = false}: Dra
   return {version: 1, atlases: {test: ATLAS_PATH, grass: GRASS_PATH}, tiles, sprites: {}, cars: {},
           grass: plainGrass(rect(8), GREEN),
           canopy: plainCanopy(rect(canopy === "green" ? 8 : 40), wobble, shadow),
-          water: water ? plainWater(rect(72), SAND) : plainWater(rect(8), GREEN), walkway: plainWalkway()};
+          water: water ? plainWater(rect(72), SAND) : plainWater(rect(8), GREEN), walkway: plainWalkway(rect(8))};
 }
 
 // How dark the canopy's shadow is where it is drawn, and the grass in it
@@ -219,8 +219,8 @@ async function redrawnInPart(page: Page, surface: "woods" | "water", beyond: 1 |
   const before = await player.mapScreenshot();
 
   // Of the tiles that fit, in view with the tiles round them, the nearest the middle of the view, clear of the panels
-  // round its edges
-  const {originX} = await player.view();
+  // round its edges, its blocks counted from the tile at the view's top-left as the map draws it
+  const first = await player.firstTileInView();
   const inView = await player.wholeTilesInView();
   const shown = (x: number, y: number) => inView.some(({tile}) => tile.x === x && tile.y === y);
   const canopied = (x: number, y: number) => letsGrassThrough(served, tileAt(save, {x, y}));
@@ -232,7 +232,7 @@ async function redrawnInPart(page: Page, surface: "woods" | "water", beyond: 1 |
     tileAt(save, {x, y}) >= WATER_LOW && tileAt(save, {x, y}) <= WATER_HIGH;
   const bulldozable = (x: number, y: number) => (rawTileAt(save, {x, y}) & BULLBIT) !== 0;
   const cleared = inView.map(({tile}) => tile).filter(({x, y}) =>
-    ofSurface(x, y) && bulldozable(x, y) && firstInBlock(x + beyond - originX) &&
+    ofSurface(x, y) && bulldozable(x, y) && firstInBlock(x + beyond - first.x) &&
     between(x).every((b) => ofSurface(b, y)) && canopied(x + beyond, y) && !ofSurface(x + beyond, y) &&
     [-1, 0, 1].every((dy) => Array.from({length: beyond + 3}, (_, i) => x - 1 + i).every((dx) => shown(dx, y + dy))))
     .sort((a, b) => fromMiddle(a) - fromMiddle(b))[0];

@@ -119,13 +119,13 @@ async function redrawnInPart(page: Page): Promise<void> {
   const before = await player.mapScreenshot();
 
   // A road tile on the building site's dirt, on a corner of the blocks the map is drawn again in: its shadow falls
-  // on the dirt around it, in the blocks beside its own
-  const {originX, originY} = await player.view();
+  // on the dirt around it, in the blocks beside its own, counted from the tile at the view's top-left as the map draws it
+  const first = await player.firstTileInView();
   const onEdge = (offset: number) => offset % DAMAGE_BLOCK === 0 || offset % DAMAGE_BLOCK === DAMAGE_BLOCK - 1;
   const x = tilesIn({...site, left: site.left + 1, right: site.right - 1, bottom: site.top})
-    .find((tile) => onEdge(tile.x - originX))!.x;
+    .find((tile) => onEdge(tile.x - first.x))!.x;
   const y = tilesIn({...site, left: site.left, right: site.left, top: site.top + 1, bottom: site.bottom - 1})
-    .find((tile) => onEdge(tile.y - originY))!.y;
+    .find((tile) => onEdge(tile.y - first.y))!.y;
   await player.selectTool("road");
   await player.clickTile({x, y});
   const inPart = await player.mapScreenshot();

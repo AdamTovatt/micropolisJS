@@ -34,9 +34,10 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Stages the tool's edits at tile (x, y), as <see cref="DoTool"/> does, and then, as a zone or building placed
-        /// over rubble clears it under auto-bulldoze: where a tile it stages takes no walkway (<see cref="Walkways.Takes"/>)
-        /// and holds one, auto-bulldoze clears the walkway for <see cref="StagedTool.BulldozerCost"/> a tile, and without
-        /// it the tool needs the bulldozer. A road or rail laid over walkway keeps it.
+        /// over rubble clears it under auto-bulldoze: where a tile it stages holds walkway of a kind it takes no longer
+        /// (<see cref="Walkways.Usable"/>), auto-bulldoze clears those ninths for <see cref="StagedTool.BulldozerCost"/> a
+        /// tile, and without it the tool needs the bulldozer, so a tool never leaves walkway dormant. A road or rail laid
+        /// over walkway keeps the ninths it takes.
         /// </summary>
         public void Apply(int x, int y, RandomStream random, bool autoBulldoze)
         {
@@ -48,7 +49,8 @@ namespace Micropolis.Rules
             }
 
             List<Position> cleared = WorldEffects.StagedTiles
-                .Where(tile => !Walkways.Takes(WorldEffects.GetTileValue(tile.X, tile.Y)) && WorldEffects.GetWalkway(tile.X, tile.Y) != 0)
+                .Where(tile => Walkways.Usable(WorldEffects.GetWalkway(tile.X, tile.Y), WorldEffects.GetTileValue(tile.X, tile.Y)) !=
+                               WorldEffects.GetWalkway(tile.X, tile.Y))
                 .ToList();
 
             if (cleared.Count > 0 && !autoBulldoze)
@@ -59,7 +61,8 @@ namespace Micropolis.Rules
 
             foreach (Position tile in cleared)
             {
-                WorldEffects.SetWalkway(tile.X, tile.Y, 0);
+                WorldEffects.SetWalkway(tile.X, tile.Y, Walkways.Usable(WorldEffects.GetWalkway(tile.X, tile.Y),
+                                                                        WorldEffects.GetTileValue(tile.X, tile.Y)));
                 AddCost(BulldozerCost);
             }
         }

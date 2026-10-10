@@ -265,7 +265,8 @@ const playerActions = {
     port: "built a seaport", rail: "laid rail", residential: "zoned residential land", road: "built a road",
     stadium: "built a stadium", station: "built a rail station", wire: "laid power lines",
   } satisfies Record<ToolName, string>,
-  walkways: {path: "laid a path"} satisfies Record<WalkwayKind, string>,
+  walkways: {path: "laid a path", footbridge: "built a footbridge", underpass: "dug an underpass"} satisfies
+    Record<WalkwayKind, string>,
   erased: {
     airport: "removed an airport", coal: "removed a coal power plant", commercial: "removed commercial land",
     fire: "removed a fire station", industrial: "removed industrial land", nuclear: "removed a nuclear power plant",
