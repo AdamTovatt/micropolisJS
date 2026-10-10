@@ -13,7 +13,7 @@
  */
 
 import { ANIMATION_PERIOD } from "../src/animationManager";
-import type { PaintableCar } from "../src/cars";
+import type { PaintableRoadCar } from "../src/cars";
 import { ClientMap } from "../src/cityState";
 import { MapFrame, QUAD_FLOATS } from "../src/mapFrame";
 import type { QuadList } from "../src/mapFrame";
@@ -23,7 +23,7 @@ import { RenderArt, parseRenderManifest } from "../src/renderManifest";
 import { SURFACE_REACH } from "../src/surfaces";
 import { ANIMBIT, ZONEBIT } from "../src/tileFlags";
 import { FIRE, LIGHTNINGBOLT } from "../src/tileValues";
-import { plainCanopy, plainGrass, plainWalkway, plainWater } from "./helpers/grassArt";
+import { plainCanopy, plainGrass, plainWalkers, plainWalkway, plainWater } from "./helpers/grassArt";
 
 // Tile 5 casts a shadow reaching a tile left and a tile down, so the farthest shadow reaches one tile
 const ZONE = 5;
@@ -42,6 +42,7 @@ const art = new RenderArt(parseRenderManifest({
     canopy: plainCanopy({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     water: plainWater({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     walkway: plainWalkway(),
+    walkers: plainWalkers({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
 }));
 
 const MAP_WIDTH = 40;
@@ -129,7 +130,7 @@ function newPainter(...placed: {x: number, y: number, value: number}[]) {
 const noTint = () => null;
 
 // A car facing east on the tile column across and row down from the wide view's origin
-function carAt(column: number, row: number): PaintableCar {
+function carAt(column: number, row: number): PaintableRoadCar {
     return {kind: "road", x: (WIDE.origin.x + column) * 16, y: (WIDE.origin.y + row) * 16, width: 16, direction: "east",
             colour: 0, opacity: 1};
 }

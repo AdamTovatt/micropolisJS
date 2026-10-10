@@ -190,12 +190,12 @@ async function keepCarsAt(page: Page, trips: readonly Trip[], count: number): Pr
     const hook = window.micropolisTestHook!;
     window.clearInterval(page.benchmarkCars);
     if (count === 0) {
-      return hook.carsHeld();
+      return hook.moversHeld();
     }
 
     let next = 0;
     const topUp = () => {
-      const missing = count - hook.carsHeld();
+      const missing = count - hook.moversHeld();
       const added = [];
       for (let i = 0; i < missing; i++) {
         added.push(trips[next++ % trips.length]);
@@ -204,12 +204,12 @@ async function keepCarsAt(page: Page, trips: readonly Trip[], count: number): Pr
     };
     topUp();
     page.benchmarkCars = window.setInterval(topUp, 50);
-    return hook.carsHeld();
+    return hook.moversHeld();
   }, {trips, count});
 }
 
 async function carsHeld(page: Page): Promise<number> {
-  return page.evaluate(() => window.micropolisTestHook!.carsHeld());
+  return page.evaluate(() => window.micropolisTestHook!.moversHeld());
 }
 
 // The page's frames a second over the measurement, after the warm-up, and the cars showing on average over it, read

@@ -17,8 +17,10 @@ import type { Page } from "@playwright/test";
 
 import { DAMAGE_BLOCK } from "../src/mapDamage";
 import { NINTHS_PER_SIDE } from "../src/protocol";
+import { tripRoute } from "../src/routeTiles";
 import { ROADS, ROADS2 } from "../src/tileValues";
-import { plainCanopy, plainGrass, plainWalkway, plainWater } from "../test/helpers/grassArt";
+import { WALKER_COLOURS, WALK_SPEED, walkerLook } from "../src/walkers";
+import { plainCanopy, plainGrass, plainWalkers, plainWalkway, plainWater } from "../test/helpers/grassArt";
 import { walkwayOf } from "../test/helpers/walkways";
 import { serverForTests } from "./gameServer";
 import { collectPageProblems } from "./page";
@@ -46,15 +48,15 @@ const STRIPES: [number, number, number] = [250, 250, 250];
 
 const server = serverForTests("manual");
 
-// Two 16 pixel squares: blue, then clear
+// Three 16 pixel squares: blue, clear, then white, the walkers' dab
 function atlas(): Buffer {
   const pixels: number[] = [];
   for (let y = 0; y < 16; y++) {
-    for (let x = 0; x < 32; x++) {
-      pixels.push(...(x < 16 ? [...BLUE, 255] : [0, 0, 0, 0]));
+    for (let x = 0; x < 48; x++) {
+      pixels.push(...(x < 16 ? [...BLUE, 255] : x < 32 ? [0, 0, 0, 0] : [255, 255, 255, 255]));
     }
   }
-  return png(32, 16, pixels);
+  return png(48, 16, pixels);
 }
 
 // The grass's atlas, the green, its 16 pixel square 8 pixels in from the edges, so sampled linearly at the square's
@@ -69,6 +71,7 @@ function manifest(edge: number): TestManifest {
   tiles[0] = {ground: {atlas: "test", x: 16, y: 0, width: 16, height: 16}, grass: "all"};
   const rect = {atlas: "grass", x: 8, y: 0, width: 16, height: 16};
   return {version: 1, atlases: {test: ATLAS_PATH, grass: GRASS_PATH}, tiles, sprites: {}, cars: {},
+          walkers: plainWalkers({atlas: "test", x: 32, y: 0, width: 16, height: 16}),
           grass: plainGrass(rect, GREEN), canopy: plainCanopy(rect), water: plainWater(rect, GREEN),
           walkway: {...plainWalkway(GRAVEL, PAVING, STRIPES), edge}};
 }
@@ -231,4 +234,33 @@ test("the wobble eats into a path's edge, but never grows it nor reaches its mid
     .toEqual([]);
   expect(eaten.some((cover, i) => cover < whole[i] - 0.1), "the wobble eats into the path's edge").toBe(true);
   expect([...problems, ...secondProblems]).toEqual([]);
+});
+
+test("a walker shows as its dab tinted its colour at the middle of each ninth of its walk in turn", async ({page}) => {
+  const problems = collectPageProblems(page);
+  // The clock stands still, so the walker stands where it is until the clock moves on
+  const start = Date.UTC(2026, 0, 1);
+  await page.clock.setFixedTime(start);
+  // A walk east along the middle row of ninths of a tile of bare land, from its west ninth
+  const tile = {x: SITE[0].left + 3, y: SITE[0].top + 3};
+  const player = await startOnTestArt(page, "Walker", tilesIn({left: tile.x - 1, top: tile.y - 1, right: tile.x + 1,
+                                                               bottom: tile.y + 1}));
+  const walk: [number, number, string] = [NINTHS_PER_SIDE * tile.x, NINTHS_PER_SIDE * tile.y + 1, "EE"];
+  await page.evaluate((walks) => window.micropolisTestHook!.addWalks(walks), [walk]);
+
+  // The device pixels at the middles of the walk's ninths, west to east, and the walker's colour
+  const ratio = await page.evaluate(() => window.devicePixelRatio);
+  const corner = await player.tileCorner(tile);
+  const {tileWidth} = await player.view();
+  const middles = [0, 1, 2].map((n) => ({x: Math.floor((corner.x + (n + 0.5) / 3 * tileWidth) * ratio),
+                                         y: Math.floor((corner.y + 0.5 * tileWidth) * ratio)}));
+  const colour = WALKER_COLOURS[walkerLook(tripRoute(walk)).colour].flat.map((c) => c * 255);
+  const shown = async () => (await samplePixels(page, await player.mapScreenshot(), middles)).pixels
+    .map((pixel) => near(pixel, colour) ? "walker" : near(pixel, GREEN) ? "grass" : pixel.slice(0, 3).join(", "));
+  const atStart = await shown();
+  await page.clock.setFixedTime(start + 1000 / WALK_SPEED);
+  const aNinthOn = await shown();
+
+  expect([atStart, aNinthOn]).toEqual([["walker", "grass", "grass"], ["grass", "walker", "grass"]]);
+  expect(problems).toEqual([]);
 });

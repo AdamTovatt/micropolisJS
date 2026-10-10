@@ -13,7 +13,8 @@
  */
 
 import { CAR_COLOURS } from "../src/cars";
-import type { PaintableCar } from "../src/cars";
+import { WALKER_COLOURS } from "../src/walkers";
+import type { PaintableMover } from "../src/cars";
 import {
     CAR_BREADTH, CAR_LENGTH, FrameTiles, GROUND_GRASS_ONLY, GROUND_ONLY, GROUND_OVER_GRASS, GROUND_QUAD_FLOATS,
     GroundList, MapFrame, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles,
@@ -63,6 +64,7 @@ const artJson = {
     canopy: plainCanopy({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     water: plainWater({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     walkway: plainWalkway(),
+    walkers: {dabs: [{atlas: "objects", x: 320, y: 0, width: 32, height: 32}]},
 };
 const art = new RenderArt(parseRenderManifest(artJson));
 
@@ -113,9 +115,9 @@ function tilesWith(index: number, value: number, frame = value): FrameTiles {
 const noTint = () => null;
 
 function build(area: FrameTiles, tilePixels = 16, tint: (x: number, y: number) => Tint | null = noTint,
-               sprites: SpriteView[] = [], cars: PaintableCar[] = []): MapFrame {
+               sprites: SpriteView[] = [], movers: PaintableMover[] = []): MapFrame {
     const frame = new MapFrame();
-    buildMapFrame(frame, art, area, tilePixels, tint, cars, sprites);
+    buildMapFrame(frame, art, area, tilePixels, tint, movers, sprites);
     return frame;
 }
 
@@ -266,6 +268,16 @@ describe("a frame of the map", () => {
         ]);
     });
 
+    // The art has one dab, which every walker is drawn as, tinted its colour
+    it("draws each walker as its dab of paint filling its square, tinted its colour", () => {
+        const walker = {kind: "walker", x: 180, y: 340, width: 6, colour: 1, dab: 7} as const;
+        const frame = build(tilesWith(0, 0), 64, noTint, [], [walker]);
+
+        expect(quads(frame.sprites)).toEqual([{atlas: "objects", quads: [
+            {target: [16, 16, 24, 24], source: [320, 0, 32, 32], colour: [...WALKER_COLOURS[1].flat.map(Math.fround), 1]},
+        ]}]);
+    });
+
     // The trains' art is the sprite sheet's first row: its first frame the train running north and south, its second
     // east and west
     it("draws each car of a train under the sprites, from the trains' art the way it runs, filling its square", () => {
@@ -385,9 +397,9 @@ describe("a frame of the map", () => {
         const right = [{x: 16, y: 0, width: 16, height: 16}];
 
         function buildIn(area: FrameTiles, areas: Rect[], sprites: SpriteView[] = [], tilePixels = 16,
-                         cars: PaintableCar[] = []): MapFrame {
+                         movers: PaintableMover[] = []): MapFrame {
             const frame = new MapFrame();
-            buildMapFrame(frame, art, area, tilePixels, noTint, cars, sprites, areas);
+            buildMapFrame(frame, art, area, tilePixels, noTint, movers, sprites, areas);
             return frame;
         }
 

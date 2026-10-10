@@ -13,7 +13,7 @@
  */
 
 import { CAR_COLOURS } from "./cars";
-import type { PaintableCar } from "./cars";
+import type { PaintableMover } from "./cars";
 import type { Tint } from "./overlayRenderer";
 import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { PaintableMap, PaintableSprite, PaintableSquare } from "./paintable";
@@ -26,6 +26,7 @@ import { BIT_MASK } from "./tileFlags";
 import { TILE_INVALID } from "./tileValues";
 import { plainRoad } from "./trafficTiles";
 import { carriageway, isPaved, walkwaysAround } from "./walkwayDraw";
+import { WALKER_COLOURS } from "./walkers";
 import type { PixelPoint } from "./viewPosition";
 
 // What one frame of the map draws, as lists of quads the WebGL renderer draws pass by pass. Building them is pure, so
@@ -427,13 +428,20 @@ export function buildWholeMapFrame(frame: MapFrame, art: RenderArt, map: WholeMa
 export const CAR_LENGTH = 17 / 64;
 export const CAR_BREADTH = 7 / 64;
 
-// Adds the quad that draws a car whose square lands at (x, y), side device pixels a side, filling the square: a car of
-// a train from the trains' art, which the 16 px sprite sheet always has, and a car on the road from its colour's art,
-// or where the art has none, as a rectangle in its flat colour, long the way it faces
-function addCar(list: QuadList, art: RenderArt, car: PaintableCar, x: number, y: number, side: number): void {
+// Adds the quad that draws what moves over the map whose square lands at (x, y), side device pixels a side, filling the
+// square: a carriage of a train from the trains' art, which the 16 px sprite sheet always has, a car on the road from
+// its colour's art, or where the art has none, as a rectangle in its flat colour, long the way it faces, and a walker
+// as its dab of paint tinted its colour
+function addMover(list: QuadList, art: RenderArt, car: PaintableMover, x: number, y: number, side: number): void {
   if (car.kind === "rail") {
     const train = art.trainCar(car.direction);
     list.add(train.atlas, x, y, side, side, train);
+    return;
+  }
+  if (car.kind === "walker") {
+    const [r, g, b] = WALKER_COLOURS[car.colour].flat;
+    const dab = art.walkerDab(car.dab);
+    list.add(dab.atlas, x, y, side, side, dab, r, g, b, 1);
     return;
   }
 
@@ -456,17 +464,18 @@ function addCar(list: QuadList, art: RenderArt, car: PaintableCar, x: number, y:
 }
 
 // Fills the frame with the quads that draw the area's tiles, tilePixels device pixels a side, with the view's top-left
-// the area's offset into its first tile in view; then the tints of the tiles in view; then the cars given, then the
-// sprites, over them. Given areas of the view, in device pixels from its top-left, only the tiles' and the tints'
-// quads that reach into one are added, none for no areas: the renderer draws the map no further than they reach.
-// Without, every quad is. The cars and the sprites are added whole either way: they are drawn over the whole map.
+// the area's offset into its first tile in view; then the tints of the tiles in view; then the cars, carriages and
+// walkers given, then the sprites, over them. Given areas of the view, in device pixels from its top-left, only the
+// tiles' and the tints' quads that reach into one are added, none for no areas: the renderer draws the map no further
+// than they reach. Without, every quad is. What moves and the sprites are added whole either way: they are drawn over
+// the whole map.
 //
 // A shadow comes from its anchor's raw value, not from the frame the animation manager chose: an unpowered zone's centre
 // blinks to the lightning bolt, and its shadow would blink with it. Every layer of a traffic tile, its shadow included,
 // comes from the plain road it runs on (trafficTiles.ts): the cars are the traffic. This is the one place the map, the
 // monster TV and the preview alike look up a tile's art.
 export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles, tilePixels: number,
-                              tint: (x: number, y: number) => Tint | null, cars: readonly PaintableCar[],
+                              tint: (x: number, y: number) => Tint | null, movers: readonly PaintableMover[],
                               sprites: readonly PaintableSprite[], areas: readonly Rect[] | null = null): void {
   frame.clear();
   const {margin, width, height, offset} = tiles;
@@ -555,9 +564,9 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
     }
   }
 
-  for (const car of cars) {
-    const {x, y, side} = squareOnView(car, tiles, tilePixels);
-    addCar(frame.sprites, art, car, x, y, side);
+  for (const mover of movers) {
+    const {x, y, side} = squareOnView(mover, tiles, tilePixels);
+    addMover(frame.sprites, art, mover, x, y, side);
   }
 
   for (const sprite of sprites) {

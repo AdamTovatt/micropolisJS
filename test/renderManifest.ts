@@ -23,7 +23,7 @@ import {
 } from "../src/renderManifest";
 import type { CanopyArt } from "../src/renderManifest";
 import { SURFACE_REACH } from "../src/surfaces";
-import { committedGrass, committedSurface, committedWalkway, plainCanopy, plainGrass, plainWalkway,
+import { committedGrass, committedSurface, committedWalkway, plainCanopy, plainGrass, plainWalkers, plainWalkway,
     plainWater } from "./helpers/grassArt";
 import type { CanopyJson, GrassJson, WalkwayJson, WaterJson } from "./helpers/grassArt";
 import { repositoryJson, repositoryPath } from "./helpers/repository";
@@ -46,7 +46,8 @@ const rect = (x: number, y: number, size = 64) => ({atlas: "zones", x, y, width:
 // A manifest file's JSON, with one atlas, the tiles and sprites given, no cars and the plainest grass and canopy
 function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
     return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}, grass: plainGrass(rect(0, 0)),
-            canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0)), walkway: plainWalkway()};
+            canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0)), walkway: plainWalkway(),
+            walkers: plainWalkers(rect(0, 0, 32))};
 }
 
 describe("the render manifest", () => {
@@ -98,7 +99,9 @@ describe("the render manifest", () => {
             const canopy = {...plain.canopy, tiles: [onSheet]};
             const water = {...plain.water, tiles: [onSheet]};
 
-            expect(() => checkRectsInAtlases({...fallback, grass, canopy, water}, SHEET_SIZES)).not.toThrow();
+            const walkers = {dabs: [onSheet]};
+
+            expect(() => checkRectsInAtlases({...fallback, walkers, grass, canopy, water}, SHEET_SIZES)).not.toThrow();
         });
 
         it("has no sprite cell for a type or frame the sheet lacks", () => {
@@ -402,6 +405,45 @@ describe("the render manifest", () => {
                 const json = canopyJson();
                 change(json);
                 expect(() => parseRenderManifest(withGrass(grassJson(), json))).toThrow(`Render manifest: ${message}`);
+            });
+        });
+
+        describe("the walkers", () => {
+
+            it("reads the committed manifest's dabs, each a rectangle", () => {
+                const committed = repositoryJson<{atlases: object, walkers: {dabs: object[]}}>(
+                    "images/render/manifest.json");
+                const plain = manifestJson();
+                const json = {...plain, atlases: {...plain.atlases as object, ...committed.atlases},
+                              walkers: committed.walkers};
+
+                expect(parseRenderManifest(json).walkers.dabs).toEqual(committed.walkers.dabs);
+                expect(committed.walkers.dabs.length).toBeGreaterThan(0);
+            });
+
+            it("draws a walker as the dab its number picks, of those it has, round and round", () => {
+                const json = {...manifestJson(), walkers: {dabs: [rect(0, 0, 32), rect(32, 0, 32)]}};
+                const art = new RenderArt(parseRenderManifest(json));
+
+                expect([art.walkerDab(0), art.walkerDab(1), art.walkerDab(7)])
+                    .toEqual([rect(0, 0, 32), rect(32, 0, 32), rect(32, 0, 32)]);
+            });
+
+            it.each<[string, unknown, string]>([
+                ["none", undefined, "the manifest lacks walkers"],
+                ["no dab", {dabs: []}, "walkers.dabs is not a list of at least one"],
+                ["a dab in an atlas the manifest doesn't declare", {dabs: [{...rect(0, 0), atlas: "people"}]},
+                 "walkers.dabs[0]"],
+                ["a key the format doesn't name", {dabs: [rect(0, 0)], people: 1}, "walkers has unknown keys: people"],
+            ])("refuses %s, naming where", (_, walkers, message) => {
+                const json = manifestJson();
+                if (walkers === undefined) {
+                    delete json.walkers;
+                } else {
+                    json.walkers = walkers;
+                }
+
+                expect(() => parseRenderManifest(json)).toThrow(`Render manifest: ${message}`);
             });
         });
 

@@ -14088,6 +14088,52 @@
    }
   }
  },
+ "walkers": {
+  "dabs": [
+   {
+    "atlas": "sprites-0",
+    "x": 3228,
+    "y": 204,
+    "width": 32,
+    "height": 32
+   },
+   {
+    "atlas": "sprites-0",
+    "x": 3268,
+    "y": 204,
+    "width": 32,
+    "height": 32
+   },
+   {
+    "atlas": "sprites-0",
+    "x": 3308,
+    "y": 204,
+    "width": 32,
+    "height": 32
+   },
+   {
+    "atlas": "sprites-0",
+    "x": 3348,
+    "y": 204,
+    "width": 32,
+    "height": 32
+   },
+   {
+    "atlas": "sprites-0",
+    "x": 3388,
+    "y": 204,
+    "width": 32,
+    "height": 32
+   },
+   {
+    "atlas": "sprites-0",
+    "x": 3428,
+    "y": 204,
+    "width": 32,
+    "height": 32
+   }
+  ]
+ },
  "grass": {
   "colours": 3,
   "corners": {

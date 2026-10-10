@@ -13,13 +13,15 @@
  */
 
 using System.Text.Json;
+using static Micropolis.Rules.Tests.TripRoutes;
 
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// The trips offered for the client's cars and trains: that each run of a route by road and each ride is offered as
-    /// it is routed, in order, how a trip is written, and that a city's run offers the same trips every time, its runs
-    /// by road on road and its rides on rail from station to station.
+    /// The trips offered for the client's cars, trains and walkers: that each run of a route by road, each ride and each
+    /// walk is offered as it is routed, in order, the ninths a walk goes through, how a trip is written, and that a
+    /// city's run offers the same trips every time, its runs by road on road, its rides on rail from station to station
+    /// and its walks on walkway or open land.
     /// </summary>
     [TestClass]
     public sealed class TripsTests
@@ -34,9 +36,9 @@ namespace Micropolis.Rules.Tests
             List<Trip> offered = new List<Trip>();
             trips.RunOffered += offered.Add;
 
-            trips.Routed(By(TravelMode.Road, (9, 8), (9, 7), (9, 6)));
+            trips.Routed(RouteBy(TravelMode.Road, (9, 8), (9, 7), (9, 6)));
             Assert.HasCount(1, offered);
-            trips.Routed(By(TravelMode.Road, (30, 20), (31, 20)));
+            trips.Routed(RouteBy(TravelMode.Road, (30, 20), (31, 20)));
 
             CollectionAssert.AreEqual(new[] { new Trip(9, 8, "NN"), new Trip(30, 20, "E") }, offered);
         }
@@ -47,21 +49,12 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         public void Routed_RouteRidingAndWalking_OffersItsRunsByRoadAndItsRidesInOrder()
         {
-            List<RouteStep> route =
-            [
-                .. By(TravelMode.Walk, (10, 10), (11, 10)),
-                .. By(TravelMode.Rail, (12, 10), (13, 10), (14, 10), (15, 10)),
-                .. By(TravelMode.Road, (16, 10), (17, 10)),
-                .. By(TravelMode.Rail, (18, 10), (18, 9), (18, 8)),
-                .. By(TravelMode.Road, (19, 8)),
-                .. By(TravelMode.Walk, (20, 8)),
-            ];
             Trips trips = new Trips(() => 0);
             List<string> heard = new List<string>();
             trips.RunOffered += trip => heard.Add($"road {JsonSerializer.Serialize(trip)}");
             trips.RideOffered += ride => heard.Add($"ride {JsonSerializer.Serialize(ride)}");
 
-            trips.Routed(route);
+            trips.Routed(RidingAndWalking());
 
             CollectionAssert.AreEqual(new[]
             {
@@ -69,6 +62,102 @@ namespace Micropolis.Rules.Tests
                 "road [16,10,\"E\"]",
                 $"ride [18,10,\"NN\",{Timetable.NextDeparture(18, 10, 0)}]",
             }, heard);
+        }
+
+        // The same route, walks heard too: the first walk across open land from the middle of its first tile's side
+        // facing the zone, west of it, along the middle row to the side facing the station it gets on at; the last from
+        // the middle of the side facing the road it came by to the side facing the zone, east of it
+        [TestMethod]
+        public void Routed_RouteRidingAndWalking_OffersItsWalksOverNinthsInTheRoutesOrder()
+        {
+            Trips trips = new Trips(() => 0);
+            List<string> heard = new List<string>();
+            trips.RunOffered += trip => heard.Add($"road {JsonSerializer.Serialize(trip)}");
+            trips.RideOffered += ride => heard.Add($"ride {JsonSerializer.Serialize(ride)}");
+            trips.WalkOffered += walk => heard.Add($"walk {JsonSerializer.Serialize(walk)}");
+
+            trips.Routed(RidingAndWalking());
+
+            CollectionAssert.AreEqual(new[]
+            {
+                "walk [30,31,\"EEEEE\"]",
+                $"ride [12,10,\"EEE\",{Timetable.NextDeparture(12, 10, 0)}]",
+                "road [16,10,\"E\"]",
+                $"ride [18,10,\"NN\",{Timetable.NextDeparture(18, 10, 0)}]",
+                "walk [60,25,\"EE\"]",
+            }, heard);
+        }
+
+        // A walk over one tile of open land goes from the middle of its side facing the zone it comes from to the nearest
+        // ninth along its side facing the zone it goes to
+        [TestMethod]
+        [DataRow(TileUtils.WestSide, TileUtils.EastSide, "[30,31,\"EE\"]")]
+        [DataRow(TileUtils.NorthSide, TileUtils.SouthSide, "[31,30,\"SS\"]")]
+        [DataRow(TileUtils.NorthSide, TileUtils.EastSide, "[31,30,\"E\"]")]
+        [DataRow(TileUtils.EastSide, TileUtils.WestSide, "[32,31,\"WW\"]")]
+        public void Routed_WalkOverOneTile_GoesFromTheSideFacingOneZoneToTheSideFacingTheOther(int fromSide, int toSide,
+                                                                                                string expected)
+        {
+            Assert.AreEqual(expected, JsonSerializer.Serialize(Walked(TripRoutes.Route(fromSide, toSide, By(TravelMode.Walk, (10, 10))))));
+        }
+
+        // Two tiles east, each with a path along its north row of ninths: the walk keeps to the path, from the zone west
+        // of it to the zone east of it
+        [TestMethod]
+        public void Routed_WalkOnAPath_KeepsToThePathsNinths()
+        {
+            TripRoute route = TripRoutes.Route(TileUtils.WestSide, TileUtils.EastSide, Walking([0, 1, 2], (10, 10), (11, 10)));
+
+            Assert.AreEqual(new Trip(30, 30, "EEEEE"), Walked(route));
+        }
+
+        // Open land at (10, 10), then a path east onto (11, 10), from its west side's middle turning south through its
+        // middle, and on down the middle of (11, 11) to the zone south of it: the walk crosses the open land along the
+        // middle to the path's end, and keeps to the path from there
+        [TestMethod]
+        public void Routed_WalkFromOpenLandOntoAPath_JoinsThePathWhereItTouches()
+        {
+            TripRoute route = TripRoutes.Route(TileUtils.WestSide, TileUtils.SouthSide,
+                                               By(TravelMode.Walk, (10, 10)), Walking([3, 4, 7], (11, 10)), Walking([1, 4, 7], (11, 11)));
+
+            Assert.AreEqual(new Trip(30, 31, "EEEESSSS"), Walked(route));
+        }
+
+        // A ride east to a station at (11, 10), then a path along the north row of (12, 10), east to the zone beside it:
+        // the walk starts at the path's ninth along the side facing the station
+        [TestMethod]
+        public void Routed_WalkFromAStationOntoAPath_StartsAlongTheSideFacingTheStation()
+        {
+            TripRoute route = TripRoutes.Route(TileUtils.WestSide, TileUtils.EastSide,
+                                               By(TravelMode.Rail, (10, 10), (11, 10)), Walking([0, 1, 2], (12, 10)));
+
+            Assert.AreEqual(new Trip(36, 30, "EE"), Walked(route));
+        }
+
+        // East along row 10 from (10, 10), from a zone west of it to one east of it: a walk of two tiles, a ride from
+        // (12, 10) to (15, 10), a run by road to (17, 10), a ride from (18, 10) north to (18, 8), a lone tile by road,
+        // and a walk. Each run by road of two tiles or more is a trip, each ride a ride, in the route's order.
+        private static TripRoute RidingAndWalking()
+        {
+            return TripRoutes.Route(TileUtils.WestSide, TileUtils.EastSide,
+                                    By(TravelMode.Walk, (10, 10), (11, 10)),
+                                    By(TravelMode.Rail, (12, 10), (13, 10), (14, 10), (15, 10)),
+                                    By(TravelMode.Road, (16, 10), (17, 10)),
+                                    By(TravelMode.Rail, (18, 10), (18, 9), (18, 8)),
+                                    By(TravelMode.Road, (19, 8)),
+                                    By(TravelMode.Walk, (20, 8)));
+        }
+
+        // The one walk a route offers
+        private static Trip Walked(TripRoute route)
+        {
+            Trips trips = new Trips(() => 0);
+            List<Trip> walked = new List<Trip>();
+            trips.WalkOffered += walked.Add;
+
+            trips.Routed(route);
+
+            return walked.Single();
         }
 
         // A ride routed on a step boards the next departure from its station after it: one routed on the step a train
@@ -84,7 +173,7 @@ namespace Micropolis.Rules.Tests
             List<Ride> offered = new List<Ride>();
             trips.RideOffered += offered.Add;
 
-            trips.Routed(By(TravelMode.Rail, (12, 10), (13, 10)));
+            trips.Routed(RouteBy(TravelMode.Rail, (12, 10), (13, 10)));
 
             Assert.AreEqual(new Ride(new Trip(12, 10, "E"), departure + intervalsLater * Timetable.DepartureInterval),
                             offered.Single());
@@ -98,7 +187,7 @@ namespace Micropolis.Rules.Tests
             List<Trip> offered = new List<Trip>();
             trips.RunOffered += offered.Add;
 
-            trips.Routed(By(TravelMode.Road, (9, 8)));
+            trips.Routed(RouteBy(TravelMode.Road, (9, 8)));
 
             Assert.IsEmpty(offered);
         }
@@ -110,7 +199,7 @@ namespace Micropolis.Rules.Tests
             List<Trip> offered = new List<Trip>();
             trips.RunOffered += offered.Add;
 
-            trips.Routed(By(TravelMode.Road, (5, 5), (5, 4), (6, 4), (6, 5), (5, 5)));
+            trips.Routed(RouteBy(TravelMode.Road, (5, 5), (5, 4), (6, 4), (6, 5), (5, 5)));
 
             Assert.AreEqual(new Trip(5, 5, "NESW"), offered.Single());
             Assert.AreEqual("[5,5,\"NESW\"]", JsonSerializer.Serialize(offered.Single()));
@@ -126,7 +215,7 @@ namespace Micropolis.Rules.Tests
             Trips trips = new Trips(() => 0);
             trips.RunOffered += _ => { };
 
-            Assert.ThrowsExactly<InvalidOperationException>(() => trips.Routed(By(TravelMode.Road, (5, 5), (x, y))));
+            Assert.ThrowsExactly<InvalidOperationException>(() => trips.Routed(RouteBy(TravelMode.Road, (5, 5), (x, y))));
         }
 
         [TestMethod]
@@ -202,6 +291,17 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEqual(Commuters.Value.Rides, again.Rides);
         }
 
+        // Each walk goes over open land or the ninths of a walkway, as the map had it then, the same every time
+        [TestMethod]
+        public void WalkOffered_WalkersRun_OnlyOpenLandAndWalkwaysTheSameEveryTime()
+        {
+            CityRun run = Run("walkers");
+
+            Assert.IsGreaterThan(20, run.Walks.Count, "Too few walks offered to check.");
+            Assert.AreEqual("", string.Join(", ", run.Faults.Where(fault => fault.StartsWith("walk"))));
+            CollectionAssert.AreEqual(run.Walks, Run("walkers").Walks);
+        }
+
         // The same 600 steps offer trips and rides while the city runs, so none offered while paused is the pause's doing
         [TestMethod]
         public void Step_Paused_OffersNothingWhereRunningOffersTrips()
@@ -271,15 +371,36 @@ namespace Micropolis.Rules.Tests
             return offered;
         }
 
-        // The trips and rides of the commuters fixture over 3,000 steps from its run save, and each tile of a trip no car
-        // drives on, of a ride no train runs on, or a ride's end that is no station, as the map had it then
         private static CityRun RunCommuters()
         {
-            Simulation city = FixtureCities.City("commuters", "run");
+            return Run("commuters");
+        }
+
+        // The trips, rides and walks of the fixture over 3,000 steps from its run save, and each tile of a trip no car
+        // drives on, of a ride no train runs on, or a ride's end that is no station, and each ninth of a walk on neither
+        // walkway nor open land, as the map had it then
+        private static CityRun Run(string fixture)
+        {
+            Simulation city = FixtureCities.City(fixture, "run");
             List<Trip> trips = new List<Trip>();
             List<Ride> rides = new List<Ride>();
+            List<Trip> walks = new List<Trip>();
             List<string> faults = new List<string>();
             int step = 0;
+
+            city.Trips.WalkOffered += walk =>
+            {
+                walks.Add(walk);
+                foreach (TilePosition ninth in TripRoutes.Tiles(walk))
+                {
+                    (int x, int y, int n) = Walkways.Locate(ninth.X, ninth.Y);
+                    int tile = city.Map.GetTileValue(x, y);
+                    if (!Walkways.IsOpenLand(tile) && (Walkways.UsableMask(city.Map.GetWalkway(x, y), tile) & (1 << n)) == 0)
+                    {
+                        faults.Add($"walk off walkway and open land at ninth ({ninth.X}, {ninth.Y}) at step {step}");
+                    }
+                }
+            };
 
             city.Trips.RunOffered += trip =>
             {
@@ -310,15 +431,15 @@ namespace Micropolis.Rules.Tests
                 city.Step();
             }
 
-            return new CityRun(trips, rides, faults);
+            return new CityRun(trips, rides, walks, faults);
         }
 
-        // A route over the tiles in turn, every one the same way
-        private static List<RouteStep> By(TravelMode mode, params (int X, int Y)[] tiles)
+        // A route over the tiles in turn, every one the same way, from a zone west of it to one east of it
+        private static TripRoute RouteBy(TravelMode mode, params (int X, int Y)[] tiles)
         {
-            return tiles.Select(tile => new RouteStep(new Position(tile.X, tile.Y), mode)).ToList();
+            return Route(TileUtils.WestSide, TileUtils.EastSide, By(mode, tiles));
         }
 
-        private sealed record CityRun(List<Trip> Trips, List<Ride> Rides, List<string> Faults);
+        private sealed record CityRun(List<Trip> Trips, List<Ride> Rides, List<Trip> Walks, List<string> Faults);
     }
 }

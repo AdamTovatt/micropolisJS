@@ -130,8 +130,8 @@ namespace Micropolis.Rules
         private readonly Trips _trips;
         private readonly TripRouter _router;
 
-        // Every tile of the trip's route, in order, from the perimeter tile it started on, with how it went over each
-        private readonly List<RouteStep> _route = new List<RouteStep>();
+        // The trip's route: every tile of it, in order, from the perimeter tile it started on, with how it went over each
+        private readonly TripRoute _route = new TripRoute();
 
         /// <param name="trips">Takes the route of each trip found, which nothing in the rules reads.</param>
         public Traffic(GameMap map, RandomStream random, Trips trips)
@@ -175,7 +175,7 @@ namespace Micropolis.Rules
         // traffic, now and then; the helicopter chooses its traffic as it takes off (CopterSprite).
         private void AddToTrafficDensityMap(BlockMaps blockMaps)
         {
-            foreach (RouteStep step in _route)
+            foreach (RouteStep step in _route.Steps)
             {
                 if (step.Mode == TravelMode.Road)
                 {
@@ -189,9 +189,11 @@ namespace Micropolis.Rules
         // it enters from no tile of track, the side facing the one it leaves by
         private void AddToRailLoadMap(BlockMaps blockMaps)
         {
-            for (int i = 0; i < _route.Count; i++)
+            List<RouteStep> route = _route.Steps;
+
+            for (int i = 0; i < route.Count; i++)
             {
-                RouteStep step = _route[i];
+                RouteStep step = route[i];
 
                 if (step.Mode != TravelMode.Rail)
                 {
@@ -199,10 +201,10 @@ namespace Micropolis.Rules
                 }
 
                 // A ride has two tiles at least, so the station it gets on at has a tile after it
-                bool boards = i == 0 || _route[i - 1].Mode != TravelMode.Rail;
+                bool boards = i == 0 || route[i - 1].Mode != TravelMode.Rail;
                 int enteredBy = boards
-                    ? TileUtils.SideEnteredBy(step.Tile, _route[i + 1].Tile)
-                    : TileUtils.SideEnteredBy(_route[i - 1].Tile, step.Tile);
+                    ? TileUtils.SideEnteredBy(step.Tile, route[i + 1].Tile)
+                    : TileUtils.SideEnteredBy(route[i - 1].Tile, step.Tile);
                 int ends = TileUtils.RailEnds(_map.GetTileValue(step.Tile.X, step.Tile.Y));
 
                 Add(RailLoadEntered(blockMaps, ends, enteredBy), step.Tile, RideLoad, MaxRailLoad);

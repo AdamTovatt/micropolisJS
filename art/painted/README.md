@@ -23,6 +23,10 @@ An asset whose ground was painted again with its own description of its surfaces
 
 `raw/water/water.png` is the painting the water's corner tiles are cut from (`tools/grass.py`, `docs/render-assets.md`), `gemini-3-pro-image` through `art/tools/generate.py`, given the world grass's `raw/grass/straw.png` as its reference for the brushwork: "A square oil painting of calm open water seen from directly above, filling the whole image edge to edge: a lake surface in steel blue and muted teal, around RGB 54,107,143, with gentle low ripples painted in the same short, directional impasto brushstrokes and thick paint texture as the reference grass painting, light from the upper left, even in brightness across the image with no large light or dark patches, no shore, no land, no rocks, no boats, no reflections of objects, no foam, no text, no borders." The game draws the water over the world grass from where the map's water lies, and its sand from the straw grass's painting.
 
+## The walkers
+
+`raw/walkers/dabs.png` is the painting the walkers' dabs of paint are cut from (`tools/walkers.py`, `docs/render-assets.md`), `gemini-3-pro-image` through `art/tools/generate.py`, at 3:2: "Six separate small dabs of thick white oil paint, each one short loaded brush stroke, a little longer than wide, with raised impasto ridges from the bristles, painted the way Van Gogh laid single strokes, arranged in two rows of three, every dab well apart from the others with wide empty space between, on a perfectly flat pure black background, seen from directly above, evenly lit, no cast shadows, no texture in the background, no text". The paint's lightness is each dab's opacity, and the game tints each its walker's colour.
+
 ## The world grass
 
 `raw/grass/` holds the two paintings the world grass's sets of corner tiles are cut from (`tools/grass.py`, `docs/render-assets.md`), with the model inputs they were painted from. Both are `gemini-3-pro-image`, through `art/tools/generate.py`.

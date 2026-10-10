@@ -101,6 +101,11 @@ export function committedWalkway(): WalkwayJson {
   return structuredClone(repositoryJson<{walkway: WalkwayJson}>("images/render/manifest.json").walkway);
 }
 
+// The plainest walkers section: one dab, the rectangle given, which the walkers' colours tint
+export function plainWalkers(rect: RectJson): {dabs: RectJson[]} {
+  return {dabs: [rect]};
+}
+
 // The plainest walkway section: its edge cut so a path fills its ninths but for their rounded ends and sides, unwobbled,
 // its gravel, paving and crossing each one flat colour, as given, none of the grass's light and dark in them, and two
 // stripes to a ninth

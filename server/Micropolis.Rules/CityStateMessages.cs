@@ -52,9 +52,10 @@ namespace Micropolis.Rules
         private DemandMessage? _lastDemand;
         // The events since the last messages, in the order the simulation sent them: one overlay message per layer
         private List<StateMessage> _events = new List<StateMessage>();
-        // The runs by road and the rides offered since the last messages, each in the order they were offered
+        // The runs by road, the rides and the walks offered since the last messages, each in the order they were offered
         private List<Trip> _runs = new List<Trip>();
         private List<Ride> _rides = new List<Ride>();
+        private List<Trip> _walks = new List<Trip>();
 
         /// <summary>
         /// Takes the city as it stands as sent, so the first new messages are what changes from here: a player who
@@ -79,9 +80,10 @@ namespace Micropolis.Rules
             });
             events.AddEventListener(RulesEvents.CityStatusUpdated, status => _status = _lastStatus = status);
             events.AddEventListener(RulesEvents.ValvesUpdated, demand => _demand = _lastDemand = demand);
-            // The trips the client draws as cars and trains, which no player who joins is sent
+            // The trips the client draws as cars, trains and walkers, which no player who joins is sent
             city.Trips.RunOffered += run => _runs.Add(run);
             city.Trips.RideOffered += ride => _rides.Add(ride);
+            city.Trips.WalkOffered += walk => _walks.Add(walk);
         }
 
         [MemberNotNull(nameof(_tiles), nameof(_walkways))]
@@ -173,7 +175,7 @@ namespace Micropolis.Rules
 
             messages.AddRange(_events);
             _events = new List<StateMessage>();
-            bool trips = _runs.Count > 0 || _rides.Count > 0;
+            bool trips = _runs.Count > 0 || _rides.Count > 0 || _walks.Count > 0;
 
             // The step clock goes with a batch that carries anything, and makes none of its own: it moves every step
             if (trips || messages.Count > 0)
@@ -183,9 +185,10 @@ namespace Micropolis.Rules
 
             if (trips)
             {
-                messages.Add(new TripsMessage(_runs, _rides));
+                messages.Add(new TripsMessage(_runs, _rides, _walks));
                 _runs = new List<Trip>();
                 _rides = new List<Ride>();
+                _walks = new List<Trip>();
             }
 
             return messages;

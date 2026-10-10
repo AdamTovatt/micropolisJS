@@ -16,7 +16,7 @@ import { AutoBulldozePreference } from "./autoBulldozePreference";
 import { BudgetWindow } from "./budgetWindow";
 import { CarSharePreference } from "./carShare";
 import { Cars } from "./cars";
-import type { PaintableCar } from "./cars";
+import type { PaintableMover } from "./cars";
 import type { Presence } from "./cityClient";
 import { linkToCity } from "./cityLink";
 import type { CitySource, StartedCity } from "./citySource";
@@ -107,7 +107,7 @@ export class Game {
   private readonly lastEvent = new LastEvent();
   // The cars driving the trips and rides the city sends, and those the map's view was last painted with
   readonly cars: Cars;
-  private mapCars: readonly PaintableCar[] = [];
+  private mapMovers: readonly PaintableMover[] = [];
   // The turns of the animation loop since the game started
   private animated = 0;
 
@@ -132,13 +132,13 @@ export class Game {
     const paused = this.speedControl.isPaused();
     // The client's clock, which tile animation reads too
     this.cars.advance(Date.now(), paused);
-    const cars = this.cars.paintable();
+    const movers = this.cars.paintable();
 
-    const mapCars = this.inView(cars, this.gameCanvas);
-    this.mapCars = mapCars;
-    this.gameCanvas.paint(this.controls.outlines(), mapCars, this.inView(this.state.sprites, this.gameCanvas), paused);
-    this.monsterTV.paint(this.inView(cars, this.monsterTV.canvas), this.inView(this.state.sprites, this.monsterTV.canvas),
-                         paused);
+    const mapMovers = this.inView(movers, this.gameCanvas);
+    this.mapMovers = mapMovers;
+    this.gameCanvas.paint(this.controls.outlines(), mapMovers, this.inView(this.state.sprites, this.gameCanvas), paused);
+    this.monsterTV.paint(this.inView(movers, this.monsterTV.canvas),
+                         this.inView(this.state.sprites, this.monsterTV.canvas), paused);
 
     this.minimap.paint();
 
@@ -286,9 +286,9 @@ export class Game {
     this.controls.sendToolPaths();
   }
 
-  // The cars the map's view was last painted with, those of trains among them
-  get carsPainted(): readonly PaintableCar[] {
-    return this.mapCars;
+  // The cars, carriages of trains and walkers the map's view was last painted with
+  get moversPainted(): readonly PaintableMover[] {
+    return this.mapMovers;
   }
 
   // The turns of the animation loop since the game started, and the frames of them the map's view drew
@@ -323,9 +323,10 @@ export class Game {
     // The whole map comes as the page joins the city, at its start or again after a reconnect
     state.on("map", () => this.cars.joined());
     // A batch's step clock comes just before its trips, so the departures its rides board are timed from it
-    state.on("trips", ({routes, rides}) => {
+    state.on("trips", ({routes, rides, walks}) => {
       this.cars.add(routes);
       this.cars.addRides(rides, state.current("clock").steps);
+      this.cars.addWalks(walks);
     });
     state.on("news", (news) => this.showNews(news));
     state.on("commandResult", ({result}) => {

@@ -301,21 +301,29 @@ sent no trips offered before. A batch's `tiles` and `walkways` come first, in th
   or couldn't cover the services. The city steps on: nothing waits for the review.
 - `overlayUpdated` names a `layer` the simulation has recomputed, which an overlay showing it asks for again.
 - `trips` lists the trips the city offered since the batch before: in `routes`, the runs by road, for the client to
-  draw as cars, and in `rides`, the rides by rail, for it to draw as trains, each in the order it offered them. The
-  traffic rule finds a zone a route, from a tile of the zone's perimeter to the tile beside its destination, which goes
-  by road, rides rail from a station to a station, and walks along walkways and a few tiles across open land at each
-  end. A run by road is a run
-  of the route by road (road, a road bridge, or road crossing rail or a power line), of two tiles or more and as long
-  as the route goes by road; a ride is a run of it by rail, from the station it gets on at to the one it gets off at,
-  through any station between. A run is written `[x, y, "steps"]`: the tile it starts on, then a letter for each step
-  to the next tile of it, `N` (up the map, to `y - 1`), `E` (`x + 1`), `S` (`y + 1`) or `W` (`x - 1`), such as
-  `[9, 8, "NNE"]` for (9, 8), (9, 7), (9, 6) and (10, 6). A ride is written `[x, y, "steps", departure]`, the station
-  it gets on at, its steps, and the step clock's value (`clock`) of the departure from that station it boards: each
-  station has a departure each way at a fixed interval of the clock, at an offset of its own from its place, and a ride
-  boards the first after the step the city routed it on, which the train leaves at. The city offers each run and each
-  ride of a route as one of its own, in the route's order, as it routes it; where the route walks it offers nothing. A
-  batch with none offered carries no `trips`, and one with runs but no rides, or rides but no runs, carries the other
-  list empty. Trips are a picture of what the rules do: the rules never read them, and no save or log holds them.
+  draw as cars, in `rides`, the rides by rail, for it to draw as trains, and in `walks`, the walks, for it to draw as
+  walkers, each in the order it offered them. The traffic rule finds a zone a route, from a tile of the zone's
+  perimeter to the tile beside its destination, which goes by road, rides rail from a station to a station, and walks
+  along walkways and a few tiles across open land at each end. A run by road is a run of the route by road (road, a
+  road bridge, or road crossing rail or a power line), of two tiles or more and as long as the route goes by road; a
+  ride is a run of it by rail, from the station it gets on at to the one it gets off at, through any station between.
+  A run is written `[x, y, "steps"]`: the tile it starts on, then a letter for each step to the next tile of it, `N`
+  (up the map, to `y - 1`), `E` (`x + 1`), `S` (`y + 1`) or `W` (`x - 1`), such as `[9, 8, "NNE"]` for (9, 8),
+  (9, 7), (9, 6) and (10, 6). A ride is written `[x, y, "steps", departure]`, the station it gets on at, its steps, and
+  the step clock's value (`clock`) of the departure from that station it boards: each station has a departure each way
+  at a fixed interval of the clock, at an offset of its own from its place, and a ride boards the first after the step
+  the city routed it on, which the train leaves at. A walk is a run of the route on foot, along walkways and across
+  open land, written as a run is but on the map's grid of ninths, three across and down each tile, ninth `(x, y)` lying
+  in tile `(floor(x / 3), floor(y / 3))`: the ninth it starts on, then a letter for each step to the next ninth, through
+  two ninths or more. On each tile it keeps to the ninths the route walks there, those of the piece of walkway the
+  route took, or across open land all of them, and goes the shortest way over them, from the ninth across from the one
+  it left the tile before by to the nearest ninth along the side facing the next tile that touches one of the next
+  tile's, so the walk stays joined from tile to tile. Where it starts, it comes in by the ninth along the side facing
+  the zone or the station it comes from nearest that side's middle, and where it ends, it goes to the nearest along the
+  side facing the zone or the station it goes to. The city offers each run, each ride and each walk of a route as one
+  of its own, in the route's order, as it routes it. A batch with none offered carries no `trips`, and one with some
+  carries the lists it has none for empty. Trips are a picture of what the rules do: the rules never read them, and no
+  save or log holds them.
 
 ## Examples
 

@@ -41,6 +41,11 @@ namespace Micropolis.Rules
         public const int Ninths = Side * Side;
 
         /// <summary>
+        /// The mask of every ninth of a tile.
+        /// </summary>
+        public const int AllNinths = (1 << Ninths) - 1;
+
+        /// <summary>
         /// The bits a ninth's kind takes in a tile's value.
         /// </summary>
         public const int BitsPerNinth = 2;
@@ -192,6 +197,20 @@ namespace Micropolis.Rules
             return EdgeTable[(mask << 2) | side];
         }
 
+        /// <summary>
+        /// The ninth at the place along the side given, numbered as <see cref="Edge"/> numbers them.
+        /// </summary>
+        public static int NinthAlong(int side, int place)
+        {
+            return side switch
+            {
+                TileUtils.NorthSide => place,
+                TileUtils.SouthSide => (Side - 1) * Side + place,
+                TileUtils.WestSide => place * Side,
+                _ => place * Side + Side - 1,
+            };
+        }
+
         private static ushort[] BuildPieces()
         {
             List<ushort> pieces = new List<ushort>();
@@ -222,8 +241,10 @@ namespace Micropolis.Rules
             return pieces.ToArray();
         }
 
-        // The ninths that share a side with any of those given
-        private static int Neighbours(int mask)
+        /// <summary>
+        /// The ninths that share a side with any of those given.
+        /// </summary>
+        public static int Neighbours(int mask)
         {
             int neighbours = 0;
 
@@ -267,17 +288,12 @@ namespace Micropolis.Rules
 
             for (int mask = 0; mask < 1 << Ninths; mask++)
             {
-                for (int place = 0; place < Side; place++)
+                for (int side = 0; side < 4; side++)
                 {
-                    int north = place;
-                    int south = (Side - 1) * Side + place;
-                    int west = place * Side;
-                    int east = place * Side + Side - 1;
-
-                    edges[(mask << 2) | TileUtils.NorthSide] |= (byte)(((mask >> north) & 1) << place);
-                    edges[(mask << 2) | TileUtils.EastSide] |= (byte)(((mask >> east) & 1) << place);
-                    edges[(mask << 2) | TileUtils.SouthSide] |= (byte)(((mask >> south) & 1) << place);
-                    edges[(mask << 2) | TileUtils.WestSide] |= (byte)(((mask >> west) & 1) << place);
+                    for (int place = 0; place < Side; place++)
+                    {
+                        edges[(mask << 2) | side] |= (byte)(((mask >> NinthAlong(side, place)) & 1) << place);
+                    }
                 }
             }
 

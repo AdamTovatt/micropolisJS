@@ -142,14 +142,21 @@ export interface PathLook {
   contrast: number;
 }
 
+// The walkers' art: the dabs of paint they are drawn as, one at least, each white, which the client tints its walker's
+// colour
+export interface WalkerArt {
+  dabs: readonly AtlasRect[];
+}
+
 // A manifest: each atlas's image, by name, a path relative to the manifest's own, and the art of each tile id, of each
 // sprite, by type and frame, as spriteKey names it, and of each car, by colour and direction, as carKey names it, the
-// world grass, the canopy, the water and the walkways
+// walkers, the world grass, the canopy, the water and the walkways
 export interface RenderManifest {
   atlases: ReadonlyMap<string, string>;
   tiles: ReadonlyMap<number, TileArt>;
   sprites: ReadonlyMap<string, AtlasRect>;
   cars: ReadonlyMap<string, AtlasRect>;
+  walkers: WalkerArt;
   grass: GrassArt;
   canopy: CanopyArt;
   water: WaterArt;
@@ -575,7 +582,8 @@ function surfaceTiles(value: unknown, where: string, atlases: ReadonlyMap<string
 // The manifest a manifest file's JSON holds, or an error naming what is wrong with it
 export function parseRenderManifest(value: unknown): RenderManifest {
   const json = object(value, "the manifest",
-                      ["version", "atlases", "tiles", "sprites", "cars", "grass", "canopy", "water", "walkway"]);
+                      ["version", "atlases", "tiles", "sprites", "cars", "walkers", "grass", "canopy", "water",
+                       "walkway"]);
   if (json.version !== 1) {
     fail("version", "is not 1");
   }
@@ -632,8 +640,12 @@ export function parseRenderManifest(value: unknown): RenderManifest {
     }
   }
 
+  const walkerJson = object(json.walkers, "walkers", ["dabs"]);
+  const walkers = {dabs: list(walkerJson.dabs, "walkers.dabs")
+    .map((rect, i) => plainRect(rect, `walkers.dabs[${i}]`, atlases))};
+
   const grass = grassArt(json.grass, atlases);
-  return {atlases, tiles, sprites, cars, grass, canopy: canopyArt(json.canopy, atlases, grass),
+  return {atlases, tiles, sprites, cars, walkers, grass, canopy: canopyArt(json.canopy, atlases, grass),
           water: waterArt(json.water, atlases, grass), walkway: walkwayArt(json.walkway)};
 }
 
@@ -659,6 +671,7 @@ export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases" | "
   });
   manifest.sprites.forEach((rect, key) => check(rect, `sprite ${key}`));
   manifest.cars.forEach((rect, key) => check(rect, `car ${key}`));
+  manifest.walkers.dabs.forEach((rect, i) => check(rect, `walker dab ${i}`));
   manifest.grass.lush.tiles.forEach((rect, i) => check(rect, `lush grass ${i}`));
   manifest.grass.straw.tiles.forEach((rect, i) => check(rect, `straw grass ${i}`));
   manifest.canopy.tiles.forEach((rect, i) => check(rect, `canopy ${i}`));
@@ -762,6 +775,12 @@ export class RenderArt {
   // or null for one the manifest has none for, which is drawn in its flat colour
   car(colour: number, direction: CarDirection): AtlasRect | null {
     return this.rendered.cars.get(carKey(CAR_COLOURS[colour].name, direction)) ?? null;
+  }
+
+  // The dab of paint a walker is drawn as, by the dab number its route picks, of those the manifest has
+  walkerDab(dab: number): AtlasRect {
+    const {dabs} = this.rendered.walkers;
+    return dabs[dab % dabs.length];
   }
 
   // The art of a carriage of a train facing the way given, drawn into its square: the trains' row of the sprite sheet,

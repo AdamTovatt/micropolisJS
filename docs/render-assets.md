@@ -10,7 +10,7 @@ The map is drawn in this order:
 2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, and the canopy's shadow (The canopy, below), merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass drew, once;
 3. every tile's objects;
 4. the map overlay's tint;
-5. the cars (`cars.ts`), then the sprites over them.
+5. the cars, the carriages of trains and the walkers (`cars.ts`), then the sprites over them.
 
 The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as a tile's look reaches: as far as their shadows reach, and at least the two tiles round each whose canopy, canopy's shadow and water it changes (`reach` of `RenderArt` in `renderManifest.ts`); and around each tile whose walkway changed, the tiles beside it, whose paths it joins (The walkways, below).
 
@@ -51,6 +51,9 @@ The monster TV draws its view in the same passes, but for the overlay's tint, th
     "red": {
       "north": {"atlas": "objects-0", "x": 192, "y": 512, "width": 64, "height": 64}
     }
+  },
+  "walkers": {
+    "dabs": [{"atlas": "objects-0", "x": 256, "y": 512, "width": 32, "height": 32}]
   }
 }
 ```
@@ -73,13 +76,14 @@ The monster TV draws its view in the same passes, but for the overlay's tint, th
   - `shadow`, optional, and only on an asset's anchor: black whose alpha is the shadow's darkness, drawn over the anchor and `reach` whole tiles past it on each side.
 - `sprites` maps a sprite type, from 1 to 7, and a frame, from 1 to that type's last, to its rectangle, drawn into the sprite's square. The types are, in order: train (5 frames, 32 px square), helicopter (8, 32 px), airplane (11, 48 px), ship (8, 48 px), monster (16, 48 px), tornado (3, 48 px) and explosion (6, 48 px), the square's side measured at 16 px a tile (`SPRITE_SHEET` in `renderManifest.ts`). No simulation sprite is a train: the client draws each carriage of a train from the train's first frame running north or south and its second running east or west, into the carriage's square, a tile a side, centred on the right-hand track of the rail tile's double track, `TRACK_OFFSET` right of the railway's middle, where the rail art lays it (`TRACK` in `art/blender/tilesets.py`; `trainCar` of `RenderArt` in `renderManifest.ts`).
 - `cars` maps a car's colour, one of the client's (`CAR_COLOURS` in `cars.ts`: red, blue, yellow, white, green and orange), and a way it faces, `north`, `east`, `south` or `west`, to its rectangle, drawn into the car's square, a tile a side, centred on its place in its lane, the car and its shadow standing in the middle. A car the manifest leaves out is drawn as a rectangle in its colour's flat colour, long the way it faces, the size of the painted car (`CAR_LENGTH` and `CAR_BREADTH` in `mapFrame.ts`).
+- `walkers`, required: `dabs`, a list of one rectangle or more, each a dab of white paint whose lightness carries its brushwork, its opacity the paint's lightness, which the client draws a walker as, into the walker's square, `WALKER_PIXELS` map pixels a side at 16 a tile (`walkers.ts`), centred on its place on the ninths of its walk, tinted its colour (`WALKER_COLOURS` in `walkers.ts`); a walker takes the dab its walk's start picks, round the list (`walkerDab` of `RenderArt`). The atlas build cuts them from a painting with `art/tools/walkers.py`.
 
 - `grass`, required: the world grass, below.
 - `canopy`, required: the canopy the woods are drawn as, below.
 - `water`, required: the water, below.
 - `walkway`, required: the walkways, below.
 
-A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atlas, at least 1 wide and high. It is scaled to fill where it is drawn, so an atlas may be rendered at any pixels a tile; the art is rendered at 64 px a tile (`TILE_PX` in `art/blender/tileart.py`), the closest zoom. A key the format doesn't name, a missing `ground`, `grass`, `canopy`, `water` or `walkway`, a rectangle naming an atlas the manifest doesn't declare or running past its image, or a number out of its range fails the page's start with a message naming where.
+A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atlas, at least 1 wide and high. It is scaled to fill where it is drawn, so an atlas may be rendered at any pixels a tile; the art is rendered at 64 px a tile (`TILE_PX` in `art/blender/tileart.py`), the closest zoom. A key the format doesn't name, a missing `ground`, `walkers`, `grass`, `canopy`, `water` or `walkway`, a rectangle naming an atlas the manifest doesn't declare or running past its image, or a number out of its range fails the page's start with a message naming where.
 
 ### Cutting an asset into tiles
 

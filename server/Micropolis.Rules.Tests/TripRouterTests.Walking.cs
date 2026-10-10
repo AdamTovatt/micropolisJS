@@ -25,8 +25,12 @@ namespace Micropolis.Rules.Tests
         private static readonly int[] NorthRow = [0, 1, 2];
         private static readonly int[] SouthRow = [6, 7, 8];
 
+        // Every ninth of a tile, which a route across open land may walk on
+        private static readonly int[] AllNinths = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+
         // A path along the middle of row 50 from the east perimeter, its first ninth on the perimeter tile's side facing
-        // the zone, to beside the destination: the zone needs no road, and the trip walks every tile
+        // the zone, to beside the destination: the zone needs no road, and the trip walks every tile, along the path but on
+        // the perimeter tile, which it crosses as the open land it is, at the same cost
         [TestMethod]
         public void Route_PathFromTheZonesEdge_WalksItToTheDestination()
         {
@@ -39,7 +43,27 @@ namespace Micropolis.Rules.Tests
             (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
 
             Assert.AreEqual(TrafficResult.RouteFound, result);
-            CollectionAssert.AreEqual(Going((TravelMode.Walk, path)), route);
+            CollectionAssert.AreEqual(Walking(([path[0]], AllNinths), ([.. path.Skip(1)], Ground.AcrossTheMiddle)), route);
+        }
+
+        // The same path, with a residential zone, no destination, centred at (26, 48), whose south side the path's last
+        // three tiles touch: the route's first tile faces the trip's zone by its west side, and its last faces the
+        // destination by its east side, not the other zone by its north
+        [TestMethod]
+        public void Route_LastTileBesideTheDestinationAndAnotherZone_FacesTheDestination()
+        {
+            GameMap map = RubbleMap();
+            List<Position> path = Row(50, 22, 27);
+            Ground.OpenLand(map, path);
+            Ground.Path(map, path, Ground.AcrossTheMiddle);
+            Zone(map, 26, 48, RZB);
+            Zone(map, 29, 50, COMCLR);
+
+            (TrafficResult result, TripRoute route) = Routed(map, TrafficDestination.Commercial);
+
+            Assert.AreEqual(TrafficResult.RouteFound, result);
+            Assert.AreEqual(new Position(27, 50), route.Steps[^1].Tile);
+            Assert.AreEqual((TileUtils.WestSide, TileUtils.EastSide), (route.FromSide, route.ToSide));
         }
 
         // A path that runs along the east side of the perimeter tile, rail, which isn't open land, touching none of its
@@ -84,7 +108,12 @@ namespace Micropolis.Rules.Tests
             (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
 
             Assert.AreEqual(expected, result);
-            CollectionAssert.AreEqual(crossing ? Going((TravelMode.Walk, [.. Row(50, 22, 25), new Position(25, 51)])) : [], route);
+            CollectionAssert.AreEqual(
+                crossing
+                    ? Walking((Row(50, 22, 24), NorthRow), ([new Position(25, 50)], [.. NorthRow, .. SouthRow, .. Ground.DownTheMiddle]),
+                              ([new Position(25, 51)], Ground.DownTheMiddle))
+                    : [],
+                route);
         }
 
         // A road along row 50 from the zone's edge, with a sidewalk along its north side, to beside a destination north of
@@ -107,7 +136,7 @@ namespace Micropolis.Rules.Tests
 
             (_, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
 
-            CollectionAssert.AreEqual(Going((walks ? TravelMode.Walk : TravelMode.Road, road)), route);
+            CollectionAssert.AreEqual(walks ? Walking((road, NorthRow)) : Going((TravelMode.Road, road)), route);
         }
 
         // A road on the one tile of the zone's perimeter beside a destination centred at (24, 50): a drive of one tile,
@@ -173,7 +202,8 @@ namespace Micropolis.Rules.Tests
             (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
 
             Assert.AreEqual(TrafficResult.RouteFound, result);
-            CollectionAssert.AreEqual(Going((TravelMode.Walk, Row(50, 22, 42))), route);
+            CollectionAssert.AreEqual(Walking((Row(50, 22, 24), AllNinths), (Row(50, 25, 40), Ground.AcrossTheMiddle), (Row(50, 41, 42), AllNinths)),
+                                      route);
         }
 
         // A path within a walk across open land of the zone, which reaches no destination, is a way out of it: the trip
@@ -220,7 +250,10 @@ namespace Micropolis.Rules.Tests
 
             (_, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
 
-            CollectionAssert.AreEqual(Going((TravelMode.Walk, toStation), (TravelMode.Rail, Row(50, 25, 30)), (TravelMode.Walk, fromStation)), route);
+            List<RouteStep> expected = [.. Walking(([toStation[0]], AllNinths), ([.. toStation.Skip(1)], Ground.AcrossTheMiddle)),
+                                        .. Going((TravelMode.Rail, Row(50, 25, 30))),
+                                        .. Walking((fromStation, Ground.AcrossTheMiddle))];
+            CollectionAssert.AreEqual(expected, route);
         }
 
         // A map of rubble with the trip's own zone at the origin

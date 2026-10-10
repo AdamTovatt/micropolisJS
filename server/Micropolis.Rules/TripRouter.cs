@@ -25,9 +25,34 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// A tile of a route, and how the route goes over it.
+    /// A tile of a route, how the route goes over it, and the ninths of the tile it may walk on, a bit for each: on a
+    /// walkway, those of the piece it walks along (<see cref="Walkways.Pieces"/>), across open land every ninth
+    /// (<see cref="Walkways.AllNinths"/>), and by road or rail none.
     /// </summary>
-    internal readonly record struct RouteStep(Position Tile, TravelMode Mode);
+    internal readonly record struct RouteStep(Position Tile, TravelMode Mode, int Ninths);
+
+    /// <summary>
+    /// A trip's route: every tile of it in order, from a tile of the perimeter of the zone it goes from to one beside the
+    /// zone it goes to, with how it goes over each, and the sides of its first and last tiles facing those zones,
+    /// numbered as <see cref="TileUtils.NorthSide"/> says.
+    /// </summary>
+    internal sealed class TripRoute
+    {
+        /// <summary>
+        /// Every tile of the route in order, with how it goes over each.
+        /// </summary>
+        public List<RouteStep> Steps { get; } = new List<RouteStep>();
+
+        /// <summary>
+        /// The side of the route's first tile facing the zone it goes from.
+        /// </summary>
+        public int FromSide { get; set; }
+
+        /// <summary>
+        /// The side of the route's last tile facing the zone it goes to.
+        /// </summary>
+        public int ToSide { get; set; }
+    }
 
     /// <summary>
     /// Routes a zone's trip to a destination of the kind it needs, by road, by rail and on foot, in place of the
@@ -291,7 +316,8 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// Routes a trip from the zone centred at <paramref name="origin"/> to a zone of the destination's kind, filling
-        /// <paramref name="route"/> with every tile of the route in order, with how it goes over each:
+        /// <paramref name="route"/> with every tile of the route in order, with how it goes over each, and the sides its
+        /// ends face the zones by:
         /// <see cref="TrafficResult.RouteFound"/>, or <see cref="TrafficResult.SlowRoute"/> where the route costs more
         /// than <see cref="SlowCostPerTile"/> for each tile of the straight run between its ends, past
         /// <see cref="SlowAllowance"/>. With no destination reached it is <see cref="TrafficResult.NoRouteFound"/>, or,
@@ -303,12 +329,14 @@ namespace Micropolis.Rules
         /// <param name="blockMaps">The block maps, whose traffic density adds to the cost of each road tile and whose
         /// rail load each way adds to the cost of each rail tile a ride goes over that way.</param>
         public TrafficResult Route(Position origin, TrafficDestination destination, BlockMaps blockMaps, RandomStream random,
-                                   List<RouteStep> route)
+                                   TripRoute route)
         {
-            route.Clear();
+            route.Steps.Clear();
             Start();
 
-            foreach ((Position tile, int facing) in Traffic.PerimeterFacing(_map, origin))
+            IReadOnlyList<(Position Tile, int Facing)> perimeter = Traffic.PerimeterFacing(_map, origin);
+
+            foreach ((Position tile, int facing) in perimeter)
             {
                 int index = Index(tile.X, tile.Y);
                 ref Facts facts = ref Read(index, blockMaps);
@@ -375,9 +403,19 @@ namespace Micropolis.Rules
             }
 
             int goal = _goal[chosen];
-            FillRoute(goal, route);
+            List<RouteStep> steps = route.Steps;
+            FillRoute(goal, steps);
+            foreach ((Position tile, int facing) in perimeter)
+            {
+                if (tile == steps[0].Tile)
+                {
+                    route.FromSide = facing;
+                }
+            }
 
-            int straightRun = Math.Abs(route[^1].Tile.X - route[0].Tile.X) + Math.Abs(route[^1].Tile.Y - route[0].Tile.Y);
+            route.ToSide = SideFacing(goal & _tileMask, chosen);
+
+            int straightRun = Math.Abs(steps[^1].Tile.X - steps[0].Tile.X) + Math.Abs(steps[^1].Tile.Y - steps[0].Tile.Y);
             return _places[goal].Cost > SlowCostPerTile * straightRun + SlowAllowance ? TrafficResult.SlowRoute : TrafficResult.RouteFound;
         }
 
@@ -854,6 +892,7 @@ namespace Micropolis.Rules
             return facts.Owner;
         }
 
+        // Fills the route with every tile of it, in order, from the first the search labelled to the goal given
         private void FillRoute(int goal, List<RouteStep> route)
         {
             int at = goal;
@@ -862,7 +901,8 @@ namespace Micropolis.Rules
             {
                 ref Place place = ref _places[at];
                 int index = at & _tileMask;
-                route.Add(new RouteStep(PositionOf(index), ModeOf(at >> _wayShift)));
+                int way = at >> _wayShift;
+                route.Add(new RouteStep(PositionOf(index), ModeOf(way), NinthsWalked(index, way)));
 
                 if (place.Step == NoStep)
                 {
@@ -873,6 +913,35 @@ namespace Micropolis.Rules
             }
 
             route.Reverse();
+        }
+
+        // The ninths of the tile at the index given a route going over it the way given may walk on: the piece's on a
+        // walkway, every one across open land, and none by road or rail
+        private int NinthsWalked(int index, int way)
+        {
+            return way switch
+            {
+                >= OnPath and < WalkingIn => Walkways.Pieces(Paths(ref _facts[index], index))[way - OnPath],
+                WalkingOut or >= WalkingIn => Walkways.AllNinths,
+                _ => 0,
+            };
+        }
+
+        // The side of the tile at the index given facing the footprint of the zone centred at the index given: the one
+        // side it touches, a footprint being a rectangle and the tile outside it
+        private int SideFacing(int index, int centre)
+        {
+            int neighbours = _neighbours[index];
+
+            for (int side = 0; side < 4; side++)
+            {
+                if ((neighbours & (1 << side)) != 0 && Owner(index + _offset[side]) == centre)
+                {
+                    return side;
+                }
+            }
+
+            throw new InvalidOperationException($"The tile at {PositionOf(index)} touches no side of the zone it reached.");
         }
 
         private static TravelMode ModeOf(int way)

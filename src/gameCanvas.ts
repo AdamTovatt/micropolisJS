@@ -12,7 +12,7 @@
  *
  */
 
-import type { PaintableCar } from "./cars";
+import type { PaintableMover } from "./cars";
 import { placeNewCanvas, requiredElement, screenPixelRatio, sizeCanvas } from "./domElements";
 import { MapPainter, paintedView } from "./mapPainter";
 import { drawBoxLabel, drawMouseBox } from "./mouseBox";
@@ -277,8 +277,9 @@ class GameCanvas {
     return picture.toDataURL();
   }
 
-  // Paints the map, with the cars and then the sprites over it, then the outlines in order, each over the last
-  paint(outlines: readonly MouseOutline[], cars: readonly PaintableCar[], sprites: readonly PaintableSprite[],
+  // Paints the map, with the cars, carriages and walkers and then the sprites over it, then the outlines in order, each
+  // over the last
+  paint(outlines: readonly MouseOutline[], movers: readonly PaintableMover[], sprites: readonly PaintableSprite[],
         isPaused?: boolean): void {
     // Recompute our dimensions if there has been a resize since last paint. The origin stays where it is, as far as the
     // new size's limits allow.
@@ -298,7 +299,7 @@ class GameCanvas {
     const origin = this.position.origin;
     const overlay = this.overlay;
     const drew = this.painter.paint(paintedView(this.position, this.zoom * this.pixelRatio),
-                                    overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), cars,
+                                    overlay === null ? () => null : (x, y) => overlay.tileTint(x, y), movers,
                                     sprites, isPaused);
     if (drew) {
       this.painted++;

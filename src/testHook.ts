@@ -12,7 +12,7 @@
  *
  */
 
-import type { Cars, PaintableCar } from "./cars";
+import type { Cars, PaintableMover } from "./cars";
 import type { CityDriver } from "./citySource";
 import type {
   BudgetForecastAnswer, EvaluationRecord, FireStationReach, StatusRecord, TilePosition, TileReportAnswer,
@@ -32,8 +32,8 @@ interface HookedGame {
   gameCanvas: {getTileOrigin(): {x: number, y: number}, getOriginLimits(): OriginLimits, readonly tileWidth: number,
                readonly mapCurrent: boolean, wholeLayerEachFrame: boolean};
   monsterTV: {readonly current: boolean};
-  cars: Pick<Cars, "driven" | "carsHeld" | "add">;
-  readonly carsPainted: readonly PaintableCar[];
+  cars: Pick<Cars, "driven" | "moversHeld" | "add" | "addWalks">;
+  readonly moversPainted: readonly PaintableMover[];
   readonly frameCounts: FrameCounts;
   notificationBar: {dismiss(): void};
   toolToast: {dismiss(): void};
@@ -245,25 +245,37 @@ class TestHook {
     return this.attachedGame().cars.driven();
   }
 
-  // How many cars the page holds, those showing, those waiting to appear and those of trains, which the cap counts
-  carsHeld(): number {
-    return this.attachedGame().cars.carsHeld();
+  // How many cars, carriages of trains and walkers the page holds, the cars waiting to appear among them, which the cap
+  // counts
+  moversHeld(): number {
+    return this.attachedGame().cars.moversHeld();
   }
 
-  // How many cars the map's view was last painted with
+  // How many cars and carriages of trains the map's view was last painted with
   carsInView(): number {
-    return this.attachedGame().carsPainted.length;
+    return this.attachedGame().moversPainted.filter(({kind}) => kind !== "walker").length;
+  }
+
+  // How many walkers the map's view was last painted with
+  walkersInView(): number {
+    return this.attachedGame().moversPainted.filter(({kind}) => kind === "walker").length;
   }
 
   // How many carriages of trains the map's view was last painted with
   trainCarsInView(): number {
-    return this.attachedGame().carsPainted.filter(({kind}) => kind === "rail").length;
+    return this.attachedGame().moversPainted.filter(({kind}) => kind === "rail").length;
   }
 
   // Adds cars to those driving, as the city's trips do, for the render benchmark to drive more of them than a city
   // sends. It changes no city state: cars are the client's alone.
   addCars(...trips: Parameters<Cars["add"]>): void {
     this.attachedGame().cars.add(...trips);
+  }
+
+  // Adds walkers to those walking, as the city's walks do, for a test to draw them where it chooses. It changes no
+  // city state: walkers are the client's alone.
+  addWalks(...walks: Parameters<Cars["addWalks"]>): void {
+    this.attachedGame().cars.addWalks(...walks);
   }
 
   frameCounts(): FrameCounts {

@@ -698,10 +698,19 @@ namespace Micropolis.Rules.Tests
             map.SetTile(x, y, across ? HRAILSTATION : VRAILSTATION, TileFlags.BLBNBIT);
         }
 
-        // The tiles each way in turn, every one of them the way given
+        // The tiles each way in turn, every one of them the way given: by road or rail on no ninths, and on foot across
+        // open land, on every ninth
         private static List<RouteStep> Going(params (TravelMode Mode, List<Position> Tiles)[] legs)
         {
-            return legs.SelectMany(leg => leg.Tiles.Select(tile => new RouteStep(tile, leg.Mode))).ToList();
+            return legs.SelectMany(leg => leg.Tiles.Select(tile => new RouteStep(tile, leg.Mode, leg.Mode == TravelMode.Walk ? Walkways.AllNinths : 0)))
+                       .ToList();
+        }
+
+        // The tiles walked in turn, each along the ninths given of it
+        private static List<RouteStep> Walking(params (List<Position> Tiles, int[] Ninths)[] legs)
+        {
+            return legs.SelectMany(leg => leg.Tiles.Select(tile => new RouteStep(tile, TravelMode.Walk, TripRoutes.Mask(leg.Ninths))))
+                       .ToList();
         }
 
         private static (TrafficResult Result, List<Position> Route) Route(GameMap map, TrafficDestination destination,
@@ -717,7 +726,16 @@ namespace Micropolis.Rules.Tests
                                                                            BlockMaps? blockMaps = null, uint seed = 0,
                                                                            TripRouter? router = null)
         {
-            List<RouteStep> route = new List<RouteStep>();
+            (TrafficResult result, TripRoute route) = Routed(map, destination, blockMaps, seed, router);
+
+            return (result, route.Steps);
+        }
+
+        private static (TrafficResult Result, TripRoute Route) Routed(GameMap map, TrafficDestination destination,
+                                                                      BlockMaps? blockMaps = null, uint seed = 0,
+                                                                      TripRouter? router = null)
+        {
+            TripRoute route = new TripRoute();
             TrafficResult result = (router ?? new TripRouter(map)).Route(
                 Origin, destination, blockMaps ?? new BlockMaps(map.Width, map.Height), RandomStream.FromSeed(seed), route);
 

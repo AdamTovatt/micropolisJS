@@ -15,10 +15,47 @@
 namespace Micropolis.Rules.Tests
 {
     /// <summary>
-    /// A trip read back into the tiles it stands on, as the client reads it.
+    /// A trip read back into the tiles it stands on, as the client reads it, and routes built by hand.
     /// </summary>
     internal static class TripRoutes
     {
+        /// <summary>
+        /// The mask of the ninths given, numbered row by row from a tile's north-west corner.
+        /// </summary>
+        public static int Mask(params int[] ninths)
+        {
+            return ninths.Aggregate(0, (mask, ninth) => mask | (1 << ninth));
+        }
+
+        /// <summary>
+        /// Steps over the tiles given in turn, every one the way given: by road or rail on no ninths, and on foot across
+        /// open land, on every ninth.
+        /// </summary>
+        public static List<RouteStep> By(TravelMode mode, params (int X, int Y)[] tiles)
+        {
+            int ninths = mode == TravelMode.Walk ? Walkways.AllNinths : 0;
+            return tiles.Select(tile => new RouteStep(new Position(tile.X, tile.Y), mode, ninths)).ToList();
+        }
+
+        /// <summary>
+        /// Steps on foot over the tiles given in turn, along the ninths given of each.
+        /// </summary>
+        public static List<RouteStep> Walking(int[] ninths, params (int X, int Y)[] tiles)
+        {
+            return tiles.Select(tile => new RouteStep(new Position(tile.X, tile.Y), TravelMode.Walk, Mask(ninths))).ToList();
+        }
+
+        /// <summary>
+        /// The route of the legs given in turn, from a zone across the side given of its first tile to one across the
+        /// side given of its last.
+        /// </summary>
+        public static TripRoute Route(int fromSide, int toSide, params List<RouteStep>[] legs)
+        {
+            TripRoute route = new TripRoute { FromSide = fromSide, ToSide = toSide };
+            route.Steps.AddRange(legs.SelectMany(leg => leg));
+            return route;
+        }
+
         /// <summary>
         /// Every tile the trip stands on, in order: its start, then the tile each step takes it to.
         /// </summary>

@@ -17,22 +17,24 @@ import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { Ride, TilePosition, Trip } from "./protocol";
 import { RoadTraffic, carOpacity } from "./roadTraffic";
 import type { RoadCar } from "./roadTraffic";
-import { directionOf, stepOf, tripRoute } from "./routeTiles";
+import { directionOf, pickedByStart, stepOf, tripRoute } from "./routeTiles";
 import type { CarDirection } from "./routeTiles";
 import { Trains, carriagesShown, tilesOf } from "./trains";
 import type { TileRect } from "./viewPosition";
+import { WALKER_PIXELS, Walkers, walkerPlace } from "./walkers";
 
 // The cars the client draws for the city's traffic: each trip a trips message brings (protocol/README.md) becomes a car
 // that drives its route once in the right-hand lane, among the other cars (roadTraffic.ts), and is gone at its end, and
 // each ride a seat in a carriage of a train on the right-hand track, which leaves its station at the departure the ride
-// boards (trains.ts). Cars are the client's alone: never simulation sprites, never saved and never in a command log. They move
-// on their own drive clock, which follows the client's, the one tile animation uses, while the city runs, and which the
-// end-to-end suite fixes, so there cars stand at the starts of their routes and trains at their stations.
+// boards (trains.ts), and each walk a walker along the ninths of its tiles (walkers.ts). Cars are the client's alone:
+// never simulation sprites, never saved and never in a command log. They move on their own drive clock, which follows
+// the client's, the one tile animation uses, while the city runs, and which the end-to-end suite fixes, so there cars
+// stand at the starts of their routes, trains at their stations and walkers at the starts of their walks.
 
 // The most cars driving at once when every trip becomes one, a share of it at a smaller share of them, a train's
-// carriages counted each, and the cars waiting to appear and fading out. A car or a carriage that arrives while that
-// many drive is dropped, but for a car near the main map's view (Cars.add), and a ride that has a seat in a carriage
-// its train has (Cars.addRides).
+// carriages and the walkers counted each, and the cars waiting to appear and fading out: the Cars slider's cap on all
+// that moves over the map. A car, a carriage or a walker that arrives while that many move is dropped, but for a car
+// near the main map's view (Cars.add), and a ride that has a seat in a carriage its train has (Cars.addRides).
 export const MAX_CARS = 2000;
 
 // How far round the tiles the main map's view shows a car counts as near it, in tiles
@@ -109,7 +111,22 @@ export interface PaintableTrainCar extends CarSquare {
   readonly kind: "rail";
 }
 
+// A walker as a view draws it: the square its dab of paint is drawn in, as a car's, facing no way, and its colour and
+// dab, by their numbers (walkerLook)
+export interface PaintableWalker {
+  readonly kind: "walker";
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly colour: number;
+  readonly dab: number;
+}
+
+// A car on the road or a carriage of a train, as a view draws it
 export type PaintableCar = PaintableRoadCar | PaintableTrainCar;
+
+// What moves over the map's layer, as a view draws it: a car on the road, a carriage of a train or a walker
+export type PaintableMover = PaintableCar | PaintableWalker;
 
 // A colour cars come in: its name, by which the render manifest names its art (docs/render-assets.md), and the flat
 // colour, red, green and blue from 0 to 1, a car is drawn in where the manifest has no art for it
@@ -181,23 +198,25 @@ export function trainPlace(route: readonly TilePosition[], distance: number): Ca
 
 // The colour a car takes from its route: the same for every car from its start
 export function carColour(route: readonly TilePosition[]): number {
-  const {x, y} = route[0];
-  return (x * 7 + y * 13) % CAR_COLOURS.length;
+  return pickedByStart(route, CAR_COLOURS.length);
 }
 
-// The cars and trains: their own drive clock, which moves on with the client's while the city runs and stands while
-// it's paused, so each stands still while the city is paused and picks up again when it runs. Which trips become cars,
-// and whether rides board trains at all, is the step of the Cars slider the player chose (CarSharePreference), read as
-// each trips message arrives, so a smaller share starts fewer from then on and every one already driving finishes its
-// route, but one whose place a car near the view takes (add).
+// The cars, trains and walkers: their own drive clock, which moves on with the client's while the city runs and stands
+// while it's paused, so each stands still while the city is paused and picks up again when it runs. Which trips become
+// cars and which walks walkers, and whether rides board trains at all, is the step of the Cars slider the player chose
+// (CarSharePreference), read as each trips message arrives, so a smaller share starts fewer from then on and every one
+// already driving or walking finishes its route, but a car whose place a car near the view takes (add).
 export class Cars {
   private readonly road: RoadTraffic;
   private readonly trains = new Trains();
+  private readonly walkers = new Walkers();
   // The drive clock, in milliseconds, and the client's clock as it was last read, or null before then
   private clock = 0;
   private lastNow: number | null = null;
-  // The trips that arrived since the page last joined the city, those that became cars or not alike
+  // The trips and the walks that arrived since the page last joined the city, those that became cars or walkers or
+  // not alike
   private arrived = 0;
+  private walksArrived = 0;
 
   // share is the step of the Cars slider, as the player has it now, isCrossing says whether a tile of the map is a
   // level crossing, and view is the tiles the main map's view shows now
@@ -206,9 +225,10 @@ export class Cars {
     this.road = new RoadTraffic(isCrossing);
   }
 
-  // The page joined the city, at its start or again after a reconnect: the trips are counted from here
+  // The page joined the city, at its start or again after a reconnect: the trips and the walks are counted from here
   joined(): void {
     this.arrived = 0;
+    this.walksArrived = 0;
   }
 
   // A car for each trip a trips message brings that the step takes (takesTrip), which waits to appear at the trip's
@@ -225,7 +245,7 @@ export class Cars {
         continue;
       }
       const route = tripRoute(trip);
-      if (route.length > 1 && (this.carsHeld() + 1 <= cap || (this.carsHeld() === cap && farCars.giveWayTo(route)))) {
+      if (route.length > 1 && (this.moversHeld() + 1 <= cap || (this.moversHeld() === cap && farCars.giveWayTo(route)))) {
         this.road.add(route, carColour(route), this.clock);
       }
     }
@@ -245,18 +265,34 @@ export class Cars {
     const cap = carCap(step);
     for (const ride of rides) {
       if (ride[2].length > 0) {
-        this.trains.board(ride, {drive: this.clock, steps: stepClock}, () => this.carsHeld() + 1 <= cap);
+        this.trains.board(ride, {drive: this.clock, steps: stepClock}, () => this.moversHeld() + 1 <= cap);
+      }
+    }
+  }
+
+  // A walker for each walk a trips message brings that the step takes, as it takes trips (takesTrip), counted apart
+  // from them, which sets out from its first ninth at once while fewer than the step's cap drive and walk (carCap), a
+  // walker counting as a car, and is dropped with that many. A walk is two ninths or more.
+  addWalks(walks: readonly Trip[]): void {
+    const step = this.share();
+    const cap = carCap(step);
+    for (const walk of walks) {
+      const index = this.walksArrived++;
+      const route = tripRoute(walk);
+      if (takesTrip(index, step) && route.length > 1 && this.moversHeld() + 1 <= cap) {
+        this.walkers.add(route, this.clock);
       }
     }
   }
 
   // Moves the drive clock on to the client's clock now, in milliseconds, unless the city is paused, then the trains,
-  // and the cars about them
+  // the cars about them, and the walkers
   advance(now: number, paused: boolean): void {
     const elapsed = this.lastNow !== null && !paused ? Math.max(0, now - this.lastNow) : 0;
     this.lastNow = now;
     this.clock += elapsed;
 
+    this.walkers.update(this.clock);
     this.trains.update(this.clock);
     const trainTiles = new Set<number>();
     for (const train of this.trains.all) {
@@ -272,9 +308,9 @@ export class Cars {
             ...this.trains.all.map((train) => carriagesShown(train, this.clock)[0] ?? 0)];
   }
 
-  // Each car showing, and each car of each train on its path, as a view draws it
-  paintable(): PaintableCar[] {
-    const painted: PaintableCar[] = [];
+  // Each car showing, each car of each train on its path, and each walker, as a view draws it
+  paintable(): PaintableMover[] {
+    const painted: PaintableMover[] = [];
     for (const car of this.road.all) {
       if (car.state === "waiting") {
         continue;
@@ -289,12 +325,20 @@ export class Cars {
         painted.push({kind: "rail", ...square(x, y), direction});
       }
     }
+    for (const walker of this.walkers.all) {
+      const place = walkerPlace(walker, this.clock);
+      if (place !== null) {
+        painted.push({kind: "walker", ...square(place.x, place.y, WALKER_PIXELS), colour: walker.colour,
+                      dab: walker.dab});
+      }
+    }
     return painted;
   }
 
-  // How many cars are held: on the road, waiting to appear or fading, and of trains, which the cap counts
-  carsHeld(): number {
-    return this.road.count + this.trains.carriages;
+  // How many move or wait to: cars on the road, waiting to appear or fading, carriages of trains, and walkers, which the
+  // cap counts
+  moversHeld(): number {
+    return this.road.count + this.trains.carriages + this.walkers.count;
   }
 }
 
@@ -343,8 +387,8 @@ function farFrom(cars: readonly RoadCar[], tiles: TileRect): RoadCar[] {
   return far.map(({car}) => car);
 }
 
-// The square a car is drawn in, whose middle is the point of the map (x, y), in tiles
-function square(x: number, y: number): {x: number, y: number, width: number} {
-  return {x: x * SPRITE_PIXELS_PER_TILE - CAR_PIXELS / 2, y: y * SPRITE_PIXELS_PER_TILE - CAR_PIXELS / 2,
-          width: CAR_PIXELS};
+// The square a car, or a walker's dab, is drawn in, side map pixels a side, whose middle is the point of the map
+// (x, y), in tiles
+function square(x: number, y: number, side = CAR_PIXELS): {x: number, y: number, width: number} {
+  return {x: x * SPRITE_PIXELS_PER_TILE - side / 2, y: y * SPRITE_PIXELS_PER_TILE - side / 2, width: side};
 }

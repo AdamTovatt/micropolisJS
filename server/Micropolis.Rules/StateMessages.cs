@@ -403,13 +403,14 @@ namespace Micropolis.Rules
     }
 
     /// <summary>
-    /// The trips <see cref="Trips"/> offered since the last messages: the runs of routes by road, in the order they were
-    /// offered, and the rides, each from the station it gets on at to the one it gets off at, in the order they were
-    /// offered.
+    /// The trips <see cref="Trips"/> offered since the last messages: the runs of routes by road, the rides, each from
+    /// the station it gets on at to the one it gets off at, and the walks, each on the map's grid of ninths, each in the
+    /// order they were offered.
     /// </summary>
     public sealed record TripsMessage(
         [property: JsonPropertyName("routes")] IReadOnlyList<Trip> Routes,
-        [property: JsonPropertyName("rides")] IReadOnlyList<Ride> Rides) : StateMessage
+        [property: JsonPropertyName("rides")] IReadOnlyList<Ride> Rides,
+        [property: JsonPropertyName("walks")] IReadOnlyList<Trip> Walks) : StateMessage
     {
         [JsonPropertyName("type")]
         [JsonPropertyOrder(-1)]

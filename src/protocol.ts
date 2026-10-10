@@ -867,11 +867,13 @@ export type Trip = [x: number, y: number, steps: string];
 export type Ride = [x: number, y: number, steps: string, departure: number];
 
 // The trips the traffic rule completed that the city offered since its last batch: the runs by road, for the client to
-// draw as cars, and the rides, for it to draw as trains, each in the order they were offered
+// draw as cars, the rides, for it to draw as trains, and the walks, for it to draw as walkers, each in the order they
+// were offered. A walk is a trip on the map's grid of ninths (NINTHS_PER_SIDE), through two ninths or more.
 export interface TripsMessage {
   type: "trips";
   routes: Trip[];
   rides: Ride[];
+  walks: Trip[];
 }
 
 export type StateMessage = MapMessage | TilesMessage | WalkwaysMessage | SpritesMessage | DateMessage | ClockMessage |
