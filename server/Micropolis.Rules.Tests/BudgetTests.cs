@@ -28,7 +28,7 @@ namespace Micropolis.Rules.Tests
         {
             Budget budget = new Budget { CityTax = 20, TotalFunds = 1000 };
 
-            budget.CollectTax(Level.Easy, new Census { TotalPop = 3000, LandValueAverage = 250 });
+            budget.CollectTax(Level.Easy, new Census { TotalPop = 3000, LandValueAverage = 250 }, 0);
 
             Assert.AreEqual((175000L, -21608L), (budget.TaxFund, budget.CashFlow));
         }
@@ -38,7 +38,7 @@ namespace Micropolis.Rules.Tests
         {
             Budget budget = new Budget { RoadEffect = 10, PoliceEffect = 100, FireEffect = 200, TotalFunds = 1000 };
 
-            budget.CollectTax(Level.Easy, new Census { RoadTotal = 50, FireStationPop = 1 });
+            budget.CollectTax(Level.Easy, new Census { RoadTotal = 50, FireStationPop = 1 }, 0);
 
             Assert.AreEqual(
                 (Budget.MaxRoadEffect, Budget.MaxPoliceStationEffect, Budget.MaxFireStationEffect, 0L, 1000L),

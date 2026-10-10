@@ -76,7 +76,7 @@ const FULL_REPORT: TileReportAnswer = {
   policeCoverage: 8888, terrainDensity: 240, trafficDensity: 240, cityCentreScore: -64,
   growth: {
     zone: "RESIDENTIAL", x: 118, y: 98, score: -5000, outlook: "MAY_GROW_OR_DECLINE", assessedNowAndThen: true,
-    roadAtEdge: false,
+    wayAtEdge: false,
     blockers: ["NO_POWER", "LOW_DEMAND", "POLLUTION_OUTWEIGHS_LAND_VALUE", "TOO_POLLUTED", "NEIGHBOURHOOD_TOO_SPARSE"],
   },
 };
@@ -160,7 +160,7 @@ test("each window fits the screen and its box at each size, opened over a town",
   await expect(page.locator("#queryOutlook"), "the city's own zone's growth").not.toBeEmpty();
   await page.evaluate((report) => window.micropolisTestHook!.showTileReport(report), FULL_REPORT);
   await expect(page.locator("#queryBlockers li"), "every blocker").toHaveCount(FULL_REPORT.growth!.blockers.length);
-  await expect(page.locator("#queryNoRoad")).toBeVisible();
+  await expect(page.locator("#queryNoWayOut")).toBeVisible();
   await expect(page.locator("#queryNowAndThen")).toBeVisible();
   found.push(...await problemsAtEachSize(page, WINDOWS, "queryWindow"));
 

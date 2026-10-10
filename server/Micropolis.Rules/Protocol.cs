@@ -283,16 +283,26 @@ namespace Micropolis.Rules
     /// </summary>
     public readonly record struct TilePosition(
         [property: JsonPropertyName("x")] int X,
-        [property: JsonPropertyName("y")] int Y)
+        [property: JsonPropertyName("y")] int Y);
+
+    /// <summary>
+    /// The kinds of walkway a ninth of a tile holds, as <c>WALKWAY_KINDS</c> in <c>src/protocol.ts</c> lists them, in
+    /// its order, numbered from 1 as a tile's walkway value holds them (<see cref="Walkways"/>).
+    /// </summary>
+    [JsonConverter(typeof(ProtocolNameConverter<WalkwayKind>))]
+    public enum WalkwayKind
     {
-        /// <summary>
-        /// Whether the tile shares a side with the other: one tile away, across or down.
-        /// </summary>
-        public bool IsNextTo(TilePosition other)
-        {
-            return Math.Abs(X - other.X) + Math.Abs(Y - other.Y) == 1;
-        }
+        /// <summary>A path: gravel in parks and on open land, paving on road and rail.</summary>
+        [JsonStringEnumMemberName("path")] Path = 1,
     }
+
+    /// <summary>
+    /// A ninth of a tile, on the grid of <see cref="Walkways.Side"/> ninths across and down each tile: ninth (x, y) lies
+    /// in tile (x / 3, y / 3).
+    /// </summary>
+    public readonly record struct NinthPosition(
+        [property: JsonPropertyName("x")] int X,
+        [property: JsonPropertyName("y")] int Y);
 
     /// <summary>
     /// A change a player makes to the city, discriminated by its <c>type</c> field, as <c>Command</c> in
@@ -301,6 +311,7 @@ namespace Micropolis.Rules
     /// </summary>
     [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
     [JsonDerivedType(typeof(ToolCommand), "tool")]
+    [JsonDerivedType(typeof(WalkwayCommand), "walkway")]
     [JsonDerivedType(typeof(SetBudgetCommand), "setBudget")]
     [JsonDerivedType(typeof(SetSpeedCommand), "setSpeed")]
     [JsonDerivedType(typeof(SetAutoBudgetCommand), "setAutoBudget")]
@@ -318,6 +329,14 @@ namespace Micropolis.Rules
         [property: JsonPropertyName("tool")] ToolName Tool,
         [property: JsonPropertyName("path")] IReadOnlyList<TilePosition> Path,
         [property: JsonPropertyName("autoBulldoze")] bool AutoBulldoze) : Command;
+
+    /// <summary>
+    /// Walkway of the kind given laid on each ninth of the path in order, as one click each
+    /// (<see cref="WalkwayTool"/>).
+    /// </summary>
+    public sealed record WalkwayCommand(
+        [property: JsonPropertyName("kind")] WalkwayKind Kind,
+        [property: JsonPropertyName("path")] IReadOnlyList<NinthPosition> Path) : Command;
 
     /// <summary>
     /// The tax rate in percent, and the funding of each service named in whole percent of what it needs. A service

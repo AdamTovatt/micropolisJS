@@ -1,15 +1,15 @@
 {
   "checkpoints": [
-    {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"0a32290c24c915f830b7d81c0da0dd2a1d4c49ae22201888c032f01105b861ce"},
-    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"919e8d4e4899c9dba9299c7524fa16f88e66e162863f986d6886f9e002dd7d6a"},
-    {"stage":"Build while paused","step":5760,"commands":17,"hash":"5df3a4d8854aaa4c560112dbdea693262e30dedc181f6000766b634912091972"},
-    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"2f77503630d32af055eea2de9225c501a8022e7fc8908f1ccca4ff74e2e0d5ca"},
-    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"c8a012eab3059a34fd299e5b3804fb7c9b244be8cebec57c425702eb8165f48e"},
-    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"fea72952892f10e449ea449d00f6312e142542fee901013c6d713b518c7c2809"},
-    {"stage":"Rail between stations, and a train for each ride","step":9168,"commands":28,"hash":"235e0484fea7b2b4ecb32220b7ea8da092e8f114a712e38b4c62ebd03a45cc1e"},
-    {"stage":"A fire, and the fire department's response","step":11376,"commands":38,"hash":"06aec385a29610cb878a7053e127069bacced5a895ca9c1e3797dbbcf806d284"},
-    {"stage":"Save, reload, and carry on","step":12528,"commands":38,"hash":"d6685295f5b0878a611f6490776a943c71bd92a9d03ad4380957e6e25ffef0bd"},
-    {"stage":"Zoom in, build, and zoom out","step":12528,"commands":39,"hash":"5667acc3aee71069e159678354827a949de737ab5814684930e5f3c891d4a82e"}
+    {"stage":"Roads, a power plant and power lines","step":0,"commands":4,"hash":"63082c0383892cd046a2d2bac810ab721dc9463a52458af9919a0ce7c9bacfaf"},
+    {"stage":"Zone a small town and run until it has population","step":4608,"commands":12,"hash":"df1eba6e44428946c90f781a70046f91e91dbef52a43fe143572c9d297dd5075"},
+    {"stage":"Build while paused","step":5760,"commands":17,"hash":"ce180db04007319edd42d92f57c3a996bb55dbc1ff1673e43c631f631d97bbc2"},
+    {"stage":"A tool rejected for lack of funds","step":5760,"commands":19,"hash":"5647bf136bea60c4dc8bbe244c43b7cd2ad09aa0e97fc0f266eda5f454f3f2a3"},
+    {"stage":"Change the budget and tax","step":8064,"commands":22,"hash":"1254ad952cdf8745f83c91ad0c00eb4adec929f4d5299b4fa2ae98286e35b993"},
+    {"stage":"Drag a long road quickly","step":8064,"commands":23,"hash":"5183c9030d2fdfc7cd2589826fd75d40da29ff455a4b86c2816b96f102456a0e"},
+    {"stage":"Rail between stations, and a train for each ride","step":8208,"commands":28,"hash":"645040575402c27dd25d1a17d6219c5846f4c42ebdca65b7b7bf648a0e1e168f"},
+    {"stage":"A fire, and the fire department's response","step":10992,"commands":34,"hash":"1444f741718e6e447b543beaea5d47e3800b6863537eeca883addb04a026b61a"},
+    {"stage":"Save, reload, and carry on","step":12144,"commands":34,"hash":"e6753dd8aaf69f237a32d612fdecb4e19b3b4a5a214366d380649565aee790b4"},
+    {"stage":"Zoom in, build, and zoom out","step":12144,"commands":35,"hash":"b1f5400041323875e3c373c9d2354f9e01906193b709dee15d2a7a0f60ef28bf"}
   ],
   "log": {
     "formatVersion": 2,
@@ -44,25 +44,21 @@
       {"step":8064,"player":"player 1","command":{"type":"tool","tool":"rail","path":[{"x":55,"y":32},{"x":56,"y":32},{"x":57,"y":32},{"x":58,"y":32},{"x":59,"y":32},{"x":60,"y":32},{"x":61,"y":32},{"x":62,"y":32},{"x":63,"y":32},{"x":64,"y":32},{"x":65,"y":32},{"x":66,"y":32},{"x":67,"y":32},{"x":68,"y":32},{"x":69,"y":32},{"x":70,"y":32},{"x":71,"y":32},{"x":72,"y":32},{"x":73,"y":32},{"x":74,"y":32}],"autoBulldoze":true}},
       {"step":8064,"player":"player 1","command":{"type":"tool","tool":"station","path":[{"x":55,"y":32}],"autoBulldoze":true}},
       {"step":8064,"player":"player 1","command":{"type":"tool","tool":"station","path":[{"x":74,"y":32}],"autoBulldoze":true}},
-      {"step":9168,"player":"player 1","command":{"type":"triggerDisaster","kind":"fire"}},
-      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":71,"y":70}],"autoBulldoze":true}},
-      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":70,"y":68}],"autoBulldoze":true}},
-      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":69,"y":69},{"x":69,"y":68}],"autoBulldoze":true}},
-      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":68,"y":68},{"x":68,"y":67}],"autoBulldoze":true}},
-      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":67,"y":67},{"x":67,"y":66},{"x":67,"y":65},{"x":67,"y":64},{"x":67,"y":63},{"x":67,"y":62},{"x":67,"y":61}],"autoBulldoze":true}},
-      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":66,"y":61},{"x":65,"y":61}],"autoBulldoze":true}},
-      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":65,"y":60},{"x":65,"y":59}],"autoBulldoze":true}},
-      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":59},{"x":64,"y":58},{"x":64,"y":57},{"x":64,"y":56},{"x":64,"y":55},{"x":64,"y":54},{"x":64,"y":53},{"x":64,"y":52},{"x":64,"y":51},{"x":64,"y":50},{"x":64,"y":49},{"x":64,"y":48}],"autoBulldoze":true}},
-      {"step":9168,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":64,"y":47},{"x":64,"y":46},{"x":64,"y":45},{"x":64,"y":44},{"x":64,"y":43},{"x":64,"y":42},{"x":64,"y":41},{"x":64,"y":40}],"autoBulldoze":true}},
-      {"step":12528,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
+      {"step":8208,"player":"player 1","command":{"type":"triggerDisaster","kind":"fire"}},
+      {"step":8208,"player":"player 1","command":{"type":"tool","tool":"fire","path":[{"x":91,"y":40}],"autoBulldoze":true}},
+      {"step":8208,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":90,"y":38}],"autoBulldoze":true}},
+      {"step":8208,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":89,"y":40},{"x":88,"y":40},{"x":87,"y":40},{"x":86,"y":40},{"x":85,"y":40},{"x":84,"y":40},{"x":83,"y":40},{"x":82,"y":40},{"x":81,"y":40},{"x":80,"y":40},{"x":79,"y":40},{"x":78,"y":40}],"autoBulldoze":true}},
+      {"step":8208,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":77,"y":40},{"x":76,"y":40},{"x":75,"y":40}],"autoBulldoze":true}},
+      {"step":8208,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":75,"y":39},{"x":75,"y":38},{"x":75,"y":37},{"x":75,"y":36}],"autoBulldoze":true}},
+      {"step":12144,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
     ],
     "checkpoints": [
-      {"step":0,"hash":"79c02c3dfdcef4f047b321fc994f213133df73ced8875cc93342f9d5ddc11eb3"},
-      {"step":3600,"hash":"39d483910963051e502a087a3814c15abee1fe1247198ad0030eddd5a14612cc"},
-      {"step":7200,"hash":"86889b8e7f66d5700ac0ef1875d7bbb30707620ecf719746c32e7330434aae7e"},
-      {"step":10800,"hash":"eb97fa028f441ca535e1e9065ff314ea601b64a2cb7636ce0d8461a2e3502b97"},
-      {"step":11376,"hash":"06aec385a29610cb878a7053e127069bacced5a895ca9c1e3797dbbcf806d284"},
-      {"step":12528,"hash":"5667acc3aee71069e159678354827a949de737ab5814684930e5f3c891d4a82e"}
+      {"step":0,"hash":"5eba98b9d1d402a5504241d3ad52e4f651398bf83afaf52ed69ceeb554a303af"},
+      {"step":3600,"hash":"75e84cf45650ee80b98aab7cfec476011f2a28c5835c5852a0ec3e8e15f2fcae"},
+      {"step":7200,"hash":"6ce433ea45803037e4ad0ea6fa352a87f50540f568b83fe2d5a1510bd224b1ed"},
+      {"step":10800,"hash":"929b3523bd3418ebab498145f241b25e5d6c5f8f56833dfeaef314ba57747f0e"},
+      {"step":10992,"hash":"1444f741718e6e447b543beaea5d47e3800b6863537eeca883addb04a026b61a"},
+      {"step":12144,"hash":"b1f5400041323875e3c373c9d2354f9e01906193b709dee15d2a7a0f60ef28bf"}
     ]
   }
 }

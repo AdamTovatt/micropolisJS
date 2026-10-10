@@ -27,7 +27,7 @@ namespace Micropolis.Rules
 
         // As the original, the tool picks what to plant before it looks at the tile, so it draws from the stream even
         // where it can't plant. It plants only on dirt without flags, as the original compares the tile with its flags.
-        public override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
+        protected override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
         {
             int value = random.GetRandom(4);
             Tile tile = WorldEffects.GetTile(x, y);

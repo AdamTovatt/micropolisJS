@@ -37,7 +37,7 @@ namespace Micropolis.Rules
             _animated = animated;
         }
 
-        public override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
+        protected override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
         {
             Result = BuildBuilding(x, y, autoBulldoze);
         }

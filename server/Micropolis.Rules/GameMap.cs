@@ -24,6 +24,10 @@ namespace Micropolis.Rules
     {
         private readonly Tile[] _data;
 
+        // Each tile's walkway, row by row (Walkways), and how many ninths of them hold walkway
+        private readonly int[] _walkways;
+        private long _walkwayNinths;
+
         /// <summary>
         /// A map of dirt.
         /// </summary>
@@ -39,6 +43,7 @@ namespace Micropolis.Rules
             Bounds = Bounds.FromOrigin(width, height);
 
             _data = new Tile[width * height];
+            _walkways = new int[width * height];
 
             for (int i = 0; i < _data.Length; i++)
             {
@@ -87,6 +92,51 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// How many ninths of the map's tiles hold walkway.
+        /// </summary>
+        public long WalkwayNinths => _walkwayNinths;
+
+        /// <summary>
+        /// Each tile's walkway value (<see cref="Walkways"/>), row by row, top row first.
+        /// </summary>
+        public int[] WalkwayValues()
+        {
+            return (int[])_walkways.Clone();
+        }
+
+        /// <summary>
+        /// The walkway value of the tile at (x, y) (<see cref="Walkways"/>).
+        /// </summary>
+        public int GetWalkway(int x, int y)
+        {
+            return _walkways[IndexOf(x, y, nameof(GetWalkway))];
+        }
+
+        /// <summary>
+        /// The walkway value of the tile at <c>x + y * Width</c>, for a search that reads many tiles by their index.
+        /// </summary>
+        internal int WalkwayAt(int index)
+        {
+            return _walkways[index];
+        }
+
+        /// <summary>
+        /// Gives the tile at (x, y) the walkway value given (<see cref="Walkways"/>), which must be one.
+        /// </summary>
+        public void SetWalkway(int x, int y, int walkway)
+        {
+            int index = IndexOf(x, y, nameof(SetWalkway));
+
+            if (!Walkways.IsValid(walkway))
+            {
+                throw new ArgumentOutOfRangeException(nameof(walkway), walkway, $"{nameof(SetWalkway)} called with no walkway value.");
+            }
+
+            _walkwayNinths += Walkways.Count(walkway) - Walkways.Count(_walkways[index]);
+            _walkways[index] = walkway;
+        }
+
+        /// <summary>
         /// Writes the map under <c>map</c> (<see cref="SavedObject"/>).
         /// </summary>
         internal void Save(JsonObject saveData)
@@ -95,7 +145,8 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// The map as a save holds it: its size, its positions, and each tile's raw value row by row.
+        /// The map as a save holds it: its size, its positions, each tile's raw value row by row, and the walkway of each
+        /// tile that holds any, row by row.
         /// </summary>
         public JsonObject SavedObject()
         {
@@ -108,7 +159,27 @@ namespace Micropolis.Rules
                 ["width"] = Width,
                 ["height"] = Height,
                 ["tiles"] = SavedList.Of(_data.Select(tile => tile.GetRawValue())),
+                ["walkways"] = new JsonArray(WalkwayTiles().Select(tile => (JsonNode)new JsonObject
+                {
+                    ["x"] = tile.Position.X,
+                    ["y"] = tile.Position.Y,
+                    ["ninths"] = tile.Walkway,
+                }).ToArray()),
             };
+        }
+
+        /// <summary>
+        /// Each tile that holds walkway, row by row, with its walkway value (<see cref="Walkways"/>).
+        /// </summary>
+        public IEnumerable<(Position Position, int Walkway)> WalkwayTiles()
+        {
+            for (int i = 0; i < _walkways.Length; i++)
+            {
+                if (_walkways[i] != 0)
+                {
+                    yield return (new Position(i % Width, i / Width), _walkways[i]);
+                }
+            }
         }
 
         /// <summary>
@@ -135,6 +206,28 @@ namespace Micropolis.Rules
                 for (int i = 0; i < tiles.Length; i++)
                 {
                     map._data[i].SetRawValue(tiles[i]);
+                }
+
+                // Row by row, so no tile is listed twice, each holding a walkway, of kinds there are
+                int last = -1;
+
+                foreach ((Position tile, int walkway) in saved.ReadObjectList("walkways",
+                             entry => (entry.AsTile(map), entry.ReadInt("ninths", 1, Walkways.MostValue))))
+                {
+                    int index = tile.X + tile.Y * width;
+
+                    if (index <= last)
+                    {
+                        throw saved.Invalid("walkways", "lists its tiles out of order, row by row");
+                    }
+
+                    if (!Walkways.IsValid(walkway))
+                    {
+                        throw saved.Invalid("walkways", $"holds a ninth of no kind at ({tile.X}, {tile.Y})");
+                    }
+
+                    map.SetWalkway(tile.X, tile.Y, walkway);
+                    last = index;
                 }
 
                 map.CityCentreX = saved.ReadInt("cityCentreX", 0, width - 1);
@@ -312,12 +405,19 @@ namespace Micropolis.Rules
 
         private Tile GetTileAt(int x, int y, string context)
         {
+            return _data[IndexOf(x, y, context)];
+        }
+
+        // The index of the tile at (x, y), which the method named by the context was called with, and which must be on
+        // the map
+        private int IndexOf(int x, int y, string context)
+        {
             if (!TestBounds(x, y))
             {
                 throw new ArgumentOutOfRangeException(null, $"GameMap {context} called with invalid bounds {x}, {y}.");
             }
 
-            return _data[x + y * Width];
+            return x + y * Width;
         }
     }
 }

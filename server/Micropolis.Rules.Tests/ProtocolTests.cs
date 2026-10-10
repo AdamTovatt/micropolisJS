@@ -303,6 +303,7 @@ namespace Micropolis.Rules.Tests
         {
             ["map"] = typeof(MapMessage),
             ["tiles"] = typeof(TilesMessage),
+            ["walkways"] = typeof(WalkwaysMessage),
             ["sprites"] = typeof(SpritesMessage),
             ["date"] = typeof(DateMessage),
             ["clock"] = typeof(ClockMessage),

@@ -43,6 +43,7 @@ describe("the activity list's naming", () => {
         [{type: "tool", tool: "road", path: AT, autoBulldoze: true}, "Ana built a road"],
         [{type: "tool", tool: "residential", path: AT, autoBulldoze: false}, "Ana zoned residential land"],
         [{type: "tool", tool: "bulldozer", path: AT, autoBulldoze: false}, "Ana bulldozed"],
+        [{type: "walkway", kind: "path", path: AT}, "Ana laid a path"],
         [{type: "setBudget", tax: 9}, "Ana set taxes to 9%"],
         [{type: "setBudget", road: 80, police: 100, tax: 7}, "Ana set taxes to 7%, road funding to 80%, police funding to 100%"],
         [{type: "setSpeed", speed: 0}, "Ana paused the city"],
@@ -96,6 +97,7 @@ describe("the activity list's naming", () => {
     it.each<[Command, string]>([
         [{type: "tool", tool: "road", path: AT, autoBulldoze: true}, "tool:road"],
         [{type: "tool", tool: "wire", path: AT, autoBulldoze: true}, "tool:wire"],
+        [{type: "walkway", kind: "path", path: AT}, "walkway:path"],
         [{type: "triggerDisaster", kind: "fire"}, "triggerDisaster:fire"],
         [{type: "setBudget", tax: 5}, "setBudget"],
     ])("keys %j as %j, so a tool or a disaster makes a line of its own", (command, key) => {

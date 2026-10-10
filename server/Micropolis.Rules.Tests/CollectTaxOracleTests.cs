@@ -112,7 +112,7 @@ namespace Micropolis.Rules.Tests
                 RailTotal = figures.RailTotal, PoliceStationPop = figures.PoliceStationPop, FireStationPop = figures.FireStationPop,
             };
 
-            budget.CollectTax((Level)figures.GameLevel, census);
+            budget.CollectTax((Level)figures.GameLevel, census, 0);
 
             return new Outcome(budget.PoliceMaintenanceBudget, budget.FireMaintenanceBudget, budget.RoadMaintenanceBudget,
                                budget.TaxFund, budget.CashFlow);

@@ -27,7 +27,7 @@ namespace Micropolis.Rules
         {
         }
 
-        public override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
+        protected override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
         {
             if (!Map.TestBounds(x, y))
             {

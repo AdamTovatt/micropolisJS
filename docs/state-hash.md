@@ -84,6 +84,7 @@ twice, missing or unknown, or a value of the wrong type or outside the range giv
 |-----|-------|
 | `map.width`, `map.height` | The map's size in tiles |
 | `map.tiles` | One raw value per tile, row by row: the tile value (bits 0–9) combined with its flags (bits 10–15, `src/tileFlags.ts`) |
+| `map.walkways` | The walkway of each tile that holds any, row by row, each an object of `x`, `y`, a tile of the map, and `ninths`: the tile's three by three ninths, numbered row by row from its north-west corner, each holding its kind of walkway in two bits, ninth `n`'s at bit `2n`, 1 a path, and 0 none, with at least one ninth holding one (`Walkways`). A tile may hold walkway that the map scan has yet to clear from it, having become one that takes none. A save before version 16 holds none |
 | `map.cityCentreX`, `map.cityCentreY` | The population centre, a tile of the map: the average position of the zones the last population scan found, or the map's centre when it found none (`PopulationDensityScan` in `BlockMapUtils`) |
 | `map.pollutionMaxX`, `map.pollutionMaxY` | The most polluted tile, a tile of the map: one the pollution scan visits (`PollutionTerrainLandValueScan` in `BlockMapUtils`), or the map's centre before any scan |
 

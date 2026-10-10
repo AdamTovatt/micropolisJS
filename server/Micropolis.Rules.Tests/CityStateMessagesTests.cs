@@ -41,6 +41,32 @@ namespace Micropolis.Rules.Tests
             Assert.IsEmpty(messages.NewMessages());
         }
 
+        // A walkway laid sends the tile's walkway once, after the tiles, and a player who joins is sent it after the map
+        [TestMethod]
+        public void NewMessages_WalkwayChanged_SendsItOnceAfterTheTilesAndInTheWholeState()
+        {
+            Simulation city = City("suburb", "run");
+            CityStateMessages messages = new CityStateMessages(city);
+
+            city.Map.SetTileValue(3, 4, TileValues.RUBBLE);
+            city.Map.SetWalkway(5, 6, 21);
+
+            List<string> batch = Batch(messages, city);
+            Assert.HasCount(2, batch);
+            Assert.AreEqual("""{"type":"walkways","changes":[{"x":5,"y":6,"ninths":21}]}""", batch[1]);
+            Assert.IsEmpty(messages.NewMessages());
+            CollectionAssert.AreEqual(new[] { "map", "walkways" }, messages.FullState().Take(2).Select(message => message.Type).ToArray());
+        }
+
+        // A city without walkways sends a player who joins none
+        [TestMethod]
+        public void FullState_NoWalkways_SendsNoWalkwaysMessage()
+        {
+            CityStateMessages messages = new CityStateMessages(City("suburb", "run"));
+
+            Assert.IsFalse(messages.FullState().Any(message => message is WalkwaysMessage));
+        }
+
         [TestMethod]
         public void NewMessages_Sprite_SendsItWhereTheClientDrawsIt()
         {

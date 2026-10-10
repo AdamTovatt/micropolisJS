@@ -63,12 +63,12 @@ namespace Micropolis.Rules
 
             long score = Score(facts, facts.Powered);
 
-            // A trip from a zone with no road or rail on its perimeter finds no road, which declines the zone
-            bool roadAtEdge = city.TrafficManager.FindPerimeterRoad(centre) is not null;
+            // A trip from a zone with no way out at its edge finds no road, which declines the zone, unless it walks
+            bool wayAtEdge = city.TrafficManager.HasWayAtEdge(centre);
 
             return new ZoneGrowthReport(
                 Queries.ZoneCategory(tile.GetValue()), centre.X, centre.Y, score, Outlook(facts, score),
-                facts.AssessedNowAndThen, roadAtEdge, Blockers(facts));
+                facts.AssessedNowAndThen, wayAtEdge, Blockers(facts));
         }
 
         // The zone score the handler would assess the zone by, with power or without

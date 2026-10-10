@@ -49,6 +49,7 @@ namespace Micropolis.Rules
             new Dictionary<string, IReadOnlyDictionary<string, bool>>(StringComparer.Ordinal)
             {
                 ["tool"] = Fields(required: ["autoBulldoze", "path", "tool"]),
+                ["walkway"] = Fields(required: ["kind", "path"]),
                 ["setBudget"] = Fields(required: ["tax"], optional: ["fire", "police", "road"]),
                 ["setSpeed"] = Fields(required: ["speed"]),
                 ["setAutoBudget"] = Fields(required: ["on"]),
@@ -62,7 +63,7 @@ namespace Micropolis.Rules
 
         /// <summary>
         /// The longest a command may be, as the JSON text <c>JSON.stringify</c> writes for it, in UTF-16 code units:
-        /// room for a tool command whose path covers the whole map.
+        /// room for a tool command whose path covers the whole map, and so for a walkway command of as many ninths.
         /// </summary>
         public static int MaxCommandLength(int width, int height)
         {
@@ -115,6 +116,7 @@ namespace Micropolis.Rules
             return type switch
             {
                 "tool" => ReadTool(fields, width, height),
+                "walkway" => ReadWalkway(fields, width, height),
                 "setBudget" => ReadSetBudget(fields),
                 "setSpeed" => TryGetWholeNumberIn(fields["speed"], 0, MaxSpeed, out long speed)
                     ? new AcceptedCommand(new SetSpeedCommand((Speed)speed))
@@ -173,47 +175,71 @@ namespace Micropolis.Rules
                 return new RejectedCommand("autoBulldoze is true or false");
             }
 
-            string? pathReason = ReadPath(fields["path"], width, height, out List<TilePosition> path);
+            // A path longer than the map has tiles must revisit one
+            string? pathReason = ReadPath(fields["path"], width, height, width * height, "tool", "tile", "map",
+                                          (x, y) => new TilePosition(x, y), out List<TilePosition> path);
 
-            return pathReason is null ? new AcceptedCommand(new ToolCommand(tool, path, autoBulldoze)) : new RejectedCommand(pathReason);
+            return pathReason is null
+                ? new AcceptedCommand(new ToolCommand(tool, path, autoBulldoze))
+                : new RejectedCommand(pathReason);
         }
 
-        private static string? ReadPath(JsonNode? value, int width, int height, out List<TilePosition> path)
+        private static CommandReading ReadWalkway(JsonObject fields, int width, int height)
         {
-            path = new List<TilePosition>();
-
-            // A path longer than the map has tiles must revisit one
-            if (value is not JsonArray tiles || tiles.Count == 0 || tiles.Count > width * height)
+            if (!TryGetName(fields["kind"], out WalkwayKind kind))
             {
-                return $"a tool's path is a list of 1 to {width * height} tiles";
+                return new RejectedCommand($"the walkway is one of {string.Join(", ", ProtocolJson.Names<WalkwayKind>())}");
             }
 
-            for (int i = 0; i < tiles.Count; i++)
+            // At most as many ninths as the map has tiles, which a command within MaxCommandLength holds: a drag sends a
+            // few ninths at a time, and nothing lays the map's every ninth in one command
+            string? pathReason = ReadPath(fields["path"], Walkways.Side * width, Walkways.Side * height, width * height,
+                                          "walkway", "ninth", "map's grid of ninths", (x, y) => new NinthPosition(x, y),
+                                          out List<NinthPosition> path);
+
+            return pathReason is null
+                ? new AcceptedCommand(new WalkwayCommand(kind, path))
+                : new RejectedCommand(pathReason);
+        }
+
+        // A path of at most the places given on a grid width by height, each a step across or down from the last, which
+        // the command names, each place by the unit given, on the grid named, and made by the factory from its x and y
+        private static string? ReadPath<TPlace>(JsonNode? value, int width, int height, int mostPlaces, string command,
+                                                string unit, string grid, Func<int, int, TPlace> placeAt, out List<TPlace> path)
+        {
+            path = new List<TPlace>();
+            int lastX = 0;
+            int lastY = 0;
+
+            if (value is not JsonArray places || places.Count == 0 || places.Count > mostPlaces)
             {
-                if (tiles[i] is not JsonObject tile || !HasFields(tile, TileFields, null) ||
-                    !TryGetWholeNumber(tile["x"], out double x) || !TryGetWholeNumber(tile["y"], out double y))
+                return $"a {command}'s path is a list of 1 to {mostPlaces} {unit}s";
+            }
+
+            for (int i = 0; i < places.Count; i++)
+            {
+                if (places[i] is not JsonObject place || !HasFields(place, TileFields, null) ||
+                    !TryGetWholeNumber(place["x"], out double x) || !TryGetWholeNumber(place["y"], out double y))
                 {
-                    return $"tile {i} of the path is not an {{x, y}} of whole numbers";
+                    return $"{unit} {i} of the path is not an {{x, y}} of whole numbers";
                 }
 
                 if (x < 0 || x > width - 1 || y < 0 || y > height - 1)
                 {
-                    return $"tile {i} of the path, ({CanonicalJson.FormatNumber(x)}, {CanonicalJson.FormatNumber(y)}), is off the {width}x{height} map";
+                    return $"{unit} {i} of the path, ({CanonicalJson.FormatNumber(x)}, {CanonicalJson.FormatNumber(y)}), is off the {width}x{height} {grid}";
                 }
 
-                TilePosition position = new TilePosition((int)x, (int)y);
+                int placeX = (int)x;
+                int placeY = (int)y;
 
-                if (i > 0)
+                if (i > 0 && Math.Abs(placeX - lastX) + Math.Abs(placeY - lastY) != 1)
                 {
-                    TilePosition last = path[i - 1];
-
-                    if (!position.IsNextTo(last))
-                    {
-                        return $"tile {i} of the path, ({position.X}, {position.Y}), is not next to the tile before it, ({last.X}, {last.Y})";
-                    }
+                    return $"{unit} {i} of the path, ({placeX}, {placeY}), is not next to the {unit} before it, ({lastX}, {lastY})";
                 }
 
-                path.Add(position);
+                path.Add(placeAt(placeX, placeY));
+                lastX = placeX;
+                lastY = placeY;
             }
 
             return null;

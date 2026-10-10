@@ -20,7 +20,11 @@ namespace Micropolis.Rules
     /// </summary>
     public enum TrafficResult
     {
-        NoRoadFound = -1,
+        /// <summary>
+        /// No way out of the zone: no road, station or walkway at its edge, none within a walk across open land of it,
+        /// and no destination that walk reaches; the original's trip found no road.
+        /// </summary>
+        NoWayOut = -1,
         NoRouteFound = 0,
         RouteFound = 1,
 
@@ -88,10 +92,12 @@ namespace Micropolis.Rules
         private static readonly int[] PerimX = [-1, 0, 1, 2, 2, 2, 1, 0, -1, -2, -2, -2];
         private static readonly int[] PerimY = [-2, -2, -2, -1, 0, 1, 2, 2, 2, 1, 0, -1];
 
-        /// <summary>
-        /// The farthest a tile of a zone's perimeter (<see cref="Perimeter"/>) lies from its centre, across or down.
-        /// </summary>
-        internal static readonly int PerimeterReach = Math.Max(PerimX.Max(Math.Abs), PerimY.Max(Math.Abs));
+        // The side of each tile of the perimeter that faces the zone, numbered as TileUtils.NorthSide says
+        private static readonly int[] PerimFacing =
+        [
+            TileUtils.SouthSide, TileUtils.SouthSide, TileUtils.SouthSide, TileUtils.WestSide, TileUtils.WestSide, TileUtils.WestSide,
+            TileUtils.NorthSide, TileUtils.NorthSide, TileUtils.NorthSide, TileUtils.EastSide, TileUtils.EastSide, TileUtils.EastSide,
+        ];
 
         // The heaviest traffic a block holds, and the traffic one trip adds to the block of each road tile it takes. A
         // change from the original, whose drive added 50 to every other tile it took: a routed trip runs longer and
@@ -264,12 +270,54 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
+        /// Whether the zone centred at <paramref name="position"/> has a way out at its edge: a road or rail on its
+        /// perimeter (<see cref="FindPerimeterRoad"/>), or a walkway on a ninth of a tile of its perimeter along the side
+        /// facing the zone, which gives the zone access as a road there does.
+        /// </summary>
+        public bool HasWayAtEdge(Position position)
+        {
+            if (FindPerimeterRoad(position) is not null)
+            {
+                return true;
+            }
+
+            foreach ((Position tile, int facing) in PerimeterFacing(_map, position))
+            {
+                if (LeadsOut(Walkways.UsableMask(_map.GetWalkway(tile.X, tile.Y), _map.GetTileValue(tile.X, tile.Y)), facing))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Whether ninths of walkway on a tile of a zone's perimeter, the walker's to use, lead out of the zone: one of them
+        /// lies along the tile's side facing it, numbered as <see cref="TileUtils.NorthSide"/> says.
+        /// </summary>
+        internal static bool LeadsOut(int ninths, int facing)
+        {
+            return Walkways.Edge(ninths, facing) != 0;
+        }
+
+        /// <summary>
         /// The tiles on the perimeter of the zone centred at <paramref name="position"/> that are on the map, in the
         /// order <see cref="FindPerimeterRoad"/> searches them for a road.
         /// </summary>
         public static IReadOnlyList<Position> Perimeter(GameMap map, Position position)
         {
-            List<Position> perimeter = new List<Position>();
+            return PerimeterFacing(map, position).Select(tile => tile.Tile).ToList();
+        }
+
+        /// <summary>
+        /// The tiles on the perimeter of the zone centred at <paramref name="position"/> that are on the map, in the
+        /// order <see cref="Perimeter"/> gives them, each with its side that faces the zone, numbered as
+        /// <see cref="TileUtils.NorthSide"/> says.
+        /// </summary>
+        public static IReadOnlyList<(Position Tile, int Facing)> PerimeterFacing(GameMap map, Position position)
+        {
+            List<(Position Tile, int Facing)> perimeter = new List<(Position Tile, int Facing)>();
 
             for (int i = 0; i < PerimX.Length; i++)
             {
@@ -278,7 +326,7 @@ namespace Micropolis.Rules
 
                 if (map.TestBounds(xx, yy))
                 {
-                    perimeter.Add(new Position(xx, yy));
+                    perimeter.Add((new Position(xx, yy), PerimFacing[i]));
                 }
             }
 

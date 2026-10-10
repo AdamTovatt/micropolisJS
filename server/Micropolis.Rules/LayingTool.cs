@@ -36,7 +36,7 @@ namespace Micropolis.Rules
         /// </summary>
         protected abstract long WaterCost { get; }
 
-        public sealed override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
+        protected sealed override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
         {
             Result = Lay(x, y, autoBulldoze);
         }

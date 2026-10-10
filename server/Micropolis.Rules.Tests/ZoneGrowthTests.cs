@@ -246,18 +246,18 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         [DataRow(true)]
         [DataRow(false)]
-        public void Report_RoadAtEdge_IsWhetherTheZonesTripFindsARoad(bool road)
+        public void Report_WayAtEdge_IsWhetherTheZonesTripFindsARoad(bool road)
         {
             ZoneKind zone = Kinds["residential"];
             Simulation city = City(zone, city => RoadAtEdge(city, road));
 
-            Assert.AreEqual(road, Report(city).RoadAtEdge);
-            Assert.AreEqual(road, Seeds.Trip(city.Map, city.BlockMaps, ZoneX, ZoneY, zone.Destination, RandomStream.FromSeed(1)) != TrafficResult.NoRoadFound);
+            Assert.AreEqual(road, Report(city).WayAtEdge);
+            Assert.AreEqual(road, Seeds.Trip(city.Map, city.BlockMaps, ZoneX, ZoneY, zone.Destination, RandomStream.FromSeed(1)) != TrafficResult.NoWayOut);
         }
 
         // Without its road, the trip a built-up home zone makes declines it
         [TestMethod]
-        public void ResidentialFound_NoRoadAtEdge_TheTripDeclinesTheZone()
+        public void ResidentialFound_NoWayAtEdge_TheTripDeclinesTheZone()
         {
             ZoneKind zone = Kinds["residential"];
             Simulation city = City(zone, city => RoadAtEdge(city, false));
@@ -398,13 +398,17 @@ namespace Micropolis.Rules.Tests
             }
         }
 
-        // A home zone of the lowest built density, with its road or without
+        // A home zone of the lowest built density, with its road or without: without, rubble, which no one walks across,
+        // lies all round its edge, so it has no way out, not even a walk to its destination beside it
         private static void RoadAtEdge(Simulation city, bool road)
         {
             ZoneUtils.PutZone(city.Map, ZoneX, ZoneY, RZB, true);
             if (!road)
             {
-                city.Map.SetTile(RoadX, RoadY, DIRT, 0);
+                foreach (Position tile in Traffic.Perimeter(city.Map, new Position(ZoneX, ZoneY)))
+                {
+                    city.Map.SetTile(tile.X, tile.Y, RUBBLE, TileFlags.BULLBIT);
+                }
             }
         }
 

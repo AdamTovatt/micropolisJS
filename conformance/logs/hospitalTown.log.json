@@ -46,7 +46,7 @@
     {"step":0,"player":"local","command":{"type":"setSpeed","speed":3}}
   ],
   "checkpoints": [
-    {"step":0,"hash":"c263f1181f0985d2da46c940f911adc5235d6c4cfbfc3299943ab0c93fb422c3"},
-    {"step":6912,"hash":"286fd40e9814459176913500da4662a876199015eacc9ac1d2ba74baba3b865b"}
+    {"step":0,"hash":"4bcc9c7cf0edb9a1978a1340d9d3deb0d90af5e9df69df7b1852b96a1ce7ec0c"},
+    {"step":6912,"hash":"048a8ebc0473872eeba5f51dcbc48b531d85bd08df21f98ffba7f56c344ffcc7"}
   ]
 }

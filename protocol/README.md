@@ -195,10 +195,11 @@ each query as it receives it (`Queries` in `server/Micropolis.Rules`) and answer
   assess it by; `outlook`, where it stands by what its handler can do with it, `LIKELY_TO_GROW` where it can grow and
   never declines, `MAY_GROW_OR_DECLINE` where it can do both, `HOLDS_STEADY` where it can do neither and
   `LIKELY_TO_DECLINE` where it can decline and never grows; `assessedNowAndThen`, whether its handler assesses it only
-  now and then, rather than each time the map scan finds it, as it does an empty home zone; `roadAtEdge`, whether a
-  road or rail lies on its perimeter, without which the next trip its people make declines it, though a zone with no
-  people makes none; and `blockers`, what holds back its growth, codes `src/protocol.ts` lists, with what each means,
-  in the order an answer gives them. The answer carries no display text: the client sorts the values into the bands
+  now and then, rather than each time the map scan finds it, as it does an empty home zone; `wayAtEdge`, whether a
+  road or rail lies on its perimeter, or a walkway on a ninth of a perimeter tile along the side facing the zone,
+  without which the next trip its people make declines it, unless a walk across open land reaches a station, a
+  walkway or its destination, though a zone with no people makes none; and `blockers`, what holds back its growth,
+  codes `src/protocol.ts` lists, with what each means, in the order an answer gives them. The answer carries no display text: the client sorts the values into the bands
   it shows, and the codes are the client's to word.
 - `budgetForecast` may name `road`, `fire` and `police`, each a whole percent from 0 to 100 of what that service
   needs, and `tax`, a whole percent from 0 to 20, as `setBudget` does, and is answered with `budget`, the budget now
@@ -245,7 +246,8 @@ codes it uses.
 
 A state message is what the city sends the client about itself: a JSON object whose `type` field names it. The client
 shows the city from these and nothing else, through its city source (`src/citySource.ts`). It keeps its own copy of
-the map, built from the full map the city sends when it starts, and kept up to date by the tile changes after it. The
+the map and its walkways, built from the full map and walkways the city sends when it starts, and kept up to date by
+the tile and walkway changes after it. The
 city sends what changed in batches, after the steps: one after each turn of its loop that applied commands or took
 steps, however many steps the turn took, and one after each call of the end-to-end runner's driver that applies
 commands or takes steps. The sprites, the date, the population and the records go only when they differ from what it
@@ -254,14 +256,20 @@ published since the batch before. A batch announces each recomputed layer at mos
 often the turn recomputed it. The events, `news`, `commandResult`, `budgetReviewDue` and `overlayUpdated`, go in the
 order they came, then the step clock, `clock`, and `trips` last. Every batch carries the step clock, which moves every
 step, but none is sent for it alone: a turn that changed nothing else a player is sent sends no batch. A city that
-starts sends the whole map, the sprites, the date, the population and the `evaluation`, `budget` and `settings`
-records (see Records), and the step clock, then the rest as they come; a player who joins is sent no trips offered
-before.
+starts sends the whole map, the walkways if it has any, the sprites, the date, the population and the `evaluation`,
+`budget` and `settings` records (see Records), and the step clock, then the rest as they come; a player who joins is
+sent no trips offered before. A batch's `tiles` and `walkways` come first, in that order.
 
 - `map` is the whole map: `width` and `height`, in tiles, and `tiles`, each tile's raw value with its flags, row by
-  row, top row first.
+  row, top row first. The map it starts holds no walkways.
 - `tiles` lists the tiles whose raw value changed since the last `map` or `tiles` message, in `changes`, each
   `{"x", "y", "value"}`.
+- `walkways` lists the tiles whose walkway changed since the last `map` or `walkways` message, in `changes`, each
+  `{"x", "y", "ninths"}`, row by row; after a `map`, every tile that holds any. A tile is a grid of three by three
+  ninths, numbered row by row from its north-west corner, and `ninths` holds each ninth's kind of walkway in two bits,
+  ninth `n`'s at bit `2n`: 1 a path, and 0 none (`WALKWAY_KINDS` in `src/protocol.ts`, numbered from 1). Walkway is
+  laid on bare land, a park, road and rail, bridges and crossings among them, but no station and not the wild woods,
+  and the map scan clears it from a tile that has become one that takes none, until which a walker never uses it.
 - `sprites` lists every sprite on the map, in `sprites`, each `{"type", "frame", "x", "y", "width"}`: its type, which
   is its row of the sprite sheet, and its frame, its column, both counted from 1, the first row the trains', which the
   client draws from rides and no city sends; and the square it is drawn in,
@@ -293,7 +301,8 @@ before.
 - `trips` lists the trips the city offered since the batch before: in `routes`, the runs by road, for the client to
   draw as cars, and in `rides`, the rides by rail, for it to draw as trains, each in the order it offered them. The
   traffic rule finds a zone a route, from a tile of the zone's perimeter to the tile beside its destination, which goes
-  by road, rides rail from a station to a station, and walks a few tiles to or from a station. A run by road is a run
+  by road, rides rail from a station to a station, and walks along walkways and a few tiles across open land at each
+  end. A run by road is a run
   of the route by road (road, a road bridge, or road crossing rail or a power line), of two tiles or more and as long
   as the route goes by road; a ride is a run of it by rail, from the station it gets on at to the one it gets off at,
   through any station between. A run is written `[x, y, "steps"]`: the tile it starts on, then a letter for each step

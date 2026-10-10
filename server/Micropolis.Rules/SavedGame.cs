@@ -174,6 +174,9 @@ namespace Micropolis.Rules
                 blockMaps["railLoadFromNorthOrWestMap"] = fromNorthOrWest;
                 blockMaps["railLoadFromSouthOrEastMap"] = fromSouthOrEast;
             },
+
+            // From version 15: walkways on ninths of a tile, of which a city saved before holds none
+            savedGame => Group(savedGame, "map")["walkways"] = new JsonArray(),
         ];
 
         // The type the original's train, the first of its sprites, had, which the game saved until version 14

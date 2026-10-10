@@ -240,14 +240,14 @@ namespace Micropolis.Headless
             return reports;
         }
 
-        // Whether the growth meets an outlook, a blocker or a want of a road at its edge that no report before it met,
+        // Whether the growth meets an outlook, a blocker or a want of a way out at its edge that no report before it met,
         // noting each it meets
         private static bool IsNew(ZoneGrowthReport growth, HashSet<string> growthsMet)
         {
             List<string> met = [ProtocolJson.Name(growth.Outlook), .. growth.Blockers.Select(ProtocolJson.Name)];
-            if (!growth.RoadAtEdge)
+            if (!growth.WayAtEdge)
             {
-                met.Add("no road");
+                met.Add("no way out");
             }
 
             bool isNew = false;
@@ -331,7 +331,7 @@ namespace Micropolis.Headless
                              $"a tile report of a zone whose growth is {ProtocolJson.Name(outlook)}");
             }
 
-            EnsureCovers(growths.Any(growth => !(bool)growth["roadAtEdge"]!), "a tile report of a zone with no road at its edge");
+            EnsureCovers(growths.Any(growth => !(bool)growth["wayAtEdge"]!), "a tile report of a zone with no way out at its edge");
             EnsureCovers(growths.Any(growth => growth["blockers"]!.AsArray().Count > 1), "a tile report of a zone held back by more than one thing");
             EnsureCovers(forecasts.Any(forecast => (double)forecast["fundsChange"]! < 0), "a forecast of a year that takes funds away");
             EnsureCovers(forecasts.Any(forecast => ShortfallOf(forecast) == Shortfall.Partly), "a forecast of a year whose cash pays only some of the services");

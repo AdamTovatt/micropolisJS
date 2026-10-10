@@ -60,14 +60,18 @@ namespace Micropolis.Rules.Tests
         }
 
         // North from the perimeter by road over (9, 8) and a level crossing at (9, 7), riding from a station at (9, 6)
-        // through a level crossing at (9, 4) to a station at (9, 3), then walking east over (10, 3) and (11, 3) to beside
-        // a destination centred at (13, 3). The trip's traffic reaches the block of each tile it drives, the crossing
-        // it drives over included, and its riders each tile it rides, the crossing it rides through included; where it
-        // walks it adds neither. (9, 7) shares its block with the station at (9, 6), and (9, 4) with (9, 5).
+        // through a level crossing at (9, 4) to a station at (9, 3), then walking east along a path over (10, 3) and
+        // (11, 3) to beside a destination centred at (13, 3), with no open land to walk across. The trip's traffic
+        // reaches the block of each tile it drives, the crossing it drives over included, and its riders each tile it
+        // rides, the crossing it rides through included; where it walks it adds neither. (9, 7) shares its block with the
+        // station at (9, 6), and (9, 4) with (9, 5).
         [TestMethod]
         public void MakeTraffic_RouteByRoadRailAndOnFoot_AddsTrafficWhereItDrivesAndRidersWhereItRides()
         {
             GameMap map = new GameMap(120, 100);
+            Ground.NoOpenLand(map);
+            Ground.OpenLand(map, [new Position(RoadX + 1, StartY - 5), new Position(RoadX + 2, StartY - 5)]);
+            Ground.Path(map, [new Position(RoadX + 1, StartY - 5), new Position(RoadX + 2, StartY - 5)], Ground.AcrossTheMiddle);
             map.SetTile(RoadX, StartY, ROADS, TileFlags.BLBNBIT);
             map.SetTile(RoadX, StartY - 1, HRAILROAD, TileFlags.BLBNBIT);
             map.SetTile(RoadX, StartY - 2, VRAILSTATION, TileFlags.BLBNBIT);
@@ -94,12 +98,15 @@ namespace Micropolis.Rules.Tests
 
         // The same line the other way: from the south perimeter by road over (9, 12) and a level crossing at (9, 13),
         // riding south from a station at (9, 14) through a level crossing at (9, 16) to a station at (9, 17), then
-        // walking east to beside a destination centred at (13, 17). Its riders are the load of each tile from the north
-        // or west, so trains each way along a line go on tracks of their own.
+        // walking east along a path to beside a destination centred at (13, 17). Its riders are the load of each tile
+        // from the north or west, so trains each way along a line go on tracks of their own.
         [TestMethod]
         public void MakeTraffic_RideSouth_AddsToTheLoadFromTheNorthOrWest()
         {
             GameMap map = new GameMap(120, 100);
+            Ground.NoOpenLand(map);
+            Ground.OpenLand(map, [new Position(RoadX + 1, ZoneY + 7), new Position(RoadX + 2, ZoneY + 7)]);
+            Ground.Path(map, [new Position(RoadX + 1, ZoneY + 7), new Position(RoadX + 2, ZoneY + 7)], Ground.AcrossTheMiddle);
             map.SetTile(RoadX, ZoneY + 2, ROADS, TileFlags.BLBNBIT);
             map.SetTile(RoadX, ZoneY + 3, HRAILROAD, TileFlags.BLBNBIT);
             map.SetTile(RoadX, ZoneY + 4, VRAILSTATION, TileFlags.BLBNBIT);
@@ -143,14 +150,19 @@ namespace Micropolis.Rules.Tests
         }
 
         // A line from a station at (9, 16) north to one at (9, 13). Trips from a zone centred at (10, 20) ride it north,
-        // by road to the first, to beside a destination centred at (13, 13); a trip from one centred at (9, 10) rides it
-        // south, by road at (9, 12) to the second, to beside a destination centred at (6, 16), built once the line is
-        // full north. The router refuses the trips north once the traffic rule has filled the line's load that way, ride
-        // by ride, and still sends the trip south down it: the load the rule adds to is the load the router reads.
+        // by road to the first, and along a path to beside a destination centred at (13, 13); a trip from one centred at
+        // (9, 10) rides it south, by road at (9, 12) to the second, and along a path at (8, 16) to beside a destination
+        // centred at (6, 16), built once the line is full north, with no open land to walk across. The router refuses
+        // the trips north once the traffic rule has filled the line's load that way, ride by ride, and still sends the
+        // trip south down it: the load the rule adds to is the load the router reads.
         [TestMethod]
         public void MakeTraffic_LineFullOneWay_RefusesRidesThatWayAndStillRidesTheOther()
         {
             GameMap map = new GameMap(120, 100);
+            Ground.NoOpenLand(map);
+            List<Position> paths = [new Position(10, 13), new Position(11, 13), new Position(8, 16)];
+            Ground.OpenLand(map, paths);
+            Ground.Path(map, paths, Ground.AcrossTheMiddle);
             map.SetTile(9, 18, ROADS, TileFlags.BLBNBIT);
             map.SetTile(9, 17, ROADS, TileFlags.BLBNBIT);
             map.SetTile(9, 16, VRAILSTATION, TileFlags.BLBNBIT);
@@ -197,11 +209,13 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(3, busier.CopyValues().Count(riders => riders != 0));
         }
 
-        // Each ride adds its riders to a tile up to the full load the way it goes, and no further
+        // Each ride adds its riders to a tile up to the full load the way it goes, and no further, with no open land to
+        // walk to the destination across
         [TestMethod]
         public void MakeTraffic_RideOntoATileNearlyFull_FillsItNoFurther()
         {
             GameMap map = new GameMap(120, 100);
+            Ground.NoOpenLand(map);
             map.SetTile(RoadX, StartY, ROADS, TileFlags.BLBNBIT);
             map.SetTile(RoadX, StartY - 1, VRAILSTATION, TileFlags.BLBNBIT);
             map.SetTile(RoadX, StartY - 2, VRAILSTATION, TileFlags.BLBNBIT);
@@ -250,7 +264,7 @@ namespace Micropolis.Rules.Tests
 
         // With no road or rail on its perimeter a zone has no road; with one that reaches no destination, no route
         [TestMethod]
-        [DataRow(false, TrafficResult.NoRoadFound)]
+        [DataRow(false, TrafficResult.NoWayOut)]
         [DataRow(true, TrafficResult.NoRouteFound)]
         public void MakeTraffic_NoDestinationReached_SaysWhetherThereWasARoad(bool road, TrafficResult expected)
         {
@@ -264,7 +278,7 @@ namespace Micropolis.Rules.Tests
         }
 
         [TestMethod]
-        [DataRow(TrafficResult.NoRoadFound, 0)]
+        [DataRow(TrafficResult.NoWayOut, 0)]
         [DataRow(TrafficResult.NoRouteFound, 0)]
         [DataRow(TrafficResult.RouteFound, 0)]
         [DataRow(TrafficResult.SlowRoute, Traffic.SlowTripPenalty)]
@@ -298,10 +312,12 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(inside, range.Contains(tileValue));
         }
 
-        // A road of two tiles north from the perimeter, its second beside a commercial zone and alone in its block
+        // A road of two tiles north from the perimeter, its second beside a commercial zone and alone in its block, with no
+        // open land to walk to the zone across
         private static GameMap TwoTileRoadToCommerce()
         {
             GameMap map = new GameMap(120, 100);
+            Ground.NoOpenLand(map);
             map.SetTile(RoadX, StartY, ROADS, 0);
             map.SetTile(RoadX, StartY - 1, ROADS, 0);
             map.PutZone(RoadX, StartY - 3, COMCLR, 3);

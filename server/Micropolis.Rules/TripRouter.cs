@@ -40,32 +40,47 @@ namespace Micropolis.Rules
     /// <para>
     /// The search knows how a route goes over each tile, so it keeps a route to a tile for each way of going over it.
     /// A route by road goes on along road, and gets on a train only at a station; a route riding goes on along rail,
-    /// through any station, and gets off only at one, onto road or on foot. A route may walk at most
-    /// <see cref="MostWalkedTiles"/> tiles at each end, over any tile but water: from the zone's perimeter to a
-    /// station it gets on at, and from a station it gets off at to beside its destination; it walks nowhere else. A
-    /// level crossing carries a route by road across it and a route riding along it, neither changing how it goes. A
-    /// route arrives beside its destination by road, on foot, or at a station it gets off at; a route riding through
-    /// a station, or one that has only got on there, does not arrive. A ride goes on only where the track joins, from a
-    /// side its tile's track leaves by onto a tile whose track leaves by the side facing (<see cref="TileUtils.RailEnds"/>),
-    /// so it follows the track round its curves and through a station along it; a route by road gets on from any side,
-    /// and one getting off goes any way. Getting on costs <see cref="BoardingCost"/>, for the wait for a departure, and
-    /// every tile of rail a ride goes over, the station it gets on at included, costs what its rail load costs the way
-    /// the ride goes over it (<see cref="BlockMaps.RailLoad"/>), each tile carrying a track each way.
+    /// through any station, and gets off only at one, onto road, onto a walkway or onto open land. A car is got into only
+    /// at the zone's edge or off a train, never off a walkway or open land, and driving pays <see cref="DriveStartCost"/>
+    /// to start, for getting to the car and parking it, as getting on a train pays <see cref="BoardingCost"/>; so short
+    /// trips walk, and long ones drive. A level crossing carries a route by road across it and a route riding along it,
+    /// neither changing how it goes. A ride goes on only where the track joins, from a side its tile's track leaves by
+    /// onto a tile whose track leaves by the side facing (<see cref="TileUtils.RailEnds"/>), so it follows the track
+    /// round its curves and through a station along it; a route by road or on foot gets on from any side, and one
+    /// getting off goes any way. Every tile of rail a ride goes over, the station it gets on at included, costs what its
+    /// rail load costs the way the ride goes over it (<see cref="BlockMaps.RailLoad"/>), each tile carrying a track each
+    /// way.
+    /// </para>
+    /// <para>
+    /// A route on foot goes along the walkways (<see cref="Walkways"/>). The walkway on a tile splits into the pieces its
+    /// ninths form, each a place of its own to the search, so sidewalks either side of a road join only by a crossing;
+    /// a route goes from a piece onto a piece of the tile beside where their ninths touch across the tiles' edge, and
+    /// each step costs <see cref="PathCost"/>, however many walk it. A walkway with a ninth along the side of a tile of a
+    /// zone's perimeter facing the zone is a way out of the zone, as a road there is, and a route on foot arrives beside a
+    /// zone from a piece with a ninth along the side facing it, and gets on a train from a piece with a ninth along the
+    /// side facing the station. At each end of a trip a route may also walk across open land without a path
+    /// (<see cref="Walkways.IsOpenLand"/>), at most <see cref="MostWalkedTiles"/> tiles, each step costing
+    /// <see cref="OpenLandCost"/>: from the zone's perimeter to a station or a walkway, and from a station or a walkway
+    /// to beside its destination; crossing a road or rail takes a crossing. A trip may be one such walk alone, of at most
+    /// <see cref="MostWalkedTiles"/> tiles, from the zone's perimeter to beside its destination. A step across open land
+    /// costs more than <see cref="SlowCostPerTile"/>, so a long walk across it comes out slow: a town whose zones reach
+    /// each other only across open land grows, but held back, and outgrows it fast.
     /// </para>
     /// <para>
     /// The search settles routes in order of cost, and keeps only the cheapest route to each tile for each way of
     /// going over it. A route gives way only to a cheaper one, or, unless it is a route's first tile, to one as cheap
     /// whose last step comes from a neighbour earlier in north, east, south, west, or from the same neighbour going over
-    /// it a way earlier in road, boarding, riding, walking out, then walking in one, two and three tiles; a destination's
-    /// goal is the cheapest route beside it, and of two as cheap the one ending on the first tile row by row, then the
-    /// way earlier in that order; so ties break the same way every run. A route goes no further than its <see cref="MaxRouteTiles"/>th
-    /// tile, and where the cheapest route to a tile ends there, the search goes no further from that tile, though a
-    /// dearer, shorter route to it could have: it may miss a destination such a route would reach, and a route it
-    /// finds is the cheapest only among those the cut leaves. So it is deterministic, but not exact over every route
-    /// within the cut. All its arithmetic is on whole numbers, and it draws from the stream once a trip, to pick. It
-    /// holds no state between searches: what entering a tile costs and which zone's footprint holds it, a search reads
-    /// from the map, the traffic density and the rail load as they are the first time it asks, and its buffers are
-    /// scratch, which each search starts afresh.
+    /// it a way earlier in road, boarding, riding, walking out, on each piece of walkway in the order of its first ninth,
+    /// then walking in one tile, two, and on; a destination's goal is the cheapest route beside it, and of two as cheap
+    /// the one ending on the first tile row by row, then the way earlier in that order; so ties break the same way every
+    /// run. A route goes no further than its <see cref="MaxRouteTiles"/>th tile, and where the cheapest route to a tile
+    /// ends there, the search goes no further from that tile, though a dearer, shorter route to it could have: it may
+    /// miss a destination such a route would reach, and a route it finds is the cheapest only among those the cut
+    /// leaves. So it is deterministic, but not exact over every route within the cut. All its arithmetic is on whole
+    /// numbers, and it draws from the stream once a trip, to pick. It holds no state between searches: what entering a
+    /// tile costs and which zone's footprint holds it, a search reads from the map, the walkways, the traffic density
+    /// and the rail load as they are the first time it asks, and its buffers are scratch, which each search starts
+    /// afresh.
     /// </para>
     /// </remarks>
     internal sealed class TripRouter
@@ -76,9 +91,9 @@ namespace Micropolis.Rules
         public const int MaxRouteTiles = 60;
 
         /// <summary>
-        /// What a route may cost for each tile of the straight run between its ends before it is slow: between a clear
-        /// road's <see cref="RoadCost"/> and a road at the heaviest traffic, so a route along jammed roads is slow, as is
-        /// one that goes far round.
+        /// What a route may cost for each tile of the straight run between its ends, past <see cref="SlowAllowance"/>,
+        /// before it is slow: between a clear road's <see cref="RoadCost"/> and a road at the heaviest traffic, so a route
+        /// along jammed roads is slow, as is one that goes far round.
         /// </summary>
         public const int SlowCostPerTile = 6;
 
@@ -97,6 +112,18 @@ namespace Micropolis.Rules
         public const int BoardingCost = 3 * RoadCost;
 
         /// <summary>
+        /// What starting to drive adds to the route, at the zone's edge or off a train, for getting to the car and
+        /// parking it: as much as getting on a train, so a trip drives only some way.
+        /// </summary>
+        public const int DriveStartCost = BoardingCost;
+
+        /// <summary>
+        /// What a route may cost past <see cref="SlowCostPerTile"/> for each tile of its straight run before it is slow:
+        /// a start, so a short drive is not slow for the car it starts.
+        /// </summary>
+        public const int SlowAllowance = DriveStartCost;
+
+        /// <summary>
         /// The rail load that adds one to the cost of riding onto a rail tile.
         /// </summary>
         public const int RailLoadPerCost = 48;
@@ -113,15 +140,22 @@ namespace Micropolis.Rules
         public const int DensityPerCost = 64;
 
         /// <summary>
-        /// What walking onto a tile costs: more than a clear road, so a route walks only where a station is near.
+        /// What a step along a walkway costs: more than a clear road, so that past a few tiles the start of a drive pays
+        /// for itself, and a long trip drives.
         /// </summary>
-        public const int WalkCost = 6;
+        public const int PathCost = 5;
 
         /// <summary>
-        /// The most tiles a route walks at each end, between its zone's perimeter and a station, or between a station
-        /// and beside its destination.
+        /// What a step across open land without a path costs: twice a step along a walkway.
         /// </summary>
-        public const int MostWalkedTiles = 3;
+        public const int OpenLandCost = 2 * PathCost;
+
+        /// <summary>
+        /// The most tiles a route walks across open land at each end, between its zone's perimeter and a station or a
+        /// walkway, or between a station or a walkway and beside its destination, and the most a trip that only walks
+        /// across open land walks.
+        /// </summary>
+        public const int MostWalkedTiles = 5;
 
         // The step of a route's first tile, which no step reached
         private const int NoStep = -1;
@@ -129,31 +163,41 @@ namespace Micropolis.Rules
         // The owner of a tile no zone's footprint holds
         private const int NoZone = -1;
 
+        // A tile's usable ninths the search has yet to read (Paths), which no mask of ninths is
+        private const ushort UnreadPaths = ushort.MaxValue;
+
         // The ways a route goes over a tile, in the order ties break by: by road; having just got on a train at a
-        // station, from which it may only ride on; riding; walking from its zone to a station; and walking from a
-        // station to its destination, having walked one, two or three tiles
+        // station, from which it may only ride on; riding; walking across open land from its zone; on each piece of the
+        // tile's walkway, in the order of its first ninth; and walking across open land to its destination, having
+        // walked one tile, two, and on
         private const int ByRoad = 0;
         private const int Boarding = 1;
         private const int Riding = 2;
         private const int WalkingOut = 3;
-        private const int WalkingIn = 4;
+        private const int OnPath = 4;
+        private const int WalkingIn = OnPath + Walkways.MostPieces;
         private const int Ways = WalkingIn + MostWalkedTiles;
 
-        // What a tile is to the search, bits of it: a road a car drives on, rail a train runs on, a station, and water,
-        // which no one walks on
+        // The places along a side a step from anywhere on a tile reaches: all of them, a step from a station or open land
+        // reaching every ninth along the side of the tile beside
+        private const int AnyEdge = (1 << Walkways.Side) - 1;
+
+        // What a tile is to the search, bits of it: a road a car drives on, rail a train runs on, a station, water, and
+        // open land
         private const int Road = 1;
         private const int Rail = 2;
         private const int Station = 4;
         private const int Water = 8;
+        private const int Open = 16;
 
         // The most a step costs, and so how many costs past the one settling the search may queue a route: entering a
-        // road tile, getting on at a station, riding onto a rail tile, which riding off the station got on at costs
-        // too, or walking
-        private const int MostRoadCost = RoadCost + Traffic.MaxTrafficDensity / DensityPerCost;
+        // road tile, which starting to drive off a train adds to, getting on at a station, riding onto a rail tile,
+        // which riding off the station got on at costs too, or walking
+        private const int MostRoadCost = DriveStartCost + RoadCost + Traffic.MaxTrafficDensity / DensityPerCost;
         private const int MostRailCost = 2 * (RailCost + (Traffic.MaxRailLoad - 1) / RailLoadPerCost);
         private const int MostRoadOrRailCost = MostRoadCost > MostRailCost ? MostRoadCost : MostRailCost;
         private const int MostRideCost = MostRoadOrRailCost > BoardingCost ? MostRoadOrRailCost : BoardingCost;
-        private const int MostEnterCost = MostRideCost > WalkCost ? MostRideCost : WalkCost;
+        private const int MostEnterCost = MostRideCost > OpenLandCost ? MostRideCost : OpenLandCost;
 
         // How many costs the ring of queues holds: one past the most a tile costs to enter, so a route queued while a
         // cost settles never joins that cost's queue, nor one holding another cost
@@ -199,8 +243,9 @@ namespace Micropolis.Rules
         private readonly List<int> _found = new List<int>();
         private int _search;
 
-        // Whether the search has found a road or a station on the perimeter, or a station within a walk of it, full or
-        // not: a zone with one has a way out though its rail be too loaded to take the trip, as one with a jammed road has
+        // Whether the search has found a road, a station or a walkway at the zone's edge, or a station or a walkway
+        // within a walk of it, full or not: a zone with one has a way out though its rail be too loaded to take the
+        // trip, as one with a jammed road has
         private bool _setOff;
 
         public TripRouter(GameMap map)
@@ -248,11 +293,11 @@ namespace Micropolis.Rules
         /// Routes a trip from the zone centred at <paramref name="origin"/> to a zone of the destination's kind, filling
         /// <paramref name="route"/> with every tile of the route in order, with how it goes over each:
         /// <see cref="TrafficResult.RouteFound"/>, or <see cref="TrafficResult.SlowRoute"/> where the route costs more
-        /// than <see cref="SlowCostPerTile"/> for each tile of the straight run between its ends. With no road or
-        /// station on the zone's perimeter, and no station within a walk of it, full or not, it is
-        /// <see cref="TrafficResult.NoRoadFound"/>, and with no destination reached
-        /// <see cref="TrafficResult.NoRouteFound"/>, the route left empty. Every destination it reaches is weighted one
-        /// more than <see cref="MaxRouteTiles"/> less its route's length, and one draw from <paramref name="random"/>
+        /// than <see cref="SlowCostPerTile"/> for each tile of the straight run between its ends, past
+        /// <see cref="SlowAllowance"/>. With no destination reached it is <see cref="TrafficResult.NoRouteFound"/>, or,
+        /// with no road, station or walkway at the zone's edge, and no station or walkway within a walk of it, full or
+        /// not, <see cref="TrafficResult.NoWayOut"/>, the route left empty. Every destination it reaches is weighted
+        /// one more than <see cref="MaxRouteTiles"/> less its route's length, and one draw from <paramref name="random"/>
         /// picks among them by their centres row by row.
         /// </summary>
         /// <param name="blockMaps">The block maps, whose traffic density adds to the cost of each road tile and whose
@@ -262,16 +307,15 @@ namespace Micropolis.Rules
         {
             route.Clear();
             Start();
-            bool walks = StationWithinWalk(origin);
 
-            foreach (Position tile in Traffic.Perimeter(_map, origin))
+            foreach ((Position tile, int facing) in Traffic.PerimeterFacing(_map, origin))
             {
                 int index = Index(tile.X, tile.Y);
                 ref Facts facts = ref Read(index, blockMaps);
 
                 if ((facts.Kind & Road) != 0)
                 {
-                    Label(At(ByRoad, index), 0, 1, NoStep, ByRoad);
+                    Label(At(ByRoad, index), DriveStartCost, 1, NoStep, ByRoad);
                 }
 
                 _setOff |= (facts.Kind & (Road | Station)) != 0;
@@ -281,7 +325,18 @@ namespace Micropolis.Rules
                     Label(At(Boarding, index), BoardingCost, 1, NoStep, Boarding);
                 }
 
-                if (walks && (facts.Kind & Water) == 0)
+                ReadOnlySpan<ushort> pieces = Walkways.Pieces(Paths(ref facts, index));
+
+                for (int piece = 0; piece < pieces.Length; piece++)
+                {
+                    if (Traffic.LeadsOut(pieces[piece], facing))
+                    {
+                        Label(At(OnPath + piece, index), 0, 1, NoStep, OnPath + piece);
+                        _setOff = true;
+                    }
+                }
+
+                if ((facts.Kind & Open) != 0)
                 {
                     Label(At(WalkingOut, index), 0, 1, NoStep, WalkingOut);
                 }
@@ -289,14 +344,9 @@ namespace Micropolis.Rules
 
             Search(destination, Index(origin.X, origin.Y), blockMaps);
 
-            if (!_setOff)
-            {
-                return TrafficResult.NoRoadFound;
-            }
-
             if (_found.Count == 0)
             {
-                return TrafficResult.NoRouteFound;
+                return _setOff ? TrafficResult.NoRouteFound : TrafficResult.NoWayOut;
             }
 
             _found.Sort();
@@ -328,29 +378,7 @@ namespace Micropolis.Rules
             FillRoute(goal, route);
 
             int straightRun = Math.Abs(route[^1].Tile.X - route[0].Tile.X) + Math.Abs(route[^1].Tile.Y - route[0].Tile.Y);
-            return _places[goal].Cost > SlowCostPerTile * straightRun ? TrafficResult.SlowRoute : TrafficResult.RouteFound;
-        }
-
-        // Whether a station lies within a walk of the zone's perimeter, which lies at most Traffic.PerimeterReach tiles
-        // across and down from its centre: in the box that far round the centre widened by the most a route walks. A
-        // route walks out of its zone only to get on a train, so where no station lies there the search walks nowhere,
-        // which finds the same routes as walking would, and a city without stations pays nothing for walking.
-        private bool StationWithinWalk(Position origin)
-        {
-            int reach = Traffic.PerimeterReach + MostWalkedTiles;
-
-            for (int y = Math.Max(0, origin.Y - reach); y <= Math.Min(_height - 1, origin.Y + reach); y++)
-            {
-                for (int x = Math.Max(0, origin.X - reach); x <= Math.Min(_width - 1, origin.X + reach); x++)
-                {
-                    if (TileUtils.IsRailStation(_map.RawValueAt(Index(x, y)) & TileFlags.BIT_MASK))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
+            return _places[goal].Cost > SlowCostPerTile * straightRun + SlowAllowance ? TrafficResult.SlowRoute : TrafficResult.RouteFound;
         }
 
         private int Weight(int centre)
@@ -384,9 +412,13 @@ namespace Micropolis.Rules
                         continue;
                     }
 
-                    queued += at >> _wayShift == ByRoad
-                        ? SettleByRoad(at, destination, originIndex, blockMaps)
-                        : Settle(at, destination, originIndex, blockMaps);
+                    int way = at >> _wayShift;
+                    queued += way switch
+                    {
+                        ByRoad => SettleByRoad(at, destination, originIndex, blockMaps),
+                        >= OnPath and < WalkingIn => SettleOnPath(at, destination, originIndex, blockMaps),
+                        _ => Settle(at, destination, originIndex, blockMaps),
+                    };
                 }
 
                 queued -= count;
@@ -394,10 +426,10 @@ namespace Micropolis.Rules
             }
         }
 
-        // Settles a route by road, as Settle does a route going any other way: on a map without stations every route
-        // is by road, so the search settles them in a loop of their own, small enough for the compiler to keep tight.
-        // Its neighbour may be arrived beside, driven on along road, or got on a train at, in that order, as Settle
-        // takes them.
+        // Settles a route by road, as Settle does a route going any other way: on a map without stations or walkways
+        // most routes are by road, so the search settles them in a loop of their own, small enough for the compiler to
+        // keep tight. Its neighbour may be arrived beside, driven on along road, or got on a train at, in that order, as
+        // Settle takes them.
         private int SettleByRoad(int at, TrafficDestination destination, int originIndex, BlockMaps blockMaps)
         {
             ref Place settled = ref _places[at];
@@ -443,11 +475,58 @@ namespace Micropolis.Rules
             return queued;
         }
 
-        // Settles a route, the cheapest to its tile going over it its way, any way but by road (SettleByRoad), and takes
-        // each neighbour of its tile: a destination zone whose footprint holds it has its goal here, if the route may
-        // arrive, unless the search reached it cheaper, or as cheaply on a tile earlier row by row; and each way the
-        // route may go on onto it is queued where this route reaches it cheaper, or as cheaply from a neighbour earlier
-        // in north, east, south, west, short of the cut. Says how many it queued.
+        // Settles a route on a piece of walkway, and takes each neighbour of its tile across a side the piece has a
+        // ninth along: a destination zone whose footprint holds it has its goal here, as Settle takes it; a station is
+        // got on a train at; each piece of the neighbour's walkway whose ninths touch this piece's across the side is
+        // walked on along; and open land is walked across to the trip's destination. Says how many it queued.
+        private int SettleOnPath(int at, TrafficDestination destination, int originIndex, BlockMaps blockMaps)
+        {
+            ref Place settled = ref _places[at];
+            settled.Settled = _search;
+            int index = at & _tileMask;
+            int way = at >> _wayShift;
+            int piece = Walkways.Pieces(Paths(ref _facts[index], index))[way - OnPath];
+            int neighbours = _neighbours[index];
+            int cost = settled.Cost;
+            int length = settled.Length + 1;
+            int queued = 0;
+
+            for (int step = 0; step < 4; step++)
+            {
+                int edge = Walkways.Edge(piece, step);
+
+                if ((neighbours & (1 << step)) == 0 || edge == 0)
+                {
+                    continue;
+                }
+
+                int next = index + _offset[step];
+                ref Facts facts = ref Read(next, blockMaps);
+                int nextKind = facts.Kind;
+
+                if ((nextKind & (Road | Rail)) == 0)
+                {
+                    FoundBeside(next, at, destination, originIndex);
+                }
+
+                if (length > MaxRouteTiles)
+                {
+                    continue;
+                }
+
+                queued += Offer(Boarding, next, (nextKind & Station) != 0 ? BoardingEnter(facts) : 0, cost, length, step, way);
+                queued += OfferPaths(next, Paths(ref facts, next), edge, cost, length, step, way);
+                queued += Offer(WalkingIn, next, (nextKind & Open) != 0 ? OpenLandCost : 0, cost, length, step, way);
+            }
+
+            return queued;
+        }
+
+        // Settles a route, the cheapest to its tile going over it its way, any way but by road (SettleByRoad) or on a
+        // walkway (SettleOnPath), and takes each neighbour of its tile: a destination zone whose footprint holds it has
+        // its goal here, if the route may arrive, unless the search reached it cheaper, or as cheaply on a tile earlier
+        // row by row; and each way the route may go on onto it is queued where this route reaches it cheaper, or as
+        // cheaply from a neighbour earlier in north, east, south, west, short of the cut. Says how many it queued.
         private int Settle(int at, TrafficDestination destination, int originIndex, BlockMaps blockMaps)
         {
             ref Place settled = ref _places[at];
@@ -459,7 +538,7 @@ namespace Micropolis.Rules
             int neighbours = _neighbours[index];
             int cost = settled.Cost;
             int length = settled.Length + 1;
-            bool arrives = way >= WalkingIn || (way == Riding && (kind & Station) != 0);
+            bool arrives = way >= WalkingOut || (way == Riding && (kind & Station) != 0);
             int queued = 0;
 
             for (int step = 0; step < 4; step++)
@@ -491,19 +570,22 @@ namespace Micropolis.Rules
 
                         if (way == Riding && (kind & Station) != 0)
                         {
-                            queued += Offer(ByRoad, next, (nextKind & Road) != 0 ? facts.RoadEnter : 0, cost, length, step, way);
-                            queued += Offer(WalkingIn, next, (nextKind & Water) == 0 ? WalkCost : 0, cost, length, step, way);
+                            queued += Offer(ByRoad, next, (nextKind & Road) != 0 ? DriveStartCost + facts.RoadEnter : 0, cost, length, step, way);
+                            queued += OfferPaths(next, Paths(ref facts, next), AnyEdge, cost, length, step, way);
+                            queued += Offer(WalkingIn, next, (nextKind & Open) != 0 ? OpenLandCost : 0, cost, length, step, way);
                         }
 
                         break;
 
                     case WalkingOut:
-                        _setOff |= (nextKind & Station) != 0;
+                        int paths = Paths(ref facts, next);
+                        _setOff |= (nextKind & Station) != 0 || Walkways.Edge(paths, Back(step)) != 0;
                         queued += Offer(Boarding, next, (nextKind & Station) != 0 ? BoardingEnter(facts) : 0, cost, length, step, way);
+                        queued += OfferPaths(next, paths, AnyEdge, cost, length, step, way);
 
                         if (settled.Length < MostWalkedTiles)
                         {
-                            queued += Offer(WalkingOut, next, (nextKind & Water) == 0 ? WalkCost : 0, cost, length, step, way);
+                            queued += Offer(WalkingOut, next, (nextKind & Open) != 0 ? OpenLandCost : 0, cost, length, step, way);
                         }
 
                         break;
@@ -511,10 +593,35 @@ namespace Micropolis.Rules
                     case >= WalkingIn:
                         if (way + 1 < Ways)
                         {
-                            queued += Offer(way + 1, next, (nextKind & Water) == 0 ? WalkCost : 0, cost, length, step, way);
+                            queued += Offer(way + 1, next, (nextKind & Open) != 0 ? OpenLandCost : 0, cost, length, step, way);
                         }
 
                         break;
+                }
+            }
+
+            return queued;
+        }
+
+        // Queues a route going on onto each piece of the walkway on the tile beside, whose usable ninths are given, that
+        // has a ninth along the side the step goes in by at one of the places along it given (Walkways.Edge), as Offer
+        // queues it. Says how many it queued.
+        private int OfferPaths(int next, int paths, int edge, int cost, int length, int step, int from)
+        {
+            if (paths == 0)
+            {
+                return 0;
+            }
+
+            ReadOnlySpan<ushort> pieces = Walkways.Pieces(paths);
+            int side = Back(step);
+            int queued = 0;
+
+            for (int piece = 0; piece < pieces.Length; piece++)
+            {
+                if ((Walkways.Edge(pieces[piece], side) & edge) != 0)
+                {
+                    queued += Offer(OnPath + piece, next, PathCost, cost, length, step, from);
                 }
             }
 
@@ -583,8 +690,8 @@ namespace Micropolis.Rules
                 return 1;
             }
 
-            // A route's first tile, which getting on a train there makes cost something, gives way to no route that
-            // steps onto it as cheaply
+            // A route's first tile, which getting on a train or starting to drive there makes cost something, gives way
+            // to no route that steps onto it as cheaply
             if (nextCost == place.Cost && place.Step != NoStep &&
                 (Back(step) < Back(place.Step) || (step == place.Step && from < place.From)))
             {
@@ -668,11 +775,12 @@ namespace Micropolis.Rules
             facts.RideEnterFromNorthOrWest = 0;
             facts.RideEnterFromSouthOrEast = 0;
             facts.Ends = 0;
+            facts.Paths = UnreadPaths;
 
             // Most tiles a search reads carry neither cars nor trains: zones and buildings, and the land between
             if (!TileUtils.IsDriveable(tileValue))
             {
-                facts.Kind = TileUtils.IsWater(tileValue) ? (byte)Water : (byte)0;
+                facts.Kind = TileUtils.IsWater(tileValue) ? (byte)Water : Walkways.IsOpenLand(tileValue) ? (byte)Open : (byte)0;
                 return;
             }
 
@@ -708,6 +816,19 @@ namespace Micropolis.Rules
                 facts.Ends = (byte)TileUtils.RailEnds(tileValue);
                 facts.EntriesFromNorthOrWest = (byte)TileUtils.RailEntriesFromNorthOrWest(facts.Ends);
             }
+        }
+
+        // The ninths of the tile's walkway a walker may use, read from the walkways as they are the first time the search
+        // asks: apart from the rest of what the tile is, since a search by road alone never asks, and reading them for
+        // every tile it reads would slow it
+        private int Paths(ref Facts facts, int index)
+        {
+            if (facts.Paths == UnreadPaths)
+            {
+                facts.Paths = (ushort)Walkways.UsableMask(_map.WalkwayAt(index), _map.RawValueAt(index) & TileFlags.BIT_MASK);
+            }
+
+            return facts.Paths;
         }
 
         // What riding onto a rail tile costs at the load given, its load the way the ride goes, or 0 where it is full
@@ -838,14 +959,16 @@ namespace Micropolis.Rules
 
         // What a search knows of a tile, each part valid where its mark is the search's: what it is, bits of the kinds
         // above, the sides its track leaves by (TileUtils.RailEnds) and those of them a ride entering by counts as
-        // entering from the north or west (TileUtils.RailEntriesFromNorthOrWest), what entering it by road costs, and
-        // what riding onto it costs entering from the north or west and from the south or east, each 0 where none can;
-        // and the centre of the zone whose footprint holds it
+        // entering from the north or west (TileUtils.RailEntriesFromNorthOrWest), what entering it by road costs, what
+        // riding onto it costs entering from the north or west and from the south or east, each 0 where none can, and
+        // the ninths of its walkway a walker may use (Walkways.UsableMask), UnreadPaths till the search asks; and the
+        // centre of the zone whose footprint holds it
         private struct Facts
         {
             public int Mark;
             public int OwnerMark;
             public int Owner;
+            public ushort Paths;
             public byte Kind;
             public byte Ends;
             public byte EntriesFromNorthOrWest;

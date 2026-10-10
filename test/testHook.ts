@@ -49,7 +49,7 @@ const REPORT: TileReportAnswer = {
     zoneCentre: true, fireStationMap: 0, fireCoverage: 0, policeStationMap: 0, policeCoverage: 0, terrainDensity: 0,
     trafficDensity: 0, cityCentreScore: 0,
     growth: {zone: "RESIDENTIAL", x: 4, y: 5, score: -320, outlook: "LIKELY_TO_GROW", assessedNowAndThen: false,
-             roadAtEdge: true, blockers: ["LOW_LAND_VALUE"]},
+             wayAtEdge: true, blockers: ["LOW_LAND_VALUE"]},
 };
 
 function gameOn(source: CitySource, state: CityState) {

@@ -71,8 +71,7 @@ namespace Micropolis.Server
         }
 
         /// <summary>
-        /// The whole state for a player who joins: the whole map, the sprites, the date, the population and the records,
-        /// then the latest status and demand the city has published, if it has.
+        /// The whole state for a player who joins, as <see cref="CityStateMessages.FullState"/> gives it.
         /// </summary>
         public IReadOnlyList<StateMessage> FullState()
         {

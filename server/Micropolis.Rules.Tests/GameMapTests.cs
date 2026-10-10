@@ -218,12 +218,15 @@ namespace Micropolis.Rules.Tests
             map.SetTile(0, 1, WOODS, BLBNBIT);
             map.CityCentreX = 1;
             map.PollutionMaxY = 0;
+            map.SetWalkway(1, 1, 21);
+            map.SetWalkway(0, 1, 1);
 
             JsonObject saveData = new JsonObject();
             map.Save(saveData);
 
             Assert.AreEqual(
-                $"{{\"map\":{{\"cityCentreX\":1,\"cityCentreY\":1,\"height\":2,\"pollutionMaxX\":1,\"pollutionMaxY\":0,\"tiles\":[0,0,{RIVER},{WOODS | BLBNBIT},0,0],\"width\":3}}}}",
+                $"{{\"map\":{{\"cityCentreX\":1,\"cityCentreY\":1,\"height\":2,\"pollutionMaxX\":1,\"pollutionMaxY\":0,\"tiles\":[0,0,{RIVER},{WOODS | BLBNBIT},0,0]," +
+                "\"walkways\":[{\"ninths\":1,\"x\":0,\"y\":1},{\"ninths\":21,\"x\":1,\"y\":1}],\"width\":3}}",
                 CanonicalJson.Write(saveData));
         }
 

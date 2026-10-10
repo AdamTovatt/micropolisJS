@@ -61,7 +61,7 @@ namespace Micropolis.Rules.Tests
             long rate = city.Budget.CityTax;
 
             BudgetForecastAnswer forecast = Forecast(city, $$"""{"type":"budgetForecast","tax":{{rate}}}""");
-            city.Budget.CollectTax(city.GameLevel, city.Census);
+            city.Budget.CollectTax(city.GameLevel, city.Census, city.Map.WalkwayNinths);
 
             Assert.IsGreaterThan(0L, forecast.Taxes);
             Assert.AreEqual(city.Budget.TaxFund, forecast.Taxes);

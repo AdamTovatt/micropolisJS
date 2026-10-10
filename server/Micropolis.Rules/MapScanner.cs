@@ -21,8 +21,9 @@ namespace Micropolis.Rules
 
     /// <summary>
     /// The map scan, as <c>mapScan</c> in the original's simulate.cpp, which phases 1–8 run over one eighth of the
-    /// map's columns each. For every tile from <see cref="TileValues.FLOOD"/> up it runs the scan's core, then the
-    /// first handler whose criterion matches the tile, in the order the handlers were added.
+    /// map's columns each. It clears the walkway of every tile that no longer takes one (<see cref="Walkways.Takes"/>),
+    /// and for every tile from <see cref="TileValues.FLOOD"/> up it runs the scan's core, then the first handler whose
+    /// criterion matches the tile, in the order the handlers were added.
     /// </summary>
     public sealed class MapScanner
     {
@@ -65,6 +66,12 @@ namespace Micropolis.Rules
                 {
                     _map.GetTile(x, y, _tile);
                     int tileValue = _tile.GetValue();
+
+                    // A walkway goes with the tile under it once that takes none: burnt, flooded or wrecked
+                    if (_map.WalkwayAt(x + y * _map.Width) != 0 && !Walkways.Takes(tileValue))
+                    {
+                        _map.SetWalkway(x, y, 0);
+                    }
 
                     if (tileValue < TileValues.FLOOD)
                     {

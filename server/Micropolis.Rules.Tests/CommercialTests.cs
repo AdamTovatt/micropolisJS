@@ -84,7 +84,7 @@ namespace Micropolis.Rules.Tests
             long growthScore = StrongDemand + city.BlockMaps.CityCentreDistScoreMap.WorldGet(ZoneX, ZoneY) - 26380;
             uint seed = Seeds.First(RandomStream.SimulationStream, random =>
                 random.GetRandom(5) == 0 &&
-                Seeds.Trip(city.Map, city.BlockMaps, ZoneX, ZoneY, TrafficDestination.Industrial, random) != TrafficResult.NoRoadFound &&
+                Seeds.Trip(city.Map, city.BlockMaps, ZoneX, ZoneY, TrafficDestination.Industrial, random) != TrafficResult.NoWayOut &&
                 random.GetChance(7) &&
                 growthScore > random.GetRandom16Signed());
             city.Random.SetState(RandomStream.SimulationStream(seed).GetState());

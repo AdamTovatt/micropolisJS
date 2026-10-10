@@ -49,6 +49,9 @@ function action(command: Command): {key: string, text: string} {
     case "tool":
       return {key: `tool:${command.tool}`, text: actions.tools[command.tool]};
 
+    case "walkway":
+      return {key: `walkway:${command.kind}`, text: actions.walkways[command.kind]};
+
     case "setBudget": {
       const parts = [actions.taxes(command.tax)];
       SERVICES.forEach((service) => {

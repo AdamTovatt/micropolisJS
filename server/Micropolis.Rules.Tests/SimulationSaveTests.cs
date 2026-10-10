@@ -25,8 +25,10 @@ namespace Micropolis.Rules.Tests
     [TestClass]
     public sealed class SimulationSaveTests
     {
-        // A save with sprites, a non-null announcement and a power source waiting: the underfunded town after its run
-        private static readonly string RunText = FixtureSaves.At("underfunded", FixtureSaves.Run).ReadCommitted();
+        // A save with sprites, a non-null announcement, a power source waiting and a walkway: the underfunded town after
+        // its run, with a path laid over the top two rows of ninths of a tile of open land east of it, as no fixture's run
+        // save holds with the rest
+        private static readonly string RunText = WithWalkway(FixtureSaves.At("underfunded", FixtureSaves.Run).ReadCommitted());
 
         // Read only: a test that changes the save parses its own copy of RunText
         private static readonly JsonNode Run = JsonNode.Parse(RunText)!;
@@ -70,6 +72,9 @@ namespace Micropolis.Rules.Tests
             ("map.cityCentreY", "-1", "0", "99", "100"),
             ("map.pollutionMaxX", "-1", "0", "119", "120"),
             ("map.pollutionMaxY", "-1", "0", "99", "100"),
+            ("map.walkways[0].x", "-1", "0", "119", "120"),
+            ("map.walkways[0].y", "-1", "0", "99", "100"),
+            ("map.walkways[0].ninths", "0", "1", $"{Walkways.MostValue}", $"{Walkways.MostValue + 1}"),
             ("evaluation.problemVotes[0].index", "-1", "0", "6", "7"),
             ("evaluation.problemVotes[0].voteCount", "-1", "0", "100", "101"),
             ("sprites.list[0].type", "1", "2", "7", "8"),
@@ -123,6 +128,9 @@ namespace Micropolis.Rules.Tests
                 ["map.cityCentreY"] = ("41", city => city.Map.CityCentreY),
                 ["map.pollutionMaxX"] = ("42", city => city.Map.PollutionMaxX),
                 ["map.pollutionMaxY"] = ("43", city => city.Map.PollutionMaxY),
+                ["map.walkways[0].x"] = ("61", city => FirstWalkway(city).Position.X),
+                ["map.walkways[0].y"] = ("31", city => FirstWalkway(city).Position.Y),
+                ["map.walkways[0].ninths"] = ("21", city => FirstWalkway(city).Walkway),
                 ["evaluation.cityClass"] = ("\"CITY\"", city => SavedName.Of(city.Evaluation.CityClass)),
                 ["evaluation.cityScore"] = ("500", city => city.Evaluation.CityScore),
                 ["evaluation.cityYes"] = ("55", city => city.Evaluation.CityYes),
@@ -607,6 +615,41 @@ namespace Micropolis.Rules.Tests
             }
 
             Assert.AreEqual(message, Assert.Throws<SaveFormatException>(() => Simulation.FromSave(save.ToJsonString())).Message);
+        }
+
+        // A walkway of a kind there is on each ninth, one ninth of no kind, and tiles listed out of order or twice are
+        // refused, naming the list
+        [TestMethod]
+        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":2}]")]
+        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":1365},{\"x\":59,\"y\":30,\"ninths\":1}]")]
+        [DataRow("[{\"x\":60,\"y\":30,\"ninths\":1365},{\"x\":60,\"y\":30,\"ninths\":1}]")]
+        public void FromSave_WalkwaysOfNoKindOrOutOfOrder_AreRefused(string walkways)
+        {
+            JsonNode save = JsonNode.Parse(RunText)!;
+            ObjectAt(save, "map")["walkways"] = JsonNode.Parse(walkways);
+
+            AssertRejected(save, "map.walkways");
+        }
+
+        // The run save's path over the top two rows of ninths of one tile counts six ninths, for the upkeep, once loaded
+        [TestMethod]
+        public void FromSave_Walkway_CountsItsNinths()
+        {
+            Assert.AreEqual(2 * Walkways.Side, Simulation.FromSave(RunText).Map.WalkwayNinths);
+        }
+
+        // The map's walkway, which the run save holds on one tile
+        private static (Position Position, int Walkway) FirstWalkway(Simulation city)
+        {
+            return city.Map.WalkwayTiles().First();
+        }
+
+        // The save with a path over the top two rows of ninths of the tile at (60, 30)
+        private static string WithWalkway(string saveText)
+        {
+            JsonNode save = JsonNode.Parse(saveText)!;
+            save["map"]!["walkways"] = JsonNode.Parse("[{\"x\":60,\"y\":30,\"ninths\":1365}]");
+            return CanonicalJson.Write(save);
         }
 
         private static JsonObject Resave(string text)

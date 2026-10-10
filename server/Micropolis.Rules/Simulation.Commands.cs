@@ -39,6 +39,7 @@ namespace Micropolis.Rules
         private const long AddedFunds = 20000;
 
         private IReadOnlyDictionary<ToolName, CityTool>? _tools;
+        private WalkwayTool? _walkwayTool;
 
         // The tools that change the city, each staging its edits over this city's map
         private IReadOnlyDictionary<ToolName, CityTool> Tools => _tools ??= CityTools.Create(Map);
@@ -76,6 +77,9 @@ namespace Micropolis.Rules
             {
                 case ToolCommand tool:
                     return ApplyTool(tool);
+
+                case WalkwayCommand walkway:
+                    return ApplyWalkway(walkway);
 
                 case SetBudgetCommand budget:
                     // A service left out keeps its funding
@@ -120,7 +124,27 @@ namespace Micropolis.Rules
 
             foreach (TilePosition tile in command.Path)
             {
-                tool.DoTool(tile.X, tile.Y, Random, command.AutoBulldoze);
+                tool.Apply(tile.X, tile.Y, Random, command.AutoBulldoze);
+                tool.ModifyIfEnoughFunding(Budget);
+
+                if (outcome == Outcome.Ok)
+                {
+                    outcome = tool.Result;
+                }
+            }
+
+            return outcome;
+        }
+
+        // The walkway laid on each ninth of the path in turn, as one click each, as a tool command applies its tool
+        private Outcome ApplyWalkway(WalkwayCommand command)
+        {
+            WalkwayTool tool = _walkwayTool ??= new WalkwayTool(Map);
+            Outcome outcome = Outcome.Ok;
+
+            foreach (NinthPosition ninth in command.Path)
+            {
+                tool.Lay(ninth.X, ninth.Y, command.Kind);
                 tool.ModifyIfEnoughFunding(Budget);
 
                 if (outcome == Outcome.Ok)

@@ -327,11 +327,31 @@ export interface TilePosition {
   y: number;
 }
 
+// The kinds of walkway a ninth of a tile holds, as WalkwayKind in the C# rules names them, numbered from 1 in a
+// tile's walkway value (WalkwayChange)
+export const WALKWAY_KINDS = ["path"] as const;
+
+export type WalkwayKind = typeof WALKWAY_KINDS[number];
+
+// The ninths across and down each tile, on whose grid a walkway command's path runs: ninth (x, y) lies in tile
+// (floor(x / 3), floor(y / 3))
+export const NINTHS_PER_SIDE = 3;
+
+// A ninth of a tile, on the map's grid of ninths
+export interface NinthPosition {
+  x: number;
+  y: number;
+}
+
 export type Command =
   // The tool applied at each tile of the path in order, with the per-tile rules and costs of a click. A click is a
   // one-tile path; a drag's tiles are each one step along a row or column from the last. autoBulldoze is the sending
   // player's preference: whether the building, road, rail and wire tools clear what they can before building.
   | {type: "tool", tool: ToolName, path: TilePosition[], autoBulldoze: boolean}
+  // Walkway of the kind laid on each ninth of the path in order, as one click each, on a tile that takes it: bare
+  // land, a park, the woods, road or rail. A ninth already holding the kind costs nothing. The path's ninths are
+  // each one step along a row or column of the grid of ninths from the last.
+  | {type: "walkway", kind: WalkwayKind, path: NinthPosition[]}
   // The tax rate in percent, and the funding of each service named, road, fire or police, in whole percent of what it
   // needs, as the original's budget sliders set it. A service left out keeps its funding. It takes effect at once:
   // each service named works at its new funding from then on, and the next year end pays for it.
@@ -351,8 +371,8 @@ export type ToolCommand = Extract<Command, {type: "tool"}>;
 // Every command type, as the compiler checks against the union: a type added to Command and not here fails to
 // compile, and the tests fail on a type with no example.
 const COMMAND_TYPES: Record<CommandType, true> = {
-  tool: true, setBudget: true, setSpeed: true, setAutoBudget: true, setDisasters: true, triggerDisaster: true,
-  addFunds: true,
+  tool: true, walkway: true, setBudget: true, setSpeed: true, setAutoBudget: true, setDisasters: true,
+  triggerDisaster: true, addFunds: true,
 };
 
 export function commandTypes(): string[] {
@@ -522,8 +542,9 @@ export type GrowthZone = typeof GROWTH_ZONES[number];
 // score, the zone score its handler would assess it by, the demand for its kind and, for homes and commerce, its
 // location score, or a score below any that grows without power; outlook, where it stands; assessedNowAndThen,
 // whether its handler assesses it only now and then, rather than each time the map scan finds it, as it does an empty
-// home zone; roadAtEdge, whether a road or rail lies on its perimeter, without which the next trip its people make
-// declines it, though a zone with no people makes none; and blockers, what holds back its growth.
+// home zone; wayAtEdge, whether a road or rail lies on its perimeter, or a walkway along its edge, without which the
+// next trip its people make declines it, unless a walk across open land reaches a station, a walkway or its
+// destination, though a zone with no people makes none; and blockers, what holds back its growth.
 export interface ZoneGrowthReport {
   zone: GrowthZone;
   x: number;
@@ -531,7 +552,7 @@ export interface ZoneGrowthReport {
   score: number;
   outlook: GrowthOutlook;
   assessedNowAndThen: boolean;
-  roadAtEdge: boolean;
+  wayAtEdge: boolean;
   blockers: GrowthBlocker[];
 }
 
@@ -701,6 +722,21 @@ export interface TilesMessage {
   changes: TileChange[];
 }
 
+// A tile whose walkway changed, and its walkway now: each ninth's kind in two bits, ninth n's, counted row by row
+// from the tile's north-west corner, at bit 2n, as WALKWAY_KINDS numbers them from 1, and 0 for none
+export interface WalkwayChange {
+  x: number;
+  y: number;
+  ninths: number;
+}
+
+// The tiles whose walkway changed since the last walkways message. A map message starts a city without walkways, and
+// the whole state lists every tile that holds any, in a walkways message after the map, if one does.
+export interface WalkwaysMessage {
+  type: "walkways";
+  changes: WalkwayChange[];
+}
+
 // A sprite as the client draws it: its type, counted from 1 as the original's SPRITE_TRAIN and its siblings number
 // them, which is its row of the sprite sheet; its frame, counted from 1, its column; and the square it is drawn in,
 // width map pixels a side, with its top-left corner at map pixel (x, y)
@@ -823,7 +859,7 @@ export interface TripsMessage {
   rides: Ride[];
 }
 
-export type StateMessage = MapMessage | TilesMessage | SpritesMessage | DateMessage | ClockMessage |
+export type StateMessage = MapMessage | TilesMessage | WalkwaysMessage | SpritesMessage | DateMessage | ClockMessage |
   PopulationMessage | EvaluationRecord | BudgetRecord | SettingsRecord | StatusRecord | DemandMessage | NewsMessage |
   CommandResultMessage | BudgetReviewDueMessage | OverlayUpdatedMessage | TripsMessage;
 
@@ -832,8 +868,8 @@ export type StateMessageType = StateMessage["type"];
 // Every state message type, as the compiler checks against the union: a type added to StateMessage and not here fails
 // to compile, and the tests fail on a type with no example.
 const STATE_MESSAGE_TYPES: Record<StateMessageType, true> = {
-  map: true, tiles: true, sprites: true, date: true, clock: true, population: true, evaluation: true, budget: true,
-  settings: true, status: true, demand: true, news: true, commandResult: true, budgetReviewDue: true,
+  map: true, tiles: true, walkways: true, sprites: true, date: true, clock: true, population: true, evaluation: true,
+  budget: true, settings: true, status: true, demand: true, news: true, commandResult: true, budgetReviewDue: true,
   overlayUpdated: true, trips: true,
 };
 

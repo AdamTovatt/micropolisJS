@@ -60,6 +60,8 @@ namespace Micropolis.Headless
                 J("""{"type":"setAutoBudget"}"""),
                 J("""{"type":"setDisasters","on":true,"kind":"fire"}"""),
                 J("""{"type":"triggerDisaster"}"""),
+                J("""{"type":"walkway"}"""),
+                J("""{"type":"walkway","kind":"path","path":[{"x":1,"y":1}],"autoBulldoze":true}"""),
                 J("""{"type":"addFunds","amount":20000}"""),
                 J("""{"type":"addFunds","__proto__":1}"""),
                 // The command is the first level, so a pad nested 63 deep is read on, and one 64 deep is too deep
@@ -84,6 +86,26 @@ namespace Micropolis.Headless
                 Tool("\"road\"", Path(Tile(1, 1), Tile(1, 2), Tile(1, 4))),
                 Tool("\"road\"", Path(Tile(1, 1), Tile(1, 2), """{"x":1.5,"y":2}""")),
                 Tool("\"road\"", Path(Tile(119, 99), Tile(120, 99))))),
+
+            // The map's grid of ninths is three times its tiles across and down, 360 by 300
+            new CommandCase("Walkway commands rejected for their kind or their path", "suburb", null, Local(
+                Walkway("\"gravel\"", Path(Ninth(1, 1))), Walkway("\"Path\"", Path(Ninth(1, 1))), Walkway("1", Path(Ninth(1, 1))),
+                Walkway("null", Path(Ninth(1, 1))),
+                Walkway("\"path\"", "{}"), Walkway("\"path\"", "[]"), Walkway("\"path\"", "null"), Walkway("\"path\"", "[[1,1]]"),
+                Walkway("\"path\"", """[{"x":1}]"""), Walkway("\"path\"", """[{"x":1.5,"y":1}]"""),
+                Walkway("\"path\"", Path(Ninth(360, 0))), Walkway("\"path\"", Path(Ninth(0, 300))), Walkway("\"path\"", Path(Ninth(-1, 5))),
+                Walkway("\"path\"", Path(Ninth(1, 1), Ninth(2, 2))), Walkway("\"path\"", Path(Ninth(1, 1), Ninth(1, 1))),
+                Walkway("\"path\"", Path(Ninth(359, 299), Ninth(360, 299))))),
+
+            new CommandCase("Walkway commands with each outcome: ok, needing the bulldozer and on water", "suburb", null, Local(
+                // Across bare land and on, which it pays for once, ninth by ninth across a tile's edge
+                Walkway("\"path\"", Path(Ninth(156, 93), Ninth(157, 93), Ninth(158, 93), Ninth(159, 93))),
+                Walkway("\"path\"", Path(Ninth(158, 93), Ninth(159, 93), Ninth(160, 93))),
+                // A sidewalk along the edge of a tile of the town's road, and on into a zone, which takes none
+                Walkway("\"path\"", Path(Ninth(60, 45), Ninth(60, 44), Ninth(60, 43))),
+                // Off the shore onto the river east of the open land
+                Walkway("\"path\"", Path(Ninth(237, 42), Ninth(238, 42), Ninth(239, 42), Ninth(240, 42), Ninth(241, 42), Ninth(242, 42),
+                                         Ninth(243, 42), Ninth(244, 42), Ninth(245, 42), Ninth(246, 42), Ninth(247, 42), Ninth(248, 42))))),
 
             new CommandCase("Settings commands rejected for a value out of range or of the wrong kind", "suburb", null, Local(
                 J("""{"type":"setBudget","tax":21}"""), J("""{"type":"setBudget","tax":-1}"""), J("""{"type":"setBudget","tax":7.5}"""),
@@ -144,6 +166,9 @@ namespace Micropolis.Headless
                 // A path longer than the map has tiles, and a tile off the small map
                 Tool("\"road\"", Path(Enumerable.Repeat(Tile(0, 0), SmallWidth * SmallHeight + 1).ToArray())),
                 Tool("\"road\"", Path(Tile(8, 0))),
+                // A walkway path of one more ninth than the map has tiles, back and forth, and one as long, which it takes
+                Walkway("\"path\"", Path(BackAndForth(SmallWidth * SmallHeight + 1))),
+                Walkway("\"path\"", Path(BackAndForth(SmallWidth * SmallHeight))),
                 // A command the small map takes
                 Tool("\"road\"", Path(Tile(0, 0), Tile(1, 0)), "false"),
             ])),
@@ -179,6 +204,12 @@ namespace Micropolis.Headless
             return J($$"""{"type":"tool","tool":{{tool}},"path":{{path}},"autoBulldoze":{{autoBulldoze}}}""");
         }
 
+        // A walkway command, from the JSON text of its kind and path
+        private static JsonNode? Walkway(string kind, string path)
+        {
+            return J($$"""{"type":"walkway","kind":{{kind}},"path":{{path}}}""");
+        }
+
         // A tile's JSON text, its numbers as JSON writes them whatever the machine's culture, which may write a minus
         // sign other than the hyphen JSON reads
         internal static string Tile(int x, int y)
@@ -186,9 +217,21 @@ namespace Micropolis.Headless
             return string.Create(CultureInfo.InvariantCulture, $$"""{"x":{{x}},"y":{{y}}}""");
         }
 
-        private static string Path(params string[] tiles)
+        // A ninth's JSON text, on the map's grid of ninths, written as a tile's is
+        private static string Ninth(int x, int y)
         {
-            return $"[{string.Join(",", tiles)}]";
+            return Tile(x, y);
+        }
+
+        // The ninths of a path going back and forth between the map's first two ninths, as many as given
+        private static string[] BackAndForth(int ninths)
+        {
+            return Enumerable.Range(0, ninths).Select(ninth => Ninth(ninth % 2, 0)).ToArray();
+        }
+
+        private static string Path(params string[] places)
+        {
+            return $"[{string.Join(",", places)}]";
         }
 
         // Lists nested this many deep, an object innermost

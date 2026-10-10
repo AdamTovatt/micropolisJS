@@ -33,7 +33,10 @@ namespace Micropolis.Rules
         {
         }
 
-        public override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
+        // A tile the bulldozer leaves bare keeps its walkway, and one it leaves as rubble loses it to the map scan
+        protected override bool ClearsWalkways => false;
+
+        protected override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
         {
             if (!Map.TestBounds(x, y))
             {

@@ -102,6 +102,9 @@ at (25, 15) and (44, 15), and nothing else, which the step from version 14 split
 `version15.json` is the same fixture after its run under the rules of version 15, uploaded to the server with the
 name `Sample`: its rides load the same line eastward, the way from the north or west, and nothing else, which
 `e2e/railLoad.spec.ts` draws the Rail load overlay over.
+`version16.json` is the walkers fixture's commands on seed 8's map, started on the server with the name `Sample` and
+run 6,912 steps: its zones reach each other on foot along the walkway between their rows, which its `map.walkways`
+holds, and no road.
 `SavedGameTests` also upgrades each as the bare state a command log holds, and `LogReplayTests` replays the sample of
 the version before the current one from inside a log, as a log written before the last upgrade step was added.
 The fixture tool fails unless every version from 5 to the current one has a sample, so a new version adds one, written
@@ -225,13 +228,13 @@ disasters on, auto-budget off and the game paused. Each of `answers` holds a `qu
 of the `save` it names, with its funds replaced by `funds` where an answer has one, or asked before any city has
 started where `save` is null: in each save, a tile report at the city's centre, at the first tile of each category no
 save before it reported, and at the centre of the first zone whose growth meets an outlook, a blocker or a want of a
-road at its edge that no save before it reported, and budget forecasts with no service, every service and one service
+way out at its edge that no save before it reported, and budget forecasts with no service, every service and one service
 named, at the lowest and the highest tax rate, and at a tax rate with a service named; the same forecasts on the
 first save whose year end has no cash for its services, with half of what they cost and exactly what they cost, so the
 funds pay some services and scale one back; each overlay layer from the first save where it holds a value other than
 0; and queries the simulation rejects, on the first save and before any city has started. The tool fails unless the
 queries reach every reason the simulation rejects one for, every category, every layer, the growth of each kind of
-zone, every outlook, a zone with no road at its edge and one held back by more than one thing. A map preview's answer
+zone, every outlook, a zone with no way out at its edge and one held back by more than one thing. A map preview's answer
 is the map the seed generates, which `maps.json` holds.
 
 ### speedGate.json

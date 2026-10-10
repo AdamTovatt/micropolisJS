@@ -24,7 +24,7 @@ namespace Micropolis.Rules.Tests
         /// </summary>
         public static Outcome Apply(CityTool tool, int x, int y, bool autoBulldoze = false, Budget? budget = null)
         {
-            tool.DoTool(x, y, RandomStream.SimulationStream(0), autoBulldoze);
+            tool.Apply(x, y, RandomStream.SimulationStream(0), autoBulldoze);
             tool.ModifyIfEnoughFunding(budget ?? new Budget { TotalFunds = 20000 });
             return tool.Result;
         }
