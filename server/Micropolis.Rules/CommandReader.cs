@@ -50,6 +50,8 @@ namespace Micropolis.Rules
             {
                 ["tool"] = Fields(required: ["autoBulldoze", "path", "tool"]),
                 ["walkway"] = Fields(required: ["kind", "path"]),
+                ["erase"] = Fields(required: ["path", "tool"]),
+                ["eraseWalkway"] = Fields(required: ["path"]),
                 ["setBudget"] = Fields(required: ["tax"], optional: ["fire", "police", "road"]),
                 ["setSpeed"] = Fields(required: ["speed"]),
                 ["setAutoBudget"] = Fields(required: ["on"]),
@@ -117,6 +119,8 @@ namespace Micropolis.Rules
             {
                 "tool" => ReadTool(fields, width, height),
                 "walkway" => ReadWalkway(fields, width, height),
+                "erase" => ReadErase(fields, width, height),
+                "eraseWalkway" => ReadEraseWalkway(fields, width, height),
                 "setBudget" => ReadSetBudget(fields),
                 "setSpeed" => TryGetWholeNumberIn(fields["speed"], 0, MaxSpeed, out long speed)
                     ? new AcceptedCommand(new SetSpeedCommand((Speed)speed))
@@ -175,12 +179,26 @@ namespace Micropolis.Rules
                 return new RejectedCommand("autoBulldoze is true or false");
             }
 
-            // A path longer than the map has tiles must revisit one
-            string? pathReason = ReadPath(fields["path"], width, height, width * height, "tool", "tile", "map",
-                                          (x, y) => new TilePosition(x, y), out List<TilePosition> path);
+            string? pathReason = ReadTilePath(fields["path"], width, height, "a tool", out List<TilePosition> path);
 
             return pathReason is null
                 ? new AcceptedCommand(new ToolCommand(tool, path, autoBulldoze))
+                : new RejectedCommand(pathReason);
+        }
+
+        // Every tool but the bulldozer puts something down, which its eraser takes off
+        private static CommandReading ReadErase(JsonObject fields, int width, int height)
+        {
+            if (!TryGetName(fields["tool"], out ToolName tool) || tool == ToolName.Bulldozer)
+            {
+                IEnumerable<string> erased = ProtocolJson.Names<ToolName>().Where(name => name != ProtocolJson.Name(ToolName.Bulldozer));
+                return new RejectedCommand($"the erased tool is one of {string.Join(", ", erased)}");
+            }
+
+            string? pathReason = ReadTilePath(fields["path"], width, height, "an erase", out List<TilePosition> path);
+
+            return pathReason is null
+                ? new AcceptedCommand(new EraseCommand(tool, path))
                 : new RejectedCommand(pathReason);
         }
 
@@ -191,20 +209,41 @@ namespace Micropolis.Rules
                 return new RejectedCommand($"the walkway is one of {string.Join(", ", ProtocolJson.Names<WalkwayKind>())}");
             }
 
-            // At most as many ninths as the map has tiles, which a command within MaxCommandLength holds: a drag sends a
-            // few ninths at a time, and nothing lays the map's every ninth in one command
-            string? pathReason = ReadPath(fields["path"], Walkways.Side * width, Walkways.Side * height, width * height,
-                                          "walkway", "ninth", "map's grid of ninths", (x, y) => new NinthPosition(x, y),
-                                          out List<NinthPosition> path);
+            string? pathReason = ReadNinthPath(fields["path"], width, height, "a walkway", out List<NinthPosition> path);
 
             return pathReason is null
                 ? new AcceptedCommand(new WalkwayCommand(kind, path))
                 : new RejectedCommand(pathReason);
         }
 
+        private static CommandReading ReadEraseWalkway(JsonObject fields, int width, int height)
+        {
+            string? pathReason = ReadNinthPath(fields["path"], width, height, "an eraseWalkway", out List<NinthPosition> path);
+
+            return pathReason is null
+                ? new AcceptedCommand(new EraseWalkwayCommand(path))
+                : new RejectedCommand(pathReason);
+        }
+
+        // A path of tiles on a map width by height tiles, at most as many as it has: a longer one must revisit one
+        private static string? ReadTilePath(JsonNode? value, int width, int height, string named, out List<TilePosition> path)
+        {
+            return ReadPath(value, width, height, width * height, named, "tile", "map", (x, y) => new TilePosition(x, y), out path);
+        }
+
+        // A path of ninths on the grid of ninths of a map width by height tiles, at most as many as the map has tiles,
+        // which a command within MaxCommandLength holds: a drag sends a few ninths at a time, and nothing lays the map's
+        // every ninth in one command
+        private static string? ReadNinthPath(JsonNode? value, int width, int height, string named, out List<NinthPosition> path)
+        {
+            return ReadPath(value, Walkways.Side * width, Walkways.Side * height, width * height, named, "ninth",
+                            "map's grid of ninths", (x, y) => new NinthPosition(x, y), out path);
+        }
+
         // A path of at most the places given on a grid width by height, each a step across or down from the last, which
-        // the command names, each place by the unit given, on the grid named, and made by the factory from its x and y
-        private static string? ReadPath<TPlace>(JsonNode? value, int width, int height, int mostPlaces, string command,
+        // a reason names as the command named, such as "a tool", each place by the unit given, on the grid named, and
+        // made by the factory from its x and y
+        private static string? ReadPath<TPlace>(JsonNode? value, int width, int height, int mostPlaces, string named,
                                                 string unit, string grid, Func<int, int, TPlace> placeAt, out List<TPlace> path)
         {
             path = new List<TPlace>();
@@ -213,7 +252,7 @@ namespace Micropolis.Rules
 
             if (value is not JsonArray places || places.Count == 0 || places.Count > mostPlaces)
             {
-                return $"a {command}'s path is a list of 1 to {mostPlaces} {unit}s";
+                return $"{named}'s path is a list of 1 to {mostPlaces} {unit}s";
             }
 
             for (int i = 0; i < places.Count; i++)

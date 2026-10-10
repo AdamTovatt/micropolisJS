@@ -18,7 +18,7 @@ namespace Micropolis.Rules
     /// The walkway tool, which the original never had: it lays walkway on a ninth of a tile that takes one
     /// (<see cref="Walkways.Takes"/>), a path for <see cref="PathCost"/>. A ninth already holding the kind laid costs
     /// nothing, so a drag over walkway pays only for what it adds. Water takes none, nor does a zone or any other
-    /// building, rubble or a power line on its own, which need the bulldozer first.
+    /// building, rubble or a power line on its own, which need the bulldozer first. It erases a ninth's walkway too.
     /// </summary>
     internal sealed class WalkwayTool : StagedTool
     {
@@ -38,9 +38,7 @@ namespace Micropolis.Rules
         /// </summary>
         public void Lay(int ninthX, int ninthY, WalkwayKind kind)
         {
-            int x = ninthX / Walkways.Side;
-            int y = ninthY / Walkways.Side;
-            int ninth = ninthY % Walkways.Side * Walkways.Side + ninthX % Walkways.Side;
+            (int x, int y, int ninth) = Walkways.Locate(ninthX, ninthY);
             int tileValue = WorldEffects.GetTileValue(x, y);
 
             if (!Walkways.Takes(tileValue))
@@ -57,6 +55,27 @@ namespace Micropolis.Rules
                 AddCost(PathCost);
             }
 
+            Result = Outcome.Ok;
+        }
+
+        /// <summary>
+        /// Stages the walkway on the ninth at (<paramref name="ninthX"/>, <paramref name="ninthY"/>) erased, whatever its
+        /// kind, at the bulldozer's cost, and sets <see cref="StagedTool.Result"/>: it fails on a ninth holding none, as
+        /// an eraser does where there is nothing of its kind (<see cref="IErasable"/>).
+        /// </summary>
+        public void Erase(int ninthX, int ninthY)
+        {
+            (int x, int y, int ninth) = Walkways.Locate(ninthX, ninthY);
+            int walkway = WorldEffects.GetWalkway(x, y);
+
+            if (Walkways.KindAt(walkway, ninth) == 0)
+            {
+                Result = Outcome.Failed;
+                return;
+            }
+
+            WorldEffects.SetWalkway(x, y, Walkways.With(walkway, ninth, 0));
+            AddCost(BulldozerCost);
             Result = Outcome.Ok;
         }
     }

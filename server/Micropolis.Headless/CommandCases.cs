@@ -107,6 +107,25 @@ namespace Micropolis.Headless
                 Walkway("\"path\"", Path(Ninth(237, 42), Ninth(238, 42), Ninth(239, 42), Ninth(240, 42), Ninth(241, 42), Ninth(242, 42),
                                          Ninth(243, 42), Ninth(244, 42), Ninth(245, 42), Ninth(246, 42), Ninth(247, 42), Ninth(248, 42))))),
 
+            new CommandCase("Erase commands rejected for their tool or their path", "suburb", null, Local(
+                J("""{"type":"erase","tool":"road"}"""), J("""{"type":"erase","tool":"road","path":[{"x":1,"y":1}],"autoBulldoze":true}"""),
+                J("""{"type":"eraseWalkway"}"""), J("""{"type":"eraseWalkway","kind":"path","path":[{"x":1,"y":1}]}"""),
+                Erase("\"bulldozer\"", Path(Tile(1, 1))), Erase("\"query\"", Path(Tile(1, 1))), Erase("null", Path(Tile(1, 1))),
+                Erase("\"road\"", "[]"), Erase("\"road\"", Path(Tile(120, 0))), Erase("\"road\"", Path(Tile(1, 1), Tile(2, 2))),
+                EraseWalkway("[]"), EraseWalkway(Path(Ninth(360, 0))), EraseWalkway(Path(Ninth(1, 1), Ninth(1, 1))))),
+
+            // The suburb's road runs along row 15, a commercial zone centred at (21, 13) north of it and an industrial one
+            // centred at (21, 17) south of it
+            new CommandCase("Erase commands with each outcome: ok and failed for want of what the tool puts down", "suburb", null, Local(
+                // The road off a tile, then again off the bare land it left; and no wire on the road
+                Erase("\"road\"", Path(Tile(20, 15))), Erase("\"road\"", Path(Tile(20, 15))), Erase("\"wire\"", Path(Tile(18, 15))),
+                // A commercial zone is no residential one, and its own eraser blows it up, as the industrial one's does
+                Erase("\"residential\"", Path(Tile(20, 14))), Erase("\"commercial\"", Path(Tile(20, 14))),
+                Erase("\"industrial\"", Path(Tile(20, 16))),
+                // A path laid, two of its ninths erased, then one of them again, which holds none
+                Walkway("\"path\"", Path(Ninth(156, 93), Ninth(157, 93), Ninth(158, 93), Ninth(159, 93))),
+                EraseWalkway(Path(Ninth(157, 93), Ninth(158, 93))), EraseWalkway(Path(Ninth(157, 93))))),
+
             new CommandCase("Settings commands rejected for a value out of range or of the wrong kind", "suburb", null, Local(
                 J("""{"type":"setBudget","tax":21}"""), J("""{"type":"setBudget","tax":-1}"""), J("""{"type":"setBudget","tax":7.5}"""),
                 J("""{"type":"setBudget","tax":"7"}"""), J("""{"type":"setBudget","tax":null}"""),
@@ -169,6 +188,9 @@ namespace Micropolis.Headless
                 // A walkway path of one more ninth than the map has tiles, back and forth, and one as long, which it takes
                 Walkway("\"path\"", Path(BackAndForth(SmallWidth * SmallHeight + 1))),
                 Walkway("\"path\"", Path(BackAndForth(SmallWidth * SmallHeight))),
+                // And the same for the erasers, a tile's path and a ninth's
+                Erase("\"road\"", Path(Enumerable.Repeat(Tile(0, 0), SmallWidth * SmallHeight + 1).ToArray())),
+                EraseWalkway(Path(BackAndForth(SmallWidth * SmallHeight + 1))),
                 // A command the small map takes
                 Tool("\"road\"", Path(Tile(0, 0), Tile(1, 0)), "false"),
             ])),
@@ -215,6 +237,18 @@ namespace Micropolis.Headless
         internal static string Tile(int x, int y)
         {
             return string.Create(CultureInfo.InvariantCulture, $$"""{"x":{{x}},"y":{{y}}}""");
+        }
+
+        // An erase command, from the JSON text of its tool and path
+        private static JsonNode? Erase(string tool, string path)
+        {
+            return J($$"""{"type":"erase","tool":{{tool}},"path":{{path}}}""");
+        }
+
+        // An eraseWalkway command, from the JSON text of its path
+        private static JsonNode? EraseWalkway(string path)
+        {
+            return J($$"""{"type":"eraseWalkway","path":{{path}}}""");
         }
 
         // A ninth's JSON text, on the map's grid of ninths, written as a tile's is

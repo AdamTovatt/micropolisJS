@@ -128,6 +128,7 @@
   --hud-tool-stadium-fill: #4b0082;
   --hud-tool-airport-fill: #ee82ee;
   --hud-tool-park-fill: #006400;
+  --hud-tool-walkway-fill: #e3c08a;
 
   /* The windows and the screens before a city opens: the HUD's panels and buttons on a surface of their own that is
      opaque, since they hold the input and are read at length. A button there lies on it, darker than the panels'
@@ -956,6 +957,10 @@ footer a, footer a:link, footer a:visited, footer a:hover {
 
 #parkButton {
   border-top-color: var(--hud-tool-park-fill);
+}
+
+#walkwayButton {
+  border-top-color: var(--hud-tool-walkway-fill);
 }
 
 #policeButton {

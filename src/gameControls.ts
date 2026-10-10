@@ -17,11 +17,11 @@ import type { CarShareStep } from "./carShare";
 import type { CitySource } from "./citySource";
 import type { CityState } from "./cityState";
 import type { DebugAction } from "./debugWindow";
-import { ToolPaths } from "./dragPath";
+import { pathCommand, ToolPaths } from "./dragPath";
 import type { Emitter } from "./emitter";
 import { errorMessage } from "./errorMessage";
 import type { MouseOutline } from "./gameCanvas";
-import type { ChosenTool, InputEvents, PanState, ToolClick } from "./inputStatus";
+import { type ChosenTool, cellsPerTile, type InputEvents, type PanState, type ToolClick } from "./inputStatus";
 import type {
   BudgetRecord, CursorTool, DisasterKind, EvaluationRecord, SettingsRecord, TileReportAnswer,
 } from "./protocol";
@@ -41,6 +41,7 @@ import type { WindowManager } from "./windowManager";
 // The player's input as the controls read it each tick, and the events it announces (InputStatus)
 export interface ControlInput extends Pick<Emitter<InputEvents>, "addEventListener"> {
   readonly tool: ChosenTool | null;
+  readonly erasing: boolean;
   readonly pointer: PixelPoint | null;
   readonly pan: PanState;
   takeScroll(now: number): TilePoint;
@@ -50,11 +51,12 @@ export interface ControlInput extends Pick<Emitter<InputEvents>, "addEventListen
 }
 
 // The map's view as the controls move it and read it (GameCanvas): the map tile drawn under a point of the canvas, in
-// CSS pixels, or null past its right or bottom edge, and pictures of the map
+// CSS pixels, or the cell of a grid of cellsPerTile cells across and down each tile, or null past its right or bottom
+// edge, and pictures of the map
 export interface ControlView {
   scrollBy(x: number, y: number): void;
   zoomBy(steps: number, point: PixelPoint | null): void;
-  tileOnCanvasUnder(x: number, y: number): TilePoint | null;
+  tileOnCanvasUnder(x: number, y: number, cellsPerTile: number): TilePoint | null;
   screenshotVisible(): string;
   screenshotMap(): string;
 }
@@ -229,17 +231,17 @@ export class GameControls {
     this.reportCursor();
   }
 
-  // Sends each path gathered since the last tick as one tool command: a click, or a drag's latest tiles
+  // Sends each path gathered since the last tick as one command: a click, or a drag's latest tiles or ninths
   sendToolPaths(): void {
     this.toolPaths.take().forEach((toolPath) => {
-      this.source.send({type: "tool", tool: toolPath.tool, path: toolPath.path,
-                        autoBulldoze: this.autoBulldoze.isOn()});
+      this.source.send(pathCommand(toolPath, this.autoBulldoze.isOn()));
     });
   }
 
-  // The map tile under the pointer that this player's hover box is drawn at, or null while none is
+  // The map tile under the pointer that this player's hover box is drawn at, or null while none is: for the walkway's
+  // box round a ninth, the tile holding it
   get hoverTile(): TilePoint | null {
-    return this.hover === null ? null : {x: this.hover.x, y: this.hover.y};
+    return this.hover === null ? null : {x: Math.floor(this.hover.x), y: Math.floor(this.hover.y)};
   }
 
   // The outlines to draw over the map: the other players' hover boxes, named, under this player's own
@@ -288,8 +290,10 @@ export class GameControls {
     this.show(this.gameWindows.touchWarning);
   }
 
-  // The tool's outline at the map tile under the pointer: not while a window holds the mouse, no tool is chosen, the
-  // pointer is off the map's canvas, or Space readies a pan or a pan holds the map, so the others don't see it either
+  // The tool's outline at the map tile under the pointer, or for the walkway the ninth: not while a window holds the
+  // mouse, no tool is chosen, the pointer is off the map's canvas, or Space readies a pan or a pan holds the map, so
+  // the others don't see it either. While Shift turns the tool into its eraser, the outline is the bulldozer's, round
+  // the one tile, or ninth, a press erases at.
   private hoverBox(): MouseOutline | null {
     const tool = this.input.tool;
     const pointer = this.input.pointer;
@@ -297,44 +301,63 @@ export class GameControls {
       return null;
     }
 
-    const tile = this.view.tileOnCanvasUnder(pointer.x, pointer.y);
-    if (tile === null) {
+    const cells = cellsPerTile(tool.name);
+    const cell = this.view.tileOnCanvasUnder(pointer.x, pointer.y, cells);
+    if (cell === null) {
       return null;
     }
 
-    return {x: tile.x, y: tile.y, width: tool.width, height: tool.width, colour: this.input.toolColourOf(tool.name),
+    const shown = this.shownTool(tool);
+    const width = cells > 1 ? 1 / cells : shown.width;
+    return {x: cell.x / cells, y: cell.y / cells, width, height: width, colour: this.input.toolColourOf(shown.name),
             label: null};
   }
 
   // Tells the others where this player's hover box is: nowhere while it isn't drawn, or while the player can't see the
-  // city, such as in a hidden tab, where the pointer may never leave the canvas
+  // city, such as in a hidden tab, where the pointer may never leave the canvas. They see the walkway's box round the
+  // tile holding its ninth.
   private reportCursor(): void {
     const tool = this.input.tool;
     const tile = this.viewerVisible ? this.hoverTile : null;
+    const shown = tool === null ? null : this.shownTool(tool);
 
-    this.players.reportCursor(tool?.name ?? null, tool?.width ?? 0, tile,
+    this.players.reportCursor(shown?.name ?? null, shown?.width ?? 0, tile,
                               (x, y) => this.city.map.testBounds(x, y));
+  }
+
+  // The tool whose box this player's hover box is, to them and to the others, and its width in tiles: the tool's own,
+  // or while Shift turns it into its eraser, the bulldozer's round the one tile a press erases at
+  private shownTool(tool: ChosenTool): ChosenTool {
+    return this.input.erasing ? {name: "bulldozer", width: 1} : tool;
   }
 
   // The tiles the player's tool reaches gather into paths (see ToolPaths), sent each tick by sendToolPaths. The query
   // tool asks for the report of the tile clicked instead.
   private useTool(click: ToolClick): void {
-    const tile = this.view.tileOnCanvasUnder(click.x, click.y);
-    const tool = this.input.tool;
-    if (tile === null || tool === null) {
+    const tool = this.input.tool?.name ?? null;
+    const cells = tool === null ? 1 : cellsPerTile(tool);
+    const place = tool === null ? null : this.view.tileOnCanvasUnder(click.x, click.y, cells);
+    if (place === null || tool === null) {
       this.toolPaths.lost();
       return;
     }
 
-    // The view may show a margin around the map, where there is no tile to report on
-    if (tool.name === "query") {
-      if (this.city.map.testBounds(tile.x, tile.y)) {
-        this.queryTool.query(tile.x, tile.y);
+    // The view may show a margin around the map, where there is no tile to report on, and a place there would have
+    // the city reject its whole path: a drag across it starts afresh where it comes back, as past the canvas's edge
+    const onMap = this.city.map.testBounds(Math.floor(place.x / cells), Math.floor(place.y / cells));
+    if (tool === "query") {
+      if (onMap) {
+        this.queryTool.query(place.x, place.y);
       }
       return;
     }
 
-    this.toolPaths.reached(tool.name, {x: tile.x, y: tile.y}, click.start);
+    if (!onMap) {
+      this.toolPaths.lost();
+      return;
+    }
+
+    this.toolPaths.reached(tool, click.erase, {x: place.x, y: place.y}, click.start);
   }
 
   // Opens a window whose closing has no choice to act on

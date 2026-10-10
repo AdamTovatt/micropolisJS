@@ -58,9 +58,11 @@ A player's browser sends these, each a request carrying an `id`, a whole number 
 but `command` and `cursor`:
 
 - `cursor`, with `cursor`: the player's hover box, `{"tool", "x", "y", "size"}`, or null once when it goes. The box
-  holds the tool the player holds, one of the tools a tool command names or `query`; the map tile under their
-  pointer, where a click applies the tool; and the box's side in tiles. The browser sends it as the box moves, at most
-  5 times a second, and again every 2 seconds while it holds still. The server doesn't answer it: it passes each on
+  holds the tool the player holds, one of the tools a tool command names, `query` or `walkway`, or `bulldozer` while
+  Shift turns the tool held into its eraser; the map tile under their pointer, where a click applies the tool, the
+  tile holding the ninth for the walkway; and the box's side in tiles, one for the walkway and for an eraser. The
+  browser sends it as the box moves, at most 5 times a second, and again every 2 seconds while it holds still. The
+  server doesn't answer it: it passes each on
   to the city's other players as a `cursor` message from the sender's player, and to nothing else, so the simulation
   never sees it and no log keeps it. It drops a box whose tile is off the city's map or whose size isn't its tool's
   (the side of what a building tool puts down, and 1 for the rest), passes on at most 20 of the others in any second

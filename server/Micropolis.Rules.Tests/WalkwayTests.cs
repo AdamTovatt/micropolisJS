@@ -154,18 +154,22 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(autoBulldoze ? 1000 - ToolCosts.All[ToolName.Wire] - StagedTool.BulldozerCost : 1000, budget.TotalFunds);
         }
 
-        // The bulldozer takes a road back to bare land, which keeps the sidewalk on it as a path
+        // The bulldozer's first hit on a road with a sidewalk and a crossing clears every ninth of walkway on it, for the
+        // bulldozer's cost, and leaves the road; its next hit takes the road back to bare land
         [TestMethod]
-        public void BulldozerTool_RoadWithASidewalk_LeavesThePathOnTheBareLand()
+        public void BulldozerTool_RoadWithWalkway_ClearsTheWalkwayThenTheRoad()
         {
             GameMap map = new GameMap(120, 100);
             map.SetTile(50, 50, ROADS, TileFlags.BULLBIT);
-            map.SetWalkway(50, 50, Ground.Walkway(0, 1, 2));
+            map.SetWalkway(50, 50, Ground.Walkway(0, 1, 2, 4, 7));
+            CityTool bulldozer = CityTools.Create(map)[ToolName.Bulldozer];
+            Budget budget = new Budget { TotalFunds = 100 };
 
-            Assert.AreEqual(Outcome.Ok, Apply(CityTools.Create(map)[ToolName.Bulldozer], 50, 50, false));
+            Assert.AreEqual(Outcome.Ok, Apply(bulldozer, 50, 50, false, budget));
+            Assert.AreEqual((ROADS, 0, 100 - StagedTool.BulldozerCost), (map.GetTileValue(50, 50), map.GetWalkway(50, 50), budget.TotalFunds));
 
+            Assert.AreEqual(Outcome.Ok, Apply(bulldozer, 50, 50, false, budget));
             Assert.AreEqual(DIRT, map.GetTileValue(50, 50));
-            Assert.AreEqual(Ground.Walkway(0, 1, 2), map.GetWalkway(50, 50));
         }
 
         // The map scan clears the walkway from a tile that has turned to rubble, and leaves it on bare land and road

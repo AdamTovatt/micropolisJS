@@ -313,6 +313,15 @@ namespace Micropolis.Rules
             return IsRail(tile.GetValue());
         }
 
+        /// <summary>
+        /// Whether a tile of the value is a park, as the park tool lays one: its trees or its fountain. The wild woods
+        /// are not.
+        /// </summary>
+        public static bool IsPark(int tileValue)
+        {
+            return (tileValue >= TileValues.WOODS2 && tileValue <= TileValues.WOODS5) || tileValue == TileValues.FOUNTAIN;
+        }
+
         public static bool IsResidential(int tileValue)
         {
             return tileValue >= TileValues.RESBASE && tileValue < TileValues.HOSPITALBASE;

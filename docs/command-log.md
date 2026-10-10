@@ -62,6 +62,8 @@ The commands, by `type`, with what their fields mean. `Command` in `src/protocol
 |--------|--------|
 | `tool` | `tool`, the tool; `path`, the tiles it is applied at, in order; `autoBulldoze`, the sending player's setting |
 | `walkway` | `kind`, the kind of walkway: `path`; `path`, the ninths it is laid on, in order, on the map's grid of ninths, three across and down each tile, at most as many as the map has tiles |
+| `erase` | `tool`, the tool whose work it takes off, any but the bulldozer; `path`, the tiles it erases at, in order |
+| `eraseWalkway` | `path`, the ninths whose walkway it erases, in order, as the walkway command's path runs |
 | `setBudget` | `tax`, the tax rate in percent; `road`, `fire` and `police`, for the services it names, each one's funding in percent of what it needs. A service it leaves out keeps its funding |
 | `setSpeed` | `speed`: 0 paused, 1 slow, 2 medium, 3 fast |
 | `setAutoBudget` | `on`: whether the budget is set automatically |

@@ -20,6 +20,15 @@ namespace Micropolis.Rules
     /// </summary>
     internal sealed class RailTool : LayingTool
     {
+        /// <summary>
+        /// The straight rail, across as the tool lays it on dirt and down as the connections turn it.
+        /// </summary>
+        public static readonly IReadOnlyList<Piece> Straight =
+        [
+            new Piece(TileValues.LHRAIL, TileFlags.BLBNBIT),
+            new Piece(TileValues.LVRAIL, TileFlags.BLBNBIT),
+        ];
+
         public RailTool(GameMap map)
             : base(20, map)
         {
@@ -28,12 +37,30 @@ namespace Micropolis.Rules
         // What a tunnel costs
         protected override long WaterCost => 100;
 
+        protected override bool IsLine(int tileValue)
+        {
+            return tileValue >= TileValues.LHRAIL && tileValue <= TileValues.LVRAIL10;
+        }
+
+        protected override bool IsLineOverWater(int tileValue)
+        {
+            return OverWater(tileValue);
+        }
+
+        /// <summary>
+        /// Whether a tile of the value is rail crossing water: a tunnel.
+        /// </summary>
+        public static bool OverWater(int tileValue)
+        {
+            return tileValue is TileValues.HRAIL or TileValues.VRAIL;
+        }
+
         // The tile with any road it carries taken out
         protected override Piece? PieceOn(int tileValue)
         {
             return TileUtils.NormalizeRoad(tileValue) switch
             {
-                TileValues.DIRT => new Piece(TileValues.LHRAIL, TileFlags.BLBNBIT),
+                TileValues.DIRT => Straight[0],
                 TileValues.LHPOWER => new Piece(TileValues.RAILVPOWERH, TileFlags.BLBNCNBIT),
                 TileValues.LVPOWER => new Piece(TileValues.RAILHPOWERV, TileFlags.BLBNCNBIT),
                 TileValues.ROADS => new Piece(TileValues.VRAILROAD, TileFlags.BLBNBIT),

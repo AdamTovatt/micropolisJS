@@ -180,7 +180,7 @@ namespace Micropolis.Rules
 
     /// <summary>
     /// The tools a hover box shows, as <c>CURSOR_TOOLS</c> in <c>src/protocol.ts</c> lists them, in its order: those of
-    /// <see cref="ToolName"/>, then the query tool. Read by name only, as the client's reader reads it.
+    /// <see cref="ToolName"/>, then the query tool and the walkway. Read by name only, as the client's reader reads it.
     /// </summary>
     [JsonConverter(typeof(ProtocolNameConverter<CursorTool>))]
     public enum CursorTool
@@ -202,6 +202,7 @@ namespace Micropolis.Rules
         [JsonStringEnumMemberName("station")] Station,
         [JsonStringEnumMemberName("wire")] Wire,
         [JsonStringEnumMemberName("query")] Query,
+        [JsonStringEnumMemberName("walkway")] Walkway,
     }
 
     /// <summary>
@@ -312,6 +313,8 @@ namespace Micropolis.Rules
     [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
     [JsonDerivedType(typeof(ToolCommand), "tool")]
     [JsonDerivedType(typeof(WalkwayCommand), "walkway")]
+    [JsonDerivedType(typeof(EraseCommand), "erase")]
+    [JsonDerivedType(typeof(EraseWalkwayCommand), "eraseWalkway")]
     [JsonDerivedType(typeof(SetBudgetCommand), "setBudget")]
     [JsonDerivedType(typeof(SetSpeedCommand), "setSpeed")]
     [JsonDerivedType(typeof(SetAutoBudgetCommand), "setAutoBudget")]
@@ -336,6 +339,21 @@ namespace Micropolis.Rules
     /// </summary>
     public sealed record WalkwayCommand(
         [property: JsonPropertyName("kind")] WalkwayKind Kind,
+        [property: JsonPropertyName("path")] IReadOnlyList<NinthPosition> Path) : Command;
+
+    /// <summary>
+    /// What the tool named puts down erased at each tile of the path in order, as one click each, as a player holding
+    /// Shift with the tool erases (<see cref="IErasable"/>): any tool but the bulldozer.
+    /// </summary>
+    public sealed record EraseCommand(
+        [property: JsonPropertyName("tool")] ToolName Tool,
+        [property: JsonPropertyName("path")] IReadOnlyList<TilePosition> Path) : Command;
+
+    /// <summary>
+    /// The walkway on each ninth of the path erased in order, whatever its kind, as one click each
+    /// (<see cref="WalkwayTool.Erase"/>).
+    /// </summary>
+    public sealed record EraseWalkwayCommand(
         [property: JsonPropertyName("path")] IReadOnlyList<NinthPosition> Path) : Command;
 
     /// <summary>

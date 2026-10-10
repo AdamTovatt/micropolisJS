@@ -33,12 +33,6 @@ namespace Micropolis.Rules
         public long ToolCost { get; }
 
         /// <summary>
-        /// Whether the tool clears a walkway from a tile it leaves taking none (<see cref="Apply"/>): every tool but the
-        /// bulldozer, whose own rule for walkways stands apart.
-        /// </summary>
-        protected virtual bool ClearsWalkways => true;
-
-        /// <summary>
         /// Stages the tool's edits at tile (x, y), as <see cref="DoTool"/> does, and then, as a zone or building placed
         /// over rubble clears it under auto-bulldoze: where a tile it stages takes no walkway (<see cref="Walkways.Takes"/>)
         /// and holds one, auto-bulldoze clears the walkway for <see cref="StagedTool.BulldozerCost"/> a tile, and without
@@ -48,7 +42,7 @@ namespace Micropolis.Rules
         {
             DoTool(x, y, random, autoBulldoze);
 
-            if (Result != Outcome.Ok || !ClearsWalkways)
+            if (Result != Outcome.Ok)
             {
                 return;
             }
@@ -96,6 +90,30 @@ namespace Micropolis.Rules
                 {
                     AddCost(BulldozerCost);
                     WorldEffects.SetTile(x, y, TileValues.DIRT);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Blows up a zone or building of <paramref name="size"/> by <paramref name="size"/> tiles whose top left tile
+        /// is (left, top), as the bulldozer does: each tile of the square on the map that is neither radioactive nor
+        /// dirt becomes a small explosion, its frame drawn from the stream, column by column.
+        /// </summary>
+        protected void PutRubble(int left, int top, int size, RandomStream random)
+        {
+            for (int x = left; x < left + size; x++)
+            {
+                for (int y = top; y < top + size; y++)
+                {
+                    if (Map.TestBounds(x, y))
+                    {
+                        int tile = WorldEffects.GetTileValue(x, y);
+
+                        if (tile != TileValues.RADTILE && tile != TileValues.DIRT)
+                        {
+                            WorldEffects.SetTile(x, y, TileValues.TINYEXP + random.GetRandom(2), TileFlags.ANIMBIT | TileFlags.BULLBIT);
+                        }
+                    }
                 }
             }
         }

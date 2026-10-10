@@ -37,7 +37,10 @@
     {"step":8208,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":89,"y":40},{"x":88,"y":40},{"x":87,"y":40},{"x":86,"y":40},{"x":85,"y":40},{"x":84,"y":40},{"x":83,"y":40},{"x":82,"y":40},{"x":81,"y":40},{"x":80,"y":40},{"x":79,"y":40},{"x":78,"y":40}],"autoBulldoze":true}},
     {"step":8208,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":77,"y":40},{"x":76,"y":40},{"x":75,"y":40}],"autoBulldoze":true}},
     {"step":8208,"player":"player 1","command":{"type":"tool","tool":"wire","path":[{"x":75,"y":39},{"x":75,"y":38},{"x":75,"y":37},{"x":75,"y":36}],"autoBulldoze":true}},
-    {"step":12144,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}}
+    {"step":12144,"player":"player 1","command":{"type":"tool","tool":"road","path":[{"x":50,"y":30},{"x":51,"y":30},{"x":52,"y":30},{"x":53,"y":30},{"x":54,"y":30},{"x":55,"y":30},{"x":56,"y":30}],"autoBulldoze":true}},
+    {"step":12144,"player":"player 1","command":{"type":"walkway","kind":"path","path":[{"x":180,"y":93},{"x":181,"y":93},{"x":182,"y":93},{"x":183,"y":93},{"x":184,"y":93},{"x":185,"y":93},{"x":186,"y":93},{"x":187,"y":93},{"x":188,"y":93},{"x":189,"y":93},{"x":190,"y":93},{"x":191,"y":93},{"x":192,"y":93},{"x":193,"y":93},{"x":194,"y":93}]}},
+    {"step":12144,"player":"player 1","command":{"type":"eraseWalkway","path":[{"x":186,"y":93},{"x":187,"y":93},{"x":188,"y":93}]}},
+    {"step":12144,"player":"player 1","command":{"type":"erase","tool":"road","path":[{"x":69,"y":31}]}}
   ],
   "checkpoints": [
     {"step":0,"hash":"5eba98b9d1d402a5504241d3ad52e4f651398bf83afaf52ed69ceeb554a303af"},
@@ -45,6 +48,6 @@
     {"step":7200,"hash":"6ce433ea45803037e4ad0ea6fa352a87f50540f568b83fe2d5a1510bd224b1ed"},
     {"step":10800,"hash":"929b3523bd3418ebab498145f241b25e5d6c5f8f56833dfeaef314ba57747f0e"},
     {"step":10992,"hash":"1444f741718e6e447b543beaea5d47e3800b6863537eeca883addb04a026b61a"},
-    {"step":12144,"hash":"b1f5400041323875e3c373c9d2354f9e01906193b709dee15d2a7a0f60ef28bf"}
+    {"step":12144,"hash":"14565304f1d24578f365ac2ca87600d7955f3458ecb2d3645c7793ed21e02d6b"}
   ]
 }

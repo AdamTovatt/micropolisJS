@@ -14,14 +14,15 @@
 
 import { expect } from "@playwright/test";
 
+import { NINTHS_PER_SIDE } from "../src/protocol";
 import { POWERBIT } from "../src/tileFlags";
 import {
-  AIRPORT, COMCLR, FIRESTATION, FREEZ, HRAILSTATION, HROADPOWER, INDCLR, LASTPOWER, LASTRUBBLE, POLICESTATION, POWERBASE,
-  POWERPLANT, RUBBLE, VROADPOWER,
+  AIRPORT, COMCLR, DIRT, FIRESTATION, FREEZ, HRAILSTATION, HROADPOWER, INDCLR, LASTPOWER, LASTRUBBLE, POLICESTATION,
+  POWERBASE, POWERPLANT, RUBBLE, VROADPOWER,
 } from "../src/tileValues";
 import { GameSave, Player, Tile } from "./player";
 import { AIRPORT_COST, CITY_TIMES_PER_YEAR, STEPS_PER_CITY_TIME } from "./ruleNumbers";
-import { isFire, isRoad, Rect, rawTileAt, tileAt, tilesIn, tilesWhere } from "./savedMap";
+import { isFire, isRoad, Rect, rawTileAt, tileAt, tilesIn, tilesWhere, walkwayAt, walkwayOf } from "./savedMap";
 import { buildStation, planStation, savedFireCover, STRONGEST_COVER } from "./stationSite";
 
 // The playthrough: one city played from a fixed seed through stages in order, each building on the last. A stage is
@@ -369,6 +370,38 @@ export const STAGES: Stage[] = [
 
       await player.zoomWithKeys(-1);
       await player.zoomWithWheel({x: 53, y: 30}, -1);
+    },
+  },
+  {
+    name: "Lay a sidewalk, and erase with Shift",
+    async play(player) {
+      // A sidewalk along the north row of ninths of the long road on row 31, from (60, 31) to (64, 31); then, with
+      // Shift held, the walkway's eraser drags over the ninths of (62, 31), and the road's clicks (69, 31), the road's
+      // east end, which goes back to bare land. A path costs, and an eraser too, but the stage takes no steps.
+      const sidewalk = {left: 60, top: 31, right: 64, bottom: 31};
+      const before = await player.save();
+      const notRoad = [...tilesIn(sidewalk), {x: 69, y: 31}].filter((tile) => !isRoad(tileAt(before, tile)));
+      expect(notRoad, "the tiles the stage lays a sidewalk on or erases that are not road").toEqual([]);
+
+      await player.selectTool("walkway");
+      await player.dragNinths({x: NINTHS_PER_SIDE * sidewalk.left, y: NINTHS_PER_SIDE * sidewalk.top},
+                              {x: NINTHS_PER_SIDE * sidewalk.right + NINTHS_PER_SIDE - 1,
+                               y: NINTHS_PER_SIDE * sidewalk.top});
+      const northRow = walkwayOf([0, 1, 2]);
+      const laid = await player.save();
+      expect(tilesIn(sidewalk).map((tile) => walkwayAt(laid, tile)), "the sidewalk's tiles' walkway")
+        .toEqual(tilesIn(sidewalk).map(() => northRow));
+
+      await player.dragNinths({x: NINTHS_PER_SIDE * 62, y: NINTHS_PER_SIDE * 31},
+                              {x: NINTHS_PER_SIDE * 62 + NINTHS_PER_SIDE - 1, y: NINTHS_PER_SIDE * 31}, true);
+      await player.selectTool("road");
+      await player.clickTile({x: 69, y: 31}, true);
+
+      const erased = await player.save();
+      expect(tilesIn(sidewalk).map((tile) => walkwayAt(erased, tile)), "the sidewalk's tiles' walkway once erased")
+        .toEqual(tilesIn(sidewalk).map((tile) => tile.x === 62 ? 0 : northRow));
+      expect(tileAt(erased, {x: 69, y: 31}), "the road's east end, erased").toBe(DIRT);
+      expect(isRoad(tileAt(erased, {x: 68, y: 31})), "the road beside it").toBe(true);
     },
   },
 ];

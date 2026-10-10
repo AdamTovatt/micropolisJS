@@ -14,8 +14,8 @@
 
 import * as Messages from "./messages";
 import {
-  CITY_PROBLEMS, CityClass, DisasterKind, GameLevel, GrowthBlocker, GrowthOutlook, GrowthZone, OverlayLayer,
-  ScoreReason, ServiceAmounts, SPEEDS, ToolName, WalkwayKind, ZoneCategory,
+  CITY_PROBLEMS, CityClass, DisasterKind, ErasedTool, GameLevel, GrowthBlocker, GrowthOutlook, GrowthZone,
+  OverlayLayer, ScoreReason, ServiceAmounts, SPEEDS, ToolName, WalkwayKind, ZoneCategory,
 } from "./protocol";
 import type { ToastedFailure } from "./toolToast";
 import * as UiMessages from "./uiMessages";
@@ -266,6 +266,14 @@ const playerActions = {
     stadium: "built a stadium", station: "built a rail station", wire: "laid power lines",
   } satisfies Record<ToolName, string>,
   walkways: {path: "laid a path"} satisfies Record<WalkwayKind, string>,
+  erased: {
+    airport: "removed an airport", coal: "removed a coal power plant", commercial: "removed commercial land",
+    fire: "removed a fire station", industrial: "removed industrial land", nuclear: "removed a nuclear power plant",
+    park: "removed a park", police: "removed a police station", port: "removed a seaport", rail: "removed rail",
+    residential: "removed residential land", road: "removed a road", stadium: "removed a stadium",
+    station: "removed a rail station", wire: "removed power lines",
+  } satisfies Record<ErasedTool, string>,
+  erasedWalkway: "removed a path",
   taxes: (tax: number) => `set taxes to ${tax}%`,
   funding: {road: "road funding", fire: "fire funding", police: "police funding"} satisfies Record<keyof ServiceAmounts, string>,
   fundingTo: (service: string, percent: number) => `${service} to ${percent}%`,

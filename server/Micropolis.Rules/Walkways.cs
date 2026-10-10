@@ -89,8 +89,7 @@ namespace Micropolis.Rules
         /// </summary>
         public static bool IsOpenLand(int tileValue)
         {
-            return tileValue == TileValues.DIRT || (tileValue >= TileValues.WOODS2 && tileValue <= TileValues.WOODS5) ||
-                   tileValue == TileValues.FOUNTAIN;
+            return tileValue == TileValues.DIRT || TileUtils.IsPark(tileValue);
         }
 
         /// <summary>
@@ -99,6 +98,15 @@ namespace Micropolis.Rules
         public static int KindAt(int walkway, int ninth)
         {
             return (walkway >> (BitsPerNinth * ninth)) & KindMask;
+        }
+
+        /// <summary>
+        /// The tile a ninth of the map's grid of ninths, <see cref="Side"/> across and down each tile, lies in, and the
+        /// ninth of that tile it is.
+        /// </summary>
+        public static (int X, int Y, int Ninth) Locate(int ninthX, int ninthY)
+        {
+            return (ninthX / Side, ninthY / Side, ninthY % Side * Side + ninthX % Side);
         }
 
         /// <summary>

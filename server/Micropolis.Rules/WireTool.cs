@@ -20,6 +20,15 @@ namespace Micropolis.Rules
     /// </summary>
     internal sealed class WireTool : LayingTool
     {
+        /// <summary>
+        /// The straight power line, across as the tool lays it on dirt and down as the connections turn it.
+        /// </summary>
+        public static readonly IReadOnlyList<Piece> Straight =
+        [
+            new Piece(TileValues.LHPOWER, TileFlags.BLBNCNBIT),
+            new Piece(TileValues.LVPOWER, TileFlags.BLBNCNBIT),
+        ];
+
         public WireTool(GameMap map)
             : base(5, map)
         {
@@ -28,12 +37,30 @@ namespace Micropolis.Rules
         // What a line under water costs
         protected override long WaterCost => 25;
 
+        protected override bool IsLine(int tileValue)
+        {
+            return tileValue >= TileValues.LHPOWER && tileValue <= TileValues.LVPOWER10;
+        }
+
+        protected override bool IsLineOverWater(int tileValue)
+        {
+            return OverWater(tileValue);
+        }
+
+        /// <summary>
+        /// Whether a tile of the value is a power line crossing water: one under it.
+        /// </summary>
+        public static bool OverWater(int tileValue)
+        {
+            return tileValue is TileValues.HPOWER or TileValues.VPOWER;
+        }
+
         // The tile with any road it carries taken out
         protected override Piece? PieceOn(int tileValue)
         {
             return TileUtils.NormalizeRoad(tileValue) switch
             {
-                TileValues.DIRT => new Piece(TileValues.LHPOWER, TileFlags.BLBNCNBIT),
+                TileValues.DIRT => Straight[0],
                 TileValues.ROADS => new Piece(TileValues.HROADPOWER, TileFlags.BLBNCNBIT),
                 TileValues.ROADS2 => new Piece(TileValues.VROADPOWER, TileFlags.BLBNCNBIT),
                 TileValues.LHRAIL => new Piece(TileValues.RAILHPOWERV, TileFlags.BLBNCNBIT),

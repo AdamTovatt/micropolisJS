@@ -13,8 +13,8 @@
  */
 
 import {
-    MAX_SCROLL_TIME, SCROLL_SPEED, ScrollKeys, SpacePan, WheelZoom, buttonTool, cursorClass, heldKey, isMinimapKey,
-    isShortcut, isToolPress, spacePans, toolColours, zoomKey,
+    MAX_SCROLL_TIME, SCROLL_SPEED, ScrollKeys, ShiftKey, SpacePan, WheelZoom, buttonTool, cellsPerTile, cursorClass, heldKey,
+    isMinimapKey, isShortcut, spacePans, toolColours, toolPress, zoomKey,
 } from "../src/inputStatus";
 import { CURSOR_TOOLS, type CursorTool } from "../src/protocol";
 import { ViewPosition, ZOOM_STEPS, viewport } from "../src/viewPosition";
@@ -69,14 +69,67 @@ describe("a press the tool takes", () => {
 
     const plain = {button: 0, shiftKey: false, altKey: false, ctrlKey: false, metaKey: false};
 
-    it("is the primary button's", () => {
-        expect(isToolPress(plain)).toBe(true);
+    it("is the primary button's, which puts down what the tool does", () => {
+        expect(toolPress(plain, "road")).toBe("place");
+    });
+
+    it.each<CursorTool>(["road", "residential", "park", "station", "walkway"])(
+        "erases with Shift held, for the %s, which puts something down", (tool) => {
+            expect(toolPress({...plain, shiftKey: true}, tool)).toBe("erase");
+        });
+
+    it.each<CursorTool>(["bulldozer", "query"])("is none with Shift held, for the %s, which has no eraser", (tool) => {
+        expect(toolPress({...plain, shiftKey: true}, tool)).toBeNull();
     });
 
     it.each([["the middle button", {button: 1}], ["the secondary button", {button: 2}],
-             ["shift", {shiftKey: true}], ["alt", {altKey: true}], ["control", {ctrlKey: true}],
-             ["meta", {metaKey: true}]])("is not one with %s", (_, change) => {
-        expect(isToolPress({...plain, ...change})).toBe(false);
+             ["alt", {altKey: true}], ["control", {ctrlKey: true}], ["meta", {metaKey: true}],
+             ["shift and alt", {shiftKey: true, altKey: true}]])("is none with %s", (_, change) => {
+        expect(toolPress({...plain, ...change}, "road")).toBeNull();
+    });
+});
+
+describe("Shift", () => {
+
+    it("turns a tool that puts something down into its eraser while an event says it is down", () => {
+        const shift = new ShiftKey();
+        shift.follow({shiftKey: true});
+        expect([shift.erases("road"), shift.erases("walkway"), shift.erases("residential")]).toEqual([true, true, true]);
+    });
+
+    it("turns neither the bulldozer nor the query tool, nor no tool, into an eraser", () => {
+        const shift = new ShiftKey();
+        shift.follow({shiftKey: true});
+        expect([shift.erases("bulldozer"), shift.erases("query"), shift.erases(null)]).toEqual([false, false, false]);
+    });
+
+    it("is up once an event says so, as a mouse event does for a Shift that came up while the page had no keyboard",
+       () => {
+        const shift = new ShiftKey();
+        shift.follow({shiftKey: true});
+        shift.follow({shiftKey: false});
+        expect(shift.erases("road")).toBe(false);
+    });
+
+    it("is down once an event says so, as a mouse event does for a Shift held as the page got the keyboard back", () => {
+        const shift = new ShiftKey();
+        expect(shift.erases("road")).toBe(false);
+        shift.follow({shiftKey: true});
+        expect(shift.erases("road")).toBe(true);
+    });
+
+    it("is up once the page loses the keyboard", () => {
+        const shift = new ShiftKey();
+        shift.follow({shiftKey: true});
+        shift.release();
+        expect(shift.erases("road")).toBe(false);
+    });
+});
+
+describe("the cells a tool's clicks land on", () => {
+
+    it("are the walkway's ninths, three across and down a tile, and every other tool's tiles", () => {
+        expect([cellsPerTile("walkway"), cellsPerTile("road"), cellsPerTile("query")]).toEqual([3, 1, 1]);
     });
 });
 

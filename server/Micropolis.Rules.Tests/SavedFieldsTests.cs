@@ -47,6 +47,7 @@ namespace Micropolis.Rules.Tests
                     ["TrafficManager"] = "its route, and its router's buffers, start afresh at every trip",
                     ["Trips"] = "the trips offered for the client to draw as cars, which the rules never read",
                     ["_tools"] = "a tool holds staged edits only while a command applies, and clears them before the next",
+                    ["_erasers"] = "a tool holds staged edits only while a command applies, and clears them before the next",
                     ["_walkwayTool"] = "a tool holds staged edits only while a command applies, and clears them before the next",
                     ["_cityYearLast"] = "the date last sent to the UI, which a load resets",
                     ["_cityMonthLast"] = "the date last sent to the UI, which a load resets",

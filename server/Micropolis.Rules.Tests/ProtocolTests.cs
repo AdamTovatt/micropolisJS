@@ -145,9 +145,10 @@ namespace Micropolis.Rules.Tests
 
         // CURSOR_TOOLS in src/protocol.ts is built from TOOL_NAMES the same way
         [TestMethod]
-        public void CursorToolNames_AreTheToolNamesThenQuery()
+        public void CursorToolNames_AreTheToolNamesThenQueryAndWalkway()
         {
-            CollectionAssert.AreEqual(ProtocolJson.Names<ToolName>().Append("query").ToList(), ProtocolJson.Names<CursorTool>().ToList());
+            CollectionAssert.AreEqual(ProtocolJson.Names<ToolName>().Append("query").Append("walkway").ToList(),
+                                      ProtocolJson.Names<CursorTool>().ToList());
         }
 
         [TestMethod]

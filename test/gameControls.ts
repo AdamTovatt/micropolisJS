@@ -47,11 +47,15 @@ const MAP_HEIGHT = 20;
 const ROAD: ChosenTool = {name: "road", width: 1};
 const RESIDENTIAL: ChosenTool = {name: "residential", width: 3};
 const QUERY: ChosenTool = {name: "query", width: 1};
+const WALKWAY: ChosenTool = {name: "walkway", width: 1};
+// A ninth of a tile, in CSS pixels
+const NINTH = TILE / 3;
 
 // The player's input, as the test makes it: the tool, the pointer and the pan, the keys pressed, and the events the
 // controls hear
 class FakeInput extends Emitter<InputEvents> {
     tool: ChosenTool | null = null;
+    erasing = false;
     pointer: PixelPoint | null = null;
     pan: PanState = "free";
     scroll: TilePoint = {x: 0, y: 0};
@@ -98,13 +102,13 @@ class FakeView implements ControlView {
         this.zooms.push({steps, point});
     }
 
-    tileOnCanvasUnder(x: number, y: number): TilePoint | null {
+    tileOnCanvasUnder(x: number, y: number, cellsPerTile: number): TilePoint | null {
         this.conversions++;
         if (x >= CANVAS_WIDTH || y >= CANVAS_HEIGHT) {
             return null;
         }
 
-        return {x: Math.floor(x / TILE), y: Math.floor(y / TILE)};
+        return {x: Math.floor(x * cellsPerTile / TILE), y: Math.floor(y * cellsPerTile / TILE)};
     }
 
     screenshotVisible(): string {
@@ -411,8 +415,8 @@ describe("the game's controls", () => {
             const {controls, input, source} = setUp();
             input.tool = ROAD;
 
-            input.announce(UiMessages.TOOL_CLICKED, {x: 1 * TILE, y: 1 * TILE, start: true});
-            input.announce(UiMessages.TOOL_CLICKED, {x: 3 * TILE, y: 1 * TILE, start: false});
+            input.announce(UiMessages.TOOL_CLICKED, {x: 1 * TILE, y: 1 * TILE, start: true, erase: false});
+            input.announce(UiMessages.TOOL_CLICKED, {x: 3 * TILE, y: 1 * TILE, start: false, erase: false});
             controls.tick(0);
 
             expect(source.sent).toEqual([{type: "tool", tool: "road", path: [{x: 1, y: 1}, {x: 2, y: 1}, {x: 3, y: 1}],
@@ -423,7 +427,7 @@ describe("the game's controls", () => {
             const {controls, input, source} = setUp();
             input.tool = ROAD;
             source.held = true;
-            input.announce(UiMessages.TOOL_CLICKED, {x: TILE, y: TILE, start: true});
+            input.announce(UiMessages.TOOL_CLICKED, {x: TILE, y: TILE, start: true, erase: false});
 
             controls.tick(0);
             expect(source.sent).toEqual([]);
@@ -437,7 +441,7 @@ describe("the game's controls", () => {
             input.tool = RESIDENTIAL;
             autoBulldoze.on = false;
 
-            input.announce(UiMessages.TOOL_CLICKED, {x: 5 * TILE, y: 5 * TILE, start: true});
+            input.announce(UiMessages.TOOL_CLICKED, {x: 5 * TILE, y: 5 * TILE, start: true, erase: false});
             controls.tick(0);
 
             expect(source.sent).toEqual([{type: "tool", tool: "residential", path: [{x: 5, y: 5}],
@@ -448,20 +452,93 @@ describe("the game's controls", () => {
             const {controls, input, source} = setUp();
             input.tool = ROAD;
 
-            input.announce(UiMessages.TOOL_CLICKED, {x: 1 * TILE, y: TILE, start: true});
-            input.announce(UiMessages.TOOL_CLICKED, {x: CANVAS_WIDTH, y: TILE, start: false});
-            input.announce(UiMessages.TOOL_CLICKED, {x: 3 * TILE, y: TILE, start: false});
+            input.announce(UiMessages.TOOL_CLICKED, {x: 1 * TILE, y: TILE, start: true, erase: false});
+            input.announce(UiMessages.TOOL_CLICKED, {x: CANVAS_WIDTH, y: TILE, start: false, erase: false});
+            input.announce(UiMessages.TOOL_CLICKED, {x: 3 * TILE, y: TILE, start: false, erase: false});
             controls.tick(0);
 
             expect(source.sent.map((command) => command.type === "tool" && command.path))
                 .toEqual([[{x: 1, y: 1}], [{x: 3, y: 1}]]);
         });
 
+        // A place off the map would have the city reject the whole path, the tiles on the map with it
+        it.each([
+            [ROAD, MAP_WIDTH - 2, MAP_WIDTH - 1, 1],
+            [WALKWAY, 3 * MAP_WIDTH - 2, 3 * MAP_WIDTH - 1, 3],
+        ] as const)("cuts a %j drag at the map's edge, the margin past it sending nothing", (tool, first, last, cells) => {
+            const {controls, input, source} = setUp();
+            input.tool = tool;
+            const y = TILE / cells / 2;
+
+            input.announce(UiMessages.TOOL_CLICKED, {x: (first + 0.5) * TILE / cells, y, start: true, erase: false});
+            input.announce(UiMessages.TOOL_CLICKED, {x: (last + 2.5) * TILE / cells, y, start: false, erase: false});
+            input.announce(UiMessages.TOOL_CLICKED, {x: (last + 0.5) * TILE / cells, y, start: false, erase: false});
+            controls.tick(0);
+
+            expect(source.sent.map((command) => "path" in command && command.path))
+                .toEqual([[{x: first, y: 0}], [{x: last, y: 0}]]);
+        });
+
+        it("sends the ninths a walkway's drag reached as one walkway command, on the map's grid of ninths", () => {
+            const {controls, input, source} = setUp();
+            input.tool = WALKWAY;
+
+            input.announce(UiMessages.TOOL_CLICKED, {x: 4.5 * NINTH, y: 7.5 * NINTH, start: true, erase: false});
+            input.announce(UiMessages.TOOL_CLICKED, {x: 6.5 * NINTH, y: 7.5 * NINTH, start: false, erase: false});
+            controls.tick(0);
+
+            expect(source.sent).toEqual([{type: "walkway", kind: "path", path: [{x: 4, y: 7}, {x: 5, y: 7}, {x: 6, y: 7}]}]);
+        });
+
+        it.each([
+            [ROAD, {type: "erase", tool: "road", path: [{x: 2, y: 3}]}],
+            [RESIDENTIAL, {type: "erase", tool: "residential", path: [{x: 2, y: 3}]}],
+            [WALKWAY, {type: "eraseWalkway", path: [{x: 7, y: 10}]}],
+        ] as const)("sends a click with Shift held as the %j's eraser: %j", (tool, command) => {
+            const {controls, input, source} = setUp();
+            input.tool = tool;
+
+            input.announce(UiMessages.TOOL_CLICKED, {x: 2.5 * TILE, y: 3.5 * TILE, start: true, erase: true});
+            controls.tick(0);
+
+            expect(source.sent).toEqual([command]);
+        });
+
+        // A press erases at the one tile, or ninth, under the pointer, whatever the tool puts down
+        it.each([
+            [RESIDENTIAL, false, {x: 2, y: 3, width: 3, height: 3, colour: "residential colour"}],
+            [RESIDENTIAL, true, {x: 2, y: 3, width: 1, height: 1, colour: "bulldozer colour"}],
+            [WALKWAY, false, {x: 7 / 3, y: 10 / 3, width: 1 / 3, height: 1 / 3, colour: "walkway colour"}],
+            [WALKWAY, true, {x: 7 / 3, y: 10 / 3, width: 1 / 3, height: 1 / 3, colour: "bulldozer colour"}],
+        ] as const)("outlines, for the %j, erasing %s, %j", (tool, erasing, box) => {
+            const {controls, input} = setUp();
+            input.tool = tool;
+            input.erasing = erasing;
+            input.pointer = {x: 2.5 * TILE, y: 3.5 * TILE};
+
+            controls.tick(0);
+
+            const outlines = controls.outlines();
+            expect(outlines[outlines.length - 1]).toEqual({...box, label: null});
+            expect(controls.hoverTile).toEqual({x: 2, y: 3});
+        });
+
+        it("shows the others an eraser as the bulldozer's box of one tile", () => {
+            const {controls, input, players} = setUp();
+            input.tool = RESIDENTIAL;
+            input.erasing = true;
+            input.pointer = {x: 2.5 * TILE, y: 3.5 * TILE};
+
+            controls.tick(0);
+
+            expect(players.last).toEqual({tool: "bulldozer", size: 1, tile: {x: 2, y: 3}});
+        });
+
         it("asks for the report of the tile the query tool clicked, and shows it", () => {
             const {input, source, gameWindows} = setUp();
             input.tool = QUERY;
 
-            input.announce(UiMessages.TOOL_CLICKED, {x: 4 * TILE, y: 6 * TILE, start: true});
+            input.announce(UiMessages.TOOL_CLICKED, {x: 4 * TILE, y: 6 * TILE, start: true, erase: false});
 
             expect(source.asked).toEqual([{type: "tileReport", x: 4, y: 6}]);
             expect(gameWindows.query.opened).toEqual([[{type: "tileReport", x: 4, y: 6}]]);
@@ -471,7 +548,7 @@ describe("the game's controls", () => {
             const {input, source} = setUp();
             input.tool = QUERY;
 
-            input.announce(UiMessages.TOOL_CLICKED, {x: MAP_WIDTH * TILE, y: TILE, start: true});
+            input.announce(UiMessages.TOOL_CLICKED, {x: MAP_WIDTH * TILE, y: TILE, start: true, erase: false});
 
             expect(source.asked).toEqual([]);
         });

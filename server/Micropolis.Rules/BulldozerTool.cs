@@ -17,7 +17,8 @@ namespace Micropolis.Rules
     /// <summary>
     /// The bulldozer, as the original's <c>bulldozerTool</c>: it blows a zone up into
     /// rubble from any of its tiles, and dozes anything else bulldozable to dirt, or back to water where it spans
-    /// water, but a rail station, which the original never had, back to the rail it stood on.
+    /// water, but a rail station, which the original never had, back to the rail it stood on. A tile holding walkway,
+    /// which the original never had either, loses it all first, keeping what lies under it.
     /// </summary>
     /// <remarks>
     /// The original's tool also makes the explosion sounds, which this one leaves out: the simulation passes no sound
@@ -33,14 +34,21 @@ namespace Micropolis.Rules
         {
         }
 
-        // A tile the bulldozer leaves bare keeps its walkway, and one it leaves as rubble loses it to the map scan
-        protected override bool ClearsWalkways => false;
-
+        // A tile holding walkway loses all of it to the bulldozer's hit, and keeps whatever lies under it, which the next
+        // hit dozes
         protected override void DoTool(int x, int y, RandomStream random, bool autoBulldoze)
         {
             if (!Map.TestBounds(x, y))
             {
                 Result = Outcome.Failed;
+                return;
+            }
+
+            if (WorldEffects.GetWalkway(x, y) != 0)
+            {
+                WorldEffects.SetWalkway(x, y, 0);
+                AddCost(BulldozerCost);
+                Result = Outcome.Ok;
                 return;
             }
 
@@ -76,27 +84,6 @@ namespace Micropolis.Rules
             Result = toolResult;
         }
 
-        // Turns each tile of the square that is neither radioactive nor dirt into a small explosion, its frame drawn
-        // from the stream, column by column
-        private void PutRubble(int left, int top, int size, RandomStream random)
-        {
-            for (int x = left; x < left + size; x++)
-            {
-                for (int y = top; y < top + size; y++)
-                {
-                    if (Map.TestBounds(x, y))
-                    {
-                        int tile = WorldEffects.GetTileValue(x, y);
-
-                        if (tile != TileValues.RADTILE && tile != TileValues.DIRT)
-                        {
-                            WorldEffects.SetTile(x, y, TileValues.TINYEXP + random.GetRandom(2), TileFlags.ANIMBIT | TileFlags.BULLBIT);
-                        }
-                    }
-                }
-            }
-        }
-
         // Dozes a bulldozable tile: what spans water goes back to river, and anything else to dirt
         private Outcome LayDoze(int x, int y)
         {
@@ -107,36 +94,20 @@ namespace Micropolis.Rules
                 return Outcome.Failed;
             }
 
-            switch (TileUtils.NormalizeRoad(tile.GetValue()))
+            int value = TileUtils.NormalizeRoad(tile.GetValue());
+
+            if (RoadTool.OverWater(value) || RailTool.OverWater(value) || WireTool.OverWater(value))
             {
-                case TileValues.HBRIDGE:
-                case TileValues.VBRIDGE:
-                case TileValues.BRWV:
-                case TileValues.BRWH:
-                case TileValues.HBRDG0:
-                case TileValues.HBRDG1:
-                case TileValues.HBRDG2:
-                case TileValues.HBRDG3:
-                case TileValues.VBRDG0:
-                case TileValues.VBRDG1:
-                case TileValues.VBRDG2:
-                case TileValues.VBRDG3:
-                case TileValues.HPOWER:
-                case TileValues.VPOWER:
-                case TileValues.HRAIL:
-                case TileValues.VRAIL:
-                    WorldEffects.SetTile(x, y, TileValues.RIVER);
-                    break;
-
+                WorldEffects.SetTile(x, y, TileValues.RIVER);
+            }
+            else if (TileUtils.IsRailStation(value))
+            {
                 // A station leaves the track it stood on, which the connections fixed after it join again
-                case TileValues.HRAILSTATION:
-                case TileValues.VRAILSTATION:
-                    WorldEffects.SetTile(x, y, TileUtils.TrackUnder(tile.GetValue()), TileFlags.BLBNBIT);
-                    break;
-
-                default:
-                    WorldEffects.SetTile(x, y, TileValues.DIRT);
-                    break;
+                WorldEffects.SetTile(x, y, TileUtils.TrackUnder(tile.GetValue()), TileFlags.BLBNBIT);
+            }
+            else
+            {
+                WorldEffects.SetTile(x, y, TileValues.DIRT);
             }
 
             AddCost(BulldozerCost);

@@ -52,6 +52,12 @@ function action(command: Command): {key: string, text: string} {
     case "walkway":
       return {key: `walkway:${command.kind}`, text: actions.walkways[command.kind]};
 
+    case "erase":
+      return {key: `erase:${command.tool}`, text: actions.erased[command.tool]};
+
+    case "eraseWalkway":
+      return {key: command.type, text: actions.erasedWalkway};
+
     case "setBudget": {
       const parts = [actions.taxes(command.tax)];
       SERVICES.forEach((service) => {

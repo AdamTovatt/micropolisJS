@@ -117,22 +117,25 @@ function drawnOrigin(origin: TilePoint, tilePixels: number): PixelPoint {
 }
 
 // The map tile under a point of the canvas, in CSS pixels, as the map is drawn from the origin at tileWidth CSS pixels
-// a tile and pixelRatio device pixels to the CSS pixel; it may lie off the map
-function tileUnderPoint(x: number, y: number, origin: TilePoint, tileWidth: number, pixelRatio: number): TilePoint {
+// a tile and pixelRatio device pixels to the CSS pixel; it may lie off the map. With cellsPerTile, the cell of a grid
+// that many cells across and down each tile, as the walkway's ninths are, on the grid of cells over the map.
+function tileUnderPoint(x: number, y: number, origin: TilePoint, tileWidth: number, pixelRatio: number,
+                        cellsPerTile = 1): TilePoint {
   const tilePixels = tileWidth * pixelRatio;
   const drawn = drawnOrigin(origin, tilePixels);
-  return {x: Math.floor((drawn.x + x * pixelRatio) / tilePixels),
-          y: Math.floor((drawn.y + y * pixelRatio) / tilePixels)};
+  return {x: Math.floor((drawn.x + x * pixelRatio) * cellsPerTile / tilePixels),
+          y: Math.floor((drawn.y + y * pixelRatio) * cellsPerTile / tilePixels)};
 }
 
-// The map tile under a point of the canvas, as tileUnderPoint finds it, or null past the canvas' right or bottom edge
+// The map tile, or cell, under a point of the canvas, as tileUnderPoint finds it, or null past the canvas' right or
+// bottom edge
 function tileOnCanvasUnderPoint(x: number, y: number, origin: TilePoint, tileWidth: number, pixelRatio: number,
-                                canvasWidth: number, canvasHeight: number): TilePoint | null {
+                                canvasWidth: number, canvasHeight: number, cellsPerTile = 1): TilePoint | null {
   if (x >= canvasWidth || y >= canvasHeight) {
     return null;
   }
 
-  return tileUnderPoint(x, y, origin, tileWidth, pixelRatio);
+  return tileUnderPoint(x, y, origin, tileWidth, pixelRatio, cellsPerTile);
 }
 
 // Where a pan took hold: the origin then, the point of the canvas the pointer pressed, in CSS pixels, and the tile

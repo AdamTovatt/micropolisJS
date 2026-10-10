@@ -12,7 +12,7 @@
  *
  */
 
-import { TilePosition, ToolName } from "./protocol";
+import { Command, TilePosition, ToolName } from "./protocol";
 
 // The tiles a drag passes over on its way from one tile to the next the mouse was seen on, so that a fast mouse skips
 // none: the tiles after from, up to and including to, each one step along a row or a column from the one before, as a
@@ -44,37 +44,61 @@ export function dragPath(from: TilePosition, to: TilePosition): TilePosition[] {
   return path;
 }
 
-// A tool and the tiles to apply it at, in order: one tool command
+// A tool whose clicks and drags go as a path of places: one that changes the city, whose places are tiles, or the
+// walkway, whose places are ninths on the map's grid of them
+export type PathTool = ToolName | "walkway";
+
+// A tool, whether it erases what it puts down, and the places to apply it at, in order: one command
 export interface ToolPath {
-  tool: ToolName;
+  tool: PathTool;
+  erase: boolean;
   path: TilePosition[];
 }
 
-// Gathers the tiles the player's clicks and drags reach into tool paths, which the game takes each tick and sends as
-// tool commands. A click, or a drag's first tile, starts a path; each later tile a drag reaches extends it, with the
-// tiles between the two filled in. A drag still under way when its path is taken goes on in a new path, from the tile
-// it last reached. A drag that leaves the map starts afresh where it comes back.
+// The command a tool path makes: the walkway's path laid, or erased ninth by ninth; or the tool's at each tile, or its
+// eraser's, which every tool but the bulldozer has, so a path of the bulldozer that erases is a fault of the input's
+export function pathCommand({tool, erase, path}: ToolPath, autoBulldoze: boolean): Command {
+  if (tool === "walkway") {
+    return erase ? {type: "eraseWalkway", path} : {type: "walkway", kind: "path", path};
+  }
+
+  if (!erase) {
+    return {type: "tool", tool, path, autoBulldoze};
+  }
+
+  if (tool === "bulldozer") {
+    throw new Error("The bulldozer has no eraser");
+  }
+
+  return {type: "erase", tool, path};
+}
+
+// Gathers the places the player's clicks and drags reach into tool paths, which the game takes each tick and sends as
+// commands. A click, or a drag's first place, starts a path; each later place a drag reaches extends it, with the
+// places between the two filled in. A drag still under way when its path is taken goes on in a new path, from the
+// place it last reached. A drag that leaves the map starts afresh where it comes back.
 export class ToolPaths {
   // Paths that a newer one ended since the last take
   private ended: ToolPath[] = [];
-  // The path still gathering tiles, empty again once taken
+  // The path still gathering places, empty again once taken
   private current: ToolPath | null = null;
-  // The tile a drag continues from, or null when the next tile starts a path
+  // The place a drag continues from, or null when the next place starts a path
   private last: TilePosition | null = null;
 
-  // The tool reached the tile: start is true for a click and for a drag's first tile
-  reached(tool: ToolName, tile: TilePosition, start: boolean): void {
-    if (start || this.last === null || this.current === null || tool !== this.current.tool) {
+  // The tool reached the place, erasing or not: start is true for a click and for a drag's first place
+  reached(tool: PathTool, erase: boolean, place: TilePosition, start: boolean): void {
+    if (start || this.last === null || this.current === null || tool !== this.current.tool ||
+        erase !== this.current.erase) {
       this.endCurrent();
-      this.current = {tool, path: [tile]};
+      this.current = {tool, erase, path: [place]};
     } else {
-      this.current.path.push(...dragPath(this.last, tile));
+      this.current.path.push(...dragPath(this.last, place));
     }
 
-    this.last = tile;
+    this.last = place;
   }
 
-  // The pointer is off the map, or no tool is chosen: the next tile reached starts a path
+  // The pointer is off the map, or no tool is chosen: the next place reached starts a path
   lost(): void {
     this.last = null;
   }
@@ -84,7 +108,7 @@ export class ToolPaths {
     const continuing = this.current;
     this.endCurrent();
     if (continuing !== null) {
-      this.current = {tool: continuing.tool, path: []};
+      this.current = {tool: continuing.tool, erase: continuing.erase, path: []};
     }
 
     const taken = this.ended;

@@ -85,6 +85,11 @@ describe("the outcome the player is told of", () => {
         expect(toolOutcome(result("a server's player", tool), "a server's player")).toBe("noMoney");
     });
 
+    it.each(["walkway", "erase", "erase-walkway"])("is that of the player's own %s command, which the pointer sends too",
+        (example) => {
+            expect(toolOutcome(result(LOCAL_PLAYER, commandExample(example)), LOCAL_PLAYER)).toBe("noMoney");
+        });
+
     it.each([
         ["another player's tool command", result("someone else", tool)],
         ["the player's other commands", result(LOCAL_PLAYER, {type: "addFunds"})],

@@ -125,6 +125,7 @@ is the output of the game that wrote it, byte for byte, so writing it again from
 | `version13.json` | `bae01e2` |
 | `version14.json` | `6f2d270` |
 | `version15.json` | `aed9205` |
+| `version16.json` | `e50aeaf` |
 
 ## Files the fixture tool writes
 

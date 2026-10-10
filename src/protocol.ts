@@ -286,8 +286,12 @@ export const TOOL_NAMES = [
 
 export type ToolName = typeof TOOL_NAMES[number];
 
-// The tools a hover box shows: those that change the city, and the query tool
-export const CURSOR_TOOLS = [...TOOL_NAMES, "query"] as const;
+// The tools whose work an erase command takes off: every one but the bulldozer
+export type ErasedTool = Exclude<ToolName, "bulldozer">;
+
+// The tools a hover box shows: those that change the city, the query tool and the walkway, whose box is the tile
+// holding the ninth it lays
+export const CURSOR_TOOLS = [...TOOL_NAMES, "query", "walkway"] as const;
 
 export type CursorTool = typeof CURSOR_TOOLS[number];
 
@@ -349,9 +353,16 @@ export type Command =
   // player's preference: whether the building, road, rail and wire tools clear what they can before building.
   | {type: "tool", tool: ToolName, path: TilePosition[], autoBulldoze: boolean}
   // Walkway of the kind laid on each ninth of the path in order, as one click each, on a tile that takes it: bare
-  // land, a park, the woods, road or rail. A ninth already holding the kind costs nothing. The path's ninths are
+  // land, a park, road or rail but a station. A ninth already holding the kind costs nothing. The path's ninths are
   // each one step along a row or column of the grid of ninths from the last.
   | {type: "walkway", kind: WalkwayKind, path: NinthPosition[]}
+  // What the tool puts down erased at each tile of the path in order, as one click each, at the bulldozer's cost, as
+  // a player holding Shift with the tool erases: a road, rail or wire takes off only that line, leaving the rest of
+  // the tile; a park leaves bare land, a station its track, and a zone or building's tool blows up the one under the
+  // tile, only where it is of the tool's kind. Any tool but the bulldozer.
+  | {type: "erase", tool: ErasedTool, path: TilePosition[]}
+  // The walkway on each ninth of the path erased in order, whatever its kind, at the bulldozer's cost each
+  | {type: "eraseWalkway", path: NinthPosition[]}
   // The tax rate in percent, and the funding of each service named, road, fire or police, in whole percent of what it
   // needs, as the original's budget sliders set it. A service left out keeps its funding. It takes effect at once:
   // each service named works at its new funding from then on, and the next year end pays for it.
@@ -371,8 +382,8 @@ export type ToolCommand = Extract<Command, {type: "tool"}>;
 // Every command type, as the compiler checks against the union: a type added to Command and not here fails to
 // compile, and the tests fail on a type with no example.
 const COMMAND_TYPES: Record<CommandType, true> = {
-  tool: true, walkway: true, setBudget: true, setSpeed: true, setAutoBudget: true, setDisasters: true,
-  triggerDisaster: true, addFunds: true,
+  tool: true, walkway: true, erase: true, eraseWalkway: true, setBudget: true, setSpeed: true, setAutoBudget: true,
+  setDisasters: true, triggerDisaster: true, addFunds: true,
 };
 
 export function commandTypes(): string[] {

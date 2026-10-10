@@ -12,7 +12,7 @@
  *
  */
 
-import { Command, CommandResult, DisasterKind, Outcome, PlayerId, ServiceAmounts } from "./protocol";
+import { Command, CommandResult, CommandType, DisasterKind, Outcome, PlayerId, ServiceAmounts } from "./protocol";
 
 // The commands the player's choices in the game's windows send, and what the game shows of their results
 
@@ -60,12 +60,15 @@ export function addFundsCommand(): Command {
   return {type: "addFunds"};
 }
 
-// The outcome of the player's own tool command a result tells of, and null for any other result. A result's command
-// is whatever arrived, so it is checked before it is read.
+// The commands the player's pointer sends on the map: a tool's, the walkway's, and their erasers'
+const POINTER_COMMANDS: readonly unknown[] = ["tool", "walkway", "erase", "eraseWalkway"] satisfies CommandType[];
+
+// The outcome of the player's own command a result tells of, one their pointer sent on the map, and null for any other
+// result. A result's command is whatever arrived, so it is checked before it is read.
 export function toolOutcome(result: CommandResult, player: PlayerId): Outcome | null {
   const command = result.command;
   if (result.player !== player || typeof command !== "object" || command === null || !("type" in command) ||
-      command.type !== "tool") {
+      !POINTER_COMMANDS.includes(command.type)) {
     return null;
   }
 
