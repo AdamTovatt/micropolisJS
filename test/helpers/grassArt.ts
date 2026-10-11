@@ -125,9 +125,9 @@ export function plainParks(crown: RectJson, leafy = 0, shadow: RectJson = crown)
                   largest: 1, shadowSpan: 1, kinds: [{crown: {...crown}, shadow: {...shadow}}]}};
 }
 
-// The plainest walkers section: one dab, the rectangle given, which the walkers' colours tint
-export function plainWalkers(rect: RectJson): {dabs: RectJson[]} {
-  return {dabs: [rect]};
+// The plainest walkers section: one figure, the rectangle given for either axis, which the walkers' colours tint
+export function plainWalkers(rect: RectJson): {figures: {vertical: RectJson, horizontal: RectJson}[]} {
+  return {figures: [{vertical: {...rect}, horizontal: {...rect}}]};
 }
 
 // The plainest walkway section: its edge cut so a path fills its ninths but for their rounded ends and sides, unwobbled,

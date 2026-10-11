@@ -976,18 +976,34 @@ describe("the walkers", () => {
         expect(WALK_SPEED).toBe(3);
     });
 
-    // The colour (x * 7 + y * 13) % 5 and the dab x * 11 + y * 5 of the walks' starts, (30, 16) and (31, 16)
-    it("draws each walker's dab in a square of its own size, tinted by a colour its walk's start picks", () => {
+    // The colour (x * 7 + y * 13) % 5 and the figure x * 11 + y * 5 of the walks' starts, (30, 16) and (31, 16)
+    it("draws each walker's figure in a square of its own size, tinted by a colour its walk's start picks", () => {
         const drive = walking(() => ALL, [EAST_WALK, [31, 16, "EEEE"]]);
         const painted = drive.cars.paintable();
 
-        expect(painted.map((mover) => mover.kind === "walker" ? [mover.width, mover.colour, mover.dab] : null))
+        expect(painted.map((mover) => mover.kind === "walker" ? [mover.width, mover.colour, mover.figure] : null))
             .toEqual([[WALKER_PIXELS, 3, 410], [WALKER_PIXELS, 0, 421]]);
     });
 
-    // A walk round a corner of a path: down, then east, then down again. Every corner of the dab's square lies on one
-    // of the walk's ninths, at every frame of the walk
-    it("keeps each walker's dab on the ninths of its walk all the way", () => {
+    // Walks round corners of a path, every way, each walker seen halfway along each step
+    it.each<[string, string, string[]]>([
+        ["down, east, then down", "SSEES", ["vertical", "vertical", "horizontal", "horizontal", "vertical"]],
+        ["down, west, then up", "SWWN", ["vertical", "horizontal", "horizontal", "vertical"]],
+    ])("draws each walker for the axis it walks along: %s", (_, steps, axes) => {
+        const drive = walking(() => ALL, [[30, 15, steps]]);
+        const seen: string[] = [];
+
+        drive.run(1000 / WALK_SPEED / 2);
+        for (let step = 0; step < steps.length; step++) {
+            seen.push(...drive.cars.paintable().map((mover) => mover.kind === "walker" ? mover.axis : ""));
+            drive.run(1000 / WALK_SPEED);
+        }
+
+        expect(seen).toEqual(axes);
+    });
+
+    // The same walk. Every corner of the figure's square lies on one of the walk's ninths, at every frame of the walk
+    it("keeps each walker's figure on the ninths of its walk all the way", () => {
         const walk: Trip = [30, 15, "SSEES"];
         const ninths = new Set(tripRoute(walk).map(({x, y}) => `${x},${y}`));
         const drive = walking(() => ALL, [walk]);

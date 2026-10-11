@@ -40,8 +40,8 @@ export type TestManifest = {
 // Serves the render manifest, and each atlas image under its path, relative to the manifest, beside an atlas of one
 // green of its own. A manifest without the world grass, canopy, water and walkways every manifest has is served with
 // the plainest, of that green, which no tile shows unless the manifest has a tile let the grass through, and walkways
-// of black; one without walkers with walkers of one dab, that green all over; and one without parks with parks of no
-// trees.
+// of black; one without walkers with walkers of one figure, that green all over for either axis; and one without
+// parks with parks of no trees.
 export async function serveTestArt(page: Page, manifest: TestManifest, atlases: Record<string, Buffer>): Promise<void> {
   const plain = {atlas: PLAIN_GRASS_ATLAS, x: 0, y: 0, width: 16, height: 16};
   const surfaces = manifest.grass !== undefined ? {} : {

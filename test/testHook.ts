@@ -74,7 +74,7 @@ function gameOn(source: CitySource, state: CityState) {
             {kind: "rail", x: 0, y: 0, width: 16, direction: "east"},
             {kind: "road", x: 16, y: 0, width: 16, direction: "east", colour: 0, opacity: 1},
             {kind: "rail", x: 32, y: 0, width: 16, direction: "east"},
-            {kind: "walker", x: 48, y: 5, width: 6, colour: 1, dab: 0},
+            {kind: "walker", x: 48, y: 5, width: 6, axis: "vertical", colour: 1, figure: 0},
         ] as PaintableMover[],
         frameCounts: {animated: 30, painted: 12},
         dismissals: 0,

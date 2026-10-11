@@ -53,7 +53,8 @@ The monster TV draws its view in the same passes, but for the overlay's tint, th
     }
   },
   "walkers": {
-    "dabs": [{"atlas": "objects-0", "x": 256, "y": 512, "width": 32, "height": 32}]
+    "figures": [{"vertical": {"atlas": "sprites-0", "x": 256, "y": 512, "width": 16, "height": 16},
+                 "horizontal": {"atlas": "sprites-0", "x": 276, "y": 512, "width": 16, "height": 16}}]
   }
 }
 ```
@@ -76,7 +77,7 @@ The monster TV draws its view in the same passes, but for the overlay's tint, th
   - `shadow`, optional, and only on an asset's anchor: black whose alpha is the shadow's darkness, drawn over the anchor and `reach` whole tiles past it on each side.
 - `sprites` maps a sprite type, from 1 to 7, and a frame, from 1 to that type's last, to its rectangle, drawn into the sprite's square. The types are, in order: train (5 frames, 32 px square), helicopter (8, 32 px), airplane (11, 48 px), ship (8, 48 px), monster (16, 48 px), tornado (3, 48 px) and explosion (6, 48 px), the square's side measured at 16 px a tile (`SPRITE_SHEET` in `renderManifest.ts`). No simulation sprite is a train: the client draws each carriage of a train from the train's first frame running north or south and its second running east or west, into the carriage's square, a tile a side, centred on the right-hand track of the rail tile's double track, `TRACK_OFFSET` right of the railway's middle, where the rail art lays it (`TRACK` in `art/blender/tilesets.py`; `trainCar` of `RenderArt` in `renderManifest.ts`).
 - `cars` maps a car's colour, one of the client's (`CAR_COLOURS` in `cars.ts`: red, blue, yellow, white, green and orange), and a way it faces, `north`, `east`, `south` or `west`, to its rectangle, drawn into the car's square, a tile a side, centred on its place in its lane, the car and its shadow standing in the middle. A car the manifest leaves out is drawn as a rectangle in its colour's flat colour, long the way it faces, the size of the painted car (`CAR_LENGTH` and `CAR_BREADTH` in `mapFrame.ts`).
-- `walkers`, required: `dabs`, a list of one rectangle or more, each a dab of white paint whose lightness carries its brushwork, its opacity the paint's lightness, which the client draws a walker as, into the walker's square, `WALKER_PIXELS` map pixels a side at 16 a tile (`walkers.ts`), centred on its place on the ninths of its walk, tinted its colour (`WALKER_COLOURS` in `walkers.ts`); a walker takes the dab its walk's start picks, round the list (`walkerDab` of `RenderArt`). The atlas build cuts them from a painting with `art/tools/walkers.py`.
+- `walkers`, required: `figures`, a list of one figure or more, each a small person seen from above, a head and shoulders, the shoulders in white clothing and the head dark hair, as two rectangles, one for each axis of the map a walker walks along, its shoulders across it: `vertical`, its shoulders running across the map, and `horizontal`, its shoulders running down it. The client draws a walker as one, into the walker's square, `WALKER_PIXELS` map pixels a side at 16 a tile (`walkers.ts`), centred on its place on the ninths of its walk, the vertical one while it walks up or down the map and the horizontal one while it walks across it, tinted its colour (`WALKER_COLOURS` in `walkers.ts`), which the clothing takes and the dark hair barely shows; a walker takes the figure its walk's start picks, round the list (`walkerFigure` of `RenderArt`). The atlas build cuts them from a painting with `art/tools/walkers.py`, the horizontal one the painting mirrored over its diagonal, so the light still falls from the upper left.
 
 - `grass`, required: the world grass, below.
 - `canopy`, required: the canopy the woods are drawn as, below.

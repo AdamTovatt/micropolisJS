@@ -11,56 +11,31 @@
 # city simulation game and its source code (the project or "licensee(s)") as a courtesy of the owner.
 #
 
-"""The dabs of paint the game draws its walkers as (docs/render-assets.md): each cut from the painting in
-art/painted/raw/walkers, white paint on black, its paint's lightness its opacity, centred in a square DAB_PX a side.
-The game tints each dab its walker's colour. The atlas build (atlas.py) packs them with the sprites and writes them into
-the manifest's walkers section. Needs Pillow, NumPy and SciPy.
+"""The small people the game draws its walkers as (docs/render-assets.md): each a head and shoulders seen from above,
+cut from the painting in art/painted/raw/walkers, people on a flat magenta ground, their shoulders in white clothing,
+which the game tints its walker's colour, round a head of dark hair, which stays dark under the tint. The atlas build
+(atlas.py) packs them with the sprites and writes them into the manifest's walkers section. Needs Pillow, NumPy and
+SciPy.
 """
 
 import os
 
-import numpy as np
 from PIL import Image
-from scipy import ndimage
+
+import magenta
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PAINTING = os.path.join(HERE, '..', 'painted', 'raw', 'walkers', 'dabs.png')
+PAINTING = os.path.join(HERE, '..', 'painted', 'raw', 'walkers', 'people.png')
 
-DAB_PX = 32             # a dab's square in the atlas: a whole multiple of 4, as the atlas asks
-CLEAR = 0.15            # the paint's lightness, from 0 to 1, at or under which a dab is clear
-OPAQUE = 0.45           # and at or over which it is opaque
-SMALLEST = 0.002        # the least share of the painting a dab covers, under which a fleck of paint is no dab
+FIGURE_PX = 16          # a figure's square in the atlas, a few times as large as at 64 px a tile: a whole multiple of
+                        # 4, as the atlas asks
+AXES = ('vertical', 'horizontal')   # the axes of the map a walker walks along, each with a figure of its own
 
 
-def build_dabs(painting=PAINTING):
-    # The dabs, as RGBA images DAB_PX a side, in the order they lie on the painting, row by row: a dab is in the row of
-    # the one above it unless its top lies below that one's middle
-    rgb = np.asarray(Image.open(painting).convert('RGB')).astype(np.float64) / 255
-    light = rgb.max(axis=2)
-    alpha = np.clip((light - CLEAR) / (OPAQUE - CLEAR), 0, 1)
-    labels, _ = ndimage.label(alpha > 0)
-    found = []
-    for k, (rows, columns) in enumerate(ndimage.find_objects(labels)):
-        own = labels == k + 1
-        if own.sum() < SMALLEST * light.size:
-            continue
-        # the dab's own pixels, in a square round its middle, so it keeps its shape
-        rgba = np.dstack([rgb, alpha]) * own[..., None]
-        side = max(rows.stop - rows.start, columns.stop - columns.start)
-        top = (rows.start + rows.stop - side) // 2
-        left = (columns.start + columns.stop - side) // 2
-        padded = np.pad(rgba, ((side, side), (side, side), (0, 0)))
-        square = padded[top + side:top + 2 * side, left + side:left + 2 * side]
-        image = Image.fromarray(np.round(square * 255).astype(np.uint8), 'RGBA')
-        found.append({'top': rows.start, 'middle': (rows.start + rows.stop) / 2, 'left': columns.start,
-                      'image': image.resize((DAB_PX, DAB_PX), Image.LANCZOS)})
-    if not found:
-        raise SystemExit(f'{painting} holds no dab of paint')
-
-    found.sort(key=lambda dab: dab['top'])
-    rows = [[found[0]]]
-    for dab in found[1:]:
-        if dab['top'] > rows[-1][0]['middle']:
-            rows.append([])
-        rows[-1].append(dab)
-    return [dab['image'] for row in rows for dab in sorted(row, key=lambda dab: dab['left'])]
+def build_figures(painting=PAINTING):
+    # The figures, in the order they lie on the painting, row by row (magenta.cut), each as RGBA images FIGURE_PX a side
+    # for each axis of the map a walker walks along, its shoulders running across it: vertical, as painted, its
+    # shoulders running across the map, and horizontal, the painting mirrored over its diagonal from the top-left, so
+    # its shoulders run down the map and the light still falls from the upper left
+    return [{'vertical': figure['image'], 'horizontal': figure['image'].transpose(Image.Transpose.TRANSPOSE)}
+            for figure in magenta.cut(painting, FIGURE_PX, 'figure')]

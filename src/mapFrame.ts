@@ -506,7 +506,7 @@ export const CAR_BREADTH = 7 / 64;
 // Adds the quad that draws what moves over the map whose square lands at (x, y), side device pixels a side, filling the
 // square: a carriage of a train from the trains' art, which the 16 px sprite sheet always has, a car on the road from
 // its colour's art, or where the art has none, as a rectangle in its flat colour, long the way it faces, and a walker
-// as its dab of paint tinted its colour
+// as its figure for the axis it walks along, tinted its colour
 function addMover(list: QuadList, art: RenderArt, car: PaintableMover, x: number, y: number, side: number): void {
   if (car.kind === "rail") {
     const train = art.trainCar(car.direction);
@@ -515,8 +515,8 @@ function addMover(list: QuadList, art: RenderArt, car: PaintableMover, x: number
   }
   if (car.kind === "walker") {
     const [r, g, b] = WALKER_COLOURS[car.colour].flat;
-    const dab = art.walkerDab(car.dab);
-    list.add(dab.atlas, x, y, side, side, dab, r, g, b, 1);
+    const figure = art.walkerFigure(car.figure, car.axis);
+    list.add(figure.atlas, x, y, side, side, figure, r, g, b, 1);
     return;
   }
 

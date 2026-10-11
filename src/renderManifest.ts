@@ -24,6 +24,7 @@ import type { Rect } from "./rect";
 import { tileImageOrigin } from "./tileSet";
 import { TILE_COUNT } from "./tileValues";
 import { plainRoad } from "./trafficTiles";
+import type { WalkAxis } from "./walkers";
 
 // The art the map is drawn with: which rectangle of which atlas each tile id draws in each layer, and each sprite type
 // and frame. docs/render-assets.md specifies the manifest's file, which the rendered art comes in; a tile id or sprite
@@ -154,10 +155,11 @@ export interface PathLook {
   contrast: number;
 }
 
-// The walkers' art: the dabs of paint they are drawn as, one at least, each white, which the client tints its walker's
-// colour
+// The walkers' art: the figures they are drawn as, one at least, each a head and shoulders seen from above, in white
+// clothing, which the client tints its walker's colour, for each axis a walker walks along, its shoulders across it:
+// vertical, its shoulders running across the map, and horizontal, its shoulders running down it
 export interface WalkerArt {
-  dabs: readonly AtlasRect[];
+  figures: readonly Readonly<Record<WalkAxis, AtlasRect>>[];
 }
 
 // The parks, which the map draws from where they lie, not from each tile's art: the world grass at full lush over each
@@ -752,9 +754,12 @@ export function parseRenderManifest(value: unknown): RenderManifest {
     }
   }
 
-  const walkerJson = object(json.walkers, "walkers", ["dabs"]);
-  const walkers = {dabs: list(walkerJson.dabs, "walkers.dabs")
-    .map((rect, i) => plainRect(rect, `walkers.dabs[${i}]`, atlases))};
+  const walkerJson = object(json.walkers, "walkers", ["figures"]);
+  const walkers = {figures: list(walkerJson.figures, "walkers.figures").map((value, i) => {
+    const figure = object(value, `walkers.figures[${i}]`, ["vertical", "horizontal"]);
+    return {vertical: plainRect(figure.vertical, `walkers.figures[${i}].vertical`, atlases),
+            horizontal: plainRect(figure.horizontal, `walkers.figures[${i}].horizontal`, atlases)};
+  })};
 
   const grass = grassArt(json.grass, atlases);
   return {atlases, tiles, sprites, cars, walkers, grass, canopy: canopyArt(json.canopy, atlases, grass),
@@ -784,7 +789,10 @@ export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases">,
   });
   manifest.sprites.forEach((rect, key) => check(rect, `sprite ${key}`));
   manifest.cars.forEach((rect, key) => check(rect, `car ${key}`));
-  manifest.walkers.dabs.forEach((rect, i) => check(rect, `walker dab ${i}`));
+  manifest.walkers.figures.forEach(({vertical, horizontal}, i) => {
+    check(vertical, `walker ${i} vertical`);
+    check(horizontal, `walker ${i} horizontal`);
+  });
   manifest.grass.lush.tiles.forEach((rect, i) => check(rect, `lush grass ${i}`));
   manifest.grass.straw.tiles.forEach((rect, i) => check(rect, `straw grass ${i}`));
   manifest.canopy.tiles.forEach((rect, i) => check(rect, `canopy ${i}`));
@@ -912,10 +920,11 @@ export class RenderArt {
   readonly treeChance = (ninthX: number, ninthY: number): number =>
     this.treeChances[ninthY * GRASS_MAP.width * NINTHS_PER_SIDE + ninthX];
 
-  // The dab of paint a walker is drawn as, by the dab number its route picks, of those the manifest has
-  walkerDab(dab: number): AtlasRect {
-    const {dabs} = this.rendered.walkers;
-    return dabs[dab % dabs.length];
+  // The figure a walker is drawn as, by the figure number its route picks, of those the manifest has, for the axis it
+  // walks along
+  walkerFigure(figure: number, axis: WalkAxis): AtlasRect {
+    const {figures} = this.rendered.walkers;
+    return figures[figure % figures.length][axis];
   }
 
   // The art of a carriage of a train facing the way given, drawn into its square: the trains' row of the sprite sheet,

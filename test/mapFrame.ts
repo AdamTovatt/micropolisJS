@@ -69,7 +69,8 @@ const artJson = {
     canopy: plainCanopy({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     water: plainWater({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     walkway: plainWalkway({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
-    walkers: {dabs: [{atlas: "objects", x: 320, y: 0, width: 32, height: 32}]},
+    walkers: {figures: [{vertical: {atlas: "objects", x: 320, y: 0, width: 32, height: 32},
+                         horizontal: {atlas: "objects", x: 320, y: 32, width: 32, height: 32}}]},
     parks: plainParks({atlas: "objects", x: 352, y: 0, width: 32, height: 32}),
 };
 const art = new RenderArt(parseRenderManifest(artJson));
@@ -274,13 +275,15 @@ describe("a frame of the map", () => {
         ]);
     });
 
-    // The art has one dab, which every walker is drawn as, tinted its colour
-    it("draws each walker as its dab of paint filling its square, tinted its colour", () => {
-        const walker = {kind: "walker", x: 180, y: 340, width: 6, colour: 1, dab: 7} as const;
-        const frame = build(tilesWith(0, 0), 64, noTint, [], [walker]);
+    // The art has one figure, which every walker is drawn as, for the axis it walks along, tinted its colour
+    it("draws each walker as its figure for the axis it walks along, filling its square, tinted its colour", () => {
+        const up = {kind: "walker", x: 180, y: 340, width: 6, axis: "vertical", colour: 1, figure: 7} as const;
+        const across = {kind: "walker", x: 200, y: 340, width: 6, axis: "horizontal", colour: 2, figure: 0} as const;
+        const frame = build(tilesWith(0, 0), 64, noTint, [], [up, across]);
 
         expect(quads(frame.sprites)).toEqual([{atlas: "objects", quads: [
             {target: [16, 16, 24, 24], source: [320, 0, 32, 32], colour: [...WALKER_COLOURS[1].flat.map(Math.fround), 1]},
+            {target: [96, 16, 24, 24], source: [320, 32, 32, 32], colour: [...WALKER_COLOURS[2].flat.map(Math.fround), 1]},
         ]}]);
     });
 

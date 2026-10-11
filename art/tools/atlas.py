@@ -22,7 +22,7 @@ sprites.png, and dirtbg.png into images/, or the directory --out names. The 16 p
 original ones in art/sheets/ with every tile id and sprite frame it has art for drawn into its
 cell, so the build reads nothing it wrote. Which design fills which tile ids is in designs.py: the
 single-tile sets by SINGLE_TILES, the zones by ZONES, their animations by FRAMES, the vehicles by
-SPRITES, the cars by CAR; the walkers' dabs are cut by walkers.py, the parks' trees by trees.py, and the
+SPRITES, the cars by CAR; the walkers' figures are cut by walkers.py, the parks' trees by trees.py, and the
 footbridge's deck and the underpass's stair mouth by bridges.py. Needs Pillow, NumPy and SciPy.
 """
 
@@ -235,8 +235,11 @@ def build(source, out=IMAGES):
     for k in range(CAR['frames']):
         image = vehicle_image(load(source, sprite_frame('car', k)))
         cars[(CAR_COLOURS[k // len(CAR_WAYS)], CAR_WAYS[k % len(CAR_WAYS)])] = image
-    # the walkers' dabs of paint, packed with the cars, which the game draws in the same pass, tinting each
-    dabs = {('dab', k): dab for k, dab in enumerate(walkers.build_dabs())}
+    # the walkers' figures, each for walks up and down the map and across it, packed with the cars, which the game draws in the same pass,
+    # tinting each
+    walker_figures = walkers.build_figures()
+    figures = {('figure', k, axis): figure[axis] for k, figure in enumerate(walker_figures)
+               for axis in walkers.AXES}
 
     os.makedirs(render, exist_ok=True)
     for old in os.listdir(render):
@@ -256,7 +259,7 @@ def build(source, out=IMAGES):
     tree_shadows = {('tree', k): tree['shadow'] for k, tree in enumerate(park_trees)}
     for kind, mode, images in (('ground', 'RGBA', ground), ('objects', 'RGBA', {**objects, **crowns}),
                                ('shadow', 'RGBA', {**shadows, **tree_shadows}),
-                               ('sprites', 'RGBA', {**sprites, **cars, **dabs}),
+                               ('sprites', 'RGBA', {**sprites, **cars, **figures}),
                                ('grass', 'RGB', grass_images)):
         pages = Atlases(kind, mode)
         packed[kind] = pages.pack(images)
@@ -284,7 +287,8 @@ def build(source, out=IMAGES):
                             for name, tiles_of_set in grass_sets.items()}}
     canopy_entry = {**grass.CANOPY, 'tiles': [packed['grass'][('canopy', k)] for k in range(len(canopy))]}
     water_entry = {**grass.WATER, 'tiles': [packed['grass'][('water', k)] for k in range(len(water))]}
-    walker_entry = {'dabs': [packed['sprites'][('dab', k)] for k in range(len(dabs))]}
+    walker_entry = {'figures': [{axis: packed['sprites'][('figure', k, axis)] for axis in walkers.AXES}
+                                for k in range(len(walker_figures))]}
     parks_entry = {**trees.PARKS, 'trees': {**trees.TREES, 'kinds': [
         {'crown': packed['objects'][('tree', k)], 'shadow': packed['shadow'][('tree', k)]} for k in range(len(crowns))]}}
     manifest = {'version': 1, 'atlases': atlases, 'tiles': tiles, 'sprites': sprite_entries, 'cars': car_entries,
@@ -316,7 +320,7 @@ def build(source, out=IMAGES):
     grass_square.save(os.path.join(out, 'dirtbg.png'), optimize=True)
 
     print(f'{len(tiles)} tile ids, {len(shadows)} shadows, {len(sprites)} sprite frames, {len(cars)} cars, '
-          f'{len(dabs)} dabs and '
+          f'{len(walker_figures)} walkers and '
           f'{len(grass_images)} grass, canopy and water tiles from '
           f'{source}, in '
           f'{len(atlases)} atlases: ' + ', '.join(f'{n} {Image.open(os.path.join(render, p)).size}'

@@ -22,6 +22,7 @@ import type { CarDirection } from "./routeTiles";
 import { Trains, carriagesShown, tilesOf } from "./trains";
 import type { TileRect } from "./viewPosition";
 import { WALKER_PIXELS, Walkers, walkerPlace } from "./walkers";
+import type { WalkAxis } from "./walkers";
 
 // The cars the client draws for the city's traffic: each trip a trips message brings (protocol/README.md) becomes a car
 // that drives its route once in the right-hand lane, among the other cars (roadTraffic.ts), and is gone at its end, and
@@ -111,15 +112,16 @@ export interface PaintableTrainCar extends CarSquare {
   readonly kind: "rail";
 }
 
-// A walker as a view draws it: the square its dab of paint is drawn in, as a car's, facing no way, and its colour and
-// dab, by their numbers (walkerLook)
+// A walker as a view draws it: the square its figure is drawn in, as a car's, the axis it walks along, and its colour
+// and figure, by their numbers (walkerLook)
 export interface PaintableWalker {
   readonly kind: "walker";
   readonly x: number;
   readonly y: number;
   readonly width: number;
+  readonly axis: WalkAxis;
   readonly colour: number;
-  readonly dab: number;
+  readonly figure: number;
 }
 
 // A car on the road or a carriage of a train, as a view draws it
@@ -330,8 +332,8 @@ export class Cars {
     for (const walker of this.walkers.all) {
       const place = walkerPlace(walker, this.clock);
       if (place !== null) {
-        painted.push({kind: "walker", ...square(place.x, place.y, WALKER_PIXELS), colour: walker.colour,
-                      dab: walker.dab});
+        painted.push({kind: "walker", ...square(place.x, place.y, WALKER_PIXELS), axis: place.axis,
+                      colour: walker.colour, figure: walker.figure});
       }
     }
     return painted;
@@ -389,7 +391,7 @@ function farFrom(cars: readonly RoadCar[], tiles: TileRect): RoadCar[] {
   return far.map(({car}) => car);
 }
 
-// The square a car, or a walker's dab, is drawn in, side map pixels a side, whose middle is the point of the map
+// The square a car, or a walker's figure, is drawn in, side map pixels a side, whose middle is the point of the map
 // (x, y), in tiles
 function square(x: number, y: number, side = CAR_PIXELS): {x: number, y: number, width: number} {
   return {x: x * SPRITE_PIXELS_PER_TILE - side / 2, y: y * SPRITE_PIXELS_PER_TILE - side / 2, width: side};

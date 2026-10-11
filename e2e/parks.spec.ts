@@ -48,7 +48,7 @@ const RED = [255, 0, 0];
 const server = serverForTests("manual");
 
 // 32 pixel squares, each holding its 16 pixel square 8 pixels in from its edges, so sampled linearly at the square's
-// edge it takes nothing else: blue, clear, white, the walkers' dab, red, a tree's crown, and half black, its shadow
+// edge it takes nothing else: blue, clear, white, the walkers' figure, red, a tree's crown, and half black, its shadow
 function atlas(): Buffer {
   const colours = [[...BLUE, 255], [0, 0, 0, 0], [255, 255, 255, 255], [...RED, 255], [0, 0, 0, 128]];
   const pixels: number[] = [];
