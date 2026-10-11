@@ -862,8 +862,9 @@ export interface OverlayUpdatedMessage {
 // (up the map), E, S or W
 export type Trip = [x: number, y: number, steps: string];
 
-// A ride of such a route by rail, from the station it got on at to the one it got off at, as a trip, and the step
-// clock's value of the departure from its station it boards (ClockMessage), which the train leaves at
+// A ride of such a route by rail, from the station it got on at to the one it got off at, never turning back onto a
+// tile it came from, as a trip, and the step clock's value of the departure from its station it boards (ClockMessage),
+// which the train leaves at
 export type Ride = [x: number, y: number, steps: string, departure: number];
 
 // The trips the traffic rule completed that the city offered since its last batch: the runs by road, for the client to

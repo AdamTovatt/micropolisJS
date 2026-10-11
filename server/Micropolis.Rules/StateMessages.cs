@@ -368,8 +368,9 @@ namespace Micropolis.Rules
     /// <summary>
     /// A ride of a route the traffic rule found, from the station it gets on at to the one it gets off at, as the
     /// <c>trips</c> message carries it, <c>[x, y, "NESW…", departure]</c>: its path, as a trip's, from the station it
-    /// gets on at, a letter for each step to the next tile of it, to the station it gets off at, and the step clock's
-    /// value of the departure it boards (<see cref="Timetable"/>).
+    /// gets on at, a letter for each step to the next tile of it, to the station it gets off at, never turning back
+    /// onto a tile it came from (<see cref="TripRouter"/>), and the step clock's value of the departure it boards
+    /// (<see cref="Timetable"/>).
     /// </summary>
     [JsonConverter(typeof(RideConverter))]
     public sealed record Ride(Trip Path, long Departure);

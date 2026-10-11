@@ -256,6 +256,177 @@ namespace Micropolis.Rules.Tests
             CollectionAssert.AreEqual(expected, route);
         }
 
+        // A road from the zone's edge to the station at (24, 50) of TwoStations, and a path from its north side to the
+        // destination's: a car is got out of only at a station got off at, and a ride never turns back, so the trip
+        // can't ride a tile out and back in to get off where it got on
+        [TestMethod]
+        public void Route_PathFromTheStationDrivenTo_FindsNoRoute()
+        {
+            GameMap map = TwoStations(24);
+            Roads(map, NearRoad);
+            Paths(map, Column(24, 46, 49), Ground.DownTheMiddle);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            Assert.AreEqual(TrafficResult.NoRouteFound, result);
+            CollectionAssert.AreEqual(new List<RouteStep>(), route);
+        }
+
+        // The same road, and the path from the north side of the other station: the trip rides there and walks
+        [TestMethod]
+        public void Route_PathFromTheOtherStation_RiddenToAndWalked()
+        {
+            GameMap map = TwoStations(28);
+            Roads(map, NearRoad);
+            List<Position> path = Column(28, 46, 49);
+            Paths(map, path, Ground.DownTheMiddle);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            List<RouteStep> expected = [.. Going((TravelMode.Road, NearRoad), (TravelMode.Rail, Row(50, 24, 28))),
+                                        .. Walking(([.. Enumerable.Reverse(path)], Ground.DownTheMiddle))];
+            Assert.AreEqual(TrafficResult.RouteFound, result);
+            CollectionAssert.AreEqual(expected, route);
+        }
+
+        // The path from the station the near road reaches, and a second road, from the zone's south-east corner along
+        // row 52 to the other station, that never meets the near one: the trip drives the long way to the other station
+        // and rides from there to the near one, where it gets off and walks
+        [TestMethod]
+        public void Route_PathFromTheStationDrivenTo_RiddenToFromTheOther()
+        {
+            GameMap map = TwoStations(24);
+            Roads(map, NearRoad, FarRoad);
+            List<Position> path = Column(24, 46, 49);
+            Paths(map, path, Ground.DownTheMiddle);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            List<RouteStep> expected = [.. Going((TravelMode.Road, FarRoad),
+                                                 (TravelMode.Rail, [.. Enumerable.Reverse(Row(50, 24, 28))])),
+                                        .. Walking(([.. Enumerable.Reverse(path)], Ground.DownTheMiddle))];
+            Assert.AreEqual(TrafficResult.SlowRoute, result);
+            CollectionAssert.AreEqual(expected, route);
+        }
+
+        // The other way round: a path from the zone's edge to the station at (24, 50), and a road from its north side
+        // to the destination's. A car is got into only at the zone's edge or off a ride, so the trip can't ride a tile
+        // out and back in to drive from where it got on.
+        [TestMethod]
+        public void Route_RoadFromTheStationWalkedTo_FindsNoRoute()
+        {
+            GameMap map = TwoStations(24);
+            Paths(map, NearRoad, Ground.AcrossTheMiddle);
+            Roads(map, Column(24, 46, 49));
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            Assert.AreEqual(TrafficResult.NoRouteFound, result);
+            CollectionAssert.AreEqual(new List<RouteStep>(), route);
+        }
+
+        // The same path, and the road from the north side of the other station: the trip rides there and drives
+        [TestMethod]
+        public void Route_RoadFromTheOtherStation_RiddenToAndDriven()
+        {
+            GameMap map = TwoStations(28);
+            Paths(map, NearRoad, Ground.AcrossTheMiddle);
+            List<Position> road = Column(28, 46, 49);
+            Roads(map, road);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            List<RouteStep> expected = [.. Walking(([NearRoad[0]], AllNinths), ([NearRoad[1]], Ground.AcrossTheMiddle)),
+                                        .. Going((TravelMode.Rail, Row(50, 24, 28)),
+                                                 (TravelMode.Road, [.. Enumerable.Reverse(road)]))];
+            Assert.AreEqual(TrafficResult.RouteFound, result);
+            CollectionAssert.AreEqual(expected, route);
+        }
+
+        // A road from the zone's edge to a station at (24, 50), whose track runs east into a junction or the cross at
+        // (26, 50) and on to (27, 50), and from the junction north to a station at (26, 47) beside the destination: the
+        // ride turns north onto the branch there
+        [TestMethod]
+        [DataRow(LVRAIL6)]
+        [DataRow(LVRAIL10)]
+        public void Route_JunctionOnTheLine_TurnedAtOntoTheBranch(int junction)
+        {
+            GameMap map = RubbleMap();
+            Roads(map, NearRoad);
+            Station(map, 24, 50);
+            Track(map, [new Position(25, 50), new Position(27, 50)], Column(26, 48, 49));
+            map.SetTile(26, 50, junction, TileFlags.BLBNBIT);
+            Station(map, 26, 47, across: false);
+            Zone(map, 26, 45, COMCLR);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            Assert.AreEqual(TrafficResult.RouteFound, result);
+            CollectionAssert.AreEqual(
+                Going((TravelMode.Road, NearRoad),
+                      (TravelMode.Rail, [.. Row(50, 24, 26), .. Enumerable.Reverse(Column(26, 47, 49))])),
+                route);
+        }
+
+        // A road from the zone's edge along row 50 to a station at (30, 50) whose track runs north and south, round a
+        // loop of track east of it from its south end back into its north, and a path from its east side across the
+        // loop to beside the destination: never turning back, the ride goes round the loop to get off where it got on
+        [TestMethod]
+        public void Route_PathFromTheStationDrivenTo_RiddenToRoundALoop()
+        {
+            GameMap map = RubbleMap();
+            List<Position> road = Row(50, 22, 29);
+            List<Position> path = Row(50, 31, 35);
+            Position station = new Position(30, 50);
+            Roads(map, road);
+            Station(map, station.X, station.Y, across: false);
+            List<Position> loop = [.. Column(30, 51, 52), .. Row(52, 31, 33), .. Enumerable.Reverse(Column(33, 48, 51)),
+                                   .. Enumerable.Reverse(Row(48, 30, 32)), new Position(30, 49)];
+            Track(map, Column(30, 51, 52), Row(52, 31, 32), Column(33, 49, 51), Row(48, 31, 32), Column(30, 48, 49));
+            map.SetTile(30, 52, LVRAIL2, TileFlags.BLBNBIT);
+            map.SetTile(33, 52, LVRAIL5, TileFlags.BLBNBIT);
+            map.SetTile(33, 48, LVRAIL4, TileFlags.BLBNBIT);
+            map.SetTile(30, 48, LVRAIL3, TileFlags.BLBNBIT);
+            Ground.OpenLand(map, path.Where(tile => tile.X != 33));
+            Ground.Path(map, path, Ground.AcrossTheMiddle);
+            Zone(map, 37, 50, COMCLR);
+
+            (TrafficResult result, List<RouteStep> route) = Steps(map, TrafficDestination.Commercial);
+
+            List<RouteStep> expected = [.. Going((TravelMode.Road, road),
+                                                 (TravelMode.Rail, [station, .. loop, station])),
+                                        .. Walking((path, Ground.AcrossTheMiddle))];
+            Assert.AreEqual(TrafficResult.SlowRoute, result);
+            CollectionAssert.AreEqual(expected, route);
+        }
+
+        // The near station of TwoStations's line, at (24, 50), and the road the trip drives to it from the zone's edge
+        private static readonly List<Position> NearRoad = Row(50, 22, 23);
+
+        // A road from the zone's south-east corner along row 52 to the far station, at (28, 50), that never meets the
+        // near one
+        private static readonly List<Position> FarRoad =
+            [new Position(22, 51), .. Row(52, 22, 28), new Position(28, 51)];
+
+        // A map of rubble with stations at (24, 50) and (28, 50), track between them along row 50, and the destination
+        // centred four tiles north of the column given, at (x, 44), beside the tile (x, 46)
+        private static GameMap TwoStations(int destinationX)
+        {
+            GameMap map = RubbleMap();
+            Station(map, 24, 50);
+            Track(map, Row(50, 25, 27));
+            Station(map, 28, 50);
+            Zone(map, destinationX, 44, COMCLR);
+            return map;
+        }
+
+        // A path on the ninths given of each tile, open land under it
+        private static void Paths(GameMap map, List<Position> tiles, int[] ninths)
+        {
+            Ground.OpenLand(map, tiles);
+            Ground.Path(map, tiles, ninths);
+        }
+
         // A map of rubble with the trip's own zone at the origin
         private static GameMap RubbleMap()
         {
