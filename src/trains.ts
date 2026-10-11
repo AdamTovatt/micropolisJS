@@ -82,7 +82,7 @@ export function lastFrontOf(train: Train): number {
 
 // How far a carriage of the train, by its place in the train from the front, has gone at the drive clock given, in
 // tiles: CARRIAGE_SPACING behind the one ahead, short of the station while it is still to leave it
-function carriageAt(train: Train, carriage: number, clock: number): number {
+export function carriageAt(train: Train, carriage: number, clock: number): number {
   return frontOf(train, clock) - carriage * CARRIAGE_SPACING;
 }
 

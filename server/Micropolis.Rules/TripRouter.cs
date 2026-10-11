@@ -71,10 +71,11 @@ namespace Micropolis.Rules
     /// trips walk, and long ones drive. A level crossing carries a route by road across it and a route riding along it,
     /// neither changing how it goes. A ride goes on only where the track joins, from a side its tile's track leaves by
     /// onto a tile whose track leaves by the side facing (<see cref="TileUtils.RailEnds"/>), so it follows the track
-    /// round its curves and through a station along it; a route by road or on foot gets on from any side, and one
-    /// getting off goes any way. Every tile of rail a ride goes over, the station it gets on at included, costs what its
-    /// rail load costs the way the ride goes over it (<see cref="BlockMaps.RailLoad"/>), each tile carrying a track each
-    /// way.
+    /// round its curves and through a station along it, and never turns back onto the tile it came from, so it gets off
+    /// at a station other than the one it got on at but round a loop of track; a route by road or on foot gets on from
+    /// any side, and one getting off goes any way. Every tile of rail a ride goes over, the station it gets on at
+    /// included, costs what its rail load costs the way the ride goes over it (<see cref="BlockMaps.RailLoad"/>), each
+    /// tile carrying a track each way.
     /// </para>
     /// <para>
     /// A route on foot goes along the walkways (<see cref="Walkways"/>). The walkway on a tile splits into the pieces its
@@ -198,14 +199,16 @@ namespace Micropolis.Rules
         private const ushort UnreadPaths = ushort.MaxValue;
 
         // The ways a route goes over a tile, in the order ties break by: by road; having just got on a train at a
-        // station, from which it may only ride on; riding; walking across open land from its zone; on each piece of the
-        // tile's walkway, in the order of its first ninth; and walking across open land to its destination, having
-        // walked one tile, two, and on
+        // station, from which it may only ride on; riding, having come onto the tile by its north, east, south or west
+        // side, each a way of its own, since a ride never goes back out by the side it came in by; walking across open
+        // land from its zone; on each piece of the tile's walkway, in the order of its first ninth; and walking across
+        // open land to its destination, having walked one tile, two, and on
         private const int ByRoad = 0;
         private const int Boarding = 1;
         private const int Riding = 2;
-        private const int WalkingOut = 3;
-        private const int OnPath = 4;
+        private const int RidingWays = 4;
+        private const int WalkingOut = Riding + RidingWays;
+        private const int OnPath = WalkingOut + 1;
         private const int WalkingIn = OnPath + Walkways.MostPieces;
         private const int Ways = WalkingIn + MostWalkedTiles;
 
@@ -586,7 +589,8 @@ namespace Micropolis.Rules
             int neighbours = _neighbours[index];
             int cost = settled.Cost;
             int length = settled.Length + 1;
-            bool arrives = way >= WalkingOut || (way == Riding && (kind & Station) != 0);
+            bool riding = IsRiding(way);
+            bool arrives = way >= WalkingOut || (riding && (kind & Station) != 0);
             int queued = 0;
 
             for (int step = 0; step < 4; step++)
@@ -613,10 +617,13 @@ namespace Micropolis.Rules
                 switch (way)
                 {
                     case Boarding:
-                    case Riding:
-                        queued += Offer(Riding, next, RidesOn(ends, facts.Ends, step) ? RideOnto(index, way, facts, step) : 0, cost, length, step, way);
+                    case >= Riding and < Riding + RidingWays:
+                        // A ride never turns back onto the tile it came from, out by the side it came in by
+                        bool ridesOn = RidesOn(ends, facts.Ends, step) && (way == Boarding || step != way - Riding);
+                        queued += Offer(Riding + Back(step), next, ridesOn ? RideOnto(index, way, facts, step) : 0,
+                                        cost, length, step, way);
 
-                        if (way == Riding && (kind & Station) != 0)
+                        if (riding && (kind & Station) != 0)
                         {
                             queued += Offer(ByRoad, next, (nextKind & Road) != 0 ? DriveStartCost + facts.RoadEnter : 0, cost, length, step, way);
                             queued += OfferPaths(next, Paths(ref facts, next), AnyEdge, cost, length, step, way);
@@ -958,12 +965,18 @@ namespace Micropolis.Rules
             throw new InvalidOperationException($"The tile at {PositionOf(index)} touches no side of the zone it reached.");
         }
 
+        // Whether the way given is riding, having come onto the tile by any side
+        private static bool IsRiding(int way)
+        {
+            return way is >= Riding and < Riding + RidingWays;
+        }
+
         private static TravelMode ModeOf(int way)
         {
             return way switch
             {
                 ByRoad => TravelMode.Road,
-                Boarding or Riding => TravelMode.Rail,
+                _ when way == Boarding || IsRiding(way) => TravelMode.Rail,
                 _ => TravelMode.Walk,
             };
         }

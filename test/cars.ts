@@ -30,8 +30,9 @@ import { CAR_CROSSING_MS, CAR_TILES_PER_SECOND } from "../src/roadTraffic";
 import { sameTile, tileKey, tripRoute } from "../src/routeTiles";
 import {
     CARRIAGE_SPACING, DEPARTURE_INTERVAL, MOST_CARRIAGES, RIDES_PER_CARRIAGE, STEPS_PER_SECOND, TRAIN_TILES_PER_SECOND,
-    Trains, tilesOf,
+    Trains, carriageAt, tilesOf,
 } from "../src/trains";
+import type { Train } from "../src/trains";
 import type { TileRect } from "../src/viewPosition";
 import { repositoryPath } from "./helpers/repository";
 import { RULES } from "./helpers/ruleConstants";
@@ -913,6 +914,178 @@ describe("the trains", () => {
 
     it("are gone at Off, as cars are", () => {
         expect(trainsAt(() => OFF, [east()]).cars.driven()).toEqual([]);
+    });
+
+    describe("from frame to frame", () => {
+        // How far a place lies right of the middle of the track from one tile to the one beside it, in tiles, going
+        // that way
+        function rightOfMiddle({x, y}: CarPlace, from: TilePosition, to: TilePosition): number {
+            const along = {x: to.x - from.x, y: to.y - from.y};
+            return (x - (from.x + 0.5)) * -along.y + (y - (from.y + 0.5)) * along.x;
+        }
+
+        // Whether a path turns a corner at the tile of it given: comes in one way and goes out a way across it
+        function corner(path: readonly TilePosition[], index: number): boolean {
+            if (index === 0 || index === path.length - 1) {
+                return false;
+            }
+            const inward = {x: path[index].x - path[index - 1].x, y: path[index].y - path[index - 1].y};
+            const outward = {x: path[index + 1].x - path[index].x, y: path[index + 1].y - path[index].y};
+            return inward.x * outward.x + inward.y * outward.y === 0;
+        }
+
+        // Watches each carriage of the trains from frame to frame, and notes each that moves further along its path
+        // than a train runs in the time between the frames, or back along it, each whose track under it changes, and
+        // each off the right-hand track on straight track, which runs between two tiles neither of them a corner
+        class Continuity {
+            readonly faults: string[] = [];
+            private readonly last = new Map<Train, Map<number, {at: number, place: CarPlace}>>();
+            private clock: number | null = null;
+
+            // The trains it has watched, in the order they first showed
+            get watched(): Train[] {
+                return [...this.last.keys()];
+            }
+
+            check(trains: Trains, clock: number): void {
+                const runs = this.clock === null ? 0 : (clock - this.clock) / 1000 * TRAIN_TILES_PER_SECOND;
+                this.clock = clock;
+                for (const train of trains.all) {
+                    const name = `the train from (${train.path[0].x}, ${train.path[0].y}) at ${train.departure}`;
+                    const before = this.last.get(train);
+                    const now = new Map<number, {at: number, place: CarPlace}>();
+                    for (let carriage = 0; carriage < train.carriages; carriage++) {
+                        const at = carriageAt(train, carriage, clock);
+                        if (at < 0 || at > train.path.length - 1) {
+                            continue;
+                        }
+                        const place = trainPlace(train.path, at);
+                        now.set(carriage, {at, place});
+                        const was = before?.get(carriage);
+                        if (was !== undefined && (at < was.at || at - was.at > runs + 1e-9)) {
+                            this.faults.push(`carriage ${carriage} of ${name} ran ${(at - was.at).toFixed(3)} tiles ` +
+                                             `at ${clock} ms`);
+                        }
+                        if (was !== undefined && JSON.stringify(rounded(trainPlace(train.path, was.at))) !==
+                                                 JSON.stringify(rounded(was.place))) {
+                            this.faults.push(`the track under carriage ${carriage} of ${name} moved at ${clock} ms`);
+                        }
+                        const segment = Math.min(Math.floor(at), train.path.length - 2);
+                        const side = rightOfMiddle(place, train.path[segment], train.path[segment + 1]);
+                        if (!corner(train.path, segment) && !corner(train.path, segment + 1) &&
+                            Math.abs(side - TRACK_OFFSET) > 1e-9) {
+                            this.faults.push(`carriage ${carriage} of ${name} was ${side.toFixed(3)} tiles right of ` +
+                                             `the middle at ${clock} ms`);
+                        }
+                    }
+                    this.last.set(train, now);
+                }
+            }
+        }
+
+        // The milliseconds after the first batch the trains of DEPARTS leave at
+        const LEAVES = (DEPARTS - STEPS) * 1000 / STEPS_PER_SECOND;
+
+        // A batch of rides, arriving the milliseconds given after the first, the step clock as it carried it
+        interface Batch {
+            readonly arrives: number;
+            readonly steps: number;
+            readonly rides: Ride[];
+        }
+
+        // A batch of the rides given, arriving the milliseconds given after the first, its step clock as far on
+        const batch = (arrives: number, ...given: Ride[]): Batch =>
+            ({arrives, steps: STEPS + Math.round(arrives * STEPS_PER_SECOND / 1000), rides: given});
+
+        // Something done to the trains at the first frame at or after the milliseconds given
+        interface Change {
+            readonly at: number;
+            readonly does: (trains: Trains) => void;
+        }
+
+        // The trains made from the batches given, each boarded as the frame after its arrival comes, watched a frame at
+        // a time for the milliseconds given, the change given done to them as it comes
+        function watch(batches: readonly Batch[], milliseconds: number, change?: Change): Continuity {
+            const trains = new Trains();
+            const continuity = new Continuity();
+            let next = 0;
+            let changed = false;
+            for (let clock = 0; clock <= milliseconds; clock += FRAME) {
+                for (; next < batches.length && batches[next].arrives <= clock; next++) {
+                    for (const ride of batches[next].rides) {
+                        trains.board(ride, {drive: clock, steps: batches[next].steps}, () => true);
+                    }
+                }
+                trains.update(clock);
+                continuity.check(trains, clock);
+                if (change !== undefined && !changed && clock >= change.at) {
+                    change.does(trains);
+                    changed = true;
+                }
+            }
+            return continuity;
+        }
+
+        // East along row 5 from (10, 5): a short ride, one that turns a corner south at (16, 5) down column 16, and a
+        // long one on along row 5, each boarding the departure given
+        const short = (departure = DEPARTS): Ride => [10, 5, "EEE", departure];
+        const turning = (departure = DEPARTS): Ride => [10, 5, "EEEEEESSSSS", departure];
+        const long = (departure = DEPARTS): Ride => [10, 5, "E".repeat(12), departure];
+
+        // Each train watched, as where it starts, its path's steps, its departure, its rides and its carriages
+        const shown = ({path, steps, departure, rides: seated, carriages}: Train) =>
+            [path[0].x, steps, departure, seated, carriages];
+
+        // The carriages a train of rides as many as given has: one for each RIDES_PER_CARRIAGE of them or fewer
+        const carriagesFor = (count: number) => Math.ceil(count / RIDES_PER_CARRIAGE);
+
+        // A train west along row 5 from (22, 5), the other way, which passes those east of DEPARTS
+        const west: Ride = [22, 5, "W".repeat(12), DEPARTS];
+        const most = MOST_CARRIAGES * RIDES_PER_CARRIAGE;
+        const after = (departures: number) => DEPARTS + departures * DEPARTURE_INTERVAL;
+
+        it.each([
+            ["stand at their stations until their departure, and pass a train the other way",
+             [batch(0, ...rides(5, short()), west)],
+             [[10, short()[2], DEPARTS, 5, 1], [22, west[2], DEPARTS, 1, 1]]],
+            ["take a longer ride turning a corner while they stand, running its path",
+             [batch(0, ...rides(5, short())), batch(LEAVES / 2, ...rides(12, turning()))],
+             [[10, turning()[2], DEPARTS, 5 + 12, carriagesFor(5 + 12)]]],
+            ["seat rides in a train running, and a ride past its path on the next departure's",
+             [batch(0, ...rides(5, turning())), batch(LEAVES + 500, ...rides(3, short()), long())],
+             [[10, turning()[2], DEPARTS, 5 + 3, 1], [10, long()[2], after(1), 1, 1]]],
+            ["leave at once for a departure the step clock has passed",
+             [batch(100, [10, 5, "EE", STEPS])],
+             [[10, "EE", STEPS, 1, 1]]],
+            ["board rides a turn of many steps brings after their departure, as they stand",
+             [batch(0, long(after(1))),
+              {arrives: LEAVES, steps: after(1) + 40, rides: rides(4, long(after(1)))}],
+             [[10, long()[2], after(1), 1 + 4, 1]]],
+            ["seat rides past six carriages on the next departure's train",
+             [batch(0, ...rides(most + 10, long()))],
+             [[10, long()[2], DEPARTS, most, MOST_CARRIAGES], [10, long()[2], after(1), 10, carriagesFor(10)]]],
+        ] as [string, Batch[], unknown[]][])("run along their tracks at six tiles a second: %s", (_, batches, ran) => {
+            const watched = watch(batches, 20_000);
+
+            expect({faults: watched.faults, trains: watched.watched.map(shown)}).toEqual({faults: [], trains: ran});
+        });
+
+        // The measure notes each way a train could leave its track: its path swapped under it as it runs, its front put
+        // a second on, and a ride that turns back at a tile out, crossing to the other track and back to its station,
+        // which the rules never send (TripRouter)
+        const running = LEAVES + 200;
+        it.each([
+            ["a path swapped under a train running", [long()], {at: running, does: (trains: Trains) => {
+                trains.all[0].path = tripRoute([10, 6, long()[2]]);
+            }}, "the track under carriage 0"],
+            // Leaves is the train's own, which nothing but boarding sets: moving it a second on stands for a jump
+            ["a train put a second on", [long()], {at: running, does: (trains: Trains) => {
+                Object.assign(trains.all[0], {leaves: trains.all[0].leaves - 1000});
+            }}, `ran ${((1000 + FRAME) / 1000 * TRAIN_TILES_PER_SECOND).toFixed(3)} tiles`],
+            ["a ride that turns back", [[10, 5, "EW", DEPARTS] as Ride], undefined, "tiles right of the middle"],
+        ])("note %s", (_, given, change, fault) => {
+            expect(watch([batch(0, ...given)], 5000, change).faults[0]).toContain(fault);
+        });
     });
 });
 
