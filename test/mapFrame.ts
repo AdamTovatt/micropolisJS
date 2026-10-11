@@ -19,7 +19,8 @@ import {
     CAR_BREADTH, CAR_LENGTH, FrameTiles, GROUND_GRASS_ONLY, GROUND_ONLY, GROUND_OVER_GRASS, GROUND_QUAD_FLOATS,
     GroundList, MapFrame, PATH_QUAD_FLOATS, PathList, QUAD_FLOATS, QuadList, buildMapFrame, wholeMapTiles,
 } from "../src/mapFrame";
-import { around, isWoods } from "../src/surfaces";
+import { FrameRecord, damagedPixels } from "../src/mapDamage";
+import { around, isPark, isWoods } from "../src/surfaces";
 import type { Run, RunList } from "../src/mapFrame";
 import type { Tint } from "../src/overlayRenderer";
 import type { SpriteView } from "../src/protocol";
@@ -28,18 +29,22 @@ import { grassTile } from "../src/grass";
 import {
     FALLBACK_SPRITES, FALLBACK_TILES, RenderArt, SURFACE_FIELD, WHITE, parseRenderManifest,
 } from "../src/renderManifest";
-import { committedGrass, committedSurface, plainCanopy, plainGrass, plainWalkway, plainWater } from "./helpers/grassArt";
+import {
+    committedGrass, committedSurface, plainCanopy, plainGrass, plainParks, plainWalkway, plainWater,
+} from "./helpers/grassArt";
 import { walkwayOf } from "./helpers/walkways";
 import { tileImageOrigin } from "../src/tileSet";
 import { ANIMBIT, BURNBIT, POWERBIT, ZONEBIT } from "../src/tileFlags";
-import { LIGHTNINGBOLT, LTRFBASE, ROADBASE, ROADS, TILE_INVALID, VRAIL, WATER_LOW, WOODS_LOW } from "../src/tileValues";
+import {
+    LIGHTNINGBOLT, LTRFBASE, ROADBASE, ROADS, TILE_INVALID, VRAIL, WATER_LOW, WOODS2, WOODS5, WOODS_HIGH, WOODS_LOW,
+} from "../src/tileValues";
 
 // Tile 5 is rendered: ground, objects, and a shadow reaching a tile left and a tile down. Tile 6 has rendered ground
 // only. Light traffic on a plain road has the art of its own the painted traffic had, its cars' shadow among it, and the
 // plain road ground only. Every other id falls back.
-// Ids of no water or woods, which the map draws from where they lie
-const ZONE = 40;
-const LAWN = 41;
+// Ids of no water, woods or park, which the map draws from where they lie
+const ZONE = 53;
+const LAWN = 54;
 const TRAFFIC = LTRFBASE + (ROADS - ROADBASE);
 const artJson = {
     version: 1,
@@ -65,6 +70,7 @@ const artJson = {
     water: plainWater({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     walkway: plainWalkway({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     walkers: {dabs: [{atlas: "objects", x: 320, y: 0, width: 32, height: 32}]},
+    parks: plainParks({atlas: "objects", x: 352, y: 0, width: 32, height: 32}),
 };
 const art = new RenderArt(parseRenderManifest(artJson));
 
@@ -538,27 +544,30 @@ describe("a frame of the map", () => {
 
         it("grows a ground list's buffers to hold every ground quad, each its grass floats after the quad's", () => {
             const list = new GroundList();
-            const grass = {lush: box, straw: box, through: "part" as const, mapX: 7, mapY: 3, canopy: null, water: null};
-            // Woods and water round the tile as around gives them, any bits but none
+            const grass = {lush: box, straw: box, through: "part" as const, mapX: 7, mapY: 3, canopy: null, water: null,
+                           parks: 0};
+            // Woods, water and parks round the tile as around gives them, any bits but none
             const WOODS_ROUND = 0b1_0000;
             const WATER_ROUND = 0b10_0000;
+            const PARKS_ROUND = 0b100_0000;
             const canopy = {tile: {x: 64, y: 128, width: 64, height: 64}, woods: WOODS_ROUND};
             const water = {tile: {x: 128, y: 192, width: 64, height: 64}, water: WATER_ROUND};
             for (let i = 0; i < 1000; i++) {
-                list.addGround("a", i, 0, 1, 1, box, i === 999 ? grass : i === 997 ? {...grass, canopy, water} : null);
+                list.addGround("a", i, 0, 1, 1, box,
+                               i === 999 ? grass : i === 997 ? {...grass, canopy, water, parks: PARKS_ROUND} : null);
             }
 
             const floats = list.runs[0].floats;
             const quad = (i: number) => Array.from(floats.slice(i * GROUND_QUAD_FLOATS, (i + 1) * GROUND_QUAD_FLOATS));
-            // The floats past a ground quad's grass tiles, map tile and what it draws, through the water round it
-            const UNUSED = GROUND_QUAD_FLOATS - QUAD_FLOATS - 21;
+            // The floats past a ground quad's grass tiles, map tile and what it draws, through the parks round it
+            const UNUSED = GROUND_QUAD_FLOATS - QUAD_FLOATS - 22;
             expect(floats.length).toBe(1000 * GROUND_QUAD_FLOATS);
             expect(quad(999)).toEqual([999, 0, 1, 1, ...[0, 0, 1, 1], ...OPAQUE, ...[0, 0, 1, 1], ...[0, 0, 1, 1], 7, 3,
                                        GROUND_OVER_GRASS, ...new Array<number>(GROUND_QUAD_FLOATS - QUAD_FLOATS - 11)
                                            .fill(0)]);
             expect(quad(998).slice(QUAD_FLOATS)).toEqual(NO_GRASS);
             expect(quad(997).slice(QUAD_FLOATS + 10)).toEqual([GROUND_OVER_GRASS, WOODS_ROUND, 64, 128, 64, 64,
-                                                               128, 192, 64, 64, WATER_ROUND,
+                                                               128, 192, 64, 64, WATER_ROUND, PARKS_ROUND,
                                                                ...new Array<number>(UNUSED).fill(0)]);
         });
 
@@ -906,6 +915,189 @@ describe("a frame of the map", () => {
             it("draws none over land with water only two tiles from it, nor reads it for the water", () => {
                 // Water in the margin's top-left corner: up and left of the first tile in view, two from the second
                 expect(waterOf(tilesWith(0, WATER_TILE))).toEqual([waterAt(11, 21, bit(-1, -1)), [0, 0, 0, 0, 0]]);
+            });
+        });
+
+        describe("the parks", () => {
+
+            const PARK_TILE = WOODS2 + 2;
+            // The crown of the art's one kind of tree, and its shadow
+            const CROWN = {atlas: "objects", x: 384, y: 0, width: 24, height: 24};
+            const TREE_SHADOW = {atlas: "shadows", x: 192, y: 0, width: 48, height: 48};
+            // The wooded art with the park's ground letting all the grass through, as the committed manifest's does,
+            // and a tree on as many ninths as leafy gives, its shadow's square twice its own, each tree a ninth a side,
+            // or from that to the largest given
+            const parked = (leafy: number, largest = 1, shadowSpan = 2) => {
+                const parks = plainParks(CROWN, leafy, TREE_SHADOW);
+                return new RenderArt(parseRenderManifest({
+                    ...artJson,
+                    atlases: {...artJson.atlases, grass: "grass.png"},
+                    tiles: {...artJson.tiles,
+                            0: {ground: {atlas: "ground", x: 256, y: 0, width: 64, height: 64}, grass: "all"},
+                            [PARK_TILE]: {ground: {atlas: "ground", x: 256, y: 0, width: 64, height: 64}, grass: "all"}},
+                    grass: grassJson,
+                    canopy: canopyJson,
+                    water: waterJson,
+                    walkway: plainWalkway({atlas: "grass", x: 0, y: 256, width: 64, height: 64}),
+                    parks: {...parks, trees: {...parks.trees, largest, shadowSpan}},
+                }));
+            };
+
+            // Each quad's target, x, y, width and height
+            const targets = (list: QuadList) => quads(list).flatMap((run) => run.quads.map(({target}) => target));
+            // Whether a target lies within the rectangle from (left, top) to (right, bottom)
+            const within = ([x, y, width, height]: number[], left: number, top: number, right: number, bottom: number) =>
+                x >= left - 1e-9 && y >= top - 1e-9 && x + width <= right + 1e-9 && y + height <= bottom + 1e-9;
+
+            // The parks round each ground quad of a list, and its map tile
+            function parksOf(list: GroundList): number[][] {
+                return list.runs.flatMap((run) => Array.from({length: run.count}, (_, i) => {
+                    const floats = run.data.slice(i * run.floatsPerQuad + QUAD_FLOATS, (i + 1) * run.floatsPerQuad);
+                    return [floats[8], floats[9], floats[21]];
+                }));
+            }
+
+            // The tiles with a park at the first tile in view and at each other index given, and the walkway given on
+            // the tiles given
+            function parksWith(others: number[], walkways: Record<number, number>): FrameTiles {
+                const values = tilesWith(5, PARK_TILE).values.slice();
+                others.forEach((index) => values[index] = PARK_TILE);
+                const held = values.map((_, i) => walkways[i] ?? 0);
+                return tiles(values, values, held);
+            }
+
+            it("is drawn from the park woods alone, which are never woods, so the canopy never covers a park", () => {
+                // The last of the wild woods' ids, the park woods' and the id past them
+                expect([WOODS_HIGH, WOODS2, WOODS2 + 1, WOODS2 + 2, WOODS5, WOODS5 + 1].map(isPark))
+                    .toEqual([false, true, true, true, true, false]);
+                expect([WOODS2, WOODS2 + 1, WOODS2 + 2, WOODS5].map(isWoods)).toEqual([false, false, false, false]);
+            });
+
+            it("draws its lush grass over a park and the land beside it, from the parks round each, in a draw of its own",
+               () => {
+                const frame = new MapFrame();
+                buildMapFrame(frame, parked(0), tilesWith(5, PARK_TILE), 16, noTint, [], []);
+
+                expect(parksOf(frame.parkGround)).toEqual([[11, 21, bit(0, 0)], [12, 21, bit(-1, 0)]]);
+                expect(frame.ground.count).toBe(0);
+            });
+
+            it("draws none over land a park lies two tiles from, nor over a ground that lets no grass through", () => {
+                // A park in the margin's top-left corner, two from the second tile in view
+                const corner = new MapFrame();
+                buildMapFrame(corner, parked(0), tilesWith(0, PARK_TILE), 16, noTint, [], []);
+                expect(parksOf(corner.parkGround)).toEqual([[11, 21, bit(-1, -1)]]);
+                expect(parksOf(corner.ground)).toEqual([[12, 21, 0]]);
+
+                // The zone beside a park in the margin west of it
+                const values = tilesWith(5, ZONE).values.slice();
+                values[4] = PARK_TILE;
+                const zone = new MapFrame();
+                buildMapFrame(zone, parked(0), tiles(values), 16, noTint, [], []);
+                expect(grassOf(zone)[0]).toEqual(NO_GRASS);
+                expect(zone.parkGround.count).toBe(0);
+            });
+
+            it("stands a tree on each ninth the hash picks but those holding walkway, within its ninth where nothing but"
+               + " its own tile is park, over its shadow", () => {
+                // A park alone at the first tile in view, 48 px a side, a path down its middle column of ninths
+                const frame = new MapFrame();
+                buildMapFrame(frame, parked(1), parksWith([], {5: walkwayOf([1, 4, 7], "path")}), 48, noTint, [], []);
+
+                const crowns = targets(frame.objects);
+                // Each crown in its own ninth, a tree on every ninth but the path's, in their order
+                expect(crowns.map(([x, y]) => Math.floor(y / 16) * 3 + Math.floor(x / 16))).toEqual([0, 2, 3, 5, 6, 8]);
+                for (const crown of crowns) {
+                    const [x, y] = crown;
+                    const left = Math.floor(x / 16) * 16;
+                    const top = Math.floor(y / 16) * 16;
+                    expect(within(crown, left, top, left + 16, top + 16)).toBe(true);
+                }
+                expect(quads(frame.objects)[0].quads[0]).toEqual(expect.objectContaining({source: [384, 0, 24, 24]}));
+                // Each shadow twice its tree's side, centred on it
+                expect(targets(frame.shadows)).toEqual(crowns.map(([x, y, side]) => [x - side / 2, y - side / 2,
+                                                                                      2 * side, 2 * side]
+                    .map((at) => expect.closeTo(at, 4) as number)));
+                expect(quads(frame.shadows)[0]).toEqual(expect.objectContaining({atlas: "shadows"}));
+            });
+
+            it("reaches a crown over the ninths beside its own that lie in a park and hold no walkway, and over no other",
+               () => {
+                // Two parks side by side in view, 48 px a side, a path down the second's first column of ninths, with
+                // trees from a ninth to two ninths a side
+                const frame = new MapFrame();
+                buildMapFrame(frame, parked(1, 2), parksWith([6], {6: walkwayOf([0, 3, 6], "path")}), 48, noTint, [],
+                              []);
+
+                const crowns = targets(frame.objects);
+                // Every crown within the two parks, none over the path, and some reaching past its own ninth
+                expect(crowns.every((crown) => within(crown, 0, 0, 96, 48))).toBe(true);
+                expect(crowns.filter(([x, , side]) => x < 64 && x + side > 48)).toEqual([]);
+                expect(crowns.filter(([, , side]) => side > 16).length).toBeGreaterThan(0);
+                // A tree on every ninth of the two parks but the path's three
+                expect(crowns.length).toBe(2 * 9 - 3);
+            });
+
+            it("casts the shadows of a park's trees beside the areas drawn into them, and draws none of their crowns",
+               () => {
+                // A park in the margin west of the first tile in view, 48 px a side, the view's two tiles drawn
+                const frame = new MapFrame();
+                buildMapFrame(frame, parked(1), tilesWith(4, PARK_TILE), 48, noTint, [], [],
+                              [{x: 0, y: 0, width: 96, height: 48}]);
+
+                expect(frame.objects.count).toBe(0);
+                // Of its trees, those by its east edge cast their shadows past the view's left edge, at 0, and no others
+                const shadows = targets(frame.shadows);
+                expect(shadows.length).toBeGreaterThan(0);
+                expect(shadows.every(([x, , side]) => x < 0 && x + side > 0)).toBe(true);
+                expect(frame.hasShadows).toBe(true);
+            });
+
+            it("draws again, when a walkway changes, every tree's crown and shadow that changes with it", () => {
+                // A park 12 tiles by 6 in a view of 20 by 12 tiles, a margin of 2, and a path laid down the east column
+                // of ninths of the tile in view's column 14, by the edge of the blocks drawn again: the trees on the
+                // path's ninths go, and those beside it hold back from it, the tile east of it's among them, whose
+                // crowns and shadows reach the next block
+                const width = 24;
+                const height = 16;
+                const values = new Array<number>(width * height).fill(0);
+                for (let row = 4; row < 10; row++) {
+                    for (let column = 10; column < 22; column++) {
+                        values[row * width + column] = PARK_TILE;
+                    }
+                }
+                const area = (walkways: number[]): FrameTiles => ({x: 10, y: 20, width, height, margin: 2,
+                                                                   offset: {x: 0, y: 0}, values, frames: values,
+                                                                   walkways});
+                const before = area(new Array<number>(width * height).fill(0));
+                const changed = before.walkways.slice();
+                changed[6 * width + 16] = walkwayOf([2, 5, 8], "path");
+                const after = area(changed);
+                // The largest trees and the widest shadows the manifest allows, which reach farthest
+                const art = parked(0.7, 2, 3);
+                const view = {originX: 0, originY: 0, tilePixels: 16, width: 320, height: 192};
+                const record = new FrameRecord();
+                record.damage(view, before);
+                const damage = record.damage(view, after);
+                if (damage === null || damage === "all") {
+                    throw new Error(`The walkway's damage is ${damage}`);
+                }
+                const areas = damagedPixels(damage, 16, after.offset);
+
+                // The crowns and shadows drawn in one frame and not the other, each of which must lie in what is drawn
+                // again
+                const drawn = (tiles: FrameTiles) => {
+                    const frame = new MapFrame();
+                    buildMapFrame(frame, art, tiles, 16, noTint, [], []);
+                    return [...targets(frame.objects), ...targets(frame.shadows)].map((target) => target.join());
+                };
+                const [was, is] = [drawn(before), drawn(after)];
+                const differ = [...was.filter((t) => !is.includes(t)), ...is.filter((t) => !was.includes(t))]
+                    .map((t) => t.split(",").map(Number));
+                expect(differ.length).toBeGreaterThan(0);
+                const outside = differ.filter((target) => !areas.some(({x, y, width: w, height: h}) =>
+                    within(target, x, y, x + w, y + h)));
+                expect(outside).toEqual([]);
             });
         });
     });

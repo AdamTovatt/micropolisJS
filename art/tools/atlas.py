@@ -22,8 +22,8 @@ sprites.png, and dirtbg.png into images/, or the directory --out names. The 16 p
 original ones in art/sheets/ with every tile id and sprite frame it has art for drawn into its
 cell, so the build reads nothing it wrote. Which design fills which tile ids is in designs.py: the
 single-tile sets by SINGLE_TILES, the zones by ZONES, their animations by FRAMES, the vehicles by
-SPRITES, the cars by CAR; the walkers' dabs are cut by walkers.py, and the footbridge's deck and the
-underpass's stair mouth by bridges.py. Needs Pillow, NumPy and SciPy.
+SPRITES, the cars by CAR; the walkers' dabs are cut by walkers.py, the parks' trees by trees.py, and the
+footbridge's deck and the underpass's stair mouth by bridges.py. Needs Pillow, NumPy and SciPy.
 """
 
 import argparse
@@ -36,10 +36,12 @@ from PIL import Image
 
 import bridges
 import grass
+import trees
 import walkers
-from designs import (CAR, CAR_COLOURS, CAR_WAYS, FRAMES, IMAGES, ORIGINAL_SPRITES, ORIGINAL_TILES, SHEET_COLUMNS,
-                     SHEET_PX, OVER_SHADOWS, SINGLE_TILES, SPRITE_CELL, SPRITES, TILE_PX, WATER_HIGH, WATER_LOW,
-                     WOODS_HIGH, WOODS_LOW, ZONES, load, single_tile_ids, sprite_frame, tile_asset, zone_frame)
+from designs import (CAR, CAR_COLOURS, CAR_WAYS, FRAMES, IMAGES, ORIGINAL_SPRITES, ORIGINAL_TILES, PARK_HIGH, PARK_LOW,
+                     SHEET_COLUMNS, SHEET_PX, OVER_SHADOWS, SINGLE_TILES, SPRITE_CELL, SPRITES, TILE_PX, WATER_HIGH,
+                     WATER_LOW, WOODS_HIGH, WOODS_LOW, ZONES, load, single_tile_ids, sprite_frame, tile_asset,
+                     zone_frame)
 
 GUTTER = 4                     # each rectangle's edge pixels repeated this far outward, from a multiple of 4,
                                # so the two mip levels down to 16 px a tile don't bleed (docs/render-assets.md)
@@ -201,6 +203,14 @@ def build(source, out=IMAGES):
         ground[tile_id] = Image.new('RGBA', (TILE_PX, TILE_PX))
         grass_through[tile_id] = 'all'
         sheet_tiles[tile_id] = Image.fromarray(canopy[0]).convert('RGBA')
+    # the parks: a ground that lets all the grass through, for the lush grass and the trees the game draws over it from
+    # where the map's parks lie, which the 16 px sheet draws as lush grass with trees
+    park_trees = trees.build_trees()
+    for tile_id in range(PARK_LOW, PARK_HIGH + 1):
+        claim(tile_id, 'the parks')
+        ground[tile_id] = Image.new('RGBA', (TILE_PX, TILE_PX))
+        grass_through[tile_id] = 'all'
+        sheet_tiles[tile_id] = trees.sheet_park(grass_sets['lush'][0], park_trees, TILE_PX)
     # the water and its shores: a ground that lets all the grass through, for the water and the sand the game draws over
     # it from where the map's water lies
     for tile_id in range(WATER_LOW, WATER_HIGH + 1):
@@ -241,8 +251,12 @@ def build(source, out=IMAGES):
     # beside
     surfaces = bridges.build()
     grass_images.update({(name, 0): image for name, image in surfaces.items()})
-    for kind, mode, images in (('ground', 'RGBA', ground), ('objects', 'RGBA', objects),
-                               ('shadow', 'RGBA', shadows), ('sprites', 'RGBA', {**sprites, **cars, **dabs}),
+    # the parks' trees, packed with the objects, and their shadows with the shadows, which the game draws in those passes
+    crowns = {('tree', k): tree['crown'] for k, tree in enumerate(park_trees)}
+    tree_shadows = {('tree', k): tree['shadow'] for k, tree in enumerate(park_trees)}
+    for kind, mode, images in (('ground', 'RGBA', ground), ('objects', 'RGBA', {**objects, **crowns}),
+                               ('shadow', 'RGBA', {**shadows, **tree_shadows}),
+                               ('sprites', 'RGBA', {**sprites, **cars, **dabs}),
                                ('grass', 'RGB', grass_images)):
         pages = Atlases(kind, mode)
         packed[kind] = pages.pack(images)
@@ -271,8 +285,11 @@ def build(source, out=IMAGES):
     canopy_entry = {**grass.CANOPY, 'tiles': [packed['grass'][('canopy', k)] for k in range(len(canopy))]}
     water_entry = {**grass.WATER, 'tiles': [packed['grass'][('water', k)] for k in range(len(water))]}
     walker_entry = {'dabs': [packed['sprites'][('dab', k)] for k in range(len(dabs))]}
+    parks_entry = {**trees.PARKS, 'trees': {**trees.TREES, 'kinds': [
+        {'crown': packed['objects'][('tree', k)], 'shadow': packed['shadow'][('tree', k)]} for k in range(len(crowns))]}}
     manifest = {'version': 1, 'atlases': atlases, 'tiles': tiles, 'sprites': sprite_entries, 'cars': car_entries,
                 'walkers': walker_entry, 'grass': grass_entry, 'canopy': canopy_entry, 'water': water_entry,
+                'parks': parks_entry,
                 'walkway': {**grass.WALKWAY, 'deck': {**packed['grass'][('deck', 0)], 'tiles': bridges.DECK_TILES},
                             'stairs': packed['grass'][('stairs', 0)]}}
     with open(os.path.join(render, 'manifest.json'), 'w') as f:

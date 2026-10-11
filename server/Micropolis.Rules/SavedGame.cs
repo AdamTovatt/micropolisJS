@@ -191,6 +191,25 @@ namespace Micropolis.Rules
                     Group(Group(savedGame, "scannedState"), "blockMaps")["footLoadMap"] = SavedList.Of(new int[tiles.Count]);
                 }
             },
+
+            // From version 17: the park tool lays no fountain, and a fountain becomes the first park woods, as the
+            // park tool lays it. An entry that is no tile's raw value is left for the load to refuse.
+            savedGame =>
+            {
+                if (Group(savedGame, "map")["tiles"] is not JsonArray tiles)
+                {
+                    return;
+                }
+
+                for (int i = 0; i < tiles.Count; i++)
+                {
+                    // A raw value from 0 to 0xffff, as the map reads them
+                    if (Validation.TryGetWholeNumberIn(tiles[i], 0, 0xffff, out long raw) && (raw & TileFlags.BIT_MASK) == TileValues.FOUNTAIN)
+                    {
+                        tiles[i] = TileValues.WOODS2 | TileFlags.BLBNBIT;
+                    }
+                }
+            },
         ];
 
         // The type the original's train, the first of its sprites, had, which the game saved until version 14

@@ -123,7 +123,7 @@ namespace Micropolis.Rules.Tests
         }
 
         // A log keeps a save as it was written, so a save from before an upgrade step was added replays through that
-        // step: the city it starts is the one the save of the version before the current one loads as
+        // step: the city it starts is the one each sample save of the version before the current one loads as
         [TestMethod]
         public void Verify_SaveOfThePreviousVersion_ReplaysUpgradedToTheCityItLoadsAs()
         {
@@ -131,17 +131,32 @@ namespace Micropolis.Rules.Tests
             // work runs on the city as loaded
             const int Steps = 48;
             int previous = SavedGame.CurrentVersion - 1;
-            string sample = ConformanceFile.Read($"saveVersions/version{previous}.json");
-            JsonObject state = SavedGame.StripGameKeys(JsonText.Parse(sample)!.AsObject());
-            IReadOnlyList<Checkpoint> loaded = LogReplay.Run(SaveStart.Of(SavedGame.Load(sample, out _)), [], [0, Steps], Steps).Hashed;
+            List<string> samples = SavedGameTests.Samples.Select(row => ConformanceFile.Read($"saveVersions/{(string)row[0]}"))
+                .Where(sample => (int)JsonText.Parse(sample)!["version"]!.GetValue<double>() == previous).ToList();
+            Assert.AreNotEqual(0, samples.Count, $"This test needs a sample save of version {previous}.");
+            int changed = 0;
 
-            // Verify fails on the first checkpoint whose hash differs from the city the sample loads as
-            LogReplay.Verify(new CommandLog(null, new SaveStart(state, previous), [], loaded));
+            foreach (string sample in samples)
+            {
+                JsonObject state = SavedGame.StripGameKeys(JsonText.Parse(sample)!.AsObject());
+                IReadOnlyList<Checkpoint> loaded = LogReplay.Run(SaveStart.Of(SavedGame.Load(sample, out _)), [], [0, Steps], Steps).Hashed;
 
-            // And the upgrade is what made it so: read as the current version, the save loads no city, or another one
-            Exception unupgraded = Assert.Throws<Exception>(
-                () => LogReplay.Verify(new CommandLog(null, new SaveStart(state, SavedGame.CurrentVersion), [], loaded)));
-            Assert.IsTrue(unupgraded is SaveFormatException or ReplayDiffersException, unupgraded.ToString());
+                // Verify fails on the first checkpoint whose hash differs from the city the sample loads as
+                LogReplay.Verify(new CommandLog(null, new SaveStart(state, previous), [], loaded));
+
+                // Read as the current version, a sample the last step changes loads no city, or another one
+                try
+                {
+                    LogReplay.Verify(new CommandLog(null, new SaveStart(state, SavedGame.CurrentVersion), [], loaded));
+                }
+                catch (Exception unupgraded) when (unupgraded is SaveFormatException or ReplayDiffersException)
+                {
+                    changed++;
+                }
+            }
+
+            // And the upgrade is what made it so for at least one of them
+            Assert.AreNotEqual(0, changed, $"No sample save of version {previous} is one the last upgrade step changes.");
         }
 
         [TestMethod]

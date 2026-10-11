@@ -101,6 +101,30 @@ export function committedWalkway(): WalkwayJson {
   return structuredClone(repositoryJson<{walkway: WalkwayJson}>("images/render/manifest.json").walkway);
 }
 
+// A parks section as JSON, loosely enough for a test to break it
+export interface ParksJson {
+  cut: unknown;
+  feather: unknown;
+  wobble: unknown;
+  trees: {kinds: Record<string, unknown>[], [key: string]: unknown};
+  [key: string]: unknown;
+}
+
+// The committed manifest's parks section
+export function committedParks(): ParksJson {
+  return structuredClone(repositoryJson<{parks: ParksJson}>("images/render/manifest.json").parks);
+}
+
+// The plainest parks section: the lush grass cut halfway up the parks' surface and feathered over a tenth of it,
+// unwobbled, and one kind of tree on as many ninths as leafy gives everywhere, none by default, in groves of no noise,
+// each a ninth a side, its crown and its shadow the rectangles given, the shadow's the crown's unless given, the shadow
+// over the tree's own square
+export function plainParks(crown: RectJson, leafy = 0, shadow: RectJson = crown): ParksJson {
+  return {cut: 0.5, feather: 0.1, wobble: 0,
+          trees: {seed: 0, leafy, groves: {octaves: [{cell: 1, seed: 0, weight: 0, turn: [1, 0]}]}, smallest: 1,
+                  largest: 1, shadowSpan: 1, kinds: [{crown: {...crown}, shadow: {...shadow}}]}};
+}
+
 // The plainest walkers section: one dab, the rectangle given, which the walkers' colours tint
 export function plainWalkers(rect: RectJson): {dabs: RectJson[]} {
   return {dabs: [rect]};

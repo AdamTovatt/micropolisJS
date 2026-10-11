@@ -14,8 +14,10 @@
 
 import { SURFACE_REACH } from "./surfaces";
 import { CAR_COLOURS } from "./cars";
-import { GRASS_MAP, grassTile } from "./grass";
+import { GRASS_MAP, bakeNoise, grassTile } from "./grass";
+import { treeChances } from "./parkTrees";
 import type { EdgeNoise, GrassConstants, NoiseOctave, TurnedOctave } from "./grass";
+import { NINTHS_PER_SIDE } from "./protocol";
 import { CAR_DIRECTIONS } from "./routeTiles";
 import type { CarDirection } from "./routeTiles";
 import type { Rect } from "./rect";
@@ -158,9 +160,37 @@ export interface WalkerArt {
   dabs: readonly AtlasRect[];
 }
 
+// The parks, which the map draws from where they lie, not from each tile's art: the world grass at full lush over each
+// park, fading out over its edge where the surface the parks make, wobbled by the canopy's wobble as far as wobble,
+// from 0 to 1, stands above the cut, over feather of that surface; and the trees standing on its ninths
+// (docs/render-assets.md)
+export interface ParkArt {
+  cut: number;
+  feather: number;
+  wobble: number;
+  trees: TreeArt;
+}
+
+// The parks' trees: the seed of the hash that picks which of a park's ninths hold a tree, which, how large and where in
+// the ninth, the share of the ninths that do, from 0 to 1, and the groves' noise, which moves that share from ninth to
+// ninth, so trees gather in groves round open glades; the side of the smallest tree's square and of the largest's, in
+// ninths, above 0 and at most 2, so a crown centred in its ninth reaches at most the ninths beside it; the side, in sides
+// of the tree's square, of the square centred on it each tree's shadow is drawn over; and the kinds of tree, one at
+// least, each its crown, drawn into its square in the objects pass, and its shadow, black whose alpha is its darkness,
+// drawn into its shadow's square in the shadow pass
+export interface TreeArt {
+  seed: number;
+  leafy: number;
+  groves: EdgeNoise;
+  smallest: number;
+  largest: number;
+  shadowSpan: number;
+  kinds: readonly {crown: AtlasRect, shadow: AtlasRect}[];
+}
+
 // A manifest: each atlas's image, by name, a path relative to the manifest's own, and the art of each tile id, of each
 // sprite, by type and frame, as spriteKey names it, and of each car, by colour and direction, as carKey names it, the
-// walkers, the world grass, the canopy, the water and the walkways
+// walkers, the world grass, the canopy, the water, the parks and the walkways
 export interface RenderManifest {
   atlases: ReadonlyMap<string, string>;
   tiles: ReadonlyMap<number, TileArt>;
@@ -170,13 +200,15 @@ export interface RenderManifest {
   grass: GrassArt;
   canopy: CanopyArt;
   water: WaterArt;
+  parks: ParkArt;
   walkway: WalkwayArt;
 }
 
-// What the renderer draws the surfaces over the map with, the world grass, the canopy, the water and the walkways, the
-// same at every zoom: the atlas of the grass's sets, the canopy's and the water's, and the baked field, by name, each
-// set's mean colour and the tint's constants, colours from 0 to 1, the map's size in tiles, which the field covers, the
-// canopy's cut, feather and shadow, the water's cut, feather and sand, and the walkways', every colour from 0 to 1
+// What the renderer draws the surfaces over the map with, the world grass, the canopy, the water, the parks' lush grass
+// and the walkways, the same at every zoom: the atlas of the grass's sets, the canopy's and the water's, and the baked
+// field, by name, each set's mean colour and the tint's constants, colours from 0 to 1, the map's size in tiles, which
+// the field covers, the canopy's cut, feather and shadow, the water's cut, feather and sand, the parks' cut, feather and
+// wobble, and the walkways', every colour from 0 to 1
 export interface SurfaceDraw {
   atlas: string;
   field: string;
@@ -192,6 +224,9 @@ export interface SurfaceDraw {
   waterCut: number;
   waterFeather: number;
   sand: Sand;
+  parkCut: number;
+  parkFeather: number;
+  parkWobble: number;
   walkway: WalkwayArt;
 }
 
@@ -538,6 +573,43 @@ function waterArt(value: unknown, atlases: ReadonlyMap<string, string>, grass: G
   };
 }
 
+// The parks section: the lush grass's cut, feather and wobble, and the trees, their seed, share and shadows' square,
+// which reaches past a tree's ninth by at most a tile, so a tree's shadow falls on no tile but its own and those beside
+// it, within the reach of the surfaces' looks, and their kinds
+function parkArt(value: unknown, atlases: ReadonlyMap<string, string>): ParkArt {
+  const json = object(value, "parks", ["cut", "feather", "wobble", "trees"]);
+  const trees = object(json.trees, "parks.trees",
+                       ["seed", "leafy", "groves", "smallest", "largest", "shadowSpan", "kinds"]);
+  const shadowSpan = wholeNumber(trees.shadowSpan, "parks.trees.shadowSpan", 1);
+  if (shadowSpan > NINTHS_PER_SIDE) {
+    fail("parks.trees.shadowSpan", `is past ${NINTHS_PER_SIDE}, so a tree's shadow reaches past the tiles beside it`);
+  }
+  const smallest = positiveNumber(trees.smallest, "parks.trees.smallest");
+  const largest = finiteNumber(trees.largest, "parks.trees.largest");
+  if (largest < smallest || largest > 2) {
+    fail("parks.trees.largest", "is not from the smallest to 2, so a crown reaches past the ninths beside its own");
+  }
+  return {
+    cut: finiteNumber(json.cut, "parks.cut"),
+    feather: positiveNumber(json.feather, "parks.feather"),
+    wobble: fraction(json.wobble, "parks.wobble"),
+    trees: {
+      seed: seed(trees.seed, "parks.trees.seed"),
+      leafy: fraction(trees.leafy, "parks.trees.leafy"),
+      groves: edgeNoise(trees.groves, "parks.trees.groves"),
+      smallest,
+      largest,
+      shadowSpan,
+      kinds: list(trees.kinds, "parks.trees.kinds").map((kind, i) => {
+        const where = `parks.trees.kinds[${i}]`;
+        const json = object(kind, where, ["crown", "shadow"]);
+        return {crown: plainRect(json.crown, `${where}.crown`, atlases),
+                shadow: plainRect(json.shadow, `${where}.shadow`, atlases)};
+      }),
+    },
+  };
+}
+
 // The walkway section: its cut, feather and edge, its two looks and its crossing, a footbridge's deck, rails and
 // shadow, and an underpass's stair mouth, the deck and the stairs each a painting in the grass's atlas, which the
 // ground pass samples beside the grass
@@ -623,7 +695,7 @@ function surfaceTiles(value: unknown, where: string, atlases: ReadonlyMap<string
 export function parseRenderManifest(value: unknown): RenderManifest {
   const json = object(value, "the manifest",
                       ["version", "atlases", "tiles", "sprites", "cars", "walkers", "grass", "canopy", "water",
-                       "walkway"]);
+                       "parks", "walkway"]);
   if (json.version !== 1) {
     fail("version", "is not 1");
   }
@@ -686,7 +758,8 @@ export function parseRenderManifest(value: unknown): RenderManifest {
 
   const grass = grassArt(json.grass, atlases);
   return {atlases, tiles, sprites, cars, walkers, grass, canopy: canopyArt(json.canopy, atlases, grass),
-          water: waterArt(json.water, atlases, grass), walkway: walkwayArt(json.walkway, atlases, grass)};
+          water: waterArt(json.water, atlases, grass), parks: parkArt(json.parks, atlases),
+          walkway: walkwayArt(json.walkway, atlases, grass)};
 }
 
 // Fails naming each rectangle that runs past its atlas, given each atlas's size in pixels
@@ -716,6 +789,10 @@ export function checkRectsInAtlases(manifest: Omit<RenderManifest, "atlases">,
   manifest.grass.straw.tiles.forEach((rect, i) => check(rect, `straw grass ${i}`));
   manifest.canopy.tiles.forEach((rect, i) => check(rect, `canopy ${i}`));
   manifest.water.tiles.forEach((rect, i) => check(rect, `water ${i}`));
+  manifest.parks.trees.kinds.forEach(({crown, shadow}, i) => {
+    check(crown, `tree ${i} crown`);
+    check(shadow, `tree ${i} shadow`);
+  });
   check(manifest.walkway.deck, "footbridge deck");
   check(manifest.walkway.stairs, "underpass stairs");
 
@@ -758,6 +835,8 @@ export class RenderArt {
   private readonly waterCorners: Pick<GrassConstants, "colours" | "corners">;
   // 1 for each tile id the map draws as water, by id
   private readonly waterIds = new Uint8Array(TILE_COUNT);
+  // The chance each ninth of the map holds a tree, where it lies in a park, row by row over the map's grid of ninths
+  private readonly treeChances: Float32Array;
 
   constructor(private readonly rendered: RenderManifest) {
     this.grass = rendered.grass;
@@ -772,6 +851,8 @@ export class RenderArt {
                       canopyCut: rendered.canopy.cut, canopyFeather: rendered.canopy.feather,
                       canopyShadow: rendered.canopy.shadow, waterCut: rendered.water.cut,
                       waterFeather: rendered.water.feather, sand: {...sand, mean: unit(sand.mean)},
+                      parkCut: rendered.parks.cut, parkFeather: rendered.parks.feather,
+                      parkWobble: rendered.parks.wobble,
                       walkway: {...walkway, gravel: {...walkway.gravel, mean: unit(walkway.gravel.mean)},
                                 paving: {...walkway.paving, mean: unit(walkway.paving.mean)},
                                 crossing: {...walkway.crossing, colour: unit(walkway.crossing.colour)}}};
@@ -786,6 +867,9 @@ export class RenderArt {
       }
     });
     this.reach = reach;
+    const {trees} = rendered.parks;
+    this.treeChances = treeChances(trees, bakeNoise(trees.groves, rendered.grass.constants, GRASS_MAP.width,
+                                                    GRASS_MAP.height, NINTHS_PER_SIDE));
   }
 
   // The art of a tile id from 0 to below TILE_COUNT
@@ -818,6 +902,15 @@ export class RenderArt {
   car(colour: number, direction: CarDirection): AtlasRect | null {
     return this.rendered.cars.get(carKey(CAR_COLOURS[colour].name, direction)) ?? null;
   }
+
+  // The parks' trees
+  get trees(): TreeArt {
+    return this.rendered.parks.trees;
+  }
+
+  // The chance the ninth at (ninthX, ninthY) on the map's grid of ninths holds a tree, where it lies in a park
+  readonly treeChance = (ninthX: number, ninthY: number): number =>
+    this.treeChances[ninthY * GRASS_MAP.width * NINTHS_PER_SIDE + ninthX];
 
   // The dab of paint a walker is drawn as, by the dab number its route picks, of those the manifest has
   walkerDab(dab: number): AtlasRect {

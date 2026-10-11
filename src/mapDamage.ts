@@ -44,6 +44,11 @@ export const DAMAGE_BLOCK = 8;
 // A frame that would draw more than this share of the view's blocks draws all of it
 const DAMAGE_ALL_SHARE = 0.5;
 
+// The tiles round one whose walkway changed whose look may change with it, on every side: those beside it, whose paths
+// its ninths join and whose park trees' crowns reach over its ninths or hold back from them, and the tiles beside those,
+// which those crowns and their shadows reach into (parkTrees.ts)
+export const WALKWAY_REACH = 2;
+
 // The device pixels of the view the rectangles of tiles cover, tilePixels a tile, with the view's top-left the offset,
 // in device pixels, into the first tile in view (FrameTiles), each rounded out to whole pixels. Where a tile's edge
 // falls inside a device pixel, at 1.1 device pixels to the CSS pixel say, the pixel is drawn again with the tile.
@@ -149,7 +154,8 @@ export class FrameRecord {
   // The part of the view a layer drawn of the view and the tiles would draw differently from the last one recorded, or
   // null for none; the layer is recorded as the last. A tile whose value changed may have changed its shadow, which
   // reaches no farther than the tiles' margin; one whose walkway changed, the paths of the tiles beside it, which its
-  // ninths join theirs to.
+  // ninths join theirs to, and the park trees of those tiles, whose crowns reach over open park beside their ninths and
+  // cast their shadows past them, as far as WALKWAY_REACH.
   damage(view: FrameView, tiles: FrameTiles): Damage | null {
     const count = tiles.width * tiles.height;
     const {margin} = tiles;
@@ -164,7 +170,7 @@ export class FrameRecord {
         if (tiles.values[i] !== this.values[i]) {
           blocks.mark(column - margin, row - margin, column + margin, row + margin);
         } else if (tiles.walkways[i] !== this.walkways[i]) {
-          blocks.mark(column - 1, row - 1, column + 1, row + 1);
+          blocks.mark(column - WALKWAY_REACH, row - WALKWAY_REACH, column + WALKWAY_REACH, row + WALKWAY_REACH);
         } else if (tiles.frames[i] !== this.frames[i]) {
           blocks.mark(column, row, column, row);
         }

@@ -109,7 +109,13 @@ holds, and no road.
 it, and every tile of it crossed down the middle by a path, or every fifth tile by a footbridge and the next by an
 underpass, started on the server with the name `Sample` and run 6,912 steps: its `footLoadMap` holds the walkers on a
 crossing of the road.
-`SavedGameTests` also upgrades each as the bare state a command log holds, and `LogReplayTests` replays the sample of
+`version17Parks.json` is the walkers fixture's commands on seed 8's map with a park laid on every tile of the row its
+walkway runs along that the woods leave bare, started on the server with the name `Sample` and run 6,912 steps: some
+of its parks are fountains, which the step from version 17 turns into park woods.
+`version18.json` is the walkers fixture's commands on seed 8's map with a park laid on every tile of the row its
+walkway runs along that the woods leave bare, started on the server with the name `Sample` and run 6,912 steps: its
+parks are park woods alone, the path running through them, and it holds no fountain.
+`SavedGameTests` also upgrades each as the bare state a command log holds, and `LogReplayTests` replays each sample of
 the version before the current one from inside a log, as a log written before the last upgrade step was added.
 The fixture tool fails unless every version from 5 to the current one has a sample, so a new version adds one, written
 by the game of the commit that adds it: a Debug build of that commit's server answers a city's save text to the
@@ -131,6 +137,7 @@ is the output of the game that wrote it, byte for byte, so writing it again from
 | `version15.json` | `aed9205` |
 | `version16.json` | `e50aeaf` |
 | `version17.json` | `86dae28` |
+| `version17Parks.json` | `3fceb52` |
 
 ## Files the fixture tool writes
 

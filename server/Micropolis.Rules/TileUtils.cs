@@ -383,12 +383,12 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Whether a tile of the value is a park, as the park tool lays one: its trees or its fountain. The wild woods
-        /// are not.
+        /// Whether a tile of the value is a park, as the park tool lays one: one of the park woods. The wild woods are
+        /// not.
         /// </summary>
         public static bool IsPark(int tileValue)
         {
-            return (tileValue >= TileValues.WOODS2 && tileValue <= TileValues.WOODS5) || tileValue == TileValues.FOUNTAIN;
+            return tileValue >= TileValues.WOODS2 && tileValue <= TileValues.WOODS5;
         }
 
         public static bool IsResidential(int tileValue)

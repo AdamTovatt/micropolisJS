@@ -115,14 +115,13 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(1, map.WalkwayUpkeep);
         }
 
-        // Bare land, a park's trees and fountain, road and rail take walkway; water takes none, nor the wild woods, rubble,
-        // a station, a power line or a zone, which need the bulldozer
+        // Bare land, a park's woods, road and rail take walkway; water takes none, nor the wild woods, rubble, a station, a
+        // power line or a zone, which need the bulldozer
         [TestMethod]
         [DataRow(DIRT, Outcome.Ok)]
         [DataRow(WOODS, Outcome.NeedsBulldoze)]
         [DataRow(WOODS2, Outcome.Ok)]
         [DataRow(WOODS5, Outcome.Ok)]
-        [DataRow(FOUNTAIN, Outcome.Ok)]
         [DataRow(ROADS, Outcome.Ok)]
         [DataRow(HBRIDGE, Outcome.Ok)]
         [DataRow(LHRAIL, Outcome.Ok)]
@@ -145,7 +144,7 @@ namespace Micropolis.Rules.Tests
         // where a path goes, nor an underpass on water or a bridge, under which lies water
         [TestMethod]
         [DataRow(DIRT, WalkwayKind.Footbridge, Outcome.NeedsBulldoze)]
-        [DataRow(FOUNTAIN, WalkwayKind.Underpass, Outcome.NeedsBulldoze)]
+        [DataRow(WOODS3, WalkwayKind.Underpass, Outcome.NeedsBulldoze)]
         [DataRow(RIVER, WalkwayKind.Footbridge, Outcome.Ok)]
         [DataRow(CHANNEL, WalkwayKind.Footbridge, Outcome.Ok)]
         [DataRow(RIVER, WalkwayKind.Underpass, Outcome.OnWater)]

@@ -6,13 +6,13 @@ The map, the monster TV and the splash screen's map preview are drawn with WebGL
 
 The map is drawn in this order:
 
-1. the world grass, the canopy, the sand and the water over it, then every tile's ground over them, in one pass (The world grass, The canopy and The water, below), and the walkways over that, in a draw of their own over only the parts of the tiles they can show on (The walkways, below);
-2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, the canopy's shadow (The canopy, below) and each footbridge's deck's (The walkways, below), merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass and the walkways' draw drew, once;
-3. every tile's objects;
+1. the world grass, the parks' lush grass, the canopy, the sand and the water over it, then every tile's ground over them, in one pass, whose tiles with parks about them are a draw of their own (The world grass, The parks, The canopy and The water, below), and the walkways over that, in a draw of their own over only the parts of the tiles they can show on (The walkways, below);
+2. every anchor's shadow, from the tiles in view and, around them, as many tiles as the farthest shadow reaches, the canopy's shadow (The canopy, below), each footbridge's deck's (The walkways, below) and each park tree's (The parks, below), merged into a shadow buffer by the darkest value at each pixel (`blendEquation(MAX)`), which then darkens what the ground pass and the walkways' draw drew, once;
+3. every tile's objects, and the parks' trees;
 4. the map overlay's tint;
 5. the cars, the carriages of trains and the walkers (`cars.ts`), then the sprites over them.
 
-The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as a tile's look reaches: as far as their shadows reach, and at least the two tiles round each whose canopy, canopy's shadow and water it changes (`reach` of `RenderArt` in `renderManifest.ts`); and around each tile whose walkway changed, the tiles beside it, whose paths it joins (The walkways, below).
+The tools' outlines are drawn on a 2D canvas over the map. A shadow therefore falls across any tile's ground, but never on objects, and overlapping shadows never darken twice. Ground and objects fill their tile exactly and never reach past it, but for a park tree's crown, which reaches only over the open park beside it, where no tile draws objects of its own, so neither pass depends on the order tiles are drawn in, and the game can draw the map again in part, around the tiles that changed and as far as a tile's look reaches: as far as their shadows reach, and at least the two tiles round each whose canopy, canopy's shadow, parks' lush grass and water it changes (`reach` of `RenderArt` in `renderManifest.ts`); and around each tile whose walkway changed, the two tiles round it, the paths of those beside it joining it and the park trees there reaching over it, their crowns and shadows reaching the tiles beside those (The walkways and The parks, below).
 
 A frame draws the tile id the animation manager picks for each tile (`animationManager.ts`): each frame of an animated tile, and the lightning bolt an unpowered zone blinks to, is drawn from its own entry. Traffic is drawn as cars, so a traffic tile, light or heavy, and each frame of one, is drawn from the entry of the plain road tile of its shape (`trafficTiles.ts`), every layer of it: its shadow comes from the anchor's own value, and a traffic value's is the plain road's. The map, the monster TV and the preview alike look up a tile's art in one place, `buildMapFrame` in `mapFrame.ts`. A shadow is drawn from the anchor's own tile id, so it doesn't blink. The bolt's entry has objects as well as ground, the whole tile, opaque, which no shadow darkens: the bolt replaces the centre tile of a zone or a service building, whose own shadow lies dense under the roof the bolt replaces.
 
@@ -81,9 +81,10 @@ The monster TV draws its view in the same passes, but for the overlay's tint, th
 - `grass`, required: the world grass, below.
 - `canopy`, required: the canopy the woods are drawn as, below.
 - `water`, required: the water, below.
+- `parks`, required: the parks, below.
 - `walkway`, required: the walkways, below.
 
-A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atlas, at least 1 wide and high. It is scaled to fill where it is drawn, so an atlas may be rendered at any pixels a tile; the art is rendered at 64 px a tile (`TILE_PX` in `art/blender/tileart.py`), the closest zoom. A key the format doesn't name, a missing `ground`, `walkers`, `grass`, `canopy`, `water` or `walkway`, a rectangle naming an atlas the manifest doesn't declare or running past its image, or a number out of its range fails the page's start with a message naming where.
+A rectangle is `atlas`, `x`, `y`, `width` and `height`, whole pixels of its atlas, at least 1 wide and high. It is scaled to fill where it is drawn, so an atlas may be rendered at any pixels a tile; the art is rendered at 64 px a tile (`TILE_PX` in `art/blender/tileart.py`), the closest zoom. A key the format doesn't name, a missing `ground`, `walkers`, `grass`, `canopy`, `water`, `parks` or `walkway`, a rectangle naming an atlas the manifest doesn't declare or running past its image, or a number out of its range fails the page's start with a message naming where.
 
 ### Cutting an asset into tiles
 
@@ -239,6 +240,58 @@ in `art/painted/raw/water/`.
 - **How far a change reaches.** A tile's water depends on the water of the tiles round it, so a map drawn again in part
   draws again the tiles round each that changed, within `SURFACE_REACH`, and draws it as the map drawn whole.
 
+### The parks
+
+A park is no tile's art: the park woods, the tile ids from `WOODS2` to `WOODS5` (`tileValues.ts`), 40 to 43, whose
+entries in `tiles` let all the grass through, are drawn as the world grass at full lush, from where the map's parks lie,
+with small trees standing on their ninths. The park woods are no woods (The canopy, above), so the canopy never covers a
+park. `art/tools/trees.py` holds the section's constants and cuts the trees from the painting in
+`art/painted/raw/trees/`, and the atlas build packs each tree's crown with the objects and its shadow with the shadows.
+
+```json
+"parks": {
+  "cut": 0.42,
+  "feather": 0.5,
+  "wobble": 0.6,
+  "trees": {
+    "seed": 28673,
+    "leafy": 0.75,
+    "groves": {"octaves": [{"cell": 2.0, "seed": 28675, "weight": 2.2, "turn": [0.819648, 0.572867]}]},
+    "smallest": 0.7,
+    "largest": 1.6,
+    "shadowSpan": 2,
+    "kinds": [{"crown": {"atlas": "objects-0", "x": 1588, "y": 868, "width": 36, "height": 36},
+               "shadow": {"atlas": "shadow-0", "x": 956, "y": 1716, "width": 72, "height": 72}}]
+  }
+}
+```
+
+- **The lush grass.** Over each tile, the parks make a surface as the woods do (The canopy, above), through the tile's
+  own parkness, 1 or 0, its neighbours' at its edges' middles and corners. The share of straw at a point is multiplied
+  by one less the cover clamp((surface + w·`wobble`·4s(1 − s) − `cut`) / `feather` + 0.5, 0, 1), s the surface held
+  from 0 to 1 and w the canopy's wobble from the grass's field, so a park is all lush grass, fading out over its edge into
+  the grass beside it with no square edge. Only the ground quads with a park among the three by three about their tile
+  draw it, in a draw of their own, since software WebGL pays for every line a shader holds at every pixel it draws
+  (The pass, under The walkways, below).
+- **Which ninths hold a tree.** Each ninth of the map's grid of ninths, (x, y), has a chance of a tree, `leafy` moved by
+  the groves' noise at its middle, gradient noise summed over `groves.octaves` by weight on the grass mask's gradients,
+  as an edge's wobble is (The canopy, above), held from 0 to 1; the client bakes it once over the map's grid of ninths.
+  A ninth of a park holds a tree where `latticeHash(x, y, seed)` is under the chance times 2³², so trees gather in groves
+  round open glades, about two ninths in three over the map; never a ninth holding walkway of any kind.
+- **Which tree, how large and where.** h = lowbias32 of the ninth's hash: its lowest byte picks the side of the tree's
+  square, from `smallest` to `largest` ninths, at most 2, its next two bytes where the square's middle lies in the ninth,
+  across and down, and lowbias32(h) modulo the number of `kinds` the kind. The square may reach over the ninths beside
+  its own, but on each side only where the three ninths beside it on that side lie in a park and hold no walkway;
+  elsewhere it is held to its ninth's edge, and then made square again, its side the shorter of what is left, in the
+  middle of it, so a crown held back only shrinks within where it would be, and never covers a ninth holding walkway.
+- **The crown and its shadow.** Each kind's `crown` is drawn into the tree's square in the objects pass, over the
+  paths, and its `shadow`, black whose alpha is its darkness, into the square `shadowSpan` times as wide centred on the
+  crown, in the shadow pass, merged with the other shadows by the darkest value, so it may fall on a path but never on a
+  crown. The atlas build bakes the shadow's fall right and down, away from the sun, and its blur into the image.
+- **How far a change reaches.** A tree's crown reaches at most a ninth past its own and its shadow, `shadowSpan` at most
+  3, at most a tile past its ninth's, so a park's trees change the look of the tiles beside it alone, and a walkway
+  changed on a tile those of the tiles within two of it (`WALKWAY_REACH` in `mapDamage.ts`).
+
 ### The walkways
 
 The walkways are drawn over each tile's ground from the ninths that hold walkway (`GameMap`'s walkway layer, which the
@@ -318,7 +371,8 @@ atlas build (`art/tools/atlas.py`) writes into the manifest as they are.
   carries the footbridges in its ninths and those up and left of them, four by four, and which of those run down, in
   two floats.
 - **How far a change reaches.** A tile's paths depend on the walkways of the tiles beside it, so a map drawn again in
-  part draws again the tile whose walkway changed and those beside it, and draws it as the map drawn whole.
+  part draws again the tile whose walkway changed and those beside it, and the tiles beside those, which the park trees
+  beside it reach into (The parks, above), and draws it as the map drawn whole.
 
 ### Atlases
 
@@ -332,4 +386,5 @@ atlas build (`art/tools/atlas.py`) writes into the manifest as they are.
 A tile id with no entry draws its 16 px tile from `images/tiles.png` as ground, with no shadow and no objects, and a sprite frame with no entry draws from `images/sprites.png`, a 48 px cell per frame, a row per type. `fallbackManifest()` generates these entries from the sheets' layout, and `test/renderManifest.ts` checks they cover every tile id and every frame of every sprite type in the sheet's layout, `SPRITE_SHEET`, which `test/vocabulary.ts` holds to the frames the rules give each type of theirs (`conformance/ruleConstants.json`), every type but the train. The station tiles, 1020 with its track east and west and 1021 north and south, which the original never had, have a plain 16 px tile on the sheet the atlas build starts from (`art/sheets/tiles-original.png`): a single track with a platform along each side, drawn by hand, which the atlas build replaces with the painted double-track station. The atlas build draws the sheet's cell of
 each tile it has art for over a square of the world grass at the grass's mean colour over the map, so bare land's cell,
 and the minimap, which colours each tile by its cell's average, follow the grass; each woods tile's cell as a tile
-of the canopy, whole; and each water tile's cell from its painted tile, of the land and water a shore holds.
+of the canopy, whole; each park's as a tile of the lush grass with trees on two ninths in three and their shadows; and
+each water tile's cell from its painted tile, of the land and water a shore holds.

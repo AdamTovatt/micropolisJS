@@ -23,9 +23,9 @@ import {
 } from "../src/renderManifest";
 import type { CanopyArt } from "../src/renderManifest";
 import { SURFACE_REACH } from "../src/surfaces";
-import { committedGrass, committedSurface, committedWalkway, plainCanopy, plainGrass, plainWalkers, plainWalkway,
-    plainWater } from "./helpers/grassArt";
-import type { CanopyJson, GrassJson, WalkwayJson, WaterJson } from "./helpers/grassArt";
+import { committedGrass, committedParks, committedSurface, committedWalkway, plainCanopy, plainGrass, plainParks,
+    plainWalkers, plainWalkway, plainWater } from "./helpers/grassArt";
+import type { CanopyJson, GrassJson, ParksJson, WalkwayJson, WaterJson } from "./helpers/grassArt";
 import { repositoryJson, repositoryPath } from "./helpers/repository";
 import { tileImageOrigin } from "../src/tileSet";
 import { LTRFBASE, TILE_COUNT } from "../src/tileValues";
@@ -47,7 +47,7 @@ const rect = (x: number, y: number, size = 64) => ({atlas: "zones", x, y, width:
 function manifestJson(tiles: object = {}, sprites: object = {}): Record<string, unknown> {
     return {version: 1, atlases: {zones: "zones.png"}, tiles, sprites, cars: {}, grass: plainGrass(rect(0, 0)),
             canopy: plainCanopy(rect(0, 0)), water: plainWater(rect(0, 0)), walkway: plainWalkway(rect(0, 0)),
-            walkers: plainWalkers(rect(0, 0, 32))};
+            walkers: plainWalkers(rect(0, 0, 32)), parks: plainParks(rect(0, 0, 32))};
 }
 
 describe("the render manifest", () => {
@@ -101,9 +101,10 @@ describe("the render manifest", () => {
 
             const walkers = {dabs: [onSheet]};
             const walkway = {...plain.walkway, deck: {...onSheet, tiles: 3}, stairs: onSheet};
+            const parks = {...plain.parks, trees: {...plain.parks.trees, kinds: [{crown: onSheet, shadow: onSheet}]}};
 
-            expect(() => checkRectsInAtlases({...fallback, walkers, grass, canopy, water, walkway}, SHEET_SIZES))
-                .not.toThrow();
+            expect(() => checkRectsInAtlases({...fallback, walkers, grass, canopy, water, walkway, parks},
+                                             SHEET_SIZES)).not.toThrow();
         });
 
         it("has no sprite cell for a type or frame the sheet lacks", () => {
@@ -507,6 +508,69 @@ describe("the render manifest", () => {
                 const json = committed();
                 change(json);
                 expect(() => parseRenderManifest(withWalkway(json))).toThrow(`Render manifest: ${message}`);
+            });
+        });
+
+        describe("the parks", () => {
+
+            const withParks = (parks: ParksJson) => ({...manifestJson(), parks});
+
+            // The committed manifest's, its trees moved into the test manifest's one atlas
+            const committed = (): ParksJson => {
+                const json = committedParks();
+                return {...json, trees: {...json.trees, kinds: json.trees.kinds.map((kind) => ({
+                    crown: {...(kind.crown as object), atlas: "zones"}, shadow: {...(kind.shadow as object), atlas: "zones"},
+                }))}};
+            };
+
+            it("reads the committed manifest's", () => {
+                const json = committed();
+                const parks = parseRenderManifest(withParks(json)).parks;
+
+                expect(parks).toEqual(json);
+                expect(parks.trees.kinds.length).toBeGreaterThan(1);
+            });
+
+            it("refuses a manifest with none", () => {
+                const json = manifestJson();
+                delete json.parks;
+
+                expect(() => parseRenderManifest(json)).toThrow("Render manifest: the manifest lacks parks");
+            });
+
+            it.each<[string, (json: ParksJson) => void, string]>([
+                ["no feather", (json) => json.feather = 0, "parks.feather is not more than 0"],
+                ["a wobble past the canopy's", (json) => json.wobble = 1.5, "parks.wobble is not from 0 to 1"],
+                ["more than every ninth leafy", (json) => json.trees.leafy = 1.1, "parks.trees.leafy is not from 0 to 1"],
+                ["a seed past 32 bits", (json) => json.trees.seed = 2 ** 32, "parks.trees.seed is past 2 ** 32 - 1"],
+                ["a shadow reaching past the tiles beside", (json) => json.trees.shadowSpan = 4,
+                 "parks.trees.shadowSpan is past 3, so a tree's shadow reaches past the tiles beside it"],
+                ["trees of no size", (json) => json.trees.smallest = 0, "parks.trees.smallest is not more than 0"],
+                ["trees reaching past the ninths beside their own", (json) => json.trees.largest = 2.5,
+                 "parks.trees.largest is not from the smallest to 2, so a crown reaches past the ninths beside its own"],
+                ["the largest tree smaller than the smallest", (json) => json.trees.largest = 0.5,
+                 "parks.trees.largest is not from the smallest to 2"],
+                ["no kind of tree", (json) => json.trees.kinds = [], "parks.trees.kinds is not a list of at least one"],
+                ["a tree with no shadow", (json) => delete json.trees.kinds[0].shadow, "parks.trees.kinds[0] lacks shadow"],
+                ["a crown in no atlas", (json) => json.trees.kinds[1].crown = {...(json.trees.kinds[1].crown as object),
+                                                                               atlas: "other"},
+                 "parks.trees.kinds[1].crown.atlas names no atlas of the manifest's"],
+                ["a key the format doesn't name", (json) => json.lawn = 1, "parks has unknown keys: lawn"],
+            ])("refuses %s, naming where", (_, change, message) => {
+                const json = committed();
+                change(json);
+                expect(() => parseRenderManifest(withParks(json))).toThrow(`Render manifest: ${message}`);
+            });
+
+            it("refuses a tree's crown or shadow that runs past its atlas, naming it", () => {
+                const sizes = new Map([["zones", {width: 100, height: 64}]]);
+                const past = (crown: number, shadow: number) =>
+                    () => checkRectsInAtlases(parseRenderManifest(withParks(plainParks(rect(crown, 0), 0, rect(shadow, 0)))),
+                                              sizes);
+
+                expect(past(64, 0)).toThrow(/^Render manifest: rectangles run past their atlas: tree 0 crown \(zones\)$/);
+                expect(past(0, 64)).toThrow(/^Render manifest: rectangles run past their atlas: tree 0 shadow \(zones\)$/);
+                expect(past(0, 0)).not.toThrow();
             });
         });
     });

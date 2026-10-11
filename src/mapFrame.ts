@@ -19,10 +19,12 @@ import { SPRITE_PIXELS_PER_TILE } from "./paintable";
 import type { PaintableMap, PaintableSprite, PaintableSquare } from "./paintable";
 import { NINTHS_PER_SIDE } from "./protocol";
 import type { Rect } from "./rect";
-import { OWN_SURROUNDS, around, isWoods } from "./surfaces";
+import { OWN_SURROUNDS, around, isPark, isWoods } from "./surfaces";
 import { grassTile } from "./grass";
+import { openParkAround, parkTrees } from "./parkTrees";
+import type { ParkTree } from "./parkTrees";
 import { WHITE } from "./renderManifest";
-import type { AtlasRect, GrassThrough, RenderArt, SurfaceDraw } from "./renderManifest";
+import type { AtlasRect, GrassThrough, RenderArt, SurfaceDraw, TreeArt } from "./renderManifest";
 import { BIT_MASK } from "./tileFlags";
 import { TILE_INVALID } from "./tileValues";
 import { plainRoad } from "./trafficTiles";
@@ -42,9 +44,10 @@ export const QUAD_FLOATS = 12;
 // The floats of a ground quad: a quad's, then the rectangles of its map tile's tile in the world grass's lush and straw
 // sets, in their atlas's pixels (x, y, width, height each), its map tile's position (x, y), what it draws (one of the
 // three below) and the woods round it (around in surfaces.ts), then the rectangle of its tile of the canopy, the
-// rectangle of its tile of the water, and the water round it, then three floats unused, from which the world grass
-// under it, and the canopy and the water over the grass, are drawn (docs/render-assets.md); all zeros for a ground
-// that lets no grass through, and the woods, the water and their tiles' rectangles zeros for one that draws neither
+// rectangle of its tile of the water, the water round it and the parks round it, then two floats unused, from which
+// the world grass under it, the parks' lush grass, and the canopy and the water over the grass, are drawn
+// (docs/render-assets.md); all zeros for a ground that lets no grass through, and the woods, the water, the parks and
+// their tiles' rectangles zeros for one that draws none of them
 export const GROUND_QUAD_FLOATS = 36;
 
 // The floats of a paths quad: where it lands, in device pixels, then the rectangle of its map tile's tile in the world
@@ -151,7 +154,7 @@ export class GroundRun extends Run {
       return;
     }
 
-    const {lush, straw, mapX, mapY, canopy, water} = grass;
+    const {lush, straw, mapX, mapY, canopy, water, parks} = grass;
     rectangle(data, at, lush);
     rectangle(data, at + 4, straw);
     data[at + 8] = mapX;
@@ -160,8 +163,10 @@ export class GroundRun extends Run {
     data[at + 11] = canopy?.woods ?? 0;
     rectangle(data, at + 12, canopy?.tile ?? null);
     rectangle(data, at + 16, water?.tile ?? null);
+    // The surfaces round the tile, the shader's surfacesRound: the water's, then the parks'
     data[at + 20] = water?.water ?? 0;
-    data.fill(0, at + 21, at + GROUND_QUAD_FLOATS - QUAD_FLOATS);
+    data[at + 21] = parks;
+    data.fill(0, at + 22, at + GROUND_QUAD_FLOATS - QUAD_FLOATS);
   }
 }
 
@@ -256,7 +261,8 @@ function drawn(surfaces: GroundSurfaces | null): number {
 }
 
 // The world grass under a map tile: its tile's rectangle in each set, the map tile's position, how much of it the
-// ground lets through, and the canopy and the water over the grass there, or null for none
+// ground lets through, the canopy and the water over the grass there, or null for none, and the parks round it (around
+// in surfaces.ts, the three by three about it alone), whose lush grass it draws, or 0 for none
 export interface GroundSurfaces {
   lush: Rect;
   straw: Rect;
@@ -265,6 +271,7 @@ export interface GroundSurfaces {
   mapY: number;
   canopy: CanopyTile | null;
   water: WaterTile | null;
+  parks: number;
 }
 
 // The paths over a map tile: the walkway round it (walkwaysAround in walkwayDraw.ts), never 0, whether they are
@@ -419,13 +426,16 @@ export class SurfaceShadowList extends RunList<SurfaceShadowRun> {
   }
 }
 
-// The quads of each pass: every tile's ground, over the world grass, and the paths over the tiles with walkway in or
-// round them; every anchor's shadow, and the canopy's and the footbridges' decks' over each tile with woods or decks
-// about it, merged by the darkest; every tile's objects; the overlay's tints, over the objects; then the sprites. With
-// what the world grass is drawn with, and the mip level the frame's zoom samples every grass tile at, whose one size on
-// screen it fixes; null until the frame is first built, when it has no ground either.
+// The quads of each pass: every tile's ground, over the world grass, those with parks about them in a draw of their own,
+// which draws the parks' lush grass, so no other tile pays for it, and the paths over the tiles with walkway in or
+// round them; every anchor's shadow and every park tree's, and the canopy's and the footbridges' decks' over each tile
+// with woods or decks about it, merged by the darkest; every tile's objects and every park tree; the overlay's tints,
+// over the objects; then the sprites. With what the world grass is drawn with, and the mip level the frame's zoom
+// samples every grass tile at, whose one size on screen it fixes; null until the frame is first built, when it has no
+// ground either.
 export class MapFrame {
   readonly ground = new GroundList();
+  readonly parkGround = new GroundList();
   readonly paths = new PathList();
   surfaces: SurfaceDraw | null = null;
   grassLevel = 0;
@@ -442,6 +452,7 @@ export class MapFrame {
 
   clear(): void {
     this.ground.clear();
+    this.parkGround.clear();
     this.paths.clear();
     this.shadows.clear();
     this.surfaceShadows.clear();
@@ -580,6 +591,12 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
       }
 
       const inView = column >= margin && column < width - margin && row >= margin && row < height - margin;
+      // A park's trees, whose crowns and shadows may reach into the view from a tile beside it
+      if (isPark(value & BIT_MASK)) {
+        const trees = parkTrees(tiles.x + column, tiles.y + row, openParkAround(tiles, column, row), art.trees,
+                                art.treeChance);
+        addTrees(frame, art.trees, trees, x, y, tilePixels, reaches);
+      }
       if (!inView || !reaches(x, y, tilePixels, tilePixels)) {
         continue;
       }
@@ -598,9 +615,12 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
         under = {lush: grass.lush.tiles[picked], straw: grass.straw.tiles[picked], mapX, mapY,
                  through: tileArt.grass,
                  canopy: (woods & OWN_SURROUNDS) === 0 ? null : {tile: art.canopyTile(mapX, mapY), woods},
-                 water: water === 0 ? null : {tile: art.waterTile(mapX, mapY), water}};
+                 water: water === 0 ? null : {tile: art.waterTile(mapX, mapY), water},
+                 parks: around(tiles, column, row, isPark) & OWN_SURROUNDS};
       }
-      frame.ground.addGround(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground, under);
+      // A ground with parks about it draws their lush grass, in a draw of its own
+      (under !== null && under.parks !== 0 ? frame.parkGround : frame.ground)
+        .addGround(tileArt.ground.atlas, x, y, tilePixels, tilePixels, tileArt.ground, under);
       // The paths over the ground, in a pass of their own over the parts of the tiles with walkway in or round them
       // they can show on, drawn in the straw's strokes: each keeps within its own ninths, which those round it join it
       // to, but for rounding into the inside of a turn, which at a tile's corner lies in a tile with none of its own
@@ -644,6 +664,29 @@ export function buildMapFrame(frame: MapFrame, art: RenderArt, tiles: FrameTiles
     const rect = spriteArt(art, sprite.type, sprite.frame);
     const {x, y, side} = squareOnView(sprite, tiles, tilePixels);
     frame.sprites.add(rect.atlas, x, y, side, side, rect);
+  }
+}
+
+// Adds the trees given of a park tile whose quad lands at (x, y), tilePixels a side, where each reaches into the areas
+// drawn: its shadow over the square shadowSpan times its crown's side, centred on its crown, and its crown into its
+// square, either of which may reach past the tile
+function addTrees(frame: MapFrame, art: TreeArt, trees: readonly ParkTree[], x: number, y: number, tilePixels: number,
+                  reaches: (x: number, y: number, width: number, height: number) => boolean): void {
+  const ninth = tilePixels / NINTHS_PER_SIDE;
+  for (const tree of trees) {
+    const {crown, shadow} = art.kinds[tree.kind];
+    const side = tree.side * ninth;
+    const treeX = x + tree.x * ninth;
+    const treeY = y + tree.y * ninth;
+    const shadowSide = art.shadowSpan * side;
+    const shadowX = treeX - (shadowSide - side) / 2;
+    const shadowY = treeY - (shadowSide - side) / 2;
+    if (reaches(shadowX, shadowY, shadowSide, shadowSide)) {
+      frame.shadows.add(shadow.atlas, shadowX, shadowY, shadowSide, shadowSide, shadow);
+    }
+    if (reaches(treeX, treeY, side, side)) {
+      frame.objects.add(crown.atlas, treeX, treeY, side, side, crown);
+    }
   }
 }
 

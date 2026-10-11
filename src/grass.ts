@@ -214,6 +214,23 @@ export function edgeWobble(x: number, y: number, edge: EdgeNoise, constants: Pic
   return edgeOn(x, y, edge, constants.mask.gradients, edge.octaves.map((octave) => lattice(octave, x, y, x, y)));
 }
 
+// Noise over the octaves given, on the grass mask's gradients, at the centre of each cell of a grid perTile cells a tile
+// over a map width by height tiles, row by row, each lattice point hashed once
+export function bakeNoise(noise: EdgeNoise, constants: Pick<GrassConstants, "mask">, width: number, height: number,
+                          perTile: number): Float32Array {
+  const columns = width * perTile;
+  const rows = height * perTile;
+  const lattices = noise.octaves.map((octave) => lattice(octave, 0, 0, width, height));
+  const baked = new Float32Array(columns * rows);
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < columns; column++) {
+      baked[row * columns + column] = edgeOn((column + 0.5) / perTile, (row + 0.5) / perTile, noise,
+                                             constants.mask.gradients, lattices);
+    }
+  }
+  return baked;
+}
+
 // The bytes a texel of the baked field: the share of straw, the tint, the canopy's wobble and the shore's
 export const FIELD_BYTES = 4;
 

@@ -72,13 +72,11 @@ def _tile_sets():
         ids = list(ids)
         return {f'{prefix or name}-{k // 4 + 1}': tiles(name, ids[k:k + 4]) for k in range(0, len(ids), 4)}
 
-    parks, rubble, roads = SINGLE_TILES['parks'], SINGLE_TILES['rubble'], SINGLE_TILES['roads']
+    rubble, roads = SINGLE_TILES['rubble'], SINGLE_TILES['roads']
     sets = {}
     sets.update(fours('houses', single_tile_ids('houses')))
     sets.update(fours('land', single_tile_ids('land')))
     sets.update(fours('water', single_tile_ids('water')))
-    sets.update(fours('parks', parks['gardens']))
-    sets['parks-fountain'] = tiles('parks', parks['fountain'])
     sets.update(fours('rubble', rubble['rubble']))
     sets.update(fours('rubble', rubble['explosion'], 'rubble-explosion'))
     sets.update(fours('roads', [*roads['pieces'], *roads['second_road_under_power']]))
@@ -130,7 +128,6 @@ SUBJECTS = [
     ('houses', 'a sheet of small suburban houses, each on its own square plot of land'),
     ('land', 'a square of open grassy land'),
     ('water', 'a river: open water and pieces of its grassy banks'),
-    ('parks', 'small square parks on mown lawns'),
     ('rubble', 'rubble where buildings were knocked down'),
     ('roads', 'pieces of road, with their junctions and bridges, on grassy land'),
     ('power', 'power lines on wooden poles over grassy land and water'),

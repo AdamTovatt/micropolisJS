@@ -13,24 +13,31 @@
  */
 
 import { BIT_MASK } from "./tileFlags";
-import { TILE_INVALID, WOODS_HIGH, WOODS_LOW } from "./tileValues";
+import { TILE_INVALID, WOODS2, WOODS5, WOODS_HIGH, WOODS_LOW } from "./tileValues";
 
-// Where the map's woods and water lie, as the canopy over the world grass and its shadow, and the water and its shore,
-// are drawn from them (docs/render-assets.md): each tile that lets the grass through draws the canopy and the water
-// from the woods and the water of its own and the tiles round it, and each tile with woods about it the canopy's
-// shadow, cast from the canopy up and left of it, toward the sun. Which tiles are water the art says (isWater of
-// RenderArt in renderManifest.ts), since what stands over water, such as a bridge, is drawn as water too.
+// Where the map's woods, parks and water lie, as the canopy over the world grass and its shadow, the parks' lush grass,
+// and the water and its shore, are drawn from them (docs/render-assets.md): each tile that lets the grass through draws
+// the canopy, the parks' lush grass and the water from the woods, the parks and the water of its own and the tiles round
+// it, and each tile with woods about it the canopy's shadow, cast from the canopy up and left of it, toward the sun.
+// Which tiles are water the art says (isWater of RenderArt in renderManifest.ts), since what stands over water, such as
+// a bridge, is drawn as water too.
 
-// The tiles round a tile whose woods and water its look is drawn from, on every side: two, since around reads two
-// tiles up and left of it, the canopy's own three by three about each tile its shadow may be cast from
+// The tiles round a tile whose woods, parks and water its look is drawn from, on every side: two, since around reads
+// two tiles up and left of it, the canopy's own three by three about each tile its shadow may be cast from
 export const SURFACE_REACH = 2;
 
-// The bits of around a tile's canopy and water are drawn from: the three by three about it
+// The bits of around a tile's canopy, lush grass and water are drawn from: the three by three about it
 export const OWN_SURROUNDS = 0b1110_1110_1110_0000;
 
 // Whether a tile id is woods, from which the map draws the canopy
 export function isWoods(id: number): boolean {
   return id >= WOODS_LOW && id <= WOODS_HIGH;
+}
+
+// Whether a tile id is a park, one of the park woods the park tool lays, from which the map draws the parks' lush
+// grass and trees; never woods, so the canopy never covers a park
+export function isPark(id: number): boolean {
+  return id >= WOODS2 && id <= WOODS5;
 }
 
 // Where the tiles the test picks out by id lie round the tile at the column and row of a grid of tile values, width a

@@ -53,6 +53,9 @@ WATER_LOW, WATER_HIGH = RIVER, 20          # the water and its shores, which the
                                            # sheet alone (grass.py)
 WOODS_LOW, WOODS_HIGH = 21, 39             # the woods, which the game draws as the canopy over the world grass, from
                                            # where they lie on the map, not as single tiles (grass.py)
+PARK_LOW, PARK_HIGH = 40, 43               # the park woods, which the game draws as the lush world grass with trees
+                                           # on its ninths, from where they lie on the map, not as single tiles
+                                           # (trees.py)
 HBRIDGE, VBRIDGE, ROADS, ROADS2 = 64, 65, 66, 67
 HPOWER, VPOWER, LHPOWER, LVPOWER = 208, 209, 210, 211
 HRAIL, VRAIL, LHRAIL, LVRAIL = 224, 225, 226, 227
@@ -65,7 +68,6 @@ _ROAD_PIECES = range(HBRIDGE, 79)          # each road piece: the bridges, roads
 SINGLE_TILES = {
     'land': {'land': (DIRT,)},
     'water': {'water': range(RIVER, 21)},                  # open water and the river's shores
-    'parks': {'gardens': range(40, 44), 'fountain': (840,)},
     'rubble': {'rubble': range(44, 48), 'explosion': range(860, 868)},   # the bulldozer's small explosion
     'roads': {
         'pieces': _ROAD_PIECES,
@@ -92,10 +94,6 @@ OVER_SHADOWS = set(SINGLE_TILES['power']['unpowered'])
 NOT_JOINED = {
     # each house stands on its own lawn, which no donor paints
     *SINGLE_TILES['houses']['houses'],
-    # the fountain stands on its own lawn, which no donor paints. Its built layers are its painting's record: its
-    # paint job was laid out with the fountain's retired frames 841 to 843 beside it, whose renders
-    # art/blender/tiles/parks.py no longer makes, so the job cannot be built again as it was painted
-    *SINGLE_TILES['parks']['fountain'],
 }
 
 

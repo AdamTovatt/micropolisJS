@@ -15,18 +15,22 @@
 namespace Micropolis.Rules
 {
     /// <summary>
-    /// The park tool, as the original's <c>putDownPark</c>: woods or, one time in five, a
-    /// fountain, on plain dirt.
+    /// The park tool, as the original's <c>putDownPark</c>, on plain dirt: one of the four park woods. The original lays
+    /// a fountain one time in five, which this rule changes on purpose: the fifth number lays the first park woods, so
+    /// the tool draws from the stream as often as before.
     /// </summary>
     internal sealed class ParkTool : CityTool, IErasedTile
     {
+        // The park woods, WOODS2 to WOODS5
+        private const int ParkWoods = TileValues.WOODS5 - TileValues.WOODS2 + 1;
+
         public ParkTool(GameMap map)
             : base(10, map)
         {
         }
 
         /// <summary>
-        /// Bare land, where the tile is a park's woods or fountain, which erasing the park leaves; or null for any other
+        /// Bare land, where the tile is a park's woods, which erasing the park leaves; or null for any other
         /// tile, the wild woods among them.
         /// </summary>
         public Piece? PieceLeft(int tileValue)
@@ -47,14 +51,7 @@ namespace Micropolis.Rules
                 return;
             }
 
-            if (value == 4)
-            {
-                WorldEffects.SetTile(x, y, TileValues.FOUNTAIN, TileFlags.BLBNBIT | TileFlags.ANIMBIT);
-            }
-            else
-            {
-                WorldEffects.SetTile(x, y, value + TileValues.WOODS2, TileFlags.BLBNBIT);
-            }
+            WorldEffects.SetTile(x, y, value % ParkWoods + TileValues.WOODS2, TileFlags.BLBNBIT);
 
             AddCost(ToolCost);
             Result = Outcome.Ok;
