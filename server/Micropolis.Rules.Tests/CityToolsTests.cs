@@ -96,6 +96,32 @@ namespace Micropolis.Rules.Tests
             Assert.AreEqual(TileValues.DIRT | TileFlags.BULLBIT, map.GetTile(10, 10).GetRawValue());
         }
 
+        // Each park draws one number from 0 to 4 and lays the park woods it picks, the fifth the first, never a fountain,
+        // so a row of parks lays from a stream what that stream's draws pick, and leaves the stream past them all
+        [TestMethod]
+        public void ParkTool_EachPark_DrawsOnceAndLaysParkWoods()
+        {
+            const int ParkWoods = TileValues.WOODS5 - TileValues.WOODS2 + 1;
+            GameMap map = new GameMap(120, 100);
+            RandomStream random = RandomStream.SimulationStream(7);
+            RandomStream draws = RandomStream.SimulationStream(7);
+            CityTool park = CityTools.Create(map)[ToolName.Park];
+            HashSet<int> drawn = new HashSet<int>();
+
+            for (int x = 0; x < 100; x++)
+            {
+                park.Apply(x, 10, random, false);
+                park.ModifyIfEnoughFunding(new Budget { TotalFunds = 20000 });
+                int value = draws.GetRandom(4);
+                drawn.Add(value);
+
+                Assert.AreEqual(TileValues.WOODS2 + value % ParkWoods | TileFlags.BLBNBIT, map.GetTile(x, 10).GetRawValue());
+            }
+
+            CollectionAssert.AreEquivalent(new[] { 0, 1, 2, 3, 4 }, drawn.ToArray());
+            Assert.AreEqual(draws.GetRandom16(), random.GetRandom16());
+        }
+
         // The residential zone on (51, 49) to (53, 51), with rubble on its first tile scanned and water on its last: the
         // water decides, with auto-bulldoze or without. A tool that fails drops what it staged, so the map and funds
         // are left as they were whatever the outcome.

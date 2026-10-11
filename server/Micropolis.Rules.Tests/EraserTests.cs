@@ -187,7 +187,7 @@ namespace Micropolis.Rules.Tests
         // A park's eraser leaves bare land, which keeps the path on it, and a station's the track it stood on
         [TestMethod]
         [DataRow(ToolName.Park, WOODS3, DIRT)]
-        [DataRow(ToolName.Park, FOUNTAIN, DIRT)]
+        [DataRow(ToolName.Park, WOODS5, DIRT)]
         [DataRow(ToolName.Station, HRAILSTATION, LHRAIL)]
         public void Erase_ParkOrStation_LeavesWhatItWasPutDownOn(ToolName tool, int before, int after)
         {

@@ -136,8 +136,8 @@ namespace Micropolis.Rules
         }
 
         /// <summary>
-        /// Whether a tile of the value is open land, which people walk across without a path: bare land or a park, its
-        /// trees or its fountain, as the park tool lays them. The wild woods are not, nor anything else.
+        /// Whether a tile of the value is open land, which people walk across without a path: bare land or a park, the
+        /// park woods the park tool lays. The wild woods are not, nor anything else.
         /// </summary>
         public static bool IsOpenLand(int tileValue)
         {

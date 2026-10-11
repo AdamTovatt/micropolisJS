@@ -21,7 +21,7 @@ import { carriageway, kindAt, kindNumber, locateNinth, track } from "./walkwayVa
 // parks and grey paving on road and rail, and on a road's carriageway a crossing's stripes.
 
 // The walkway values of a grid of tiles, width a row
-interface WalkwayGrid {
+export interface WalkwayGrid {
   width: number;
   height: number;
   walkways: readonly number[];
@@ -44,8 +44,26 @@ function kindOnGrid(tiles: WalkwayGrid, nx: number, ny: number): {kind: number, 
 // (n / 3 + 1) * 5 + n % 3 + 1; the shaders read them back in walkwayAt
 export const WINDOW = NINTHS_PER_SIDE + 2;
 
-function windowBit(wx: number, wy: number): number {
+export function windowBit(wx: number, wy: number): number {
   return wy * WINDOW + wx;
+}
+
+// The window round the tile at the column and row of a grid of walkway values, laid out as WINDOW says, a bit for each
+// ninth that holds as the test given finds from the kind on it, numbered as kindNumber numbers it, its tile's index in
+// the grid and which of that tile's ninths it is. A ninth past the grid's edge never holds.
+export function ninthWindow(tiles: WalkwayGrid, column: number, row: number,
+                            holds: (kind: number, index: number, n: number) => boolean): number {
+  let bits = 0;
+  for (let wy = 0; wy < WINDOW; wy++) {
+    for (let wx = 0; wx < WINDOW; wx++) {
+      // The ninth's place on the grid of ninths, from the tile's top-left ninth
+      const {kind, index, n} = kindOnGrid(tiles, column * NINTHS_PER_SIDE + wx - 1, row * NINTHS_PER_SIDE + wy - 1);
+      if (index >= 0 && holds(kind, index, n)) {
+        bits |= 1 << windowBit(wx, wy);
+      }
+    }
+  }
+  return bits;
 }
 
 // The window of walkway round the tile at the column and row of a grid of walkway values: the tile's own ninths and
@@ -60,20 +78,7 @@ export function walkwaysAround(tiles: WalkwayGrid, column: number, row: number):
       near ||= walkways[y * width + x] !== 0;
     }
   }
-  if (!near) {
-    return 0;
-  }
-
-  let bits = 0;
-  for (let wy = 0; wy < WINDOW; wy++) {
-    for (let wx = 0; wx < WINDOW; wx++) {
-      // The ninth's place on the grid of ninths, from the tile's top-left ninth
-      if (kindOnGrid(tiles, column * NINTHS_PER_SIDE + wx - 1, row * NINTHS_PER_SIDE + wy - 1).kind !== 0) {
-        bits |= 1 << windowBit(wx, wy);
-      }
-    }
-  }
-  return bits;
+  return near ? ninthWindow(tiles, column, row, (kind) => kind !== 0) : 0;
 }
 
 // Whether a path on a tile of the id is grey paving, as on a road or rail, a bridge or a tunnel; elsewhere, on open land

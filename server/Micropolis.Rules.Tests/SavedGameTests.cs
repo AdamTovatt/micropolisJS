@@ -72,9 +72,9 @@ namespace Micropolis.Rules.Tests
         [TestMethod]
         [DataRow("an older version", "4", "The save's version is 4, older than version 5")]
         [DataRow("the first version", "1", "The save's version is 1, older than version 5")]
-        [DataRow("a newer version", "18", "The save's version is 18, newer than version 17")]
+        [DataRow("a newer version", "19", "The save's version is 19, newer than version 18")]
         [DataRow("a negative version", "-3", "The save's version is -3, older than version 5")]
-        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 17")]
+        [DataRow("a version JavaScript writes with an exponent", "1e21", "The save's version is 1e+21, newer than version 18")]
         [DataRow("a version that is not whole", "5.5", "The save's version must be a whole number, not 5.5")]
         [DataRow("a version that is text", "\"5\"", "The save's version must be a whole number, not a string.")]
         [DataRow("a version that is a list", "[5]", "The save's version must be a whole number, not a list.")]
@@ -295,6 +295,46 @@ namespace Micropolis.Rules.Tests
                 Assert.HasCount(city.Map.Width * city.Map.Height, load);
                 Assert.AreEqual(0, load.Count(value => value != 0));
             }
+        }
+
+        // The step from version 17 turns each fountain, whatever its flags, into the first park woods as the park tool
+        // lays it, and leaves every other tile as it was
+        [TestMethod]
+        public void Load_Version17_TurnsFountainsIntoParkWoods()
+        {
+            const int Fountain = TileValues.FOUNTAIN | TileFlags.BLBNBIT | TileFlags.ANIMBIT;
+            // The index of the tile at (x, y) among the saved tiles, row by row on a map 120 wide
+            static int At(int x, int y) => y * 120 + x;
+            string text = Edited("version17.json", savedGame =>
+            {
+                JsonArray tiles = savedGame["map"]!["tiles"]!.AsArray();
+                tiles[At(0, 0)] = Fountain;
+                tiles[At(1, 1)] = TileValues.FOUNTAIN;
+                tiles[At(2, 2)] = TileValues.WOODS4 | TileFlags.BLBNBIT;
+            });
+            int[] before = JsonText.Parse(text)!["map"]!["tiles"]!.AsArray().Select(raw => (int)raw!.GetValue<double>()).ToArray();
+
+            Simulation city = SavedGame.Load(text, out _);
+
+            int[] after = Enumerable.Range(0, before.Length).Select(i => city.Map.GetTile(i % city.Map.Width, i / city.Map.Width).GetRawValue()).ToArray();
+            Assert.AreEqual((TileValues.WOODS2 | TileFlags.BLBNBIT, TileValues.WOODS2 | TileFlags.BLBNBIT),
+                            (after[At(0, 0)], after[At(1, 1)]));
+            Assert.AreEqual(before.Length - 2, before.Zip(after).Count(pair => pair.First == pair.Second));
+            Assert.AreEqual(TileValues.WOODS4 | TileFlags.BLBNBIT, after[At(2, 2)]);
+        }
+
+        // The step from version 17 leaves a tile that is no raw value where it was, for the load to refuse, naming it
+        [TestMethod]
+        [DataRow("65536")]
+        [DataRow("840.5")]
+        [DataRow("\"840\"")]
+        public void Load_Version17TileThatIsNoRawValue_IsRefusedNamingIt(string tile)
+        {
+            string text = Edited("version17.json", savedGame => savedGame["map"]!["tiles"]![3] = JsonText.Parse(tile));
+
+            SaveFormatException exception = Assert.Throws<SaveFormatException>(() => SavedGame.Load(text, out _));
+
+            Assert.AreEqual("map.tiles[3]", exception.Path, exception.Message);
         }
 
         // The step from version 14 splits each tile's rail load evenly between its two ways, an odd rider the north or

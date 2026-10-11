@@ -15,7 +15,7 @@
 import { Page } from "@playwright/test";
 
 import { TILE_COUNT } from "../src/tileValues";
-import { plainCanopy, plainGrass, plainWalkers, plainWalkway, plainWater } from "../test/helpers/grassArt";
+import { plainCanopy, plainGrass, plainParks, plainWalkers, plainWalkway, plainWater } from "../test/helpers/grassArt";
 import { png } from "./png";
 
 // Rendered art made for a test, served in place of images/render/, so what the map draws is known pixel for pixel
@@ -33,13 +33,15 @@ export type TestManifest = {
   sprites: Record<string, object>;
   cars: Record<string, object>;
   walkers?: object;
+  parks?: object;
 } & ({grass: object, canopy: object, water: object, walkway: object} |
      {grass?: never, canopy?: never, water?: never, walkway?: never});
 
 // Serves the render manifest, and each atlas image under its path, relative to the manifest, beside an atlas of one
 // green of its own. A manifest without the world grass, canopy, water and walkways every manifest has is served with
 // the plainest, of that green, which no tile shows unless the manifest has a tile let the grass through, and walkways
-// of black; and one without walkers with walkers of one dab, that green all over.
+// of black; one without walkers with walkers of one figure, that green all over for either axis; and one without
+// parks with parks of no trees.
 export async function serveTestArt(page: Page, manifest: TestManifest, atlases: Record<string, Buffer>): Promise<void> {
   const plain = {atlas: PLAIN_GRASS_ATLAS, x: 0, y: 0, width: 16, height: 16};
   const surfaces = manifest.grass !== undefined ? {} : {
@@ -48,6 +50,7 @@ export async function serveTestArt(page: Page, manifest: TestManifest, atlases: 
   };
   const served = {
     manifest: {...manifest, ...surfaces, walkers: manifest.walkers ?? plainWalkers(plain),
+               parks: manifest.parks ?? plainParks(plain),
                atlases: {...manifest.atlases, [PLAIN_GRASS_ATLAS]: PLAIN_GRASS_PATH}},
     atlases: {...atlases, [PLAIN_GRASS_PATH]: solidAtlas([0, 128, 0, 255])},
   };

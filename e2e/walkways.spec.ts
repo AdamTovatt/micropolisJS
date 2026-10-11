@@ -50,7 +50,7 @@ const STAIRS: [number, number, number] = [40, 30, 70];
 
 const server = serverForTests("manual");
 
-// Three 16 pixel squares: blue, clear, then white, the walkers' dab
+// Three 16 pixel squares: blue, clear, then white, the walkers' figure
 function atlas(): Buffer {
   const pixels: number[] = [];
   for (let y = 0; y < 16; y++) {
@@ -333,7 +333,7 @@ test("the wobble eats into a path's edge, but never grows it nor reaches its mid
   expect([...problems, ...secondProblems]).toEqual([]);
 });
 
-test("a walker shows as its dab tinted its colour at the middle of each ninth of its walk in turn", async ({page}) => {
+test("a walker shows as its figure tinted its colour at the middle of each ninth of its walk in turn", async ({page}) => {
   const problems = collectPageProblems(page);
   // The clock stands still, so the walker stands where it is until the clock moves on
   const start = Date.UTC(2026, 0, 1);

@@ -184,8 +184,10 @@ float coverOf(float surface, float wobble, float cut, float feather) {
 // The ground pass's vertex shader: the textured one's, and from the quad's floats past the colour, the rectangles of
 // its tile in each grass set, its map tile's position, what it draws, the woods round it, its canopy tile's rectangle,
 // its water tile's rectangle and the water round it, for the world grass under the ground and the canopy and the water
-// over the grass, and the patches over its tile
-const GROUND_VERTEX_SHADER = `#version 300 es
+// over the grass, and the patches over its tile; and for the draw of the grounds with parks about them, the parks round
+// it and their patch, for the parks' lush grass
+function groundVertexShader(parks: boolean): string {
+  return `#version 300 es
 layout(location = 0) in vec2 corner;
 layout(location = 1) in vec4 target;
 layout(location = 2) in vec4 source;
@@ -194,7 +196,8 @@ layout(location = 5) in vec4 straw;
 layout(location = 6) in vec4 tile;
 layout(location = 7) in vec4 canopy;
 layout(location = 8) in vec4 waterTile;
-layout(location = 9) in vec4 waterRound;
+// The surfaces round the tile, as bits of the tiles about it (surfaces.ts): x the water's, y the parks', z and w unused
+layout(location = 9) in vec4 surfacesRound;
 uniform vec2 targetSize;
 uniform vec2 atlasSize;
 uniform vec2 grassSize;
@@ -216,7 +219,10 @@ flat out vec3 controlBottom;
 flat out vec3 waterTop;
 flat out vec3 waterMiddle;
 flat out vec3 waterBottom;
-${THROUGH_MIDDLE}${SURFACE_PATCH}
+${parks ? `flat out vec3 parkTop;
+flat out vec3 parkMiddle;
+flat out vec3 parkBottom;
+` : ""}${THROUGH_MIDDLE}${SURFACE_PATCH}
 void main() {
   vec2 position = (target.xy + corner * target.zw) / targetSize * 2.0 - 1.0;
   gl_Position = vec4(position.x, -position.y, 0.0, 1.0);
@@ -229,10 +235,11 @@ void main() {
   inTile = corner;
   draws = int(tile.z + 0.5);
   woods = int(tile.w + 0.5);
-  water = int(waterRound.x + 0.5);
+  water = int(surfacesRound.x + 0.5);
   patchOf(woods, 0, 0, controlTop, controlMiddle, controlBottom);
   patchOf(water, 0, 0, waterTop, waterMiddle, waterBottom);
-}`;
+${parks ? "  patchOf(int(surfacesRound.y + 0.5), 0, 0, parkTop, parkMiddle, parkBottom);\n" : ""}}`;
+}
 
 // Each tile's ground, over the world grass where it lets the grass through (docs/render-assets.md): the two sets'
 // texels blended by the share of straw, keeping their contrast, then tinted. What a quad draws is one value over all of
@@ -243,8 +250,12 @@ void main() {
 // the feather; then the sand, the straw's strokes in the sand's colour, and the water over that, where the water's
 // surface stands above the sand's cut and the water's. Where one covers all, nothing under it is sampled. The paths are
 // no part of it: software WebGL pays for every line a shader holds at every pixel, whatever branch it takes, so they
-// are drawn in a pass of their own over the tiles that have them (PATHS_SHADER).
-const GROUND_SHADER = `#version 300 es
+// are drawn in a pass of their own over the tiles that have them (PATHS_SHADER). For the same reason the parks' lush
+// grass is drawn only by the draw of the grounds with parks about them: there, the share of straw falls to none as far
+// as the parks' surface, wobbled by the canopy's wobble, covers the land, so a park is all lush grass, fading out over
+// its edge.
+function groundShader(parks: boolean): string {
+  return `#version 300 es
 precision highp float;
 uniform sampler2D atlas;
 uniform sampler2D grass;
@@ -278,12 +289,20 @@ flat in vec3 controlBottom;
 flat in vec3 waterTop;
 flat in vec3 waterMiddle;
 flat in vec3 waterBottom;
-out vec4 colour;
+${parks ? `uniform float parkCut;
+uniform float parkFeather;
+uniform float parkWobble;
+flat in vec3 parkTop;
+flat in vec3 parkMiddle;
+flat in vec3 parkBottom;
+` : ""}out vec4 colour;
 ${SURFACE_COVER}
 // The grass at the pixel, the two sets mixed by the share of straw and tinted, under as much of the canopy as covers it
 vec3 grassAt(vec4 mixed) {
   float share = mixed.r;
-  float tint = mixed.g;
+${parks ? `  share *= 1.0 - coverOf(patchAt(parkTop, parkMiddle, parkBottom, inTile), (mixed.b * 2.0 - 1.0) * parkWobble,
+                         parkCut, parkFeather);
+` : ""}  float tint = mixed.g;
   // How much of the grass the canopy covers
   float cover = 0.0;
   if (woods != 0) {
@@ -353,6 +372,7 @@ void main() {
   vec3 surface = wet > 0.0 ? mix(land, textureLod(grass, waterUv, level).rgb, wet) : land;
   colour = vec4(ground.rgb + surface * (1.0 - ground.a), 1.0);
 }`;
+}
 
 // The paths pass's vertex shader: from the quad's floats, where its map tile lands, the map tile's tile in the world
 // grass's straw set, the map tile's position, the walkway round it in two floats, its paths' looks and the part of the
@@ -703,6 +723,10 @@ interface GroundProgram extends Program {
   brightness: WebGLUniformLocation | null;
   warmth: WebGLUniformLocation | null;
   level: WebGLUniformLocation | null;
+  // The parks' lush grass's, null in the program of the grounds with no parks about them
+  parkCut: WebGLUniformLocation | null;
+  parkFeather: WebGLUniformLocation | null;
+  parkWobble: WebGLUniformLocation | null;
 }
 
 // The paths pass's program, and the uniforms it draws the paths with
@@ -755,6 +779,7 @@ interface Drawable {
 // What the context holds, built again when a lost context is restored
 interface Resources {
   ground: GroundProgram;
+  parkGround: GroundProgram;
   paths: PathsProgram;
   textured: Program;
   shadow: Program;
@@ -846,7 +871,7 @@ export class WebGLRenderer {
     const resources = this.resources;
     this.resources = null;
     if (resources !== null) {
-      for (const program of [resources.ground, resources.paths, resources.textured, resources.shadow,
+      for (const program of [resources.ground, resources.parkGround, resources.paths, resources.textured, resources.shadow,
                              resources.surfaceShadow, resources.composite]) {
         gl.deleteProgram(program.program);
       }
@@ -1038,7 +1063,8 @@ export class WebGLRenderer {
       composite.add(0, 0, target.width, target.height, NO_SOURCE, 1, 1, 1, 1);
     }
 
-    const runs: Run[] = [...frame.ground.runs, ...frame.paths.runs, ...frame.surfaceShadows.runs,
+    const runs: Run[] = [...frame.ground.runs, ...frame.parkGround.runs, ...frame.paths.runs,
+      ...frame.surfaceShadows.runs,
       ...[frame.shadows, frame.objects, frame.tints, frame.sprites].flatMap((list) => list.runs),
       ...(composite.count > 0 ? [composite] : [])];
     const firsts = new Map<Run, number>();
@@ -1117,24 +1143,29 @@ export class WebGLRenderer {
     this.drawList(resources, resources.textured, frame.sprites, target, firsts);
   }
 
-  // Draws every tile's ground, each over the world grass where it lets the grass through
+  // Draws every tile's ground, each over the world grass where it lets the grass through, and those with parks about
+  // them, over the parks' lush grass, in a draw of their own
   private drawGround(resources: Resources, frame: MapFrame, target: Target,
                      firsts: ReadonlyMap<Run, number>): void {
-    if (frame.surfaces === null) {
+    const surfaces = frame.surfaces;
+    if (surfaces === null) {
       // A frame never built, which has no ground
       return;
     }
 
     const gl = this.gl;
-    const program = resources.ground;
-    gl.useProgram(program.program);
-    this.bindSurfaces(resources, program, frame.surfaces, frame.grassLevel);
-
     for (let attribute = QUAD_ATTRIBUTES + 1; attribute <= GROUND_ATTRIBUTES; attribute++) {
       gl.enableVertexAttribArray(attribute);
     }
     try {
-      this.drawList(resources, program, frame.ground, target, firsts);
+      for (const [program, list] of [[resources.ground, frame.ground], [resources.parkGround, frame.parkGround]] as const) {
+        if (list.count === 0) {
+          continue;
+        }
+        gl.useProgram(program.program);
+        this.bindSurfaces(resources, program, surfaces, frame.grassLevel);
+        this.drawList(resources, program, list, target, firsts);
+      }
     } finally {
       for (let attribute = QUAD_ATTRIBUTES + 1; attribute <= GROUND_ATTRIBUTES; attribute++) {
         gl.disableVertexAttribArray(attribute);
@@ -1169,6 +1200,9 @@ export class WebGLRenderer {
     gl.uniform3f(program.sandMean, ...surfaces.sand.mean);
     gl.uniform1f(program.sandContrast, surfaces.sand.contrast);
     gl.uniform1f(program.level, level);
+    gl.uniform1f(program.parkCut, surfaces.parkCut);
+    gl.uniform1f(program.parkFeather, surfaces.parkFeather);
+    gl.uniform1f(program.parkWobble, surfaces.parkWobble);
   }
 
   // Draws the paths of every tile with walkway in or round it over its ground, blended by how much of it they cover,
@@ -1330,7 +1364,8 @@ export class WebGLRenderer {
     textures.set(WHITE, this.uploadWhite());
 
     return {
-      ground: this.createGroundProgram(),
+      ground: this.createGroundProgram(false),
+      parkGround: this.createGroundProgram(true),
       paths: this.createPathsProgram(),
       textured: this.createProgram(TEXTURED_SHADER),
       shadow: this.createProgram(SHADOW_SHADER),
@@ -1404,9 +1439,10 @@ export class WebGLRenderer {
     return framebuffer;
   }
 
-  private createGroundProgram(): GroundProgram {
+  // The ground pass's program, for the grounds with parks about them or for the rest
+  private createGroundProgram(parks: boolean): GroundProgram {
     const gl = this.gl;
-    const created = this.createProgram(GROUND_SHADER, GROUND_VERTEX_SHADER);
+    const created = this.createProgram(groundShader(parks), groundVertexShader(parks));
     const program = created.program;
     // The surfaces' atlas and their field on their units, beside the ground's atlas on 0
     gl.uniform1i(gl.getUniformLocation(program, "grass"), GRASS_UNIT);
@@ -1429,6 +1465,9 @@ export class WebGLRenderer {
       brightness: location("brightness"),
       warmth: location("warmth"),
       level: location("level"),
+      parkCut: location("parkCut"),
+      parkFeather: location("parkFeather"),
+      parkWobble: location("parkWobble"),
     };
   }
 

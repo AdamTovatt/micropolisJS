@@ -23,7 +23,7 @@ import { RenderArt, parseRenderManifest } from "../src/renderManifest";
 import { SURFACE_REACH } from "../src/surfaces";
 import { ANIMBIT, ZONEBIT } from "../src/tileFlags";
 import { FIRE, LIGHTNINGBOLT } from "../src/tileValues";
-import { plainCanopy, plainGrass, plainWalkers, plainWalkway, plainWater } from "./helpers/grassArt";
+import { plainCanopy, plainGrass, plainParks, plainWalkers, plainWalkway, plainWater } from "./helpers/grassArt";
 
 // Tile 5 casts a shadow reaching a tile left and a tile down, so the farthest shadow reaches one tile
 const ZONE = 5;
@@ -43,6 +43,7 @@ const art = new RenderArt(parseRenderManifest({
     water: plainWater({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     walkway: plainWalkway({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
     walkers: plainWalkers({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
+    parks: plainParks({atlas: "ground", x: 0, y: 0, width: 64, height: 64}),
 }));
 
 const MAP_WIDTH = 40;

@@ -259,8 +259,8 @@ namespace Micropolis.Rules
         public const int RADAR6 = 838;
         public const int RADAR7 = 839;
         public const int FOUNTAIN = 840;
-        // tile 841 -- 843: the original's fountain animation, which the client never draws: the park tool lays only
-        // 840.
+        // tile 841 -- 843: the original's fountain animation. No rule lays a fountain: the park tool lays only park
+        // woods, and a save of a version before 18 has its fountains turned into park woods as it loads.
         public const int INDBASE2 = 844;
         public const int TELEBASE = 844;
         // tile 845 -- 850 ?

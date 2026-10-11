@@ -15,8 +15,10 @@
 import { createHash } from "crypto";
 
 import {
-    GRASS_MAP, bakeGrassField, edgeWobble, grassFieldPixels, grassTile, grassTint, latticeHash, lowbias32, strawShare,
+    GRASS_MAP, bakeGrassField, bakeNoise, edgeWobble, grassFieldPixels, grassTile, grassTint, latticeHash, lowbias32,
+    strawShare,
 } from "../src/grass";
+import { NINTHS_PER_SIDE } from "../src/protocol";
 import { parseRenderManifest } from "../src/renderManifest";
 import { repositoryJson } from "./helpers/repository";
 
@@ -33,7 +35,7 @@ interface Vectors {
 }
 
 const vectors = repositoryJson<Vectors>("conformance/grass.json");
-const {grass, canopy, water} = parseRenderManifest(repositoryJson("images/render/manifest.json"));
+const {grass, canopy, water, parks} = parseRenderManifest(repositoryJson("images/render/manifest.json"));
 const {width: WIDTH, height: HEIGHT} = GRASS_MAP;
 
 describe("the world grass", () => {
@@ -63,6 +65,22 @@ describe("the world grass", () => {
         const k = grass.constants.texelsPerTile;
         expect([WIDTH * k, HEIGHT * k]).toEqual([vectors.field.width, vectors.field.height]);
         expect(createHash("sha256").update(field).digest("hex")).toBe(vectors.field.sha256);
+    });
+
+    it("bakes the groves' noise at the middle of each ninth of the map, row by row, as it is unbaked there", () => {
+        const groves = parks.trees.groves;
+        const columns = WIDTH * NINTHS_PER_SIDE;
+        const baked = bakeNoise(groves, grass.constants, WIDTH, HEIGHT, NINTHS_PER_SIDE);
+
+        expect(baked.length).toBe(columns * HEIGHT * NINTHS_PER_SIDE);
+        // The corners of the grid of ninths and ninths within tiles, off their tiles' corners and middles
+        const ninths = [[0, 0], [columns - 1, 0], [0, HEIGHT * NINTHS_PER_SIDE - 1],
+                        [columns - 1, HEIGHT * NINTHS_PER_SIDE - 1], [7, 2], [100, 251], [301, 64]];
+        for (const [nx, ny] of ninths) {
+            expect(baked[ny * columns + nx]).toBe(Math.fround(edgeWobble((nx + 0.5) / NINTHS_PER_SIDE,
+                                                                         (ny + 0.5) / NINTHS_PER_SIDE, groves,
+                                                                         grass.constants)));
+        }
     });
 
     it("packs the field into the texture's red, the share, green, the tint, blue, the canopy's wobble, and alpha, the " +

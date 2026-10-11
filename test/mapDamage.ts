@@ -84,11 +84,18 @@ describe("the record of the map's layer drawn last", () => {
         expect(recorded().damage(view, changed)).toEqual([{x: 0, y: 0, width: 16, height: 8}]);
     });
 
-    it("draws again only the block of a tile whose walkway changed, when the tiles beside it lie in it too", () => {
+    it("draws again only the block of a tile whose walkway changed, when the tiles within two of it lie in it too", () => {
         const changed = area();
         (changed.walkways as number[])[(3 + 1) * (VIEW_WIDTH + 2) + 10 + 1] = 1 << 8;
 
         expect(recorded().damage(view, changed)).toEqual([{x: 8, y: 0, width: 8, height: 8}]);
+    });
+
+    it("draws again the blocks two tiles from a tile whose walkway changed, which park trees beside it reach into", () => {
+        const changed = area();
+        (changed.walkways as number[])[(3 + 1) * (VIEW_WIDTH + 2) + 14 + 1] = 1 << 8;
+
+        expect(recorded().damage(view, changed)).toEqual([{x: 8, y: 0, width: 12, height: 8}]);
     });
 
     it("draws again only the block of a tile whose frame alone changed, which changes no shadow", () => {
